@@ -1,90 +1,92 @@
-use crate::sound::soundchunk::SoundChunk;
+use crate::sound::soundinput::SoundInputId;
+use crate::sound::soundsource::{SoundSource, SoundSourceId};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
+use std::rc::{Rc, Weak};
 
-#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash)]
-pub struct SoundSourceId {
-    id: usize,
+enum NodeId {
+    SoundInputId(SoundInputId),
+    SoundSourceId(SoundSourceId),
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Hash)]
-pub struct SoundInputId {
-    id: usize,
+struct SoundGraphData {
+    sound_sources: HashMap<SoundSourceId, Box<dyn SoundSource>>,
+    next_id: usize,
 }
 
-pub trait SoundSource {
-    fn get_next_chunk(&self, context: &SoundContext, chunk: &mut SoundChunk);
-    fn inputs(&self) -> Vec<SoundInputId>;
-    fn id(&self) -> SoundSourceId;
-}
-
-pub struct SoundInput {
-    target_id: Option<SoundSourceId>,
-    own_id: SoundInputId,
-}
-
-impl SoundInput {
-    pub fn new(parent_sound_source: &dyn SoundSource, graph: &mut SoundGraph) -> SoundInput {
-        SoundInput {
-            target_id: None,
-            own_id: graph.next_sound_input_id(),
-        }
-    }
-    pub fn get_next_chunk(&self, context: &SoundContext, chunk: &mut SoundChunk) {
-        match &self.target_id {
-            Some(ssi) => context.graph().get(*ssi).get_next_chunk(context, chunk),
-            _ => chunk.silence(),
-        }
-    }
-    pub fn connect(&mut self, target: SoundSourceId, graph: &SoundGraph) {}
-    pub fn disconnect(&mut self) {}
-    pub fn source(&self) -> Option<SoundSourceId> {
-        self.target_id.clone()
-    }
-}
-
-pub struct SoundGraph {
-    nodes: HashMap<SoundSourceId, Box<dyn SoundSource>>,
-    next_ss_id: SoundSourceId,
-    next_si_id: SoundInputId,
-}
-
-impl SoundGraph {
-    pub fn new() -> SoundGraph {
-        SoundGraph {
-            nodes: HashMap::new(),
-            next_ss_id: SoundSourceId { id: 0 },
-            next_si_id: SoundInputId { id: 0 },
+impl SoundGraphData {
+    pub fn new() -> SoundGraphData {
+        SoundGraphData {
+            sound_sources: HashMap::new(),
+            next_id: 0,
         }
     }
 
-    pub fn add(&mut self, node: Box<dyn SoundSource>) -> SoundSourceId {
-        let id = self.next_sound_source_id();
-        self.nodes.insert(id, node);
-        // TODO: register all sound inputs
-        id
+    pub fn sound_source(&self, ss_id: SoundSourceId) -> &dyn SoundSource {
+        match self.sound_sources.get(&ss_id) {
+            Some(&b) => &*b,
+            None => panic!(),
+        }
     }
 
-    pub fn get(&self, sound_source_id: SoundSourceId) -> &dyn SoundSource {
-        let n = self.nodes.get(&sound_source_id).unwrap();
-        n.deref()
-    }
-
-    pub fn remove(&mut self, node_id: SoundSourceId) {
-        self.nodes.remove(&node_id).unwrap();
-    }
-
-    fn next_sound_source_id(&mut self) -> SoundSourceId {
+    pub fn next_sound_source_id(&mut self) -> SoundSourceId {
         let i = self.next_ss_id.clone();
         self.next_ss_id.id += 1;
         i
     }
 
-    fn next_sound_input_id(&mut self) -> SoundInputId {
+    pub fn next_sound_input_id(&mut self) -> SoundInputId {
         let i = self.next_si_id.clone();
         self.next_si_id.id += 1;
         i
+    }
+}
+
+struct SoundGraph {
+    data: Rc<RefCell<SoundGraphData>>,
+}
+
+struct SoundGraphRef {
+    data: Weak<RefCell<SoundGraphData>>,
+}
+
+impl SoundGraph {
+    pub fn new() -> SoundGraph {
+        let data = SoundGraphData::new();
+        SoundGraph {
+            data: Rc::new(RefCell::new(data)),
+        }
+    }
+    pub fn as_ref(&self) -> SoundGraphRef {
+        SoundGraphRef {
+            data: Rc::downgrade(&self.data),
+        }
+    }
+    pub fn sound_source(&self, ss_id: SoundSourceId) -> &dyn SoundSource {
+        self.data_ref().sound_source(ss_id)
+    }
+
+    fn data_ref<'a>(&'a self) -> impl Deref<Target = SoundGraphData> + 'a {
+        self.data.borrow()
+    }
+    fn data_ref_mut<'a>(&'a self) -> impl DerefMut<Target = SoundGraphData> + 'a {
+        self.data.borrow_mut()
+    }
+    pub fn next_sound_input_id(&mut self) -> SoundInputId {
+        self.data_ref_mut().next_sound_input_id()
+    }
+    pub fn next_sound_source_id(&mut self) -> SoundSourceId {
+        self.data_ref_mut().next_sound_source_id()
+    }
+}
+
+impl SoundGraphRef {
+    fn get(&self) -> SoundGraph {
+        match self.data.upgrade() {
+            Some(rc) => SoundGraph { data: rc },
+            None => panic!(),
+        }
     }
 }
 
