@@ -1,122 +1,147 @@
-use crate::sound::soundinput::SoundInputId;
-use crate::sound::soundsource::{SoundSource, SoundSourceId};
+use crate::sound::soundchunk::SoundChunk;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
-use std::rc::{Rc, Weak};
+use std::ops::Deref;
 
-enum NodeId {
-    SoundInputId(SoundInputId),
-    SoundSourceId(SoundSourceId),
+#[derive(Copy, Clone)]
+pub struct SoundProcessorId(usize);
+
+#[derive(Copy, Clone)]
+pub struct SoundInputId(usize);
+
+impl Default for SoundProcessorId {
+    fn default() -> SoundProcessorId {
+        SoundProcessorId(1)
+    }
+}
+impl Default for SoundInputId {
+    fn default() -> SoundInputId {
+        SoundInputId(1)
+    }
 }
 
-struct SoundGraphData {
-    sound_sources: HashMap<SoundSourceId, Box<dyn SoundSource>>,
-    next_id: usize,
+pub struct Context<'a> {
+    in_out_buffer: &'a mut SoundChunk,
+    other_input_buffers: Vec<(SoundInputId, &'a mut SoundChunk)>,
+    // TODO
 }
 
-impl SoundGraphData {
-    pub fn new() -> SoundGraphData {
-        SoundGraphData {
-            sound_sources: HashMap::new(),
-            next_id: 0,
+pub trait SoundState: Default {
+    fn reset(&mut self);
+}
+
+pub trait SoundProcessor: Default {
+    type StateType: SoundState;
+    fn get_next_chunk(&self, state: &mut Self::StateType, context: &mut Context);
+    fn get_num_inputs(&self) -> usize;
+}
+
+trait SoundProcessorWrapper {
+    fn get_next_chunk(&self, context: &mut Context);
+    fn get_num_inputs(&self) -> usize;
+}
+
+struct WrappedSoundProcessor<T: SoundProcessor> {
+    instance: T,
+    // TODO: state table
+    // HACK: just one state
+    state: RefCell<<T as SoundProcessor>::StateType>,
+}
+
+impl<T: SoundProcessor> WrappedSoundProcessor<T> {
+    fn new() -> WrappedSoundProcessor<T> {
+        let instance = T::default();
+        let state = RefCell::new(T::StateType::default());
+        WrappedSoundProcessor { instance, state }
+    }
+}
+
+impl<T: SoundProcessor> SoundProcessorWrapper for WrappedSoundProcessor<T> {
+    fn get_next_chunk(&self, context: &mut Context) {
+        self.instance
+            .get_next_chunk(&mut self.state.borrow_mut(), context);
+    }
+    fn get_num_inputs(&self) -> usize {
+        self.instance.get_num_inputs()
+    }
+}
+
+struct SoundProcessorData {
+    wrapper: Box<dyn SoundProcessorWrapper>,
+    inputs: Vec<(SoundInputId, Option<SoundProcessorId>)>,
+}
+
+impl SoundProcessorData {
+    fn new<T: SoundProcessor>(input_idgen: &mut IdGenerator<SoundInputId>) -> SoundProcessorData {
+        let wrapper: Box<WrappedSoundProcessor<T>> = Box::new(WrappedSoundProcessor::<T>::new());
+        let inputs: Vec<_> = (0..wrapper.get_num_inputs())
+            .map(|_| (input_idgen.next_id(), None))
+            .collect();
+        let wrapper: Box<dyn SoundProcessorWrapper> = wrapper;
+        SoundProcessorData { wrapper, inputs }
+    }
+
+    fn sound_processor<'a>(&'a self) -> impl Deref<Target = dyn SoundProcessorWrapper + 'a> {
+        self.wrapper.deref()
+    }
+}
+
+trait UniqueId: Default + Copy {
+    fn value(&self) -> usize;
+    fn next(&self) -> Self;
+}
+
+struct IdGenerator<T: UniqueId> {
+    current_id: T,
+}
+
+impl<T: UniqueId> IdGenerator<T> {
+    fn new() -> IdGenerator<T> {
+        IdGenerator {
+            current_id: T::default(),
         }
     }
 
-    pub fn sound_source(&self, ss_id: SoundSourceId) -> &dyn SoundSource {
-        match self.sound_sources.get(&ss_id) {
-            Some(&b) => &*b,
-            None => panic!(),
-        }
-    }
-
-    pub fn next_sound_source_id(&mut self) -> SoundSourceId {
-        let i = self.next_ss_id.clone();
-        self.next_ss_id.id += 1;
-        i
-    }
-
-    pub fn next_sound_input_id(&mut self) -> SoundInputId {
-        let i = self.next_si_id.clone();
-        self.next_si_id.id += 1;
-        i
+    fn next_id(&mut self) -> T {
+        let ret = self.current_id;
+        self.current_id = self.current_id.next();
+        ret
     }
 }
 
-struct SoundGraph {
-    data: Rc<RefCell<SoundGraphData>>,
+impl UniqueId for SoundProcessorId {
+    fn value(&self) -> usize {
+        self.0
+    }
+    fn next(&self) -> SoundProcessorId {
+        SoundProcessorId(self.0 + 1)
+    }
 }
 
-struct SoundGraphRef {
-    data: Weak<RefCell<SoundGraphData>>,
+impl UniqueId for SoundInputId {
+    fn value(&self) -> usize {
+        self.0
+    }
+    fn next(&self) -> SoundInputId {
+        SoundInputId(self.0 + 1)
+    }
+}
+
+pub struct SoundGraph {
+    processors: HashMap<SoundProcessorId, SoundProcessorData>,
+    sound_processor_idgen: IdGenerator<SoundProcessorId>,
+    sound_input_idgen: IdGenerator<SoundInputId>,
 }
 
 impl SoundGraph {
     pub fn new() -> SoundGraph {
-        let data = SoundGraphData::new();
         SoundGraph {
-            data: Rc::new(RefCell::new(data)),
+            processors: HashMap::new(),
+            sound_processor_idgen: IdGenerator::new(),
+            sound_input_idgen: IdGenerator::new(),
         }
     }
-    pub fn as_ref(&self) -> SoundGraphRef {
-        SoundGraphRef {
-            data: Rc::downgrade(&self.data),
-        }
-    }
-    pub fn sound_source(&self, ss_id: SoundSourceId) -> &dyn SoundSource {
-        self.data_ref().sound_source(ss_id)
-    }
 
-    fn data_ref<'a>(&'a self) -> impl Deref<Target = SoundGraphData> + 'a {
-        self.data.borrow()
-    }
-    fn data_ref_mut<'a>(&'a self) -> impl DerefMut<Target = SoundGraphData> + 'a {
-        self.data.borrow_mut()
-    }
-    pub fn next_sound_input_id(&mut self) -> SoundInputId {
-        self.data_ref_mut().next_sound_input_id()
-    }
-    pub fn next_sound_source_id(&mut self) -> SoundSourceId {
-        self.data_ref_mut().next_sound_source_id()
-    }
-}
-
-impl SoundGraphRef {
-    fn get(&self) -> SoundGraph {
-        match self.data.upgrade() {
-            Some(rc) => SoundGraph { data: rc },
-            None => panic!(),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct StateIndex {
-    index: usize,
-    owner: SoundSourceId,
-}
-
-pub struct StatePath {
-    path: Vec<StateIndex>,
-}
-
-pub struct SoundContext<'a> {
-    parent_graph: &'a SoundGraph,
-    state_path: StatePath,
-}
-
-impl<'a> SoundContext<'a> {
-    pub fn graph(&'a self) -> &'a SoundGraph {
-        self.parent_graph
-    }
-}
-
-pub struct StateTable<T> {
-    data: Vec<RefCell<T>>,
-}
-
-impl<T> StateTable<T> {
-    pub fn get<'a>(&'a self, index: StateIndex) -> impl DerefMut<Target = T> + 'a {
-        self.data[index.index].borrow_mut()
-    }
+    pub fn add_sound_processor<T: SoundProcessor>() -> SoundProcessorId {}
 }
