@@ -1,8 +1,8 @@
 pub const CHUNK_SIZE: usize = 1024;
 
 pub struct SoundChunk {
-    l: [f32; CHUNK_SIZE],
-    r: [f32; CHUNK_SIZE],
+    pub l: [f32; CHUNK_SIZE],
+    pub r: [f32; CHUNK_SIZE],
 }
 
 impl SoundChunk {

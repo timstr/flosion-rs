@@ -1,5 +1,7 @@
 use crate::sound::soundchunk::SoundChunk;
 
+use rand::prelude::*;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -44,7 +46,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn in_out_buffer(&'a mut self) -> &'a mut SoundChunk {
+    pub fn in_out_buffer(&mut self) -> &mut SoundChunk {
         self.in_out_buffer
     }
 
@@ -72,14 +74,16 @@ pub trait SoundState: Default {
     fn reset(&mut self);
 }
 
-pub trait SoundProcessor {
+pub trait DynamicSoundProcessor {
     type StateType: SoundState;
     fn get_next_chunk(&self, state: &mut Self::StateType, context: &mut Context);
     fn get_num_inputs(&self) -> usize;
 }
-
-pub trait DynamicSoundProcessor: SoundProcessor {}
-pub trait StaticSoundProcessor: SoundProcessor {}
+pub trait StaticSoundProcessor {
+    type StateType: SoundState;
+    fn get_next_chunk(&self, state: &mut Self::StateType, context: &mut Context);
+    fn get_num_inputs(&self) -> usize;
+}
 
 trait SoundProcessorWrapper {
     fn get_next_chunk(&self, context: &mut Context);
@@ -297,4 +301,40 @@ impl<'a> SoundGraph<'a> {
         self.processors.insert(id, spdata);
         id
     }
+}
+
+struct WhiteNoise {}
+
+struct WhiteNoiseState {}
+
+impl Default for WhiteNoiseState {
+    fn default() -> WhiteNoiseState {
+        WhiteNoiseState {}
+    }
+}
+
+impl SoundState for WhiteNoiseState {
+    fn reset(&mut self) {}
+}
+
+impl DynamicSoundProcessor for WhiteNoise {
+    type StateType = WhiteNoiseState;
+    fn get_next_chunk(&self, _state: &mut WhiteNoiseState, context: &mut Context) {
+        let b = context.in_out_buffer();
+        for s in b.l.iter_mut() {
+            let r: f32 = thread_rng().gen();
+            *s = 0.2 * r - 0.1;
+        }
+        for s in b.l.iter_mut() {
+            let r: f32 = thread_rng().gen();
+            *s = 0.2 * r - 0.1;
+        }
+    }
+    fn get_num_inputs(&self) -> usize {
+        0
+    }
+}
+
+struct DAC {
+    // TODO
 }
