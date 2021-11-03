@@ -76,19 +76,25 @@ pub trait SoundState: Default {
 
 pub trait DynamicSoundProcessor {
     type StateType: SoundState;
-    fn get_next_chunk(&self, state: &mut Self::StateType, context: &mut Context);
+    fn process_audio(&self, state: &mut Self::StateType, context: &mut Context);
     fn get_num_inputs(&self) -> usize;
 }
 pub trait StaticSoundProcessor {
-    type StateType: SoundState;
-    fn get_next_chunk(&self, state: &mut Self::StateType, context: &mut Context);
+    fn process_audio(&mut self, context: &mut Context);
     fn get_num_inputs(&self) -> usize;
+    fn reset(&mut self);
 }
 
 trait SoundProcessorWrapper {
-    fn get_next_chunk(&self, context: &mut Context);
+    fn process_audio(&self, context: &mut Context);
     fn get_num_inputs(&self) -> usize;
     fn is_static(&self) -> bool;
+    fn produces_output(&self) -> bool;
+    fn add_dst(&mut self, dst_input: SoundInputId, dst_num_states: usize);
+    fn remove_dst(&mut self, dst_input: SoundInputId);
+    fn insert_dst_states(&mut self, dst_input: SoundInputId, start_index: usize, num: usize);
+    fn erase_dst_states(&mut self, dst_input: SoundInputId, start_index: usize, num: usize);
+    fn reset_state(&self, dst_input: SoundInputId, index: usize);
 }
 
 struct StateTable<T: SoundState> {
@@ -143,11 +149,11 @@ impl<T: DynamicSoundProcessor> WrappedDynamicSoundProcessor<T> {
 }
 
 impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProcessor<T> {
-    fn get_next_chunk(&self, context: &mut Context) {
+    fn process_audio(&self, context: &mut Context) {
         let mut state = self
             .state_table
             .get_state_mut(context.dst(), context.dst_state_index());
-        self.instance.get_next_chunk(&mut state, context);
+        self.instance.process_audio(&mut state, context);
     }
 
     fn get_num_inputs(&self) -> usize {
@@ -160,25 +166,23 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
 }
 
 struct WrappedStaticSoundProcessor<T: StaticSoundProcessor> {
-    instance: T,
-    state: RefCell<T::StateType>,
+    instance: RefCell<T>,
 }
 
 impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
     fn new(instance: T) -> WrappedStaticSoundProcessor<T> {
-        let state = RefCell::new(T::StateType::default());
-        WrappedStaticSoundProcessor { instance, state }
+        let instance = RefCell::new(instance);
+        WrappedStaticSoundProcessor { instance }
     }
 }
 
 impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProcessor<T> {
-    fn get_next_chunk(&self, context: &mut Context) {
-        let mut state = self.state.borrow_mut();
-        self.instance.get_next_chunk(&mut state, context)
+    fn process_audio(&self, context: &mut Context) {
+        self.instance.borrow_mut().process_audio(context);
     }
 
     fn get_num_inputs(&self) -> usize {
-        self.instance.get_num_inputs()
+        self.instance.borrow().get_num_inputs()
     }
 
     fn is_static(&self) -> bool {
@@ -269,6 +273,13 @@ pub struct SoundGraph<'a> {
     processors: HashMap<SoundProcessorId, SoundProcessorData<'a>>,
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
+    // TODO: cache routing information
+}
+
+enum ConnectionError {
+    NoChange,
+    TooManyConnections,
+    CircularDependency,
 }
 
 impl<'a> SoundGraph<'a> {
@@ -281,7 +292,7 @@ impl<'a> SoundGraph<'a> {
     }
 
     pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor + 'a>(
-        &'a mut self,
+        &mut self,
         sound_processor: T,
     ) -> SoundProcessorId {
         let id = self.sound_processor_idgen.next_id();
@@ -292,7 +303,7 @@ impl<'a> SoundGraph<'a> {
     }
 
     pub fn add_static_sound_processor<T: StaticSoundProcessor + 'a>(
-        &'a mut self,
+        &mut self,
         sound_processor: T,
     ) -> SoundProcessorId {
         let id = self.sound_processor_idgen.next_id();
@@ -301,11 +312,23 @@ impl<'a> SoundGraph<'a> {
         self.processors.insert(id, spdata);
         id
     }
+
+    pub fn connect_input(
+        &mut self,
+        input_id: SoundInputId,
+        processor: SoundProcessorId,
+    ) -> Result<(), ConnectionError> {
+        // TODO
+    }
+
+    pub fn disconnect_input(&mut self, input_id: SoundInputId) -> Result<(), ConnectionError> {
+        // TODO
+    }
 }
 
-struct WhiteNoise {}
+pub struct WhiteNoise {}
 
-struct WhiteNoiseState {}
+pub struct WhiteNoiseState {}
 
 impl Default for WhiteNoiseState {
     fn default() -> WhiteNoiseState {
@@ -319,7 +342,7 @@ impl SoundState for WhiteNoiseState {
 
 impl DynamicSoundProcessor for WhiteNoise {
     type StateType = WhiteNoiseState;
-    fn get_next_chunk(&self, _state: &mut WhiteNoiseState, context: &mut Context) {
+    fn process_audio(&self, _state: &mut WhiteNoiseState, context: &mut Context) {
         let b = context.in_out_buffer();
         for s in b.l.iter_mut() {
             let r: f32 = thread_rng().gen();
@@ -335,6 +358,14 @@ impl DynamicSoundProcessor for WhiteNoise {
     }
 }
 
-struct DAC {
+pub struct DAC {
     // TODO
+}
+
+impl StaticSoundProcessor for DAC {
+    fn process_audio(&mut self, context: &mut Context) {}
+    fn get_num_inputs(&self) -> usize {
+        1
+    }
+    fn reset(&mut self) {}
 }
