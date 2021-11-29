@@ -1,4 +1,5 @@
 pub mod sound;
+pub mod objects;
 
 // use crate::soundgraph::SoundGraph;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};

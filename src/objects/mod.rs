@@ -1,1 +1,2 @@
-mod dac;
+pub mod dac;
+pub mod whitenoise;
