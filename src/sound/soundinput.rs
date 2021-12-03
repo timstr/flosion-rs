@@ -1,6 +1,9 @@
 use crate::sound::soundstate::{EmptyState, SoundState};
 use crate::sound::statetable::{KeyedStateTable, StateTable};
+use crate::sound::uniqueid::IdGenerator;
 use crate::sound::uniqueid::UniqueId;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundInputId(usize);
@@ -57,6 +60,113 @@ pub struct SingleSoundInput {
     state_table: StateTable<EmptyState>,
 }
 
+impl SingleSoundInput {
+    pub fn new() -> SingleSoundInput {
+        SingleSoundInput {
+            state_table: StateTable::new(),
+        }
+    }
+}
+
 pub struct KeyedSoundInput<K: Ord, T: SoundState> {
     state_table: KeyedStateTable<K, T>,
+}
+
+impl<K: Ord, T: SoundState> KeyedSoundInput<K, T> {
+    pub fn new() -> KeyedSoundInput<K, T> {
+        KeyedSoundInput {
+            state_table: KeyedStateTable::<K, T>::new(),
+        }
+    }
+}
+
+pub trait SoundInputWrapper {
+    fn id(&self) -> SoundInputId;
+
+    fn num_keys(&self) -> usize;
+    // TODO
+}
+
+pub struct WrappedSingleSoundInput {
+    instance: SingleSoundInput,
+    id: SoundInputId,
+}
+
+impl WrappedSingleSoundInput {
+    pub fn new(id_gen: &mut IdGenerator<SoundInputId>) -> WrappedSingleSoundInput {
+        WrappedSingleSoundInput {
+            instance: SingleSoundInput::new(),
+            id: id_gen.next_id(),
+        }
+    }
+}
+
+impl SoundInputWrapper for WrappedSingleSoundInput {
+    fn id(&self) -> SoundInputId {
+        self.id
+    }
+
+    fn num_keys(&self) -> usize {
+        1
+    }
+}
+
+pub struct WrappedKeyedSoundInput<K: Ord, T: SoundState> {
+    instance: KeyedSoundInput<K, T>,
+    id: SoundInputId,
+}
+
+impl<K: Ord, T: SoundState> WrappedKeyedSoundInput<K, T> {
+    pub fn new(id_gen: &mut IdGenerator<SoundInputId>) -> WrappedKeyedSoundInput<K, T> {
+        WrappedKeyedSoundInput {
+            instance: KeyedSoundInput::<K, T>::new(),
+            id: id_gen.next_id(),
+        }
+    }
+}
+
+impl<K: Ord, T: SoundState> SoundInputWrapper for WrappedKeyedSoundInput<K, T> {
+    fn id(&self) -> SoundInputId {
+        self.id
+    }
+
+    fn num_keys(&self) -> usize {
+        self.instance.state_table.num_keys()
+    }
+}
+
+pub struct SingleSoundInputHandle {
+    id: SoundInputId,
+    input: Rc<RefCell<WrappedSingleSoundInput>>,
+}
+
+impl SingleSoundInputHandle {
+    pub(in crate::sound) fn new(
+        input: Rc<RefCell<WrappedSingleSoundInput>>,
+    ) -> SingleSoundInputHandle {
+        let id = input.borrow().id();
+        SingleSoundInputHandle { id, input }
+    }
+
+    pub fn id(&self) -> SoundInputId {
+        self.id
+    }
+}
+
+pub struct KeyedSoundInputHandle<K: Ord, T: SoundState> {
+    id: SoundInputId,
+    input: Rc<RefCell<WrappedKeyedSoundInput<K, T>>>,
+}
+
+impl<K: Ord, T: SoundState> KeyedSoundInputHandle<K, T> {
+    pub(in crate::sound) fn new(
+        input: Rc<RefCell<WrappedKeyedSoundInput<K, T>>>,
+    ) -> KeyedSoundInputHandle<K, T> {
+        let id = input.borrow().id();
+        KeyedSoundInputHandle { id, input }
+    }
+
+    pub fn id(&self) -> SoundInputId {
+        self.id
+    }
 }

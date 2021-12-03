@@ -1,11 +1,11 @@
 use crate::sound::soundgraph::{Context, SoundProcessorTools};
 use crate::sound::soundinput::InputOptions;
-use crate::sound::soundinput::SingleSoundInput;
+use crate::sound::soundinput::SingleSoundInputHandle;
 use crate::sound::soundprocessor::StaticSoundProcessor;
 use crate::sound::soundstate::{SoundState, StateTime};
 
 pub struct DAC {
-    input: SingleSoundInput,
+    input: SingleSoundInputHandle,
     // TODO: stuff for actually playing sound to speakers using CPAL
 }
 
@@ -34,7 +34,7 @@ impl SoundState for DACState {
 }
 
 impl DAC {
-    pub fn input(&self) -> &SingleSoundInput {
+    pub fn input(&self) -> &SingleSoundInputHandle {
         &self.input
     }
 }
@@ -42,9 +42,9 @@ impl DAC {
 impl StaticSoundProcessor for DAC {
     type StateType = DACState;
 
-    fn new(t: &SoundProcessorTools) -> DAC {
+    fn new(mut tools: SoundProcessorTools) -> DAC {
         DAC {
-            input: t.add_single_input(InputOptions {
+            input: tools.add_single_input(InputOptions {
                 realtime: true,
                 interruptible: false,
             }),

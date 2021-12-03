@@ -30,7 +30,7 @@ impl SoundState for WhiteNoiseState {
 impl DynamicSoundProcessor for WhiteNoise {
     type StateType = WhiteNoiseState;
 
-    fn new(_t: &SoundProcessorTools) -> WhiteNoise {
+    fn new(_tools: SoundProcessorTools) -> WhiteNoise {
         WhiteNoise {}
     }
 

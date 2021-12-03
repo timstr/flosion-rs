@@ -9,7 +9,8 @@ fn main() {
     let mut sg: SoundGraph = SoundGraph::new();
     let wn = sg.add_dynamic_sound_processor::<WhiteNoise>();
     let dac = sg.add_static_sound_processor::<DAC>();
-    sg.connect_input(dac.borrow().input().id(), wn.borrow().id());
+    sg.connect_input(dac.instance().input().id(), wn.id())
+        .unwrap();
 
     make_noise_for_two_seconds();
 }

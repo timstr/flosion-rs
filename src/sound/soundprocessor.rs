@@ -27,18 +27,20 @@ impl UniqueId for SoundProcessorId {
 
 pub trait DynamicSoundProcessor {
     type StateType: SoundState;
-    fn new(sg: &SoundProcessorTools) -> Self;
+    fn new<'a>(tools: SoundProcessorTools) -> Self;
     fn process_audio(&self, state: &mut Self::StateType, context: &mut Context);
 }
 
 pub trait StaticSoundProcessor {
     type StateType: SoundState;
-    fn new(sg: &SoundProcessorTools) -> Self;
+    fn new<'a>(tools: SoundProcessorTools) -> Self;
     fn process_audio(&self, state: &mut Self::StateType, context: &mut Context);
     fn produces_output(&self) -> bool;
 }
 
 pub trait SoundProcessorWrapper {
+    fn id(&self) -> SoundProcessorId;
+
     // Process the next chunk of audio
     fn process_audio(&self, context: &mut Context);
 
@@ -102,12 +104,20 @@ impl<T: DynamicSoundProcessor> WrappedDynamicSoundProcessor<T> {
         &self.instance
     }
 
+    pub fn instance_mut(&mut self) -> &mut T {
+        &mut self.instance
+    }
+
     pub fn id(&self) -> SoundProcessorId {
         self.id.unwrap()
     }
 }
 
 impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProcessor<T> {
+    fn id(&self) -> SoundProcessorId {
+        self.id.unwrap()
+    }
+
     fn process_audio(&self, context: &mut Context) {
         let mut state = self.state_table.get_state_mut(context.state_index());
         self.instance.process_audio(&mut state, context);
@@ -193,6 +203,10 @@ impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
         &self.instance
     }
 
+    pub fn instance_mut(&mut self) -> &mut T {
+        &mut self.instance
+    }
+
     pub fn id(&self) -> SoundProcessorId {
         self.id.unwrap()
     }
@@ -202,6 +216,10 @@ impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
 // will receive copies of the same single audio stream, and all may have at most one
 // state.
 impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProcessor<T> {
+    fn id(&self) -> SoundProcessorId {
+        self.id.unwrap()
+    }
+
     fn process_audio(&self, context: &mut Context) {
         self.instance
             .process_audio(&mut self.state.borrow_mut(), context);

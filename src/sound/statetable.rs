@@ -62,6 +62,10 @@ impl<K: Ord, T: SoundState> KeyedStateTable<K, T> {
         }
     }
 
+    pub fn num_keys(&self) -> usize {
+        self.keys.len()
+    }
+
     pub fn add_key(&mut self, key: K) -> GridSpan {
         let old_num_keys = self.keys.len();
         let index = self
