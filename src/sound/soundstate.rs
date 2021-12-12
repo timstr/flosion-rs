@@ -1,4 +1,3 @@
-
 pub struct StateTime {
     elapsed_samples: usize,
     relative_time_speed: f32,

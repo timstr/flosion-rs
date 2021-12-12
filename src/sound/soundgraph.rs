@@ -1,3 +1,4 @@
+use crate::sound::gridspan::GridSpan;
 use crate::sound::soundchunk::SoundChunk;
 use crate::sound::soundinput::InputOptions;
 use crate::sound::soundinput::KeyedSoundInput;
@@ -6,8 +7,6 @@ use crate::sound::soundinput::SingleSoundInput;
 use crate::sound::soundinput::SingleSoundInputHandle;
 use crate::sound::soundinput::SoundInputId;
 use crate::sound::soundinput::SoundInputWrapper;
-use crate::sound::soundinput::WrappedKeyedSoundInput;
-use crate::sound::soundinput::WrappedSingleSoundInput;
 use crate::sound::soundprocessor::DynamicSoundProcessor;
 use crate::sound::soundprocessor::SoundProcessorId;
 use crate::sound::soundprocessor::SoundProcessorWrapper;
@@ -109,6 +108,10 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
         self.instance.borrow().id()
     }
 
+    pub fn num_states(&self) -> usize {
+        self.instance.borrow().num_states()
+    }
+
     pub fn instance(&self) -> DynamicSoundProcessorRef<T> {
         DynamicSoundProcessorRef {
             cell_ref: self.instance.borrow(),
@@ -160,6 +163,10 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
         self.instance.borrow().id()
     }
 
+    pub fn num_states(&self) -> usize {
+        self.instance.borrow().num_states()
+    }
+
     pub fn instance(&self) -> StaticSoundProcessorRef<T> {
         StaticSoundProcessorRef {
             cell_ref: self.instance.borrow(),
@@ -207,7 +214,6 @@ impl<'a> SoundProcessorData<'a> {
         proc_idgen: &'b mut IdGenerator<SoundProcessorId>,
         input_idgen: &'b mut IdGenerator<SoundInputId>,
     ) -> (SoundProcessorData<'a>, DynamicSoundProcessorHandle<T>) {
-        let id = proc_idgen.next_id();
         let mut inputs = Vec::<SoundInputData>::new();
         let w1;
         {
@@ -218,6 +224,8 @@ impl<'a> SoundProcessorData<'a> {
             let w = WrappedDynamicSoundProcessor::<T>::new(T::new(tools));
             w1 = Rc::new(RefCell::new(w));
         }
+        let id = proc_idgen.next_id();
+        w1.borrow_mut().id = Some(id);
         let w2 = Rc::clone(&w1);
         (
             SoundProcessorData {
@@ -233,7 +241,6 @@ impl<'a> SoundProcessorData<'a> {
         proc_idgen: &'b mut IdGenerator<SoundProcessorId>,
         input_idgen: &'b mut IdGenerator<SoundInputId>,
     ) -> (SoundProcessorData<'a>, StaticSoundProcessorHandle<T>) {
-        let id = proc_idgen.next_id();
         let mut inputs = Vec::<SoundInputData>::new();
         let w1;
         {
@@ -244,6 +251,8 @@ impl<'a> SoundProcessorData<'a> {
             let w = WrappedStaticSoundProcessor::<T>::new(T::new(tools));
             w1 = Rc::new(RefCell::new(w));
         }
+        let id = proc_idgen.next_id();
+        w1.borrow_mut().id = Some(id);
         let w2 = Rc::clone(&w1);
         (
             SoundProcessorData {
@@ -264,7 +273,8 @@ impl<'a> SoundProcessorData<'a> {
 pub enum ConnectionError {
     NoChange,
     CircularDependency,
-    TooManyStates,
+    StaticTooManyStates,
+    StaticNotRealtime,
     ProcessorNotFound,
     InputNotFound,
     InputOccupied,
@@ -296,8 +306,8 @@ impl SoundGraphDescription {
         if self.contains_cycles() {
             return Some(ConnectionError::CircularDependency);
         }
-        if self.too_many_states() {
-            return Some(ConnectionError::TooManyStates);
+        if let Some(err) = self.validate_graph() {
+            return Some(err);
         }
         None
     }
@@ -315,8 +325,8 @@ impl SoundGraphDescription {
         {
             return Some(ConnectionError::ProcessorNotFound);
         }
-        for p in self.processors.iter() {
-            let i = match p.inputs.iter().find(|i| i.id == input_id) {
+        for p in &mut self.processors {
+            let i = match p.inputs.iter_mut().find(|i| i.id == input_id) {
                 None => continue,
                 Some(i) => i,
             };
@@ -326,6 +336,22 @@ impl SoundGraphDescription {
                 }
                 return Some(ConnectionError::InputOccupied);
             }
+            i.target = Some(processor_id);
+            return None;
+        }
+        Some(ConnectionError::InputNotFound)
+    }
+    fn remove_connection(&mut self, input_id: SoundInputId) -> Option<ConnectionError> {
+        for p in &mut self.processors {
+            let i = match p.inputs.iter_mut().find(|i| i.id == input_id) {
+                None => continue,
+                Some(i) => i,
+            };
+            assert_eq!(i.id, input_id);
+            if i.target.is_none() {
+                return Some(ConnectionError::NoChange);
+            }
+            i.target = None;
             return None;
         }
         Some(ConnectionError::InputNotFound)
@@ -361,7 +387,6 @@ impl SoundGraphDescription {
         let mut visited: Vec<SoundProcessorId> = vec![];
         let mut path: Vec<SoundProcessorId> = vec![];
         loop {
-            assert_eq!(visited.len(), 0);
             assert_eq!(path.len(), 0);
             match self.processors.iter().find(|p| !visited.contains(&p.id)) {
                 None => break false,
@@ -374,17 +399,57 @@ impl SoundGraphDescription {
         }
     }
 
-    fn too_many_states(&self) -> bool {
-        // TODO:
-        // - count the number of states at each sound processor
-        //   - assign 0 to all processors
-        //   - dfs starting at all static processors, incrementing states and
-        //     multiplying current number by input keys when visiting. do not
-        //     traverse through other static processors
-        //   - if a static sound processor is visited and the total number of
-        //     states along the current path is more than 1, error.
-        panic!()
+    fn validate_graph(&self) -> Option<ConnectionError> {
+        fn visit(
+            proc: SoundProcessorId,
+            states_to_add: usize,
+            is_realtime: bool,
+            procs: &Vec<SoundProcessorDescription>,
+            init: bool,
+        ) -> Option<ConnectionError> {
+            assert!(states_to_add != 0);
+            let p = procs.iter().find(|spd| spd.id == proc).unwrap();
+            if p.is_static {
+                if states_to_add > 1 {
+                    return Some(ConnectionError::StaticTooManyStates);
+                }
+                if !is_realtime {
+                    return Some(ConnectionError::StaticNotRealtime);
+                }
+                if !init {
+                    return None;
+                }
+            }
+            for i in &p.inputs {
+                if let Some(t) = i.target {
+                    if let Some(err) = visit(
+                        t,
+                        states_to_add * i.num_keys,
+                        is_realtime && i.options.realtime,
+                        procs,
+                        false,
+                    ) {
+                        return Some(err);
+                    }
+                }
+            }
+            None
+        }
+        for i in &self.processors {
+            if i.is_static {
+                if let Some(err) = visit(i.id, 1, true, &self.processors, true) {
+                    return Some(err);
+                }
+            }
+        }
+        None
     }
+}
+
+#[derive(Copy, Clone)]
+enum StateOperation {
+    Insert,
+    Erase,
 }
 
 pub struct SoundGraph<'a> {
@@ -406,12 +471,11 @@ impl<'a> SoundGraph<'a> {
     pub fn add_dynamic_sound_processor<'b, T: 'a + DynamicSoundProcessor>(
         &'b mut self,
     ) -> DynamicSoundProcessorHandle<T> {
-        let id = self.sound_processor_idgen.next_id();
         let (spdata, sp) = SoundProcessorData::new_dynamic::<T>(
             &mut self.sound_processor_idgen,
             &mut self.sound_input_idgen,
         );
-        sp.instance.borrow_mut().id = Some(id);
+        let id = sp.instance.borrow().id.unwrap();
         self.processors.insert(id, spdata);
         sp
     }
@@ -419,17 +483,54 @@ impl<'a> SoundGraph<'a> {
     pub fn add_static_sound_processor<'b, T: 'a + StaticSoundProcessor>(
         &'b mut self,
     ) -> StaticSoundProcessorHandle<T> {
-        let id = self.sound_processor_idgen.next_id();
         let (spdata, sp) = SoundProcessorData::new_static::<T>(
             &mut self.sound_processor_idgen,
             &mut self.sound_input_idgen,
         );
-        sp.instance.borrow_mut().id = Some(id);
+        let id = sp.instance.borrow().id.unwrap();
         self.processors.insert(id, spdata);
         sp
     }
 
-    pub fn connect_input(
+    fn modify_states_recursively(
+        &mut self,
+        proc_id: SoundProcessorId,
+        dst_states: GridSpan,
+        dst_iid: SoundInputId,
+        operation: StateOperation,
+    ) {
+        let outbound_connections: Vec<(SoundProcessorId, GridSpan, SoundInputId)>;
+        {
+            let proc_data = self.processors.get_mut(&proc_id).unwrap();
+            let proc = &mut proc_data.wrapper.borrow_mut();
+            let gs = match operation {
+                StateOperation::Insert => proc.insert_dst_states(dst_iid, dst_states),
+                StateOperation::Erase => proc.erase_dst_states(dst_iid, dst_states),
+            };
+            if proc.is_static() {
+                return;
+            }
+            outbound_connections = proc_data
+                .inputs
+                .iter()
+                .filter_map(|i| {
+                    let gsi = match operation {
+                        StateOperation::Insert => i.input.borrow_mut().insert_states(gs),
+                        StateOperation::Erase => i.input.borrow_mut().erase_states(gs),
+                    };
+                    match i.target {
+                        Some(t) => Some((t, gsi, i.id)),
+                        None => None,
+                    }
+                })
+                .collect();
+        }
+        for (pid, gsi, iid) in outbound_connections {
+            self.modify_states_recursively(pid, gsi, iid, operation);
+        }
+    }
+
+    pub fn connect_sound_input(
         &mut self,
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
@@ -445,25 +546,113 @@ impl<'a> SoundGraph<'a> {
             return Err(err);
         }
 
-        for (proc_id, proc) in self.processors.iter() {
-            let i = proc.inputs.iter().find(|i| i.id == input_id);
-            // TODO
+        let input_proc_id: SoundProcessorId;
+        {
+            let (input, input_parent_id) =
+                match self.processors.iter_mut().find_map(|(proc_id, proc)| {
+                    assert_eq!(*proc_id, proc.id);
+                    match proc.inputs.iter_mut().find(|i| i.id == input_id) {
+                        Some(i) => Some((i, proc.id)),
+                        None => None,
+                    }
+                }) {
+                    Some(p) => p,
+                    None => return Err(ConnectionError::InputNotFound),
+                };
+            if let Some(t) = input.target {
+                return if t == processor_id {
+                    Err(ConnectionError::NoChange)
+                } else {
+                    Err(ConnectionError::InputOccupied)
+                };
+            }
+            input.target = Some(processor_id);
+            input_proc_id = input_parent_id;
         }
 
-        // TODO
+        let input_proc_states: usize;
+        {
+            let wrapper = &self.processors.get(&input_proc_id).unwrap().wrapper;
+            input_proc_states = wrapper.borrow().num_states();
+        }
+
+        {
+            let proc_data = self.processors.get_mut(&processor_id).unwrap();
+            let proc = &mut proc_data.wrapper.borrow_mut();
+            proc.add_dst(input_id);
+        }
+
+        self.modify_states_recursively(
+            processor_id,
+            GridSpan::new_contiguous(0, input_proc_states),
+            input_id,
+            StateOperation::Insert,
+        );
+
         Ok(())
     }
 
-    pub fn disconnect_input(&mut self, _input_id: SoundInputId) -> Result<(), ConnectionError> {
-        // TODO
-        panic!()
+    pub fn disconnect_sound_input(
+        &mut self,
+        input_id: SoundInputId,
+    ) -> Result<(), ConnectionError> {
+        let mut desc = self.describe();
+        assert!(desc.find_error().is_none());
+
+        if let Some(err) = desc.remove_connection(input_id) {
+            return Err(err);
+        }
+
+        if let Some(err) = desc.find_error() {
+            return Err(err);
+        }
+
+        let processor_id: SoundProcessorId;
+        let input_proc_id: SoundProcessorId;
+        {
+            let (input, input_parent_id) = match self.processors.iter_mut().find_map(|(_, proc)| {
+                match proc.inputs.iter_mut().find(|i| i.id == input_id) {
+                    Some(i) => Some((i, proc.id)),
+                    None => None,
+                }
+            }) {
+                Some(p) => p,
+                None => return Err(ConnectionError::InputNotFound),
+            };
+            processor_id = match input.target {
+                Some(t) => t,
+                None => return Err(ConnectionError::NoChange),
+            };
+            input.target = None;
+            input_proc_id = input_parent_id;
+        }
+
+        let input_proc_states: usize;
+        {
+            let wrapper = &self.processors.get(&input_proc_id).unwrap().wrapper;
+            input_proc_states = wrapper.borrow().num_states();
+        }
+        self.modify_states_recursively(
+            processor_id,
+            GridSpan::new_contiguous(0, input_proc_states),
+            input_id,
+            StateOperation::Erase,
+        );
+
+        {
+            let proc_data = self.processors.get_mut(&processor_id).unwrap();
+            let proc = &mut proc_data.wrapper.borrow_mut();
+            proc.remove_dst(input_id);
+        }
+
+        Ok(())
     }
 
     fn describe(&self) -> SoundGraphDescription {
         let mut processors = Vec::<SoundProcessorDescription>::new();
-        for (proc_id, proc) in self.processors.iter() {
+        for (proc_id, proc) in &self.processors {
             let mut inputs = Vec::<SoundInputDescription>::new();
-            for i in proc.inputs.iter() {
+            for i in &proc.inputs {
                 let input_instance = i.input.borrow();
                 inputs.push(SoundInputDescription {
                     id: input_instance.id(),
@@ -492,7 +681,7 @@ pub struct SoundProcessorTools<'a, 'b> {
 
 impl<'a, 'b> SoundProcessorTools<'a, 'b> {
     pub fn add_single_input(&mut self, options: InputOptions) -> SingleSoundInputHandle {
-        let input = WrappedSingleSoundInput::new(self.input_idgen);
+        let input = SingleSoundInput::new(self.input_idgen);
         let input = Rc::new(RefCell::new(input));
         let input2 = Rc::clone(&input);
         self.inputs.push(SoundInputData {
@@ -508,7 +697,7 @@ impl<'a, 'b> SoundProcessorTools<'a, 'b> {
         &mut self,
         options: InputOptions,
     ) -> KeyedSoundInputHandle<K, T> {
-        let input = WrappedKeyedSoundInput::<K, T>::new(self.input_idgen);
+        let input = KeyedSoundInput::<K, T>::new(self.input_idgen);
         let input = Rc::new(RefCell::new(input));
         let input2 = Rc::clone(&input);
         self.inputs.push(SoundInputData {

@@ -57,13 +57,13 @@ pub trait SoundProcessorWrapper {
     // input buffer for some other purpose
     fn produces_output(&self) -> bool;
 
-    // Allocate states for a newly connected SoundInput
-    // Returns the span of states to add to all inputs
-    fn add_dst(&mut self, dst_input: SoundInputId, dst_num_states: usize) -> GridSpan;
+    // Registers a new input to which the sound processor is connected.
+    // Doesn't add any states. Use insert_dst_states to do so
+    fn add_dst(&mut self, dst_input: SoundInputId);
 
-    // Remove states from a newly detached SoundInput
-    // Returns the span of states to remove from all inputs
-    fn remove_dst(&mut self, dst_input: SoundInputId) -> GridSpan;
+    // Unregisters an existing input.
+    // Panics if there are any states still allocated
+    fn remove_dst(&mut self, dst_input: SoundInputId);
 
     // Add additional states for a connected SoundInput for upstream
     // states that it has just added
@@ -143,16 +143,28 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
         true
     }
 
-    fn add_dst(&mut self, dst_input: SoundInputId, dst_num_states: usize) -> GridSpan {
-        let s = self.state_partition.add_dst(dst_input, dst_num_states);
-        self.state_table.insert_states(s);
-        s
+    fn add_dst(&mut self, dst_input: SoundInputId) {
+        assert_eq!(
+            self.state_partition.total_size(),
+            self.state_table.total_size()
+        );
+        self.state_partition.add_dst(dst_input);
+        assert_eq!(
+            self.state_partition.total_size(),
+            self.state_table.total_size()
+        );
     }
 
-    fn remove_dst(&mut self, dst_input: SoundInputId) -> GridSpan {
-        let s = self.state_partition.remove_dst(dst_input);
-        self.state_table.erase_states(s);
-        s
+    fn remove_dst(&mut self, dst_input: SoundInputId) {
+        assert_eq!(
+            self.state_partition.total_size(),
+            self.state_table.total_size()
+        );
+        self.state_partition.remove_dst(dst_input);
+        assert_eq!(
+            self.state_partition.total_size(),
+            self.state_table.total_size()
+        );
     }
 
     fn insert_dst_states(&mut self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
@@ -163,7 +175,7 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
 
     fn erase_dst_states(&mut self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
         let s = self.state_partition.remove_dst_states(dst_input, span);
-        self.state_table.insert_states(s);
+        self.state_table.erase_states(s);
         s
     }
 
@@ -248,26 +260,20 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
         self.instance.produces_output()
     }
 
-    fn add_dst(&mut self, dst_input: SoundInputId, dst_num_states: usize) -> GridSpan {
+    fn add_dst(&mut self, dst_input: SoundInputId) {
         assert!(self.produces_output());
-        assert_eq!(
-            self.dst_inputs
-                .iter()
-                .filter(|is| is.input_id == dst_input)
-                .count(),
-            0
-        );
-        if dst_num_states > 1 {
-            panic!();
-        }
+        assert!(self
+            .dst_inputs
+            .iter()
+            .find(|is| is.input_id == dst_input)
+            .is_none());
         self.dst_inputs.push(StaticInputStates {
             input_id: dst_input,
-            num_states: dst_num_states,
+            num_states: 0,
         });
-        GridSpan::new_empty()
     }
 
-    fn remove_dst(&mut self, dst_input: SoundInputId) -> GridSpan {
+    fn remove_dst(&mut self, dst_input: SoundInputId) {
         assert!(self.produces_output());
         assert_eq!(
             self.dst_inputs
@@ -281,8 +287,8 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
             .iter()
             .position(|is| is.input_id == dst_input)
             .unwrap();
-        self.dst_inputs.remove(i);
-        GridSpan::new_empty()
+        let states = self.dst_inputs.remove(i);
+        assert_eq!(states.num_states, 0);
     }
 
     fn insert_dst_states(&mut self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {

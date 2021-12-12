@@ -1,6 +1,6 @@
 use std::iter;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GridSpan {
     // linear index of the first item
     start_index: usize,
@@ -82,7 +82,9 @@ impl GridSpan {
     }
 
     pub fn last_index(&self) -> usize {
-        self.start_index + (self.row_stride * self.num_rows) + self.items_per_row - 1
+        assert!(self.num_rows > 0);
+        assert!(self.items_per_row > 0);
+        self.start_index + (self.row_stride * (self.num_rows - 1)) + self.items_per_row - 1
     }
 
     pub fn num_items(&self) -> usize {
@@ -93,8 +95,8 @@ impl GridSpan {
         if self.num_items() == 0 {
             return data;
         }
-        assert!(self.start_index < data.len());
-        assert!(self.last_index() < data.len());
+        assert!(self.start_index <= data.len());
+        assert!(self.last_index() <= data.len() + self.num_items());
         let mut new_states = Vec::<T>::new();
         let old_len = data.len();
         new_states.reserve(old_len + self.num_items());
@@ -103,12 +105,12 @@ impl GridSpan {
                 && (i <= self.last_index())
                 && (i - self.start_index) % self.row_stride == 0
             {
-                new_states.extend(iter::repeat_with(|| f()).take(self.items_per_row));
+                new_states.extend(iter::repeat_with(&f).take(self.items_per_row));
             }
             new_states.push(s);
         }
-        if self.last_index() + 1 == old_len {
-            new_states.extend(iter::repeat_with(|| f()).take(self.items_per_row));
+        if self.last_index() == old_len {
+            new_states.extend(iter::repeat_with(&f).take(self.items_per_row));
         }
         assert_eq!(new_states.len(), old_len + self.num_items());
         new_states

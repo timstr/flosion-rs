@@ -158,7 +158,7 @@ impl StateTablePartition {
 
     pub fn get_index(&self, input_id: SoundInputId, input_state_index: usize) -> usize {
         assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
-        for (i, s) in self.offsets.iter() {
+        for (i, s) in &self.offsets {
             if *i == input_id {
                 assert!(input_state_index < s.count);
                 return s.index + input_state_index;
@@ -169,7 +169,7 @@ impl StateTablePartition {
 
     pub fn get_span(&self, input_id: SoundInputId, input_span: GridSpan) -> GridSpan {
         assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
-        for (i, s) in self.offsets.iter() {
+        for (i, s) in &self.offsets {
             if *i == input_id {
                 assert!(input_span.start_index() < s.count);
                 assert!(input_span.last_index() < s.count);
@@ -181,7 +181,7 @@ impl StateTablePartition {
 
     pub fn total_size(&self) -> usize {
         let mut acc: usize = 0;
-        for (_, s) in self.offsets.iter() {
+        for (_, s) in &self.offsets {
             assert_eq!(s.index, acc);
             acc += s.count;
         }
@@ -189,27 +189,32 @@ impl StateTablePartition {
     }
 
     // Returns the span of states to insert
-    pub fn add_dst(&mut self, input_id: SoundInputId, dst_num_states: usize) -> GridSpan {
+    pub fn add_dst(&mut self, input_id: SoundInputId) {
+        assert!(self
+            .offsets
+            .iter()
+            .find(|(id, _)| *id == input_id)
+            .is_none());
         let s = StateTableSlice {
             index: self.total_size(),
-            count: dst_num_states,
+            count: 0,
         };
         self.offsets.push((input_id, s));
-        GridSpan::new_contiguous(self.total_size(), dst_num_states)
     }
 
     // Returns the span of states to erase
-    pub fn remove_dst(&mut self, input_id: SoundInputId) -> GridSpan {
+    pub fn remove_dst(&mut self, input_id: SoundInputId) {
+        assert_eq!(
+            self.offsets.iter().filter(|(i, _)| *i == input_id).count(),
+            1
+        );
         let index = self
             .offsets
             .iter()
             .position(|(i, _)| *i == input_id)
             .unwrap();
         let o = self.offsets.remove(index);
-        for (_, s) in self.offsets[index..].iter_mut() {
-            s.index -= o.1.count;
-        }
-        GridSpan::new_contiguous(o.1.index, o.1.count)
+        assert_eq!(o.1.count, 0);
     }
 
     // Returns the span of states to insert
