@@ -215,16 +215,18 @@ impl<'a> SoundProcessorData<'a> {
         input_idgen: &'b mut IdGenerator<SoundInputId>,
     ) -> (SoundProcessorData<'a>, DynamicSoundProcessorHandle<T>) {
         let mut inputs = Vec::<SoundInputData>::new();
+        let id = proc_idgen.next_id();
         let w1;
         {
             let tools = SoundProcessorTools {
                 input_idgen,
                 inputs: &mut inputs,
+                processor_id: id,
+                num_processor_states: 0,
             };
             let w = WrappedDynamicSoundProcessor::<T>::new(T::new(tools));
             w1 = Rc::new(RefCell::new(w));
         }
-        let id = proc_idgen.next_id();
         w1.borrow_mut().id = Some(id);
         let w2 = Rc::clone(&w1);
         (
@@ -242,16 +244,18 @@ impl<'a> SoundProcessorData<'a> {
         input_idgen: &'b mut IdGenerator<SoundInputId>,
     ) -> (SoundProcessorData<'a>, StaticSoundProcessorHandle<T>) {
         let mut inputs = Vec::<SoundInputData>::new();
+        let id = proc_idgen.next_id();
         let w1;
         {
             let tools = SoundProcessorTools {
                 input_idgen,
                 inputs: &mut inputs,
+                processor_id: id,
+                num_processor_states: 1,
             };
             let w = WrappedStaticSoundProcessor::<T>::new(T::new(tools));
             w1 = Rc::new(RefCell::new(w));
         }
-        let id = proc_idgen.next_id();
         w1.borrow_mut().id = Some(id);
         let w2 = Rc::clone(&w1);
         (
@@ -675,7 +679,8 @@ pub struct SoundProcessorTools<'a, 'b> {
     input_idgen: &'a mut IdGenerator<SoundInputId>,
     inputs: &'a mut Vec<SoundInputData<'b>>,
     // TODO
-    // - id of or ref to the current sound processor
+    processor_id: SoundProcessorId,
+    num_processor_states: usize,
     // - reference to any data that might be modified
 }
 
@@ -683,6 +688,9 @@ impl<'a, 'b> SoundProcessorTools<'a, 'b> {
     pub fn add_single_input(&mut self, options: InputOptions) -> SingleSoundInputHandle {
         let input = SingleSoundInput::new(self.input_idgen);
         let input = Rc::new(RefCell::new(input));
+        input
+            .borrow_mut()
+            .insert_states(GridSpan::new_contiguous(0, self.num_processor_states));
         let input2 = Rc::clone(&input);
         self.inputs.push(SoundInputData {
             id: input.borrow().id(),
@@ -699,6 +707,9 @@ impl<'a, 'b> SoundProcessorTools<'a, 'b> {
     ) -> KeyedSoundInputHandle<K, T> {
         let input = KeyedSoundInput::<K, T>::new(self.input_idgen);
         let input = Rc::new(RefCell::new(input));
+        input
+            .borrow_mut()
+            .insert_states(GridSpan::new_contiguous(0, self.num_processor_states));
         let input2 = Rc::clone(&input);
         self.inputs.push(SoundInputData {
             id: input.borrow().id(),
