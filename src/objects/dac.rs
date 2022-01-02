@@ -1,8 +1,10 @@
-use crate::sound::soundgraph::{Context, SoundProcessorTools};
-use crate::sound::soundinput::InputOptions;
-use crate::sound::soundinput::SingleSoundInputHandle;
-use crate::sound::soundprocessor::StaticSoundProcessor;
-use crate::sound::soundstate::{SoundState, StateTime};
+use crate::sound::{
+    context::Context,
+    soundinput::{InputOptions, SingleSoundInputHandle},
+    soundprocessor::StaticSoundProcessor,
+    soundprocessortools::SoundProcessorTools,
+    soundstate::{SoundState, StateTime},
+};
 
 pub struct DAC {
     input: SingleSoundInputHandle,
@@ -42,7 +44,7 @@ impl DAC {
 impl StaticSoundProcessor for DAC {
     type StateType = DACState;
 
-    fn new(mut tools: SoundProcessorTools) -> DAC {
+    fn new(mut tools: &mut SoundProcessorTools) -> DAC {
         DAC {
             input: tools.add_single_input(InputOptions {
                 realtime: true,

@@ -1,12 +1,14 @@
 use crate::sound::gridspan::GridSpan;
-use crate::sound::soundgraph::Context;
-use crate::sound::soundgraph::SoundProcessorTools;
 use crate::sound::soundinput::SoundInputId;
 use crate::sound::soundstate::SoundState;
 use crate::sound::statetable::StateTable;
 use crate::sound::statetable::StateTablePartition;
 use crate::sound::uniqueid::UniqueId;
-use std::cell::RefCell;
+
+use std::sync::{Arc, Mutex};
+
+use super::context::Context;
+use super::soundprocessortools::SoundProcessorTools;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundProcessorId(usize);
@@ -16,6 +18,7 @@ impl Default for SoundProcessorId {
         SoundProcessorId(1)
     }
 }
+
 impl UniqueId for SoundProcessorId {
     fn value(&self) -> usize {
         self.0
@@ -25,20 +28,20 @@ impl UniqueId for SoundProcessorId {
     }
 }
 
-pub trait DynamicSoundProcessor {
+pub trait DynamicSoundProcessor: Sync + Send {
     type StateType: SoundState;
-    fn new<'a>(tools: SoundProcessorTools) -> Self;
+    fn new(tools: &mut SoundProcessorTools<'_>) -> Self;
     fn process_audio(&self, state: &mut Self::StateType, context: &mut Context);
 }
 
-pub trait StaticSoundProcessor {
+pub trait StaticSoundProcessor: Sync + Send {
     type StateType: SoundState;
-    fn new<'a>(tools: SoundProcessorTools) -> Self;
+    fn new(tools: &mut SoundProcessorTools<'_>) -> Self;
     fn process_audio(&self, state: &mut Self::StateType, context: &mut Context);
     fn produces_output(&self) -> bool;
 }
 
-pub trait SoundProcessorWrapper {
+pub trait SoundProcessorWrapper: Send {
     fn id(&self) -> SoundProcessorId;
 
     // Process the next chunk of audio
@@ -81,15 +84,14 @@ pub trait SoundProcessorWrapper {
 }
 
 pub struct WrappedDynamicSoundProcessor<T: DynamicSoundProcessor> {
-    instance: T,
-    pub(in crate::sound) id: Option<SoundProcessorId>,
+    instance: Arc<T>,
+    id: SoundProcessorId,
     state_table: StateTable<T::StateType>,
     state_partition: StateTablePartition,
 }
 
 impl<T: DynamicSoundProcessor> WrappedDynamicSoundProcessor<T> {
-    pub fn new(instance: T) -> WrappedDynamicSoundProcessor<T> {
-        let id = None;
+    pub fn new(instance: Arc<T>, id: SoundProcessorId) -> WrappedDynamicSoundProcessor<T> {
         let state_table = StateTable::new();
         let state_partition = StateTablePartition::new();
         WrappedDynamicSoundProcessor {
@@ -104,18 +106,14 @@ impl<T: DynamicSoundProcessor> WrappedDynamicSoundProcessor<T> {
         &self.instance
     }
 
-    pub fn instance_mut(&mut self) -> &mut T {
-        &mut self.instance
-    }
-
     pub fn id(&self) -> SoundProcessorId {
-        self.id.unwrap()
+        self.id
     }
 }
 
 impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProcessor<T> {
     fn id(&self) -> SoundProcessorId {
-        self.id.unwrap()
+        self.id
     }
 
     fn process_audio(&self, context: &mut Context) {
@@ -192,17 +190,16 @@ struct StaticInputStates {
 }
 
 pub struct WrappedStaticSoundProcessor<T: StaticSoundProcessor> {
-    instance: T,
-    pub(in crate::sound) id: Option<SoundProcessorId>,
-    state: RefCell<T::StateType>,
+    instance: Arc<T>,
+    id: SoundProcessorId,
+    state: Mutex<T::StateType>,
     dst_inputs: Vec<StaticInputStates>,
 }
 
 impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
-    pub fn new(instance: T) -> WrappedStaticSoundProcessor<T> {
-        let id = None;
+    pub fn new(instance: Arc<T>, id: SoundProcessorId) -> WrappedStaticSoundProcessor<T> {
         let dst_inputs = Vec::new();
-        let state = RefCell::new(T::StateType::default());
+        let state = Mutex::new(T::StateType::default());
         WrappedStaticSoundProcessor {
             instance,
             id,
@@ -215,12 +212,8 @@ impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
         &self.instance
     }
 
-    pub fn instance_mut(&mut self) -> &mut T {
-        &mut self.instance
-    }
-
     pub fn id(&self) -> SoundProcessorId {
-        self.id.unwrap()
+        self.id
     }
 }
 
@@ -229,12 +222,12 @@ impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
 // state.
 impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProcessor<T> {
     fn id(&self) -> SoundProcessorId {
-        self.id.unwrap()
+        self.id
     }
 
     fn process_audio(&self, context: &mut Context) {
         self.instance
-            .process_audio(&mut self.state.borrow_mut(), context);
+            .process_audio(&mut self.state.lock().unwrap(), context);
     }
 
     fn is_static(&self) -> bool {

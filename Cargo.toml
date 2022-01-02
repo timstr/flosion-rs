@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 cpal = "0.13.3"
 rand = "0.8.3"
+futures = "0.3"

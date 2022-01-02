@@ -1,7 +1,11 @@
-use crate::sound::soundgraph::{Context, SoundProcessorTools};
-use crate::sound::soundprocessor::DynamicSoundProcessor;
-use crate::sound::soundstate::{SoundState, StateTime};
 use rand::prelude::*;
+
+use crate::sound::{
+    context::Context,
+    soundprocessor::DynamicSoundProcessor,
+    soundprocessortools::SoundProcessorTools,
+    soundstate::{SoundState, StateTime},
+};
 
 pub struct WhiteNoise {}
 
@@ -30,11 +34,12 @@ impl SoundState for WhiteNoiseState {
 impl DynamicSoundProcessor for WhiteNoise {
     type StateType = WhiteNoiseState;
 
-    fn new(_tools: SoundProcessorTools) -> WhiteNoise {
+    fn new(_tools: &mut SoundProcessorTools) -> WhiteNoise {
         WhiteNoise {}
     }
 
     fn process_audio(&self, _state: &mut WhiteNoiseState, context: &mut Context) {
+        println!("WhiteNoise processing audio");
         let b = context.output_buffer();
         for s in b.l.iter_mut() {
             let r: f32 = thread_rng().gen();

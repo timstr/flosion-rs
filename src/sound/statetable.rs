@@ -1,11 +1,12 @@
 use crate::sound::gridspan::GridSpan;
 use crate::sound::soundinput::SoundInputId;
 use crate::sound::soundstate::SoundState;
-use std::cell::RefCell;
+
 use std::ops::{Deref, DerefMut};
+use std::sync::Mutex;
 
 pub struct StateTable<T: SoundState> {
-    data: Vec<RefCell<T>>,
+    data: Vec<Mutex<T>>,
 }
 
 impl<T: SoundState> StateTable<T> {
@@ -18,10 +19,7 @@ impl<T: SoundState> StateTable<T> {
     }
 
     pub fn insert_states(&mut self, span: GridSpan) {
-        self.data = span.insert_with(
-            std::mem::take(&mut self.data),
-            || RefCell::new(T::default()),
-        );
+        self.data = span.insert_with(std::mem::take(&mut self.data), || Mutex::new(T::default()));
     }
 
     pub fn erase_states(&mut self, span: GridSpan) {
@@ -33,89 +31,71 @@ impl<T: SoundState> StateTable<T> {
             let row_begin = span.start_index() + (r * span.row_stride());
             let row_end = row_begin + span.items_per_row();
             for s in &self.data[row_begin..row_end] {
-                s.borrow_mut().reset();
+                s.lock().unwrap().reset();
             }
         }
     }
 
     pub fn get_state<'a>(&'a self, index: usize) -> impl Deref<Target = T> + 'a {
-        self.data[index].borrow()
+        self.data[index].lock().unwrap()
     }
 
     pub fn get_state_mut<'a>(&'a self, index: usize) -> impl DerefMut<Target = T> + 'a {
-        self.data[index].borrow_mut()
+        self.data[index].lock().unwrap()
     }
 }
 
-pub struct KeyedStateTable<K: Ord, T: SoundState> {
-    keys: Vec<K>,
-    data: Vec<RefCell<T>>,
+pub struct KeyedStateTable<T: SoundState> {
+    data: Vec<Mutex<T>>,
+    num_keys: usize,
     num_parent_states: usize,
 }
 
-impl<K: Ord, T: SoundState> KeyedStateTable<K, T> {
-    pub fn new() -> KeyedStateTable<K, T> {
+impl<T: SoundState> KeyedStateTable<T> {
+    pub fn new() -> KeyedStateTable<T> {
         KeyedStateTable {
-            keys: Vec::new(),
             data: Vec::new(),
+            num_keys: 0,
             num_parent_states: 0,
         }
     }
 
     pub fn num_keys(&self) -> usize {
-        self.keys.len()
+        self.num_keys
     }
 
-    pub fn add_key(&mut self, key: K) -> GridSpan {
-        let old_num_keys = self.keys.len();
-        let index = self
-            .keys
-            .iter()
-            .position(|k| *k > key)
-            .unwrap_or(self.keys.len());
-        self.keys.insert(index, key);
-        let gs = GridSpan::new(
-            index,
-            old_num_keys,
-            old_num_keys + 1,
-            self.num_parent_states,
-        );
-        self.data = gs.insert_with(
-            std::mem::take(&mut self.data),
-            || RefCell::new(T::default()),
-        );
+    pub fn insert_key(&mut self, index: usize) -> GridSpan {
+        let gs = GridSpan::new(index, 1, self.num_keys, self.num_parent_states);
+        self.data = gs.insert_with(std::mem::take(&mut self.data), || Mutex::new(T::default()));
+        self.num_keys += 1;
         gs
     }
 
-    pub fn remove_key(&mut self, key: K) -> GridSpan {
-        let old_num_keys = self.keys.len();
-        let index = self.keys.iter().position(|k| *k == key).unwrap();
-        self.keys.remove(index);
-        let gs = GridSpan::new(index, 1, old_num_keys, self.num_parent_states);
+    pub fn erase_key(&mut self, index: usize) -> GridSpan {
+        assert!(index < self.num_keys);
+        let gs = GridSpan::new(index, 1, self.num_keys, self.num_parent_states);
         self.data = gs.erase(std::mem::take(&mut self.data));
+        self.num_keys -= 1;
         gs
     }
 
     pub fn insert_states(&mut self, span: GridSpan) -> GridSpan {
-        let span = span.inflate(self.keys.len());
-        self.data = span.insert_with(
-            std::mem::take(&mut self.data),
-            || RefCell::new(T::default()),
-        );
+        let span = span.inflate(self.num_keys);
+        self.data = span.insert_with(std::mem::take(&mut self.data), || Mutex::new(T::default()));
         span
     }
 
     pub fn erase_states(&mut self, span: GridSpan) -> GridSpan {
-        let span = span.inflate(self.keys.len());
+        let span = span.inflate(self.num_keys);
         self.data = span.erase(std::mem::take(&mut self.data));
         span
     }
 
     pub fn reset_states(&self, span: GridSpan) -> GridSpan {
-        let span = span.inflate(self.keys.len());
+        let span = span.inflate(self.num_keys);
         for (i, s) in self.data.iter().enumerate() {
             if span.contains(i) {
-                s.borrow_mut().reset();
+                s.lock().unwrap().reset();
             }
         }
         span
@@ -126,8 +106,10 @@ impl<K: Ord, T: SoundState> KeyedStateTable<K, T> {
         state_index: usize,
         key_index: usize,
     ) -> impl Deref<Target = T> + 'a {
-        assert!(key_index < self.keys.len());
-        self.data[self.keys.len() * state_index + key_index].borrow()
+        assert!(key_index < self.num_keys);
+        self.data[self.num_keys * state_index + key_index]
+            .lock()
+            .unwrap()
     }
 
     pub fn get_state_mut<'a>(
@@ -135,8 +117,10 @@ impl<K: Ord, T: SoundState> KeyedStateTable<K, T> {
         state_index: usize,
         key_index: usize,
     ) -> impl DerefMut<Target = T> + 'a {
-        assert!(key_index < self.keys.len());
-        self.data[self.keys.len() * state_index + key_index].borrow_mut()
+        assert!(key_index < self.num_keys);
+        self.data[self.num_keys * state_index + key_index]
+            .lock()
+            .unwrap()
     }
 }
 
