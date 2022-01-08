@@ -1,4 +1,4 @@
-pub const CHUNK_SIZE: usize = 1024;
+pub const CHUNK_SIZE: usize = 512;
 
 // TODO: consider making each of these a reference?
 pub struct SoundChunk {

@@ -39,6 +39,8 @@ pub trait StaticSoundProcessor: Sync + Send {
     fn new(tools: &mut SoundProcessorTools<'_>) -> Self;
     fn process_audio(&self, state: &mut Self::StateType, context: &mut Context);
     fn produces_output(&self) -> bool;
+    fn on_start_processing(&self) {}
+    fn on_stop_processing(&self) {}
 }
 
 pub trait SoundProcessorWrapper: Send {
@@ -46,6 +48,10 @@ pub trait SoundProcessorWrapper: Send {
 
     // Process the next chunk of audio
     fn process_audio(&self, context: &mut Context);
+
+    fn on_start_processing(&self);
+
+    fn on_stop_processing(&self);
 
     // Whether the sound processor is static, e.g. having only one state ever,
     // not allowed to be duplicated, and usually representing an external device
@@ -124,6 +130,10 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
     fn is_static(&self) -> bool {
         false
     }
+
+    fn on_start_processing(&self) {}
+
+    fn on_stop_processing(&self) {}
 
     fn num_states(&self) -> usize {
         assert_eq!(
@@ -228,6 +238,14 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
     fn process_audio(&self, context: &mut Context) {
         self.instance
             .process_audio(&mut self.state.lock().unwrap(), context);
+    }
+
+    fn on_start_processing(&self) {
+        self.instance.on_start_processing();
+    }
+
+    fn on_stop_processing(&self) {
+        self.instance.on_stop_processing();
     }
 
     fn is_static(&self) -> bool {

@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+
 use super::{
     key::Key,
     soundchunk::SoundChunk,
-    soundinput::{KeyedSoundInput, SingleSoundInput, SoundInputId},
+    soundengine::SoundProcessorData,
+    soundinput::{KeyedSoundInput, SingleSoundInput, SingleSoundInputHandle},
     soundprocessor::SoundProcessorId,
     soundstate::{EmptyState, SoundState},
 };
 
 pub struct Context<'a> {
     output_buffer: Option<&'a mut SoundChunk>,
-    input_buffers: Vec<(SoundInputId, &'a SoundChunk)>,
+    processor_data: &'a HashMap<SoundProcessorId, SoundProcessorData>,
     processor_id: SoundProcessorId,
     state_index: usize,
 }
@@ -16,13 +19,13 @@ pub struct Context<'a> {
 impl<'a> Context<'a> {
     pub(super) fn new(
         output_buffer: Option<&'a mut SoundChunk>,
-        input_buffers: Vec<(SoundInputId, &'a SoundChunk)>,
+        processor_data: &'a HashMap<SoundProcessorId, SoundProcessorData>,
         processor_id: SoundProcessorId,
         state_index: usize,
     ) -> Context<'a> {
         Context {
             output_buffer,
-            input_buffers,
+            processor_data,
             processor_id,
             state_index,
         }
@@ -39,15 +42,19 @@ impl<'a> Context<'a> {
         self.output_buffer.as_mut().unwrap()
     }
 
-    pub fn input_buffer(&'a mut self, input_id: SoundInputId) -> &'a SoundChunk {
-        // TODO: if the input buffer is not yet filled, call on the sound graph to fill it now
-        match self
-            .input_buffers
-            .iter_mut()
-            .find(|(id, _)| *id == input_id)
-        {
-            Some((_, buffer)) => *buffer,
-            None => panic!(),
+    pub fn step_single_input(&mut self, handle: &SingleSoundInputHandle, dst: &mut SoundChunk) {
+        let pd = self.processor_data.get(&self.processor_id).unwrap();
+        let input = pd.inputs().iter().find(|i| i.id() == handle.id()).unwrap();
+        assert!(input.input().num_keys() == 1);
+        if let Some(target) = input.target() {
+            let other_pd = self.processor_data.get(&target).unwrap();
+            // TODO: ???
+            assert!(!other_pd.sound_processor().is_static());
+            let mut new_ctx =
+                Context::new(Some(dst), self.processor_data, target, self.state_index);
+            other_pd.sound_processor().process_audio(&mut new_ctx);
+        } else {
+            dst.silence();
         }
     }
 

@@ -1,17 +1,21 @@
 use std::{
     collections::HashMap,
+    ops::Add,
     sync::mpsc::TryRecvError,
     sync::mpsc::{channel, Receiver, Sender},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+use spin_sleep::LoopHelper;
 
 use super::{
     connectionerror::ConnectionError,
     context::Context,
     gridspan::GridSpan,
     resultfuture::OutboundResult,
-    soundchunk::SoundChunk,
+    samplefrequency::SAMPLE_FREQUENCY,
+    soundchunk::{SoundChunk, CHUNK_SIZE},
     soundgraphdescription::{
         SoundGraphDescription, SoundInputDescription, SoundProcessorDescription,
     },
@@ -43,6 +47,22 @@ impl SoundInputData {
             id,
         }
     }
+
+    pub fn options(&self) -> InputOptions {
+        self.options
+    }
+
+    pub fn id(&self) -> SoundInputId {
+        self.id
+    }
+
+    pub fn target(&self) -> Option<SoundProcessorId> {
+        self.target
+    }
+
+    pub fn input(&self) -> &dyn SoundInputWrapper {
+        &*self.input
+    }
 }
 
 pub struct SoundProcessorData {
@@ -65,7 +85,11 @@ impl SoundProcessorData {
         }
     }
 
-    fn sound_processor(&self) -> &dyn SoundProcessorWrapper {
+    pub fn inputs(&self) -> &Vec<SoundInputData> {
+        &self.inputs
+    }
+
+    pub fn sound_processor(&self) -> &dyn SoundProcessorWrapper {
         &*self.wrapper
     }
 }
@@ -115,11 +139,6 @@ impl SoundEngine {
         processor_id: SoundProcessorId,
         wrapper: Box<dyn SoundProcessorWrapper>,
     ) {
-        println!(
-            "Adding sound processor {:?}, static: {}",
-            processor_id,
-            wrapper.is_static()
-        );
         let data = SoundProcessorData::new(wrapper, processor_id);
         self.processors.insert(processor_id, data);
     }
@@ -134,11 +153,6 @@ impl SoundEngine {
         processor_id: SoundProcessorId,
         wrapper: Box<dyn SoundInputWrapper>,
     ) {
-        println!(
-            "Adding sound input {:?} to processor {:?}",
-            wrapper.id(),
-            processor_id
-        );
         assert!(self
             .processors
             .iter()
@@ -347,12 +361,50 @@ impl SoundEngine {
     }
 
     pub fn run(&mut self) {
+        let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
+        // let usec_per_chunk = (1_000_000.0 / chunks_per_sec) as u64;
+        // let mut then = Instant::now();
+
+        for p in self.processors.values() {
+            p.sound_processor().on_start_processing();
+        }
+
+        let mut loop_helper = LoopHelper::builder()
+            .report_interval_s(0.5)
+            .build_with_target_rate(chunks_per_sec);
+
         loop {
+            let _delta = loop_helper.loop_start();
+
             self.process_audio();
             if let PlaybackStatus::Stop = self.flush_messages() {
-                return;
+                println!("SoundEngine stopping");
+                break;
             }
-            thread::sleep(Duration::from_millis(250));
+
+            if let Some(fps) = loop_helper.report_rate() {
+                println!(
+                    "Sound engine running at {} chunks per sec (expected {})",
+                    fps, chunks_per_sec
+                );
+            }
+
+            loop_helper.loop_sleep();
+            // let next = then.add(Duration::from_micros(usec_per_chunk));
+            // loop {
+            //     let now = Instant::now();
+            //     let elapsed = now.duration_since(then).as_micros() as u64;
+            //     if elapsed >= usec_per_chunk {
+            //         break;
+            //     }
+            //     // thread::park_timeout(Duration::from_micros(1000));
+            //     std::hint::spin_loop();
+            // }
+            // then = next;
+        }
+
+        for p in self.processors.values() {
+            p.sound_processor().on_stop_processing();
         }
     }
 
@@ -400,11 +452,19 @@ impl SoundEngine {
 
     fn process_audio(&mut self) {
         // TODO
-        println!("TODO: invoke audio processors in the right order");
+        // - place all static sound processors into a queue
+        // - until the queue is empty:
+        //    - remove the next static sound processor from the front of the queue
+        //    - if it depends on any other static processors, put in on the back of the queue and continue
+        //    - otherwise, invoke the processor directly.
+        // **Mmmmm**: cache the order in which to invoke static processors and update it when changing
+        //            the graph
         let mut buf = SoundChunk::new();
-        for (id, pd) in &mut self.processors {
-            let mut ctx = Context::new(Some(&mut buf), Vec::new(), *id, 0);
-            pd.wrapper.process_audio(&mut ctx);
+        for (id, pd) in &self.processors {
+            if pd.wrapper.is_static() {
+                let mut ctx = Context::new(Some(&mut buf), &self.processors, *id, 0);
+                pd.wrapper.process_audio(&mut ctx);
+            }
         }
     }
 }

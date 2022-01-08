@@ -28,7 +28,7 @@ async fn async_main() {
     println!("Starting audio processing");
     sg.start().unwrap();
 
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(2_000));
 
     println!("Stopping audio processing...");
     sg.stop().unwrap();
@@ -37,13 +37,11 @@ async fn async_main() {
     sg.disconnect_sound_input(dac.instance().input().id())
         .await
         .unwrap();
+
     println!("After disconnecting:");
 }
 
 fn main() {
     block_on(async_main());
-    // println!("WhiteNoise has {} states", wn.num_states());
-    // println!("DAC has {} states", dac.num_states());
-
-    // make_noise_for_two_seconds();
+    println!("main() exiting");
 }
