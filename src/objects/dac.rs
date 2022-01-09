@@ -20,8 +20,9 @@ use crate::sound::{
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    SampleRate, Stream, StreamConfig,
+    BufferSize, SampleRate, Stream, StreamConfig, StreamError,
 };
+use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 struct StreamDammit {
     stream: Stream,
@@ -83,8 +84,8 @@ impl StaticSoundProcessor for DAC {
 
         println!(
             "Supported sample rates are {:?} to {:?}",
-            supported_configs.min_sample_rate(),
-            supported_configs.max_sample_rate()
+            supported_configs.min_sample_rate().0,
+            supported_configs.max_sample_rate().0
         );
 
         println!(
@@ -97,6 +98,12 @@ impl StaticSoundProcessor for DAC {
 
         config.channels = 2;
         config.sample_rate = SampleRate(SAMPLE_FREQUENCY as u32);
+        // config.buffer_size = BufferSize::Fixed(CHUNK_SIZE as u32);
+
+        println!(
+            "Requesting audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",
+            config.channels, config.sample_rate.0, config.buffer_size
+        );
 
         let (tx, rx) = channel::<SoundChunk>();
 
@@ -125,7 +132,7 @@ impl StaticSoundProcessor for DAC {
                         println!("Playback has stopped, producing silence");
                         break SoundChunk::new();
                     }
-                    spin_sleep::sleep(Duration::from_micros(1000));
+                    spin_sleep::sleep(Duration::from_micros(1_000));
                 });
                 chunk_index = 0;
             }
@@ -136,23 +143,30 @@ impl StaticSoundProcessor for DAC {
             (l, r)
         };
 
+        let mut init = false;
+
+        let data_callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            assert!(data.len() % 2 == 0);
+            if !init {
+                // set_current_thread_priority(ThreadPriority::Max).unwrap();
+                // spin_sleep::sleep(Duration::from_micros(10_000));
+                init = true;
+            }
+            // println!("CPAL asked for {} samples", (data.len() / 2));
+            resample_interleave(
+                data,
+                || get_next_sample(),
+                SAMPLE_FREQUENCY as u32,
+                sample_rate.0,
+            );
+        };
+
+        let err_callback = |err: StreamError| {
+            println!("CPAL StreamError: {:?}", err);
+        };
+
         let stream = device
-            .build_output_stream(
-                &config,
-                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    assert!(data.len() % 2 == 0);
-                    println!("CPAL asked for {} samples", (data.len() / 2));
-                    resample_interleave(
-                        data,
-                        || get_next_sample(),
-                        SAMPLE_FREQUENCY as u32,
-                        sample_rate.0,
-                    );
-                },
-                |err| {
-                    println!("CPAL StreamError: {:?}", err);
-                },
-            )
+            .build_output_stream(&config, data_callback, err_callback)
             .unwrap();
 
         DAC {

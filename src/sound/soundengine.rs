@@ -8,6 +8,7 @@ use std::{
 };
 
 use spin_sleep::LoopHelper;
+use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
     connectionerror::ConnectionError,
@@ -362,45 +363,32 @@ impl SoundEngine {
 
     pub fn run(&mut self) {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
-        // let usec_per_chunk = (1_000_000.0 / chunks_per_sec) as u64;
+        let chunk_duration = Duration::from_micros((1_000_000.0 / chunks_per_sec) as u64);
         // let mut then = Instant::now();
+
+        set_current_thread_priority(ThreadPriority::Max).unwrap();
 
         for p in self.processors.values() {
             p.sound_processor().on_start_processing();
         }
 
-        let mut loop_helper = LoopHelper::builder()
-            .report_interval_s(0.5)
-            .build_with_target_rate(chunks_per_sec);
+        let mut deadline = Instant::now() + chunk_duration;
 
         loop {
-            let _delta = loop_helper.loop_start();
-
             self.process_audio();
             if let PlaybackStatus::Stop = self.flush_messages() {
                 println!("SoundEngine stopping");
                 break;
             }
 
-            if let Some(fps) = loop_helper.report_rate() {
-                println!(
-                    "Sound engine running at {} chunks per sec (expected {})",
-                    fps, chunks_per_sec
-                );
+            let now = Instant::now();
+            if now > deadline {
+                println!("WARNING: SoundEngine missed a deadline");
+            } else {
+                let delta = deadline.duration_since(now);
+                spin_sleep::sleep(delta);
             }
-
-            loop_helper.loop_sleep();
-            // let next = then.add(Duration::from_micros(usec_per_chunk));
-            // loop {
-            //     let now = Instant::now();
-            //     let elapsed = now.duration_since(then).as_micros() as u64;
-            //     if elapsed >= usec_per_chunk {
-            //         break;
-            //     }
-            //     // thread::park_timeout(Duration::from_micros(1000));
-            //     std::hint::spin_loop();
-            // }
-            // then = next;
+            deadline += chunk_duration;
         }
 
         for p in self.processors.values() {

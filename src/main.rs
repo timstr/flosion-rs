@@ -28,7 +28,7 @@ async fn async_main() {
     println!("Starting audio processing");
     sg.start().unwrap();
 
-    thread::sleep(Duration::from_millis(2_000));
+    thread::sleep(Duration::from_millis(60_000));
 
     println!("Stopping audio processing...");
     sg.stop().unwrap();

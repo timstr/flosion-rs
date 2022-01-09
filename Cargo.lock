@@ -222,6 +222,7 @@ dependencies = [
  "futures",
  "rand",
  "spin_sleep",
+ "thread-priority",
 ]
 
 [[package]]
@@ -830,6 +831,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "thread-priority"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f6394af1cf06bf887a5f37ce84c41fd324dff220386adec3c01a85cb66c91b1"
+dependencies = [
+ "libc",
+ "log",
+ "winapi",
 ]
 
 [[package]]
