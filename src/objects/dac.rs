@@ -97,7 +97,7 @@ impl StaticSoundProcessor for DAC {
         let mut config: StreamConfig = supported_configs.with_sample_rate(sample_rate).into();
 
         config.channels = 2;
-        config.sample_rate = SampleRate(SAMPLE_FREQUENCY as u32);
+        // config.sample_rate = SampleRate(SAMPLE_FREQUENCY as u32);
         // config.buffer_size = BufferSize::Fixed(CHUNK_SIZE as u32);
 
         println!(
