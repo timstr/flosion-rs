@@ -1,7 +1,7 @@
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{channel, Sender, TryRecvError},
+        mpsc::{channel, Sender},
         Arc, Mutex,
     },
     time::Duration,
@@ -20,9 +20,8 @@ use crate::sound::{
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    BufferSize, SampleRate, Stream, StreamConfig, StreamError,
+    SampleRate, Stream, StreamConfig, StreamError,
 };
-use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 struct StreamDammit {
     stream: Stream,
@@ -115,15 +114,6 @@ impl StaticSoundProcessor for DAC {
 
         let mut get_next_sample = move || {
             if current_chunk.is_none() || chunk_index >= CHUNK_SIZE {
-                // current_chunk = Some(if let Ok(b) = rx.try_recv() {
-                //     b
-                // } else {
-                //     // println!("CPAL thread blocking");
-                //     // rx.recv().unwrap()
-
-                //     println!("CPAL thread received no audio, producing silence instead");
-                //     SoundChunk::new()
-                // });
                 current_chunk = Some(loop {
                     if let Ok(b) = rx.try_recv() {
                         break b;
@@ -143,16 +133,8 @@ impl StaticSoundProcessor for DAC {
             (l, r)
         };
 
-        let mut init = false;
-
         let data_callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             assert!(data.len() % 2 == 0);
-            if !init {
-                // set_current_thread_priority(ThreadPriority::Max).unwrap();
-                // spin_sleep::sleep(Duration::from_micros(10_000));
-                init = true;
-            }
-            // println!("CPAL asked for {} samples", (data.len() / 2));
             resample_interleave(
                 data,
                 || get_next_sample(),

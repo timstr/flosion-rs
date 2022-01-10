@@ -4,7 +4,7 @@ use super::{
     key::Key,
     soundchunk::SoundChunk,
     soundengine::SoundProcessorData,
-    soundinput::{KeyedSoundInput, SingleSoundInput, SingleSoundInputHandle},
+    soundinput::{KeyedSoundInputHandle, SingleSoundInputHandle},
     soundprocessor::SoundProcessorId,
     soundstate::{EmptyState, SoundState},
 };
@@ -58,15 +58,15 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn single_input_state(&'a self, _input: &SingleSoundInput) -> &mut EmptyState {
+    pub fn single_input_state(&'a self, input: &SingleSoundInputHandle) -> &mut EmptyState {
         // TODO: assert that the input belongs to the sound processor
         panic!()
     }
 
     pub fn keyed_input_state<K: Key, T: SoundState>(
         &'a self,
-        _input: &KeyedSoundInput<K, T>,
-        _key: &K,
+        input: &KeyedSoundInputHandle<K, T>,
+        key_index: usize,
     ) -> &mut T {
         // TODO: assert that the input belongs to the sound processor
         panic!()

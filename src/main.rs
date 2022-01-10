@@ -12,15 +12,14 @@ async fn async_main() {
     let mut sg: SoundGraph = SoundGraph::new();
     let wn = sg.add_dynamic_sound_processor::<WhiteNoise>().await;
     let dac = sg.add_static_sound_processor::<DAC>().await;
+    let dac_input_id = dac.instance().input().id();
     println!("WhiteNoise id = {:?}", wn.id());
     println!("DAC id = {:?}", dac.id());
     println!("DAC input id = {:?}", dac.instance().input().id());
     println!("Before connecting:");
     // println!("WhiteNoise has {} states", wn.num_states());
     // println!("DAC has {} states", dac.num_states());
-    sg.connect_sound_input(dac.instance().input().id(), wn.id())
-        .await
-        .unwrap();
+    sg.connect_sound_input(dac_input_id, wn.id()).await.unwrap();
     println!("After connecting:");
     // println!("WhiteNoise has {} states", wn.num_states());
     // println!("DAC has {} states", dac.num_states());
@@ -28,7 +27,12 @@ async fn async_main() {
     println!("Starting audio processing");
     sg.start().unwrap();
 
-    thread::sleep(Duration::from_millis(60_000));
+    for _ in 0..16 {
+        thread::sleep(Duration::from_millis(250));
+        sg.disconnect_sound_input(dac_input_id).await.unwrap();
+        thread::sleep(Duration::from_millis(250));
+        sg.connect_sound_input(dac_input_id, wn.id()).await.unwrap();
+    }
 
     println!("Stopping audio processing...");
     sg.stop().unwrap();

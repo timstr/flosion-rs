@@ -1,6 +1,5 @@
 pub const CHUNK_SIZE: usize = 1024;
 
-// TODO: consider making each of these a reference?
 pub struct SoundChunk {
     pub l: [f32; CHUNK_SIZE],
     pub r: [f32; CHUNK_SIZE],

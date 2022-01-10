@@ -1,13 +1,10 @@
 use std::{
     collections::HashMap,
-    ops::Add,
     sync::mpsc::TryRecvError,
     sync::mpsc::{channel, Receiver, Sender},
-    thread,
     time::{Duration, Instant},
 };
 
-use spin_sleep::LoopHelper;
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
@@ -33,28 +30,22 @@ pub enum StateOperation {
 pub struct SoundInputData {
     input: Box<dyn SoundInputWrapper>,
     target: Option<SoundProcessorId>,
-    options: InputOptions, // TODO: this is redundant
-    id: SoundInputId,      // TODO: this is redundant
 }
 
 impl SoundInputData {
     pub fn new(input: Box<dyn SoundInputWrapper>) -> SoundInputData {
-        let id = input.id();
-        let options = input.options();
         SoundInputData {
             input,
             target: None,
-            options,
-            id,
         }
     }
 
     pub fn options(&self) -> InputOptions {
-        self.options
+        self.input.options()
     }
 
     pub fn id(&self) -> SoundInputId {
-        self.id
+        self.input.id()
     }
 
     pub fn target(&self) -> Option<SoundProcessorId> {
@@ -157,7 +148,7 @@ impl SoundEngine {
         assert!(self
             .processors
             .iter()
-            .find_map(|(_, pd)| pd.inputs.iter().find(|i| i.id == wrapper.id()))
+            .find_map(|(_, pd)| pd.inputs.iter().find(|i| i.id() == wrapper.id()))
             .is_none());
         let data = SoundInputData::new(wrapper);
         let pd = self.processors.get_mut(&processor_id).unwrap();
@@ -196,7 +187,7 @@ impl SoundEngine {
                         StateOperation::Erase => i.input.erase_states(gs),
                     };
                     match i.target {
-                        Some(t) => Some((t, gsi, i.id)),
+                        Some(t) => Some((t, gsi, i.id())),
                         None => None,
                     }
                 })
@@ -228,7 +219,7 @@ impl SoundEngine {
             let (input, input_parent_id) =
                 match self.processors.iter_mut().find_map(|(proc_id, proc)| {
                     assert_eq!(*proc_id, proc.id);
-                    match proc.inputs.iter_mut().find(|i| i.id == input_id) {
+                    match proc.inputs.iter_mut().find(|i| i.id() == input_id) {
                         Some(i) => Some((i, proc.id)),
                         None => None,
                     }
@@ -285,7 +276,7 @@ impl SoundEngine {
         let input_proc_id: SoundProcessorId;
         {
             let found_input = self.processors.iter_mut().find_map(|(_, proc)| {
-                match proc.inputs.iter_mut().find(|i| i.id == input_id) {
+                match proc.inputs.iter_mut().find(|i| i.id() == input_id) {
                     Some(i) => Some((i, proc.id)),
                     None => None,
                 }
@@ -332,7 +323,7 @@ impl SoundEngine {
         let input = self
             .processors
             .iter()
-            .find_map(|(_, proc)| proc.inputs.iter().find(|i| i.id == input_id))
+            .find_map(|(_, proc)| proc.inputs.iter().find(|i| i.id() == input_id))
             .unwrap();
         if let Some(pid) = input.target {
             self.modify_states_recursively(pid, states_changed, input_id, operation);
@@ -347,7 +338,7 @@ impl SoundEngine {
                 let input_instance = &i.input;
                 inputs.push(SoundInputDescription::new(
                     input_instance.id(),
-                    i.options,
+                    i.options(),
                     input_instance.num_keys(),
                     i.target,
                 ))
@@ -364,7 +355,6 @@ impl SoundEngine {
     pub fn run(&mut self) {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
         let chunk_duration = Duration::from_micros((1_000_000.0 / chunks_per_sec) as u64);
-        // let mut then = Instant::now();
 
         set_current_thread_priority(ThreadPriority::Max).unwrap();
 
