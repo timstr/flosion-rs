@@ -1,7 +1,7 @@
 use rand::prelude::*;
 
 use crate::sound::{
-    context::Context,
+    context::StateContext,
     soundprocessor::DynamicSoundProcessor,
     soundprocessortools::SoundProcessorTools,
     soundstate::{SoundState, StateTime},
@@ -38,8 +38,8 @@ impl DynamicSoundProcessor for WhiteNoise {
         WhiteNoise {}
     }
 
-    fn process_audio(&self, _state: &mut WhiteNoiseState, context: &mut Context) {
-        let b = context.output_buffer();
+    fn process_audio(&self, mut sc: StateContext<'_, WhiteNoiseState>) {
+        let b = sc.context_mut().output_buffer();
         for s in b.l.iter_mut() {
             let r: f32 = thread_rng().gen();
             *s = 0.2 * r - 0.1;

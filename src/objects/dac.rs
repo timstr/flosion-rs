@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::sound::{
-    context::Context,
+    context::StateContext,
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -162,9 +162,9 @@ impl StaticSoundProcessor for DAC {
         }
     }
 
-    fn process_audio(&self, _state: &mut DACState, context: &mut Context) {
+    fn process_audio(&self, mut sc: StateContext<'_, DACState>) {
         let mut ch = SoundChunk::new();
-        context.step_single_input(&self.input, &mut ch);
+        sc.context_mut().step_single_input(&self.input, &mut ch);
 
         let sender = self.chunk_sender.lock().unwrap();
         sender.send(ch).unwrap();

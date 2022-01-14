@@ -1,6 +1,9 @@
-use std::sync::{
-    mpsc::{channel, Receiver, Sender},
-    Arc,
+use std::{
+    marker,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
 };
 
 use super::{
@@ -91,7 +94,7 @@ impl<K: Key, T: SoundState> KeyedSoundInput<K, T> {
             id,
             local_keys: input.keys.clone(),
             message_sender: tx,
-            state_table_ptr: &input.state_table,
+            _marker: marker::PhantomData,
         };
         (input, handle)
     }
@@ -199,32 +202,7 @@ pub struct KeyedSoundInputHandle<K: Key, T: SoundState> {
     id: SoundInputId,
     local_keys: KeyRange<K>,
     message_sender: Sender<KeyedSoundInputMessage<K>>,
-
-    // TODO: at some point, a SoundProcessor will want mutable access to the KeyedSoundInput's
-    // state table so that it can write to the per-key states before they are used by number
-    // processors. Unfortunately, storing some type of ordinary reference to the input or its
-    // state table here in the handle normally means that either Rust won't allow me have
-    // mutable access to the state table, or that Rust will want wasteful synchronization
-    // primitives like mutexes even if I can guarantee unique ownership of the data and
-    // mutation from only one thread. To get around this situation, I've found a simple
-    // trick that makes minimal use of unsafe code. The basic idea is:
-    //  - the data of interest is owned by a type-erased container (e.g. dyn Trait)
-    //  - the type-erased container, through a mutable reference, provides a mutable,
-    //    type-erased pointer to () that points to the data. By Rust's usual borrowing rules,
-    //    you can only access this mutable pointer if you have unique access to the container
-    //    and thus its data.
-    // - meanwhile, the handle stores a strongly-typed *immutable* pointer to the data. This
-    //   pointer is *never* used to access the data directly and is generally hidden.
-    // - To gain mutable access to the data through the handle, you need a mutable reference to
-    //   the container, which may be type-erased. Through the container, you can get a mutable
-    //   but type-erased pointer to the data. Finally, after checking that the type-erased
-    //   mutable pointer and the strongly-typed immutable pointer indeed both point to the same
-    //   place, it's only a trivial amount of work to cast one of the pointers and dereference
-    //   it, yielding a strongly-typed reference to the data. The reference to the data has the
-    //   same lifetime requirements as the reference to the container.
-    // Live demo at:
-    // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=6271007114a9ae8710659455d16a6fd9
-    state_table_ptr: *const KeyedStateTable<T>,
+    _marker: marker::PhantomData<T>,
 }
 
 impl<K: Key, T: SoundState> KeyedSoundInputHandle<K, T> {

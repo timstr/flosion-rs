@@ -1,4 +1,9 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
+
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use super::{
     key::Key,
@@ -50,9 +55,8 @@ impl<'a> Context<'a> {
             let other_pd = self.processor_data.get(&target).unwrap();
             // TODO: ???
             assert!(!other_pd.sound_processor().is_static());
-            let mut new_ctx =
-                Context::new(Some(dst), self.processor_data, target, self.state_index);
-            other_pd.sound_processor().process_audio(&mut new_ctx);
+            let new_ctx = Context::new(Some(dst), self.processor_data, target, self.state_index);
+            other_pd.sound_processor().process_audio(new_ctx);
         } else {
             dst.silence();
         }
@@ -74,5 +78,71 @@ impl<'a> Context<'a> {
 
     pub fn state_index(&self) -> usize {
         self.state_index
+    }
+}
+
+pub struct StateContext<'a, T: SoundState> {
+    state: &'a RwLock<T>,
+    context: Context<'a>,
+}
+
+impl<'a, T: SoundState> StateContext<'a, T> {
+    pub fn new(state: &'a RwLock<T>, context: Context<'a>) -> StateContext<'a, T> {
+        StateContext { state, context }
+    }
+
+    pub fn context(&self) -> &Context<'a> {
+        &self.context
+    }
+
+    pub fn context_mut(&mut self) -> &mut Context<'a> {
+        &mut self.context
+    }
+
+    pub fn read_state(&'a self) -> StateReadLock<'a, T> {
+        StateReadLock {
+            lock: self.state.read(),
+        }
+    }
+
+    pub fn write_state<'b>(&'a mut self) -> StateWriteLock<'a, 'a, T> {
+        StateWriteLock {
+            lock: self.state.write(),
+            _context: &mut self.context,
+        }
+    }
+}
+
+pub struct StateReadLock<'a, T: SoundState> {
+    lock: RwLockReadGuard<'a, T>,
+}
+
+impl<'a, T: SoundState> Deref for StateReadLock<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &*self.lock
+    }
+}
+
+pub struct StateWriteLock<'a, 'b, T: SoundState> {
+    lock: RwLockWriteGuard<'a, T>,
+    // NOTE: storing a mutable reference to the context here is used to ensure
+    // that the context is not also used to call upon inputs while a write
+    // lock is held. This prevents deadlock.
+    _context: &'a mut Context<'b>,
+}
+
+impl<'a, 'b, T: SoundState> Deref for StateWriteLock<'a, 'b, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &*self.lock
+    }
+}
+
+impl<'a, 'b, T: SoundState> DerefMut for StateWriteLock<'a, 'b, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut *self.lock
     }
 }

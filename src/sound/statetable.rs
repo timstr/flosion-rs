@@ -1,12 +1,11 @@
+use parking_lot::RwLock;
+
 use crate::sound::gridspan::GridSpan;
 use crate::sound::soundinput::SoundInputId;
 use crate::sound::soundstate::SoundState;
 
-use std::ops::{Deref, DerefMut};
-use std::sync::Mutex;
-
 pub struct StateTable<T: SoundState> {
-    data: Vec<Mutex<T>>,
+    data: Vec<RwLock<T>>,
 }
 
 impl<T: SoundState> StateTable<T> {
@@ -19,7 +18,7 @@ impl<T: SoundState> StateTable<T> {
     }
 
     pub fn insert_states(&mut self, span: GridSpan) {
-        self.data = span.insert_with(std::mem::take(&mut self.data), || Mutex::new(T::default()));
+        self.data = span.insert_with(std::mem::take(&mut self.data), || RwLock::new(T::default()));
     }
 
     pub fn erase_states(&mut self, span: GridSpan) {
@@ -31,22 +30,18 @@ impl<T: SoundState> StateTable<T> {
             let row_begin = span.start_index() + (r * span.row_stride());
             let row_end = row_begin + span.items_per_row();
             for s in &self.data[row_begin..row_end] {
-                s.lock().unwrap().reset();
+                s.write().reset();
             }
         }
     }
 
-    pub fn get_state<'a>(&'a self, index: usize) -> impl Deref<Target = T> + 'a {
-        self.data[index].lock().unwrap()
-    }
-
-    pub fn get_state_mut<'a>(&'a self, index: usize) -> impl DerefMut<Target = T> + 'a {
-        self.data[index].lock().unwrap()
+    pub fn get_state(&self, index: usize) -> &RwLock<T> {
+        &self.data[index]
     }
 }
 
 pub struct KeyedStateTable<T: SoundState> {
-    data: Vec<Mutex<T>>,
+    data: Vec<RwLock<T>>,
     num_keys: usize,
     num_parent_states: usize,
 }
@@ -66,7 +61,7 @@ impl<T: SoundState> KeyedStateTable<T> {
 
     pub fn insert_key(&mut self, index: usize) -> GridSpan {
         let gs = GridSpan::new(index, 1, self.num_keys, self.num_parent_states);
-        self.data = gs.insert_with(std::mem::take(&mut self.data), || Mutex::new(T::default()));
+        self.data = gs.insert_with(std::mem::take(&mut self.data), || RwLock::new(T::default()));
         self.num_keys += 1;
         gs
     }
@@ -81,7 +76,7 @@ impl<T: SoundState> KeyedStateTable<T> {
 
     pub fn insert_states(&mut self, span: GridSpan) -> GridSpan {
         let span = span.inflate(self.num_keys);
-        self.data = span.insert_with(std::mem::take(&mut self.data), || Mutex::new(T::default()));
+        self.data = span.insert_with(std::mem::take(&mut self.data), || RwLock::new(T::default()));
         span
     }
 
@@ -95,32 +90,15 @@ impl<T: SoundState> KeyedStateTable<T> {
         let span = span.inflate(self.num_keys);
         for (i, s) in self.data.iter().enumerate() {
             if span.contains(i) {
-                s.lock().unwrap().reset();
+                s.write().reset();
             }
         }
         span
     }
 
-    pub fn get_state<'a>(
-        &'a self,
-        state_index: usize,
-        key_index: usize,
-    ) -> impl Deref<Target = T> + 'a {
+    pub fn get_state(&self, state_index: usize, key_index: usize) -> &RwLock<T> {
         assert!(key_index < self.num_keys);
-        self.data[self.num_keys * state_index + key_index]
-            .lock()
-            .unwrap()
-    }
-
-    pub fn get_state_mut<'a>(
-        &'a self,
-        state_index: usize,
-        key_index: usize,
-    ) -> impl DerefMut<Target = T> + 'a {
-        assert!(key_index < self.num_keys);
-        self.data[self.num_keys * state_index + key_index]
-            .lock()
-            .unwrap()
+        &self.data[self.num_keys * state_index + key_index]
     }
 }
 

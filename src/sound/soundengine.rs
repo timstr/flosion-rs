@@ -440,8 +440,8 @@ impl SoundEngine {
         let mut buf = SoundChunk::new();
         for (id, pd) in &self.processors {
             if pd.wrapper.is_static() {
-                let mut ctx = Context::new(Some(&mut buf), &self.processors, *id, 0);
-                pd.wrapper.process_audio(&mut ctx);
+                let context = Context::new(Some(&mut buf), &self.processors, *id, 0);
+                pd.wrapper.process_audio(context);
             }
         }
     }
