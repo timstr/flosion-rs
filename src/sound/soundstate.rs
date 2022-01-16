@@ -17,7 +17,7 @@ impl StateTime {
     }
 }
 
-pub trait SoundState: Default + Send {
+pub trait SoundState: Default + Sync + Send + 'static {
     fn reset(&mut self);
     fn time(&self) -> &StateTime;
     fn time_mut(&mut self) -> &mut StateTime;

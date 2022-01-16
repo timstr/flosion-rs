@@ -9,16 +9,20 @@ use std::thread;
 use std::thread::JoinHandle;
 
 use super::connectionerror::ConnectionError;
+use super::numberinput::NumberInputId;
+use super::numbersource::NumberSourceId;
 use super::resultfuture::ResultFuture;
 use super::soundengine::SoundEngine;
 use super::soundengine::SoundEngineMessage;
+use super::soundprocessor::DynamicSoundProcessorData;
+use super::soundprocessor::StaticSoundProcessorData;
 use super::soundprocessor::WrappedDynamicSoundProcessor;
 use super::soundprocessor::WrappedStaticSoundProcessor;
 use super::soundprocessortools::SoundProcessorTools;
 use super::uniqueid::IdGenerator;
 
 pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
-    instance: Arc<T>,
+    wrapper: Arc<WrappedDynamicSoundProcessor<T>>,
     id: SoundProcessorId,
 }
 
@@ -27,12 +31,16 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
         self.id
     }
 
+    pub(super) fn wrapper(&self) -> &WrappedDynamicSoundProcessor<T> {
+        &*self.wrapper
+    }
+
     pub fn instance(&self) -> &T {
-        &*self.instance
+        self.wrapper.instance()
     }
 }
 pub struct StaticSoundProcessorHandle<T: StaticSoundProcessor> {
-    instance: Arc<T>,
+    wrapper: Arc<WrappedStaticSoundProcessor<T>>,
     id: SoundProcessorId,
 }
 
@@ -41,8 +49,12 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
         self.id
     }
 
+    pub fn wrapper(&self) -> &WrappedStaticSoundProcessor<T> {
+        &*self.wrapper
+    }
+
     pub fn instance(&self) -> &T {
-        &*self.instance
+        self.wrapper.instance()
     }
 }
 
@@ -58,9 +70,12 @@ pub struct SoundGraph {
     // on the old value.
     engine_idle: Option<SoundEngine>,
     engine_running: Option<JoinHandle<SoundEngine>>,
+
     message_sender: Sender<SoundEngineMessage>,
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
+    number_source_idgen: IdGenerator<NumberSourceId>,
+    number_input_idgen: IdGenerator<NumberInputId>,
 }
 
 impl SoundGraph {
@@ -72,6 +87,8 @@ impl SoundGraph {
             message_sender: tx,
             sound_processor_idgen: IdGenerator::new(),
             sound_input_idgen: IdGenerator::new(),
+            number_source_idgen: IdGenerator::new(),
+            number_input_idgen: IdGenerator::new(),
         }
     }
 
@@ -79,42 +96,54 @@ impl SoundGraph {
         &mut self,
     ) -> DynamicSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
-        let mut tools = SoundProcessorTools::new(id, &mut self.sound_input_idgen);
-        let processor = Arc::new(T::new(&mut tools));
-        let wrapper = WrappedDynamicSoundProcessor::new(Arc::clone(&processor), id);
-        let wrapper = Box::new(wrapper);
+        let mut tools = SoundProcessorTools::new(
+            id,
+            &mut self.sound_input_idgen,
+            &mut self.number_source_idgen,
+            &mut self.number_input_idgen,
+        );
+        let data = Arc::new(DynamicSoundProcessorData::<T::StateType>::new(id));
+        let processor = Arc::new(T::new(&mut tools, &data));
+        let wrapper = Arc::new(WrappedDynamicSoundProcessor::new(
+            Arc::clone(&processor),
+            data,
+        ));
+        let wrapper2 = Arc::clone(&wrapper);
         let (rf, obr) = ResultFuture::new();
         self.message_sender
-            .send(SoundEngineMessage::AddSoundProcessor(id, wrapper, obr))
+            .send(SoundEngineMessage::AddSoundProcessor(wrapper2, obr))
             .unwrap();
         tools.deliver_messages(&mut self.message_sender);
         self.flush_idle_messages();
         rf.await.unwrap();
-        DynamicSoundProcessorHandle {
-            instance: processor,
-            id,
-        }
+        DynamicSoundProcessorHandle { wrapper, id }
     }
 
     pub async fn add_static_sound_processor<T: 'static + StaticSoundProcessor>(
         &mut self,
     ) -> StaticSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
-        let mut tools = SoundProcessorTools::new(id, &mut self.sound_input_idgen);
-        let processor = Arc::new(T::new(&mut tools));
-        let wrapper = WrappedStaticSoundProcessor::new(Arc::clone(&processor), id);
-        let wrapper = Box::new(wrapper);
+        let mut tools = SoundProcessorTools::new(
+            id,
+            &mut self.sound_input_idgen,
+            &mut self.number_source_idgen,
+            &mut self.number_input_idgen,
+        );
+        let data = Arc::new(StaticSoundProcessorData::<T::StateType>::new(id));
+        let processor = Arc::new(T::new(&mut tools, &data));
+        let wrapper = Arc::new(WrappedStaticSoundProcessor::new(
+            Arc::clone(&processor),
+            data,
+        ));
+        let wrapper2 = Arc::clone(&wrapper);
         let (rf, obr) = ResultFuture::new();
         self.message_sender
-            .send(SoundEngineMessage::AddSoundProcessor(id, wrapper, obr))
+            .send(SoundEngineMessage::AddSoundProcessor(wrapper2, obr))
             .unwrap();
         tools.deliver_messages(&mut self.message_sender);
         self.flush_idle_messages();
         rf.await.unwrap();
-        StaticSoundProcessorHandle {
-            instance: processor,
-            id,
-        }
+        StaticSoundProcessorHandle { wrapper, id }
     }
 
     pub async fn connect_sound_input(

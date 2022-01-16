@@ -1,4 +1,4 @@
-use parking_lot::RwLock;
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::sound::gridspan::GridSpan;
 use crate::sound::soundinput::SoundInputId;
@@ -222,5 +222,38 @@ impl StateTablePartition {
             }
         }
         new_span
+    }
+}
+
+pub struct StateTableLock<'a, T: SoundState> {
+    lock: MappedRwLockReadGuard<'a, RwLock<T>>,
+}
+
+impl<'a, T: SoundState> StateTableLock<'a, T> {
+    pub fn new(
+        state_table: RwLockReadGuard<'a, StateTable<T>>,
+        index: usize,
+    ) -> StateTableLock<'a, T> {
+        StateTableLock {
+            lock: RwLockReadGuard::map(state_table, |st| st.get_state(index)),
+        }
+    }
+
+    pub fn new_keyed(
+        state_table: RwLockReadGuard<'a, KeyedStateTable<T>>,
+        state_index: usize,
+        key_index: usize,
+    ) -> StateTableLock<'a, T> {
+        StateTableLock {
+            lock: RwLockReadGuard::map(state_table, |st| st.get_state(state_index, key_index)),
+        }
+    }
+
+    pub fn read(&'a self) -> RwLockReadGuard<'a, T> {
+        self.lock.read()
+    }
+
+    pub fn write(&'a self) -> RwLockWriteGuard<'a, T> {
+        self.lock.write()
     }
 }

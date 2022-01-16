@@ -2,18 +2,18 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{channel, Sender},
-        Arc, Mutex,
+        Arc,
     },
     time::Duration,
 };
 
 use crate::sound::{
-    context::StateContext,
+    context::ProcessorContext,
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::{InputOptions, SingleSoundInputHandle},
-    soundprocessor::StaticSoundProcessor,
+    soundprocessor::{StaticSoundProcessor, StaticSoundProcessorData},
     soundprocessortools::SoundProcessorTools,
     soundstate::{SoundState, StateTime},
 };
@@ -22,6 +22,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, Stream, StreamConfig, StreamError,
 };
+use parking_lot::Mutex;
 
 struct StreamDammit {
     stream: Stream,
@@ -69,7 +70,10 @@ impl DAC {
 impl StaticSoundProcessor for DAC {
     type StateType = DACState;
 
-    fn new(tools: &mut SoundProcessorTools) -> DAC {
+    fn new(
+        tools: &mut SoundProcessorTools,
+        _data: &Arc<StaticSoundProcessorData<DACState>>,
+    ) -> DAC {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -162,11 +166,11 @@ impl StaticSoundProcessor for DAC {
         }
     }
 
-    fn process_audio(&self, mut sc: StateContext<'_, DACState>) {
+    fn process_audio(&self, mut sc: ProcessorContext<'_, DACState>) {
         let mut ch = SoundChunk::new();
-        sc.context_mut().step_single_input(&self.input, &mut ch);
+        sc.step_single_input(&self.input, &mut ch);
 
-        let sender = self.chunk_sender.lock().unwrap();
+        let sender = self.chunk_sender.lock();
         sender.send(ch).unwrap();
     }
 
@@ -177,14 +181,14 @@ impl StaticSoundProcessor for DAC {
     fn on_start_processing(&self) {
         println!("CPAL thread on_start_processing");
         self.playing.store(true, Ordering::SeqCst);
-        let s = self.stream.lock().unwrap();
+        let s = self.stream.lock();
         s.stream.play().unwrap();
     }
 
     fn on_stop_processing(&self) {
         println!("CPAL thread on_stop_processing");
         self.playing.store(false, Ordering::SeqCst);
-        let s = self.stream.lock().unwrap();
+        let s = self.stream.lock();
         s.stream.pause().unwrap();
     }
 }

@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use super::{
     connectionerror::ConnectionError,
+    numbersource::{NumberSourceId, NumberSourceOwner},
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
 };
@@ -30,14 +33,14 @@ impl SoundInputDescription {
 pub struct SoundProcessorDescription {
     id: SoundProcessorId,
     is_static: bool,
-    inputs: Vec<SoundInputDescription>,
+    inputs: Vec<SoundInputId>,
 }
 
 impl SoundProcessorDescription {
     pub fn new(
         id: SoundProcessorId,
         is_static: bool,
-        inputs: Vec<SoundInputDescription>,
+        inputs: Vec<SoundInputId>,
     ) -> SoundProcessorDescription {
         SoundProcessorDescription {
             id,
@@ -47,13 +50,25 @@ impl SoundProcessorDescription {
     }
 }
 
+pub struct NumberSourceDescription {
+    id: NumberSourceId,
+    owner: NumberSourceOwner,
+}
+
 pub struct SoundGraphDescription {
-    processors: Vec<SoundProcessorDescription>,
+    sound_processors: HashMap<SoundProcessorId, SoundProcessorDescription>,
+    sound_inputs: HashMap<SoundInputId, SoundInputDescription>,
 }
 
 impl SoundGraphDescription {
-    pub fn new(processors: Vec<SoundProcessorDescription>) -> SoundGraphDescription {
-        SoundGraphDescription { processors }
+    pub fn new(
+        sound_processors: HashMap<SoundProcessorId, SoundProcessorDescription>,
+        sound_inputs: HashMap<SoundInputId, SoundInputDescription>,
+    ) -> SoundGraphDescription {
+        SoundGraphDescription {
+            sound_processors,
+            sound_inputs,
+        }
     }
 
     pub fn find_error(&self) -> Option<ConnectionError> {
@@ -71,71 +86,83 @@ impl SoundGraphDescription {
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
     ) -> Option<ConnectionError> {
-        if self
-            .processors
-            .iter()
-            .find(|p| p.id == processor_id)
-            .is_none()
-        {
+        let proc_desc = self.sound_processors.get_mut(&processor_id);
+        if proc_desc.is_none() {
             return Some(ConnectionError::ProcessorNotFound);
         }
-        for p in &mut self.processors {
-            let i = match p.inputs.iter_mut().find(|i| i.id == input_id) {
-                None => continue,
-                Some(i) => i,
-            };
-            if let Some(prev_proc) = i.target {
-                if prev_proc == processor_id {
-                    return Some(ConnectionError::NoChange);
-                }
-                return Some(ConnectionError::InputOccupied);
-            }
-            i.target = Some(processor_id);
-            return None;
+
+        let input_desc = self.sound_inputs.get_mut(&input_id);
+        if input_desc.is_none() {
+            return Some(ConnectionError::InputNotFound);
         }
-        Some(ConnectionError::InputNotFound)
+        let input_desc = input_desc.unwrap();
+
+        if let Some(prev_target) = input_desc.target {
+            if prev_target == processor_id {
+                return Some(ConnectionError::NoChange);
+            }
+            return Some(ConnectionError::InputOccupied);
+        }
+
+        input_desc.target = Some(processor_id);
+        return None;
     }
 
     pub fn remove_connection(&mut self, input_id: SoundInputId) -> Option<ConnectionError> {
-        for p in &mut self.processors {
-            let i = match p.inputs.iter_mut().find(|i| i.id == input_id) {
-                None => continue,
-                Some(i) => i,
-            };
-            assert_eq!(i.id, input_id);
-            if i.target.is_none() {
-                return Some(ConnectionError::NoChange);
-            }
-            i.target = None;
-            return None;
+        let input_desc = self.sound_inputs.get_mut(&input_id);
+        if input_desc.is_none() {
+            return Some(ConnectionError::InputNotFound);
         }
-        Some(ConnectionError::InputNotFound)
+        let input_desc = input_desc.unwrap();
+
+        let processor_id = match input_desc.target {
+            Some(pid) => pid,
+            None => return Some(ConnectionError::NoChange),
+        };
+
+        let proc_desc = self.sound_processors.get_mut(&processor_id);
+        if proc_desc.is_none() {
+            return Some(ConnectionError::ProcessorNotFound);
+        }
+
+        if input_desc.target.is_none() {
+            return Some(ConnectionError::NoChange);
+        }
+
+        input_desc.target = Some(processor_id);
+        return None;
     }
 
     pub fn contains_cycles(&self) -> bool {
         fn dfs_find_cycle(
-            id: SoundProcessorId,
+            processor_id: SoundProcessorId,
             visited: &mut Vec<SoundProcessorId>,
             path: &mut Vec<SoundProcessorId>,
-            processors: &Vec<SoundProcessorDescription>,
+            graph_desription: &SoundGraphDescription,
         ) -> bool {
             // If the current path already contains this processor, there is a cycle
-            if path.contains(&id) {
+            if path.contains(&processor_id) {
                 return true;
             }
-            if !visited.contains(&id) {
-                visited.push(id)
+            if !visited.contains(&processor_id) {
+                visited.push(processor_id)
             }
-            path.push(id);
+            path.push(processor_id);
             let mut found_cycle = false;
-            let p = processors.iter().find(|spd| spd.id == id).unwrap();
-            for i in p.inputs.iter().filter_map(|input| input.target) {
-                if dfs_find_cycle(i, visited, path, processors) {
-                    found_cycle = true;
-                    break;
+            let proc_desc = graph_desription
+                .sound_processors
+                .get(&processor_id)
+                .unwrap();
+            for input_id in &proc_desc.inputs {
+                let input_desc = graph_desription.sound_inputs.get(&input_id).unwrap();
+                if let Some(target) = input_desc.target {
+                    if dfs_find_cycle(target, visited, path, graph_desription) {
+                        found_cycle = true;
+                        break;
+                    }
                 }
             }
-            assert_eq!(path[path.len() - 1], id);
+            assert_eq!(path[path.len() - 1], processor_id);
             path.pop();
             found_cycle
         }
@@ -143,10 +170,14 @@ impl SoundGraphDescription {
         let mut path: Vec<SoundProcessorId> = vec![];
         loop {
             assert_eq!(path.len(), 0);
-            match self.processors.iter().find(|p| !visited.contains(&p.id)) {
+            let proc_to_visit = self
+                .sound_processors
+                .iter()
+                .find(|(pid, pdesc)| !visited.contains(&pid));
+            match proc_to_visit {
                 None => break false,
-                Some(i) => {
-                    if dfs_find_cycle(i.id, &mut visited, &mut path, &self.processors) {
+                Some((pid, pdesc)) => {
+                    if dfs_find_cycle(*pid, &mut visited, &mut path, &self) {
                         break true;
                     }
                 }
@@ -156,15 +187,15 @@ impl SoundGraphDescription {
 
     pub fn validate_graph(&self) -> Option<ConnectionError> {
         fn visit(
-            proc: SoundProcessorId,
+            proc_id: SoundProcessorId,
             states_to_add: usize,
             is_realtime: bool,
-            procs: &Vec<SoundProcessorDescription>,
+            graph_desription: &SoundGraphDescription,
             init: bool,
         ) -> Option<ConnectionError> {
             assert!(states_to_add != 0);
-            let p = procs.iter().find(|spd| spd.id == proc).unwrap();
-            if p.is_static {
+            let proc_desc = graph_desription.sound_processors.get(&proc_id).unwrap();
+            if proc_desc.is_static {
                 if states_to_add > 1 {
                     return Some(ConnectionError::StaticTooManyStates);
                 }
@@ -175,13 +206,14 @@ impl SoundGraphDescription {
                     return None;
                 }
             }
-            for i in &p.inputs {
-                if let Some(t) = i.target {
+            for input_id in &proc_desc.inputs {
+                let input_desc = graph_desription.sound_inputs.get(&input_id).unwrap();
+                if let Some(t) = input_desc.target {
                     if let Some(err) = visit(
                         t,
-                        states_to_add * i.num_keys,
-                        is_realtime && i.options.realtime,
-                        procs,
+                        states_to_add * input_desc.num_keys,
+                        is_realtime && input_desc.options.realtime,
+                        graph_desription,
                         false,
                     ) {
                         return Some(err);
@@ -190,9 +222,9 @@ impl SoundGraphDescription {
             }
             None
         }
-        for i in &self.processors {
-            if i.is_static {
-                if let Some(err) = visit(i.id, 1, true, &self.processors, true) {
+        for proc_desc in self.sound_processors.values() {
+            if proc_desc.is_static {
+                if let Some(err) = visit(proc_desc.id, 1, true, &self, true) {
                     return Some(err);
                 }
             }

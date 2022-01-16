@@ -1,10 +1,9 @@
-use std::{
-    marker,
-    sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc,
-    },
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Arc,
 };
+
+use parking_lot::{Mutex, RwLock};
 
 use super::{
     gridspan::GridSpan,
@@ -12,7 +11,7 @@ use super::{
     keyrange::KeyRange,
     soundengine::{SoundEngineTools, StateOperation},
     soundstate::{EmptyState, SoundState},
-    statetable::{KeyedStateTable, StateTable},
+    statetable::{KeyedStateTable, StateTable, StateTableLock},
     uniqueid::UniqueId,
 };
 
@@ -44,23 +43,27 @@ pub struct InputOptions {
 }
 
 pub struct SingleSoundInput {
-    state_table: StateTable<EmptyState>,
+    state_table: RwLock<StateTable<EmptyState>>,
     options: InputOptions,
     id: SoundInputId,
 }
 
 impl SingleSoundInput {
-    pub fn new(
+    pub(super) fn new(
         id: SoundInputId,
         options: InputOptions,
-    ) -> (Box<SingleSoundInput>, SingleSoundInputHandle) {
-        let input = Box::new(SingleSoundInput {
-            state_table: StateTable::new(),
+    ) -> (Arc<SingleSoundInput>, SingleSoundInputHandle) {
+        let input = Arc::new(SingleSoundInput {
+            state_table: RwLock::new(StateTable::new()),
             options,
             id,
         });
-        let handle = SingleSoundInputHandle::new(&input);
+        let handle = SingleSoundInputHandle::new(Arc::clone(&input));
         (input, handle)
+    }
+
+    pub(super) fn get_state<'a>(&'a self, index: usize) -> StateTableLock<'a, EmptyState> {
+        StateTableLock::new(self.state_table.read(), index)
     }
 }
 
@@ -70,46 +73,53 @@ pub enum KeyedSoundInputMessage<K: Key> {
 }
 
 pub struct KeyedSoundInput<K: Key, T: SoundState> {
-    state_table: KeyedStateTable<T>,
-    keys: KeyRange<K>,
+    state_table: RwLock<KeyedStateTable<T>>,
+    keys: RwLock<KeyRange<K>>,
     options: InputOptions,
-    message_receiver: Receiver<KeyedSoundInputMessage<K>>,
+    message_receiver: Mutex<Receiver<KeyedSoundInputMessage<K>>>,
     id: SoundInputId,
 }
 
 impl<K: Key, T: SoundState> KeyedSoundInput<K, T> {
-    pub fn new(
+    pub(super) fn new(
         id: SoundInputId,
         options: InputOptions,
-    ) -> (Box<KeyedSoundInput<K, T>>, KeyedSoundInputHandle<K, T>) {
+    ) -> (Arc<KeyedSoundInput<K, T>>, KeyedSoundInputHandle<K, T>) {
         let (tx, rx) = channel();
-        let input = Box::new(KeyedSoundInput {
-            state_table: KeyedStateTable::<T>::new(),
-            keys: KeyRange::new(),
+        let input = Arc::new(KeyedSoundInput {
+            state_table: RwLock::new(KeyedStateTable::<T>::new()),
+            keys: RwLock::new(KeyRange::new()),
             options,
-            message_receiver: rx,
+            message_receiver: Mutex::new(rx),
             id,
         });
         let handle = KeyedSoundInputHandle {
-            id,
-            local_keys: input.keys.clone(),
-            message_sender: tx,
-            _marker: marker::PhantomData,
+            input: Arc::clone(&input),
+            message_sender: Mutex::new(tx),
         };
         (input, handle)
     }
 
-    pub fn flush_messages(&mut self, own_id: SoundInputId, tools: &mut SoundEngineTools) {
-        while let Ok(msg) = self.message_receiver.try_recv() {
+    pub(super) fn get_state<'a>(
+        &'a self,
+        state_index: usize,
+        key_index: usize,
+    ) -> StateTableLock<'a, T> {
+        StateTableLock::new_keyed(self.state_table.read(), state_index, key_index)
+    }
+
+    pub(super) fn flush_messages(&self, own_id: SoundInputId, tools: &mut SoundEngineTools) {
+        let rcv = self.message_receiver.lock();
+        while let Ok(msg) = rcv.try_recv() {
             match msg {
                 KeyedSoundInputMessage::AddKey(k) => {
-                    let i = self.keys.insert_key(k);
-                    let gs = self.state_table.insert_key(i);
+                    let i = self.keys.write().insert_key(k);
+                    let gs = self.state_table.write().insert_key(i);
                     tools.propagate_input_key_change(own_id, gs, StateOperation::Insert);
                 }
                 KeyedSoundInputMessage::RemoveKey(i) => {
-                    self.keys.erase_key(i);
-                    let gs = self.state_table.erase_key(i);
+                    self.keys.write().erase_key(i);
+                    let gs = self.state_table.write().erase_key(i);
                     tools.propagate_input_key_change(own_id, gs, StateOperation::Erase);
                 }
             }
@@ -117,18 +127,18 @@ impl<K: Key, T: SoundState> KeyedSoundInput<K, T> {
     }
 }
 
-pub trait SoundInputWrapper: Send {
+pub trait SoundInputWrapper: Sync + Send {
     fn id(&self) -> SoundInputId;
 
     fn options(&self) -> InputOptions;
 
     fn num_keys(&self) -> usize;
 
-    fn insert_states(&mut self, gs: GridSpan) -> GridSpan;
+    fn insert_states(&self, gs: GridSpan) -> GridSpan;
 
-    fn erase_states(&mut self, gs: GridSpan) -> GridSpan;
+    fn erase_states(&self, gs: GridSpan) -> GridSpan;
 
-    fn flush_message(&mut self, tools: &mut SoundEngineTools);
+    fn flush_message(&self, tools: &mut SoundEngineTools);
 }
 
 impl SoundInputWrapper for SingleSoundInput {
@@ -144,17 +154,17 @@ impl SoundInputWrapper for SingleSoundInput {
         1
     }
 
-    fn insert_states(&mut self, gs: GridSpan) -> GridSpan {
-        self.state_table.insert_states(gs);
+    fn insert_states(&self, gs: GridSpan) -> GridSpan {
+        self.state_table.write().insert_states(gs);
         gs
     }
 
-    fn erase_states(&mut self, gs: GridSpan) -> GridSpan {
-        self.state_table.erase_states(gs);
+    fn erase_states(&self, gs: GridSpan) -> GridSpan {
+        self.state_table.write().erase_states(gs);
         gs
     }
 
-    fn flush_message(&mut self, _tools: &mut SoundEngineTools) {
+    fn flush_message(&self, _tools: &mut SoundEngineTools) {
         // Nothing to do
     }
 }
@@ -169,62 +179,64 @@ impl<K: Key, T: SoundState> SoundInputWrapper for KeyedSoundInput<K, T> {
     }
 
     fn num_keys(&self) -> usize {
-        self.state_table.num_keys()
+        self.state_table.read().num_keys()
     }
 
-    fn insert_states(&mut self, gs: GridSpan) -> GridSpan {
-        self.state_table.insert_states(gs)
+    fn insert_states(&self, gs: GridSpan) -> GridSpan {
+        self.state_table.write().insert_states(gs)
     }
-    fn erase_states(&mut self, gs: GridSpan) -> GridSpan {
-        self.state_table.erase_states(gs)
+    fn erase_states(&self, gs: GridSpan) -> GridSpan {
+        self.state_table.write().erase_states(gs)
     }
 
-    fn flush_message(&mut self, tools: &mut SoundEngineTools) {
+    fn flush_message(&self, tools: &mut SoundEngineTools) {
         self.flush_messages(self.id, tools)
     }
 }
 
 pub struct SingleSoundInputHandle {
-    id: SoundInputId,
+    input: Arc<SingleSoundInput>,
 }
 
 impl SingleSoundInputHandle {
-    fn new(input: &SingleSoundInput) -> SingleSoundInputHandle {
-        SingleSoundInputHandle { id: input.id }
+    fn new(input: Arc<SingleSoundInput>) -> SingleSoundInputHandle {
+        SingleSoundInputHandle { input }
     }
 
     pub fn id(&self) -> SoundInputId {
-        self.id
+        self.input.id()
+    }
+
+    pub(super) fn input(&self) -> &SingleSoundInput {
+        &*self.input
     }
 }
 
 pub struct KeyedSoundInputHandle<K: Key, T: SoundState> {
-    id: SoundInputId,
-    local_keys: KeyRange<K>,
-    message_sender: Sender<KeyedSoundInputMessage<K>>,
-    _marker: marker::PhantomData<T>,
+    input: Arc<KeyedSoundInput<K, T>>,
+    message_sender: Mutex<Sender<KeyedSoundInputMessage<K>>>,
 }
 
 impl<K: Key, T: SoundState> KeyedSoundInputHandle<K, T> {
     pub fn id(&self) -> SoundInputId {
-        self.id
+        self.input.id()
+    }
+
+    pub(super) fn input(&self) -> &KeyedSoundInput<K, T> {
+        &*self.input
     }
 
     pub fn add_key(&mut self, key: Arc<K>) {
-        self.local_keys.insert_key(Arc::clone(&key));
         self.message_sender
+            .lock()
             .send(KeyedSoundInputMessage::AddKey(key))
             .unwrap();
     }
 
     pub fn remove_key(&mut self, index: usize) {
-        self.local_keys.erase_key(index);
         self.message_sender
+            .lock()
             .send(KeyedSoundInputMessage::RemoveKey(index))
             .unwrap();
-    }
-
-    pub fn keys(&self) -> &[Arc<K>] {
-        self.local_keys.keys()
     }
 }

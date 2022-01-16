@@ -8,3 +8,12 @@ pub enum ConnectionError {
     InputNotFound,
     InputOccupied,
 }
+
+pub enum NumberConnectionError {
+    NoChange,
+    CircularDependency,
+    InputNotFound,
+    InputOccupied,
+    SourceNotFound,
+    SourceOutOfScope,
+}

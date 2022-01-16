@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use rand::prelude::*;
 
 use crate::sound::{
-    context::StateContext,
-    soundprocessor::DynamicSoundProcessor,
+    context::ProcessorContext,
+    soundprocessor::{DynamicSoundProcessor, DynamicSoundProcessorData},
     soundprocessortools::SoundProcessorTools,
     soundstate::{SoundState, StateTime},
 };
@@ -34,12 +36,15 @@ impl SoundState for WhiteNoiseState {
 impl DynamicSoundProcessor for WhiteNoise {
     type StateType = WhiteNoiseState;
 
-    fn new(_tools: &mut SoundProcessorTools) -> WhiteNoise {
+    fn new(
+        _tools: &mut SoundProcessorTools,
+        _data: &Arc<DynamicSoundProcessorData<WhiteNoiseState>>,
+    ) -> WhiteNoise {
         WhiteNoise {}
     }
 
-    fn process_audio(&self, mut sc: StateContext<'_, WhiteNoiseState>) {
-        let b = sc.context_mut().output_buffer();
+    fn process_audio(&self, mut sc: ProcessorContext<'_, WhiteNoiseState>) {
+        let b = sc.output_buffer();
         for s in b.l.iter_mut() {
             let r: f32 = thread_rng().gen();
             *s = 0.2 * r - 0.1;

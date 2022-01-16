@@ -1,9 +1,11 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::Arc,
     task::{Context, Poll, Waker},
 };
+
+use parking_lot::Mutex;
 
 pub struct ResultFuture<T, E> {
     shared_state: Arc<Mutex<SharedState<T, E>>>,
@@ -34,7 +36,7 @@ impl<T, E> Future for ResultFuture<T, E> {
     type Output = Result<T, E>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut shared_state = self.shared_state.lock().unwrap();
+        let mut shared_state = self.shared_state.lock();
         if let Some(res) = shared_state.result.take() {
             Poll::Ready(res)
         } else {
@@ -50,7 +52,7 @@ pub struct OutboundResult<T, E> {
 
 impl<T, E> OutboundResult<T, E> {
     pub fn fulfill(self, result: Result<T, E>) {
-        let mut shared_state = self.shared_state.lock().unwrap();
+        let mut shared_state = self.shared_state.lock();
         assert!(shared_state.result.is_none());
         shared_state.result = Some(result);
         if let Some(waker) = shared_state.waker.take() {
