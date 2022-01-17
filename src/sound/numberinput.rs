@@ -27,3 +27,13 @@ pub enum NumberInputOwner {
     SoundInput(SoundInputId),
     NumberSource(NumberSourceId),
 }
+
+impl NumberInputOwner {
+    pub fn is_stateful(&self) -> bool {
+        match self {
+            NumberInputOwner::SoundProcessor(_) => true,
+            NumberInputOwner::SoundInput(_) => true,
+            NumberInputOwner::NumberSource(_) => false,
+        }
+    }
+}

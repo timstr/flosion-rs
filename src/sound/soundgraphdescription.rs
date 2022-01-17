@@ -9,6 +9,12 @@ use super::{
     soundprocessor::SoundProcessorId,
 };
 
+#[derive(Copy, Clone)]
+enum StateOwner {
+    SoundInput(SoundInputId),
+    SoundProcessor(SoundProcessorId),
+}
+
 pub struct SoundInputDescription {
     id: SoundInputId,
     options: InputOptions,
@@ -183,51 +189,43 @@ impl SoundGraphDescription {
 
     pub fn find_sound_cycle(&self) -> Option<SoundPath> {
         fn dfs_find_cycle(
-            processor_id: SoundProcessorId,
-            visited: &mut Vec<SoundProcessorId>,
+            input_id: SoundInputId,
+            visited: &mut Vec<SoundInputId>,
             path: &mut SoundPath,
-            graph_desription: &SoundGraphDescription,
+            graph_description: &SoundGraphDescription,
         ) -> Option<SoundPath> {
-            if !visited.contains(&processor_id) {
-                visited.push(processor_id)
+            if !visited.contains(&input_id) {
+                visited.push(input_id);
             }
-            let proc_desc = graph_desription
-                .sound_processors
-                .get(&processor_id)
-                .unwrap();
-            for input_id in &proc_desc.inputs {
-                // If the input has already been visited, there is a cycle
-                if path.contains_input(*input_id) {
-                    let idx = path
-                        .connections
-                        .iter()
-                        .position(|(_, siid)| *siid == *input_id)
-                        .unwrap();
-                    let cycle_connections = path.connections.split_off(idx);
-                    return Some(SoundPath::new(cycle_connections));
-                }
-                let input_desc = graph_desription.sound_inputs.get(&input_id).unwrap();
-                if let Some(target) = input_desc.target {
-                    path.push(target, *input_id);
-                    if let Some(path) = dfs_find_cycle(target, visited, path, graph_desription) {
-                        return Some(path);
-                    }
-                    path.pop();
+            // If the input has already been visited, there is a cycle
+            if path.contains_input(input_id) {
+                return Some(path.trim_until_input(input_id));
+            }
+            let input_desc = graph_description.sound_inputs.get(&input_id).unwrap();
+            let target_id = match input_desc.target {
+                Some(spid) => spid,
+                _ => return None,
+            };
+            let proc_desc = graph_description.sound_processors.get(&target_id).unwrap();
+            path.push(target_id, input_id);
+            for target_proc_input in &proc_desc.inputs {
+                if let Some(path) =
+                    dfs_find_cycle(*target_proc_input, visited, path, graph_description)
+                {
+                    return Some(path);
                 }
             }
+            path.pop();
             None
         }
 
-        let mut visited: Vec<SoundProcessorId> = vec![];
+        let mut visited: Vec<SoundInputId> = Vec::new();
         let mut path: SoundPath = SoundPath::new(Vec::new());
 
         loop {
             assert_eq!(path.connections.len(), 0);
-            let proc_to_visit = self
-                .sound_processors
-                .keys()
-                .find(|pid| !visited.contains(&pid));
-            match proc_to_visit {
+            let input_to_visit = self.sound_inputs.keys().find(|pid| !visited.contains(&pid));
+            match input_to_visit {
                 None => break None,
                 Some(pid) => {
                     if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, &self) {
@@ -286,12 +284,142 @@ impl SoundGraphDescription {
     }
 
     pub fn find_number_cycle(&self) -> Option<NumberPath> {
+        fn dfs_find_cycle(
+            input_id: NumberInputId,
+            visited: &mut Vec<NumberInputId>,
+            path: &mut NumberPath,
+            graph_description: &SoundGraphDescription,
+        ) -> Option<NumberPath> {
+            if !visited.contains(&input_id) {
+                visited.push(input_id);
+            }
+            // If the input has already been visited, there is a cycle
+            if path.contains_input(input_id) {
+                return Some(path.trim_until_input(input_id));
+            }
+            let input_desc = graph_description.number_inputs.get(&input_id).unwrap();
+            let target_id = match input_desc.target {
+                Some(spid) => spid,
+                _ => return None,
+            };
+            let source_desc = graph_description.number_sources.get(&target_id).unwrap();
+            path.push(target_id, input_id);
+            for target_proc_input in &source_desc.inputs {
+                if let Some(path) =
+                    dfs_find_cycle(*target_proc_input, visited, path, graph_description)
+                {
+                    return Some(path);
+                }
+            }
+            path.pop();
+            None
+        }
+
+        let mut visited: Vec<NumberInputId> = Vec::new();
+        let mut path: NumberPath = NumberPath::new(Vec::new());
+
+        loop {
+            assert_eq!(path.connections.len(), 0);
+            let input_to_visit = self
+                .number_inputs
+                .keys()
+                .find(|pid| !visited.contains(&pid));
+            match input_to_visit {
+                None => break None,
+                Some(pid) => {
+                    if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, &self) {
+                        break Some(path);
+                    }
+                }
+            }
+        }
+    }
+
+    fn state_reachable_from(&self, state_to_reach: StateOwner, owner: StateOwner) -> bool {
         // TODO
         panic!()
     }
 
     pub fn validate_number_connections(&self) -> Option<NumberConnectionError> {
-        // TODO
-        panic!()
+        fn dfs_find_unreachable_state(
+            input_id: NumberInputId,
+            visited: &mut Vec<NumberInputId>,
+            path: &mut NumberPath,
+            state_to_reach: StateOwner,
+            graph_description: &SoundGraphDescription,
+        ) -> Option<NumberConnectionError> {
+            if !visited.contains(&input_id) {
+                visited.push(input_id);
+            }
+            let input_desc = graph_description.number_inputs.get(&input_id).unwrap();
+            let target_id = match input_desc.target {
+                Some(spid) => spid,
+                _ => return None,
+            };
+            let target_desc = graph_description.number_sources.get(&target_id).unwrap();
+            let target_owner: Option<StateOwner> = match target_desc.owner {
+                NumberSourceOwner::Nothing => None,
+                NumberSourceOwner::SoundInput(iid) => Some(StateOwner::SoundInput(iid)),
+                NumberSourceOwner::SoundProcessor(pid) => Some(StateOwner::SoundProcessor(pid)),
+            };
+            if let Some(o) = target_owner {
+                debug_assert!(
+                    target_desc.inputs.is_empty(),
+                    "Stateful number sources with their own inputs are not yet supported"
+                );
+                if !graph_description.state_reachable_from(state_to_reach, o) {
+                    // return Some((state_to_reach, path, o));
+                    return Some(NumberConnectionError::StateNotInScope { path: path.clone() });
+                }
+            }
+            for target_source_input in &target_desc.inputs {
+                path.push(target_id, input_id);
+                if let Some(x) = dfs_find_unreachable_state(
+                    *target_source_input,
+                    visited,
+                    path,
+                    state_to_reach,
+                    graph_description,
+                ) {
+                    return Some(x);
+                }
+                path.pop();
+            }
+            None
+        }
+
+        let mut visited: Vec<NumberInputId> = Vec::new();
+        let mut path: NumberPath = NumberPath::new(Vec::new());
+
+        loop {
+            assert_eq!(path.connections.len(), 0);
+            let input_to_visit;
+            let state_owner;
+            {
+                let input = self
+                    .number_inputs
+                    .iter()
+                    .find(|(iid, desc)| !visited.contains(&iid) && desc.owner.is_stateful());
+                let (iid, desc) = match input {
+                    Some(i) => i,
+                    None => break None,
+                };
+                input_to_visit = *iid;
+                state_owner = match desc.owner {
+                    NumberInputOwner::NumberSource(_) => panic!(),
+                    NumberInputOwner::SoundInput(iid) => StateOwner::SoundInput(iid),
+                    NumberInputOwner::SoundProcessor(pid) => StateOwner::SoundProcessor(pid),
+                };
+            }
+            if let Some(x) = dfs_find_unreachable_state(
+                input_to_visit,
+                &mut visited,
+                &mut path,
+                state_owner,
+                self,
+            ) {
+                break Some(x);
+            }
+        }
     }
 }

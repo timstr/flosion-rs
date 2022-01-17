@@ -1,6 +1,6 @@
 use super::{
-    numberinput::{NumberInputId, NumberInputOwner},
-    numbersource::{NumberSourceId, NumberSourceOwner},
+    numberinput::NumberInputId,
+    numbersource::NumberSourceId,
     path::{NumberPath, SoundPath},
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
@@ -25,17 +25,11 @@ pub enum SoundConnectionError {
 #[derive(Debug)]
 pub enum NumberConnectionError {
     NoChange,
-    CircularDependency {
-        cycle: NumberPath,
-    },
+    CircularDependency { cycle: NumberPath },
     InputNotFound(NumberInputId),
     InputOccupied(NumberInputId, NumberSourceId),
     SourceNotFound(NumberSourceId),
-    StateNotInScope {
-        stateful_source: NumberSourceOwner,
-        path: NumberPath,
-        stateful_input: NumberInputOwner,
-    },
+    StateNotInScope { path: NumberPath },
 }
 
 #[derive(Debug)]
