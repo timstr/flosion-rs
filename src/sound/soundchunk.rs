@@ -21,4 +21,9 @@ impl SoundChunk {
             *s = 0.0;
         }
     }
+
+    pub fn copy_from(&mut self, other: &SoundChunk) {
+        self.l = other.l;
+        self.r = other.r;
+    }
 }

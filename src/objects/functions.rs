@@ -1,4 +1,4 @@
-use crate::sound::numbersource::NumberSource;
+use crate::sound::{context::Context, numbersource::NumberSource};
 
 pub struct Sine {
     // TODO
@@ -6,5 +6,5 @@ pub struct Sine {
 }
 
 impl NumberSource for Sine {
-    fn eval(&self, dst: &mut [f32], context: crate::sound::context::Context) {}
+    fn eval(&self, dst: &mut [f32], context: Context) {}
 }

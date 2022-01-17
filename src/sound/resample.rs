@@ -5,9 +5,9 @@ pub fn resample_interleave<F: FnMut() -> (f32, f32)>(
     output_sample_rate: u32,
 ) {
     let ratio = (input_sample_rate as f32) / (output_sample_rate as f32);
-    assert!(input_sample_rate > 0);
-    assert!(output_sample_rate > 0);
-    assert!(output.len() % 2 == 0);
+    debug_assert!(input_sample_rate > 0);
+    debug_assert!(output_sample_rate > 0);
+    debug_assert!(output.len() % 2 == 0);
     let mut remainder: f32 = 0.0;
     // TODO: implement something nicer than nearest neighbour
     let mut s = get_next_input_sample();

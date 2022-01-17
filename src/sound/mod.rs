@@ -6,6 +6,7 @@ mod keyrange;
 pub mod numberinput;
 pub mod numbersource;
 pub mod numbersourcetools;
+pub mod path;
 pub mod resample;
 pub mod resultfuture;
 pub mod samplefrequency;

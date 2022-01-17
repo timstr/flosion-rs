@@ -12,7 +12,7 @@ impl<K: Key> KeyRange<K> {
     }
 
     pub fn insert_key(&mut self, key: Arc<K>) -> usize {
-        assert!(self.keys().iter().find(|k| Arc::ptr_eq(k, &key)).is_none());
+        debug_assert!(self.keys().iter().find(|k| Arc::ptr_eq(k, &key)).is_none());
         let index = self
             .keys
             .iter()
@@ -23,7 +23,7 @@ impl<K: Key> KeyRange<K> {
     }
 
     pub fn erase_key(&mut self, index: usize) {
-        assert!(index < self.keys.len());
+        debug_assert!(index < self.keys.len());
         self.keys.remove(index);
     }
 

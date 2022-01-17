@@ -11,7 +11,7 @@ use std::{
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
-    connectionerror::{ConnectionError, NumberConnectionError},
+    connectionerror::{ConnectionError, NumberConnectionError, SoundConnectionError},
     context::{Context, SoundProcessorFrame, SoundStackFrame},
     gridspan::GridSpan,
     numberinput::{NumberInputId, NumberInputOwner},
@@ -20,7 +20,8 @@ use super::{
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundgraphdescription::{
-        SoundGraphDescription, SoundInputDescription, SoundProcessorDescription,
+        NumberInputDescription, NumberSourceDescription, SoundGraphDescription,
+        SoundInputDescription, SoundProcessorDescription,
     },
     soundinput::{SoundInputId, SoundInputWrapper},
     soundprocessor::{SoundProcessorId, SoundProcessorWrapper},
@@ -112,44 +113,74 @@ pub struct EngineNumberSourceData {
 }
 
 pub enum SoundEngineMessage {
-    AddSoundProcessor(Arc<dyn SoundProcessorWrapper>, OutboundResult<(), ()>),
-    RemoveSoundProcessor(SoundProcessorId, OutboundResult<(), ()>),
-    AddSoundInput(Arc<dyn SoundInputWrapper>, SoundProcessorId),
-    RemoveSoundInput(SoundInputId),
+    AddSoundProcessor {
+        processor: Arc<dyn SoundProcessorWrapper>,
+        result: OutboundResult<(), ()>,
+    },
+    RemoveSoundProcessor {
+        processor_id: SoundProcessorId,
+        result: OutboundResult<(), ()>,
+    },
+    AddSoundInput {
+        input: Arc<dyn SoundInputWrapper>,
+        owner: SoundProcessorId,
+        result: OutboundResult<(), ()>,
+    },
+    RemoveSoundInput {
+        input_id: SoundInputId,
+        result: OutboundResult<(), ()>,
+    },
 
-    ConnectInput(
-        SoundInputId,
-        SoundProcessorId,
-        OutboundResult<(), ConnectionError>,
-    ),
-    DisconnectInput(SoundInputId, OutboundResult<(), ConnectionError>),
+    ConnectSoundInput {
+        input_id: SoundInputId,
+        processor_id: SoundProcessorId,
+        result: OutboundResult<(), ConnectionError>,
+    },
+    DisconnectSoundInput {
+        input_id: SoundInputId,
+        result: OutboundResult<(), ConnectionError>,
+    },
 
-    AddNumberSource(NumberSourceHandle),
-    RemoveNumberSource(NumberSourceId),
-    AddNumberInput(NumberInputId, NumberInputOwner),
-    RemoveNumberInput(NumberInputId),
+    AddNumberSource {
+        source: NumberSourceHandle,
+        result: OutboundResult<(), ()>,
+    },
+    RemoveNumberSource {
+        input_id: NumberSourceId,
+        result: OutboundResult<(), ()>,
+    },
+    AddNumberInput {
+        input: NumberInputId,
+        owner: NumberInputOwner,
+        result: OutboundResult<(), ()>,
+    },
+    RemoveNumberInput {
+        input_id: NumberInputId,
+        result: OutboundResult<(), ()>,
+    },
 
-    ConnectNumberInput(
-        NumberInputId,
-        NumberSourceId,
-        OutboundResult<(), NumberConnectionError>,
-    ),
-    DisconnectNumberInput(NumberInputId, OutboundResult<(), NumberConnectionError>),
+    ConnectNumberInput {
+        input_id: NumberInputId,
+        target_id: NumberSourceId,
+        result: OutboundResult<(), NumberConnectionError>,
+    },
+    DisconnectNumberInput {
+        input_id: NumberInputId,
+        result: OutboundResult<(), NumberConnectionError>,
+    },
 
-    Stop,
+    Stop {
+        result: OutboundResult<(), ()>,
+    },
 }
 
 pub struct SoundEngine {
-    // TODO: divide this into separate hashmaps for:
-    // - sound processors (with list of sound input ids and number source ids that it owns)
-    // - sound inputs (with SoundProcessorId of owner)
-    // - number sources (with either SoundProcessorId/SoundInputId of owner or number input ids that it owns, as in the old stateful/stateless number source distinction)
-    // - number inputs (with NumberSourceId/SoundProcessorId of owner)z
     sound_processors: HashMap<SoundProcessorId, EngineSoundProcessorData>,
     sound_inputs: HashMap<SoundInputId, EngineSoundInputData>,
     number_sources: HashMap<NumberSourceId, EngineNumberSourceData>,
     number_inputs: HashMap<NumberInputId, EngineNumberInputData>,
     receiver: Receiver<SoundEngineMessage>,
+    static_processor_cache: Vec<(SoundProcessorId, Option<SoundChunk>)>,
 }
 
 pub enum PlaybackStatus {
@@ -167,6 +198,7 @@ impl SoundEngine {
                 number_sources: HashMap::new(),
                 number_inputs: HashMap::new(),
                 receiver: rx,
+                static_processor_cache: Vec::new(),
             },
             tx,
         )
@@ -180,11 +212,13 @@ impl SoundEngine {
         );
         let data = EngineSoundProcessorData::new(wrapper, processor_id);
         self.sound_processors.insert(processor_id, data);
+        self.update_static_processor_cache();
     }
 
     fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
         // TODO
-        panic!()
+        panic!();
+        self.update_static_processor_cache();
     }
 
     fn add_sound_input(
@@ -211,7 +245,8 @@ impl SoundEngine {
 
     fn remove_sound_input(&mut self, input_id: SoundInputId) {
         // TODO
-        panic!()
+        panic!();
+        self.update_static_processor_cache();
     }
 
     fn modify_states_recursively(
@@ -254,10 +289,10 @@ impl SoundEngine {
         processor_id: SoundProcessorId,
     ) -> Result<(), ConnectionError> {
         let mut desc = self.describe();
-        assert!(desc.find_error().is_none());
+        debug_assert!(desc.find_error().is_none());
 
         if let Some(err) = desc.add_connection(input_id, processor_id) {
-            return Err(err);
+            return Err(err.into());
         }
 
         if let Some(err) = desc.find_error() {
@@ -266,21 +301,25 @@ impl SoundEngine {
 
         let input_data = self.sound_inputs.get_mut(&input_id);
         if input_data.is_none() {
-            return Err(ConnectionError::InputNotFound);
+            return Err(SoundConnectionError::InputNotFound(input_id).into());
         }
         let input_data = input_data.unwrap();
         if let Some(pid) = input_data.target {
             if pid == processor_id {
-                return Err(ConnectionError::NoChange);
+                return Err(SoundConnectionError::NoChange.into());
             }
-            return Err(ConnectionError::InputOccupied);
+            return Err(SoundConnectionError::InputOccupied {
+                input_id,
+                current_target: pid,
+            }
+            .into());
         }
         input_data.target = Some(processor_id);
 
         {
             let proc_data = self.sound_processors.get_mut(&processor_id);
             if proc_data.is_none() {
-                return Err(ConnectionError::ProcessorNotFound);
+                return Err(SoundConnectionError::ProcessorNotFound(processor_id).into());
             }
             let proc_data = proc_data.unwrap();
             proc_data.sound_processor().add_dst(input_id);
@@ -300,29 +339,31 @@ impl SoundEngine {
             StateOperation::Insert,
         );
 
+        self.update_static_processor_cache();
+
         Ok(())
     }
 
     fn disconnect_sound_input(&mut self, input_id: SoundInputId) -> Result<(), ConnectionError> {
         let mut desc = self.describe();
-        assert!(desc.find_error().is_none());
+        debug_assert!(desc.find_error().is_none());
 
         if let Some(err) = desc.remove_connection(input_id) {
-            return Err(err);
+            return Err(err.into());
         }
 
         if let Some(err) = desc.find_error() {
-            return Err(err);
+            return Err(err.into());
         }
 
         let input_data = self.sound_inputs.get_mut(&input_id);
         if input_data.is_none() {
-            return Err(ConnectionError::InputNotFound);
+            return Err(SoundConnectionError::InputNotFound(input_id).into());
         }
         let input_data = input_data.unwrap();
         let processor_id = match input_data.target {
             Some(pid) => pid,
-            None => return Err(ConnectionError::NoChange),
+            None => return Err(SoundConnectionError::NoChange.into()),
         };
 
         input_data.target = None;
@@ -344,11 +385,13 @@ impl SoundEngine {
         {
             let proc_data = self.sound_processors.get_mut(&processor_id);
             if proc_data.is_none() {
-                return Err(ConnectionError::ProcessorNotFound);
+                return Err(SoundConnectionError::ProcessorNotFound(processor_id).into());
             }
             let proc_data = proc_data.unwrap();
             proc_data.sound_processor().remove_dst(input_id);
         }
+
+        self.update_static_processor_cache();
 
         Ok(())
     }
@@ -404,7 +447,6 @@ impl SoundEngine {
 
     fn describe(&self) -> SoundGraphDescription {
         let mut sound_processors = HashMap::<SoundProcessorId, SoundProcessorDescription>::new();
-        let mut sound_inputs = HashMap::<SoundInputId, SoundInputDescription>::new();
         for proc_data in self.sound_processors.values() {
             sound_processors.insert(
                 proc_data.id(),
@@ -415,6 +457,7 @@ impl SoundEngine {
                 ),
             );
         }
+        let mut sound_inputs = HashMap::<SoundInputId, SoundInputDescription>::new();
         for input_data in self.sound_inputs.values() {
             sound_inputs.insert(
                 input_data.id(),
@@ -426,7 +469,16 @@ impl SoundEngine {
                 ),
             );
         }
-        SoundGraphDescription::new(sound_processors, sound_inputs)
+        let mut number_sources = HashMap::<NumberSourceId, NumberSourceDescription>::new();
+        // TODO
+        let mut number_inputs = HashMap::<NumberInputId, NumberInputDescription>::new();
+        // TODO
+        SoundGraphDescription::new(
+            sound_processors,
+            sound_inputs,
+            number_sources,
+            number_inputs,
+        )
     }
 
     pub fn run(&mut self) {
@@ -476,79 +528,185 @@ impl SoundEngine {
                 }
             };
             match msg {
-                SoundEngineMessage::AddSoundProcessor(w, obr) => {
-                    self.add_sound_processor(w);
-                    obr.fulfill(Ok(()));
+                SoundEngineMessage::AddSoundProcessor { processor, result } => {
+                    self.add_sound_processor(processor);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::RemoveSoundProcessor(spid, obr) => {
-                    self.remove_sound_processor(spid);
-                    obr.fulfill(Ok(()));
+                SoundEngineMessage::RemoveSoundProcessor {
+                    processor_id,
+                    result,
+                } => {
+                    self.remove_sound_processor(processor_id);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::AddSoundInput(w, spid) => {
-                    self.add_sound_input(spid, w);
+                SoundEngineMessage::AddSoundInput {
+                    input,
+                    owner,
+                    result,
+                } => {
+                    self.add_sound_input(owner, input);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::RemoveSoundInput(iid) => {
-                    self.remove_sound_input(iid);
+                SoundEngineMessage::RemoveSoundInput { input_id, result } => {
+                    self.remove_sound_input(input_id);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::ConnectInput(siid, spid, obr) => {
-                    let r = self.connect_sound_input(siid, spid);
-                    obr.fulfill(r);
+                SoundEngineMessage::ConnectSoundInput {
+                    input_id,
+                    processor_id,
+                    result,
+                } => {
+                    let r = self.connect_sound_input(input_id, processor_id);
+                    result.fulfill(r);
                 }
-                SoundEngineMessage::DisconnectInput(siid, obr) => {
-                    let r = self.disconnect_sound_input(siid);
-                    obr.fulfill(r);
+                SoundEngineMessage::DisconnectSoundInput { input_id, result } => {
+                    let r = self.disconnect_sound_input(input_id);
+                    result.fulfill(r);
                 }
-                SoundEngineMessage::AddNumberInput(niid, nio) => {
-                    self.add_number_input(niid, nio);
+                SoundEngineMessage::AddNumberInput {
+                    input,
+                    owner,
+                    result,
+                } => {
+                    self.add_number_input(input, owner);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::RemoveNumberInput(niid) => {
-                    self.remove_number_input(niid);
+                SoundEngineMessage::RemoveNumberInput { input_id, result } => {
+                    self.remove_number_input(input_id);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::AddNumberSource(h) => {
-                    self.add_number_source(h);
+                SoundEngineMessage::AddNumberSource { source, result } => {
+                    self.add_number_source(source);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::RemoveNumberSource(nsid) => {
-                    self.remove_number_source(nsid);
+                SoundEngineMessage::RemoveNumberSource { input_id, result } => {
+                    self.remove_number_source(input_id);
+                    result.fulfill(Ok(()));
                 }
-                SoundEngineMessage::ConnectNumberInput(niid, nsid, obr) => {
-                    let r = self.connect_number_input(niid, nsid);
-                    obr.fulfill(r);
+                SoundEngineMessage::ConnectNumberInput {
+                    input_id,
+                    target_id,
+                    result,
+                } => {
+                    let r = self.connect_number_input(input_id, target_id);
+                    result.fulfill(r);
                 }
-                SoundEngineMessage::DisconnectNumberInput(niid, obr) => {
-                    let r = self.disconnect_number_input(niid);
-                    obr.fulfill(r);
+                SoundEngineMessage::DisconnectNumberInput { input_id, result } => {
+                    let r = self.disconnect_number_input(input_id);
+                    result.fulfill(r);
                 }
-                SoundEngineMessage::Stop => {
+                SoundEngineMessage::Stop { result } => {
                     status = PlaybackStatus::Stop;
+                    result.fulfill(Ok(()));
                 }
             }
         }
     }
 
-    fn process_audio(&mut self) {
-        // TODO
-        // - place all static sound processors into a queue
-        // - until the queue is empty:
-        //    - remove the next static sound processor from the front of the queue
-        //    - if it depends on any other static processors, put in on the back of the queue and continue
-        //    - otherwise, invoke the processor directly.
-        // **Mmmmm**: cache the order in which to invoke static processors and update it when changing
-        //            the graph
-        let mut buf = SoundChunk::new();
-        for (id, pd) in &self.sound_processors {
-            if pd.wrapper.is_static() {
-                let stack = vec![SoundStackFrame::Processor(SoundProcessorFrame {
-                    id: *id,
-                    state_index: 0,
-                })];
-                // NOTE: starting with an empty stack here means that upstream
-                // number sources will all be out of scope. It's probably safe
-                // to allow upstream number sources as long as they are on a
-                // unique path
-                let context = Context::new(&self.sound_processors, &self.sound_inputs, stack);
-                pd.wrapper.process_audio(&mut buf, context);
-                // TODO: cache the static processor's output
+    fn update_static_processor_cache(&mut self) {
+        // TODO: topological sort of all static processors
+        // efficiency is not paramount
+        let mut remaining_static_proc_ids: Vec<SoundProcessorId> = self
+            .sound_processors
+            .values()
+            .filter_map(|proc_data| {
+                if proc_data.wrapper.is_static() {
+                    Some(proc_data.id())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        fn depends_on_remaining_procs(
+            proc_id: SoundProcessorId,
+            remaining: &Vec<SoundProcessorId>,
+            engine: &SoundEngine,
+        ) -> bool {
+            let proc_data = engine.sound_processors.get(&proc_id).unwrap();
+            for input_id in &proc_data.inputs {
+                let input_data = engine.sound_inputs.get(&input_id).unwrap();
+                if let Some(target_proc_id) = input_data.target {
+                    if remaining
+                        .iter()
+                        .find(|pid| **pid == target_proc_id)
+                        .is_some()
+                    {
+                        return true;
+                    }
+                    if depends_on_remaining_procs(target_proc_id, remaining, engine) {
+                        return true;
+                    }
+                }
             }
+            return false;
+        }
+
+        self.static_processor_cache.clear();
+
+        loop {
+            let next_avail_proc = remaining_static_proc_ids.iter().position(|pid| {
+                !depends_on_remaining_procs(*pid, &remaining_static_proc_ids, &self)
+            });
+            match next_avail_proc {
+                Some(idx) => {
+                    let pid = remaining_static_proc_ids.remove(idx);
+                    self.static_processor_cache.push((pid, None))
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn process_audio(&mut self) {
+        debug_assert!(
+            self.static_processor_cache
+                .iter()
+                .find(|(pid, _)| self.sound_processors.get(pid).is_none())
+                .is_none(),
+            "The cached static processor ids should all exist"
+        );
+        debug_assert!(
+            self.sound_processors
+                .iter()
+                .filter_map(|(pid, pdata)| if pdata.wrapper.is_static() {
+                    Some(*pid)
+                } else {
+                    None
+                })
+                .find(|pid| self
+                    .static_processor_cache
+                    .iter()
+                    .find(|(i, _)| *i == *pid)
+                    .is_none())
+                .is_none(),
+            "All static processors should be in the cache"
+        );
+
+        for (_, ch) in &mut self.static_processor_cache {
+            *ch = None;
+        }
+
+        for idx in 0..self.static_processor_cache.len() {
+            let pid = self.static_processor_cache[idx].0;
+            let proc_data = self.sound_processors.get(&pid).unwrap();
+            debug_assert!(proc_data.wrapper.is_static());
+            let stack = vec![SoundStackFrame::Processor(SoundProcessorFrame {
+                id: pid,
+                state_index: 0,
+            })];
+            // NOTE: starting with an empty stack here means that upstream
+            // number sources will all be out of scope. It's probably safe
+            // to allow upstream number sources as long as they are on a
+            // unique path
+            let context = Context::new(
+                &self.sound_processors,
+                &self.sound_inputs,
+                &self.static_processor_cache,
+                stack,
+            );
+            let mut chunk = SoundChunk::new();
+            proc_data.wrapper.process_audio(&mut chunk, context);
+            self.static_processor_cache[idx].1 = Some(chunk);
         }
     }
 }

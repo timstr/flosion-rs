@@ -138,7 +138,7 @@ impl StaticSoundProcessor for DAC {
         };
 
         let data_callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            assert!(data.len() % 2 == 0);
+            debug_assert!(data.len() % 2 == 0);
             resample_interleave(
                 data,
                 || get_next_sample(),
@@ -156,10 +156,12 @@ impl StaticSoundProcessor for DAC {
             .unwrap();
 
         DAC {
-            input: tools.add_single_input(InputOptions {
-                realtime: true,
-                interruptible: false,
-            }),
+            input: tools
+                .add_single_input(InputOptions {
+                    realtime: true,
+                    interruptible: false,
+                })
+                .0,
             stream: Mutex::new(StreamDammit { stream }),
             chunk_sender: Mutex::new(tx),
             playing: playing_also,

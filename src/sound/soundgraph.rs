@@ -109,13 +109,16 @@ impl SoundGraph {
             data,
         ));
         let wrapper2 = Arc::clone(&wrapper);
-        let (rf, obr) = ResultFuture::new();
+        let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
-            .send(SoundEngineMessage::AddSoundProcessor(wrapper2, obr))
+            .send(SoundEngineMessage::AddSoundProcessor {
+                processor: wrapper2,
+                result: outbound_result,
+            })
             .unwrap();
         tools.deliver_messages(&mut self.message_sender);
         self.flush_idle_messages();
-        rf.await.unwrap();
+        result_future.await.unwrap();
         DynamicSoundProcessorHandle { wrapper, id }
     }
 
@@ -136,13 +139,16 @@ impl SoundGraph {
             data,
         ));
         let wrapper2 = Arc::clone(&wrapper);
-        let (rf, obr) = ResultFuture::new();
+        let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
-            .send(SoundEngineMessage::AddSoundProcessor(wrapper2, obr))
+            .send(SoundEngineMessage::AddSoundProcessor {
+                processor: wrapper2,
+                result: outbound_result,
+            })
             .unwrap();
         tools.deliver_messages(&mut self.message_sender);
         self.flush_idle_messages();
-        rf.await.unwrap();
+        result_future.await.unwrap();
         StaticSoundProcessorHandle { wrapper, id }
     }
 
@@ -151,53 +157,60 @@ impl SoundGraph {
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
     ) -> Result<(), ConnectionError> {
-        let (rf, obr) = ResultFuture::<(), ConnectionError>::new();
+        let (result_future, outbound_result) = ResultFuture::<(), ConnectionError>::new();
         self.message_sender
-            .send(SoundEngineMessage::ConnectInput(
+            .send(SoundEngineMessage::ConnectSoundInput {
                 input_id,
                 processor_id,
-                obr,
-            ))
+                result: outbound_result,
+            })
             .unwrap();
         self.flush_idle_messages();
-        rf.await
+        result_future.await
     }
 
     pub async fn disconnect_sound_input(
         &mut self,
         input_id: SoundInputId,
     ) -> Result<(), ConnectionError> {
-        let (rf, obr) = ResultFuture::<(), ConnectionError>::new();
+        let (rf, result) = ResultFuture::<(), ConnectionError>::new();
         self.message_sender
-            .send(SoundEngineMessage::DisconnectInput(input_id, obr))
+            .send(SoundEngineMessage::DisconnectSoundInput { input_id, result })
             .unwrap();
         self.flush_idle_messages();
         rf.await
     }
 
-    pub fn start(&mut self) -> Result<(), AudioError> {
-        assert!(self.engine_idle.is_some() != self.engine_running.is_some());
+    pub fn start(&mut self) -> ResultFuture<(), ()> {
+        debug_assert!(self.engine_idle.is_some() != self.engine_running.is_some());
+        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
         if let Some(e) = self.engine_idle.take() {
             let mut e = e;
             self.engine_running = Some(thread::spawn(move || {
+                outbound_result.fulfill(Ok(()));
                 e.run();
                 e
             }));
-            Ok(())
         } else {
-            Err(AudioError::AlreadyStarted)
+            outbound_result.fulfill(Err(()));
         }
+        result_future
     }
 
-    pub fn stop(&mut self) -> Result<(), AudioError> {
-        assert!(self.engine_idle.is_some() != self.engine_running.is_some());
+    pub fn stop(&mut self) -> ResultFuture<(), ()> {
+        debug_assert!(self.engine_idle.is_some() != self.engine_running.is_some());
+        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
         if let Some(jh) = self.engine_running.take() {
-            self.message_sender.send(SoundEngineMessage::Stop).unwrap();
+            self.message_sender
+                .send(SoundEngineMessage::Stop {
+                    result: outbound_result,
+                })
+                .unwrap();
             self.engine_idle = Some(jh.join().unwrap());
-            Ok(())
         } else {
-            Err(AudioError::AlreadyStarted)
+            outbound_result.fulfill(Err(()));
         }
+        result_future
     }
 
     fn flush_idle_messages(&mut self) {

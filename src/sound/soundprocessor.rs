@@ -288,7 +288,7 @@ impl<T: SoundState> StaticSoundProcessorData<T> {
     }
 
     fn find_state_index(&self, dst_input: SoundInputId, dst_state_index: usize) -> usize {
-        assert!(match self
+        debug_assert!(match self
             .dst_inputs
             .read()
             .iter()
@@ -306,7 +306,7 @@ impl<T: SoundState> StaticSoundProcessorData<T> {
     }
 
     fn add_dst(&self, dst_input: SoundInputId) {
-        assert!(self
+        debug_assert!(self
             .dst_inputs
             .read()
             .iter()
@@ -456,22 +456,22 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
     }
 
     fn add_dst(&self, dst_input: SoundInputId) {
-        assert!(self.produces_output());
+        debug_assert!(self.produces_output());
         self.data.add_dst(dst_input);
     }
 
     fn remove_dst(&self, dst_input: SoundInputId) {
-        assert!(self.produces_output());
+        debug_assert!(self.produces_output());
         self.data.remove_dst(dst_input)
     }
 
     fn insert_dst_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
-        assert!(self.produces_output());
+        debug_assert!(self.produces_output());
         self.data.insert_dst_states(dst_input, span)
     }
 
     fn erase_dst_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
-        assert!(self.produces_output());
+        debug_assert!(self.produces_output());
         self.data.erase_dst_states(dst_input, span)
     }
 

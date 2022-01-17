@@ -22,8 +22,8 @@ impl GridSpan {
         row_stride: usize,
         num_rows: usize,
     ) -> GridSpan {
-        assert!(items_per_row > 0);
-        assert!(row_stride > 0);
+        debug_assert!(items_per_row > 0);
+        debug_assert!(row_stride > 0);
         GridSpan {
             start_index,
             items_per_row,
@@ -82,8 +82,8 @@ impl GridSpan {
     }
 
     pub fn last_index(&self) -> usize {
-        assert!(self.num_rows > 0);
-        assert!(self.items_per_row > 0);
+        debug_assert!(self.num_rows > 0);
+        debug_assert!(self.items_per_row > 0);
         self.start_index + (self.row_stride * (self.num_rows - 1)) + self.items_per_row - 1
     }
 
@@ -95,8 +95,8 @@ impl GridSpan {
         if self.num_items() == 0 {
             return data;
         }
-        assert!(self.start_index <= data.len());
-        assert!(self.last_index() <= data.len() + self.num_items());
+        debug_assert!(self.start_index <= data.len());
+        debug_assert!(self.last_index() <= data.len() + self.num_items());
         let mut new_states = Vec::<T>::new();
         let old_len = data.len();
         new_states.reserve(old_len + self.num_items());

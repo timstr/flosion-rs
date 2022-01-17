@@ -67,7 +67,7 @@ impl<T: SoundState> KeyedStateTable<T> {
     }
 
     pub fn erase_key(&mut self, index: usize) -> GridSpan {
-        assert!(index < self.num_keys);
+        debug_assert!(index < self.num_keys);
         let gs = GridSpan::new(index, 1, self.num_keys, self.num_parent_states);
         self.data = gs.erase(std::mem::take(&mut self.data));
         self.num_keys -= 1;
@@ -97,7 +97,7 @@ impl<T: SoundState> KeyedStateTable<T> {
     }
 
     pub fn get_state(&self, state_index: usize, key_index: usize) -> &RwLock<T> {
-        assert!(key_index < self.num_keys);
+        debug_assert!(key_index < self.num_keys);
         &self.data[self.num_keys * state_index + key_index]
     }
 }
@@ -119,10 +119,10 @@ impl StateTablePartition {
     }
 
     pub fn get_index(&self, input_id: SoundInputId, input_state_index: usize) -> usize {
-        assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
+        debug_assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
         for (i, s) in &self.offsets {
             if *i == input_id {
-                assert!(input_state_index < s.count);
+                debug_assert!(input_state_index < s.count);
                 return s.index + input_state_index;
             }
         }
@@ -130,11 +130,11 @@ impl StateTablePartition {
     }
 
     pub fn get_span(&self, input_id: SoundInputId, input_span: GridSpan) -> GridSpan {
-        assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
+        debug_assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
         for (i, s) in &self.offsets {
             if *i == input_id {
-                assert!(input_span.start_index() < s.count);
-                assert!(input_span.last_index() < s.count);
+                debug_assert!(input_span.start_index() < s.count);
+                debug_assert!(input_span.last_index() < s.count);
                 return input_span.offset(s.index);
             }
         }
@@ -152,7 +152,7 @@ impl StateTablePartition {
 
     // Returns the span of states to insert
     pub fn add_dst(&mut self, input_id: SoundInputId) {
-        assert!(self
+        debug_assert!(self
             .offsets
             .iter()
             .find(|(id, _)| *id == input_id)

@@ -65,8 +65,9 @@ impl SoundStackFrame {
 }
 
 pub struct Context<'a> {
-    processor_data: &'a HashMap<SoundProcessorId, EngineSoundProcessorData>,
+    sound_processor_data: &'a HashMap<SoundProcessorId, EngineSoundProcessorData>,
     sound_input_data: &'a HashMap<SoundInputId, EngineSoundInputData>,
+    static_processor_cache: &'a Vec<(SoundProcessorId, Option<SoundChunk>)>,
     stack: Vec<SoundStackFrame>,
 }
 
@@ -74,12 +75,14 @@ impl<'a> Context<'a> {
     pub(super) fn new(
         processor_data: &'a HashMap<SoundProcessorId, EngineSoundProcessorData>,
         sound_input_data: &'a HashMap<SoundInputId, EngineSoundInputData>,
+        static_processor_cache: &'a Vec<(SoundProcessorId, Option<SoundChunk>)>,
         stack: Vec<SoundStackFrame>,
     ) -> Context<'a> {
-        assert!(stack.len() > 0);
+        debug_assert!(stack.len() > 0);
         Context {
-            processor_data,
+            sound_processor_data: processor_data,
             sound_input_data,
+            static_processor_cache,
             stack,
         }
     }
@@ -153,12 +156,79 @@ impl<'a> Context<'a> {
             })
             .unwrap();
         let f = f.into_processor_frame().unwrap();
-        assert!(f.state_index == 0);
+        debug_assert!(f.state_index == 0);
         handle.get_state()
     }
 
     pub fn current_frame(&self) -> SoundStackFrame {
         *self.stack.last().unwrap()
+    }
+
+    fn step_sound_input(
+        &mut self,
+        input_id: SoundInputId,
+        key_index: Option<usize>,
+        dst: &mut SoundChunk,
+    ) {
+        let frame = self.stack.last().unwrap();
+        let frame = frame.into_processor_frame().unwrap();
+        let input = self.sound_input_data.get(&input_id).unwrap();
+        debug_assert!(input.input().num_keys() == 1);
+        if let Some(target) = input.target() {
+            let other_pd = self.sound_processor_data.get(&target).unwrap();
+            let other_proc = other_pd.sound_processor();
+            if other_proc.is_static() {
+                let ch = self.get_cached_static_output(other_pd.id()).unwrap();
+                dst.copy_from(ch);
+            } else {
+                let mut other_stack = self.stack.clone();
+                if let Some(k_idx) = key_index {
+                    other_stack.push(SoundStackFrame::KeyedInput(KeyedSoundInputFrame {
+                        id: input_id,
+                        state_index: frame.state_index,
+                        key_index: k_idx,
+                    }));
+                } else {
+                    other_stack.push(SoundStackFrame::SingleInput(SingleSoundInputFrame {
+                        id: input_id,
+                        state_index: frame.state_index,
+                    }));
+                }
+                other_stack.push(SoundStackFrame::Processor(SoundProcessorFrame {
+                    id: other_proc.id(),
+                    state_index: other_proc.find_state_index(input_id, frame.state_index),
+                }));
+                let new_ctx = Context::new(
+                    self.sound_processor_data,
+                    self.sound_input_data,
+                    self.static_processor_cache,
+                    other_stack,
+                );
+                other_proc.process_audio(dst, new_ctx);
+            }
+        } else {
+            dst.silence();
+        }
+    }
+
+    fn get_cached_static_output(&self, proc_id: SoundProcessorId) -> Option<&SoundChunk> {
+        self.static_processor_cache
+            .iter()
+            .find(|(pid, _)| *pid == proc_id)
+            .unwrap()
+            .1
+            .as_ref()
+    }
+}
+
+impl<'a> Clone for Context<'a> {
+    fn clone(&self) -> Context<'a> {
+        Context::new(
+            self.sound_processor_data,
+            self.sound_input_data,
+            self.static_processor_cache,
+            self.stack.clone(),
+        )
     }
 }
 
@@ -181,49 +251,12 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
         }
     }
 
-    // pub fn context(&self) -> &Context<'a> {
-    //     &self.context
-    // }
-
-    // pub fn context_mut(&mut self) -> &mut Context<'a> {
-    //     &mut self.context
-    // }
-
     pub fn output_buffer(&mut self) -> &mut SoundChunk {
         self.output_buffer
     }
 
     pub fn step_single_input(&mut self, handle: &SingleSoundInputHandle, dst: &mut SoundChunk) {
-        let frame = self.context.stack.last().unwrap();
-        let frame = frame.into_processor_frame().unwrap();
-        let pd = self.context.processor_data.get(&frame.id).unwrap();
-        let input_id = handle.id();
-        let input = self.context.sound_input_data.get(&input_id).unwrap();
-        assert!(input.input().num_keys() == 1);
-        if let Some(target) = input.target() {
-            let other_pd = self.context.processor_data.get(&target).unwrap();
-            let other_proc = other_pd.sound_processor();
-            // TODO: Once I figure things out, make sure that the outputs of previously-invoked
-            // static processors are cached, and read the cache right here
-            assert!(!other_proc.is_static());
-            let mut other_stack = self.context.stack.clone();
-            other_stack.push(SoundStackFrame::SingleInput(SingleSoundInputFrame {
-                id: input_id,
-                state_index: frame.state_index,
-            }));
-            other_stack.push(SoundStackFrame::Processor(SoundProcessorFrame {
-                id: other_proc.id(),
-                state_index: other_proc.find_state_index(input_id, frame.state_index),
-            }));
-            let new_ctx = Context::new(
-                self.context.processor_data,
-                self.context.sound_input_data,
-                other_stack,
-            );
-            other_proc.process_audio(dst, new_ctx);
-        } else {
-            dst.silence();
-        }
+        self.context.step_sound_input(handle.id(), None, dst)
     }
 
     pub fn step_keyed_input<K: Key, TT: SoundState>(
@@ -232,18 +265,22 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
         key_index: usize,
         dst: &mut SoundChunk,
     ) {
-        // TODO
-        panic!()
+        self.context
+            .step_sound_input(handle.id(), Some(key_index), dst)
     }
 
-    pub fn single_input_state(&self, handle: &SingleSoundInputHandle) {
-        // TODO
-        panic!()
+    pub fn single_input_state(
+        &self,
+        handle: &'a SingleSoundInputHandle,
+    ) -> StateTableLock<'a, EmptyState> {
+        self.context.single_input_state(handle)
     }
 
-    pub fn keyed_input_state<K: Key, TT: SoundState>(&self, handle: &KeyedSoundInputHandle<K, TT>) {
-        // TODO
-        panic!()
+    pub fn keyed_input_state<K: Key, TT: SoundState>(
+        &self,
+        handle: &'a KeyedSoundInputHandle<K, TT>,
+    ) -> StateTableLock<'a, TT> {
+        self.context.keyed_input_state(handle)
     }
 
     pub fn read_state(&'a self) -> ProcessorStateReadLock<'a, T> {
@@ -257,6 +294,10 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
             lock: self.state.write(),
             _context: &mut self.context,
         }
+    }
+
+    pub fn number_context(&self) -> NumberContext<'a> {
+        NumberContext::new(self.context.clone())
     }
 }
 

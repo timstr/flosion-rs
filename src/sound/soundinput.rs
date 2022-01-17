@@ -67,9 +67,10 @@ impl SingleSoundInput {
     }
 }
 
+// TODO: consider adding OutBoundResult to each message and returning futures to the client
 pub enum KeyedSoundInputMessage<K: Key> {
-    AddKey(Arc<K>),
-    RemoveKey(usize),
+    AddKey { key: Arc<K> },
+    RemoveKey { index: usize },
 }
 
 pub struct KeyedSoundInput<K: Key, T: SoundState> {
@@ -112,14 +113,14 @@ impl<K: Key, T: SoundState> KeyedSoundInput<K, T> {
         let rcv = self.message_receiver.lock();
         while let Ok(msg) = rcv.try_recv() {
             match msg {
-                KeyedSoundInputMessage::AddKey(k) => {
-                    let i = self.keys.write().insert_key(k);
+                KeyedSoundInputMessage::AddKey { key } => {
+                    let i = self.keys.write().insert_key(key);
                     let gs = self.state_table.write().insert_key(i);
                     tools.propagate_input_key_change(own_id, gs, StateOperation::Insert);
                 }
-                KeyedSoundInputMessage::RemoveKey(i) => {
-                    self.keys.write().erase_key(i);
-                    let gs = self.state_table.write().erase_key(i);
+                KeyedSoundInputMessage::RemoveKey { index } => {
+                    self.keys.write().erase_key(index);
+                    let gs = self.state_table.write().erase_key(index);
                     tools.propagate_input_key_change(own_id, gs, StateOperation::Erase);
                 }
             }
@@ -229,14 +230,14 @@ impl<K: Key, T: SoundState> KeyedSoundInputHandle<K, T> {
     pub fn add_key(&mut self, key: Arc<K>) {
         self.message_sender
             .lock()
-            .send(KeyedSoundInputMessage::AddKey(key))
+            .send(KeyedSoundInputMessage::AddKey { key })
             .unwrap();
     }
 
     pub fn remove_key(&mut self, index: usize) {
         self.message_sender
             .lock()
-            .send(KeyedSoundInputMessage::RemoveKey(index))
+            .send(KeyedSoundInputMessage::RemoveKey { index })
             .unwrap();
     }
 }

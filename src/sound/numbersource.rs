@@ -27,6 +27,7 @@ impl UniqueId for NumberSourceId {
     }
 }
 
+#[derive(Debug)]
 pub enum NumberSourceOwner {
     Nothing,
     SoundProcessor(SoundProcessorId),
