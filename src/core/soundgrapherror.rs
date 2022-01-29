@@ -25,27 +25,47 @@ pub enum SoundConnectionError {
 #[derive(Debug)]
 pub enum NumberConnectionError {
     NoChange,
-    CircularDependency { cycle: NumberPath },
+    CircularDependency {
+        cycle: NumberPath,
+    },
     InputNotFound(NumberInputId),
     InputOccupied(NumberInputId, NumberSourceId),
     SourceNotFound(NumberSourceId),
-    StateNotInScope { path: NumberPath },
+    StateNotInScope {
+        bad_dependencies: Vec<(NumberSourceId, NumberInputId)>,
+    },
 }
 
 #[derive(Debug)]
-pub enum ConnectionError {
+pub enum SoundGraphError {
     Number(NumberConnectionError),
     Sound(SoundConnectionError),
 }
 
-impl From<SoundConnectionError> for ConnectionError {
-    fn from(e: SoundConnectionError) -> ConnectionError {
-        ConnectionError::Sound(e)
+impl SoundGraphError {
+    pub fn into_number(self) -> Option<NumberConnectionError> {
+        match self {
+            SoundGraphError::Number(e) => Some(e),
+            _ => None,
+        }
+    }
+
+    pub fn into_sound(self) -> Option<SoundConnectionError> {
+        match self {
+            SoundGraphError::Sound(e) => Some(e),
+            _ => None,
+        }
     }
 }
 
-impl From<NumberConnectionError> for ConnectionError {
-    fn from(e: NumberConnectionError) -> ConnectionError {
-        ConnectionError::Number(e)
+impl From<SoundConnectionError> for SoundGraphError {
+    fn from(e: SoundConnectionError) -> SoundGraphError {
+        SoundGraphError::Sound(e)
+    }
+}
+
+impl From<NumberConnectionError> for SoundGraphError {
+    fn from(e: NumberConnectionError) -> SoundGraphError {
+        SoundGraphError::Number(e)
     }
 }

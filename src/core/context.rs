@@ -1,16 +1,20 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::collections::HashMap;
 
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use super::{
     key::Key,
+    numberinput::NumberInputId,
+    numbersource::NumberSourceId,
+    numeric,
+    scratcharena::{ScratchArena, ScratchSlice},
     soundchunk::SoundChunk,
-    soundengine::{EngineSoundInputData, EngineSoundProcessorData},
+    soundengine::{
+        EngineNumberInputData, EngineNumberSourceData, EngineSoundInputData,
+        EngineSoundProcessorData,
+    },
     soundinput::{KeyedSoundInputHandle, SingleSoundInputHandle, SoundInputId},
-    soundprocessor::{DynamicSoundProcessorData, SoundProcessorId, StaticSoundProcessorData},
+    soundprocessor::{SoundProcessorData, SoundProcessorId},
     soundstate::{EmptyState, SoundState},
     statetable::StateTableLock,
 };
@@ -67,23 +71,32 @@ impl SoundStackFrame {
 pub struct Context<'a> {
     sound_processor_data: &'a HashMap<SoundProcessorId, EngineSoundProcessorData>,
     sound_input_data: &'a HashMap<SoundInputId, EngineSoundInputData>,
+    number_source_data: &'a HashMap<NumberSourceId, EngineNumberSourceData>,
+    number_input_data: &'a HashMap<NumberInputId, EngineNumberInputData>,
     static_processor_cache: &'a Vec<(SoundProcessorId, Option<SoundChunk>)>,
     stack: Vec<SoundStackFrame>,
+    scratch_space: &'a ScratchArena,
 }
 
 impl<'a> Context<'a> {
     pub(super) fn new(
         processor_data: &'a HashMap<SoundProcessorId, EngineSoundProcessorData>,
         sound_input_data: &'a HashMap<SoundInputId, EngineSoundInputData>,
+        number_source_data: &'a HashMap<NumberSourceId, EngineNumberSourceData>,
+        number_input_data: &'a HashMap<NumberInputId, EngineNumberInputData>,
         static_processor_cache: &'a Vec<(SoundProcessorId, Option<SoundChunk>)>,
         stack: Vec<SoundStackFrame>,
+        scratch_space: &'a ScratchArena,
     ) -> Context<'a> {
         debug_assert!(stack.len() > 0);
         Context {
             sound_processor_data: processor_data,
             sound_input_data,
+            number_source_data,
+            number_input_data,
             static_processor_cache,
             stack,
+            scratch_space,
         }
     }
 
@@ -123,9 +136,9 @@ impl<'a> Context<'a> {
         input.input().get_state(f.state_index, f.key_index)
     }
 
-    pub(super) fn dynamic_sound_processor_state<T: SoundState>(
+    pub(super) fn sound_processor_state<T: SoundState>(
         &self,
-        handle: &'a DynamicSoundProcessorData<T>,
+        handle: &'a SoundProcessorData<T>,
     ) -> StateTableLock<'a, T> {
         let proc_id = handle.id();
         let f = self
@@ -141,23 +154,15 @@ impl<'a> Context<'a> {
         handle.get_state(f.state_index)
     }
 
-    pub(super) fn static_sound_processor_state<T: SoundState>(
-        &self,
-        handle: &'a StaticSoundProcessorData<T>,
-    ) -> &'a RwLock<T> {
-        let proc_id = handle.id();
-        let f = self
-            .stack
-            .iter()
-            .rev()
-            .find(|f| match f {
-                SoundStackFrame::Processor(i) => i.id == proc_id,
-                _ => false,
-            })
-            .unwrap();
-        let f = f.into_processor_frame().unwrap();
-        debug_assert!(f.state_index == 0);
-        handle.get_state()
+    pub(super) fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
+        let input_data = self.number_input_data.get(&input_id).unwrap();
+        match input_data.target() {
+            Some(nsid) => {
+                let source_data = self.number_source_data.get(&nsid).unwrap();
+                source_data.instance().eval(dst, NumberContext::new(self));
+            }
+            None => numeric::fill(dst, 0.0),
+        }
     }
 
     pub fn current_frame(&self) -> SoundStackFrame {
@@ -201,8 +206,11 @@ impl<'a> Context<'a> {
                 let new_ctx = Context::new(
                     self.sound_processor_data,
                     self.sound_input_data,
+                    self.number_source_data,
+                    self.number_input_data,
                     self.static_processor_cache,
                     other_stack,
+                    self.scratch_space,
                 );
                 other_proc.process_audio(dst, new_ctx);
             }
@@ -219,6 +227,10 @@ impl<'a> Context<'a> {
             .1
             .as_ref()
     }
+
+    fn get_scratch_space(&self, size: usize) -> ScratchSlice {
+        self.scratch_space.borrow_slice(size)
+    }
 }
 
 impl<'a> Clone for Context<'a> {
@@ -226,33 +238,23 @@ impl<'a> Clone for Context<'a> {
         Context::new(
             self.sound_processor_data,
             self.sound_input_data,
+            self.number_source_data,
+            self.number_input_data,
             self.static_processor_cache,
             self.stack.clone(),
+            self.scratch_space,
         )
     }
 }
 
 pub struct ProcessorContext<'a, T: SoundState> {
-    output_buffer: &'a mut SoundChunk,
     state: &'a RwLock<T>,
     context: Context<'a>,
 }
 
 impl<'a, T: SoundState> ProcessorContext<'a, T> {
-    pub(super) fn new(
-        output_buffer: &'a mut SoundChunk,
-        state: &'a RwLock<T>,
-        context: Context<'a>,
-    ) -> ProcessorContext<'a, T> {
-        ProcessorContext {
-            output_buffer,
-            state,
-            context,
-        }
-    }
-
-    pub fn output_buffer(&mut self) -> &mut SoundChunk {
-        self.output_buffer
+    pub(super) fn new(state: &'a RwLock<T>, context: Context<'a>) -> ProcessorContext<'a, T> {
+        ProcessorContext { state, context }
     }
 
     pub fn step_single_input(&mut self, handle: &SingleSoundInputHandle, dst: &mut SoundChunk) {
@@ -283,64 +285,26 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
         self.context.keyed_input_state(handle)
     }
 
-    pub fn read_state(&'a self) -> ProcessorStateReadLock<'a, T> {
-        ProcessorStateReadLock {
-            lock: self.state.read(),
-        }
+    pub fn read_state(&'a self) -> RwLockReadGuard<'a, T> {
+        self.state.read()
     }
 
-    pub fn write_state<'b>(&'a mut self) -> ProcessorStateWriteLock<'a, 'a, T> {
-        ProcessorStateWriteLock {
-            lock: self.state.write(),
-            _context: &mut self.context,
-        }
+    pub fn write_state<'b>(&'a self) -> RwLockWriteGuard<'a, T> {
+        self.state.write()
     }
 
-    pub fn number_context(&self) -> NumberContext<'a> {
-        NumberContext::new(self.context.clone())
+    pub fn number_context(&'a self) -> NumberContext<'a> {
+        NumberContext::new(&self.context)
     }
 }
 
-pub struct ProcessorStateReadLock<'a, T: SoundState> {
-    lock: RwLockReadGuard<'a, T>,
-}
-
-impl<'a, T: SoundState> Deref for ProcessorStateReadLock<'a, T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &*self.lock
-    }
-}
-
-pub struct ProcessorStateWriteLock<'a, 'b, T: SoundState> {
-    lock: RwLockWriteGuard<'a, T>,
-    // NOTE: storing a mutable reference to the context here is used to ensure
-    // that the context is not also used to call upon inputs while a write
-    // lock is held. This prevents deadlock.
-    _context: &'a mut Context<'b>,
-}
-
-impl<'a, 'b, T: SoundState> Deref for ProcessorStateWriteLock<'a, 'b, T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &*self.lock
-    }
-}
-
-impl<'a, 'b, T: SoundState> DerefMut for ProcessorStateWriteLock<'a, 'b, T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut *self.lock
-    }
-}
-
+#[derive(Copy, Clone)]
 pub struct NumberContext<'a> {
-    context: Context<'a>,
+    context: &'a Context<'a>,
 }
 
 impl<'a> NumberContext<'a> {
-    pub(super) fn new(context: Context<'a>) -> NumberContext<'a> {
+    pub(super) fn new(context: &'a Context<'a>) -> NumberContext<'a> {
         NumberContext { context }
     }
 
@@ -358,17 +322,18 @@ impl<'a> NumberContext<'a> {
         self.context.keyed_input_state(input)
     }
 
-    pub fn dynamic_sound_processor_state<T: SoundState>(
+    pub fn sound_processor_state<T: SoundState>(
         &self,
-        handle: &'a DynamicSoundProcessorData<T>,
+        handle: &'a SoundProcessorData<T>,
     ) -> StateTableLock<'a, T> {
-        self.context.dynamic_sound_processor_state(handle)
+        self.context.sound_processor_state(handle)
     }
 
-    pub fn static_sound_processor_state<T: SoundState>(
-        &self,
-        handle: &'a StaticSoundProcessorData<T>,
-    ) -> &'a RwLock<T> {
-        self.context.static_sound_processor_state(handle)
+    pub fn get_scratch_space(&self, size: usize) -> ScratchSlice {
+        self.context.get_scratch_space(size)
+    }
+
+    pub(super) fn evaluate_input(&self, id: NumberInputId, dst: &mut [f32]) {
+        self.context.evaluate_number_input(id, dst);
     }
 }

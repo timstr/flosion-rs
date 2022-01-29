@@ -1,8 +1,8 @@
 use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::sound::gridspan::GridSpan;
-use crate::sound::soundinput::SoundInputId;
-use crate::sound::soundstate::SoundState;
+use crate::core::gridspan::GridSpan;
+use crate::core::soundinput::SoundInputId;
+use crate::core::soundstate::SoundState;
 
 pub struct StateTable<T: SoundState> {
     data: Vec<RwLock<T>>,
@@ -109,17 +109,26 @@ struct StateTableSlice {
 
 pub struct StateTablePartition {
     offsets: Vec<(SoundInputId, StateTableSlice)>,
+    is_static: bool,
 }
 
 impl StateTablePartition {
-    pub fn new() -> StateTablePartition {
+    pub fn new(is_static: bool) -> StateTablePartition {
         StateTablePartition {
             offsets: Vec::new(),
+            is_static,
         }
     }
 
     pub fn get_index(&self, input_id: SoundInputId, input_state_index: usize) -> usize {
         debug_assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
+        if self.is_static {
+            debug_assert!({
+                let (_, s) = self.offsets.iter().find(|(i, _)| *i == input_id).unwrap();
+                s.index == 0 && s.count == 1
+            });
+            return 0;
+        }
         for (i, s) in &self.offsets {
             if *i == input_id {
                 debug_assert!(input_state_index < s.count);
@@ -131,6 +140,16 @@ impl StateTablePartition {
 
     pub fn get_span(&self, input_id: SoundInputId, input_span: GridSpan) -> GridSpan {
         debug_assert!(self.offsets.iter().find(|(i, _)| *i == input_id).is_some());
+        if self.is_static {
+            debug_assert!({
+                let (_, s) = self.offsets.iter().find(|(i, _)| *i == input_id).unwrap();
+                s.index == 0 && s.count == 1
+            });
+            debug_assert!(input_span.start_index() == 0);
+            debug_assert!(input_span.items_per_row() == 1);
+            debug_assert!(input_span.num_rows() == 1);
+            return GridSpan::new_empty();
+        }
         for (i, s) in &self.offsets {
             if *i == input_id {
                 debug_assert!(input_span.start_index() < s.count);
@@ -142,6 +161,9 @@ impl StateTablePartition {
     }
 
     pub fn total_size(&self) -> usize {
+        if self.is_static {
+            return 1;
+        }
         let mut acc: usize = 0;
         for (_, s) in &self.offsets {
             assert_eq!(s.index, acc);
@@ -157,10 +179,8 @@ impl StateTablePartition {
             .iter()
             .find(|(id, _)| *id == input_id)
             .is_none());
-        let s = StateTableSlice {
-            index: self.total_size(),
-            count: 0,
-        };
+        let index = if self.is_static { 0 } else { self.total_size() };
+        let s = StateTableSlice { index, count: 0 };
         self.offsets.push((input_id, s));
     }
 
@@ -181,6 +201,20 @@ impl StateTablePartition {
 
     // Returns the span of states to insert
     pub fn add_dst_states(&mut self, input_id: SoundInputId, span: GridSpan) -> GridSpan {
+        if self.is_static {
+            let (_, s) = self
+                .offsets
+                .iter_mut()
+                .find(|(i, _)| *i == input_id)
+                .unwrap();
+            debug_assert!(s.index == 0);
+            debug_assert!(s.count == 0);
+            debug_assert!(span.start_index() == 0);
+            debug_assert!(span.items_per_row() == 1);
+            debug_assert!(span.num_rows() == 1);
+            s.count = 1;
+            return GridSpan::new_empty();
+        }
         let index = self
             .offsets
             .iter()
@@ -203,6 +237,20 @@ impl StateTablePartition {
     }
     // Returns the span of states to erase
     pub fn remove_dst_states(&mut self, input_id: SoundInputId, span: GridSpan) -> GridSpan {
+        if self.is_static {
+            let (_, s) = self
+                .offsets
+                .iter_mut()
+                .find(|(i, _)| *i == input_id)
+                .unwrap();
+            debug_assert!(s.index == 0);
+            debug_assert!(s.count == 1);
+            debug_assert!(span.start_index() == 0);
+            debug_assert!(span.items_per_row() == 1);
+            debug_assert!(span.num_rows() == 1);
+            s.count = 0;
+            return GridSpan::new_empty();
+        }
         let index = self
             .offsets
             .iter()

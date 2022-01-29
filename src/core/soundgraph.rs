@@ -1,25 +1,23 @@
-use crate::sound::soundinput::SoundInputId;
-use crate::sound::soundprocessor::DynamicSoundProcessor;
-use crate::sound::soundprocessor::SoundProcessorId;
-use crate::sound::soundprocessor::StaticSoundProcessor;
+use std::{
+    sync::{mpsc::Sender, Arc},
+    thread::{self, JoinHandle},
+};
 
-use std::sync::mpsc::Sender;
-use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
-
-use super::connectionerror::ConnectionError;
-use super::numberinput::NumberInputId;
-use super::numbersource::NumberSourceId;
-use super::resultfuture::ResultFuture;
-use super::soundengine::SoundEngine;
-use super::soundengine::SoundEngineMessage;
-use super::soundprocessor::DynamicSoundProcessorData;
-use super::soundprocessor::StaticSoundProcessorData;
-use super::soundprocessor::WrappedDynamicSoundProcessor;
-use super::soundprocessor::WrappedStaticSoundProcessor;
-use super::soundprocessortools::SoundProcessorTools;
-use super::uniqueid::IdGenerator;
+use super::{
+    numberinput::NumberInputId,
+    numbersource::{NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle},
+    numbersourcetools::NumberSourceTools,
+    resultfuture::ResultFuture,
+    soundengine::{SoundEngine, SoundEngineMessage},
+    soundgrapherror::{NumberConnectionError, SoundGraphError},
+    soundinput::SoundInputId,
+    soundprocessor::{
+        DynamicSoundProcessor, SoundProcessorData, SoundProcessorId, StaticSoundProcessor,
+        WrappedDynamicSoundProcessor, WrappedStaticSoundProcessor,
+    },
+    soundprocessortools::SoundProcessorTools,
+    uniqueid::IdGenerator,
+};
 
 pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
     wrapper: Arc<WrappedDynamicSoundProcessor<T>>,
@@ -92,18 +90,19 @@ impl SoundGraph {
         }
     }
 
-    pub async fn add_dynamic_sound_processor<T: DynamicSoundProcessor + 'static>(
+    pub async fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
         &mut self,
     ) -> DynamicSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
+        let data = Arc::new(SoundProcessorData::<T::StateType>::new(id, false));
         let mut tools = SoundProcessorTools::new(
             id,
+            Arc::clone(&data),
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
         );
-        let data = Arc::new(DynamicSoundProcessorData::<T::StateType>::new(id));
-        let processor = Arc::new(T::new(&mut tools, &data));
+        let processor = Arc::new(T::new(&mut tools));
         let wrapper = Arc::new(WrappedDynamicSoundProcessor::new(
             Arc::clone(&processor),
             data,
@@ -126,14 +125,15 @@ impl SoundGraph {
         &mut self,
     ) -> StaticSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
+        let data = Arc::new(SoundProcessorData::<T::StateType>::new(id, true));
         let mut tools = SoundProcessorTools::new(
             id,
+            Arc::clone(&data),
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
         );
-        let data = Arc::new(StaticSoundProcessorData::<T::StateType>::new(id));
-        let processor = Arc::new(T::new(&mut tools, &data));
+        let processor = Arc::new(T::new(&mut tools));
         let wrapper = Arc::new(WrappedStaticSoundProcessor::new(
             Arc::clone(&processor),
             data,
@@ -152,12 +152,32 @@ impl SoundGraph {
         StaticSoundProcessorHandle { wrapper, id }
     }
 
+    pub async fn add_number_source<T: PureNumberSource>(&mut self) -> PureNumberSourceHandle<T> {
+        let id = self.number_source_idgen.next_id();
+        let mut tools = NumberSourceTools::new(id, &mut self.number_input_idgen);
+        let source = Arc::new(T::new(&mut tools));
+        let source2 = Arc::clone(&source);
+        let (result_future, outbound_result) = ResultFuture::new();
+        self.message_sender
+            .send(SoundEngineMessage::AddNumberSource {
+                id,
+                result: outbound_result,
+                owner: NumberSourceOwner::Nothing,
+                source: source2,
+            })
+            .unwrap();
+        tools.deliver_messages(&mut self.message_sender);
+        self.flush_idle_messages();
+        result_future.await.unwrap();
+        PureNumberSourceHandle::new(id, source)
+    }
+
     pub async fn connect_sound_input(
         &mut self,
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
-    ) -> Result<(), ConnectionError> {
-        let (result_future, outbound_result) = ResultFuture::<(), ConnectionError>::new();
+    ) -> Result<(), SoundGraphError> {
+        let (result_future, outbound_result) = ResultFuture::<(), SoundGraphError>::new();
         self.message_sender
             .send(SoundEngineMessage::ConnectSoundInput {
                 input_id,
@@ -172,10 +192,39 @@ impl SoundGraph {
     pub async fn disconnect_sound_input(
         &mut self,
         input_id: SoundInputId,
-    ) -> Result<(), ConnectionError> {
-        let (rf, result) = ResultFuture::<(), ConnectionError>::new();
+    ) -> Result<(), SoundGraphError> {
+        let (rf, result) = ResultFuture::<(), SoundGraphError>::new();
         self.message_sender
             .send(SoundEngineMessage::DisconnectSoundInput { input_id, result })
+            .unwrap();
+        self.flush_idle_messages();
+        rf.await
+    }
+
+    pub async fn connect_number_input(
+        &mut self,
+        input_id: NumberInputId,
+        source_id: NumberSourceId,
+    ) -> Result<(), NumberConnectionError> {
+        let (rf, result) = ResultFuture::<(), NumberConnectionError>::new();
+        self.message_sender
+            .send(SoundEngineMessage::ConnectNumberInput {
+                input_id,
+                target_id: source_id,
+                result,
+            })
+            .unwrap();
+        self.flush_idle_messages();
+        rf.await
+    }
+
+    pub async fn disconnect_number_input(
+        &mut self,
+        input_id: NumberInputId,
+    ) -> Result<(), NumberConnectionError> {
+        let (rf, result) = ResultFuture::<(), NumberConnectionError>::new();
+        self.message_sender
+            .send(SoundEngineMessage::DisconnectNumberInput { input_id, result })
             .unwrap();
         self.flush_idle_messages();
         rf.await

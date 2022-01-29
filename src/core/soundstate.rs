@@ -1,3 +1,5 @@
+use super::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
+
 pub struct StateTime {
     elapsed_samples: usize,
     relative_time_speed: f32,
@@ -19,28 +21,22 @@ impl StateTime {
 
 pub trait SoundState: 'static + Default + Sync + Send {
     fn reset(&mut self);
-    fn time(&self) -> &StateTime;
-    fn time_mut(&mut self) -> &mut StateTime;
 }
 
-pub struct EmptyState {
-    time: StateTime,
-}
+pub struct EmptyState {}
 
 impl Default for EmptyState {
     fn default() -> EmptyState {
-        EmptyState {
-            time: StateTime::new(),
-        }
+        EmptyState {}
     }
 }
 
 impl SoundState for EmptyState {
     fn reset(&mut self) {}
-    fn time(&self) -> &StateTime {
-        &self.time
-    }
-    fn time_mut(&mut self) -> &mut StateTime {
-        &mut self.time
-    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum StateOwner {
+    SoundInput(SoundInputId),
+    SoundProcessor(SoundProcessorId),
 }

@@ -4,11 +4,11 @@ pub fn resample_interleave<F: FnMut() -> (f32, f32)>(
     input_sample_rate: u32,
     output_sample_rate: u32,
 ) {
-    let ratio = (input_sample_rate as f32) / (output_sample_rate as f32);
     debug_assert!(input_sample_rate > 0);
     debug_assert!(output_sample_rate > 0);
     debug_assert!(output.len() % 2 == 0);
-    let mut remainder: f32 = 0.0;
+    let ratio = (input_sample_rate as f32) / (output_sample_rate as f32);
+    let mut remainder: f32 = 1.0;
     // TODO: implement something nicer than nearest neighbour
     let mut s = get_next_input_sample();
     for p in output.chunks_exact_mut(2) {
