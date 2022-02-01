@@ -203,10 +203,6 @@ impl<T: DynamicSoundProcessor> WrappedDynamicSoundProcessor<T> {
     pub fn id(&self) -> SoundProcessorId {
         self.data.id
     }
-
-    pub(super) fn get_state<'a>(&'a self, index: usize) -> StateTableLock<'a, T::StateType> {
-        StateTableLock::new(self.data.state_table.read(), index)
-    }
 }
 
 impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProcessor<T> {
@@ -263,133 +259,6 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
     }
 }
 
-// struct StaticInputStates {
-//     input_id: SoundInputId,
-//     num_states: usize,
-// }
-
-// pub struct StaticSoundProcessorData<T: SoundState> {
-//     id: SoundProcessorId,
-//     state: RwLock<T>,
-//     dst_inputs: RwLock<Vec<StaticInputStates>>,
-// }
-
-// impl<T: SoundState> StaticSoundProcessorData<T> {
-//     pub(super) fn new(id: SoundProcessorId) -> StaticSoundProcessorData<T> {
-//         StaticSoundProcessorData {
-//             id,
-//             state: RwLock::new(T::default()),
-//             dst_inputs: RwLock::new(Vec::new()),
-//         }
-//     }
-
-//     pub fn id(&self) -> SoundProcessorId {
-//         self.id
-//     }
-
-//     fn find_state_index(&self, dst_input: SoundInputId, dst_state_index: usize) -> usize {
-//         debug_assert!(match self
-//             .dst_inputs
-//             .read()
-//             .iter()
-//             .find(|is| is.input_id == dst_input)
-//         {
-//             Some(is) => is.num_states == 1,
-//             None => false,
-//         });
-//         assert_eq!(dst_state_index, 0);
-//         0
-//     }
-
-//     pub(super) fn get_state(&self) -> &RwLock<T> {
-//         &self.state
-//     }
-
-//     fn add_dst(&self, dst_input: SoundInputId) {
-//         debug_assert!(self
-//             .dst_inputs
-//             .read()
-//             .iter()
-//             .find(|is| is.input_id == dst_input)
-//             .is_none());
-//         self.dst_inputs.write().push(StaticInputStates {
-//             input_id: dst_input,
-//             num_states: 0,
-//         });
-//     }
-
-//     fn remove_dst(&self, dst_input: SoundInputId) {
-//         assert_eq!(
-//             self.dst_inputs
-//                 .read()
-//                 .iter()
-//                 .filter(|is| is.input_id == dst_input)
-//                 .count(),
-//             1
-//         );
-//         let i = self
-//             .dst_inputs
-//             .read()
-//             .iter()
-//             .position(|is| is.input_id == dst_input)
-//             .unwrap();
-//         let states = self.dst_inputs.write().remove(i);
-//         assert_eq!(states.num_states, 0);
-//     }
-
-//     fn insert_dst_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
-//         assert_eq!(
-//             self.dst_inputs
-//                 .read()
-//                 .iter()
-//                 .filter(|is| is.input_id == dst_input)
-//                 .count(),
-//             1
-//         );
-//         if !(span.start_index() == 0 && span.num_items() == 1) {
-//             panic!();
-//         }
-//         let i = self
-//             .dst_inputs
-//             .read()
-//             .iter()
-//             .position(|is| is.input_id == dst_input)
-//             .unwrap();
-//         let si = &mut self.dst_inputs.write()[i];
-//         if si.num_states == 1 {
-//             panic!();
-//         }
-//         si.num_states = 1;
-//         GridSpan::new_empty()
-//     }
-
-//     fn erase_dst_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
-//         assert_eq!(
-//             self.dst_inputs
-//                 .read()
-//                 .iter()
-//                 .filter(|is| is.input_id == dst_input)
-//                 .count(),
-//             1
-//         );
-//         if !(span.start_index() == 0 && span.num_items() == 1) {
-//             panic!();
-//         }
-//         let i = self
-//             .dst_inputs
-//             .read()
-//             .iter()
-//             .position(|is| is.input_id == dst_input)
-//             .unwrap();
-//         let si = &mut self.dst_inputs.write()[i];
-//         if si.num_states == 0 {
-//             panic!();
-//         }
-//         si.num_states = 0;
-//         GridSpan::new_empty()
-//     }
-// }
-
 pub struct WrappedStaticSoundProcessor<T: StaticSoundProcessor> {
     instance: Arc<T>,
     data: Arc<SoundProcessorData<T::StateType>>,
@@ -410,10 +279,6 @@ impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
 
     pub fn id(&self) -> SoundProcessorId {
         self.data.id
-    }
-
-    pub(super) fn get_state<'a>(&'a self) -> StateTableLock<'a, T::StateType> {
-        StateTableLock::new(self.data.state_table.read(), 0)
     }
 }
 

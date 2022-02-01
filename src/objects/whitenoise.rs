@@ -26,7 +26,11 @@ impl DynamicSoundProcessor for WhiteNoise {
         WhiteNoise {}
     }
 
-    fn process_audio(&self, dst: &mut SoundChunk, mut sc: ProcessorContext<'_, WhiteNoiseState>) {
+    fn process_audio(
+        &self,
+        dst: &mut SoundChunk,
+        mut _context: ProcessorContext<'_, WhiteNoiseState>,
+    ) {
         for s in dst.l.iter_mut() {
             let r: f32 = thread_rng().gen();
             *s = 0.2 * r - 0.1;

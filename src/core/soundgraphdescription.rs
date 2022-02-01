@@ -219,12 +219,16 @@ impl SoundGraphDescription {
                             panic!(
                                 "Sound processor {:?} has sound input {:?} listed as an\
                                 input, but that input does not list the sound processor\
-                                as its owner",
+                                as its owner.",
                                 sp.id, i
                             );
                         }
                     }
-                    None => panic!("1"),
+                    None => panic!(
+                        "Sound processor {:?} has sound input {:?} listed as an input,\
+                        but that input does not exist.",
+                        sp.id, i
+                    ),
                 }
             }
             for i in &sp.number_inputs {
@@ -232,10 +236,19 @@ impl SoundGraphDescription {
                 match self.number_inputs.get(i) {
                     Some(idata) => {
                         if idata.owner != NumberInputOwner::SoundProcessor(sp.id) {
-                            panic!("2");
+                            panic!(
+                                "Sound processor {:?} lists number input {:?} as one\
+                            of its number inputs, but that number input does not list
+                            the sound processor as its owner.",
+                                sp.id, i
+                            );
                         }
                     }
-                    None => panic!("3"),
+                    None => panic!(
+                        "Sound processor {:?} lists number input {:?} as one of its\
+                        number inputs, but that number input does not exist.",
+                        sp.id, i
+                    ),
                 }
             }
             for s in &sp.number_sources {
@@ -243,34 +256,70 @@ impl SoundGraphDescription {
                 match self.number_sources.get(s) {
                     Some(sdata) => {
                         if sdata.owner != NumberSourceOwner::SoundProcessor(sp.id) {
-                            panic!("4");
+                            panic!(
+                                "Sound processor {:?} lists number source {:?} as one\
+                                of its number sources, but that number source doesn't\
+                                list the sound processor as its owner.",
+                                sp.id, s
+                            );
                         }
                     }
-                    None => panic!("5"),
+                    None => panic!(
+                        "Sound processor {:?} lists number source {:?} as one of its\
+                        number sources, but that number source does not exist.",
+                        sp.id, s
+                    ),
                 }
             }
         }
 
         for si in self.sound_inputs.values() {
             // for each sound input
+            if let Some(spid) = &si.target {
+                if self.sound_processors.get(spid).is_none() {
+                    panic!(
+                        "The sound input {:?} lists sound processor {:?} as its target,\
+                        but that sound processor does not exist.",
+                        si.id, spid
+                    )
+                }
+            }
             match self.sound_processors.get(&si.owner) {
                 // its owner must exist and list the input
                 Some(sp) => {
                     if !sp.inputs.contains(&si.id) {
-                        panic!("6");
+                        panic!(
+                            "Sound input {:?} lists sound processor {:?} as its owner,\
+                            but that sound processor doesn't list the sound input as one\
+                            of its inputs.",
+                            si.id, si.owner
+                        );
                     }
                 }
-                None => panic!("7"),
+                None => panic!(
+                    "Sound input {:?} lists sound processor {:?} as its owner, but that\
+                    sound processor does not exist.",
+                    si.id, si.owner
+                ),
             }
             for nsid in &si.number_sources {
                 // each number source must exist and list the sound input as its owner
                 match self.number_sources.get(nsid) {
                     Some(ns) => {
                         if ns.owner != NumberSourceOwner::SoundInput(si.id) {
-                            panic!("8");
+                            panic!(
+                                "Sound input {:?} lists number source {:?} as one of its\
+                                number sources, but that number source doesn't list the\
+                                sound input as its owner.",
+                                si.id, nsid
+                            );
                         }
                     }
-                    None => panic!("9"),
+                    None => panic!(
+                        "Sound input {:?} lists number source {:?} as one of its number\
+                        sources, but that number source does not exist.",
+                        si.id, nsid
+                    ),
                 }
             }
         }
@@ -282,10 +331,19 @@ impl SoundGraphDescription {
                 match self.number_inputs.get(niid) {
                     Some(ni) => {
                         if ni.owner != NumberInputOwner::NumberSource(ns.id) {
-                            panic!("10");
+                            panic!(
+                                "The number source {:?} lists number input {:?} as one of its\
+                                number inputs, but that number input does not list the number\
+                                source as its owner.",
+                                ns.id, niid
+                            );
                         }
                     }
-                    None => panic!("11"),
+                    None => panic!(
+                        "The number source {:?} lists number input {:?} as one of its number\
+                        inputs, but that number input does not exist.",
+                        ns.id, niid
+                    ),
                 }
             }
             match ns.owner {
@@ -293,18 +351,36 @@ impl SoundGraphDescription {
                 NumberSourceOwner::SoundProcessor(spid) => match self.sound_processors.get(&spid) {
                     Some(sp) => {
                         if !sp.number_sources.contains(&ns.id) {
-                            panic!("12");
+                            panic!(
+                                "The number source {:?} lists sound processor {:?} as its owner,\
+                                but that sound processor does not list the number source as one\
+                                of its number sources.",
+                                ns.id, spid
+                            );
                         }
                     }
-                    None => panic!("13"),
+                    None => panic!(
+                        "The number source {:?} lists sound processor {:?} as its owner, but that\
+                        sound processor does not exist.",
+                        ns.id, spid
+                    ),
                 },
                 NumberSourceOwner::SoundInput(siid) => match self.sound_inputs.get(&siid) {
                     Some(si) => {
                         if !si.number_sources.contains(&ns.id) {
-                            panic!("14");
+                            panic!(
+                                "The number source {:?} lists sound input {:?} as its owner,\
+                                but that sound input does not list the number source as one\
+                                of its number sources.",
+                                ns.id, siid
+                            );
                         }
                     }
-                    None => panic!("15"),
+                    None => panic!(
+                        "The number source {:?} lists sound input {:?} as its owner, but that\
+                        sound input doesn't exist.",
+                        ns.id, siid
+                    ),
                 },
                 NumberSourceOwner::Nothing => (),
             }
@@ -315,7 +391,11 @@ impl SoundGraphDescription {
             if let Some(nsid) = &ni.target {
                 // its target, if any, must exist
                 if self.number_sources.get(nsid).is_none() {
-                    panic!("16");
+                    panic!(
+                        "The number input {:?} lists number source {:?} as its target, but that\
+                        number source does not exist.",
+                        ni.id, nsid
+                    );
                 }
             }
             match &ni.owner {
@@ -323,18 +403,36 @@ impl SoundGraphDescription {
                 NumberInputOwner::SoundProcessor(spid) => match self.sound_processors.get(spid) {
                     Some(sp) => {
                         if !sp.number_inputs.contains(&ni.id) {
-                            panic!("17");
+                            panic!(
+                                "The number input {:?} lists sound processor {:?} as its owner,\
+                                but that sound processor doesn't list the number input as one of\
+                                its number inputs.",
+                                ni.id, spid
+                            );
                         }
                     }
-                    None => panic!("18"),
+                    None => panic!(
+                        "The number input {:?} lists sound processor {:?} as its owner, but that\
+                        sound processor does not exist.",
+                        ni.id, spid
+                    ),
                 },
                 NumberInputOwner::NumberSource(nsid) => match self.number_sources.get(nsid) {
                     Some(ns) => {
                         if !ns.inputs.contains(&ni.id) {
-                            panic!("19");
+                            panic!(
+                                "The number input {:?} lists number source {:?} as its owner, but\
+                                that number source does not list the number input as one of its\
+                                number inputs.",
+                                ni.id, nsid
+                            );
                         }
                     }
-                    None => panic!("20"),
+                    None => panic!(
+                        "The number input {:?} lists number source {:?} as its owner, but that\
+                        number source does not exist.",
+                        ni.id, nsid
+                    ),
                 },
             }
         }
@@ -540,41 +638,41 @@ impl SoundGraphDescription {
         stateful_sources
     }
 
-    pub fn find_all_stateful_dependents_of(&self, source: NumberSourceId) -> Vec<NumberInputId> {
-        fn dfs(
-            input_id: NumberInputId,
-            source_id: NumberSourceId,
-            graph: &SoundGraphDescription,
-        ) -> bool {
-            let input_desc = graph.number_inputs.get(&input_id).unwrap();
-            if let Some(target_id) = input_desc.target {
-                if target_id == source_id {
-                    return true;
-                }
-                let target_desc = graph.number_sources.get(&target_id).unwrap();
-                for target_input_id in &target_desc.inputs {
-                    if dfs(*target_input_id, source_id, graph) {
-                        return true;
-                    }
-                }
-            }
-            false
-        }
+    // pub fn find_all_stateful_dependents_of(&self, source: NumberSourceId) -> Vec<NumberInputId> {
+    //     fn dfs(
+    //         input_id: NumberInputId,
+    //         source_id: NumberSourceId,
+    //         graph: &SoundGraphDescription,
+    //     ) -> bool {
+    //         let input_desc = graph.number_inputs.get(&input_id).unwrap();
+    //         if let Some(target_id) = input_desc.target {
+    //             if target_id == source_id {
+    //                 return true;
+    //             }
+    //             let target_desc = graph.number_sources.get(&target_id).unwrap();
+    //             for target_input_id in &target_desc.inputs {
+    //                 if dfs(*target_input_id, source_id, graph) {
+    //                     return true;
+    //                 }
+    //             }
+    //         }
+    //         false
+    //     }
 
-        let mut stateful_dependents: Vec<NumberInputId> = Vec::new();
-        for input_id in self.number_inputs.values().filter_map(|input_desc| {
-            if input_desc.owner.is_stateful() {
-                Some(input_desc.id)
-            } else {
-                None
-            }
-        }) {
-            if dfs(input_id, source, self) {
-                stateful_dependents.push(input_id);
-            }
-        }
-        stateful_dependents
-    }
+    //     let mut stateful_dependents: Vec<NumberInputId> = Vec::new();
+    //     for input_id in self.number_inputs.values().filter_map(|input_desc| {
+    //         if input_desc.owner.is_stateful() {
+    //             Some(input_desc.id)
+    //         } else {
+    //             None
+    //         }
+    //     }) {
+    //         if dfs(input_id, source, self) {
+    //             stateful_dependents.push(input_id);
+    //         }
+    //     }
+    //     stateful_dependents
+    // }
 
     pub fn find_invalid_number_connections(&self) -> Vec<(NumberSourceId, NumberInputId)> {
         let mut bad_dependencies: Vec<(NumberSourceId, NumberInputId)> = Vec::new();

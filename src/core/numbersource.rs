@@ -54,47 +54,8 @@ impl NumberSourceOwner {
 }
 
 pub trait NumberSource: 'static + Sync + Send {
-    // fn new(tools: &mut NumberSourceTools<'_>) -> Self
-    // where
-    //     Self: Sized;
     fn eval(&self, dst: &mut [f32], context: NumberContext);
 }
-
-// pub struct NumberSourceHandle<T: NumberSource> {
-//     id: NumberSourceId,
-//     owner: NumberSourceOwner,
-//     instance: Arc<T>,
-// }
-
-// impl<T: NumberSource> NumberSourceHandle<T> {
-//     pub(super) fn new(
-//         id: NumberSourceId,
-//         owner: NumberSourceOwner,
-//         instance: Box<T>,
-//     ) -> NumberSourceHandle<T> {
-//         NumberSourceHandle {
-//             id,
-//             owner,
-//             instance: instance.into(),
-//         }
-//     }
-
-//     pub fn id(&self) -> NumberSourceId {
-//         self.id
-//     }
-
-//     pub fn owner(&self) -> NumberSourceOwner {
-//         self.owner
-//     }
-
-//     pub fn instance(&self) -> &dyn NumberSource {
-//         &*self.instance
-//     }
-
-//     pub(super) fn into_instance(self) -> Arc<dyn NumberSource> {
-//         self.instance
-//     }
-// }
 
 pub trait PureNumberSource: NumberSource {
     fn new(tools: &mut NumberSourceTools<'_>) -> Self
@@ -155,42 +116,24 @@ impl<T: SoundState, F: StateFunction<T>> NumberSource for ProcessorNumberSource<
     }
 }
 
-pub struct ProcessorNumberSourceHandle {
+pub struct NumberSourceHandle {
     id: NumberSourceId,
-    owner: SoundProcessorId,
-    // TODO: anything else???
+    owner: NumberSourceOwner,
 }
 
-impl ProcessorNumberSourceHandle {
-    pub fn new(id: NumberSourceId, owner: SoundProcessorId) -> ProcessorNumberSourceHandle {
-        ProcessorNumberSourceHandle { id, owner }
+impl NumberSourceHandle {
+    pub(super) fn new(id: NumberSourceId, owner: NumberSourceOwner) -> NumberSourceHandle {
+        NumberSourceHandle { id, owner }
     }
 
     pub fn id(&self) -> NumberSourceId {
         self.id
     }
+
+    pub fn owner(&self) -> NumberSourceOwner {
+        self.owner
+    }
 }
-
-// pub struct StaticProcessorNumberSource<T: SoundState, F: StateFunction<T>> {
-//     data: Arc<StaticSoundProcessorData<T>>,
-//     function: F,
-// }
-
-// impl<T: SoundState, F: StateFunction<T>> StaticProcessorNumberSource<T, F> {
-//     pub(super) fn new(
-//         data: Arc<StaticSoundProcessorData<T>>,
-//         function: F,
-//     ) -> StaticProcessorNumberSource<T, F> {
-//         StaticProcessorNumberSource { data, function }
-//     }
-// }
-
-// impl<T: SoundState, F: StateFunction<T>> NumberSource for StaticProcessorNumberSource<T, F> {
-//     fn eval(&self, dst: &mut [f32], context: Context) {
-//         let state = context.static_sound_processor_state(&self.data);
-//         self.function.apply(dst, &state.read());
-//     }
-// }
 
 pub struct SingleInputNumberSource<F: StateFunction<EmptyState>> {
     handle: SingleSoundInputHandle,
@@ -211,23 +154,21 @@ impl<F: StateFunction<EmptyState>> NumberSource for SingleInputNumberSource<F> {
 }
 
 // TODO: elaborate to allow the current key to be passed by reference to the function in addition to the state
-pub struct KeyedSoundInputNumberSource<K: Key, T: SoundState, F: StateFunction<T>> {
+pub struct KeyedInputNumberSource<K: Key, T: SoundState, F: StateFunction<T>> {
     handle: KeyedSoundInputHandle<K, T>,
     function: F,
 }
 
-impl<K: Key, T: SoundState, F: StateFunction<T>> KeyedSoundInputNumberSource<K, T, F> {
+impl<K: Key, T: SoundState, F: StateFunction<T>> KeyedInputNumberSource<K, T, F> {
     pub(super) fn new(
         handle: KeyedSoundInputHandle<K, T>,
         function: F,
-    ) -> KeyedSoundInputNumberSource<K, T, F> {
-        KeyedSoundInputNumberSource { handle, function }
+    ) -> KeyedInputNumberSource<K, T, F> {
+        KeyedInputNumberSource { handle, function }
     }
 }
 
-impl<K: Key, T: SoundState, F: StateFunction<T>> NumberSource
-    for KeyedSoundInputNumberSource<K, T, F>
-{
+impl<K: Key, T: SoundState, F: StateFunction<T>> NumberSource for KeyedInputNumberSource<K, T, F> {
     fn eval(&self, dst: &mut [f32], context: NumberContext) {
         let state = context.keyed_input_state(&self.handle);
         self.function.apply(dst, &state.read());

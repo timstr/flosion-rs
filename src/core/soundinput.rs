@@ -211,6 +211,12 @@ impl SingleSoundInputHandle {
     pub(super) fn input(&self) -> &SingleSoundInput {
         &*self.input
     }
+
+    pub(super) fn clone(&self) -> SingleSoundInputHandle {
+        SingleSoundInputHandle {
+            input: Arc::clone(&self.input),
+        }
+    }
 }
 
 pub struct KeyedSoundInputHandle<K: Key, T: SoundState> {
@@ -239,5 +245,12 @@ impl<K: Key, T: SoundState> KeyedSoundInputHandle<K, T> {
             .lock()
             .send(KeyedSoundInputMessage::RemoveKey { index })
             .unwrap();
+    }
+
+    pub(super) fn clone(&self) -> KeyedSoundInputHandle<K, T> {
+        KeyedSoundInputHandle {
+            input: Arc::clone(&self.input),
+            message_sender: Mutex::new(self.message_sender.lock().clone()),
+        }
     }
 }

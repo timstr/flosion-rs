@@ -1,7 +1,7 @@
 use crate::core::{
     context::ProcessorContext,
     numberinput::NumberInputHandle,
-    numbersource::ProcessorNumberSourceHandle,
+    numbersource::NumberSourceHandle,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -11,7 +11,7 @@ use crate::core::{
 };
 
 pub struct WaveGenerator {
-    pub phase: ProcessorNumberSourceHandle,
+    pub phase: NumberSourceHandle,
     pub amplitude: NumberInputHandle,
     pub frequency: NumberInputHandle,
 }
@@ -40,7 +40,7 @@ impl DynamicSoundProcessor for WaveGenerator {
     fn new(tools: &mut SoundProcessorTools<'_, WaveGeneratorState>) -> WaveGenerator {
         WaveGenerator {
             phase: tools
-                .add_number_source(|dst: &mut [f32], state: &WaveGeneratorState| {
+                .add_processor_number_source(|dst: &mut [f32], state: &WaveGeneratorState| {
                     numeric::copy(&state.phase, dst);
                 })
                 .0,

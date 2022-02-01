@@ -29,10 +29,6 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
         self.id
     }
 
-    pub(super) fn wrapper(&self) -> &WrappedDynamicSoundProcessor<T> {
-        &*self.wrapper
-    }
-
     pub fn instance(&self) -> &T {
         self.wrapper.instance()
     }

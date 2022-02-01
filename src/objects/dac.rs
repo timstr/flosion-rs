@@ -142,7 +142,7 @@ impl StaticSoundProcessor for DAC {
 
         DAC {
             input: tools
-                .add_single_input(InputOptions {
+                .add_single_sound_input(InputOptions {
                     realtime: true,
                     interruptible: false,
                 })
