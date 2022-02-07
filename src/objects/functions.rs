@@ -1,5 +1,6 @@
 use crate::core::{
     context::NumberContext,
+    graphobject::{ObjectType, TypedGraphObject},
     numberinput::NumberInputHandle,
     numbersource::{NumberSource, PureNumberSource},
     numbersourcetools::NumberSourceTools,
@@ -28,6 +29,10 @@ impl NumberSource for Constant {
     }
 }
 
+impl TypedGraphObject for Constant {
+    const TYPE: ObjectType = ObjectType::new("constant");
+}
+
 impl PureNumberSource for Constant {
     fn new(_tools: &mut NumberSourceTools<'_>) -> Constant {
         Constant {
@@ -50,6 +55,10 @@ impl NumberSource for Add {
     }
 }
 
+impl TypedGraphObject for Add {
+    const TYPE: ObjectType = ObjectType::new("add");
+}
+
 impl PureNumberSource for Add {
     fn new(tools: &mut NumberSourceTools<'_>) -> Add {
         Add {
@@ -70,6 +79,10 @@ impl NumberSource for Sine {
     }
 }
 
+impl TypedGraphObject for Sine {
+    const TYPE: ObjectType = ObjectType::new("sine");
+}
+
 impl PureNumberSource for Sine {
     fn new(tools: &mut NumberSourceTools<'_>) -> Sine {
         Sine {
@@ -88,6 +101,10 @@ impl NumberSource for UnitSine {
         numeric::mul_scalar_inplace(dst, std::f32::consts::TAU);
         numeric::apply_unary_inplace(dst, |x| x.sin());
     }
+}
+
+impl TypedGraphObject for UnitSine {
+    const TYPE: ObjectType = ObjectType::new("unitsine");
 }
 
 impl PureNumberSource for UnitSine {

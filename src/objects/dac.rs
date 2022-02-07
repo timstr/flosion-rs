@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicI32, Ordering},
         mpsc::{channel, Sender},
         Arc,
     },
@@ -9,6 +9,7 @@ use std::{
 
 use crate::core::{
     context::ProcessorContext,
+    graphobject::{ObjectType, TypedGraphObject},
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -30,35 +31,41 @@ struct StreamDammit {
 
 unsafe impl Send for StreamDammit {}
 
-pub struct DAC {
+pub struct Dac {
     input: SingleSoundInputHandle,
     stream: Mutex<StreamDammit>,
     chunk_sender: Mutex<Sender<SoundChunk>>,
+    chunk_backlog: Arc<AtomicI32>,
     playing: Arc<AtomicBool>,
+    first_chunk: Arc<AtomicBool>,
 }
 
-pub struct DACState {}
+pub struct DacState {}
 
-impl Default for DACState {
-    fn default() -> DACState {
-        DACState {}
+impl Default for DacState {
+    fn default() -> DacState {
+        DacState {}
     }
 }
 
-impl SoundState for DACState {
+impl SoundState for DacState {
     fn reset(&mut self) {}
 }
 
-impl DAC {
+impl Dac {
     pub fn input(&self) -> &SingleSoundInputHandle {
         &self.input
     }
+
+    pub fn is_playing(&self) -> bool {
+        self.playing.load(Ordering::SeqCst)
+    }
 }
 
-impl StaticSoundProcessor for DAC {
-    type StateType = DACState;
+impl StaticSoundProcessor for Dac {
+    type StateType = DacState;
 
-    fn new(tools: &mut SoundProcessorTools<DACState>) -> DAC {
+    fn new(tools: &mut SoundProcessorTools<DacState>) -> Dac {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -97,6 +104,10 @@ impl StaticSoundProcessor for DAC {
 
         let playing = Arc::new(AtomicBool::new(false));
         let playing_also = Arc::clone(&playing);
+        let chunk_backlog = Arc::new(AtomicI32::new(0));
+        let chunk_backlog_also = Arc::clone(&chunk_backlog);
+        let first_chunk = Arc::new(AtomicBool::new(true));
+        let first_chunk_also = Arc::clone(&first_chunk);
 
         let mut chunk_index: usize = 0;
         let mut current_chunk: Option<SoundChunk> = None;
@@ -104,8 +115,33 @@ impl StaticSoundProcessor for DAC {
         let mut get_next_sample = move || {
             if current_chunk.is_none() || chunk_index >= CHUNK_SIZE {
                 current_chunk = Some(loop {
-                    if let Ok(b) = rx.try_recv() {
-                        break b;
+                    if let Ok(mut next_chunk) = rx.try_recv() {
+                        let backlog = chunk_backlog.fetch_sub(1, Ordering::SeqCst);
+                        debug_assert!(backlog >= 0);
+                        let init = first_chunk.swap(false, Ordering::SeqCst);
+                        if init {
+                            let mut dropped_chunk_count = 0;
+                            loop {
+                                if let Ok(backlog_chunk) = rx.try_recv() {
+                                    let n = chunk_backlog.fetch_sub(1, Ordering::SeqCst);
+                                    debug_assert!(n >= 0);
+                                    if n == 0 {
+                                        next_chunk = backlog_chunk;
+                                    }
+                                    dropped_chunk_count += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                            if dropped_chunk_count > 1 {
+                                println!("Warning! Dac was slow to start and {} initial chunks were dropped", dropped_chunk_count)
+                            }
+                        } else {
+                            if backlog > 2 {
+                                println!("Warning! Dac is behind by {} chunks", backlog);
+                            }
+                        }
+                        break next_chunk;
                     }
                     if !playing.load(Ordering::Relaxed) {
                         println!("Playback has stopped, producing silence");
@@ -140,7 +176,7 @@ impl StaticSoundProcessor for DAC {
             .build_output_stream(&config, data_callback, err_callback)
             .unwrap();
 
-        DAC {
+        Dac {
             input: tools
                 .add_single_sound_input(InputOptions {
                     realtime: true,
@@ -149,16 +185,19 @@ impl StaticSoundProcessor for DAC {
                 .0,
             stream: Mutex::new(StreamDammit { stream }),
             chunk_sender: Mutex::new(tx),
+            chunk_backlog: chunk_backlog_also,
             playing: playing_also,
+            first_chunk: first_chunk_also,
         }
     }
 
-    fn process_audio(&self, _dst: &mut SoundChunk, mut sc: ProcessorContext<'_, DACState>) {
+    fn process_audio(&self, _dst: &mut SoundChunk, mut sc: ProcessorContext<'_, DacState>) {
         let mut ch = SoundChunk::new();
         sc.step_single_input(&self.input, &mut ch);
 
         let sender = self.chunk_sender.lock();
         sender.send(ch).unwrap();
+        self.chunk_backlog.fetch_add(1, Ordering::SeqCst);
     }
 
     fn produces_output(&self) -> bool {
@@ -166,16 +205,19 @@ impl StaticSoundProcessor for DAC {
     }
 
     fn on_start_processing(&self) {
-        println!("CPAL thread on_start_processing");
         self.playing.store(true, Ordering::SeqCst);
         let s = self.stream.lock();
         s.stream.play().unwrap();
+        self.first_chunk.store(true, Ordering::SeqCst);
     }
 
     fn on_stop_processing(&self) {
-        println!("CPAL thread on_stop_processing");
         self.playing.store(false, Ordering::SeqCst);
         let s = self.stream.lock();
         s.stream.pause().unwrap();
     }
+}
+
+impl TypedGraphObject for Dac {
+    const TYPE: ObjectType = ObjectType::new("dac");
 }

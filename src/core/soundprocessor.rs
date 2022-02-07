@@ -4,6 +4,7 @@ use parking_lot::RwLock;
 
 use super::{
     context::{Context, ProcessorContext},
+    graphobject::GraphObject,
     gridspan::GridSpan,
     soundchunk::SoundChunk,
     soundinput::SoundInputId,
@@ -31,7 +32,7 @@ impl UniqueId for SoundProcessorId {
     }
 }
 
-pub trait DynamicSoundProcessor: 'static + Sync + Send {
+pub trait DynamicSoundProcessor: 'static + Sync + Send + GraphObject {
     type StateType: SoundState;
     fn new(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
     where
@@ -39,7 +40,7 @@ pub trait DynamicSoundProcessor: 'static + Sync + Send {
     fn process_audio(&self, dst: &mut SoundChunk, context: ProcessorContext<'_, Self::StateType>);
 }
 
-pub trait StaticSoundProcessor: 'static + Sync + Send {
+pub trait StaticSoundProcessor: 'static + Sync + Send + GraphObject {
     type StateType: SoundState;
     fn new(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
     where

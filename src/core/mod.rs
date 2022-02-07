@@ -1,4 +1,5 @@
 pub mod context;
+pub mod graphobject;
 mod gridspan;
 mod key;
 mod keyrange;

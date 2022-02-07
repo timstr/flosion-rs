@@ -1,1 +1,1 @@
-pub trait Key: 'static + Ord + Sync + Send {}
+pub trait Key: 'static + Sized + Ord + Sync + Send {}

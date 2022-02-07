@@ -774,7 +774,6 @@ impl SoundEngine {
             self.process_audio();
             self.scratch_space.cleanup();
             if let PlaybackStatus::Stop = self.flush_messages() {
-                println!("SoundEngine stopping");
                 break;
             }
 

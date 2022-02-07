@@ -1,8 +1,12 @@
 use rand::prelude::*;
 
 use crate::core::{
-    context::ProcessorContext, soundchunk::SoundChunk, soundprocessor::DynamicSoundProcessor,
-    soundprocessortools::SoundProcessorTools, soundstate::SoundState,
+    context::ProcessorContext,
+    graphobject::{ObjectType, TypedGraphObject},
+    soundchunk::SoundChunk,
+    soundprocessor::DynamicSoundProcessor,
+    soundprocessortools::SoundProcessorTools,
+    soundstate::SoundState,
 };
 
 pub struct WhiteNoise {}
@@ -40,4 +44,8 @@ impl DynamicSoundProcessor for WhiteNoise {
             *s = 0.2 * r - 0.1;
         }
     }
+}
+
+impl TypedGraphObject for WhiteNoise {
+    const TYPE: ObjectType = ObjectType::new("whitenoise");
 }

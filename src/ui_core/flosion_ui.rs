@@ -1,25 +1,49 @@
+use crate::{
+    core::soundgraph::SoundGraph,
+    objects::{
+        dac::Dac,
+        functions::{Constant, UnitSine},
+        wavegenerator::WaveGenerator,
+    },
+    ui_objects::all_objects::AllObjectUis,
+};
 use eframe::{egui, epi};
-
-struct NodeState {
-    text: String,
-    position: Option<egui::Pos2>,
-}
+use futures::executor::block_on;
 
 pub struct FlosionApp {
-    nodes: Vec<NodeState>,
-    node_connections: Vec<(usize, usize)>,
+    graph: SoundGraph,
+    all_object_uis: AllObjectUis,
+}
+
+async fn create_test_sound_graph() -> SoundGraph {
+    let mut sg: SoundGraph = SoundGraph::new();
+    let wavegen = sg.add_dynamic_sound_processor::<WaveGenerator>().await;
+    let dac = sg.add_static_sound_processor::<Dac>().await;
+    let dac_input_id = dac.instance().input().id();
+    let constant = sg.add_number_source::<Constant>().await;
+    let usine = sg.add_number_source::<UnitSine>().await;
+    sg.connect_number_input(wavegen.instance().amplitude.id(), usine.id())
+        .await
+        .unwrap();
+    sg.connect_number_input(usine.instance().input.id(), wavegen.instance().phase.id())
+        .await
+        .unwrap();
+    sg.connect_number_input(wavegen.instance().frequency.id(), constant.id())
+        .await
+        .unwrap();
+    constant.instance().set_value(440.0);
+    sg.connect_sound_input(dac_input_id, wavegen.id())
+        .await
+        .unwrap();
+    sg
 }
 
 impl Default for FlosionApp {
     fn default() -> FlosionApp {
+        let graph = block_on(create_test_sound_graph());
         FlosionApp {
-            nodes: (1..=5)
-                .map(|i| NodeState {
-                    text: format!("Node {}", i),
-                    position: None,
-                })
-                .collect(),
-            node_connections: vec![(0, 1), (0, 2), (2, 3), (3, 4)],
+            graph,
+            all_object_uis: AllObjectUis::new(),
         }
     }
 }
@@ -28,44 +52,16 @@ impl epi::App for FlosionApp {
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Hi earthguy");
-            self.nodes.iter_mut().for_each(|node| {
-                let r = egui::Window::new(&node.text)
-                    .title_bar(false)
-                    .resizable(false)
-                    .frame(
-                        egui::Frame::none()
-                            .fill(egui::Color32::DARK_BLUE)
-                            .stroke(egui::Stroke::new(2.0, egui::Color32::WHITE))
-                            .margin(egui::Vec2::splat(10.0)),
-                    )
-                    .show(ctx, |ui| ui.label(&node.text))
-                    .unwrap();
-                let new_position = r.response.rect.min;
-
-                let position_changed = (|| -> bool {
-                    let p = match node.position {
-                        None => return true,
-                        Some(p) => p,
-                    };
-                    p != new_position
-                })();
-
-                if position_changed {
-                    println!(
-                        "\"{}\" was moved to ({}, {})",
-                        node.text, new_position.x, new_position.y
-                    );
+            let running = self.graph.is_running();
+            if ui.button(if running { "Pause" } else { "Play" }).clicked() {
+                if running {
+                    self.graph.stop();
+                } else {
+                    self.graph.start();
                 }
-
-                node.position = Some(new_position);
-            });
-
-            let stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
-
-            for (n1, n2) in &self.node_connections {
-                let p1 = self.nodes[*n1].position.unwrap();
-                let p2 = self.nodes[*n2].position.unwrap();
-                ui.painter().line_segment([p1, p2], stroke);
+            }
+            for o in self.graph.graph_objects() {
+                self.all_object_uis.ui(o.as_ref(), o.get_type(), ui);
             }
         });
     }

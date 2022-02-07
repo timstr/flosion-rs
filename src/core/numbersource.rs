@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::{
     context::NumberContext,
+    graphobject::GraphObject,
     key::Key,
     numbersourcetools::NumberSourceTools,
     soundinput::{KeyedSoundInputHandle, SingleSoundInputHandle, SoundInputId},
@@ -57,7 +58,7 @@ pub trait NumberSource: 'static + Sync + Send {
     fn eval(&self, dst: &mut [f32], context: NumberContext);
 }
 
-pub trait PureNumberSource: NumberSource {
+pub trait PureNumberSource: NumberSource + GraphObject {
     fn new(tools: &mut NumberSourceTools<'_>) -> Self
     where
         Self: Sized;
@@ -82,11 +83,11 @@ impl<T: PureNumberSource> PureNumberSourceHandle<T> {
     }
 }
 
-pub trait StateFunction<T: SoundState>: 'static + Sync + Send {
+pub trait StateFunction<T: SoundState>: 'static + Sized + Sync + Send {
     fn apply(&self, dst: &mut [f32], state: &T);
 }
 
-impl<T: SoundState, F: 'static + Sync + Send> StateFunction<T> for F
+impl<T: SoundState, F: 'static + Sized + Sync + Send> StateFunction<T> for F
 where
     F: Fn(&mut [f32], &T),
 {
