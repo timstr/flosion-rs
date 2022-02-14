@@ -16,7 +16,7 @@ use super::{
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundInputId(usize);
+pub struct SoundInputId(pub usize);
 
 impl Default for SoundInputId {
     fn default() -> SoundInputId {

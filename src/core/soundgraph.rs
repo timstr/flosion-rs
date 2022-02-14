@@ -3,13 +3,16 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use parking_lot::RwLock;
+
 use super::{
-    graphobject::GraphObject,
+    graphobject::{GraphObject, ObjectId},
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle},
     numbersourcetools::NumberSourceTools,
     resultfuture::ResultFuture,
     soundengine::{SoundEngine, SoundEngineMessage},
+    soundgraphdescription::SoundGraphDescription,
     soundgrapherror::{NumberConnectionError, SoundGraphError},
     soundinput::SoundInputId,
     soundprocessor::{
@@ -67,21 +70,24 @@ pub struct SoundGraph {
     engine_running: Option<JoinHandle<SoundEngine>>,
 
     message_sender: Sender<SoundEngineMessage>,
+    description: Arc<RwLock<SoundGraphDescription>>,
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
     number_source_idgen: IdGenerator<NumberSourceId>,
     number_input_idgen: IdGenerator<NumberInputId>,
 
-    graph_objects: Vec<Arc<dyn GraphObject>>,
+    graph_objects: Vec<(ObjectId, Arc<dyn GraphObject>)>,
 }
 
 impl SoundGraph {
     pub fn new() -> SoundGraph {
         let (eng, tx) = SoundEngine::new();
+        let description = eng.latest_description();
         SoundGraph {
             engine_idle: Some(eng),
             engine_running: None,
             message_sender: tx,
+            description,
             sound_processor_idgen: IdGenerator::new(),
             sound_input_idgen: IdGenerator::new(),
             number_source_idgen: IdGenerator::new(),
@@ -104,7 +110,7 @@ impl SoundGraph {
         );
         let processor = Arc::new(T::new(&mut tools));
         let processor2 = Arc::clone(&processor);
-        self.graph_objects.push(processor2);
+        self.graph_objects.push((ObjectId::Sound(id), processor2));
         let wrapper = Arc::new(WrappedDynamicSoundProcessor::new(
             Arc::clone(&processor),
             data,
@@ -141,7 +147,7 @@ impl SoundGraph {
             data,
         ));
         let processor2 = Arc::clone(&processor);
-        self.graph_objects.push(processor2);
+        self.graph_objects.push((ObjectId::Sound(id), processor2));
         let wrapper2 = Arc::clone(&wrapper);
         let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
@@ -162,7 +168,7 @@ impl SoundGraph {
         let source = Arc::new(T::new(&mut tools));
         let source2 = Arc::clone(&source);
         let source3 = Arc::clone(&source);
-        self.graph_objects.push(source3);
+        self.graph_objects.push((ObjectId::Number(id), source3));
         let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
             .send(SoundEngineMessage::AddNumberSource {
@@ -182,27 +188,48 @@ impl SoundGraph {
         &mut self,
         handle: DynamicSoundProcessorHandle<T>,
     ) {
-        // TODO
-        panic!()
+        let (result_future, outbound_result) = ResultFuture::new();
+        self.message_sender
+            .send(SoundEngineMessage::RemoveSoundProcessor {
+                processor_id: handle.id(),
+                result: outbound_result,
+            })
+            .unwrap();
+        self.flush_idle_messages();
+        result_future.await.unwrap();
     }
 
     pub async fn remove_static_number_processor<T: StaticSoundProcessor>(
         &mut self,
         handle: StaticSoundProcessorHandle<T>,
     ) {
-        // TODO
-        panic!()
+        let (result_future, outbound_result) = ResultFuture::new();
+        self.message_sender
+            .send(SoundEngineMessage::RemoveSoundProcessor {
+                processor_id: handle.id(),
+                result: outbound_result,
+            })
+            .unwrap();
+        self.flush_idle_messages();
+        result_future.await.unwrap();
     }
 
     pub async fn remove_number_source<T: PureNumberSource>(
         &mut self,
         handle: PureNumberSourceHandle<T>,
     ) {
-        // TODO
-        panic!()
+        let (result_future, outbound_result) = ResultFuture::new();
+        self.message_sender
+            .send(SoundEngineMessage::RemoveNumberSource {
+                source_id: handle.id(),
+                result: outbound_result,
+            })
+            .unwrap();
+        self.flush_idle_messages();
+        result_future.await.unwrap();
     }
 
-    pub fn graph_objects(&self) -> &[Arc<dyn GraphObject>] {
+    pub fn graph_objects(&self) -> &[(ObjectId, Arc<dyn GraphObject>)] {
         &self.graph_objects
     }
 
@@ -298,6 +325,10 @@ impl SoundGraph {
 
     pub fn is_running(&self) -> bool {
         self.engine_running.is_some()
+    }
+
+    pub fn describe(&self) -> SoundGraphDescription {
+        self.description.read().clone()
     }
 
     fn flush_idle_messages(&mut self) {

@@ -22,4 +22,4 @@ pub mod soundprocessor;
 pub mod soundprocessortools;
 pub mod soundstate;
 mod statetable;
-mod uniqueid;
+pub mod uniqueid;

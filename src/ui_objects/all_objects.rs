@@ -3,8 +3,11 @@ use std::collections::HashMap;
 use eframe::egui::Ui;
 
 use crate::{
-    core::graphobject::{GraphObject, ObjectType, TypedGraphObject},
-    ui_core::object_ui::{AnyObjectUi, ObjectUi},
+    core::graphobject::{GraphObject, ObjectId, ObjectType, TypedGraphObject},
+    ui_core::{
+        graph_ui_state::GraphUIState,
+        object_ui::{AnyObjectUi, ObjectUi},
+    },
 };
 
 use super::{
@@ -41,9 +44,16 @@ impl AllObjectUis {
             .insert(T::ObjectType::TYPE, Box::new(T::default()));
     }
 
-    pub fn ui(&self, object: &dyn GraphObject, object_type: ObjectType, ui: &mut Ui) {
+    pub fn ui(
+        &self,
+        id: ObjectId,
+        object: &dyn GraphObject,
+        object_type: ObjectType,
+        graph_state: &mut GraphUIState,
+        ui: &mut Ui,
+    ) {
         match self.mapping.get(&object_type) {
-            Some(any_ui) => any_ui.apply(object, ui),
+            Some(any_ui) => any_ui.apply(id, object, graph_state, ui),
             None => error_ui(ui, object, object_type),
         }
     }

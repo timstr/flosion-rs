@@ -8,6 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use parking_lot::RwLock;
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
@@ -203,6 +204,7 @@ pub struct SoundEngine {
     receiver: Receiver<SoundEngineMessage>,
     static_processor_cache: Vec<(SoundProcessorId, Option<SoundChunk>)>,
     scratch_space: ScratchArena,
+    description: Arc<RwLock<SoundGraphDescription>>,
 }
 
 pub enum PlaybackStatus {
@@ -222,6 +224,7 @@ impl SoundEngine {
                 receiver: rx,
                 static_processor_cache: Vec::new(),
                 scratch_space: ScratchArena::new(),
+                description: Arc::new(RwLock::new(SoundGraphDescription::new_empty())),
             },
             tx,
         )
@@ -758,6 +761,10 @@ impl SoundEngine {
         )
     }
 
+    pub fn latest_description(&self) -> Arc<RwLock<SoundGraphDescription>> {
+        Arc::clone(&self.description)
+    }
+
     pub fn run(&mut self) {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
         let chunk_duration = Duration::from_micros((1_000_000.0 / chunks_per_sec) as u64);
@@ -794,11 +801,11 @@ impl SoundEngine {
 
     pub fn flush_messages(&mut self) -> PlaybackStatus {
         let mut status = PlaybackStatus::Continue;
-        loop {
+        let status = loop {
             let msg = match self.receiver.try_recv() {
                 Ok(msg) => msg,
                 Err(e) => {
-                    return match e {
+                    break match e {
                         TryRecvError::Empty => status,
                         TryRecvError::Disconnected => PlaybackStatus::Stop,
                     }
@@ -878,7 +885,9 @@ impl SoundEngine {
                     result.fulfill(Ok(()));
                 }
             }
-        }
+        };
+        *self.description.write() = self.describe();
+        status
     }
 
     fn update_static_processor_cache(&mut self) {

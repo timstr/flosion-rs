@@ -12,7 +12,7 @@ use super::{
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct NumberSourceId(usize);
+pub struct NumberSourceId(pub usize);
 
 impl Default for NumberSourceId {
     fn default() -> NumberSourceId {

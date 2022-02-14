@@ -10,6 +10,7 @@ use super::{
     soundstate::StateOwner,
 };
 
+#[derive(Clone)]
 pub struct SoundInputDescription {
     id: SoundInputId,
     options: InputOptions,
@@ -37,8 +38,13 @@ impl SoundInputDescription {
             number_sources,
         }
     }
+
+    pub fn target(&self) -> Option<SoundProcessorId> {
+        self.target
+    }
 }
 
+#[derive(Clone)]
 pub struct SoundProcessorDescription {
     id: SoundProcessorId,
     is_static: bool,
@@ -65,6 +71,7 @@ impl SoundProcessorDescription {
     }
 }
 
+#[derive(Clone)]
 pub struct NumberSourceDescription {
     id: NumberSourceId,
     inputs: Vec<NumberInputId>,
@@ -81,6 +88,7 @@ impl NumberSourceDescription {
     }
 }
 
+#[derive(Clone)]
 pub struct NumberInputDescription {
     id: NumberInputId,
     target: Option<NumberSourceId>,
@@ -95,8 +103,13 @@ impl NumberInputDescription {
     ) -> NumberInputDescription {
         NumberInputDescription { id, target, owner }
     }
+
+    pub fn target(&self) -> Option<NumberSourceId> {
+        self.target
+    }
 }
 
+#[derive(Clone)]
 pub struct SoundGraphDescription {
     sound_processors: HashMap<SoundProcessorId, SoundProcessorDescription>,
     sound_inputs: HashMap<SoundInputId, SoundInputDescription>,
@@ -117,6 +130,31 @@ impl SoundGraphDescription {
             number_sources,
             number_inputs,
         }
+    }
+
+    pub fn new_empty() -> SoundGraphDescription {
+        SoundGraphDescription {
+            sound_processors: HashMap::new(),
+            sound_inputs: HashMap::new(),
+            number_sources: HashMap::new(),
+            number_inputs: HashMap::new(),
+        }
+    }
+
+    pub fn sound_inputs(&self) -> &HashMap<SoundInputId, SoundInputDescription> {
+        &self.sound_inputs
+    }
+
+    pub fn sound_processors(&self) -> &HashMap<SoundProcessorId, SoundProcessorDescription> {
+        &self.sound_processors
+    }
+
+    pub fn number_inputs(&self) -> &HashMap<NumberInputId, NumberInputDescription> {
+        &self.number_inputs
+    }
+
+    pub fn number_sources(&self) -> &HashMap<NumberSourceId, NumberSourceDescription> {
+        &self.number_sources
     }
 
     pub fn find_error(&self) -> Option<SoundGraphError> {

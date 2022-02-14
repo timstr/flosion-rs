@@ -6,7 +6,7 @@ use super::{
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct NumberInputId(usize);
+pub struct NumberInputId(pub usize);
 
 impl Default for NumberInputId {
     fn default() -> NumberInputId {
