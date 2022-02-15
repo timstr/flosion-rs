@@ -64,7 +64,7 @@ impl epi::App for FlosionApp {
                     self.graph.start();
                 }
             }
-            self.ui_state.clear();
+            self.ui_state.reset();
             for (object_id, object) in self.graph.graph_objects() {
                 self.all_object_uis.ui(
                     *object_id,
@@ -76,6 +76,46 @@ impl epi::App for FlosionApp {
             }
 
             let desc = self.graph.describe();
+            if self.ui_state.peg_was_dropped() {
+                let id_src = self.ui_state.dropped_peg_id().unwrap();
+                let p = self.ui_state.drop_location().unwrap();
+                let id_dst = self.ui_state.find_peg_near(p, ui);
+                println!("Peg {:?} dropped onto {:?}", id_src, id_dst);
+                match id_src {
+                    GraphId::NumberInput(niid) => {
+                        if desc.number_inputs().get(&niid).unwrap().target().is_some() {
+                            block_on(self.graph.disconnect_number_input(niid))
+                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                        }
+                        if let Some(GraphId::NumberSource(nsid)) = id_dst {
+                            block_on(self.graph.connect_number_input(niid, nsid))
+                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                        }
+                    }
+                    GraphId::NumberSource(nsid) => {
+                        if let Some(GraphId::NumberInput(niid)) = id_dst {
+                            block_on(self.graph.connect_number_input(niid, nsid))
+                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                        }
+                    }
+                    GraphId::SoundInput(siid) => {
+                        if desc.sound_inputs().get(&siid).unwrap().target().is_some() {
+                            block_on(self.graph.disconnect_sound_input(siid)).unwrap();
+                        }
+                        if let Some(GraphId::SoundProcessor(spid)) = id_dst {
+                            block_on(self.graph.connect_sound_input(siid, spid))
+                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                        }
+                    }
+                    GraphId::SoundProcessor(spid) => {
+                        if let Some(GraphId::SoundInput(siid)) = id_dst {
+                            block_on(self.graph.connect_sound_input(siid, spid))
+                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                        }
+                    }
+                }
+            }
+
             // TODO: consider choosing which layer to paint the wire on, rather
             // than always painting the wire on top. However, choosing the layer
             // won't always be correct (an object might be positioned on top of
@@ -86,26 +126,22 @@ impl epi::App for FlosionApp {
                 |ui| {
                     let painter = ui.painter();
                     let drag_peg = self.ui_state.peg_being_dragged();
-                    let cursor_pos = ui.input().pointer.interact_pos();
                     for (siid, si) in desc.sound_inputs() {
                         if let Some(spid) = si.target() {
                             let si_state = self.ui_state.sound_inputs().get(siid).unwrap();
                             let sp_state = self.ui_state.sound_outputs().get(&spid).unwrap();
-                            let mut si_pos = si_state.center();
-                            let mut sp_pos = sp_state.center();
-                            if drag_peg == Some(GraphId::SoundInput(*siid)) {
-                                if let Some(p) = cursor_pos {
-                                    si_pos = p;
-                                }
-                            }
-                            if drag_peg == Some(GraphId::SoundProcessor(spid)) {
-                                if let Some(p) = cursor_pos {
-                                    sp_pos = p;
-                                }
-                            }
+                            let faint = drag_peg == Some(GraphId::SoundInput(*siid));
                             painter.line_segment(
-                                [si_pos, sp_pos],
-                                egui::Stroke::new(2.0, egui::Color32::from_rgb(0, 255, 0)),
+                                [si_state.center(), sp_state.center()],
+                                egui::Stroke::new(
+                                    2.0,
+                                    egui::Color32::from_rgba_unmultiplied(
+                                        0,
+                                        255,
+                                        0,
+                                        if faint { 64 } else { 255 },
+                                    ),
+                                ),
                             );
                         }
                     }
@@ -113,23 +149,59 @@ impl epi::App for FlosionApp {
                         if let Some(nsid) = ni.target() {
                             let ni_state = self.ui_state.number_inputs().get(niid).unwrap();
                             let ns_state = self.ui_state.number_outputs().get(&nsid).unwrap();
-                            let mut ni_pos = ni_state.center();
-                            let mut ns_pos = ns_state.center();
-                            if drag_peg == Some(GraphId::NumberInput(*niid)) {
-                                if let Some(p) = cursor_pos {
-                                    ni_pos = p;
-                                }
-                            }
-                            if drag_peg == Some(GraphId::NumberSource(nsid)) {
-                                if let Some(p) = cursor_pos {
-                                    ns_pos = p;
-                                }
-                            }
+                            let faint = drag_peg == Some(GraphId::NumberInput(*niid));
                             painter.line_segment(
-                                [ni_pos, ns_pos],
-                                egui::Stroke::new(2.0, egui::Color32::from_rgb(0, 0, 255)),
+                                [ni_state.center(), ns_state.center()],
+                                egui::Stroke::new(
+                                    2.0,
+                                    egui::Color32::from_rgba_unmultiplied(
+                                        0,
+                                        0,
+                                        255,
+                                        if faint { 64 } else { 255 },
+                                    ),
+                                ),
                             );
                         }
+                    }
+                    if let Some(gid) = self.ui_state.peg_being_dragged() {
+                        let cursor_pos = ui.input().pointer.interact_pos().unwrap();
+                        let other_pos;
+                        let color;
+                        match gid {
+                            GraphId::NumberInput(niid) => {
+                                other_pos = if let Some(nsid) =
+                                    desc.number_inputs().get(&niid).unwrap().target()
+                                {
+                                    self.ui_state.number_outputs().get(&nsid).unwrap().center()
+                                } else {
+                                    self.ui_state.number_inputs().get(&niid).unwrap().center()
+                                };
+                                color = egui::Color32::from_rgb(0, 0, 255);
+                            }
+                            GraphId::NumberSource(nsid) => {
+                                other_pos =
+                                    self.ui_state.number_outputs().get(&nsid).unwrap().center();
+                                color = egui::Color32::from_rgb(0, 0, 255);
+                            }
+                            GraphId::SoundInput(siid) => {
+                                other_pos = if let Some(spid) =
+                                    desc.sound_inputs().get(&siid).unwrap().target()
+                                {
+                                    self.ui_state.sound_outputs().get(&spid).unwrap().center()
+                                } else {
+                                    self.ui_state.sound_inputs().get(&siid).unwrap().center()
+                                };
+                                color = egui::Color32::from_rgb(0, 255, 0);
+                            }
+                            GraphId::SoundProcessor(spid) => {
+                                other_pos =
+                                    self.ui_state.sound_outputs().get(&spid).unwrap().center();
+                                color = egui::Color32::from_rgb(0, 255, 0);
+                            }
+                        }
+                        painter
+                            .line_segment([cursor_pos, other_pos], egui::Stroke::new(2.0, color));
                     }
                 },
             );

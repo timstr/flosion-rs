@@ -49,6 +49,7 @@ pub struct GraphUIState {
     number_inputs: PegStateMap<NumberInputId>,
     number_outputs: PegStateMap<NumberSourceId>,
     peg_being_dragged: Option<GraphId>,
+    dropped_peg: Option<(GraphId, egui::Pos2)>,
 }
 
 impl GraphUIState {
@@ -59,14 +60,16 @@ impl GraphUIState {
             number_inputs: PegStateMap::new(),
             number_outputs: PegStateMap::new(),
             peg_being_dragged: None,
+            dropped_peg: None,
         }
     }
 
-    pub(super) fn clear(&mut self) {
+    pub(super) fn reset(&mut self) {
         self.sound_inputs.clear();
         self.sound_outputs.clear();
         self.number_inputs.clear();
         self.number_outputs.clear();
+        self.dropped_peg = None;
     }
 
     pub fn track_peg(&mut self, id: GraphId, rect: egui::Rect, layer: egui::LayerId) {
@@ -95,20 +98,33 @@ impl GraphUIState {
     }
 
     pub(super) fn start_dragging(&mut self, graph_id: GraphId) {
-        assert!(self.peg_being_dragged.is_none());
+        debug_assert!(self.peg_being_dragged.is_none());
         self.peg_being_dragged = Some(graph_id);
     }
 
-    pub(super) fn stop_dragging(&mut self, graph_id: GraphId) {
-        assert!(match self.peg_being_dragged {
+    pub(super) fn stop_dragging(&mut self, graph_id: GraphId, location: egui::Pos2) {
+        debug_assert!(match self.peg_being_dragged {
             Some(i) => i == graph_id,
             None => false,
         });
-        self.peg_being_dragged = None;
+        debug_assert!(self.dropped_peg.is_none());
+        self.dropped_peg = Some((self.peg_being_dragged.take().unwrap(), location));
     }
 
     pub(super) fn peg_being_dragged(&self) -> Option<GraphId> {
         self.peg_being_dragged
+    }
+
+    pub(super) fn peg_was_dropped(&self) -> bool {
+        self.dropped_peg.is_some()
+    }
+
+    pub(super) fn drop_location(&self) -> Option<egui::Pos2> {
+        self.dropped_peg.map(|(_id, p)| p)
+    }
+
+    pub(super) fn dropped_peg_id(&self) -> Option<GraphId> {
+        self.dropped_peg.map(|(id, _p)| id)
     }
 
     pub(super) fn find_peg_near(&self, position: egui::Pos2, ui: &egui::Ui) -> Option<GraphId> {

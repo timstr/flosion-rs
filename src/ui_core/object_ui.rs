@@ -99,11 +99,19 @@ fn peg_ui(
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
     graph_state.track_peg(id, rect, response.layer_id);
-    ui.painter().rect(
+    let painter = ui.painter();
+    painter.rect(
         rect,
         5.0,
         color,
         egui::Stroke::new(2.0, egui::Color32::WHITE),
+    );
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        format!("{:?}", id),
+        egui::TextStyle::Monospace,
+        egui::Color32::WHITE,
     );
     if response.clicked() {
         // println!("SoundInputWidget[id={:?}] was clicked", self.sound_input_id);
@@ -113,11 +121,7 @@ fn peg_ui(
     }
 
     if response.drag_released() {
-        graph_state.stop_dragging(id);
-        let peg = graph_state.find_peg_near(response.interact_pointer_pos().unwrap(), ui);
-        if let Some(found_id) = peg {
-            println!("Dragged from {:?} and dropped onto {:?}", id, found_id);
-        }
+        graph_state.stop_dragging(id, response.interact_pointer_pos().unwrap());
     }
     response
 }
