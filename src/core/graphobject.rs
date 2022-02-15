@@ -62,6 +62,17 @@ pub enum GraphId {
     NumberSource(NumberSourceId),
 }
 
+impl GraphId {
+    pub fn inner_value(&self) -> usize {
+        match self {
+            GraphId::SoundInput(id) => id.0,
+            GraphId::SoundProcessor(id) => id.0,
+            GraphId::NumberInput(id) => id.0,
+            GraphId::NumberSource(id) => id.0,
+        }
+    }
+}
+
 impl From<SoundInputId> for GraphId {
     fn from(id: SoundInputId) -> GraphId {
         GraphId::SoundInput(id)

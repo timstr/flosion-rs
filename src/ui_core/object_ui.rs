@@ -109,7 +109,7 @@ fn peg_ui(
     painter.text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
-        format!("{:?}", id),
+        format!("{}", id.inner_value()),
         egui::TextStyle::Monospace,
         egui::Color32::WHITE,
     );

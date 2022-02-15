@@ -5,17 +5,21 @@ use crate::{
         functions::{Constant, UnitSine},
         wavegenerator::WaveGenerator,
     },
-    ui_objects::all_objects::AllObjectUis,
+    ui_objects::all_objects::AllObjects,
 };
 use eframe::{egui, epi};
 use futures::executor::block_on;
 
-use super::graph_ui_state::GraphUIState;
+use super::{
+    graph_ui_state::GraphUIState,
+    summon_widget::{SummonWidget, SummonWidgetState},
+};
 
 pub struct FlosionApp {
     graph: SoundGraph,
-    all_object_uis: AllObjectUis,
+    all_object_uis: AllObjects,
     ui_state: GraphUIState,
+    summon_state: Option<SummonWidgetState>,
 }
 
 async fn create_test_sound_graph() -> SoundGraph {
@@ -46,8 +50,9 @@ impl Default for FlosionApp {
         let graph = block_on(create_test_sound_graph());
         FlosionApp {
             graph,
-            all_object_uis: AllObjectUis::new(),
+            all_object_uis: AllObjects::new(),
             ui_state: GraphUIState::new(),
+            summon_state: None,
         }
     }
 }
@@ -73,6 +78,31 @@ impl epi::App for FlosionApp {
                     &mut self.ui_state,
                     ui,
                 );
+            }
+            let bg_response = ui.interact(
+                ui.input().screen_rect(),
+                egui::Id::new("background"),
+                egui::Sense::click(),
+            );
+            if bg_response.double_clicked() {
+                let p = bg_response.interact_pointer_pos().unwrap();
+                self.summon_state = match self.summon_state {
+                    Some(_) => None,
+                    None => Some(SummonWidgetState::new(p)),
+                };
+            } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
+                self.summon_state = None;
+            }
+            if let Some(summon_state) = self.summon_state.as_mut() {
+                ui.add(SummonWidget::new(&self.all_object_uis, summon_state));
+            }
+            if let Some(s) = &self.summon_state {
+                if s.should_close() {
+                    if let Some(t) = s.selected_type() {
+                        self.all_object_uis.create(t, &mut self.graph);
+                    }
+                    self.summon_state = None;
+                }
             }
 
             let desc = self.graph.describe();
