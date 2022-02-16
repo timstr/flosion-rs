@@ -88,13 +88,16 @@ impl epi::App for FlosionApp {
                 let p = bg_response.interact_pointer_pos().unwrap();
                 self.summon_state = match self.summon_state {
                     Some(_) => None,
-                    None => Some(SummonWidgetState::new(p)),
+                    None => Some(SummonWidgetState::new(
+                        p,
+                        self.all_object_uis.all_object_types(),
+                    )),
                 };
             } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
                 self.summon_state = None;
             }
             if let Some(summon_state) = self.summon_state.as_mut() {
-                ui.add(SummonWidget::new(&self.all_object_uis, summon_state));
+                ui.add(SummonWidget::new(summon_state));
             }
             if let Some(s) = &self.summon_state {
                 if s.should_close() {
@@ -110,7 +113,6 @@ impl epi::App for FlosionApp {
                 let id_src = self.ui_state.dropped_peg_id().unwrap();
                 let p = self.ui_state.drop_location().unwrap();
                 let id_dst = self.ui_state.find_peg_near(p, ui);
-                println!("Peg {:?} dropped onto {:?}", id_src, id_dst);
                 match id_src {
                     GraphId::NumberInput(niid) => {
                         if desc.number_inputs().get(&niid).unwrap().target().is_some() {
