@@ -11,6 +11,7 @@ use crate::{
         soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
     },
     ui_core::{
+        arguments::ParsedArguments,
         graph_ui_state::GraphUIState,
         object_ui::{AnyObjectUi, ObjectUi},
     },
@@ -18,13 +19,14 @@ use crate::{
 
 use super::{
     dac_ui::DacUi,
-    functions_ui::{ConstantUi, UnitSineUi},
+    functions_ui::{ConstantUi, SineUi, UnitSineUi},
     wavegenerator_ui::WaveGeneratorUi,
+    whitenoise_ui::WhiteNoiseUi,
 };
 
 struct ObjectData {
     ui: Box<dyn AnyObjectUi>,
-    create: Box<dyn Fn(&mut SoundGraph)>,
+    create: Box<dyn Fn(&mut SoundGraph, &dyn AnyObjectUi, ParsedArguments)>,
 }
 
 pub struct AllObjects {
@@ -43,10 +45,19 @@ impl AllObjects {
     pub fn new() -> AllObjects {
         let mapping: HashMap<ObjectType, ObjectData> = HashMap::new();
         let mut all_uis = AllObjects { mapping };
+
+        // Static sound processors
         all_uis.register_static_sound_processor::<DacUi>();
+
+        // Dynamic sound processors
         all_uis.register_dynamic_sound_processor::<WaveGeneratorUi>();
+        all_uis.register_dynamic_sound_processor::<WhiteNoiseUi>();
+
+        // Pure number sources
         all_uis.register_number_source::<ConstantUi>();
+        all_uis.register_number_source::<SineUi>();
         all_uis.register_number_source::<UnitSineUi>();
+
         all_uis
     }
 
@@ -54,8 +65,10 @@ impl AllObjects {
     where
         T::ObjectType: DynamicSoundProcessor,
     {
-        let create = |g: &mut SoundGraph| {
-            let _ = block_on(g.add_dynamic_sound_processor::<T::ObjectType>());
+        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, args: ParsedArguments| {
+            let h = block_on(g.add_dynamic_sound_processor::<T::ObjectType>());
+            let sp: &dyn GraphObject = h.instance();
+            o.init_object(sp, args)
         };
         self.mapping.insert(
             T::ObjectType::TYPE,
@@ -70,8 +83,10 @@ impl AllObjects {
     where
         T::ObjectType: StaticSoundProcessor,
     {
-        let create = |g: &mut SoundGraph| {
-            let _ = block_on(g.add_static_sound_processor::<T::ObjectType>());
+        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, args: ParsedArguments| {
+            let h = block_on(g.add_static_sound_processor::<T::ObjectType>());
+            let sp: &dyn GraphObject = h.instance();
+            o.init_object(sp, args)
         };
         self.mapping.insert(
             T::ObjectType::TYPE,
@@ -86,8 +101,10 @@ impl AllObjects {
     where
         T::ObjectType: PureNumberSource,
     {
-        let create = |g: &mut SoundGraph| {
-            let _ = block_on(g.add_number_source::<T::ObjectType>());
+        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, args: ParsedArguments| {
+            let h = block_on(g.add_number_source::<T::ObjectType>());
+            let ns: &dyn GraphObject = h.instance();
+            o.init_object(ns, args)
         };
         self.mapping.insert(
             T::ObjectType::TYPE,
@@ -98,8 +115,12 @@ impl AllObjects {
         );
     }
 
-    pub fn all_object_types(&self) -> Vec<ObjectType> {
-        self.mapping.keys().cloned().collect()
+    pub fn all_object_types(&self) -> impl Iterator<Item = &ObjectType> {
+        self.mapping.keys()
+    }
+
+    pub fn get_object_ui(&self, object_type: ObjectType) -> &dyn AnyObjectUi {
+        &*self.mapping.get(&object_type).unwrap().ui
     }
 
     pub fn ui(
@@ -116,9 +137,9 @@ impl AllObjects {
         }
     }
 
-    pub fn create(&self, object_type: ObjectType, graph: &mut SoundGraph) {
+    pub fn create(&self, object_type: ObjectType, args: ParsedArguments, graph: &mut SoundGraph) {
         match self.mapping.get(&object_type) {
-            Some(data) => (*data.create)(graph),
+            Some(data) => (*data.create)(graph, &*data.ui, args),
             None => println!(
                 "Warning: tried to create an object of unrecognized type \"{}\"",
                 object_type.name()

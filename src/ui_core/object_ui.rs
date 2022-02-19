@@ -10,7 +10,10 @@ use crate::core::{
     soundprocessor::SoundProcessorId,
 };
 
-use super::graph_ui_state::GraphUIState;
+use super::{
+    arguments::{ArgumentList, ParsedArguments},
+    graph_ui_state::GraphUIState,
+};
 
 pub trait ObjectUi: 'static + Default {
     type ObjectType: TypedGraphObject;
@@ -21,6 +24,16 @@ pub trait ObjectUi: 'static + Default {
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     );
+
+    fn aliases(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    fn arguments(&self) -> ArgumentList {
+        ArgumentList::new()
+    }
+
+    fn init_object(&self, object: &Self::ObjectType, args: ParsedArguments) {}
 }
 
 pub trait AnyObjectUi {
@@ -31,6 +44,12 @@ pub trait AnyObjectUi {
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     );
+
+    fn aliases(&self) -> &'static [&'static str];
+
+    fn arguments(&self) -> ArgumentList;
+
+    fn init_object(&self, object: &dyn GraphObject, args: ParsedArguments);
 }
 
 impl<T: ObjectUi> AnyObjectUi for T {
@@ -50,6 +69,26 @@ impl<T: ObjectUi> AnyObjectUi for T {
         );
         let dc_object = any.downcast_ref::<T::ObjectType>().unwrap();
         self.ui(id, dc_object, graph_state, ui);
+    }
+
+    fn init_object(&self, object: &dyn GraphObject, args: ParsedArguments) {
+        let any = object.as_any();
+        debug_assert!(
+            any.is::<T::ObjectType>(),
+            "AnyObjectUi expected to receive type {}, but got {} instead",
+            type_name::<T::ObjectType>(),
+            object.get_language_type_name()
+        );
+        let dc_object = any.downcast_ref::<T::ObjectType>().unwrap();
+        self.init_object(dc_object, args);
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        self.aliases()
+    }
+
+    fn arguments(&self) -> ArgumentList {
+        self.arguments()
     }
 }
 

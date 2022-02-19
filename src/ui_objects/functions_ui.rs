@@ -2,8 +2,9 @@ use eframe::egui;
 
 use crate::{
     core::graphobject::ObjectId,
-    objects::functions::{Constant, UnitSine},
+    objects::functions::{Constant, Sine, UnitSine},
     ui_core::{
+        arguments::{ArgumentList, ArgumentValue, ParsedArguments},
         graph_ui_state::GraphUIState,
         object_ui::{NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow},
     },
@@ -33,6 +34,41 @@ impl ObjectUi for ConstantUi {
             ui.add(NumberOutputWidget::new(id, graph_state));
         });
     }
+
+    fn arguments(&self) -> ArgumentList {
+        let mut args = ArgumentList::new();
+        args.add("value", ArgumentValue::Float(0.0));
+        args
+    }
+
+    fn init_object(&self, object: &Constant, args: ParsedArguments) {
+        object.set_value(args.get("value").as_float());
+    }
+}
+
+#[derive(Default)]
+pub struct SineUi {}
+
+impl ObjectUi for SineUi {
+    type ObjectType = Sine;
+    fn ui(
+        &self,
+        id: ObjectId,
+        object: &Sine,
+        graph_state: &mut GraphUIState,
+        ui: &mut eframe::egui::Ui,
+    ) {
+        let id = id.as_number_source_id().unwrap();
+        ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
+            ui.label("Sine");
+            ui.add(NumberInputWidget::new(object.input.id(), graph_state));
+            ui.add(NumberOutputWidget::new(id, graph_state));
+        });
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        &["sin"]
+    }
 }
 
 #[derive(Default)]
@@ -53,5 +89,9 @@ impl ObjectUi for UnitSineUi {
             ui.add(NumberInputWidget::new(object.input.id(), graph_state));
             ui.add(NumberOutputWidget::new(id, graph_state));
         });
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        &["usin"]
     }
 }

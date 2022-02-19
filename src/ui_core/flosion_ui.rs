@@ -88,10 +88,7 @@ impl epi::App for FlosionApp {
                 let p = bg_response.interact_pointer_pos().unwrap();
                 self.summon_state = match self.summon_state {
                     Some(_) => None,
-                    None => Some(SummonWidgetState::new(
-                        p,
-                        self.all_object_uis.all_object_types(),
-                    )),
+                    None => Some(SummonWidgetState::new(p, &self.all_object_uis)),
                 };
             } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
                 self.summon_state = None;
@@ -101,8 +98,9 @@ impl epi::App for FlosionApp {
             }
             if let Some(s) = &self.summon_state {
                 if s.should_close() {
-                    if let Some(t) = s.selected_type() {
-                        self.all_object_uis.create(t, &mut self.graph);
+                    if s.selected_type().is_some() {
+                        let (t, args) = s.parse_selected();
+                        self.all_object_uis.create(t, args, &mut self.graph);
                     }
                     self.summon_state = None;
                 }
@@ -202,13 +200,8 @@ impl epi::App for FlosionApp {
                         let color;
                         match gid {
                             GraphId::NumberInput(niid) => {
-                                other_pos = if let Some(nsid) =
-                                    desc.number_inputs().get(&niid).unwrap().target()
-                                {
-                                    self.ui_state.number_outputs().get(&nsid).unwrap().center()
-                                } else {
-                                    self.ui_state.number_inputs().get(&niid).unwrap().center()
-                                };
+                                other_pos =
+                                    self.ui_state.number_inputs().get(&niid).unwrap().center();
                                 color = egui::Color32::from_rgb(0, 0, 255);
                             }
                             GraphId::NumberSource(nsid) => {
@@ -217,13 +210,8 @@ impl epi::App for FlosionApp {
                                 color = egui::Color32::from_rgb(0, 0, 255);
                             }
                             GraphId::SoundInput(siid) => {
-                                other_pos = if let Some(spid) =
-                                    desc.sound_inputs().get(&siid).unwrap().target()
-                                {
-                                    self.ui_state.sound_outputs().get(&spid).unwrap().center()
-                                } else {
-                                    self.ui_state.sound_inputs().get(&siid).unwrap().center()
-                                };
+                                other_pos =
+                                    self.ui_state.sound_inputs().get(&siid).unwrap().center();
                                 color = egui::Color32::from_rgb(0, 255, 0);
                             }
                             GraphId::SoundProcessor(spid) => {
