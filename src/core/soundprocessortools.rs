@@ -45,6 +45,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         }
     }
 
+    // TODO: return the handle only
     pub fn add_single_sound_input(
         &mut self,
         options: InputOptions,
@@ -60,6 +61,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         (handle, result_future)
     }
 
+    // TODO: return the handle only
     pub fn add_keyed_sound_input<K: Key, TT: SoundState>(
         &mut self,
         options: InputOptions,
@@ -75,6 +77,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         (handle, result_future)
     }
 
+    // TODO: return the handle only
     pub fn add_processor_number_source<F: StateFunction<T>>(
         &mut self,
         function: F,
@@ -96,6 +99,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         )
     }
 
+    // TODO: return the handle only
     pub fn add_single_input_number_source<F: StateFunction<EmptyState>>(
         &mut self,
         handle: &SingleSoundInputHandle,
@@ -118,6 +122,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         )
     }
 
+    // TODO: return the handle only
     pub fn add_keyed_input_number_source<K: Key, TT: SoundState, F: StateFunction<TT>>(
         &mut self,
         handle: &KeyedSoundInputHandle<K, TT>,
@@ -140,6 +145,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         )
     }
 
+    // TODO: return the handle only
     pub fn add_number_input(&mut self) -> (NumberInputHandle, ResultFuture<(), ()>) {
         let niid = self.number_input_idgen.next_id();
         let owner = NumberInputOwner::SoundProcessor(self.processor_id);
@@ -152,6 +158,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         (handle, result_future)
     }
 
+    // TODO: don't return the result future
     pub fn remove_single_sound_input(
         &mut self,
         handle: SingleSoundInputHandle,
@@ -165,6 +172,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         result_future
     }
 
+    // TODO: don't return the result future
     pub fn remove_keyed_sound_input<K: Key, TT: SoundState>(
         &mut self,
         handle: KeyedSoundInputHandle<K, TT>,
@@ -178,6 +186,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         result_future
     }
 
+    // TODO: don't return the result future
     pub fn remove_number_input(&mut self, handle: NumberInputHandle) -> ResultFuture<(), ()> {
         let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
         self.message_queue
@@ -188,6 +197,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         result_future
     }
 
+    // TODO: don't return the result future
     pub fn remove_processor_number_source(
         &mut self,
         handle: NumberSourceHandle,
@@ -201,6 +211,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         result_future
     }
 
+    // TODO: don't return the result future
     pub fn remove_single_input_number_source(
         &mut self,
         handle: NumberSourceHandle,
@@ -214,6 +225,7 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         result_future
     }
 
+    // TODO: don't return the result future
     pub fn remove_keyed_input_number_source(
         &mut self,
         handle: NumberSourceHandle,

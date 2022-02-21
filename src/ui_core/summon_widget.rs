@@ -164,7 +164,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                         }
                         if ui.input().key_pressed(egui::Key::ArrowUp) {
                             new_focus_object_index = match self.state.focus_object_index {
-                                None => Some(0),
+                                None => None,
                                 Some(i) => {
                                     if i > 0 {
                                         Some(i - 1)

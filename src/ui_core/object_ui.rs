@@ -33,7 +33,7 @@ pub trait ObjectUi: 'static + Default {
         ArgumentList::new()
     }
 
-    fn init_object(&self, object: &Self::ObjectType, args: ParsedArguments) {}
+    fn init_object(&self, _object: &Self::ObjectType, _args: ParsedArguments) {}
 }
 
 pub trait AnyObjectUi {

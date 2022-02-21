@@ -1,7 +1,7 @@
 pub mod context;
 pub mod graphobject;
 mod gridspan;
-mod key;
+pub mod key;
 mod keyrange;
 pub mod numberinput;
 pub mod numbersource;
