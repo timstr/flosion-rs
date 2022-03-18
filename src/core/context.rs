@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+use crate::core::soundinput::SoundInputWrapper;
+
 use super::{
+    gridspan::GridSpan,
     key::Key,
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
@@ -118,6 +121,23 @@ impl<'a> Context<'a> {
         input.input().get_state(f.state_index)
     }
 
+    pub(super) fn reset_single_input(&self, handle: &SingleSoundInputHandle) {
+        debug_assert!(
+            handle.input().options().interruptible,
+            "Attempted to reset an uninterruptible SingleSoundInput"
+        );
+        let input_data = self.sound_input_data.get(&handle.id()).unwrap();
+        let state_index = self
+            .current_frame()
+            .into_processor_frame()
+            .unwrap()
+            .state_index;
+        let gs = handle.input().reset_key(state_index, 0);
+        if let Some(spid) = input_data.target() {
+            self.reset_recursively(spid, gs, handle.id());
+        }
+    }
+
     pub(super) fn keyed_input_state<K: Key, T: SoundState>(
         &self,
         input: &'a KeyedSoundInputHandle<K, T>,
@@ -154,6 +174,27 @@ impl<'a> Context<'a> {
         handle.get_state(f.state_index)
     }
 
+    pub(super) fn reset_keyed_input<K: Key, TT: SoundState>(
+        &self,
+        handle: &KeyedSoundInputHandle<K, TT>,
+        key_index: usize,
+    ) {
+        debug_assert!(
+            handle.input().options().interruptible,
+            "Attempted to reset an uninterruptible SoundInput"
+        );
+        let input_data = self.sound_input_data.get(&handle.id()).unwrap();
+        let state_index = self
+            .current_frame()
+            .into_processor_frame()
+            .unwrap()
+            .state_index;
+        let gs = handle.input().reset_key(state_index, key_index);
+        if let Some(spid) = input_data.target() {
+            self.reset_recursively(spid, gs, handle.id());
+        }
+    }
+
     pub(super) fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
         let input_data = self.number_input_data.get(&input_id).unwrap();
         match input_data.target() {
@@ -181,7 +222,7 @@ impl<'a> Context<'a> {
         debug_assert!(input.input().num_keys() == 1);
         if let Some(target) = input.target() {
             let other_pd = self.sound_processor_data.get(&target).unwrap();
-            let other_proc = other_pd.sound_processor();
+            let other_proc = other_pd.wrapper();
             if other_proc.is_static() {
                 let ch = self.get_cached_static_output(other_pd.id()).unwrap();
                 dst.copy_from(ch);
@@ -216,6 +257,23 @@ impl<'a> Context<'a> {
             }
         } else {
             dst.silence();
+        }
+    }
+
+    fn reset_recursively(
+        &self,
+        processor_id: SoundProcessorId,
+        grid_span: GridSpan,
+        dst_input: SoundInputId,
+    ) {
+        let proc_data = self.sound_processor_data.get(&processor_id).unwrap();
+        let gs = proc_data.wrapper().reset_states(dst_input, grid_span);
+        for input_id in proc_data.inputs().iter() {
+            let input_data = self.sound_input_data.get(input_id).unwrap();
+            let gs = input_data.input().reset_states(gs);
+            if let Some(spid) = input_data.target() {
+                self.reset_recursively(spid, gs, *input_id);
+            }
         }
     }
 
@@ -278,11 +336,23 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
         self.context.single_input_state(handle)
     }
 
+    pub fn reset_single_input(&self, handle: &SingleSoundInputHandle) {
+        self.context.reset_single_input(handle);
+    }
+
     pub fn keyed_input_state<K: Key, TT: SoundState>(
         &self,
         handle: &'a KeyedSoundInputHandle<K, TT>,
     ) -> StateTableLock<'a, TT> {
         self.context.keyed_input_state(handle)
+    }
+
+    pub fn reset_keyed_input<K: Key, TT: SoundState>(
+        &self,
+        handle: &KeyedSoundInputHandle<K, TT>,
+        key_index: usize,
+    ) {
+        self.context.reset_keyed_input(handle, key_index);
     }
 
     pub fn read_state(&'a self) -> RwLockReadGuard<'a, T> {

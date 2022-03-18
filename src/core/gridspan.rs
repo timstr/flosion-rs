@@ -53,7 +53,7 @@ impl GridSpan {
     }
 
     pub fn new_empty() -> GridSpan {
-        GridSpan::new(0, 0, 1, 0)
+        GridSpan::new(0, 1, 1, 0)
     }
 
     pub fn offset(&self, additional_start_offset: usize) -> GridSpan {

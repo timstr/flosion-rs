@@ -534,7 +534,6 @@ impl SoundGraphDescription {
             graph_description: &SoundGraphDescription,
             init: bool,
         ) -> Option<SoundConnectionError> {
-            debug_assert!(states_to_add != 0);
             let proc_desc = graph_description.sound_processors.get(&proc_id).unwrap();
             if proc_desc.is_static {
                 if states_to_add > 1 {

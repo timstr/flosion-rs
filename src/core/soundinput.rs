@@ -62,6 +62,10 @@ impl SingleSoundInput {
         (input, handle)
     }
 
+    pub fn options(&self) -> &InputOptions {
+        &self.options
+    }
+
     pub(super) fn get_state<'a>(&'a self, index: usize) -> StateTableLock<'a, EmptyState> {
         StateTableLock::new(self.state_table.read(), index)
     }
@@ -77,7 +81,6 @@ pub struct KeyedSoundInput<K: Key, T: SoundState> {
     state_table: RwLock<KeyedStateTable<T>>,
     keys: RwLock<KeyRange<K>>,
     options: InputOptions,
-    message_receiver: Mutex<Receiver<KeyedSoundInputMessage<K>>>,
     id: SoundInputId,
 }
 
@@ -86,19 +89,20 @@ impl<K: Key, T: SoundState> KeyedSoundInput<K, T> {
         id: SoundInputId,
         options: InputOptions,
     ) -> (Arc<KeyedSoundInput<K, T>>, KeyedSoundInputHandle<K, T>) {
-        let (tx, rx) = channel();
         let input = Arc::new(KeyedSoundInput {
             state_table: RwLock::new(KeyedStateTable::<T>::new()),
             keys: RwLock::new(KeyRange::new()),
             options,
-            message_receiver: Mutex::new(rx),
             id,
         });
         let handle = KeyedSoundInputHandle {
             input: Arc::clone(&input),
-            message_sender: Mutex::new(tx),
         };
         (input, handle)
+    }
+
+    pub fn options(&self) -> &InputOptions {
+        &self.options
     }
 
     pub(super) fn get_state<'a>(
@@ -135,11 +139,15 @@ pub trait SoundInputWrapper: Sync + Send {
 
     fn num_keys(&self) -> usize;
 
+    fn num_parent_states(&self) -> usize;
+
     fn insert_states(&self, gs: GridSpan) -> GridSpan;
 
     fn erase_states(&self, gs: GridSpan) -> GridSpan;
 
-    fn flush_message(&self, tools: &mut SoundEngineTools);
+    fn reset_states(&self, gs: GridSpan) -> GridSpan;
+
+    fn reset_key(&self, state_index: usize, key_index: usize) -> GridSpan;
 }
 
 impl SoundInputWrapper for SingleSoundInput {
@@ -155,6 +163,10 @@ impl SoundInputWrapper for SingleSoundInput {
         1
     }
 
+    fn num_parent_states(&self) -> usize {
+        self.state_table.read().total_size()
+    }
+
     fn insert_states(&self, gs: GridSpan) -> GridSpan {
         self.state_table.write().insert_states(gs);
         gs
@@ -165,8 +177,16 @@ impl SoundInputWrapper for SingleSoundInput {
         gs
     }
 
-    fn flush_message(&self, _tools: &mut SoundEngineTools) {
-        // Nothing to do
+    fn reset_states(&self, gs: GridSpan) -> GridSpan {
+        self.state_table.read().reset_states(gs);
+        gs
+    }
+
+    fn reset_key(&self, state_index: usize, key_index: usize) -> GridSpan {
+        debug_assert!(key_index == 0);
+        let gs = GridSpan::new_contiguous(state_index, 1);
+        self.state_table.read().reset_states(gs);
+        gs
     }
 }
 
@@ -183,15 +203,24 @@ impl<K: Key, T: SoundState> SoundInputWrapper for KeyedSoundInput<K, T> {
         self.state_table.read().num_keys()
     }
 
+    fn num_parent_states(&self) -> usize {
+        self.state_table.read().num_parent_states()
+    }
+
     fn insert_states(&self, gs: GridSpan) -> GridSpan {
         self.state_table.write().insert_states(gs)
     }
+
     fn erase_states(&self, gs: GridSpan) -> GridSpan {
         self.state_table.write().erase_states(gs)
     }
 
-    fn flush_message(&self, tools: &mut SoundEngineTools) {
-        self.flush_messages(self.id, tools)
+    fn reset_states(&self, gs: GridSpan) -> GridSpan {
+        self.state_table.read().reset_states(gs)
+    }
+
+    fn reset_key(&self, state_index: usize, key_index: usize) -> GridSpan {
+        self.state_table.read().reset_key(state_index, key_index)
     }
 }
 
@@ -221,7 +250,6 @@ impl SingleSoundInputHandle {
 
 pub struct KeyedSoundInputHandle<K: Key, T: SoundState> {
     input: Arc<KeyedSoundInput<K, T>>,
-    message_sender: Mutex<Sender<KeyedSoundInputMessage<K>>>,
 }
 
 impl<K: Key, T: SoundState> KeyedSoundInputHandle<K, T> {

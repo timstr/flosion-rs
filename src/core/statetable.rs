@@ -59,6 +59,10 @@ impl<T: SoundState> KeyedStateTable<T> {
         self.num_keys
     }
 
+    pub fn num_parent_states(&self) -> usize {
+        self.num_parent_states
+    }
+
     pub fn insert_key(&mut self, index: usize) -> GridSpan {
         let gs = GridSpan::new(index, 1, self.num_keys, self.num_parent_states);
         self.data = gs.insert_with(std::mem::take(&mut self.data), || RwLock::new(T::default()));
@@ -74,13 +78,29 @@ impl<T: SoundState> KeyedStateTable<T> {
         gs
     }
 
+    pub fn reset_key(&self, state_index: usize, key_index: usize) -> GridSpan {
+        debug_assert!(
+            state_index < self.num_parent_states,
+            "State index {} is out of bounds for {} parent states",
+            state_index,
+            self.num_parent_states
+        );
+        debug_assert!(key_index < self.num_keys);
+        let i = (state_index * self.num_keys) + key_index;
+        self.data[i].write().reset();
+        GridSpan::new_contiguous(i, 1)
+    }
+
     pub fn insert_states(&mut self, span: GridSpan) -> GridSpan {
+        self.num_parent_states += span.num_items();
         let span = span.inflate(self.num_keys);
         self.data = span.insert_with(std::mem::take(&mut self.data), || RwLock::new(T::default()));
         span
     }
 
     pub fn erase_states(&mut self, span: GridSpan) -> GridSpan {
+        debug_assert!(span.num_items() <= self.num_parent_states);
+        self.num_parent_states -= span.num_items();
         let span = span.inflate(self.num_keys);
         self.data = span.erase(std::mem::take(&mut self.data));
         span
@@ -88,6 +108,7 @@ impl<T: SoundState> KeyedStateTable<T> {
 
     pub fn reset_states(&self, span: GridSpan) -> GridSpan {
         let span = span.inflate(self.num_keys);
+        // TODO: this is silly. Let the GridSpan create an iterator of indices instead
         for (i, s) in self.data.iter().enumerate() {
             if span.contains(i) {
                 s.write().reset();

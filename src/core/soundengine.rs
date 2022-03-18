@@ -103,7 +103,7 @@ impl EngineSoundProcessorData {
         &mut self.inputs
     }
 
-    pub fn sound_processor(&self) -> &dyn SoundProcessorWrapper {
+    pub fn wrapper(&self) -> &dyn SoundProcessorWrapper {
         &*self.wrapper
     }
 }
@@ -339,6 +339,14 @@ impl SoundEngine {
         );
         let proc_data = self.sound_processors.get_mut(&processor_id).unwrap();
         proc_data.inputs_mut().push(input.id());
+        let gs = GridSpan::new_contiguous(0, proc_data.wrapper().num_states());
+        println!("Adding {} states to input {}", gs.num_items(), input.id().0);
+        input.insert_states(gs);
+        println!(
+            "Input {} now has {} parent states",
+            input.id().0,
+            input.num_parent_states()
+        );
         let input_data = EngineSoundInputData::new(input, processor_id);
         self.sound_inputs.insert(input_data.id(), input_data);
     }
@@ -375,7 +383,7 @@ impl SoundEngine {
         let mut outbound_connections: Vec<(SoundProcessorId, GridSpan, SoundInputId)> = Vec::new();
 
         let proc_data = self.sound_processors.get_mut(&proc_id).unwrap();
-        let proc = &mut proc_data.sound_processor();
+        let proc = &mut proc_data.wrapper();
         let gs = match operation {
             StateOperation::Insert => proc.insert_dst_states(dst_iid, dst_states),
             StateOperation::Erase => proc.erase_dst_states(dst_iid, dst_states),
@@ -438,14 +446,14 @@ impl SoundEngine {
                 return Err(SoundConnectionError::ProcessorNotFound(processor_id).into());
             }
             let proc_data = proc_data.unwrap();
-            proc_data.sound_processor().add_dst(input_id);
+            proc_data.wrapper().add_dst(input_id);
         }
 
         let input_proc_states = self
             .sound_processors
             .get(&input_data.owner())
             .unwrap()
-            .sound_processor()
+            .wrapper()
             .num_states();
 
         self.modify_states_recursively(
@@ -488,7 +496,7 @@ impl SoundEngine {
             .sound_processors
             .get(&input_data.owner())
             .unwrap()
-            .sound_processor()
+            .wrapper()
             .num_states();
 
         self.modify_states_recursively(
@@ -504,7 +512,7 @@ impl SoundEngine {
                 return Err(SoundConnectionError::ProcessorNotFound(processor_id).into());
             }
             let proc_data = proc_data.unwrap();
-            proc_data.sound_processor().remove_dst(input_id);
+            proc_data.wrapper().remove_dst(input_id);
         }
 
         self.update_static_processor_cache();
@@ -772,7 +780,7 @@ impl SoundEngine {
         set_current_thread_priority(ThreadPriority::Max).unwrap();
 
         for p in self.sound_processors.values() {
-            p.sound_processor().on_start_processing();
+            p.wrapper().on_start_processing();
         }
 
         let mut deadline = Instant::now() + chunk_duration;
@@ -795,7 +803,7 @@ impl SoundEngine {
         }
 
         for p in self.sound_processors.values() {
-            p.sound_processor().on_stop_processing();
+            p.wrapper().on_stop_processing();
         }
     }
 
@@ -886,6 +894,14 @@ impl SoundEngine {
                 }
             }
         };
+
+        let input_tools = SoundEngineTools {
+            soundengine: &mut self,
+        };
+        for input_data in self.sound_inputs.values() {
+            input_data.input().flush_message(&mut input_tools);
+        }
+
         *self.description.write() = self.describe();
         status
     }

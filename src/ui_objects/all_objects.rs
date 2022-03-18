@@ -20,6 +20,7 @@ use crate::{
 use super::{
     dac_ui::DacUi,
     functions_ui::{ConstantUi, SineUi, UnitSineUi},
+    keyboard_ui::KeyboardUi,
     wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
 };
@@ -48,6 +49,7 @@ impl AllObjects {
 
         // Static sound processors
         all_uis.register_static_sound_processor::<DacUi>();
+        all_uis.register_static_sound_processor::<KeyboardUi>();
 
         // Dynamic sound processors
         all_uis.register_dynamic_sound_processor::<WaveGeneratorUi>();
