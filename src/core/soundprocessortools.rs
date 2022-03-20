@@ -1,11 +1,11 @@
 use std::sync::{mpsc::Sender, Arc};
 
 use super::{
-    key::Key,
+    key::{Key, TypeErasedKey},
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
         KeyedInputNumberSource, NumberSourceHandle, NumberSourceId, NumberSourceOwner,
-        ProcessorNumberSource, SingleInputNumberSource, StateFunction,
+        ProcessorNumberSource, StateFunction,
     },
     resultfuture::ResultFuture,
     soundengine::SoundEngineMessage,
@@ -14,7 +14,7 @@ use super::{
         SingleSoundInputHandle, SoundInputId,
     },
     soundprocessor::{SoundProcessorData, SoundProcessorId},
-    soundstate::{EmptyState, SoundState},
+    soundstate::SoundState,
     uniqueid::IdGenerator,
 };
 
@@ -100,27 +100,27 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
     }
 
     // TODO: return the handle only
-    pub fn add_single_input_number_source<F: StateFunction<EmptyState>>(
-        &mut self,
-        handle: &SingleSoundInputHandle,
-        f: F,
-    ) -> (NumberSourceHandle, ResultFuture<(), ()>) {
-        let nsid = self.number_source_idgen.next_id();
-        let owner = handle.id();
-        let source = Arc::new(SingleInputNumberSource::new(handle.clone(), f));
-        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
-        self.message_queue
-            .push(SoundEngineMessage::AddNumberSource {
-                id: nsid,
-                owner: NumberSourceOwner::SoundInput(owner),
-                source,
-                result: outbound_result,
-            });
-        (
-            NumberSourceHandle::new(nsid, NumberSourceOwner::SoundInput(owner)),
-            result_future,
-        )
-    }
+    // pub fn add_single_input_number_source<F: StateFunction<EmptyState>>(
+    //     &mut self,
+    //     handle: &SingleSoundInputHandle,
+    //     f: F,
+    // ) -> (NumberSourceHandle, ResultFuture<(), ()>) {
+    //     let nsid = self.number_source_idgen.next_id();
+    //     let owner = handle.id();
+    //     let source = Arc::new(SingleInputNumberSource::new(handle.clone(), f));
+    //     let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
+    //     self.message_queue
+    //         .push(SoundEngineMessage::AddNumberSource {
+    //             id: nsid,
+    //             owner: NumberSourceOwner::SoundInput(owner),
+    //             source,
+    //             result: outbound_result,
+    //         });
+    //     (
+    //         NumberSourceHandle::new(nsid, NumberSourceOwner::SoundInput(owner)),
+    //         result_future,
+    //     )
+    // }
 
     // TODO: return the handle only
     pub fn add_keyed_input_number_source<K: Key, TT: SoundState, F: StateFunction<TT>>(
@@ -234,6 +234,36 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
         self.message_queue
             .push(SoundEngineMessage::RemoveNumberSource {
                 source_id: handle.id(),
+                result: outbound_result,
+            });
+        result_future
+    }
+
+    pub(super) fn add_keyed_input_key(
+        &mut self,
+        input_id: SoundInputId,
+        key: TypeErasedKey,
+    ) -> ResultFuture<(), ()> {
+        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
+        self.message_queue
+            .push(SoundEngineMessage::AddSoundInputKey {
+                input_id,
+                key,
+                result: outbound_result,
+            });
+        result_future
+    }
+
+    pub(super) fn remove_keyed_input_key(
+        &mut self,
+        input_id: SoundInputId,
+        key_index: usize,
+    ) -> ResultFuture<(), ()> {
+        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
+        self.message_queue
+            .push(SoundEngineMessage::RemoveSoundInputKey {
+                input_id,
+                key_index,
                 result: outbound_result,
             });
         result_future

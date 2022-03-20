@@ -103,7 +103,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub(super) fn single_input_state(
+    pub(super) fn single_input_state_from_context(
         &self,
         input: &'a SingleSoundInputHandle,
     ) -> StateTableLock<'a, EmptyState> {
@@ -141,6 +141,15 @@ impl<'a> Context<'a> {
     pub(super) fn keyed_input_state<K: Key, T: SoundState>(
         &self,
         input: &'a KeyedSoundInputHandle<K, T>,
+        state_index: usize,
+        key_index: usize,
+    ) -> StateTableLock<'a, T> {
+        input.input().get_state(state_index, key_index)
+    }
+
+    pub(super) fn keyed_input_state_from_context<K: Key, T: SoundState>(
+        &self,
+        input: &'a KeyedSoundInputHandle<K, T>,
     ) -> StateTableLock<'a, T> {
         let input_id = input.id();
         let f = self
@@ -156,7 +165,7 @@ impl<'a> Context<'a> {
         input.input().get_state(f.state_index, f.key_index)
     }
 
-    pub(super) fn sound_processor_state<T: SoundState>(
+    pub(super) fn sound_processor_state_from_context<T: SoundState>(
         &self,
         handle: &'a SoundProcessorData<T>,
     ) -> StateTableLock<'a, T> {
@@ -219,7 +228,6 @@ impl<'a> Context<'a> {
         let frame = self.stack.last().unwrap();
         let frame = frame.into_processor_frame().unwrap();
         let input = self.sound_input_data.get(&input_id).unwrap();
-        debug_assert!(input.input().num_keys() == 1);
         if let Some(target) = input.target() {
             let other_pd = self.sound_processor_data.get(&target).unwrap();
             let other_proc = other_pd.wrapper();
@@ -228,21 +236,25 @@ impl<'a> Context<'a> {
                 dst.copy_from(ch);
             } else {
                 let mut other_stack = self.stack.clone();
-                if let Some(k_idx) = key_index {
+                let key_index = if let Some(k_idx) = key_index {
                     other_stack.push(SoundStackFrame::KeyedInput(KeyedSoundInputFrame {
                         id: input_id,
                         state_index: frame.state_index,
                         key_index: k_idx,
                     }));
+                    k_idx
                 } else {
                     other_stack.push(SoundStackFrame::SingleInput(SingleSoundInputFrame {
                         id: input_id,
                         state_index: frame.state_index,
                     }));
-                }
+                    0
+                };
+                let input_state_index = frame.state_index * input.input().num_keys() + key_index;
+                let state_index = other_proc.find_state_index(input_id, input_state_index);
                 other_stack.push(SoundStackFrame::Processor(SoundProcessorFrame {
                     id: other_proc.id(),
-                    state_index: other_proc.find_state_index(input_id, frame.state_index),
+                    state_index,
                 }));
                 let new_ctx = Context::new(
                     self.sound_processor_data,
@@ -307,12 +319,21 @@ impl<'a> Clone for Context<'a> {
 
 pub struct ProcessorContext<'a, T: SoundState> {
     state: &'a RwLock<T>,
+    state_index: usize,
     context: Context<'a>,
 }
 
 impl<'a, T: SoundState> ProcessorContext<'a, T> {
-    pub(super) fn new(state: &'a RwLock<T>, context: Context<'a>) -> ProcessorContext<'a, T> {
-        ProcessorContext { state, context }
+    pub(super) fn new(
+        state: &'a RwLock<T>,
+        state_index: usize,
+        context: Context<'a>,
+    ) -> ProcessorContext<'a, T> {
+        ProcessorContext {
+            state,
+            state_index,
+            context,
+        }
     }
 
     pub fn step_single_input(&mut self, handle: &SingleSoundInputHandle, dst: &mut SoundChunk) {
@@ -329,12 +350,12 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
             .step_sound_input(handle.id(), Some(key_index), dst)
     }
 
-    pub fn single_input_state(
-        &self,
-        handle: &'a SingleSoundInputHandle,
-    ) -> StateTableLock<'a, EmptyState> {
-        self.context.single_input_state(handle)
-    }
+    // pub fn single_input_state(
+    //     &self,
+    //     handle: &'a SingleSoundInputHandle,
+    // ) -> StateTableLock<'a, EmptyState> {
+    //     self.context.single_input_state(handle)
+    // }
 
     pub fn reset_single_input(&self, handle: &SingleSoundInputHandle) {
         self.context.reset_single_input(handle);
@@ -343,8 +364,10 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
     pub fn keyed_input_state<K: Key, TT: SoundState>(
         &self,
         handle: &'a KeyedSoundInputHandle<K, TT>,
+        key_index: usize,
     ) -> StateTableLock<'a, TT> {
-        self.context.keyed_input_state(handle)
+        self.context
+            .keyed_input_state(handle, self.state_index, key_index)
     }
 
     pub fn reset_keyed_input<K: Key, TT: SoundState>(
@@ -378,25 +401,25 @@ impl<'a> NumberContext<'a> {
         NumberContext { context }
     }
 
-    pub fn single_input_state(
-        &self,
-        input: &'a SingleSoundInputHandle,
-    ) -> StateTableLock<'a, EmptyState> {
-        self.context.single_input_state(input)
-    }
+    // pub fn single_input_state(
+    //     &self,
+    //     input: &'a SingleSoundInputHandle,
+    // ) -> StateTableLock<'a, EmptyState> {
+    //     self.context.single_input_state(input)
+    // }
 
     pub fn keyed_input_state<K: Key, T: SoundState>(
         &self,
         input: &'a KeyedSoundInputHandle<K, T>,
     ) -> StateTableLock<'a, T> {
-        self.context.keyed_input_state(input)
+        self.context.keyed_input_state_from_context(input)
     }
 
     pub fn sound_processor_state<T: SoundState>(
         &self,
         handle: &'a SoundProcessorData<T>,
     ) -> StateTableLock<'a, T> {
-        self.context.sound_processor_state(handle)
+        self.context.sound_processor_state_from_context(handle)
     }
 
     pub fn get_scratch_space(&self, size: usize) -> ScratchSlice {

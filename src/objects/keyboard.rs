@@ -1,7 +1,4 @@
-use std::sync::{
-    atomic::{AtomicI16, Ordering},
-    Arc,
-};
+use std::sync::atomic::{AtomicI16, Ordering};
 
 use atomic_float::AtomicF32;
 
@@ -138,7 +135,7 @@ impl StaticSoundProcessor for Keyboard {
             })
             .0;
         for i in 0..MAX_KEYS {
-            input.add_key(Arc::new(KeyboardKey { index: i as u8 }))
+            input.add_key(KeyboardKey { index: i as u8 }, tools);
         }
         Keyboard {
             input,
@@ -155,18 +152,17 @@ impl StaticSoundProcessor for Keyboard {
         dst.silence();
         let mut scratch_buffer = SoundChunk::new();
         let mut prev_state: [KeyState; MAX_KEYS] = context.read_state().previous_key_state.clone();
-        for (i, (ks_prev, ks_curr)) in prev_state
-            .iter_mut()
-            .zip(self.key_states.iter())
-            .enumerate()
-        {
-            if ks_curr.id.load(Ordering::SeqCst) == -1 {
+        let mut new_states = prev_state.clone();
+        for i in 0..MAX_KEYS {
+            let curr_id = self.key_states[i].id.load(Ordering::SeqCst);
+            *new_states[i].id.get_mut() = curr_id;
+            if curr_id == -1 {
                 continue;
             }
-            if *ks_prev.id.get_mut() == -1 {
+            if *prev_state[i].id.get_mut() == -1 {
                 context.reset_keyed_input(&self.input, i);
-                context.keyed_input_state(&self.input).write().frequency =
-                    ks_curr.frequency.load(Ordering::SeqCst);
+                context.keyed_input_state(&self.input, i).write().frequency =
+                    self.key_states[i].frequency.load(Ordering::SeqCst);
             }
             context.step_keyed_input(&self.input, i, &mut scratch_buffer);
             // TODO: create FMA functions
@@ -174,6 +170,16 @@ impl StaticSoundProcessor for Keyboard {
             numeric::mul_scalar_inplace(&mut scratch_buffer.r, 0.1);
             numeric::add_inplace(&mut dst.l, &scratch_buffer.l);
             numeric::add_inplace(&mut dst.r, &scratch_buffer.r);
+        }
+        // TODO: write to state's previous_key_state
+        {
+            let mut state = context.write_state();
+            for (ks_next, ks_curr) in new_states
+                .iter_mut()
+                .zip(state.previous_key_state.iter_mut())
+            {
+                *ks_curr.id.get_mut() = *ks_next.id.get_mut();
+            }
         }
     }
 

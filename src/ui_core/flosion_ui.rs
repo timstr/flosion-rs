@@ -41,6 +41,11 @@ async fn create_test_sound_graph() -> SoundGraph {
     )
     .await
     .unwrap();
+    println!(
+        "The Keyboard's keyed input has {} keys",
+        kb.instance().input.num_keys()
+    );
+    println!("The WaveGenerator has {} states", wavegen.num_states());
     sg
 }
 

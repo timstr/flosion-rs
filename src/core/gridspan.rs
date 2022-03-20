@@ -1,5 +1,3 @@
-use std::iter;
-
 #[derive(Copy, Clone, Debug)]
 pub struct GridSpan {
     // linear index of the first item
@@ -9,6 +7,8 @@ pub struct GridSpan {
     items_per_row: usize,
 
     // Number of items between the start of any two adjacent consecutive groups
+    // if inserting elements, this may be any value
+    // if iterating or erasing elements, this must be at least items_per_row
     row_stride: usize,
 
     // Number of consecutive groups
@@ -22,8 +22,6 @@ impl GridSpan {
         row_stride: usize,
         num_rows: usize,
     ) -> GridSpan {
-        debug_assert!(items_per_row > 0);
-        debug_assert!(row_stride > 0);
         GridSpan {
             start_index,
             items_per_row,
@@ -71,22 +69,6 @@ impl GridSpan {
         }
     }
 
-    pub fn contains(&self, index: usize) -> bool {
-        if index < self.start_index {
-            return false;
-        }
-        let index = index - self.start_index;
-        let inner_index = index % self.row_stride;
-        let outer_index = index / self.row_stride;
-        (inner_index < self.items_per_row) && (outer_index < self.num_rows)
-    }
-
-    pub fn last_index(&self) -> usize {
-        debug_assert!(self.num_rows > 0);
-        debug_assert!(self.items_per_row > 0);
-        self.start_index + (self.row_stride * (self.num_rows - 1)) + self.items_per_row - 1
-    }
-
     pub fn num_items(&self) -> usize {
         self.items_per_row * self.num_rows
     }
@@ -96,33 +78,86 @@ impl GridSpan {
             return data;
         }
         debug_assert!(self.start_index <= data.len());
-        debug_assert!(self.last_index() <= data.len() + self.num_items());
         let mut new_states = Vec::<T>::new();
         let old_len = data.len();
         new_states.reserve(old_len + self.num_items());
-        for (i, s) in data.into_iter().enumerate() {
-            if (i >= self.start_index)
-                && (i <= self.last_index())
-                && (i - self.start_index) % self.row_stride == 0
-            {
-                new_states.extend(iter::repeat_with(&f).take(self.items_per_row));
-            }
-            new_states.push(s);
+        let mut it = data.into_iter();
+        for _ in 0..self.start_index() {
+            new_states.push(it.next().unwrap());
         }
-        if self.last_index() == old_len {
-            new_states.extend(iter::repeat_with(&f).take(self.items_per_row));
+        for row in 0..self.num_rows {
+            if row != 0 {
+                for _gap_item in 0..self.row_stride {
+                    new_states.push(it.next().unwrap());
+                }
+            }
+            for _row_item in 0..self.items_per_row {
+                new_states.push(f());
+            }
+        }
+        loop {
+            match it.next() {
+                Some(s) => new_states.push(s),
+                None => break,
+            }
         }
         assert_eq!(new_states.len(), old_len + self.num_items());
         new_states
     }
 
     pub fn erase<T>(&self, data: Vec<T>) -> Vec<T> {
+        debug_assert!(self.row_stride >= self.items_per_row);
+        debug_assert!(self.start_index <= data.len());
         if self.num_items() == 0 {
             return data;
         }
-        data.into_iter()
-            .enumerate()
-            .filter_map(|(i, s)| if self.contains(i) { None } else { Some(s) })
-            .collect()
+        let mut new_states = Vec::<T>::new();
+        let old_len = data.len();
+        debug_assert!(old_len >= self.num_items());
+        new_states.reserve(old_len - self.num_items());
+        let mut it = data.into_iter();
+        for _ in 0..self.start_index() {
+            new_states.push(it.next().unwrap());
+        }
+        let row_gap = self.row_stride - self.items_per_row;
+        for row in 0..self.num_rows {
+            if row != 0 {
+                for _gap_item in 0..row_gap {
+                    new_states.push(it.next().unwrap());
+                }
+            }
+            for _row_item in 0..self.items_per_row {
+                it.next().unwrap();
+            }
+        }
+        loop {
+            match it.next() {
+                Some(s) => new_states.push(s),
+                None => break,
+            }
+        }
+        assert_eq!(new_states.len(), old_len + self.num_items());
+        new_states
+    }
+
+    pub fn visit_with<T, F: Fn(&T)>(&self, data: &[T], f: F) {
+        if self.num_items() == 0 {
+            return;
+        }
+        debug_assert!(self.row_stride >= self.items_per_row);
+        debug_assert!(self.start_index <= data.len());
+        let data = &data[self.start_index..];
+        let mut it = data.iter();
+        let row_gap = self.row_stride - self.items_per_row;
+        for row in 0..self.num_rows {
+            if row != 0 {
+                for _gap_item in 0..row_gap {
+                    it.next().unwrap();
+                }
+            }
+            for _row_item in 0..self.items_per_row {
+                f(it.next().unwrap());
+            }
+        }
     }
 }

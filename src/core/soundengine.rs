@@ -14,6 +14,7 @@ use thread_priority::{set_current_thread_priority, ThreadPriority};
 use super::{
     context::{Context, SoundProcessorFrame, SoundStackFrame},
     gridspan::GridSpan,
+    key::TypeErasedKey,
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{NumberSource, NumberSourceId, NumberSourceOwner},
     resultfuture::OutboundResult,
@@ -160,6 +161,16 @@ pub enum SoundEngineMessage {
     DisconnectSoundInput {
         input_id: SoundInputId,
         result: OutboundResult<(), SoundGraphError>,
+    },
+    AddSoundInputKey {
+        input_id: SoundInputId,
+        key: TypeErasedKey,
+        result: OutboundResult<(), ()>,
+    },
+    RemoveSoundInputKey {
+        input_id: SoundInputId,
+        key_index: usize,
+        result: OutboundResult<(), ()>,
     },
 
     AddNumberSource {
@@ -373,6 +384,22 @@ impl SoundEngine {
         self.update_static_processor_cache();
     }
 
+    fn add_sound_input_key(&mut self, input_id: SoundInputId, key: TypeErasedKey) {
+        let input_data = self.sound_inputs.get(&input_id).unwrap();
+        let gs = input_data.input().insert_key(key);
+        if let Some(proc_id) = input_data.target() {
+            self.modify_states_recursively(proc_id, gs, input_id, StateOperation::Insert);
+        }
+    }
+
+    fn remove_sound_input_key(&mut self, input_id: SoundInputId, key_index: usize) {
+        let input_data = self.sound_inputs.get(&input_id).unwrap();
+        let gs = input_data.input().erase_key(key_index);
+        if let Some(proc_id) = input_data.target() {
+            self.modify_states_recursively(proc_id, gs, input_id, StateOperation::Erase);
+        }
+    }
+
     fn modify_states_recursively(
         &mut self,
         proc_id: SoundProcessorId,
@@ -456,9 +483,11 @@ impl SoundEngine {
             .wrapper()
             .num_states();
 
+        let input_keys = input_data.input().num_keys();
+
         self.modify_states_recursively(
             processor_id,
-            GridSpan::new_contiguous(0, input_proc_states),
+            GridSpan::new_contiguous(0, input_proc_states * input_keys),
             input_id,
             StateOperation::Insert,
         );
@@ -843,6 +872,22 @@ impl SoundEngine {
                     self.remove_sound_input(input_id);
                     result.fulfill(Ok(()));
                 }
+                SoundEngineMessage::AddSoundInputKey {
+                    input_id,
+                    key,
+                    result,
+                } => {
+                    self.add_sound_input_key(input_id, key);
+                    result.fulfill(Ok(()));
+                }
+                SoundEngineMessage::RemoveSoundInputKey {
+                    input_id,
+                    key_index,
+                    result,
+                } => {
+                    self.remove_sound_input_key(input_id, key_index);
+                    result.fulfill(Ok(()));
+                }
                 SoundEngineMessage::ConnectSoundInput {
                     input_id,
                     processor_id,
@@ -894,13 +939,6 @@ impl SoundEngine {
                 }
             }
         };
-
-        let input_tools = SoundEngineTools {
-            soundengine: &mut self,
-        };
-        for input_data in self.sound_inputs.values() {
-            input_data.input().flush_message(&mut input_tools);
-        }
 
         *self.description.write() = self.describe();
         status

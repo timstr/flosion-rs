@@ -204,6 +204,10 @@ impl<T: DynamicSoundProcessor> WrappedDynamicSoundProcessor<T> {
     pub fn id(&self) -> SoundProcessorId {
         self.data.id
     }
+
+    pub fn num_states(&self) -> usize {
+        self.data.num_states()
+    }
 }
 
 impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProcessor<T> {
@@ -215,7 +219,7 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
         let table = self.data.state_table.read();
         let f = context.current_frame().into_processor_frame().unwrap();
         let state = table.get_state(f.state_index);
-        let sc = ProcessorContext::new(state, context);
+        let sc = ProcessorContext::new(state, f.state_index, context);
         self.instance.process_audio(dst, sc);
     }
 
@@ -302,7 +306,7 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
                 == 0
         );
         let state = table.get_state(0);
-        let sc = ProcessorContext::new(state, context);
+        let sc = ProcessorContext::new(state, 0, context);
         self.instance.process_audio(dst, sc);
     }
 

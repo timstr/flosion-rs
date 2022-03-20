@@ -36,6 +36,10 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
     pub fn instance(&self) -> &T {
         self.wrapper.instance()
     }
+
+    pub fn num_states(&self) -> usize {
+        self.wrapper.num_states()
+    }
 }
 pub struct StaticSoundProcessorHandle<T: StaticSoundProcessor> {
     wrapper: Arc<WrappedStaticSoundProcessor<T>>,

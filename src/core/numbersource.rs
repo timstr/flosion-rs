@@ -5,9 +5,9 @@ use super::{
     graphobject::GraphObject,
     key::Key,
     numbersourcetools::NumberSourceTools,
-    soundinput::{KeyedSoundInputHandle, SingleSoundInputHandle, SoundInputId},
+    soundinput::{KeyedSoundInputHandle, SoundInputId},
     soundprocessor::{SoundProcessorData, SoundProcessorId},
-    soundstate::{EmptyState, SoundState, StateOwner},
+    soundstate::{SoundState, StateOwner},
     uniqueid::UniqueId,
 };
 
@@ -136,23 +136,23 @@ impl NumberSourceHandle {
     }
 }
 
-pub struct SingleInputNumberSource<F: StateFunction<EmptyState>> {
-    handle: SingleSoundInputHandle,
-    function: F,
-}
+// pub struct SingleInputNumberSource<F: StateFunction<EmptyState>> {
+//     handle: SingleSoundInputHandle,
+//     function: F,
+// }
 
-impl<F: StateFunction<EmptyState>> SingleInputNumberSource<F> {
-    pub(super) fn new(handle: SingleSoundInputHandle, function: F) -> SingleInputNumberSource<F> {
-        SingleInputNumberSource { handle, function }
-    }
-}
+// impl<F: StateFunction<EmptyState>> SingleInputNumberSource<F> {
+//     pub(super) fn new(handle: SingleSoundInputHandle, function: F) -> SingleInputNumberSource<F> {
+//         SingleInputNumberSource { handle, function }
+//     }
+// }
 
-impl<F: StateFunction<EmptyState>> NumberSource for SingleInputNumberSource<F> {
-    fn eval(&self, dst: &mut [f32], context: NumberContext) {
-        let state = context.single_input_state(&self.handle);
-        self.function.apply(dst, &state.read());
-    }
-}
+// impl<F: StateFunction<EmptyState>> NumberSource for SingleInputNumberSource<F> {
+//     fn eval(&self, dst: &mut [f32], context: NumberContext) {
+//         let state = context.single_input_state(&self.handle);
+//         self.function.apply(dst, &state.read());
+//     }
+// }
 
 // TODO: elaborate to allow the current key to be passed by reference to the function in addition to the state
 pub struct KeyedInputNumberSource<K: Key, T: SoundState, F: StateFunction<T>> {

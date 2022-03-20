@@ -109,11 +109,7 @@ impl<T: SoundState> KeyedStateTable<T> {
     pub fn reset_states(&self, span: GridSpan) -> GridSpan {
         let span = span.inflate(self.num_keys);
         // TODO: this is silly. Let the GridSpan create an iterator of indices instead
-        for (i, s) in self.data.iter().enumerate() {
-            if span.contains(i) {
-                s.write().reset();
-            }
-        }
+        span.visit_with(&self.data[..], |s| s.write().reset());
         span
     }
 
@@ -174,7 +170,6 @@ impl StateTablePartition {
         for (i, s) in &self.offsets {
             if *i == input_id {
                 debug_assert!(input_span.start_index() < s.count);
-                debug_assert!(input_span.last_index() < s.count);
                 return input_span.offset(s.index);
             }
         }
