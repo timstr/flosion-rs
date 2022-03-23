@@ -19,7 +19,9 @@ use crate::{
 
 use super::{
     dac_ui::DacUi,
-    functions_ui::{ConstantUi, SineUi, UnitSineUi},
+    functions_ui::{
+        AddUi, ConstantUi, DivideUi, MultiplyUi, NegateUi, SineUi, SubtractUi, UnitSineUi,
+    },
     keyboard_ui::KeyboardUi,
     wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
@@ -57,6 +59,11 @@ impl AllObjects {
 
         // Pure number sources
         all_uis.register_number_source::<ConstantUi>();
+        all_uis.register_number_source::<NegateUi>();
+        all_uis.register_number_source::<AddUi>();
+        all_uis.register_number_source::<SubtractUi>();
+        all_uis.register_number_source::<MultiplyUi>();
+        all_uis.register_number_source::<DivideUi>();
         all_uis.register_number_source::<SineUi>();
         all_uis.register_number_source::<UnitSineUi>();
 

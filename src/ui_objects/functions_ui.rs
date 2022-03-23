@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::graphobject::ObjectId,
-    objects::functions::{Constant, Sine, UnitSine},
+    objects::functions::{Add, Constant, Divide, Multiply, Negate, Sine, Subtract, UnitSine},
     ui_core::{
         arguments::{ArgumentList, ArgumentValue, ParsedArguments},
         graph_ui_state::GraphUIState,
@@ -45,6 +45,72 @@ impl ObjectUi for ConstantUi {
         object.set_value(args.get("value").as_float());
     }
 }
+
+macro_rules! unary_number_source_ui {
+    ($name: ident, $object: ident, $display_name: literal, $aliases: expr) => {
+        #[derive(Default)]
+        pub struct $name {}
+
+        impl ObjectUi for $name {
+            type ObjectType = $object;
+            fn ui(
+                &self,
+                id: ObjectId,
+                object: &$object,
+                graph_state: &mut GraphUIState,
+                ui: &mut eframe::egui::Ui,
+            ) {
+                let id = id.as_number_source_id().unwrap();
+                ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
+                    ui.label($display_name);
+                    ui.add(NumberInputWidget::new(object.input.id(), graph_state));
+                    ui.add(NumberOutputWidget::new(id, graph_state));
+                });
+            }
+
+            fn aliases(&self) -> &'static [&'static str] {
+                &$aliases
+            }
+        }
+    };
+}
+
+macro_rules! binary_number_source_ui {
+    ($name: ident, $object: ident, $display_name: literal, $aliases: expr) => {
+        #[derive(Default)]
+        pub struct $name {}
+
+        impl ObjectUi for $name {
+            type ObjectType = $object;
+            fn ui(
+                &self,
+                id: ObjectId,
+                object: &$object,
+                graph_state: &mut GraphUIState,
+                ui: &mut eframe::egui::Ui,
+            ) {
+                let id = id.as_number_source_id().unwrap();
+                ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
+                    ui.label($display_name);
+                    ui.add(NumberInputWidget::new(object.input_1.id(), graph_state));
+                    ui.add(NumberInputWidget::new(object.input_2.id(), graph_state));
+                    ui.add(NumberOutputWidget::new(id, graph_state));
+                });
+            }
+
+            fn aliases(&self) -> &'static [&'static str] {
+                &$aliases
+            }
+        }
+    };
+}
+
+unary_number_source_ui!(NegateUi, Negate, "Negate", []);
+
+binary_number_source_ui!(AddUi, Add, "Add", ["+", "plus"]);
+binary_number_source_ui!(SubtractUi, Subtract, "Subtract", ["-", "minus"]);
+binary_number_source_ui!(MultiplyUi, Multiply, "Multiply", ["*", "times"]);
+binary_number_source_ui!(DivideUi, Divide, "Divide", ["/"]);
 
 #[derive(Default)]
 pub struct SineUi {}
