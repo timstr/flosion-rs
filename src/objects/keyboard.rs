@@ -43,7 +43,7 @@ impl SoundState for KeyboardKeyState {
     }
 }
 
-const MAX_KEYS: usize = 4;
+const MAX_KEYS: usize = 8;
 
 struct KeyState {
     frequency: AtomicF32,
