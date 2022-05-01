@@ -5,7 +5,7 @@ use crate::{
     objects::functions::{Add, Constant, Divide, Multiply, Negate, Sine, Subtract, UnitSine},
     ui_core::{
         arguments::{ArgumentList, ArgumentValue, ParsedArguments},
-        graph_ui_state::GraphUIState,
+        graph_ui_tools::GraphUITools,
         object_ui::{NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow},
     },
 };
@@ -19,7 +19,7 @@ impl ObjectUi for ConstantUi {
         &self,
         id: ObjectId,
         object: &Constant,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_number_source_id().unwrap();
@@ -57,7 +57,7 @@ macro_rules! unary_number_source_ui {
                 &self,
                 id: ObjectId,
                 object: &$object,
-                graph_state: &mut GraphUIState,
+                graph_state: &mut GraphUITools,
                 ui: &mut eframe::egui::Ui,
             ) {
                 let id = id.as_number_source_id().unwrap();
@@ -86,7 +86,7 @@ macro_rules! binary_number_source_ui {
                 &self,
                 id: ObjectId,
                 object: &$object,
-                graph_state: &mut GraphUIState,
+                graph_state: &mut GraphUITools,
                 ui: &mut eframe::egui::Ui,
             ) {
                 let id = id.as_number_source_id().unwrap();
@@ -121,7 +121,7 @@ impl ObjectUi for SineUi {
         &self,
         id: ObjectId,
         object: &Sine,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_number_source_id().unwrap();
@@ -146,7 +146,7 @@ impl ObjectUi for UnitSineUi {
         &self,
         id: ObjectId,
         object: &UnitSine,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_number_source_id().unwrap();

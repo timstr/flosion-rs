@@ -27,3 +27,9 @@ impl SoundChunk {
         self.r = other.r;
     }
 }
+
+impl Clone for SoundChunk {
+    fn clone(&self) -> SoundChunk {
+        SoundChunk { l: self.l.clone(), r: self.r.clone() }
+    }
+}

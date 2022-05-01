@@ -12,7 +12,7 @@ use crate::core::{
 
 use super::{
     arguments::{ArgumentList, ParsedArguments},
-    graph_ui_state::GraphUIState,
+    graph_ui_tools::GraphUITools,
 };
 
 pub trait ObjectUi: 'static + Default {
@@ -21,7 +21,7 @@ pub trait ObjectUi: 'static + Default {
         &self,
         id: ObjectId,
         object: &Self::ObjectType,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut egui::Ui,
     );
 
@@ -41,7 +41,7 @@ pub trait AnyObjectUi {
         &self,
         id: ObjectId,
         object: &dyn GraphObject,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut egui::Ui,
     );
 
@@ -57,7 +57,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
         &self,
         id: ObjectId,
         object: &dyn GraphObject,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut egui::Ui,
     ) {
         let any = object.as_any();
@@ -133,7 +133,7 @@ impl ObjectWindow {
 fn peg_ui(
     id: GraphId,
     color: egui::Color32,
-    graph_state: &mut GraphUIState,
+    graph_state: &mut GraphUITools,
     ui: &mut egui::Ui,
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
@@ -167,13 +167,13 @@ fn peg_ui(
 
 pub struct SoundInputWidget<'a> {
     sound_input_id: SoundInputId,
-    graph_state: &'a mut GraphUIState,
+    graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> SoundInputWidget<'a> {
     pub fn new(
         sound_input_id: SoundInputId,
-        graph_state: &'a mut GraphUIState,
+        graph_state: &'a mut GraphUITools,
     ) -> SoundInputWidget<'a> {
         SoundInputWidget {
             sound_input_id,
@@ -195,13 +195,13 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
 
 pub struct SoundOutputWidget<'a> {
     sound_processor_id: SoundProcessorId,
-    graph_state: &'a mut GraphUIState,
+    graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> SoundOutputWidget<'a> {
     pub fn new(
         sound_processor_id: SoundProcessorId,
-        graph_state: &'a mut GraphUIState,
+        graph_state: &'a mut GraphUITools,
     ) -> SoundOutputWidget<'a> {
         SoundOutputWidget {
             sound_processor_id,
@@ -223,13 +223,13 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
 
 pub struct NumberInputWidget<'a> {
     number_input_id: NumberInputId,
-    graph_state: &'a mut GraphUIState,
+    graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> NumberInputWidget<'a> {
     pub fn new(
         number_input_id: NumberInputId,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
     ) -> NumberInputWidget {
         NumberInputWidget {
             number_input_id,
@@ -251,13 +251,13 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
 
 pub struct NumberOutputWidget<'a> {
     number_source_id: NumberSourceId,
-    graph_state: &'a mut GraphUIState,
+    graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> NumberOutputWidget<'a> {
     pub fn new(
         number_source_id: NumberSourceId,
-        graph_state: &'a mut GraphUIState,
+        graph_state: &'a mut GraphUITools,
     ) -> NumberOutputWidget {
         NumberOutputWidget {
             number_source_id,

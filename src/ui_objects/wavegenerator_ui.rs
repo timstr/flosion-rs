@@ -2,7 +2,7 @@ use crate::{
     core::graphobject::ObjectId,
     objects::wavegenerator::WaveGenerator,
     ui_core::{
-        graph_ui_state::GraphUIState,
+        graph_ui_tools::GraphUITools,
         object_ui::{
             NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow, SoundOutputWidget,
         },
@@ -18,7 +18,7 @@ impl ObjectUi for WaveGeneratorUi {
         &self,
         id: ObjectId,
         object: &WaveGenerator,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();

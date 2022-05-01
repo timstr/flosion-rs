@@ -2,7 +2,7 @@ use crate::{
     core::graphobject::ObjectId,
     objects::dac::Dac,
     ui_core::{
-        graph_ui_state::GraphUIState,
+        graph_ui_tools::GraphUITools,
         object_ui::{ObjectUi, ObjectWindow, SoundInputWidget},
     },
 };
@@ -16,7 +16,7 @@ impl ObjectUi for DacUi {
         &self,
         id: ObjectId,
         object: &Dac,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap()).show(

@@ -7,14 +7,14 @@ use eframe::{egui, epi};
 use futures::executor::block_on;
 
 use super::{
-    graph_ui_state::GraphUIState,
+    graph_ui_tools::GraphUITools,
     summon_widget::{SummonWidget, SummonWidgetState},
 };
 
 pub struct FlosionApp {
     graph: SoundGraph,
     all_object_uis: AllObjects,
-    ui_state: GraphUIState,
+    ui_state: GraphUITools,
     summon_state: Option<SummonWidgetState>,
 }
 
@@ -55,7 +55,7 @@ impl Default for FlosionApp {
         FlosionApp {
             graph,
             all_object_uis: AllObjects::new(),
-            ui_state: GraphUIState::new(),
+            ui_state: GraphUITools::new(),
             summon_state: None,
         }
     }
@@ -63,6 +63,7 @@ impl Default for FlosionApp {
 
 impl epi::App for FlosionApp {
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
+        self.ui_state.apply_pending_changes(&mut self.graph);
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Hi earthguy");
             let running = self.graph.is_running();

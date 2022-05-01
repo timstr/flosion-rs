@@ -4,7 +4,8 @@ use eframe::egui;
 
 use crate::core::{
     graphobject::GraphId, numberinput::NumberInputId, numbersource::NumberSourceId,
-    soundinput::SoundInputId, soundprocessor::SoundProcessorId, uniqueid::UniqueId,
+    soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    uniqueid::UniqueId,
 };
 
 pub struct PegState {
@@ -43,24 +44,26 @@ impl<T: UniqueId> PegStateMap<T> {
     }
 }
 
-pub struct GraphUIState {
+pub struct GraphUITools {
     sound_inputs: PegStateMap<SoundInputId>,
     sound_outputs: PegStateMap<SoundProcessorId>,
     number_inputs: PegStateMap<NumberInputId>,
     number_outputs: PegStateMap<NumberSourceId>,
     peg_being_dragged: Option<GraphId>,
     dropped_peg: Option<(GraphId, egui::Pos2)>,
+    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph) -> ()>>,
 }
 
-impl GraphUIState {
-    pub(super) fn new() -> GraphUIState {
-        GraphUIState {
+impl GraphUITools {
+    pub(super) fn new() -> GraphUITools {
+        GraphUITools {
             sound_inputs: PegStateMap::new(),
             sound_outputs: PegStateMap::new(),
             number_inputs: PegStateMap::new(),
             number_outputs: PegStateMap::new(),
             peg_being_dragged: None,
             dropped_peg: None,
+            pending_changes: Vec::new(),
         }
     }
 
@@ -79,6 +82,10 @@ impl GraphUIState {
             GraphId::SoundInput(id) => self.sound_inputs.add(id, rect, layer),
             GraphId::SoundProcessor(id) => self.sound_outputs.add(id, rect, layer),
         }
+    }
+
+    pub fn make_change<F: FnOnce(&mut SoundGraph) -> () + 'static>(&mut self, f: F) {
+        self.pending_changes.push(Box::new(f));
     }
 
     pub(super) fn sound_inputs(&self) -> &HashMap<SoundInputId, PegState> {
@@ -161,5 +168,12 @@ impl GraphUIState {
             return Some(id.into());
         }
         None
+    }
+
+    pub(super) fn apply_pending_changes(&mut self, graph: &mut SoundGraph) {
+        for f in self.pending_changes.drain(..) {
+            f(graph);
+        }
+        debug_assert!(self.pending_changes.len() == 0);
     }
 }

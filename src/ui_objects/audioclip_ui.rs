@@ -1,6 +1,8 @@
+use eframe::egui;
+
 use crate::{
     core::graphobject::ObjectId,
-    objects::whitenoise::WhiteNoise,
+    objects::audioclip::AudioClip,
     ui_core::{
         graph_ui_tools::GraphUITools,
         object_ui::{ObjectUi, ObjectWindow, SoundOutputWidget},
@@ -8,21 +10,22 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct WhiteNoiseUi {}
+pub struct AudioClipUi {}
 
-impl ObjectUi for WhiteNoiseUi {
-    type ObjectType = WhiteNoise;
+impl ObjectUi for AudioClipUi {
+    type ObjectType = AudioClip;
+
     fn ui(
         &self,
         id: ObjectId,
-        _object: &WhiteNoise,
+        _object: &AudioClip,
         graph_state: &mut GraphUITools,
-        ui: &mut eframe::egui::Ui,
+        ui: &mut egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
-            ui.label("WhiteNoise");
+            ui.label("AudioClip");
             ui.add(SoundOutputWidget::new(id, graph_state));
-        });
+        })
     }
 }

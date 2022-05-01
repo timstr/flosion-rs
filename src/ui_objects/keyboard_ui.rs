@@ -4,7 +4,7 @@ use crate::{
     core::graphobject::ObjectId,
     objects::keyboard::Keyboard,
     ui_core::{
-        graph_ui_state::GraphUIState,
+        graph_ui_tools::GraphUITools,
         object_ui::{
             NumberOutputWidget, ObjectUi, ObjectWindow, SoundInputWidget, SoundOutputWidget,
         },
@@ -20,7 +20,7 @@ impl ObjectUi for KeyboardUi {
         &self,
         id: ObjectId,
         object: &Keyboard,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();

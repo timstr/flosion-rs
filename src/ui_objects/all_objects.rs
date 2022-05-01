@@ -12,7 +12,7 @@ use crate::{
     },
     ui_core::{
         arguments::ParsedArguments,
-        graph_ui_state::GraphUIState,
+        graph_ui_tools::GraphUITools,
         object_ui::{AnyObjectUi, ObjectUi},
     },
 };
@@ -24,7 +24,7 @@ use super::{
     },
     keyboard_ui::KeyboardUi,
     wavegenerator_ui::WaveGeneratorUi,
-    whitenoise_ui::WhiteNoiseUi,
+    whitenoise_ui::WhiteNoiseUi, recorder_ui::RecorderUi, audioclip_ui::AudioClipUi,
 };
 
 struct ObjectData {
@@ -52,10 +52,12 @@ impl AllObjects {
         // Static sound processors
         all_uis.register_static_sound_processor::<DacUi>();
         all_uis.register_static_sound_processor::<KeyboardUi>();
+        all_uis.register_static_sound_processor::<RecorderUi>();
 
         // Dynamic sound processors
         all_uis.register_dynamic_sound_processor::<WaveGeneratorUi>();
         all_uis.register_dynamic_sound_processor::<WhiteNoiseUi>();
+        all_uis.register_dynamic_sound_processor::<AudioClipUi>();
 
         // Pure number sources
         all_uis.register_number_source::<ConstantUi>();
@@ -137,7 +139,7 @@ impl AllObjects {
         id: ObjectId,
         object: &dyn GraphObject,
         object_type: ObjectType,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUITools,
         ui: &mut Ui,
     ) {
         match self.mapping.get(&object_type) {
