@@ -91,7 +91,10 @@ impl<'a> Context<'a> {
         stack: Vec<SoundStackFrame>,
         scratch_space: &'a ScratchArena,
     ) -> Context<'a> {
-        debug_assert!(stack.len() > 0);
+        debug_assert!(
+            stack.len() > 0,
+            "Attempted to create a Context object with an empty sound frame stack"
+        );
         Context {
             sound_processor_data: processor_data,
             sound_input_data,

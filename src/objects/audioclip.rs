@@ -2,7 +2,7 @@ use parking_lot::RwLock;
 
 use crate::core::{
     context::ProcessorContext,
-    graphobject::{ObjectType, TypedGraphObject},
+    graphobject::{ObjectType, WithObjectType},
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundprocessor::DynamicSoundProcessor,
     soundprocessortools::SoundProcessorTools,
@@ -42,7 +42,7 @@ impl SoundState for AudioClipState {
 impl DynamicSoundProcessor for AudioClip {
     type StateType = AudioClipState;
 
-    fn new(tools: &mut SoundProcessorTools<'_, AudioClipState>) -> AudioClip {
+    fn new(_tools: &mut SoundProcessorTools<'_, AudioClipState>) -> AudioClip {
         AudioClip {
             audio_data: RwLock::new(Vec::new()),
         }
@@ -68,6 +68,6 @@ impl DynamicSoundProcessor for AudioClip {
     }
 }
 
-impl TypedGraphObject for AudioClip {
+impl WithObjectType for AudioClip {
     const TYPE: ObjectType = ObjectType::new("audioclip");
 }

@@ -494,6 +494,8 @@ impl SoundEngine {
 
         self.update_static_processor_cache();
 
+        debug_assert!(self.describe().find_error().is_none());
+
         Ok(())
     }
 
@@ -528,9 +530,11 @@ impl SoundEngine {
             .wrapper()
             .num_states();
 
+        let input_keys = input_data.input().num_keys();
+
         self.modify_states_recursively(
             processor_id,
-            GridSpan::new_contiguous(0, input_proc_states),
+            GridSpan::new_contiguous(0, input_proc_states * input_keys),
             input_id,
             StateOperation::Erase,
         );
@@ -545,6 +549,8 @@ impl SoundEngine {
         }
 
         self.update_static_processor_cache();
+
+        debug_assert!(self.describe().find_error().is_none());
 
         Ok(())
     }

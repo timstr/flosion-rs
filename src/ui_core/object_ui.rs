@@ -3,7 +3,7 @@ use std::any::type_name;
 use eframe::egui;
 
 use crate::core::{
-    graphobject::{GraphId, GraphObject, ObjectId, TypedGraphObject},
+    graphobject::{GraphId, GraphObject, ObjectId, ObjectWrapper},
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
     soundinput::SoundInputId,
@@ -16,11 +16,11 @@ use super::{
 };
 
 pub trait ObjectUi: 'static + Default {
-    type ObjectType: TypedGraphObject;
+    type WrapperType: ObjectWrapper;
     fn ui(
         &self,
         id: ObjectId,
-        object: &Self::ObjectType,
+        wrapper: &Self::WrapperType,
         graph_state: &mut GraphUITools,
         ui: &mut egui::Ui,
     );
@@ -33,7 +33,7 @@ pub trait ObjectUi: 'static + Default {
         ArgumentList::new()
     }
 
-    fn init_object(&self, _object: &Self::ObjectType, _args: ParsedArguments) {}
+    fn init_object(&self, _object: &Self::WrapperType, _args: ParsedArguments) {}
 }
 
 pub trait AnyObjectUi {
@@ -62,24 +62,24 @@ impl<T: ObjectUi> AnyObjectUi for T {
     ) {
         let any = object.as_any();
         debug_assert!(
-            any.is::<T::ObjectType>(),
+            any.is::<T::WrapperType>(),
             "AnyObjectUi expected to receive type {}, but got {} instead",
-            type_name::<T::ObjectType>(),
+            type_name::<T::WrapperType>(),
             object.get_language_type_name()
         );
-        let dc_object = any.downcast_ref::<T::ObjectType>().unwrap();
+        let dc_object = any.downcast_ref::<T::WrapperType>().unwrap();
         self.ui(id, dc_object, graph_state, ui);
     }
 
     fn init_object(&self, object: &dyn GraphObject, args: ParsedArguments) {
         let any = object.as_any();
         debug_assert!(
-            any.is::<T::ObjectType>(),
+            any.is::<T::WrapperType>(),
             "AnyObjectUi expected to receive type {}, but got {} instead",
-            type_name::<T::ObjectType>(),
+            type_name::<T::WrapperType>(),
             object.get_language_type_name()
         );
-        let dc_object = any.downcast_ref::<T::ObjectType>().unwrap();
+        let dc_object = any.downcast_ref::<T::WrapperType>().unwrap();
         self.init_object(dc_object, args);
     }
 

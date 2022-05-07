@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 
 use crate::core::{
     context::ProcessorContext,
-    graphobject::{ObjectType, TypedGraphObject},
+    graphobject::{ObjectType, WithObjectType},
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::{InputOptions, SingleSoundInputHandle},
     soundprocessor::StaticSoundProcessor,
@@ -120,6 +120,6 @@ impl StaticSoundProcessor for Recorder {
     }
 }
 
-impl TypedGraphObject for Recorder {
+impl WithObjectType for Recorder {
     const TYPE: ObjectType = ObjectType::new("recorder");
 }

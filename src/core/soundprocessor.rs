@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 
 use super::{
     context::{Context, ProcessorContext},
-    graphobject::GraphObject,
+    graphobject::{ObjectWrapper, WithObjectType},
     gridspan::GridSpan,
     soundchunk::SoundChunk,
     soundinput::SoundInputId,
@@ -32,7 +32,7 @@ impl UniqueId for SoundProcessorId {
     }
 }
 
-pub trait DynamicSoundProcessor: 'static + Sync + Send + GraphObject {
+pub trait DynamicSoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: SoundState;
     fn new(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
     where
@@ -40,7 +40,7 @@ pub trait DynamicSoundProcessor: 'static + Sync + Send + GraphObject {
     fn process_audio(&self, dst: &mut SoundChunk, context: ProcessorContext<'_, Self::StateType>);
 }
 
-pub trait StaticSoundProcessor: 'static + Sync + Send + GraphObject {
+pub trait StaticSoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: SoundState;
     fn new(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
     where
@@ -208,6 +208,19 @@ impl<T: DynamicSoundProcessor> WrappedDynamicSoundProcessor<T> {
     pub fn num_states(&self) -> usize {
         self.data.num_states()
     }
+
+    pub(super) fn data(&self) -> &Arc<SoundProcessorData<T::StateType>> {
+        &self.data
+    }
+}
+
+impl<T: DynamicSoundProcessor> Clone for WrappedDynamicSoundProcessor<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: self.instance.clone(),
+            data: self.data.clone(),
+        }
+    }
 }
 
 impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProcessor<T> {
@@ -264,6 +277,14 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
     }
 }
 
+impl<T: DynamicSoundProcessor> ObjectWrapper for WrappedDynamicSoundProcessor<T> {
+    type Type = T;
+
+    fn get_object(&self) -> &T {
+        &*self.instance
+    }
+}
+
 pub struct WrappedStaticSoundProcessor<T: StaticSoundProcessor> {
     instance: Arc<T>,
     data: Arc<SoundProcessorData<T::StateType>>,
@@ -284,6 +305,19 @@ impl<T: StaticSoundProcessor> WrappedStaticSoundProcessor<T> {
 
     pub fn id(&self) -> SoundProcessorId {
         self.data.id
+    }
+
+    pub(super) fn data(&self) -> &Arc<SoundProcessorData<T::StateType>> {
+        &self.data
+    }
+}
+
+impl<T: StaticSoundProcessor> Clone for WrappedStaticSoundProcessor<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: self.instance.clone(),
+            data: self.data.clone(),
+        }
     }
 }
 
@@ -357,5 +391,13 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
 
     fn find_state_index(&self, dst_input: SoundInputId, dst_state_index: usize) -> usize {
         self.data.find_state_index(dst_input, dst_state_index)
+    }
+}
+
+impl<T: StaticSoundProcessor> ObjectWrapper for WrappedStaticSoundProcessor<T> {
+    type Type = T;
+
+    fn get_object(&self) -> &T {
+        &*self.instance
     }
 }

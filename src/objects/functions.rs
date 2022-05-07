@@ -1,6 +1,6 @@
 use crate::core::{
     context::NumberContext,
-    graphobject::{ObjectType, TypedGraphObject},
+    graphobject::{ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
     numbersource::{NumberSource, PureNumberSource},
     numbersourcetools::NumberSourceTools,
@@ -29,7 +29,7 @@ impl NumberSource for Constant {
     }
 }
 
-impl TypedGraphObject for Constant {
+impl WithObjectType for Constant {
     const TYPE: ObjectType = ObjectType::new("constant");
 }
 
@@ -54,7 +54,7 @@ macro_rules! unary_number_source {
             }
         }
 
-        impl TypedGraphObject for $name {
+        impl WithObjectType for $name {
             const TYPE: ObjectType = ObjectType::new($namestr);
         }
 
@@ -84,7 +84,7 @@ macro_rules! binary_number_source {
             }
         }
 
-        impl TypedGraphObject for $name {
+        impl WithObjectType for $name {
             const TYPE: ObjectType = ObjectType::new($namestr);
         }
 
@@ -117,7 +117,7 @@ impl NumberSource for Sine {
     }
 }
 
-impl TypedGraphObject for Sine {
+impl WithObjectType for Sine {
     const TYPE: ObjectType = ObjectType::new("sine");
 }
 
@@ -141,7 +141,7 @@ impl NumberSource for UnitSine {
     }
 }
 
-impl TypedGraphObject for UnitSine {
+impl WithObjectType for UnitSine {
     const TYPE: ObjectType = ObjectType::new("unitsine");
 }
 

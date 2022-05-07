@@ -9,7 +9,7 @@ use std::{
 
 use crate::core::{
     context::ProcessorContext,
-    graphobject::{ObjectType, TypedGraphObject},
+    graphobject::{ObjectType, WithObjectType},
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -144,7 +144,6 @@ impl StaticSoundProcessor for Dac {
                         break next_chunk;
                     }
                     if !playing.load(Ordering::Relaxed) {
-                        println!("Playback has stopped, producing silence");
                         break SoundChunk::new();
                     }
                     spin_sleep::sleep(Duration::from_micros(1_000));
@@ -218,6 +217,6 @@ impl StaticSoundProcessor for Dac {
     }
 }
 
-impl TypedGraphObject for Dac {
+impl WithObjectType for Dac {
     const TYPE: ObjectType = ObjectType::new("dac");
 }

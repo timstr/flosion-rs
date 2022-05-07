@@ -6,7 +6,7 @@ use std::{
 use parking_lot::RwLock;
 
 use super::{
-    graphobject::{GraphObject, ObjectId},
+    graphobject::{GraphObject, ObjectId, WithObjectType},
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle},
     numbersourcetools::NumberSourceTools,
@@ -31,6 +31,10 @@ pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
 impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
     pub fn id(&self) -> SoundProcessorId {
         self.id
+    }
+
+    pub fn wrapper(&self) -> &WrappedDynamicSoundProcessor<T> {
+        &*self.wrapper
     }
 
     pub fn instance(&self) -> &T {
@@ -100,7 +104,7 @@ impl SoundGraph {
         }
     }
 
-    pub async fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
+    pub async fn add_dynamic_sound_processor<T: DynamicSoundProcessor + WithObjectType>(
         &mut self,
     ) -> DynamicSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
@@ -113,13 +117,13 @@ impl SoundGraph {
             &mut self.number_input_idgen,
         );
         let processor = Arc::new(T::new(&mut tools));
-        let processor2 = Arc::clone(&processor);
-        self.graph_objects.push((ObjectId::Sound(id), processor2));
         let wrapper = Arc::new(WrappedDynamicSoundProcessor::new(
             Arc::clone(&processor),
             data,
         ));
         let wrapper2 = Arc::clone(&wrapper);
+        let wrapper3 = Arc::clone(&wrapper);
+        self.graph_objects.push((ObjectId::Sound(id), wrapper3));
         let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
             .send(SoundEngineMessage::AddSoundProcessor {
@@ -133,7 +137,7 @@ impl SoundGraph {
         DynamicSoundProcessorHandle { wrapper, id }
     }
 
-    pub async fn add_static_sound_processor<T: StaticSoundProcessor>(
+    pub async fn add_static_sound_processor<T: StaticSoundProcessor + WithObjectType>(
         &mut self,
     ) -> StaticSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
@@ -150,9 +154,9 @@ impl SoundGraph {
             Arc::clone(&processor),
             data,
         ));
-        let processor2 = Arc::clone(&processor);
-        self.graph_objects.push((ObjectId::Sound(id), processor2));
         let wrapper2 = Arc::clone(&wrapper);
+        let wrapper3 = Arc::clone(&wrapper);
+        self.graph_objects.push((ObjectId::Sound(id), wrapper3));
         let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
             .send(SoundEngineMessage::AddSoundProcessor {
@@ -166,13 +170,40 @@ impl SoundGraph {
         StaticSoundProcessorHandle { wrapper, id }
     }
 
-    pub async fn add_number_source<T: PureNumberSource>(&mut self) -> PureNumberSourceHandle<T> {
+    pub fn make_tools_for_dynamic_processor<'a, T: DynamicSoundProcessor>(
+        &'a mut self,
+        wrapper: &WrappedDynamicSoundProcessor<T>,
+    ) -> SoundProcessorTools<'a, T::StateType> {
+        SoundProcessorTools::new(
+            wrapper.id(),
+            Arc::clone(&wrapper.data()),
+            &mut self.sound_input_idgen,
+            &mut self.number_source_idgen,
+            &mut self.number_input_idgen,
+        )
+    }
+
+    pub fn make_tools_for_static_processor<'a, T: StaticSoundProcessor>(
+        &'a mut self,
+        wrapper: &WrappedStaticSoundProcessor<T>,
+    ) -> SoundProcessorTools<'a, T::StateType> {
+        SoundProcessorTools::new(
+            wrapper.id(),
+            Arc::clone(&wrapper.data()),
+            &mut self.sound_input_idgen,
+            &mut self.number_source_idgen,
+            &mut self.number_input_idgen,
+        )
+    }
+
+    pub async fn add_number_source<T: PureNumberSource + WithObjectType>(&mut self) -> PureNumberSourceHandle<T> {
         let id = self.number_source_idgen.next_id();
         let mut tools = NumberSourceTools::new(id, &mut self.number_input_idgen);
         let source = Arc::new(T::new(&mut tools));
         let source2 = Arc::clone(&source);
         let source3 = Arc::clone(&source);
         self.graph_objects.push((ObjectId::Number(id), source3));
+        let handle = PureNumberSourceHandle::new(id, source);
         let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
             .send(SoundEngineMessage::AddNumberSource {
@@ -185,7 +216,7 @@ impl SoundGraph {
         tools.deliver_messages(&mut self.message_sender);
         self.flush_idle_messages();
         result_future.await.unwrap();
-        PureNumberSourceHandle::new(id, source)
+        handle
     }
 
     pub async fn remove_dynamic_sound_processor<T: DynamicSoundProcessor>(

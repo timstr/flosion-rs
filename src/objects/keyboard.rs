@@ -4,7 +4,7 @@ use atomic_float::AtomicF32;
 
 use crate::core::{
     context::ProcessorContext,
-    graphobject::{ObjectType, TypedGraphObject},
+    graphobject::{ObjectType, WithObjectType},
     key::Key,
     numbersource::NumberSourceHandle,
     numeric,
@@ -188,6 +188,6 @@ impl StaticSoundProcessor for Keyboard {
     }
 }
 
-impl TypedGraphObject for Keyboard {
+impl WithObjectType for Keyboard {
     const TYPE: ObjectType = ObjectType::new("keyboard");
 }

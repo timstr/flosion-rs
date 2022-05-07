@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::graphobject::ObjectId,
+    core::{graphobject::ObjectId, soundprocessor::WrappedDynamicSoundProcessor},
     objects::audioclip::AudioClip,
     ui_core::{
         graph_ui_tools::GraphUITools,
@@ -13,12 +13,11 @@ use crate::{
 pub struct AudioClipUi {}
 
 impl ObjectUi for AudioClipUi {
-    type ObjectType = AudioClip;
-
+    type WrapperType = WrappedDynamicSoundProcessor<AudioClip>;
     fn ui(
         &self,
         id: ObjectId,
-        _object: &AudioClip,
+        _object: &WrappedDynamicSoundProcessor<AudioClip>,
         graph_state: &mut GraphUITools,
         ui: &mut egui::Ui,
     ) {

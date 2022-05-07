@@ -77,7 +77,7 @@ impl GridSpan {
         if self.num_items() == 0 {
             return data;
         }
-        debug_assert!(self.start_index <= data.len());
+        debug_assert!(self.start_index <= data.len(), "Attempted to insert states into a Vec using grid span whose start index is out of range for that vec");
         let mut new_states = Vec::<T>::new();
         let old_len = data.len();
         new_states.reserve(old_len + self.num_items());
@@ -101,19 +101,19 @@ impl GridSpan {
                 None => break,
             }
         }
-        assert_eq!(new_states.len(), old_len + self.num_items());
+        assert_eq!(new_states.len(), old_len + self.num_items(), "The number of states added by a grid span to a vec does not match the number of items in the grid span");
         new_states
     }
 
     pub fn erase<T>(&self, data: Vec<T>) -> Vec<T> {
-        debug_assert!(self.row_stride >= self.items_per_row);
-        debug_assert!(self.start_index <= data.len());
+        debug_assert!(self.row_stride >= self.items_per_row, "Attempted to erase states from a vec using a grid span whose row stride is larger than its items per row");
+        debug_assert!(self.start_index <= data.len(), "Attempted to erase states from a vec using a grid span whose start index is out of range for that vec");
         if self.num_items() == 0 {
             return data;
         }
         let mut new_states = Vec::<T>::new();
         let old_len = data.len();
-        debug_assert!(old_len >= self.num_items());
+        debug_assert!(old_len >= self.num_items(), "Attempted to erase states from a vec using a grid span which contains too many items for that vec");
         new_states.reserve(old_len - self.num_items());
         let mut it = data.into_iter();
         for _ in 0..self.start_index() {
@@ -136,7 +136,7 @@ impl GridSpan {
                 None => break,
             }
         }
-        assert_eq!(new_states.len(), old_len + self.num_items());
+        assert_eq!(new_states.len(), old_len - self.num_items(), "The number of states removed from a vec by a grid span does not match the number of items in the grid span");
         new_states
     }
 
@@ -144,8 +144,8 @@ impl GridSpan {
         if self.num_items() == 0 {
             return;
         }
-        debug_assert!(self.row_stride >= self.items_per_row);
-        debug_assert!(self.start_index <= data.len());
+        debug_assert!(self.row_stride >= self.items_per_row, "Attempted to visit a slice of states using a grid span whose row stride is greater than or equal to its items per row");
+        debug_assert!(self.start_index <= data.len(), "Attempted to visit a slice of states using a grid span whose start index is out of range for that slice");
         let data = &data[self.start_index..];
         let mut it = data.iter();
         let row_gap = self.row_stride - self.items_per_row;

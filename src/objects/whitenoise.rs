@@ -2,7 +2,7 @@ use rand::prelude::*;
 
 use crate::core::{
     context::ProcessorContext,
-    graphobject::{ObjectType, TypedGraphObject},
+    graphobject::{ObjectType, WithObjectType},
     soundchunk::SoundChunk,
     soundprocessor::DynamicSoundProcessor,
     soundprocessortools::SoundProcessorTools,
@@ -46,6 +46,6 @@ impl DynamicSoundProcessor for WhiteNoise {
     }
 }
 
-impl TypedGraphObject for WhiteNoise {
+impl WithObjectType for WhiteNoise {
     const TYPE: ObjectType = ObjectType::new("whitenoise");
 }

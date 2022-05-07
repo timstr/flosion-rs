@@ -2,7 +2,7 @@ use eframe::egui::{self, Button};
 use futures::executor::block_on;
 
 use crate::{
-    core::graphobject::ObjectId,
+    core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
         graph_ui_tools::GraphUITools,
@@ -14,16 +14,17 @@ use crate::{
 pub struct RecorderUi;
 
 impl ObjectUi for RecorderUi {
-    type ObjectType = Recorder;
+    type WrapperType = WrappedStaticSoundProcessor<Recorder>;
 
     fn ui(
         &self,
         id: ObjectId,
-        object: &Recorder,
+        wrapper: &WrappedStaticSoundProcessor<Recorder>,
         graph_state: &mut GraphUITools,
         ui: &mut egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
+        let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("Recorder");
             ui.add(SoundInputWidget::new(object.input.id(), graph_state));

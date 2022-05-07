@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::{core::graphobject::ObjectType, ui_objects::all_objects::AllObjects};
+use crate::{core::graphobject::ObjectType, ui_objects::object_factory::ObjectFactory};
 
 use super::arguments::{ArgumentList, ParsedArguments};
 
@@ -50,7 +50,7 @@ pub(super) struct SummonWidgetState {
 }
 
 impl SummonWidgetState {
-    pub(super) fn new(position: egui::Pos2, all_objects: &AllObjects) -> SummonWidgetState {
+    pub(super) fn new(position: egui::Pos2, all_objects: &ObjectFactory) -> SummonWidgetState {
         let mut object_scores: Vec<(MatchingObject, f32)> = Vec::new();
         for t in all_objects.all_object_types() {
             let ui = all_objects.get_object_ui(*t);

@@ -1,6 +1,6 @@
 use crate::core::{
     context::ProcessorContext,
-    graphobject::{ObjectType, TypedGraphObject},
+    graphobject::{ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
     numbersource::NumberSourceHandle,
     numeric,
@@ -69,6 +69,6 @@ impl DynamicSoundProcessor for WaveGenerator {
     }
 }
 
-impl TypedGraphObject for WaveGenerator {
+impl WithObjectType for WaveGenerator {
     const TYPE: ObjectType = ObjectType::new("wavegenerator");
 }

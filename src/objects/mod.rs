@@ -1,4 +1,5 @@
 pub mod audioclip;
+pub mod mixer;
 pub mod dac;
 pub mod functions;
 pub mod keyboard;

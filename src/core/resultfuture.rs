@@ -53,7 +53,10 @@ pub struct OutboundResult<T, E> {
 impl<T, E> OutboundResult<T, E> {
     pub fn fulfill(self, result: Result<T, E>) {
         let mut shared_state = self.shared_state.lock();
-        assert!(shared_state.result.is_none());
+        assert!(
+            shared_state.result.is_none(),
+            "Attempted to fulfill an OutboundResult which has already been fulfilled"
+        );
         shared_state.result = Some(result);
         if let Some(waker) = shared_state.waker.take() {
             waker.wake()

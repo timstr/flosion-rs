@@ -1,8 +1,13 @@
 use std::any::{type_name, Any};
 
 use super::{
-    numberinput::NumberInputId, numbersource::NumberSourceId, soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
+    numberinput::NumberInputId,
+    numbersource::{NumberSourceId, PureNumberSource},
+    soundinput::SoundInputId,
+    soundprocessor::{
+        DynamicSoundProcessor, SoundProcessorId, StaticSoundProcessor,
+        WrappedDynamicSoundProcessor, WrappedStaticSoundProcessor,
+    },
 };
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash)]
@@ -100,13 +105,47 @@ pub trait GraphObject {
     fn get_language_type_name(&self) -> &'static str;
 }
 
-pub trait TypedGraphObject: 'static {
+pub trait WithObjectType: 'static {
     const TYPE: ObjectType;
 }
 
-impl<T: TypedGraphObject> GraphObject for T {
+pub trait ObjectWrapper: 'static {
+    type Type: WithObjectType;
+
+    fn get_object(&self) -> &Self::Type;
+}
+
+impl<T: DynamicSoundProcessor> GraphObject for WrappedDynamicSoundProcessor<T> {
     fn get_type(&self) -> ObjectType {
-        Self::TYPE
+        T::TYPE
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn get_language_type_name(&self) -> &'static str {
+        type_name::<T>()
+    }
+}
+
+impl<T: StaticSoundProcessor> GraphObject for WrappedStaticSoundProcessor<T> {
+    fn get_type(&self) -> ObjectType {
+        T::TYPE
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn get_language_type_name(&self) -> &'static str {
+        type_name::<T>()
+    }
+}
+
+impl<T: PureNumberSource + WithObjectType> GraphObject for T {
+    fn get_type(&self) -> ObjectType {
+        T::TYPE
     }
 
     fn as_any(&self) -> &dyn Any {

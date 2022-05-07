@@ -1,5 +1,5 @@
 use crate::{
-    core::graphobject::ObjectId,
+    core::{graphobject::ObjectId, soundprocessor::WrappedDynamicSoundProcessor},
     objects::whitenoise::WhiteNoise,
     ui_core::{
         graph_ui_tools::GraphUITools,
@@ -11,11 +11,12 @@ use crate::{
 pub struct WhiteNoiseUi {}
 
 impl ObjectUi for WhiteNoiseUi {
-    type ObjectType = WhiteNoise;
+    type WrapperType = WrappedDynamicSoundProcessor<WhiteNoise>;
+
     fn ui(
         &self,
         id: ObjectId,
-        _object: &WhiteNoise,
+        _wrapper: &WrappedDynamicSoundProcessor<WhiteNoise>,
         graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {

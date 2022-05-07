@@ -1,5 +1,5 @@
 use crate::{
-    core::graphobject::ObjectId,
+    core::{graphobject::ObjectId, soundprocessor::WrappedDynamicSoundProcessor},
     objects::wavegenerator::WaveGenerator,
     ui_core::{
         graph_ui_tools::GraphUITools,
@@ -13,15 +13,17 @@ use crate::{
 pub struct WaveGeneratorUi {}
 
 impl ObjectUi for WaveGeneratorUi {
-    type ObjectType = WaveGenerator;
+    type WrapperType = WrappedDynamicSoundProcessor<WaveGenerator>;
+
     fn ui(
         &self,
         id: ObjectId,
-        object: &WaveGenerator,
+        wrapper: &WrappedDynamicSoundProcessor<WaveGenerator>,
         graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
+        let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("WaveGenerator");
             ui.add(NumberInputWidget::new(object.amplitude.id(), graph_state));

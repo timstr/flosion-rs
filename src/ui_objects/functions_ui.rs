@@ -14,7 +14,7 @@ use crate::{
 pub struct ConstantUi {}
 
 impl ObjectUi for ConstantUi {
-    type ObjectType = Constant;
+    type WrapperType = Constant;
     fn ui(
         &self,
         id: ObjectId,
@@ -52,7 +52,7 @@ macro_rules! unary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type ObjectType = $object;
+            type WrapperType = $object;
             fn ui(
                 &self,
                 id: ObjectId,
@@ -81,7 +81,7 @@ macro_rules! binary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type ObjectType = $object;
+            type WrapperType = $object;
             fn ui(
                 &self,
                 id: ObjectId,
@@ -116,7 +116,7 @@ binary_number_source_ui!(DivideUi, Divide, "Divide", ["/"]);
 pub struct SineUi {}
 
 impl ObjectUi for SineUi {
-    type ObjectType = Sine;
+    type WrapperType = Sine;
     fn ui(
         &self,
         id: ObjectId,
@@ -141,7 +141,7 @@ impl ObjectUi for SineUi {
 pub struct UnitSineUi {}
 
 impl ObjectUi for UnitSineUi {
-    type ObjectType = UnitSine;
+    type WrapperType = UnitSine;
     fn ui(
         &self,
         id: ObjectId,

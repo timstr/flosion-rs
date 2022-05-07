@@ -1,5 +1,5 @@
 use crate::{
-    core::graphobject::ObjectId,
+    core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
     objects::dac::Dac,
     ui_core::{
         graph_ui_tools::GraphUITools,
@@ -11,14 +11,15 @@ use crate::{
 pub struct DacUi {}
 
 impl ObjectUi for DacUi {
-    type ObjectType = Dac;
+    type WrapperType = WrappedStaticSoundProcessor<Dac>;
     fn ui(
         &self,
         id: ObjectId,
-        object: &Dac,
+        wrapper: &WrappedStaticSoundProcessor<Dac>,
         graph_state: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
+        let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap()).show(
             ui.ctx(),
             |ui| {

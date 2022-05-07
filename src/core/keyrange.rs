@@ -22,7 +22,10 @@ impl<K: Key> KeyRange<K> {
 
     pub fn erase_key(&self, index: usize) {
         let mut keys = self.keys.write();
-        debug_assert!(index < keys.len());
+        debug_assert!(
+            index < keys.len(),
+            "Attempted to erase a key whose index is out of range"
+        );
         keys.remove(index);
     }
 
