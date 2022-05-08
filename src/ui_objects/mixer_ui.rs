@@ -30,16 +30,21 @@ impl ObjectUi for MixerUi {
                 if ui.button("x").clicked() {
                     let w = wrapper.clone();
                     graph_tools.make_change(move |sg| {
-                        w.instance()
-                            .remove_input(i, &mut sg.make_tools_for_dynamic_processor(&w));
+                        let w = w;
+                        let i = i;
+                        sg.apply_dynamic_processor_tools(&w, |w, tools| {
+                            w.instance().remove_input(i, tools);
+                        })
                     });
                 }
             }
             if ui.button("+").clicked() {
                 let w = wrapper.clone();
                 graph_tools.make_change(move |sg| {
-                    w.instance()
-                        .add_input(&mut sg.make_tools_for_dynamic_processor(&w));
+                    let w = w;
+                    sg.apply_dynamic_processor_tools(&w, |w, tools| {
+                        w.instance().add_input(tools);
+                    })
                 });
             }
         });

@@ -351,13 +351,7 @@ impl SoundEngine {
         let proc_data = self.sound_processors.get_mut(&processor_id).unwrap();
         proc_data.inputs_mut().push(input.id());
         let gs = GridSpan::new_contiguous(0, proc_data.wrapper().num_states());
-        println!("Adding {} states to input {}", gs.num_items(), input.id().0);
         input.insert_states(gs);
-        println!(
-            "Input {} now has {} parent states",
-            input.id().0,
-            input.num_parent_states()
-        );
         let input_data = EngineSoundInputData::new(input, processor_id);
         self.sound_inputs.insert(input_data.id(), input_data);
     }

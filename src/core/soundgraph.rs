@@ -170,33 +170,51 @@ impl SoundGraph {
         StaticSoundProcessorHandle { wrapper, id }
     }
 
-    pub fn make_tools_for_dynamic_processor<'a, T: DynamicSoundProcessor>(
+    pub fn apply_dynamic_processor_tools<
+        'a,
+        T: DynamicSoundProcessor,
+        F: Fn(&WrappedDynamicSoundProcessor<T>, &mut SoundProcessorTools<'_, T::StateType>),
+    >(
         &'a mut self,
         wrapper: &WrappedDynamicSoundProcessor<T>,
-    ) -> SoundProcessorTools<'a, T::StateType> {
-        SoundProcessorTools::new(
+        f: F,
+    ) {
+        let mut tools = SoundProcessorTools::new(
             wrapper.id(),
             Arc::clone(&wrapper.data()),
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
-        )
+        );
+        f(wrapper, &mut tools);
+        tools.deliver_messages(&mut self.message_sender);
+        self.flush_idle_messages();
     }
 
-    pub fn make_tools_for_static_processor<'a, T: StaticSoundProcessor>(
+    pub fn apply_static_processor_tools<
+        'a,
+        T: StaticSoundProcessor,
+        F: Fn(&WrappedStaticSoundProcessor<T>, &mut SoundProcessorTools<T::StateType>),
+    >(
         &'a mut self,
         wrapper: &WrappedStaticSoundProcessor<T>,
-    ) -> SoundProcessorTools<'a, T::StateType> {
-        SoundProcessorTools::new(
+        f: F,
+    ) {
+        let mut tools = SoundProcessorTools::new(
             wrapper.id(),
             Arc::clone(&wrapper.data()),
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
-        )
+        );
+        f(wrapper, &mut tools);
+        tools.deliver_messages(&mut self.message_sender);
+        self.flush_idle_messages();
     }
 
-    pub async fn add_number_source<T: PureNumberSource + WithObjectType>(&mut self) -> PureNumberSourceHandle<T> {
+    pub async fn add_number_source<T: PureNumberSource + WithObjectType>(
+        &mut self,
+    ) -> PureNumberSourceHandle<T> {
         let id = self.number_source_idgen.next_id();
         let mut tools = NumberSourceTools::new(id, &mut self.number_input_idgen);
         let source = Arc::new(T::new(&mut tools));

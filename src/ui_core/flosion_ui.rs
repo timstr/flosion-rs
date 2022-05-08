@@ -1,7 +1,7 @@
 use crate::{
     core::{graphobject::GraphId, soundgraph::SoundGraph},
     objects::{
-        audioclip::AudioClip, dac::Dac, functions::UnitSine, keyboard::Keyboard, mixer::Mixer,
+        dac::Dac, functions::UnitSine, keyboard::Keyboard, mixer::Mixer,
         wavegenerator::WaveGenerator,
     },
     ui_objects::object_factory::ObjectFactory,
@@ -23,49 +23,32 @@ pub struct FlosionApp {
 
 async fn create_test_sound_graph() -> SoundGraph {
     let mut sg: SoundGraph = SoundGraph::new();
-
+    let wavegen = sg.add_dynamic_sound_processor::<WaveGenerator>().await;
     let dac = sg.add_static_sound_processor::<Dac>().await;
-    let mx = sg.add_dynamic_sound_processor::<Mixer>().await;
-    sg.connect_sound_input(dac.instance().input().id(), mx.id())
+    let dac_input_id = dac.instance().input().id();
+    let kb = sg.add_static_sound_processor::<Keyboard>().await;
+    let usine = sg.add_number_source::<UnitSine>().await;
+    sg.connect_sound_input(kb.instance().input.id(), wavegen.id())
         .await
         .unwrap();
-    let mx_inputs = mx.instance().get_input_ids();
-    let ac0 = sg.add_dynamic_sound_processor::<AudioClip>().await;
-    let ac1 = sg.add_dynamic_sound_processor::<AudioClip>().await;
-    sg.connect_sound_input(mx_inputs[0], ac0.id())
+    sg.connect_sound_input(dac_input_id, kb.id()).await.unwrap();
+    sg.connect_number_input(wavegen.instance().amplitude.id(), usine.id())
         .await
         .unwrap();
-    sg.connect_sound_input(mx_inputs[1], ac1.id())
+    sg.connect_number_input(usine.instance().input.id(), wavegen.instance().phase.id())
         .await
         .unwrap();
-    sg.disconnect_sound_input(mx_inputs[1]).await.unwrap();
-
-    // let wavegen = sg.add_dynamic_sound_processor::<WaveGenerator>().await;
-    // let dac = sg.add_static_sound_processor::<Dac>().await;
-    // let dac_input_id = dac.instance().input().id();
-    // let kb = sg.add_static_sound_processor::<Keyboard>().await;
-    // let usine = sg.add_number_source::<UnitSine>().await;
-    // sg.connect_sound_input(kb.instance().input.id(), wavegen.id())
-    //     .await
-    //     .unwrap();
-    // sg.connect_sound_input(dac_input_id, kb.id()).await.unwrap();
-    // sg.connect_number_input(wavegen.instance().amplitude.id(), usine.id())
-    //     .await
-    //     .unwrap();
-    // sg.connect_number_input(usine.instance().input.id(), wavegen.instance().phase.id())
-    //     .await
-    //     .unwrap();
-    // sg.connect_number_input(
-    //     wavegen.instance().frequency.id(),
-    //     kb.instance().key_frequency.id(),
-    // )
-    // .await
-    // .unwrap();
-    // println!(
-    //     "The Keyboard's keyed input has {} keys",
-    //     kb.instance().input.num_keys()
-    // );
-    // println!("The WaveGenerator has {} states", wavegen.num_states());
+    sg.connect_number_input(
+        wavegen.instance().frequency.id(),
+        kb.instance().key_frequency.id(),
+    )
+    .await
+    .unwrap();
+    println!(
+        "The Keyboard's keyed input has {} keys",
+        kb.instance().input.num_keys()
+    );
+    println!("The WaveGenerator has {} states", wavegen.num_states());
     sg
 }
 
@@ -103,7 +86,6 @@ impl epi::App for FlosionApp {
                     ui,
                 );
             }
-            self.ui_state.apply_pending_changes(&mut self.graph);
             let bg_response = ui.interact(
                 ui.input().screen_rect(),
                 egui::Id::new("background"),
@@ -250,6 +232,8 @@ impl epi::App for FlosionApp {
                     }
                 },
             );
+
+            self.ui_state.apply_pending_changes(&mut self.graph);
         });
     }
 

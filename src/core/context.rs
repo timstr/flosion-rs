@@ -28,6 +28,7 @@ pub struct SoundProcessorFrame {
     pub state_index: usize,
 }
 
+// TODO: consider combining both of the following into simply SoundInputFrame (a single sound input implicitly has exactly one key)
 #[derive(Copy, Clone)]
 pub struct SingleSoundInputFrame {
     pub id: SoundInputId,
@@ -119,8 +120,8 @@ impl<'a> Context<'a> {
                 SoundStackFrame::SingleInput(i) => i.id == input_id,
                 _ => false,
             })
-            .unwrap();
-        let f = f.into_single_input_frame().unwrap();
+            .expect("Failed to find a SingleSoundInput call frame in the the context's call stack");
+        let f = f.into_single_input_frame().expect("Found a call frame in the context with the correct input id which is somehow the wrong type");
         input.input().get_state(f.state_index)
     }
 
@@ -129,11 +130,11 @@ impl<'a> Context<'a> {
             handle.input().options().interruptible,
             "Attempted to reset an uninterruptible SingleSoundInput"
         );
-        let input_data = self.sound_input_data.get(&handle.id()).unwrap();
+        let input_data = self.sound_input_data.get(&handle.id()).expect("Failed to find the input data for a single input while attempting to reset one of its states");
         let state_index = self
             .current_frame()
             .into_processor_frame()
-            .unwrap()
+            .expect("Failed to find a SingleSoundInput call frame in the context's call stack")
             .state_index;
         let gs = handle.input().reset_key(state_index, 0);
         if let Some(spid) = input_data.target() {
@@ -163,8 +164,8 @@ impl<'a> Context<'a> {
                 SoundStackFrame::KeyedInput(i) => i.id == input_id,
                 _ => false,
             })
-            .unwrap();
-        let f = f.into_keyed_input_frame().unwrap();
+            .expect("Failed to find a KeyedSoundInput's call frame in the context's call stack");
+        let f = f.into_keyed_input_frame().expect("Found a call frame in the context with the correct input id which is somehow the wrong type");
         input.input().get_state(f.state_index, f.key_index)
     }
 
@@ -181,8 +182,8 @@ impl<'a> Context<'a> {
                 SoundStackFrame::Processor(i) => i.id == proc_id,
                 _ => false,
             })
-            .unwrap();
-        let f = f.into_processor_frame().unwrap();
+            .expect("Failed to find a SoundProcessor's call frame in the context's call stack");
+        let f = f.into_processor_frame().expect("Found a call frame in the context with the correct processor id which is somehow the wrong type");
         handle.get_state(f.state_index)
     }
 
@@ -195,11 +196,13 @@ impl<'a> Context<'a> {
             handle.input().options().interruptible,
             "Attempted to reset an uninterruptible SoundInput"
         );
-        let input_data = self.sound_input_data.get(&handle.id()).unwrap();
+        let input_data = self.sound_input_data.get(&handle.id()).expect(
+            "Failed to find the input data for a keyed input while resetting one of its states",
+        );
         let state_index = self
             .current_frame()
             .into_processor_frame()
-            .unwrap()
+            .expect("The current call frame of the context while resetting a keyed input was not processor frame")
             .state_index;
         let gs = handle.input().reset_key(state_index, key_index);
         if let Some(spid) = input_data.target() {
@@ -208,10 +211,12 @@ impl<'a> Context<'a> {
     }
 
     pub(super) fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
-        let input_data = self.number_input_data.get(&input_id).unwrap();
+        let input_data = self.number_input_data.get(&input_id).expect(
+            "Failed to find the data for a number input while evaluating it in an audio context",
+        );
         match input_data.target() {
             Some(nsid) => {
-                let source_data = self.number_source_data.get(&nsid).unwrap();
+                let source_data = self.number_source_data.get(&nsid).expect("Failed to find the data for a number source pointed to by a number input being evaluated in an audio context");
                 source_data.instance().eval(dst, NumberContext::new(self));
             }
             None => numeric::fill(dst, 0.0),
@@ -219,7 +224,10 @@ impl<'a> Context<'a> {
     }
 
     pub fn current_frame(&self) -> SoundStackFrame {
-        *self.stack.last().unwrap()
+        *self
+            .stack
+            .last()
+            .expect("Attempted to get the current frame from an empty audio context call stack")
     }
 
     fn step_sound_input(
@@ -228,14 +236,19 @@ impl<'a> Context<'a> {
         key_index: Option<usize>,
         dst: &mut SoundChunk,
     ) {
-        let frame = self.stack.last().unwrap();
-        let frame = frame.into_processor_frame().unwrap();
-        let input = self.sound_input_data.get(&input_id).unwrap();
+        let frame = self
+            .current_frame()
+            .into_processor_frame()
+            .expect("Attempted to step a single input with an audio context whose current frame is not a processor frame");
+        let input = self
+            .sound_input_data
+            .get(&input_id)
+            .expect("Failed to find ");
         if let Some(target) = input.target() {
-            let other_pd = self.sound_processor_data.get(&target).unwrap();
+            let other_pd = self.sound_processor_data.get(&target).expect("Failed to find data for a sound processor pointed to by a sound input in an audio context");
             let other_proc = other_pd.wrapper();
             if other_proc.is_static() {
-                let ch = self.get_cached_static_output(other_pd.id()).unwrap();
+                let ch = self.get_cached_static_output(other_pd.id()).expect("Failed to find a cached static processor output pointed to by a sound input an an audio context");
                 dst.copy_from(ch);
             } else {
                 let mut other_stack = self.stack.clone();
@@ -281,10 +294,10 @@ impl<'a> Context<'a> {
         grid_span: GridSpan,
         dst_input: SoundInputId,
     ) {
-        let proc_data = self.sound_processor_data.get(&processor_id).unwrap();
+        let proc_data = self.sound_processor_data.get(&processor_id).expect("Failed to find data for a sound processor while resetting recursively in an audio context");
         let gs = proc_data.wrapper().reset_states(dst_input, grid_span);
         for input_id in proc_data.inputs().iter() {
-            let input_data = self.sound_input_data.get(input_id).unwrap();
+            let input_data = self.sound_input_data.get(input_id).expect("Failed to find data for a sound input belonging to a sound input while resetting recursively in an audio context");
             let gs = input_data.input().reset_states(gs);
             if let Some(spid) = input_data.target() {
                 self.reset_recursively(spid, gs, *input_id);
@@ -296,7 +309,7 @@ impl<'a> Context<'a> {
         self.static_processor_cache
             .iter()
             .find(|(pid, _)| *pid == proc_id)
-            .unwrap()
+            .expect("Failed to find a cached static processor output in an audio context")
             .1
             .as_ref()
     }
