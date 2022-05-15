@@ -2,10 +2,9 @@ use std::collections::HashMap;
 
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::core::soundinput::SoundInputWrapper;
+use crate::core::{soundchunk::CHUNK_SIZE, soundinput::SoundInputWrapper};
 
 use super::{
-    gridspan::GridSpan,
     key::Key,
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
@@ -16,10 +15,10 @@ use super::{
         EngineNumberInputData, EngineNumberSourceData, EngineSoundInputData,
         EngineSoundProcessorData,
     },
-    soundinput::{KeyedSoundInputHandle, SingleSoundInputHandle, SoundInputId},
+    soundinput::{KeyedSoundInputHandle, SingleSoundInputHandle, SoundInputId, SoundInputState},
     soundprocessor::{SoundProcessorData, SoundProcessorId},
     soundstate::{EmptyState, SoundState},
-    statetable::StateTableLock,
+    statetable::TableLock,
 };
 
 #[derive(Copy, Clone)]
@@ -110,7 +109,7 @@ impl<'a> Context<'a> {
     pub(super) fn single_input_state_from_context(
         &self,
         input: &'a SingleSoundInputHandle,
-    ) -> StateTableLock<'a, EmptyState> {
+    ) -> TableLock<'a, SoundInputState<EmptyState>> {
         let input_id = input.id();
         let f = self
             .stack
@@ -125,7 +124,12 @@ impl<'a> Context<'a> {
         input.input().get_state(f.state_index)
     }
 
-    pub(super) fn reset_single_input(&self, handle: &SingleSoundInputHandle) {
+    pub(super) fn reset_single_input(
+        &self,
+        handle: &SingleSoundInputHandle,
+        delay_from_chunk_start: usize,
+    ) {
+        debug_assert!(delay_from_chunk_start < CHUNK_SIZE);
         debug_assert!(
             handle.input().options().interruptible,
             "Attempted to reset an uninterruptible SingleSoundInput"
@@ -136,9 +140,13 @@ impl<'a> Context<'a> {
             .into_processor_frame()
             .expect("Failed to find a SingleSoundInput call frame in the context's call stack")
             .state_index;
-        let gs = handle.input().reset_key(state_index, 0);
+        handle.input().reset_state(state_index, 0);
         if let Some(spid) = input_data.target() {
-            self.reset_recursively(spid, gs, handle.id());
+            self.sound_processor_data
+                .get(&spid)
+                .unwrap()
+                .wrapper()
+                .reset_state(handle.id(), state_index);
         }
     }
 
@@ -147,14 +155,14 @@ impl<'a> Context<'a> {
         input: &'a KeyedSoundInputHandle<K, T>,
         state_index: usize,
         key_index: usize,
-    ) -> StateTableLock<'a, T> {
+    ) -> TableLock<'a, SoundInputState<T>> {
         input.input().get_state(state_index, key_index)
     }
 
     pub(super) fn keyed_input_state_from_context<K: Key, T: SoundState>(
         &self,
         input: &'a KeyedSoundInputHandle<K, T>,
-    ) -> StateTableLock<'a, T> {
+    ) -> TableLock<'a, SoundInputState<T>> {
         let input_id = input.id();
         let f = self
             .stack
@@ -172,7 +180,7 @@ impl<'a> Context<'a> {
     pub(super) fn sound_processor_state_from_context<T: SoundState>(
         &self,
         handle: &'a SoundProcessorData<T>,
-    ) -> StateTableLock<'a, T> {
+    ) -> TableLock<'a, T> {
         let proc_id = handle.id();
         let f = self
             .stack
@@ -204,9 +212,14 @@ impl<'a> Context<'a> {
             .into_processor_frame()
             .expect("The current call frame of the context while resetting a keyed input was not processor frame")
             .state_index;
-        let gs = handle.input().reset_key(state_index, key_index);
+        handle.input().reset_state(state_index, key_index);
         if let Some(spid) = input_data.target() {
-            self.reset_recursively(spid, gs, handle.id());
+            let sp_state_index = handle.input().get_state_index(state_index, key_index);
+            self.sound_processor_data
+                .get(&spid)
+                .unwrap()
+                .wrapper()
+                .reset_state(handle.id(), sp_state_index);
         }
     }
 
@@ -288,23 +301,6 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn reset_recursively(
-        &self,
-        processor_id: SoundProcessorId,
-        grid_span: GridSpan,
-        dst_input: SoundInputId,
-    ) {
-        let proc_data = self.sound_processor_data.get(&processor_id).expect("Failed to find data for a sound processor while resetting recursively in an audio context");
-        let gs = proc_data.wrapper().reset_states(dst_input, grid_span);
-        for input_id in proc_data.inputs().iter() {
-            let input_data = self.sound_input_data.get(input_id).expect("Failed to find data for a sound input belonging to a sound input while resetting recursively in an audio context");
-            let gs = input_data.input().reset_states(gs);
-            if let Some(spid) = input_data.target() {
-                self.reset_recursively(spid, gs, *input_id);
-            }
-        }
-    }
-
     fn get_cached_static_output(&self, proc_id: SoundProcessorId) -> Option<&SoundChunk> {
         self.static_processor_cache
             .iter()
@@ -352,6 +348,10 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
         }
     }
 
+    pub fn is_first_chunk(&self) -> bool {
+        todo!();
+    }
+
     pub fn step_single_input(&mut self, handle: &SingleSoundInputHandle, dst: &mut SoundChunk) {
         self.context.step_sound_input(handle.id(), None, dst)
     }
@@ -373,15 +373,11 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
     //     self.context.single_input_state(handle)
     // }
 
-    pub fn reset_single_input(&self, handle: &SingleSoundInputHandle) {
-        self.context.reset_single_input(handle);
-    }
-
     pub fn keyed_input_state<K: Key, TT: SoundState>(
         &self,
         handle: &'a KeyedSoundInputHandle<K, TT>,
         key_index: usize,
-    ) -> StateTableLock<'a, TT> {
+    ) -> TableLock<'a, SoundInputState<TT>> {
         self.context
             .keyed_input_state(handle, self.state_index, key_index)
     }
@@ -427,14 +423,14 @@ impl<'a> NumberContext<'a> {
     pub fn keyed_input_state<K: Key, T: SoundState>(
         &self,
         input: &'a KeyedSoundInputHandle<K, T>,
-    ) -> StateTableLock<'a, T> {
+    ) -> TableLock<'a, SoundInputState<T>> {
         self.context.keyed_input_state_from_context(input)
     }
 
     pub fn sound_processor_state<T: SoundState>(
         &self,
         handle: &'a SoundProcessorData<T>,
-    ) -> StateTableLock<'a, T> {
+    ) -> TableLock<'a, T> {
         self.context.sound_processor_state_from_context(handle)
     }
 

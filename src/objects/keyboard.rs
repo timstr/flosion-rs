@@ -161,8 +161,11 @@ impl StaticSoundProcessor for Keyboard {
             }
             if *prev_state[i].id.get_mut() == -1 {
                 context.reset_keyed_input(&self.input, i);
-                context.keyed_input_state(&self.input, i).write().frequency =
-                    self.key_states[i].frequency.load(Ordering::SeqCst);
+                context
+                    .keyed_input_state(&self.input, i)
+                    .write()
+                    .state_mut()
+                    .frequency = self.key_states[i].frequency.load(Ordering::SeqCst);
             }
             context.step_keyed_input(&self.input, i, &mut scratch_buffer);
             // TODO: create FMA functions

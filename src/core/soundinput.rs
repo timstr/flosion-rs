@@ -9,7 +9,7 @@ use super::{
     resultfuture::ResultFuture,
     soundprocessortools::SoundProcessorTools,
     soundstate::{EmptyState, SoundState},
-    statetable::{KeyedStateTable, StateTable, StateTableLock},
+    statetable::{KeyedTable, Table, TableLock},
     uniqueid::UniqueId,
 };
 
@@ -40,8 +40,58 @@ pub struct InputOptions {
     pub realtime: bool,
 }
 
+struct InputTiming {
+    elapsed_chunks: usize,
+    sample_offset: usize,
+}
+
+impl InputTiming {
+    fn reset(&mut self) {
+        self.elapsed_chunks = 0;
+        self.sample_offset = 0;
+    }
+}
+
+impl Default for InputTiming {
+    fn default() -> InputTiming {
+        InputTiming {
+            elapsed_chunks: 0,
+            sample_offset: 0,
+        }
+    }
+}
+
+pub struct SoundInputState<T: SoundState> {
+    state: T,
+    timing: InputTiming,
+}
+
+impl<T: SoundState> SoundInputState<T> {
+    pub fn state(&self) -> &T {
+        &self.state
+    }
+
+    pub fn state_mut(&mut self) -> &mut T {
+        &mut self.state
+    }
+
+    pub fn reset(&mut self) {
+        self.state.reset();
+        self.timing.reset();
+    }
+}
+
+impl<T: SoundState> Default for SoundInputState<T> {
+    fn default() -> SoundInputState<T> {
+        SoundInputState {
+            state: T::default(),
+            timing: InputTiming::default(),
+        }
+    }
+}
+
 pub struct SingleSoundInput {
-    state_table: RwLock<StateTable<EmptyState>>,
+    state_table: RwLock<Table<SoundInputState<EmptyState>>>,
     options: InputOptions,
     id: SoundInputId,
 }
@@ -52,7 +102,7 @@ impl SingleSoundInput {
         options: InputOptions,
     ) -> (Arc<SingleSoundInput>, SingleSoundInputHandle) {
         let input = Arc::new(SingleSoundInput {
-            state_table: RwLock::new(StateTable::new()),
+            state_table: RwLock::new(Table::new()),
             options,
             id,
         });
@@ -64,8 +114,11 @@ impl SingleSoundInput {
         &self.options
     }
 
-    pub(super) fn get_state<'a>(&'a self, index: usize) -> StateTableLock<'a, EmptyState> {
-        StateTableLock::new(self.state_table.read(), index)
+    pub(super) fn get_state<'a>(
+        &'a self,
+        index: usize,
+    ) -> TableLock<'a, SoundInputState<EmptyState>> {
+        TableLock::new(self.state_table.read(), index)
     }
 }
 
@@ -76,7 +129,7 @@ pub enum KeyedSoundInputMessage<K: Key> {
 }
 
 pub struct KeyedSoundInput<K: Key, T: SoundState> {
-    state_table: RwLock<KeyedStateTable<T>>,
+    state_table: RwLock<KeyedTable<SoundInputState<T>>>,
     keys: KeyRange<K>,
     options: InputOptions,
     id: SoundInputId,
@@ -88,7 +141,7 @@ impl<K: Key, T: SoundState> KeyedSoundInput<K, T> {
         options: InputOptions,
     ) -> (Arc<KeyedSoundInput<K, T>>, KeyedSoundInputHandle<K, T>) {
         let input = Arc::new(KeyedSoundInput {
-            state_table: RwLock::new(KeyedStateTable::<T>::new()),
+            state_table: RwLock::new(KeyedTable::new()),
             keys: KeyRange::new(),
             options,
             id,
@@ -107,8 +160,8 @@ impl<K: Key, T: SoundState> KeyedSoundInput<K, T> {
         &'a self,
         state_index: usize,
         key_index: usize,
-    ) -> StateTableLock<'a, T> {
-        StateTableLock::new_keyed(self.state_table.read(), state_index, key_index)
+    ) -> TableLock<'a, SoundInputState<T>> {
+        TableLock::new_keyed(self.state_table.read(), state_index, key_index)
     }
 
     pub(super) fn read_all_keys<'a>(&'a self) -> MappedRwLockReadGuard<'a, [K]> {
@@ -137,9 +190,13 @@ pub trait SoundInputWrapper: Sync + Send {
 
     fn erase_states(&self, gs: GridSpan) -> GridSpan;
 
-    fn reset_states(&self, gs: GridSpan) -> GridSpan;
+    fn reset_state(&self, state_index: usize, key_index: usize);
 
-    fn reset_key(&self, state_index: usize, key_index: usize) -> GridSpan;
+    fn get_state_index(&self, state_index: usize, key_index: usize) -> usize {
+        debug_assert!(state_index < self.num_parent_states());
+        debug_assert!(key_index < self.num_keys());
+        state_index * self.num_keys() + key_index
+    }
 }
 
 impl SoundInputWrapper for SingleSoundInput {
@@ -168,25 +225,19 @@ impl SoundInputWrapper for SingleSoundInput {
     }
 
     fn insert_states(&self, gs: GridSpan) -> GridSpan {
-        self.state_table.write().insert_states(gs);
+        self.state_table.write().insert(gs);
         gs
     }
 
     fn erase_states(&self, gs: GridSpan) -> GridSpan {
-        self.state_table.write().erase_states(gs);
+        self.state_table.write().erase(gs);
         gs
     }
 
-    fn reset_states(&self, gs: GridSpan) -> GridSpan {
-        self.state_table.read().reset_states(gs);
-        gs
-    }
-
-    fn reset_key(&self, state_index: usize, key_index: usize) -> GridSpan {
+    fn reset_state(&self, state_index: usize, key_index: usize) {
         debug_assert!(key_index == 0);
-        let gs = GridSpan::new_contiguous(state_index, 1);
-        self.state_table.read().reset_states(gs);
-        gs
+        debug_assert!(self.num_keys() == 1);
+        self.state_table.read().get(state_index).write().reset();
     }
 }
 
@@ -217,23 +268,23 @@ impl<K: Key, T: SoundState> SoundInputWrapper for KeyedSoundInput<K, T> {
     }
 
     fn num_parent_states(&self) -> usize {
-        self.state_table.read().num_parent_states()
+        self.state_table.read().num_parent_items()
     }
 
     fn insert_states(&self, gs: GridSpan) -> GridSpan {
-        self.state_table.write().insert_states(gs)
+        self.state_table.write().insert_items(gs)
     }
 
     fn erase_states(&self, gs: GridSpan) -> GridSpan {
-        self.state_table.write().erase_states(gs)
+        self.state_table.write().erase_items(gs)
     }
 
-    fn reset_states(&self, gs: GridSpan) -> GridSpan {
-        self.state_table.read().reset_states(gs)
-    }
-
-    fn reset_key(&self, state_index: usize, key_index: usize) -> GridSpan {
-        self.state_table.read().reset_key(state_index, key_index)
+    fn reset_state(&self, state_index: usize, key_index: usize) {
+        self.state_table
+            .read()
+            .get(state_index, key_index)
+            .write()
+            .reset();
     }
 }
 

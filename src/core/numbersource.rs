@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::{
     context::NumberContext,
-    graphobject::{WithObjectType, ObjectWrapper},
+    graphobject::{ObjectWrapper, WithObjectType},
     key::Key,
     numbersourcetools::NumberSourceTools,
     soundinput::{KeyedSoundInputHandle, SoundInputId},
@@ -180,6 +180,6 @@ impl<K: Key, T: SoundState, F: StateFunction<T>> KeyedInputNumberSource<K, T, F>
 impl<K: Key, T: SoundState, F: StateFunction<T>> NumberSource for KeyedInputNumberSource<K, T, F> {
     fn eval(&self, dst: &mut [f32], context: NumberContext) {
         let state = context.keyed_input_state(&self.handle);
-        self.function.apply(dst, &state.read());
+        self.function.apply(dst, &state.read().state());
     }
 }

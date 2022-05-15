@@ -10,7 +10,7 @@ use super::{
     soundinput::SoundInputId,
     soundprocessortools::SoundProcessorTools,
     soundstate::SoundState,
-    statetable::{StateTable, StateTableLock, StateTablePartition},
+    statetable::{Table, TableLock, TablePartition},
     uniqueid::UniqueId,
 };
 
@@ -92,27 +92,26 @@ pub trait SoundProcessorWrapper: Sync + Send {
     // Returns the span of states to remove from all inputs
     fn erase_dst_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan;
 
-    // Reset a range of states for a connected SoundInput
-    // Returns the span of states to reset in all inputs
-    fn reset_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan;
+    // Reset a state for a connected SoundInput
+    fn reset_state(&self, dst_input: SoundInputId, state_index: usize);
 }
 
 pub struct SoundProcessorData<T: SoundState> {
     id: SoundProcessorId,
-    state_table: RwLock<StateTable<T>>,
-    state_partition: RwLock<StateTablePartition>,
+    state_table: RwLock<Table<T>>,
+    state_partition: RwLock<TablePartition>,
 }
 
 impl<T: SoundState> SoundProcessorData<T> {
     pub(super) fn new(id: SoundProcessorId, is_static: bool) -> SoundProcessorData<T> {
-        let mut state_table = StateTable::new();
+        let mut state_table = Table::new();
         if is_static {
-            state_table.insert_states(GridSpan::new_contiguous(0, 1));
+            state_table.insert(GridSpan::new_contiguous(0, 1));
         }
         SoundProcessorData {
             id,
             state_table: RwLock::new(state_table),
-            state_partition: RwLock::new(StateTablePartition::new(is_static)),
+            state_partition: RwLock::new(TablePartition::new(is_static)),
         }
     }
 
@@ -134,8 +133,8 @@ impl<T: SoundState> SoundProcessorData<T> {
             .get_index(dst_input, dst_state_index)
     }
 
-    pub(super) fn get_state(&self, state_index: usize) -> StateTableLock<T> {
-        StateTableLock::new(self.state_table.read(), state_index)
+    pub(super) fn get_state(&self, state_index: usize) -> TableLock<T> {
+        TableLock::new(self.state_table.read(), state_index)
     }
 
     fn add_dst(&self, dst_input: SoundInputId) {
@@ -163,8 +162,8 @@ impl<T: SoundState> SoundProcessorData<T> {
     }
 
     fn insert_dst_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
-        let s = self.state_partition.write().add_dst_states(dst_input, span);
-        self.state_table.write().insert_states(s);
+        let s = self.state_partition.write().add_dst_items(dst_input, span);
+        self.state_table.write().insert(s);
         s
     }
 
@@ -172,15 +171,17 @@ impl<T: SoundState> SoundProcessorData<T> {
         let s = self
             .state_partition
             .write()
-            .remove_dst_states(dst_input, span);
-        self.state_table.write().erase_states(s);
+            .remove_dst_items(dst_input, span);
+        self.state_table.write().erase(s);
         s
     }
 
-    fn reset_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
-        let s = self.state_partition.read().get_span(dst_input, span);
-        self.state_table.read().reset_states(s);
-        s
+    fn reset_state(&self, dst_input: SoundInputId, state_index: usize) {
+        let i = self
+            .state_partition
+            .read()
+            .get_index(dst_input, state_index);
+        self.state_table.read().get(i).write().reset();
     }
 }
 
@@ -231,7 +232,7 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
     fn process_audio(&self, dst: &mut SoundChunk, context: Context) {
         let table = self.data.state_table.read();
         let f = context.current_frame().into_processor_frame().unwrap();
-        let state = table.get_state(f.state_index);
+        let state = table.get(f.state_index);
         let sc = ProcessorContext::new(state, f.state_index, context);
         self.instance.process_audio(dst, sc);
     }
@@ -272,8 +273,8 @@ impl<T: DynamicSoundProcessor> SoundProcessorWrapper for WrappedDynamicSoundProc
         self.data.remove_dst(dst_input)
     }
 
-    fn reset_states(&self, dst_input: SoundInputId, span: GridSpan) -> GridSpan {
-        self.data.reset_states(dst_input, span)
+    fn reset_state(&self, dst_input: SoundInputId, state_index: usize) {
+        self.data.reset_state(dst_input, state_index)
     }
 }
 
@@ -339,7 +340,7 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
                 .state_index
                 == 0
         );
-        let state = table.get_state(0);
+        let state = table.get(0);
         let sc = ProcessorContext::new(state, 0, context);
         self.instance.process_audio(dst, sc);
     }
@@ -364,9 +365,9 @@ impl<T: StaticSoundProcessor> SoundProcessorWrapper for WrappedStaticSoundProces
         self.instance.produces_output()
     }
 
-    fn reset_states(&self, _dst_input: SoundInputId, _span: GridSpan) -> GridSpan {
+    fn reset_state(&self, _dst_input: SoundInputId, state_index: usize) {
+        debug_assert!(state_index == 0);
         // no-op, static sound sources can't be reset
-        GridSpan::new_empty()
     }
 
     fn add_dst(&self, dst_input: SoundInputId) {
