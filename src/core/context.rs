@@ -27,15 +27,8 @@ pub struct SoundProcessorFrame {
     pub state_index: usize,
 }
 
-// TODO: consider combining both of the following into simply SoundInputFrame (a single sound input implicitly has exactly one key)
 #[derive(Copy, Clone)]
-pub struct SingleSoundInputFrame {
-    pub id: SoundInputId,
-    pub state_index: usize,
-}
-
-#[derive(Copy, Clone)]
-pub struct KeyedSoundInputFrame {
+pub struct SoundInputFrame {
     pub id: SoundInputId,
     pub key_index: usize,
     pub state_index: usize,
@@ -44,8 +37,7 @@ pub struct KeyedSoundInputFrame {
 #[derive(Copy, Clone)]
 pub enum SoundStackFrame {
     Processor(SoundProcessorFrame),
-    SingleInput(SingleSoundInputFrame),
-    KeyedInput(KeyedSoundInputFrame),
+    Input(SoundInputFrame),
 }
 
 impl SoundStackFrame {
@@ -56,16 +48,9 @@ impl SoundStackFrame {
         }
     }
 
-    pub fn into_single_input_frame(self) -> Option<SingleSoundInputFrame> {
+    pub fn into_input_frame(self) -> Option<SoundInputFrame> {
         match self {
-            SoundStackFrame::SingleInput(f) => Some(f),
-            _ => None,
-        }
-    }
-
-    pub fn into_keyed_input_frame(self) -> Option<KeyedSoundInputFrame> {
-        match self {
-            SoundStackFrame::KeyedInput(f) => Some(f),
+            SoundStackFrame::Input(f) => Some(f),
             _ => None,
         }
     }
@@ -135,11 +120,13 @@ impl<'a> Context<'a> {
             .iter()
             .rev()
             .find(|f| match f {
-                SoundStackFrame::SingleInput(i) => i.id == input_id,
+                SoundStackFrame::Input(i) => i.id == input_id,
                 _ => false,
             })
-            .expect("Failed to find a SingleSoundInput call frame in the the context's call stack");
-        let f = f.into_single_input_frame().expect("Found a call frame in the context with the correct input id which is somehow the wrong type");
+            .expect(
+                "Failed to find a SingleSoundInput's call frame in the the context's call stack",
+            );
+        let f = f.into_input_frame().expect("Found a call frame in the context with the correct input id which is somehow the wrong type");
         input.input().get_state(f.state_index)
     }
 
@@ -169,11 +156,11 @@ impl<'a> Context<'a> {
             .iter()
             .rev()
             .find(|f| match f {
-                SoundStackFrame::KeyedInput(i) => i.id == input_id,
+                SoundStackFrame::Input(i) => i.id == input_id,
                 _ => false,
             })
             .expect("Failed to find a KeyedSoundInput's call frame in the context's call stack");
-        let f = f.into_keyed_input_frame().expect("Found a call frame in the context with the correct input id which is somehow the wrong type");
+        let f = f.into_input_frame().expect("Found a call frame in the context with the correct input id which is somehow the wrong type");
         input.input().get_state(f.state_index, f.key_index)
     }
 
@@ -231,21 +218,12 @@ impl<'a> Context<'a> {
                 dst.copy_from(ch);
             } else {
                 let mut other_stack = self.stack.clone();
-                let effective_key_index: usize;
-                if let Some(k_idx) = key_index {
-                    other_stack.push(SoundStackFrame::KeyedInput(KeyedSoundInputFrame {
-                        id: input_id,
-                        state_index: frame.state_index,
-                        key_index: k_idx,
-                    }));
-                    effective_key_index = k_idx;
-                } else {
-                    other_stack.push(SoundStackFrame::SingleInput(SingleSoundInputFrame {
-                        id: input_id,
-                        state_index: frame.state_index,
-                    }));
-                    effective_key_index = 0;
-                };
+                let effective_key_index = key_index.unwrap_or(0);
+                other_stack.push(SoundStackFrame::Input(SoundInputFrame {
+                    id: input_id,
+                    state_index: frame.state_index,
+                    key_index: effective_key_index,
+                }));
                 if input
                     .input()
                     .state_needs_reset(frame.state_index, effective_key_index)
