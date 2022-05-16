@@ -160,7 +160,9 @@ impl StaticSoundProcessor for Keyboard {
                 continue;
             }
             if *prev_state[i].id.get_mut() == -1 {
-                context.reset_keyed_input(&self.input, i);
+                // TODO: gather fine timing data and apply it here
+                let sample_offset = 0;
+                context.reset_keyed_input(&self.input, i, sample_offset);
                 context
                     .keyed_input_state(&self.input, i)
                     .write()

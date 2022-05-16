@@ -106,6 +106,25 @@ impl<'a> Context<'a> {
         }
     }
 
+    fn reset_sound_processor(
+        &self,
+        processor_id: SoundProcessorId,
+        dst_input: SoundInputId,
+        dst_state_index: usize,
+    ) {
+        let data = self.sound_processor_data.get(&processor_id).unwrap();
+        data.wrapper().reset_state(dst_input, dst_state_index);
+        let i = data.wrapper().find_state_index(dst_input, dst_state_index);
+        for proc_input_id in data.inputs() {
+            let input_data = self.sound_input_data.get(&proc_input_id).unwrap();
+            input_data.input().require_reset_states(i);
+        }
+    }
+
+    fn current_processor_frame(&self) -> SoundProcessorFrame {
+        self.current_frame().into_processor_frame().unwrap()
+    }
+
     pub(super) fn single_input_state_from_context(
         &self,
         input: &'a SingleSoundInputHandle,
@@ -124,39 +143,20 @@ impl<'a> Context<'a> {
         input.input().get_state(f.state_index)
     }
 
-    pub(super) fn reset_single_input(
+    pub(super) fn reset_input(
         &self,
-        handle: &SingleSoundInputHandle,
+        input_id: SoundInputId,
+        key_index: usize,
         delay_from_chunk_start: usize,
     ) {
         debug_assert!(delay_from_chunk_start < CHUNK_SIZE);
-        debug_assert!(
-            handle.input().options().interruptible,
-            "Attempted to reset an uninterruptible SingleSoundInput"
-        );
-        let input_data = self.sound_input_data.get(&handle.id()).expect("Failed to find the input data for a single input while attempting to reset one of its states");
-        let state_index = self
-            .current_frame()
-            .into_processor_frame()
-            .expect("Failed to find a SingleSoundInput call frame in the context's call stack")
-            .state_index;
-        handle.input().reset_state(state_index, 0);
+        let input_data = self.sound_input_data.get(&input_id).unwrap();
+        let the_input = input_data.input();
+        let state_index = self.current_processor_frame().state_index;
+        the_input.reset_state(state_index, key_index, delay_from_chunk_start);
         if let Some(spid) = input_data.target() {
-            self.sound_processor_data
-                .get(&spid)
-                .unwrap()
-                .wrapper()
-                .reset_state(handle.id(), state_index);
+            self.reset_sound_processor(spid, input_id, state_index);
         }
-    }
-
-    pub(super) fn keyed_input_state<K: Key, T: SoundState>(
-        &self,
-        input: &'a KeyedSoundInputHandle<K, T>,
-        state_index: usize,
-        key_index: usize,
-    ) -> TableLock<'a, SoundInputState<T>> {
-        input.input().get_state(state_index, key_index)
     }
 
     pub(super) fn keyed_input_state_from_context<K: Key, T: SoundState>(
@@ -195,34 +195,6 @@ impl<'a> Context<'a> {
         handle.get_state(f.state_index)
     }
 
-    pub(super) fn reset_keyed_input<K: Key, TT: SoundState>(
-        &self,
-        handle: &KeyedSoundInputHandle<K, TT>,
-        key_index: usize,
-    ) {
-        debug_assert!(
-            handle.input().options().interruptible,
-            "Attempted to reset an uninterruptible SoundInput"
-        );
-        let input_data = self.sound_input_data.get(&handle.id()).expect(
-            "Failed to find the input data for a keyed input while resetting one of its states",
-        );
-        let state_index = self
-            .current_frame()
-            .into_processor_frame()
-            .expect("The current call frame of the context while resetting a keyed input was not processor frame")
-            .state_index;
-        handle.input().reset_state(state_index, key_index);
-        if let Some(spid) = input_data.target() {
-            let sp_state_index = handle.input().get_state_index(state_index, key_index);
-            self.sound_processor_data
-                .get(&spid)
-                .unwrap()
-                .wrapper()
-                .reset_state(handle.id(), sp_state_index);
-        }
-    }
-
     pub(super) fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
         let input_data = self.number_input_data.get(&input_id).expect(
             "Failed to find the data for a number input while evaluating it in an audio context",
@@ -249,14 +221,8 @@ impl<'a> Context<'a> {
         key_index: Option<usize>,
         dst: &mut SoundChunk,
     ) {
-        let frame = self
-            .current_frame()
-            .into_processor_frame()
-            .expect("Attempted to step a single input with an audio context whose current frame is not a processor frame");
-        let input = self
-            .sound_input_data
-            .get(&input_id)
-            .expect("Failed to find ");
+        let frame = self.current_processor_frame();
+        let input = self.sound_input_data.get(&input_id).unwrap();
         if let Some(target) = input.target() {
             let other_pd = self.sound_processor_data.get(&target).expect("Failed to find data for a sound processor pointed to by a sound input in an audio context");
             let other_proc = other_pd.wrapper();
@@ -265,25 +231,35 @@ impl<'a> Context<'a> {
                 dst.copy_from(ch);
             } else {
                 let mut other_stack = self.stack.clone();
-                let key_index = if let Some(k_idx) = key_index {
+                let effective_key_index: usize;
+                if let Some(k_idx) = key_index {
                     other_stack.push(SoundStackFrame::KeyedInput(KeyedSoundInputFrame {
                         id: input_id,
                         state_index: frame.state_index,
                         key_index: k_idx,
                     }));
-                    k_idx
+                    effective_key_index = k_idx;
                 } else {
                     other_stack.push(SoundStackFrame::SingleInput(SingleSoundInputFrame {
                         id: input_id,
                         state_index: frame.state_index,
                     }));
-                    0
+                    effective_key_index = 0;
                 };
-                let input_state_index = frame.state_index * input.input().num_keys() + key_index;
-                let state_index = other_proc.find_state_index(input_id, input_state_index);
+                if input
+                    .input()
+                    .state_needs_reset(frame.state_index, effective_key_index)
+                {
+                    panic!("Attempted to step a sound input which needs to be reset first. Please make sure to reset the sound input before using it.");
+                }
+                let input_state_index = input
+                    .input()
+                    .get_state_index(frame.state_index, effective_key_index);
+                let other_proc_state_index =
+                    other_proc.find_state_index(input_id, input_state_index);
                 other_stack.push(SoundStackFrame::Processor(SoundProcessorFrame {
                     id: other_proc.id(),
-                    state_index,
+                    state_index: other_proc_state_index,
                 }));
                 let new_ctx = Context::new(
                     self.sound_processor_data,
@@ -295,6 +271,9 @@ impl<'a> Context<'a> {
                     self.scratch_space,
                 );
                 other_proc.process_audio(dst, new_ctx);
+                input
+                    .input()
+                    .advance_timing_one_chunk(frame.state_index, effective_key_index);
             }
         } else {
             dst.silence();
@@ -348,8 +327,18 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
         }
     }
 
-    pub fn is_first_chunk(&self) -> bool {
-        todo!();
+    pub fn single_input_needs_reset(&self, handle: &SingleSoundInputHandle) -> bool {
+        handle.input().state_needs_reset(self.state_index, 0)
+    }
+
+    pub fn keyed_input_needs_reset<K: Key, TT: SoundState>(
+        &self,
+        handle: &KeyedSoundInputHandle<K, TT>,
+        key_index: usize,
+    ) -> bool {
+        handle
+            .input()
+            .state_needs_reset(self.state_index, key_index)
     }
 
     pub fn step_single_input(&mut self, handle: &SingleSoundInputHandle, dst: &mut SoundChunk) {
@@ -366,28 +355,38 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
             .step_sound_input(handle.id(), Some(key_index), dst)
     }
 
-    // pub fn single_input_state(
-    //     &self,
-    //     handle: &'a SingleSoundInputHandle,
-    // ) -> StateTableLock<'a, EmptyState> {
-    //     self.context.single_input_state(handle)
-    // }
+    pub fn single_input_state(
+        &self,
+        handle: &'a SingleSoundInputHandle,
+    ) -> TableLock<'a, SoundInputState<EmptyState>> {
+        handle.input().get_state(self.state_index)
+    }
 
     pub fn keyed_input_state<K: Key, TT: SoundState>(
         &self,
         handle: &'a KeyedSoundInputHandle<K, TT>,
         key_index: usize,
     ) -> TableLock<'a, SoundInputState<TT>> {
+        handle.input().get_state(self.state_index, key_index)
+    }
+
+    pub fn reset_single_input(
+        &self,
+        handle: &SingleSoundInputHandle,
+        delay_from_chunk_start: usize,
+    ) {
         self.context
-            .keyed_input_state(handle, self.state_index, key_index)
+            .reset_input(handle.id(), 0, delay_from_chunk_start)
     }
 
     pub fn reset_keyed_input<K: Key, TT: SoundState>(
         &self,
         handle: &KeyedSoundInputHandle<K, TT>,
         key_index: usize,
+        delay_from_chunk_start: usize,
     ) {
-        self.context.reset_keyed_input(handle, key_index);
+        self.context
+            .reset_input(handle.id(), key_index, delay_from_chunk_start)
     }
 
     pub fn read_state(&'a self) -> RwLockReadGuard<'a, T> {

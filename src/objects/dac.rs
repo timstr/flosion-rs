@@ -191,6 +191,9 @@ impl StaticSoundProcessor for Dac {
     }
 
     fn process_audio(&self, _dst: &mut SoundChunk, mut sc: ProcessorContext<'_, DacState>) {
+        if sc.single_input_needs_reset(&self.input) {
+            sc.reset_single_input(&self.input, 0);
+        }
         let mut ch = SoundChunk::new();
         sc.step_single_input(&self.input, &mut ch);
 

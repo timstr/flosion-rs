@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use parking_lot::{MappedRwLockReadGuard, RwLock};
 
+use crate::core::soundchunk::CHUNK_SIZE;
+
 use super::{
     gridspan::GridSpan,
     key::{Key, TypeErasedKey},
@@ -43,12 +45,28 @@ pub struct InputOptions {
 struct InputTiming {
     elapsed_chunks: usize,
     sample_offset: usize,
+    needs_reset: bool,
 }
 
 impl InputTiming {
-    fn reset(&mut self) {
+    fn require_reset(&mut self) {
+        self.needs_reset = true;
+    }
+
+    fn needs_reset(&self) -> bool {
+        self.needs_reset
+    }
+
+    fn advance_one_chunk(&mut self) -> () {
+        debug_assert!(!self.needs_reset);
+        self.elapsed_chunks += 1;
+    }
+
+    fn reset(&mut self, sample_offset: usize) {
+        debug_assert!(sample_offset < CHUNK_SIZE);
         self.elapsed_chunks = 0;
-        self.sample_offset = 0;
+        self.sample_offset = sample_offset;
+        self.needs_reset = false;
     }
 }
 
@@ -57,6 +75,7 @@ impl Default for InputTiming {
         InputTiming {
             elapsed_chunks: 0,
             sample_offset: 0,
+            needs_reset: true,
         }
     }
 }
@@ -75,9 +94,17 @@ impl<T: SoundState> SoundInputState<T> {
         &mut self.state
     }
 
-    pub fn reset(&mut self) {
+    fn require_reset(&mut self) {
+        self.timing.require_reset();
+    }
+
+    fn needs_reset(&self) -> bool {
+        self.timing.needs_reset()
+    }
+
+    pub fn reset(&mut self, sample_offset: usize) {
         self.state.reset();
-        self.timing.reset();
+        self.timing.reset(sample_offset);
     }
 }
 
@@ -190,13 +217,19 @@ pub trait SoundInputWrapper: Sync + Send {
 
     fn erase_states(&self, gs: GridSpan) -> GridSpan;
 
-    fn reset_state(&self, state_index: usize, key_index: usize);
+    fn require_reset_states(&self, state_index: usize);
+
+    fn reset_state(&self, state_index: usize, key_index: usize, sample_offset: usize);
+
+    fn state_needs_reset(&self, state_index: usize, key_index: usize) -> bool;
 
     fn get_state_index(&self, state_index: usize, key_index: usize) -> usize {
         debug_assert!(state_index < self.num_parent_states());
         debug_assert!(key_index < self.num_keys());
         state_index * self.num_keys() + key_index
     }
+
+    fn advance_timing_one_chunk(&self, state_index: usize, key_index: usize);
 }
 
 impl SoundInputWrapper for SingleSoundInput {
@@ -234,10 +267,43 @@ impl SoundInputWrapper for SingleSoundInput {
         gs
     }
 
-    fn reset_state(&self, state_index: usize, key_index: usize) {
+    fn require_reset_states(&self, state_index: usize) {
+        self.state_table
+            .read()
+            .get(state_index)
+            .write()
+            .require_reset();
+    }
+
+    fn state_needs_reset(&self, state_index: usize, key_index: usize) -> bool {
         debug_assert!(key_index == 0);
         debug_assert!(self.num_keys() == 1);
-        self.state_table.read().get(state_index).write().reset();
+        self.state_table
+            .read()
+            .get(state_index)
+            .read()
+            .needs_reset()
+    }
+
+    fn reset_state(&self, state_index: usize, key_index: usize, sample_offset: usize) {
+        debug_assert!(key_index == 0);
+        debug_assert!(self.num_keys() == 1);
+        self.state_table
+            .read()
+            .get(state_index)
+            .write()
+            .reset(sample_offset);
+    }
+
+    fn advance_timing_one_chunk(&self, state_index: usize, key_index: usize) {
+        debug_assert!(key_index == 0);
+        debug_assert!(self.num_keys() == 1);
+        self.state_table
+            .read()
+            .get(state_index)
+            .write()
+            .timing
+            .advance_one_chunk();
     }
 }
 
@@ -279,12 +345,36 @@ impl<K: Key, T: SoundState> SoundInputWrapper for KeyedSoundInput<K, T> {
         self.state_table.write().erase_items(gs)
     }
 
-    fn reset_state(&self, state_index: usize, key_index: usize) {
+    fn require_reset_states(&self, state_index: usize) {
+        let st = self.state_table.read();
+        for k in 0..self.num_keys() {
+            st.get(state_index, k).write().require_reset();
+        }
+    }
+
+    fn state_needs_reset(&self, state_index: usize, key_index: usize) -> bool {
+        self.state_table
+            .read()
+            .get(state_index, key_index)
+            .read()
+            .needs_reset()
+    }
+
+    fn reset_state(&self, state_index: usize, key_index: usize, sample_offset: usize) {
         self.state_table
             .read()
             .get(state_index, key_index)
             .write()
-            .reset();
+            .reset(sample_offset);
+    }
+
+    fn advance_timing_one_chunk(&self, state_index: usize, key_index: usize) {
+        self.state_table
+            .read()
+            .get(state_index, key_index)
+            .write()
+            .timing
+            .advance_one_chunk();
     }
 }
 
