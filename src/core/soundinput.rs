@@ -42,7 +42,8 @@ pub struct InputOptions {
     pub realtime: bool,
 }
 
-struct InputTiming {
+#[derive(Clone, Copy)]
+pub struct InputTiming {
     elapsed_chunks: usize,
     sample_offset: usize,
     needs_reset: bool,
@@ -67,6 +68,14 @@ impl InputTiming {
         self.elapsed_chunks = 0;
         self.sample_offset = sample_offset;
         self.needs_reset = false;
+    }
+
+    pub fn elapsed_chunks(&self) -> usize {
+        self.elapsed_chunks
+    }
+
+    pub fn sample_offset(&self) -> usize {
+        self.sample_offset
     }
 }
 
@@ -223,6 +232,8 @@ pub trait SoundInputWrapper: Sync + Send {
 
     fn state_needs_reset(&self, state_index: usize, key_index: usize) -> bool;
 
+    fn get_state_time(&self, state_index: usize, key_index: usize) -> InputTiming;
+
     fn get_state_index(&self, state_index: usize, key_index: usize) -> usize {
         debug_assert!(state_index < self.num_parent_states());
         debug_assert!(key_index < self.num_keys());
@@ -293,6 +304,12 @@ impl SoundInputWrapper for SingleSoundInput {
             .get(state_index)
             .write()
             .reset(sample_offset);
+    }
+
+    fn get_state_time(&self, state_index: usize, key_index: usize) -> InputTiming {
+        debug_assert!(key_index == 0);
+        debug_assert!(self.num_keys() == 1);
+        self.state_table.read().get(state_index).read().timing
     }
 
     fn advance_timing_one_chunk(&self, state_index: usize, key_index: usize) {
@@ -366,6 +383,14 @@ impl<K: Key, T: SoundState> SoundInputWrapper for KeyedSoundInput<K, T> {
             .get(state_index, key_index)
             .write()
             .reset(sample_offset);
+    }
+
+    fn get_state_time(&self, state_index: usize, key_index: usize) -> InputTiming {
+        self.state_table
+            .read()
+            .get(state_index, key_index)
+            .read()
+            .timing
     }
 
     fn advance_timing_one_chunk(&self, state_index: usize, key_index: usize) {

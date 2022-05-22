@@ -15,6 +15,21 @@ pub fn apply_unary<F: Fn(f32) -> f32>(src: &[f32], f: F, dst: &mut [f32]) {
         }
     }
 }
+
+pub fn apply_indexed_unary<F: Fn(usize) -> f32>(dst: &mut [f32], f: F) {
+    let n = dst.len();
+    unsafe {
+        // SAFETY: unsafe is used here to index into the slice without
+        // bounds checking. This code is safe because the slice is
+        // only indexed into over the range 0..n, where n is the length
+        // of the slice.
+        for i in 0..n {
+            let d = dst.get_unchecked_mut(i);
+            *d = f(i);
+        }
+    }
+}
+
 pub fn apply_unary_inplace<F: Fn(f32) -> f32>(src_dst: &mut [f32], f: F) {
     let n = src_dst.len();
     unsafe {
@@ -260,4 +275,14 @@ pub fn rdiv_scalar(src: &[f32], scalar: f32, dst: &mut [f32]) {
 
 pub fn rdiv_scalar_inplace(src_dst: &mut [f32], scalar: f32) {
     apply_unary_inplace(src_dst, |x| scalar / x);
+}
+
+// NOTE: last_value is one past the end
+pub fn linspace(dst: &mut [f32], first_value: f32, last_value: f32) {
+    let n = dst.len();
+    if n == 0 {
+        return;
+    }
+    let k = (last_value - first_value) / (n as f32);
+    apply_indexed_unary(dst, |i| first_value + k * (i as f32));
 }

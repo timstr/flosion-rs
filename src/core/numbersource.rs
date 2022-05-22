@@ -54,6 +54,36 @@ impl NumberSourceOwner {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct NumberConfig {
+    samplewise_temporal: bool,
+    sample_offset: usize,
+}
+
+impl NumberConfig {
+    pub fn samplewise_temporal_at(sample_offset: usize) -> NumberConfig {
+        NumberConfig {
+            samplewise_temporal: true,
+            sample_offset,
+        }
+    }
+
+    pub fn atemporal_at(sample_offset: usize) -> NumberConfig {
+        NumberConfig {
+            samplewise_temporal: false,
+            sample_offset,
+        }
+    }
+
+    pub fn is_samplewise_temporal(&self) -> bool {
+        self.samplewise_temporal
+    }
+
+    pub fn sample_offset(&self) -> usize {
+        self.sample_offset
+    }
+}
+
 pub trait NumberSource: 'static + Sync + Send {
     fn eval(&self, dst: &mut [f32], context: NumberContext);
 }

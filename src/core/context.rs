@@ -7,8 +7,9 @@ use crate::core::{soundchunk::CHUNK_SIZE, soundinput::SoundInputWrapper};
 use super::{
     key::Key,
     numberinput::NumberInputId,
-    numbersource::NumberSourceId,
+    numbersource::{NumberConfig, NumberSourceId},
     numeric,
+    samplefrequency::SAMPLE_FREQUENCY,
     scratcharena::{ScratchArena, ScratchSlice},
     soundchunk::SoundChunk,
     soundengine::{
@@ -182,14 +183,67 @@ impl<'a> Context<'a> {
         handle.get_state(f.state_index)
     }
 
-    pub(super) fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
+    pub(super) fn current_time_at_sound_input(
+        &self,
+        input_id: SoundInputId,
+        dst: &mut [f32],
+        config: NumberConfig,
+    ) {
+        let mut num_chunks: usize = 0;
+        let mut num_samples: usize = config.sample_offset();
+        let mut found = false;
+        for f in &self.stack {
+            if let SoundStackFrame::Input(input_frame) = f {
+                if input_frame.id == input_id {
+                    found = true;
+                    break;
+                }
+                let input_data = self.sound_input_data.get(&input_frame.id).unwrap();
+                let input_time = input_data
+                    .input()
+                    .get_state_time(input_frame.state_index, input_frame.key_index);
+                num_chunks += input_time.elapsed_chunks();
+                num_samples += input_time.sample_offset();
+            }
+        }
+        if !found {
+            panic!("Attempted to find the current time at a sound input which was not found in the call stack");
+        }
+        let total_samples = num_chunks * CHUNK_SIZE + num_samples;
+        let sample_duration = 1.0 / SAMPLE_FREQUENCY as f32;
+        let start_time = total_samples as f32 * sample_duration;
+        if config.is_samplewise_temporal() {
+            let end_time = (total_samples + dst.len()) as f32 * sample_duration;
+            numeric::linspace(dst, start_time, end_time);
+        } else {
+            numeric::fill(dst, start_time);
+        }
+    }
+
+    pub(super) fn current_time_at_sound_processor(
+        &self,
+        processor_id: SoundProcessorId,
+        dst: &mut [f32],
+        config: NumberConfig,
+    ) {
+        todo!()
+    }
+
+    pub(super) fn evaluate_number_input(
+        &self,
+        input_id: NumberInputId,
+        dst: &mut [f32],
+        config: NumberConfig,
+    ) {
         let input_data = self.number_input_data.get(&input_id).expect(
             "Failed to find the data for a number input while evaluating it in an audio context",
         );
         match input_data.target() {
             Some(nsid) => {
                 let source_data = self.number_source_data.get(&nsid).expect("Failed to find the data for a number source pointed to by a number input being evaluated in an audio context");
-                source_data.instance().eval(dst, NumberContext::new(self));
+                source_data
+                    .instance()
+                    .eval(dst, NumberContext::new(self, config));
             }
             None => numeric::fill(dst, 0.0),
         }
@@ -210,6 +264,13 @@ impl<'a> Context<'a> {
     ) {
         let frame = self.current_processor_frame();
         let input = self.sound_input_data.get(&input_id).unwrap();
+        let effective_key_index = key_index.unwrap_or(0);
+        if input
+            .input()
+            .state_needs_reset(frame.state_index, effective_key_index)
+        {
+            panic!("Attempted to step a sound input which needs to be reset first. Please make sure to reset the sound input before using it.");
+        }
         if let Some(target) = input.target() {
             let other_pd = self.sound_processor_data.get(&target).expect("Failed to find data for a sound processor pointed to by a sound input in an audio context");
             let other_proc = other_pd.wrapper();
@@ -217,19 +278,15 @@ impl<'a> Context<'a> {
                 let ch = self.get_cached_static_output(other_pd.id()).expect("Failed to find a cached static processor output pointed to by a sound input an an audio context");
                 dst.copy_from(ch);
             } else {
+                // TODO: avoid this clone
                 let mut other_stack = self.stack.clone();
-                let effective_key_index = key_index.unwrap_or(0);
+
                 other_stack.push(SoundStackFrame::Input(SoundInputFrame {
                     id: input_id,
                     state_index: frame.state_index,
                     key_index: effective_key_index,
                 }));
-                if input
-                    .input()
-                    .state_needs_reset(frame.state_index, effective_key_index)
-                {
-                    panic!("Attempted to step a sound input which needs to be reset first. Please make sure to reset the sound input before using it.");
-                }
+
                 let input_state_index = input
                     .input()
                     .get_state_index(frame.state_index, effective_key_index);
@@ -375,19 +432,20 @@ impl<'a, T: SoundState> ProcessorContext<'a, T> {
         self.state.write()
     }
 
-    pub fn number_context(&'a self) -> NumberContext<'a> {
-        NumberContext::new(&self.context)
+    pub fn number_context(&'a self, config: NumberConfig) -> NumberContext<'a> {
+        NumberContext::new(&self.context, config)
     }
 }
 
 #[derive(Copy, Clone)]
 pub struct NumberContext<'a> {
     context: &'a Context<'a>,
+    config: NumberConfig,
 }
 
 impl<'a> NumberContext<'a> {
-    pub(super) fn new(context: &'a Context<'a>) -> NumberContext<'a> {
-        NumberContext { context }
+    pub(super) fn new(context: &'a Context<'a>, config: NumberConfig) -> NumberContext<'a> {
+        NumberContext { context, config }
     }
 
     // pub fn single_input_state(
@@ -411,11 +469,21 @@ impl<'a> NumberContext<'a> {
         self.context.sound_processor_state_from_context(handle)
     }
 
+    pub fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
+        self.context
+            .current_time_at_sound_input(input_id, dst, self.config);
+    }
+
+    pub fn current_time_at_sound_processor(&self, proc_id: SoundProcessorId, dst: &mut [f32]) {
+        self.context
+            .current_time_at_sound_processor(proc_id, dst, self.config);
+    }
+
     pub fn get_scratch_space(&self, size: usize) -> ScratchSlice {
         self.context.get_scratch_space(size)
     }
 
     pub(super) fn evaluate_input(&self, id: NumberInputId, dst: &mut [f32]) {
-        self.context.evaluate_number_input(id, dst);
+        self.context.evaluate_number_input(id, dst, self.config);
     }
 }

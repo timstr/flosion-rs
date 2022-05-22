@@ -2,7 +2,7 @@ use crate::core::{
     context::ProcessorContext,
     graphobject::{ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
-    numbersource::NumberSourceHandle,
+    numbersource::{NumberConfig, NumberSourceHandle},
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -59,12 +59,18 @@ impl DynamicSoundProcessor for WaveGenerator {
             let mut state = context.write_state();
             let phase_arr = &mut state.phase;
             let prev_phase = *phase_arr.last().unwrap();
-            self.frequency.eval(phase_arr, context.number_context());
+            self.frequency.eval(
+                phase_arr,
+                context.number_context(NumberConfig::samplewise_temporal_at(0)),
+            );
             numeric::div_scalar_inplace(phase_arr, SAMPLE_FREQUENCY as f32);
             numeric::exclusive_scan_inplace(phase_arr, prev_phase, |p1, p2| p1 + p2);
             numeric::apply_unary_inplace(phase_arr, |x| x - x.floor());
         }
-        self.amplitude.eval(&mut dst.l, context.number_context());
+        self.amplitude.eval(
+            &mut dst.l,
+            context.number_context(NumberConfig::samplewise_temporal_at(0)),
+        );
         numeric::copy(&dst.l, &mut dst.r);
     }
 }
