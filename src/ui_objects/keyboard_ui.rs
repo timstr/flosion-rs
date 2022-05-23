@@ -27,12 +27,17 @@ impl ObjectUi for KeyboardUi {
         let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("Keyboard");
-            ui.add(SoundInputWidget::new(object.input.id(), graph_state));
-            ui.add(NumberOutputWidget::new(
-                object.key_frequency.id(),
+            ui.add(SoundInputWidget::new(
+                object.input.id(),
+                "Input",
                 graph_state,
             ));
-            ui.add(SoundOutputWidget::new(id, graph_state));
+            ui.add(NumberOutputWidget::new(
+                object.key_frequency.id(),
+                "Note Frequency",
+                graph_state,
+            ));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
             for (i, k) in [
                 egui::Key::A, // C
                 egui::Key::W, // C#

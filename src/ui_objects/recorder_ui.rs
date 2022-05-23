@@ -27,8 +27,12 @@ impl ObjectUi for RecorderUi {
         let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("Recorder");
-            ui.add(SoundInputWidget::new(object.input.id(), graph_state));
-            ui.add(SoundOutputWidget::new(id, graph_state));
+            ui.add(SoundInputWidget::new(
+                object.input.id(),
+                "Input",
+                graph_state,
+            ));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
             let r = object.is_recording();
             let n = object.recording_length();
             let btn_str = if r {

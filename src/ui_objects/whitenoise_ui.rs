@@ -23,7 +23,7 @@ impl ObjectUi for WhiteNoiseUi {
         let id = id.as_sound_processor_id().unwrap();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("WhiteNoise");
-            ui.add(SoundOutputWidget::new(id, graph_state));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
         });
     }
 }

@@ -24,16 +24,20 @@ impl ObjectUi for MixerUi {
         let id = id.as_sound_processor_id().unwrap();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("Mixer");
-            ui.add(SoundOutputWidget::new(id, graph_tools));
-            for i in object.get_input_ids() {
-                ui.add(SoundInputWidget::new(i, graph_tools));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
+            for (i, input_id) in object.get_input_ids().into_iter().enumerate() {
+                ui.add(SoundInputWidget::new(
+                    input_id,
+                    &format!("Input {}", i),
+                    graph_tools,
+                ));
                 if ui.button("x").clicked() {
                     let w = wrapper.clone();
                     graph_tools.make_change(move |sg| {
                         let w = w;
-                        let i = i;
+                        let input_id = input_id;
                         sg.apply_dynamic_processor_tools(&w, |w, tools| {
-                            w.instance().remove_input(i, tools);
+                            w.instance().remove_input(input_id, tools);
                         })
                     });
                 }

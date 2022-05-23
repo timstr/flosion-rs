@@ -19,17 +19,34 @@ impl ObjectUi for WaveGeneratorUi {
         &self,
         id: ObjectId,
         wrapper: &WrappedDynamicSoundProcessor<WaveGenerator>,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
         let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("WaveGenerator");
-            ui.add(NumberInputWidget::new(object.amplitude.id(), graph_state));
-            ui.add(NumberInputWidget::new(object.frequency.id(), graph_state));
-            ui.add(NumberOutputWidget::new(object.phase.id(), graph_state));
-            ui.add(SoundOutputWidget::new(id, graph_state));
+            ui.add(NumberInputWidget::new(
+                object.amplitude.id(),
+                "Amplitude",
+                graph_tools,
+            ));
+            ui.add(NumberOutputWidget::new(
+                object.time.id(),
+                "Time",
+                graph_tools,
+            ));
+            ui.add(NumberInputWidget::new(
+                object.frequency.id(),
+                "Frequency",
+                graph_tools,
+            ));
+            ui.add(NumberOutputWidget::new(
+                object.phase.id(),
+                "Phase",
+                graph_tools,
+            ));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
         });
     }
 }

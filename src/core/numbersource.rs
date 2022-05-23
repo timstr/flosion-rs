@@ -155,6 +155,38 @@ impl<T: SoundState, F: StateFunction<T>> NumberSource for ProcessorNumberSource<
     }
 }
 
+pub struct ProcessorTimeNumberSource {
+    processor_id: SoundProcessorId,
+}
+
+impl ProcessorTimeNumberSource {
+    pub(super) fn new(processor_id: SoundProcessorId) -> ProcessorTimeNumberSource {
+        ProcessorTimeNumberSource { processor_id }
+    }
+}
+
+impl NumberSource for ProcessorTimeNumberSource {
+    fn eval(&self, dst: &mut [f32], context: NumberContext) {
+        context.current_time_at_sound_processor(self.processor_id, dst);
+    }
+}
+
+pub struct InputTimeNumberSource {
+    input_id: SoundInputId,
+}
+
+impl InputTimeNumberSource {
+    pub(super) fn new(input_id: SoundInputId) -> InputTimeNumberSource {
+        InputTimeNumberSource { input_id }
+    }
+}
+
+impl NumberSource for InputTimeNumberSource {
+    fn eval(&self, dst: &mut [f32], context: NumberContext) {
+        context.current_time_at_sound_input(self.input_id, dst);
+    }
+}
+
 pub struct NumberSourceHandle {
     id: NumberSourceId,
     owner: NumberSourceOwner,

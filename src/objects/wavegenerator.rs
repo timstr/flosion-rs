@@ -13,6 +13,7 @@ use crate::core::{
 
 pub struct WaveGenerator {
     pub phase: NumberSourceHandle,
+    pub time: NumberSourceHandle,
     pub amplitude: NumberInputHandle,
     pub frequency: NumberInputHandle,
 }
@@ -45,6 +46,7 @@ impl DynamicSoundProcessor for WaveGenerator {
                     numeric::copy(&state.phase, dst);
                 })
                 .0,
+            time: tools.add_processor_time().0,
             amplitude: tools.add_number_input().0,
             frequency: tools.add_number_input().0,
         }

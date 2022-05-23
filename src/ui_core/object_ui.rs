@@ -133,6 +133,7 @@ impl ObjectWindow {
 fn peg_ui(
     id: GraphId,
     color: egui::Color32,
+    label: &str,
     graph_state: &mut GraphUITools,
     ui: &mut egui::Ui,
 ) -> egui::Response {
@@ -158,25 +159,31 @@ fn peg_ui(
     if response.drag_started() {
         graph_state.start_dragging(id);
     }
-
     if response.drag_released() {
         graph_state.stop_dragging(id, response.interact_pointer_pos().unwrap());
     }
-    response
+    let r = response.clone();
+    response.on_hover_ui_at_pointer(|ui| {
+        ui.label(label);
+    });
+    r
 }
 
 pub struct SoundInputWidget<'a> {
     sound_input_id: SoundInputId,
+    label: &'a str,
     graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> SoundInputWidget<'a> {
     pub fn new(
         sound_input_id: SoundInputId,
+        label: &'a str,
         graph_state: &'a mut GraphUITools,
     ) -> SoundInputWidget<'a> {
         SoundInputWidget {
             sound_input_id,
+            label,
             graph_state,
         }
     }
@@ -187,6 +194,7 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
         peg_ui(
             self.sound_input_id.into(),
             egui::Color32::from_rgb(0, 255, 0),
+            self.label,
             self.graph_state,
             ui,
         )
@@ -195,16 +203,19 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
 
 pub struct SoundOutputWidget<'a> {
     sound_processor_id: SoundProcessorId,
+    label: &'a str,
     graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> SoundOutputWidget<'a> {
     pub fn new(
         sound_processor_id: SoundProcessorId,
+        label: &'a str,
         graph_state: &'a mut GraphUITools,
     ) -> SoundOutputWidget<'a> {
         SoundOutputWidget {
             sound_processor_id,
+            label,
             graph_state,
         }
     }
@@ -215,6 +226,7 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
         peg_ui(
             self.sound_processor_id.into(),
             egui::Color32::from_rgb(0, 128, 0),
+            self.label,
             self.graph_state,
             ui,
         )
@@ -223,16 +235,19 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
 
 pub struct NumberInputWidget<'a> {
     number_input_id: NumberInputId,
+    label: &'a str,
     graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> NumberInputWidget<'a> {
     pub fn new(
         number_input_id: NumberInputId,
-        graph_state: &mut GraphUITools,
-    ) -> NumberInputWidget {
+        label: &'a str,
+        graph_state: &'a mut GraphUITools,
+    ) -> NumberInputWidget<'a> {
         NumberInputWidget {
             number_input_id,
+            label,
             graph_state,
         }
     }
@@ -243,6 +258,7 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
         peg_ui(
             self.number_input_id.into(),
             egui::Color32::from_rgb(0, 0, 255),
+            self.label,
             self.graph_state,
             ui,
         )
@@ -251,16 +267,19 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
 
 pub struct NumberOutputWidget<'a> {
     number_source_id: NumberSourceId,
+    label: &'a str,
     graph_state: &'a mut GraphUITools,
 }
 
 impl<'a> NumberOutputWidget<'a> {
     pub fn new(
         number_source_id: NumberSourceId,
+        label: &'a str,
         graph_state: &'a mut GraphUITools,
-    ) -> NumberOutputWidget {
+    ) -> NumberOutputWidget<'a> {
         NumberOutputWidget {
             number_source_id,
+            label,
             graph_state,
         }
     }
@@ -271,6 +290,7 @@ impl<'a> egui::Widget for NumberOutputWidget<'a> {
         peg_ui(
             self.number_source_id.into(),
             egui::Color32::from_rgb(0, 0, 128),
+            self.label,
             self.graph_state,
             ui,
         )

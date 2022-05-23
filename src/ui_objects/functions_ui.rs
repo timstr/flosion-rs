@@ -31,7 +31,7 @@ impl ObjectUi for ConstantUi {
             if v != v_old {
                 object.set_value(v);
             }
-            ui.add(NumberOutputWidget::new(id, graph_state));
+            ui.add(NumberOutputWidget::new(id, "Output", graph_state));
         });
     }
 
@@ -63,8 +63,12 @@ macro_rules! unary_number_source_ui {
                 let id = id.as_number_source_id().unwrap();
                 ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
                     ui.label($display_name);
-                    ui.add(NumberInputWidget::new(object.input.id(), graph_state));
-                    ui.add(NumberOutputWidget::new(id, graph_state));
+                    ui.add(NumberInputWidget::new(
+                        object.input.id(),
+                        "Input",
+                        graph_state,
+                    ));
+                    ui.add(NumberOutputWidget::new(id, "Output", graph_state));
                 });
             }
 
@@ -92,9 +96,17 @@ macro_rules! binary_number_source_ui {
                 let id = id.as_number_source_id().unwrap();
                 ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
                     ui.label($display_name);
-                    ui.add(NumberInputWidget::new(object.input_1.id(), graph_state));
-                    ui.add(NumberInputWidget::new(object.input_2.id(), graph_state));
-                    ui.add(NumberOutputWidget::new(id, graph_state));
+                    ui.add(NumberInputWidget::new(
+                        object.input_1.id(),
+                        "Input 1",
+                        graph_state,
+                    ));
+                    ui.add(NumberInputWidget::new(
+                        object.input_2.id(),
+                        "Input 2",
+                        graph_state,
+                    ));
+                    ui.add(NumberOutputWidget::new(id, "Output", graph_state));
                 });
             }
 
@@ -127,8 +139,12 @@ impl ObjectUi for SineUi {
         let id = id.as_number_source_id().unwrap();
         ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
             ui.label("Sine");
-            ui.add(NumberInputWidget::new(object.input.id(), graph_state));
-            ui.add(NumberOutputWidget::new(id, graph_state));
+            ui.add(NumberInputWidget::new(
+                object.input.id(),
+                "Input",
+                graph_state,
+            ));
+            ui.add(NumberOutputWidget::new(id, "Output", graph_state));
         });
     }
 
@@ -152,8 +168,12 @@ impl ObjectUi for UnitSineUi {
         let id = id.as_number_source_id().unwrap();
         ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
             ui.label("UnitSine");
-            ui.add(NumberInputWidget::new(object.input.id(), graph_state));
-            ui.add(NumberOutputWidget::new(id, graph_state));
+            ui.add(NumberInputWidget::new(
+                object.input.id(),
+                "Input",
+                graph_state,
+            ));
+            ui.add(NumberOutputWidget::new(id, "Output", graph_state));
         });
     }
 

@@ -24,7 +24,7 @@ impl ObjectUi for AudioClipUi {
         let id = id.as_sound_processor_id().unwrap();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
             ui.label("AudioClip");
-            ui.add(SoundOutputWidget::new(id, graph_state));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
         })
     }
 }

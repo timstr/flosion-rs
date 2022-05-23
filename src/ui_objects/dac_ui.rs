@@ -30,7 +30,11 @@ impl ObjectUi for DacUi {
                 } else {
                     "Paused"
                 });
-                ui.add(SoundInputWidget::new(object.input().id(), graph_state));
+                ui.add(SoundInputWidget::new(
+                    object.input().id(),
+                    "Output",
+                    graph_state,
+                ));
             },
         );
     }

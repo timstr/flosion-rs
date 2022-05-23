@@ -4,8 +4,8 @@ use super::{
     key::{Key, TypeErasedKey},
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
-        KeyedInputNumberSource, NumberSourceHandle, NumberSourceId, NumberSourceOwner,
-        ProcessorNumberSource, StateFunction,
+        InputTimeNumberSource, KeyedInputNumberSource, NumberSourceHandle, NumberSourceId,
+        NumberSourceOwner, ProcessorNumberSource, ProcessorTimeNumberSource, StateFunction,
     },
     resultfuture::ResultFuture,
     soundengine::SoundEngineMessage,
@@ -93,10 +93,40 @@ impl<'a, T: SoundState> SoundProcessorTools<'a, T> {
                 owner,
                 result: outbound_result,
             });
-        (
-            NumberSourceHandle::new(nsid, NumberSourceOwner::SoundProcessor(self.processor_id)),
-            result_future,
-        )
+        (NumberSourceHandle::new(nsid, owner), result_future)
+    }
+
+    pub fn add_processor_time(&mut self) -> (NumberSourceHandle, ResultFuture<(), ()>) {
+        let nsid = self.number_source_idgen.next_id();
+        let owner = NumberSourceOwner::SoundProcessor(self.processor_id);
+        let instance = Arc::new(ProcessorTimeNumberSource::new(self.processor_id));
+        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
+        self.message_queue
+            .push(SoundEngineMessage::AddNumberSource {
+                id: nsid,
+                source: instance,
+                owner,
+                result: outbound_result,
+            });
+        (NumberSourceHandle::new(nsid, owner), result_future)
+    }
+
+    pub fn add_input_time(
+        &mut self,
+        input_id: SoundInputId,
+    ) -> (NumberSourceHandle, ResultFuture<(), ()>) {
+        let nsid = self.number_source_idgen.next_id();
+        let owner = NumberSourceOwner::SoundInput(input_id);
+        let instance = Arc::new(InputTimeNumberSource::new(input_id));
+        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
+        self.message_queue
+            .push(SoundEngineMessage::AddNumberSource {
+                id: nsid,
+                source: instance,
+                owner,
+                result: outbound_result,
+            });
+        (NumberSourceHandle::new(nsid, owner), result_future)
     }
 
     // TODO: return the handle only

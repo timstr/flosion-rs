@@ -57,6 +57,12 @@ impl SoundStackFrame {
     }
 }
 
+#[derive(PartialEq, Eq)]
+enum SoundId {
+    Processor(SoundProcessorId),
+    Input(SoundInputId),
+}
+
 pub struct Context<'a> {
     sound_processor_data: &'a HashMap<SoundProcessorId, EngineSoundProcessorData>,
     sound_input_data: &'a HashMap<SoundInputId, EngineSoundInputData>,
@@ -183,31 +189,34 @@ impl<'a> Context<'a> {
         handle.get_state(f.state_index)
     }
 
-    pub(super) fn current_time_at_sound_input(
-        &self,
-        input_id: SoundInputId,
-        dst: &mut [f32],
-        config: NumberConfig,
-    ) {
+    fn current_time_at(&self, sound_id: SoundId, dst: &mut [f32], config: NumberConfig) {
         let mut num_chunks: usize = 0;
         let mut num_samples: usize = config.sample_offset();
         let mut found = false;
         for f in &self.stack {
-            if let SoundStackFrame::Input(input_frame) = f {
-                if input_frame.id == input_id {
-                    found = true;
-                    break;
+            match f {
+                SoundStackFrame::Input(input_frame) => {
+                    if SoundId::Input(input_frame.id) == sound_id {
+                        found = true;
+                        break;
+                    }
+                    let input_data = self.sound_input_data.get(&input_frame.id).unwrap();
+                    let input_time = input_data
+                        .input()
+                        .get_state_time(input_frame.state_index, input_frame.key_index);
+                    num_chunks += input_time.elapsed_chunks();
+                    num_samples += input_time.sample_offset();
                 }
-                let input_data = self.sound_input_data.get(&input_frame.id).unwrap();
-                let input_time = input_data
-                    .input()
-                    .get_state_time(input_frame.state_index, input_frame.key_index);
-                num_chunks += input_time.elapsed_chunks();
-                num_samples += input_time.sample_offset();
+                SoundStackFrame::Processor(proc_frame) => {
+                    if SoundId::Processor(proc_frame.id) == sound_id {
+                        found = true;
+                        break;
+                    }
+                }
             }
         }
         if !found {
-            panic!("Attempted to find the current time at a sound input which was not found in the call stack");
+            panic!("Attempted to find the current time at a sound input or processor which was not found in the call stack");
         }
         let total_samples = num_chunks * CHUNK_SIZE + num_samples;
         let sample_duration = 1.0 / SAMPLE_FREQUENCY as f32;
@@ -218,15 +227,6 @@ impl<'a> Context<'a> {
         } else {
             numeric::fill(dst, start_time);
         }
-    }
-
-    pub(super) fn current_time_at_sound_processor(
-        &self,
-        processor_id: SoundProcessorId,
-        dst: &mut [f32],
-        config: NumberConfig,
-    ) {
-        todo!()
     }
 
     pub(super) fn evaluate_number_input(
@@ -471,12 +471,12 @@ impl<'a> NumberContext<'a> {
 
     pub fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
         self.context
-            .current_time_at_sound_input(input_id, dst, self.config);
+            .current_time_at(SoundId::Input(input_id), dst, self.config);
     }
 
     pub fn current_time_at_sound_processor(&self, proc_id: SoundProcessorId, dst: &mut [f32]) {
         self.context
-            .current_time_at_sound_processor(proc_id, dst, self.config);
+            .current_time_at(SoundId::Processor(proc_id), dst, self.config);
     }
 
     pub fn get_scratch_space(&self, size: usize) -> ScratchSlice {
