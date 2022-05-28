@@ -19,11 +19,11 @@ impl ObjectUi for ConstantUi {
         &self,
         id: ObjectId,
         object: &Constant,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_number_source_id().unwrap();
-        ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_number_source(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             let mut v = object.get_value();
             let v_old = v;
             ui.label(format!("Constant, value={}", v));
@@ -31,7 +31,7 @@ impl ObjectUi for ConstantUi {
             if v != v_old {
                 object.set_value(v);
             }
-            ui.add(NumberOutputWidget::new(id, "Output", graph_state));
+            ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
         });
     }
 
@@ -57,19 +57,23 @@ macro_rules! unary_number_source_ui {
                 &self,
                 id: ObjectId,
                 object: &$object,
-                graph_state: &mut GraphUITools,
+                graph_tools: &mut GraphUITools,
                 ui: &mut eframe::egui::Ui,
             ) {
                 let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
-                    ui.label($display_name);
-                    ui.add(NumberInputWidget::new(
-                        object.input.id(),
-                        "Input",
-                        graph_state,
-                    ));
-                    ui.add(NumberOutputWidget::new(id, "Output", graph_state));
-                });
+                ObjectWindow::new_number_source(id).show(
+                    ui.ctx(),
+                    graph_tools,
+                    |ui, graph_tools| {
+                        ui.label($display_name);
+                        ui.add(NumberInputWidget::new(
+                            object.input.id(),
+                            "Input",
+                            graph_tools,
+                        ));
+                        ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
+                    },
+                );
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -90,24 +94,28 @@ macro_rules! binary_number_source_ui {
                 &self,
                 id: ObjectId,
                 object: &$object,
-                graph_state: &mut GraphUITools,
+                graph_tools: &mut GraphUITools,
                 ui: &mut eframe::egui::Ui,
             ) {
                 let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
-                    ui.label($display_name);
-                    ui.add(NumberInputWidget::new(
-                        object.input_1.id(),
-                        "Input 1",
-                        graph_state,
-                    ));
-                    ui.add(NumberInputWidget::new(
-                        object.input_2.id(),
-                        "Input 2",
-                        graph_state,
-                    ));
-                    ui.add(NumberOutputWidget::new(id, "Output", graph_state));
-                });
+                ObjectWindow::new_number_source(id).show(
+                    ui.ctx(),
+                    graph_tools,
+                    |ui, graph_tools| {
+                        ui.label($display_name);
+                        ui.add(NumberInputWidget::new(
+                            object.input_1.id(),
+                            "Input 1",
+                            graph_tools,
+                        ));
+                        ui.add(NumberInputWidget::new(
+                            object.input_2.id(),
+                            "Input 2",
+                            graph_tools,
+                        ));
+                        ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
+                    },
+                );
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -133,18 +141,18 @@ impl ObjectUi for SineUi {
         &self,
         id: ObjectId,
         object: &Sine,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_number_source_id().unwrap();
-        ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_number_source(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("Sine");
             ui.add(NumberInputWidget::new(
                 object.input.id(),
                 "Input",
-                graph_state,
+                graph_tools,
             ));
-            ui.add(NumberOutputWidget::new(id, "Output", graph_state));
+            ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
         });
     }
 
@@ -162,18 +170,18 @@ impl ObjectUi for UnitSineUi {
         &self,
         id: ObjectId,
         object: &UnitSine,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_number_source_id().unwrap();
-        ObjectWindow::new_number_source(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_number_source(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("UnitSine");
             ui.add(NumberInputWidget::new(
                 object.input.id(),
                 "Input",
-                graph_state,
+                graph_tools,
             ));
-            ui.add(NumberOutputWidget::new(id, "Output", graph_state));
+            ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
         });
     }
 

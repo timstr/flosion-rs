@@ -109,13 +109,18 @@ impl ObjectWindow {
         }
     }
 
-    pub fn show<F: FnOnce(&mut egui::Ui)>(self, ctx: &egui::CtxRef, add_contents: F) {
+    pub fn show<F: FnOnce(&mut egui::Ui, &mut GraphUITools)>(
+        self,
+        ctx: &egui::CtxRef,
+        graph_tools: &mut GraphUITools,
+        add_contents: F,
+    ) {
         let s = match self.object_id {
             ObjectId::Sound(id) => format!("SoundObjectWindow {:?}", id),
             ObjectId::Number(id) => format!("NumberObjectWindow {:?}", id),
         };
         let id = egui::Id::new(s);
-        egui::Window::new("")
+        let r = egui::Window::new("")
             .id(id)
             .title_bar(false)
             .resizable(false)
@@ -125,8 +130,9 @@ impl ObjectWindow {
                     .stroke(egui::Stroke::new(2.0, egui::Color32::WHITE))
                     .margin(egui::Vec2::splat(10.0)),
             )
-            .show(ctx, add_contents)
+            .show(ctx, |ui| add_contents(ui, graph_tools))
             .unwrap();
+        graph_tools.track_object(self.object_id, r.response.rect, r.response.layer_id);
     }
 }
 

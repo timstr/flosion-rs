@@ -22,7 +22,7 @@ impl ObjectUi for MixerUi {
     ) {
         let object = wrapper.instance();
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("Mixer");
             ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
             for (i, input_id) in object.get_input_ids().into_iter().enumerate() {

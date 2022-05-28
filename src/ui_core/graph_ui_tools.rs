@@ -1,31 +1,36 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 use eframe::egui;
 
 use crate::core::{
-    graphobject::GraphId, numberinput::NumberInputId, numbersource::NumberSourceId,
-    soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    graphobject::{GraphId, ObjectId},
+    numberinput::NumberInputId,
+    numbersource::NumberSourceId,
+    soundgraph::SoundGraph,
+    soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
     uniqueid::UniqueId,
 };
 
-pub struct PegState {
+pub struct RectState {
     pub rect: egui::Rect,
     pub layer: egui::LayerId,
 }
 
-impl PegState {
+impl RectState {
     pub fn center(&self) -> egui::Pos2 {
         self.rect.center()
     }
 }
 
-pub struct PegStateMap<T: UniqueId> {
-    states: HashMap<T, PegState>,
+pub struct RectStateMap<T: Hash + Eq> {
+    states: HashMap<T, RectState>,
 }
 
-impl<T: UniqueId> PegStateMap<T> {
-    pub fn new() -> PegStateMap<T> {
-        PegStateMap {
+impl<T: Hash + Eq> RectStateMap<T> {
+    pub fn new() -> RectStateMap<T> {
+        RectStateMap {
             states: HashMap::new(),
         }
     }
@@ -34,36 +39,40 @@ impl<T: UniqueId> PegStateMap<T> {
         self.states.clear();
     }
 
-    fn states(&self) -> &HashMap<T, PegState> {
+    fn states(&self) -> &HashMap<T, RectState> {
         &self.states
     }
 
     pub fn add(&mut self, id: T, rect: egui::Rect, layer: egui::LayerId) {
-        let state = PegState { rect, layer };
+        let state = RectState { rect, layer };
         self.states.insert(id, state);
     }
 }
 
 pub struct GraphUITools {
-    sound_inputs: PegStateMap<SoundInputId>,
-    sound_outputs: PegStateMap<SoundProcessorId>,
-    number_inputs: PegStateMap<NumberInputId>,
-    number_outputs: PegStateMap<NumberSourceId>,
+    sound_inputs: RectStateMap<SoundInputId>,
+    sound_outputs: RectStateMap<SoundProcessorId>,
+    number_inputs: RectStateMap<NumberInputId>,
+    number_outputs: RectStateMap<NumberSourceId>,
+    objects: RectStateMap<ObjectId>,
     peg_being_dragged: Option<GraphId>,
     dropped_peg: Option<(GraphId, egui::Pos2)>,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph) -> ()>>,
+    selection: HashSet<GraphId>,
 }
 
 impl GraphUITools {
     pub(super) fn new() -> GraphUITools {
         GraphUITools {
-            sound_inputs: PegStateMap::new(),
-            sound_outputs: PegStateMap::new(),
-            number_inputs: PegStateMap::new(),
-            number_outputs: PegStateMap::new(),
+            sound_inputs: RectStateMap::new(),
+            sound_outputs: RectStateMap::new(),
+            number_inputs: RectStateMap::new(),
+            number_outputs: RectStateMap::new(),
+            objects: RectStateMap::new(),
             peg_being_dragged: None,
             dropped_peg: None,
             pending_changes: Vec::new(),
+            selection: HashSet::new(),
         }
     }
 
@@ -84,23 +93,27 @@ impl GraphUITools {
         }
     }
 
+    pub fn track_object(&mut self, id: ObjectId, rect: egui::Rect, layer: egui::LayerId) {
+        self.objects.add(id, rect, layer);
+    }
+
     pub fn make_change<F: FnOnce(&mut SoundGraph) -> () + 'static>(&mut self, f: F) {
         self.pending_changes.push(Box::new(f));
     }
 
-    pub(super) fn sound_inputs(&self) -> &HashMap<SoundInputId, PegState> {
+    pub(super) fn sound_inputs(&self) -> &HashMap<SoundInputId, RectState> {
         &self.sound_inputs.states
     }
 
-    pub(super) fn sound_outputs(&self) -> &HashMap<SoundProcessorId, PegState> {
+    pub(super) fn sound_outputs(&self) -> &HashMap<SoundProcessorId, RectState> {
         &self.sound_outputs.states
     }
 
-    pub(super) fn number_inputs(&self) -> &HashMap<NumberInputId, PegState> {
+    pub(super) fn number_inputs(&self) -> &HashMap<NumberInputId, RectState> {
         &self.number_inputs.states
     }
 
-    pub(super) fn number_outputs(&self) -> &HashMap<NumberSourceId, PegState> {
+    pub(super) fn number_outputs(&self) -> &HashMap<NumberSourceId, RectState> {
         &self.number_outputs.states
     }
 
@@ -140,7 +153,7 @@ impl GraphUITools {
             None => return None,
         };
         fn find<T: UniqueId>(
-            peg_states: &PegStateMap<T>,
+            peg_states: &RectStateMap<T>,
             layer: egui::LayerId,
             position: egui::Pos2,
         ) -> Option<T> {

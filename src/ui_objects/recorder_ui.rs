@@ -20,19 +20,19 @@ impl ObjectUi for RecorderUi {
         &self,
         id: ObjectId,
         wrapper: &WrappedStaticSoundProcessor<Recorder>,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
         let object = wrapper.instance();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("Recorder");
             ui.add(SoundInputWidget::new(
                 object.input.id(),
                 "Input",
-                graph_state,
+                graph_tools,
             ));
-            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
             let r = object.is_recording();
             let n = object.recording_length();
             let btn_str = if r {
@@ -55,7 +55,7 @@ impl ObjectUi for RecorderUi {
                 }
                 if ui.add(Button::new("Create AudioClip")).clicked() {
                     let a = object.copy_audio();
-                    graph_state.make_change(move |graph| {
+                    graph_tools.make_change(move |graph| {
                         let ac = block_on(graph.add_dynamic_sound_processor::<AudioClip>());
                         ac.instance().set_data(a);
                     });

@@ -16,13 +16,14 @@ impl ObjectUi for DacUi {
         &self,
         id: ObjectId,
         wrapper: &WrappedStaticSoundProcessor<Dac>,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap()).show(
             ui.ctx(),
-            |ui| {
+            graph_tools,
+            |ui, graph_tools| {
                 ui.label("Dac");
                 // ui.separator();
                 ui.label(if object.is_playing() {
@@ -33,8 +34,11 @@ impl ObjectUi for DacUi {
                 ui.add(SoundInputWidget::new(
                     object.input().id(),
                     "Output",
-                    graph_state,
+                    graph_tools,
                 ));
+                if ui.button("Reset").clicked() {
+                    todo!();
+                }
             },
         );
     }

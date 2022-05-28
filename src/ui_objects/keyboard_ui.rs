@@ -20,24 +20,24 @@ impl ObjectUi for KeyboardUi {
         &self,
         id: ObjectId,
         wrapper: &WrappedStaticSoundProcessor<Keyboard>,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
         let object = wrapper.instance();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("Keyboard");
             ui.add(SoundInputWidget::new(
                 object.input.id(),
                 "Input",
-                graph_state,
+                graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
                 object.key_frequency.id(),
                 "Note Frequency",
-                graph_state,
+                graph_tools,
             ));
-            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
             for (i, k) in [
                 egui::Key::A, // C
                 egui::Key::W, // C#

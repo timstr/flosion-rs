@@ -24,7 +24,7 @@ impl ObjectUi for WaveGeneratorUi {
     ) {
         let id = id.as_sound_processor_id().unwrap();
         let object = wrapper.instance();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("WaveGenerator");
             ui.add(NumberInputWidget::new(
                 object.amplitude.id(),

@@ -17,13 +17,13 @@ impl ObjectUi for WhiteNoiseUi {
         &self,
         id: ObjectId,
         _wrapper: &WrappedDynamicSoundProcessor<WhiteNoise>,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut eframe::egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("WhiteNoise");
-            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
         });
     }
 }

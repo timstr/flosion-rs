@@ -18,13 +18,13 @@ impl ObjectUi for AudioClipUi {
         &self,
         id: ObjectId,
         _object: &WrappedDynamicSoundProcessor<AudioClip>,
-        graph_state: &mut GraphUITools,
+        graph_tools: &mut GraphUITools,
         ui: &mut egui::Ui,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), |ui| {
+        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("AudioClip");
-            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
+            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
         })
     }
 }

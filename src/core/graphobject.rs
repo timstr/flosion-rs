@@ -25,7 +25,7 @@ impl ObjectType {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Eq, PartialEq, Clone, Copy, Hash)]
 pub enum ObjectId {
     Sound(SoundProcessorId),
     Number(NumberSourceId),
