@@ -139,6 +139,8 @@ impl ObjectWindow {
         // let layer_id = area.layer();
         if let Some(state) = graph_tools.get_object_state(self.object_id) {
             area = area.current_pos(state.rect.left_top());
+        } else {
+            area = area.current_pos(ctx.input().pointer.interact_pos().unwrap());
         }
         area = area.movable(true);
         let r = area.show(ctx, |ui| frame.show(ui, |ui| add_contents(ui, graph_tools)));
