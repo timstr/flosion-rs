@@ -1,9 +1,5 @@
 use crate::{
     core::{graphobject::GraphId, soundgraph::SoundGraph},
-    objects::{
-        dac::Dac, functions::UnitSine, keyboard::Keyboard, mixer::Mixer,
-        wavegenerator::WaveGenerator,
-    },
     ui_objects::object_factory::ObjectFactory,
 };
 use eframe::{egui, epi};
@@ -14,52 +10,60 @@ use super::{
     summon_widget::{SummonWidget, SummonWidgetState},
 };
 
+struct SelectionState {
+    start_location: egui::Pos2,
+    end_location: egui::Pos2,
+}
+
 pub struct FlosionApp {
     graph: SoundGraph,
     all_object_uis: ObjectFactory,
     ui_state: GraphUITools,
     summon_state: Option<SummonWidgetState>,
+    selection_area: Option<SelectionState>,
 }
 
-async fn create_test_sound_graph() -> SoundGraph {
-    let mut sg: SoundGraph = SoundGraph::new();
-    let wavegen = sg.add_dynamic_sound_processor::<WaveGenerator>().await;
-    let dac = sg.add_static_sound_processor::<Dac>().await;
-    let dac_input_id = dac.instance().input().id();
-    let kb = sg.add_static_sound_processor::<Keyboard>().await;
-    let usine = sg.add_number_source::<UnitSine>().await;
-    sg.connect_sound_input(kb.instance().input.id(), wavegen.id())
-        .await
-        .unwrap();
-    sg.connect_sound_input(dac_input_id, kb.id()).await.unwrap();
-    sg.connect_number_input(wavegen.instance().amplitude.id(), usine.id())
-        .await
-        .unwrap();
-    sg.connect_number_input(usine.instance().input.id(), wavegen.instance().phase.id())
-        .await
-        .unwrap();
-    sg.connect_number_input(
-        wavegen.instance().frequency.id(),
-        kb.instance().key_frequency.id(),
-    )
-    .await
-    .unwrap();
-    println!(
-        "The Keyboard's keyed input has {} keys",
-        kb.instance().input.num_keys()
-    );
-    println!("The WaveGenerator has {} states", wavegen.num_states());
-    sg
-}
+// async fn create_test_sound_graph() -> SoundGraph {
+//     let mut sg: SoundGraph = SoundGraph::new();
+//     let wavegen = sg.add_dynamic_sound_processor::<WaveGenerator>().await;
+//     let dac = sg.add_static_sound_processor::<Dac>().await;
+//     let dac_input_id = dac.instance().input().id();
+//     let kb = sg.add_static_sound_processor::<Keyboard>().await;
+//     let usine = sg.add_number_source::<UnitSine>().await;
+//     sg.connect_sound_input(kb.instance().input.id(), wavegen.id())
+//         .await
+//         .unwrap();
+//     sg.connect_sound_input(dac_input_id, kb.id()).await.unwrap();
+//     sg.connect_number_input(wavegen.instance().amplitude.id(), usine.id())
+//         .await
+//         .unwrap();
+//     sg.connect_number_input(usine.instance().input.id(), wavegen.instance().phase.id())
+//         .await
+//         .unwrap();
+//     sg.connect_number_input(
+//         wavegen.instance().frequency.id(),
+//         kb.instance().key_frequency.id(),
+//     )
+//     .await
+//     .unwrap();
+//     println!(
+//         "The Keyboard's keyed input has {} keys",
+//         kb.instance().input.num_keys()
+//     );
+//     println!("The WaveGenerator has {} states", wavegen.num_states());
+//     sg
+// }
 
 impl Default for FlosionApp {
     fn default() -> FlosionApp {
-        let graph = block_on(create_test_sound_graph());
+        // let graph = block_on(create_test_sound_graph());
+        let graph = SoundGraph::new();
         FlosionApp {
             graph,
             all_object_uis: ObjectFactory::new(),
             ui_state: GraphUITools::new(),
             summon_state: None,
+            selection_area: None,
         }
     }
 }
@@ -67,7 +71,6 @@ impl Default for FlosionApp {
 impl epi::App for FlosionApp {
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Hi earthguy");
             let running = self.graph.is_running();
             if ui.button(if running { "Pause" } else { "Play" }).clicked() {
                 if running {
@@ -76,7 +79,7 @@ impl epi::App for FlosionApp {
                     self.graph.start();
                 }
             }
-            self.ui_state.reset();
+            self.ui_state.reset_pegs();
             for (object_id, object) in self.graph.graph_objects() {
                 self.all_object_uis.ui(
                     *object_id,
@@ -89,13 +92,35 @@ impl epi::App for FlosionApp {
             let bg_response = ui.interact(
                 ui.input().screen_rect(),
                 egui::Id::new("background"),
-                egui::Sense::click(),
+                egui::Sense::click_and_drag(),
             );
+            let pointer_pos = bg_response.interact_pointer_pos();
+            if bg_response.drag_started() {
+                self.selection_area = Some(SelectionState {
+                    start_location: pointer_pos.unwrap(),
+                    end_location: pointer_pos.unwrap(),
+                });
+            }
+            if bg_response.dragged() {
+                if let Some(selection_area) = &mut self.selection_area {
+                    selection_area.end_location = pointer_pos.unwrap();
+                }
+            }
+            if bg_response.drag_released() {
+                if let Some(selection_area) = self.selection_area.take() {
+                    self.ui_state.select_with_rect(egui::Rect::from_two_pos(
+                        selection_area.start_location,
+                        selection_area.end_location,
+                    ));
+                }
+            }
             if bg_response.double_clicked() {
-                let p = bg_response.interact_pointer_pos().unwrap();
                 self.summon_state = match self.summon_state {
                     Some(_) => None,
-                    None => Some(SummonWidgetState::new(p, &self.all_object_uis)),
+                    None => Some(SummonWidgetState::new(
+                        pointer_pos.unwrap(),
+                        &self.all_object_uis,
+                    )),
                 };
             } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
                 self.summon_state = None;
@@ -151,6 +176,27 @@ impl epi::App for FlosionApp {
                         }
                     }
                 }
+            }
+
+            if let Some(selection_area) = &self.selection_area {
+                ui.with_layer_id(
+                    egui::LayerId::new(egui::Order::Background, egui::Id::new("selection")),
+                    |ui| {
+                        let painter = ui.painter();
+                        painter.rect(
+                            egui::Rect::from_two_pos(
+                                selection_area.start_location,
+                                selection_area.end_location,
+                            ),
+                            0.0,
+                            egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
+                            egui::Stroke::new(
+                                2.0,
+                                egui::Color32::from_rgba_unmultiplied(255, 255, 0, 64),
+                            ),
+                        )
+                    },
+                );
             }
 
             // TODO: consider choosing which layer to paint the wire on, rather

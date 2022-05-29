@@ -43,6 +43,10 @@ impl<T: Hash + Eq> RectStateMap<T> {
         &self.states
     }
 
+    fn states_mut(&mut self) -> &mut HashMap<T, RectState> {
+        &mut self.states
+    }
+
     pub fn add(&mut self, id: T, rect: egui::Rect, layer: egui::LayerId) {
         let state = RectState { rect, layer };
         self.states.insert(id, state);
@@ -58,7 +62,7 @@ pub struct GraphUITools {
     peg_being_dragged: Option<GraphId>,
     dropped_peg: Option<(GraphId, egui::Pos2)>,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph) -> ()>>,
-    selection: HashSet<GraphId>,
+    selection: HashSet<ObjectId>,
 }
 
 impl GraphUITools {
@@ -76,7 +80,7 @@ impl GraphUITools {
         }
     }
 
-    pub(super) fn reset(&mut self) {
+    pub(super) fn reset_pegs(&mut self) {
         self.sound_inputs.clear();
         self.sound_outputs.clear();
         self.number_inputs.clear();
@@ -95,6 +99,10 @@ impl GraphUITools {
 
     pub fn track_object(&mut self, id: ObjectId, rect: egui::Rect, layer: egui::LayerId) {
         self.objects.add(id, rect, layer);
+    }
+
+    pub fn get_object_state(&self, id: ObjectId) -> Option<&RectState> {
+        self.objects.states().get(&id)
     }
 
     pub fn make_change<F: FnOnce(&mut SoundGraph) -> () + 'static>(&mut self, f: F) {
@@ -181,6 +189,43 @@ impl GraphUITools {
             return Some(id.into());
         }
         None
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selection.clear();
+    }
+
+    pub fn select_object(&mut self, object_id: ObjectId) {
+        self.selection.insert(object_id);
+    }
+
+    pub fn deselect_object(&mut self, object_id: ObjectId) {
+        self.selection.remove(&object_id);
+    }
+
+    pub fn select_with_rect(&mut self, rect: egui::Rect) {
+        // TODO: allow shift/alt to add/remove objects from selection
+        self.clear_selection();
+        for (object_id, object_state) in self.objects.states() {
+            if rect.contains_rect(object_state.rect) {
+                self.selection.insert(*object_id);
+            }
+        }
+    }
+
+    pub fn selection(&self) -> &HashSet<ObjectId> {
+        &self.selection
+    }
+
+    pub fn is_object_selected(&self, object_id: ObjectId) -> bool {
+        self.selection.contains(&object_id)
+    }
+
+    pub fn move_selection(&mut self, delta: egui::Vec2) {
+        for s in &self.selection {
+            let state = self.objects.states_mut().get_mut(s).unwrap();
+            state.rect = state.rect.translate(delta);
+        }
     }
 
     pub(super) fn apply_pending_changes(&mut self, graph: &mut SoundGraph) {

@@ -419,12 +419,6 @@ impl SingleSoundInputHandle {
     pub(super) fn input(&self) -> &SingleSoundInput {
         &*self.input
     }
-
-    pub(super) fn clone(&self) -> SingleSoundInputHandle {
-        SingleSoundInputHandle {
-            input: Arc::clone(&self.input),
-        }
-    }
 }
 
 pub struct KeyedSoundInputHandle<K: Key, T: SoundState> {

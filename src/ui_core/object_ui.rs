@@ -120,19 +120,64 @@ impl ObjectWindow {
             ObjectId::Number(id) => format!("NumberObjectWindow {:?}", id),
         };
         let id = egui::Id::new(s);
-        let r = egui::Window::new("")
-            .id(id)
-            .title_bar(false)
-            .resizable(false)
-            .frame(
-                egui::Frame::none()
-                    .fill(egui::Color32::DARK_BLUE)
-                    .stroke(egui::Stroke::new(2.0, egui::Color32::WHITE))
-                    .margin(egui::Vec2::splat(10.0)),
-            )
-            .show(ctx, |ui| add_contents(ui, graph_tools))
-            .unwrap();
+        let fill;
+        let stroke;
+        if graph_tools.is_object_selected(self.object_id) {
+            fill = egui::Color32::LIGHT_BLUE;
+            stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
+        } else {
+            fill = egui::Color32::DARK_BLUE;
+            stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
+        }
+
+        let frame = egui::Frame::default()
+            .fill(fill)
+            .stroke(stroke)
+            .margin(egui::Vec2::splat(10.0));
+
+        let mut area = egui::Area::new(id);
+        // let layer_id = area.layer();
+        if let Some(state) = graph_tools.get_object_state(self.object_id) {
+            area = area.current_pos(state.rect.left_top());
+        }
+        area = area.movable(true);
+        let r = area.show(ctx, |ui| frame.show(ui, |ui| add_contents(ui, graph_tools)));
         graph_tools.track_object(self.object_id, r.response.rect, r.response.layer_id);
+        if r.response.drag_started() {
+            if !graph_tools.is_object_selected(self.object_id) {
+                graph_tools.clear_selection();
+                graph_tools.select_object(self.object_id);
+            }
+        }
+        if r.response.dragged() {
+            graph_tools.move_selection(r.response.drag_delta());
+        }
+        if r.response.drag_released() {
+            // println!("drag released");
+        }
+        if r.response.clicked() {
+            if !graph_tools.is_object_selected(self.object_id) {
+                graph_tools.clear_selection();
+                graph_tools.select_object(self.object_id);
+            }
+        }
+
+        // let r = egui::Window::new("")
+        //     .id(id)
+        //     .title_bar(false)
+        //     .resizable(false)
+        //     .frame(
+        //         egui::Frame::none()
+        //             .fill(fill)
+        //             .stroke(stroke)
+        //             .margin(egui::Vec2::splat(10.0)),
+        //     )
+        //     .show(ctx, |ui| add_contents(ui, graph_tools))
+        //     .unwrap();
+        // if r.response.clicked() {
+        //     println!("Yup");
+        //     graph_tools.select_object(self.object_id);
+        // }
     }
 }
 
