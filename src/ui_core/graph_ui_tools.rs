@@ -131,12 +131,13 @@ impl GraphUITools {
     }
 
     pub(super) fn stop_dragging(&mut self, graph_id: GraphId, location: egui::Pos2) {
-        debug_assert!(match self.peg_being_dragged {
-            Some(i) => i == graph_id,
-            None => false,
-        });
+        if self.peg_being_dragged.is_none() {
+            return;
+        }
+        let drag_peg = self.peg_being_dragged.take().unwrap();
+        debug_assert!(drag_peg == graph_id);
         debug_assert!(self.dropped_peg.is_none());
-        self.dropped_peg = Some((self.peg_being_dragged.take().unwrap(), location));
+        self.dropped_peg = Some((drag_peg, location));
     }
 
     pub(super) fn peg_being_dragged(&self) -> Option<GraphId> {
