@@ -1,4 +1,8 @@
-use std::any::type_name;
+use std::{
+    any::{type_name, Any},
+    cell::RefCell,
+    rc::Rc,
+};
 
 use eframe::egui;
 
@@ -12,17 +16,19 @@ use crate::core::{
 
 use super::{
     arguments::{ArgumentList, ParsedArguments},
-    graph_ui_tools::GraphUITools,
+    graph_ui_state::{GraphUIState, ObjectUiState},
 };
 
 pub trait ObjectUi: 'static + Default {
     type WrapperType: ObjectWrapper;
+    type StateType: Any + Default;
     fn ui(
         &self,
         id: ObjectId,
         wrapper: &Self::WrapperType,
-        graph_state: &mut GraphUITools,
+        graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
+        state: &Self::StateType,
     );
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -33,7 +39,11 @@ pub trait ObjectUi: 'static + Default {
         ArgumentList::new()
     }
 
-    fn init_object(&self, _object: &Self::WrapperType, _args: ParsedArguments) {}
+    fn init_object(&self, _object: &Self::WrapperType, _args: &ParsedArguments) {}
+
+    fn make_state(&self, _args: &ParsedArguments) -> Self::StateType {
+        Self::StateType::default()
+    }
 }
 
 pub trait AnyObjectUi {
@@ -41,7 +51,8 @@ pub trait AnyObjectUi {
         &self,
         id: ObjectId,
         object: &dyn GraphObject,
-        graph_state: &mut GraphUITools,
+        object_ui_state: &dyn ObjectUiState,
+        graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     );
 
@@ -49,7 +60,9 @@ pub trait AnyObjectUi {
 
     fn arguments(&self) -> ArgumentList;
 
-    fn init_object(&self, object: &dyn GraphObject, args: ParsedArguments);
+    fn init_object(&self, object: &dyn GraphObject, args: &ParsedArguments);
+
+    fn make_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>>;
 }
 
 impl<T: ObjectUi> AnyObjectUi for T {
@@ -57,21 +70,30 @@ impl<T: ObjectUi> AnyObjectUi for T {
         &self,
         id: ObjectId,
         object: &dyn GraphObject,
-        graph_state: &mut GraphUITools,
+        object_ui_state: &dyn ObjectUiState,
+        graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     ) {
-        let any = object.as_any();
+        let object_any = object.as_any();
         debug_assert!(
-            any.is::<T::WrapperType>(),
-            "AnyObjectUi expected to receive type {}, but got {} instead",
+            object_any.is::<T::WrapperType>(),
+            "AnyObjectUi expected to receive object type {}, but got {} instead",
             type_name::<T::WrapperType>(),
             object.get_language_type_name()
         );
-        let dc_object = any.downcast_ref::<T::WrapperType>().unwrap();
-        self.ui(id, dc_object, graph_state, ui);
+        let dc_object = object_any.downcast_ref::<T::WrapperType>().unwrap();
+        let state_any = object_ui_state.as_any();
+        debug_assert!(
+            state_any.is::<T::StateType>(),
+            "AnyObjectUi expected to receive state type {}, but got {:?} instead",
+            type_name::<T::StateType>(),
+            object_ui_state.get_language_type_name()
+        );
+        let state = state_any.downcast_ref::<T::StateType>().unwrap();
+        self.ui(id, dc_object, graph_state, ui, state);
     }
 
-    fn init_object(&self, object: &dyn GraphObject, args: ParsedArguments) {
+    fn init_object(&self, object: &dyn GraphObject, args: &ParsedArguments) {
         let any = object.as_any();
         debug_assert!(
             any.is::<T::WrapperType>(),
@@ -81,6 +103,11 @@ impl<T: ObjectUi> AnyObjectUi for T {
         );
         let dc_object = any.downcast_ref::<T::WrapperType>().unwrap();
         self.init_object(dc_object, args);
+    }
+
+    fn make_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>> {
+        let x: &T = self;
+        Rc::new(RefCell::new(x.make_state(args)))
     }
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -109,10 +136,10 @@ impl ObjectWindow {
         }
     }
 
-    pub fn show<F: FnOnce(&mut egui::Ui, &mut GraphUITools)>(
+    pub fn show<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
         self,
         ctx: &egui::CtxRef,
-        graph_tools: &mut GraphUITools,
+        graph_tools: &mut GraphUIState,
         add_contents: F,
     ) {
         let s = match self.object_id {
@@ -137,14 +164,21 @@ impl ObjectWindow {
 
         let mut area = egui::Area::new(id);
         // let layer_id = area.layer();
-        if let Some(state) = graph_tools.get_object_state(self.object_id) {
+        if let Some(state) = graph_tools
+            .layout_state()
+            .get_object_location(self.object_id)
+        {
             area = area.current_pos(state.rect.left_top());
         } else {
             area = area.current_pos(ctx.input().pointer.interact_pos().unwrap());
         }
         area = area.movable(true);
         let r = area.show(ctx, |ui| frame.show(ui, |ui| add_contents(ui, graph_tools)));
-        graph_tools.track_object(self.object_id, r.response.rect, r.response.layer_id);
+        graph_tools.layout_state_mut().track_object_location(
+            self.object_id,
+            r.response.rect,
+            r.response.layer_id,
+        );
         if r.response.drag_started() {
             if !graph_tools.is_object_selected(self.object_id) {
                 graph_tools.clear_selection();
@@ -187,11 +221,13 @@ fn peg_ui(
     id: GraphId,
     color: egui::Color32,
     label: &str,
-    graph_state: &mut GraphUITools,
+    graph_state: &mut GraphUIState,
     ui: &mut egui::Ui,
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
-    graph_state.track_peg(id, rect, response.layer_id);
+    graph_state
+        .layout_state_mut()
+        .track_peg(id, rect, response.layer_id);
     let painter = ui.painter();
     painter.rect(
         rect,
@@ -225,14 +261,14 @@ fn peg_ui(
 pub struct SoundInputWidget<'a> {
     sound_input_id: SoundInputId,
     label: &'a str,
-    graph_state: &'a mut GraphUITools,
+    graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> SoundInputWidget<'a> {
     pub fn new(
         sound_input_id: SoundInputId,
         label: &'a str,
-        graph_state: &'a mut GraphUITools,
+        graph_state: &'a mut GraphUIState,
     ) -> SoundInputWidget<'a> {
         SoundInputWidget {
             sound_input_id,
@@ -257,14 +293,14 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
 pub struct SoundOutputWidget<'a> {
     sound_processor_id: SoundProcessorId,
     label: &'a str,
-    graph_state: &'a mut GraphUITools,
+    graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> SoundOutputWidget<'a> {
     pub fn new(
         sound_processor_id: SoundProcessorId,
         label: &'a str,
-        graph_state: &'a mut GraphUITools,
+        graph_state: &'a mut GraphUIState,
     ) -> SoundOutputWidget<'a> {
         SoundOutputWidget {
             sound_processor_id,
@@ -289,14 +325,14 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
 pub struct NumberInputWidget<'a> {
     number_input_id: NumberInputId,
     label: &'a str,
-    graph_state: &'a mut GraphUITools,
+    graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> NumberInputWidget<'a> {
     pub fn new(
         number_input_id: NumberInputId,
         label: &'a str,
-        graph_state: &'a mut GraphUITools,
+        graph_state: &'a mut GraphUIState,
     ) -> NumberInputWidget<'a> {
         NumberInputWidget {
             number_input_id,
@@ -321,14 +357,14 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
 pub struct NumberOutputWidget<'a> {
     number_source_id: NumberSourceId,
     label: &'a str,
-    graph_state: &'a mut GraphUITools,
+    graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> NumberOutputWidget<'a> {
     pub fn new(
         number_source_id: NumberSourceId,
         label: &'a str,
-        graph_state: &'a mut GraphUITools,
+        graph_state: &'a mut GraphUIState,
     ) -> NumberOutputWidget<'a> {
         NumberOutputWidget {
             number_source_id,

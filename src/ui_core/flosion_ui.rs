@@ -6,7 +6,7 @@ use eframe::{egui, epi};
 use futures::executor::block_on;
 
 use super::{
-    graph_ui_tools::GraphUITools,
+    graph_ui_state::GraphUIState,
     summon_widget::{SummonWidget, SummonWidgetState},
 };
 
@@ -18,7 +18,7 @@ struct SelectionState {
 pub struct FlosionApp {
     graph: SoundGraph,
     all_object_uis: ObjectFactory,
-    ui_state: GraphUITools,
+    ui_state: GraphUIState,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
 }
@@ -61,7 +61,7 @@ impl Default for FlosionApp {
         FlosionApp {
             graph,
             all_object_uis: ObjectFactory::new(),
-            ui_state: GraphUITools::new(),
+            ui_state: GraphUIState::new(),
             summon_state: None,
             selection_area: None,
         }
@@ -132,7 +132,8 @@ impl epi::App for FlosionApp {
                 if s.should_close() {
                     if s.selected_type().is_some() {
                         let (t, args) = s.parse_selected();
-                        self.all_object_uis.create(t, args, &mut self.graph);
+                        self.all_object_uis
+                            .create(t, &args, &mut self.graph, &mut self.ui_state);
                     }
                     self.summon_state = None;
                 }
@@ -142,7 +143,7 @@ impl epi::App for FlosionApp {
             if self.ui_state.peg_was_dropped() {
                 let id_src = self.ui_state.dropped_peg_id().unwrap();
                 let p = self.ui_state.drop_location().unwrap();
-                let id_dst = self.ui_state.find_peg_near(p, ui);
+                let id_dst = self.ui_state.layout_state().find_peg_near(p, ui);
                 match id_src {
                     GraphId::NumberInput(niid) => {
                         if desc.number_inputs().get(&niid).unwrap().target().is_some() {
@@ -211,8 +212,9 @@ impl epi::App for FlosionApp {
                     let drag_peg = self.ui_state.peg_being_dragged();
                     for (siid, si) in desc.sound_inputs() {
                         if let Some(spid) = si.target() {
-                            let si_state = self.ui_state.sound_inputs().get(siid).unwrap();
-                            let sp_state = self.ui_state.sound_outputs().get(&spid).unwrap();
+                            let layout = self.ui_state.layout_state();
+                            let si_state = layout.sound_inputs().get(siid).unwrap();
+                            let sp_state = layout.sound_outputs().get(&spid).unwrap();
                             let faint = drag_peg == Some(GraphId::SoundInput(*siid));
                             painter.line_segment(
                                 [si_state.center(), sp_state.center()],
@@ -230,8 +232,9 @@ impl epi::App for FlosionApp {
                     }
                     for (niid, ni) in desc.number_inputs() {
                         if let Some(nsid) = ni.target() {
-                            let ni_state = self.ui_state.number_inputs().get(niid).unwrap();
-                            let ns_state = self.ui_state.number_outputs().get(&nsid).unwrap();
+                            let layout = self.ui_state.layout_state();
+                            let ni_state = layout.number_inputs().get(niid).unwrap();
+                            let ns_state = layout.number_outputs().get(&nsid).unwrap();
                             let faint = drag_peg == Some(GraphId::NumberInput(*niid));
                             painter.line_segment(
                                 [ni_state.center(), ns_state.center()],
@@ -249,27 +252,24 @@ impl epi::App for FlosionApp {
                     }
                     if let Some(gid) = self.ui_state.peg_being_dragged() {
                         let cursor_pos = ui.input().pointer.interact_pos().unwrap();
+                        let layout = self.ui_state.layout_state();
                         let other_pos;
                         let color;
                         match gid {
                             GraphId::NumberInput(niid) => {
-                                other_pos =
-                                    self.ui_state.number_inputs().get(&niid).unwrap().center();
+                                other_pos = layout.number_inputs().get(&niid).unwrap().center();
                                 color = egui::Color32::from_rgb(0, 0, 255);
                             }
                             GraphId::NumberSource(nsid) => {
-                                other_pos =
-                                    self.ui_state.number_outputs().get(&nsid).unwrap().center();
+                                other_pos = layout.number_outputs().get(&nsid).unwrap().center();
                                 color = egui::Color32::from_rgb(0, 0, 255);
                             }
                             GraphId::SoundInput(siid) => {
-                                other_pos =
-                                    self.ui_state.sound_inputs().get(&siid).unwrap().center();
+                                other_pos = layout.sound_inputs().get(&siid).unwrap().center();
                                 color = egui::Color32::from_rgb(0, 255, 0);
                             }
                             GraphId::SoundProcessor(spid) => {
-                                other_pos =
-                                    self.ui_state.sound_outputs().get(&spid).unwrap().center();
+                                other_pos = layout.sound_outputs().get(&spid).unwrap().center();
                                 color = egui::Color32::from_rgb(0, 255, 0);
                             }
                         }

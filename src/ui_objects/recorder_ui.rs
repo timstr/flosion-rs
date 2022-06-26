@@ -5,7 +5,7 @@ use crate::{
     core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
-        graph_ui_tools::GraphUITools,
+        graph_ui_state::GraphUIState,
         object_ui::{ObjectUi, ObjectWindow, SoundInputWidget, SoundOutputWidget},
     },
 };
@@ -15,13 +15,15 @@ pub struct RecorderUi;
 
 impl ObjectUi for RecorderUi {
     type WrapperType = WrappedStaticSoundProcessor<Recorder>;
+    type StateType = ();
 
     fn ui(
         &self,
         id: ObjectId,
         wrapper: &WrappedStaticSoundProcessor<Recorder>,
-        graph_tools: &mut GraphUITools,
+        graph_tools: &mut GraphUIState,
         ui: &mut egui::Ui,
+        _state: &(),
     ) {
         let id = id.as_sound_processor_id().unwrap();
         let object = wrapper.instance();

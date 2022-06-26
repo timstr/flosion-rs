@@ -4,7 +4,7 @@ use crate::{
     core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
     objects::keyboard::Keyboard,
     ui_core::{
-        graph_ui_tools::GraphUITools,
+        graph_ui_state::GraphUIState,
         object_ui::{
             NumberOutputWidget, ObjectUi, ObjectWindow, SoundInputWidget, SoundOutputWidget,
         },
@@ -16,12 +16,14 @@ pub struct KeyboardUi {}
 
 impl ObjectUi for KeyboardUi {
     type WrapperType = WrappedStaticSoundProcessor<Keyboard>;
+    type StateType = ();
     fn ui(
         &self,
         id: ObjectId,
         wrapper: &WrappedStaticSoundProcessor<Keyboard>,
-        graph_tools: &mut GraphUITools,
+        graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
+        _state: &(),
     ) {
         let id = id.as_sound_processor_id().unwrap();
         let object = wrapper.instance();

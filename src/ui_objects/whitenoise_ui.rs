@@ -2,7 +2,7 @@ use crate::{
     core::{graphobject::ObjectId, soundprocessor::WrappedDynamicSoundProcessor},
     objects::whitenoise::WhiteNoise,
     ui_core::{
-        graph_ui_tools::GraphUITools,
+        graph_ui_state::GraphUIState,
         object_ui::{ObjectUi, ObjectWindow, SoundOutputWidget},
     },
 };
@@ -12,13 +12,15 @@ pub struct WhiteNoiseUi {}
 
 impl ObjectUi for WhiteNoiseUi {
     type WrapperType = WrappedDynamicSoundProcessor<WhiteNoise>;
+    type StateType = ();
 
     fn ui(
         &self,
         id: ObjectId,
         _wrapper: &WrappedDynamicSoundProcessor<WhiteNoise>,
-        graph_tools: &mut GraphUITools,
+        graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
+        _state: &(),
     ) {
         let id = id.as_sound_processor_id().unwrap();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {

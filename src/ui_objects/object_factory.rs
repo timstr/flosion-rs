@@ -12,7 +12,7 @@ use crate::{
     },
     ui_core::{
         arguments::ParsedArguments,
-        graph_ui_tools::GraphUITools,
+        graph_ui_state::GraphUIState,
         object_ui::{AnyObjectUi, ObjectUi},
     },
 };
@@ -21,7 +21,7 @@ use super::all_objects::all_objects;
 
 struct ObjectData {
     ui: Box<dyn AnyObjectUi>,
-    create: Box<dyn Fn(&mut SoundGraph, &dyn AnyObjectUi, ParsedArguments)>,
+    create: Box<dyn Fn(&mut SoundGraph, &mut GraphUIState, &dyn AnyObjectUi, &ParsedArguments)>,
 }
 
 pub struct ObjectFactory {
@@ -51,12 +51,16 @@ impl ObjectFactory {
     where
         <T::WrapperType as ObjectWrapper>::Type: DynamicSoundProcessor,
     {
-        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, args: ParsedArguments| {
+        let create = |g: &mut SoundGraph,
+                      s: &mut GraphUIState,
+                      o: &dyn AnyObjectUi,
+                      args: &ParsedArguments| {
             let h = block_on(
                 g.add_dynamic_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>(),
             );
             let sp: &dyn GraphObject = h.wrapper();
-            o.init_object(sp, args)
+            o.init_object(sp, args);
+            // TODO: make state
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -71,11 +75,15 @@ impl ObjectFactory {
     where
         <T::WrapperType as ObjectWrapper>::Type: StaticSoundProcessor,
     {
-        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, args: ParsedArguments| {
+        let create = |g: &mut SoundGraph,
+                      s: &mut GraphUIState,
+                      o: &dyn AnyObjectUi,
+                      args: &ParsedArguments| {
             let h =
                 block_on(g.add_static_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>());
             let sp: &dyn GraphObject = h.wrapper();
-            o.init_object(sp, args)
+            o.init_object(sp, args);
+            // TODO: make state
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -90,10 +98,14 @@ impl ObjectFactory {
     where
         <T::WrapperType as ObjectWrapper>::Type: PureNumberSource,
     {
-        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, args: ParsedArguments| {
+        let create = |g: &mut SoundGraph,
+                      s: &mut GraphUIState,
+                      o: &dyn AnyObjectUi,
+                      args: &ParsedArguments| {
             let h = block_on(g.add_number_source::<<T::WrapperType as ObjectWrapper>::Type>());
             let ns: &dyn GraphObject = h.instance();
-            o.init_object(ns, args)
+            o.init_object(ns, args);
+            s.set_object_state(h.id().into(), o.make_state(args));
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -117,18 +129,28 @@ impl ObjectFactory {
         id: ObjectId,
         object: &dyn GraphObject,
         object_type: ObjectType,
-        graph_state: &mut GraphUITools,
+        graph_state: &mut GraphUIState,
         ui: &mut Ui,
     ) {
         match self.mapping.get(&object_type) {
-            Some(data) => data.ui.apply(id, object, graph_state, ui),
+            Some(data) => {
+                let state_rc = graph_state.get_object_state(id);
+                let state_ref = state_rc.borrow();
+                data.ui.apply(id, object, &*state_ref, graph_state, ui);
+            }
             None => error_ui(ui, object, object_type),
         }
     }
 
-    pub fn create(&self, object_type: ObjectType, args: ParsedArguments, graph: &mut SoundGraph) {
+    pub fn create(
+        &self,
+        object_type: ObjectType,
+        args: &ParsedArguments,
+        graph: &mut SoundGraph,
+        ui_state: &mut GraphUIState,
+    ) {
         match self.mapping.get(&object_type) {
-            Some(data) => (*data.create)(graph, &*data.ui, args),
+            Some(data) => (*data.create)(graph, ui_state, &*data.ui, args),
             None => println!(
                 "Warning: tried to create an object of unrecognized type \"{}\"",
                 object_type.name()

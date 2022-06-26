@@ -2,7 +2,7 @@ use crate::{
     core::{graphobject::ObjectId, soundprocessor::WrappedDynamicSoundProcessor},
     objects::mixer::Mixer,
     ui_core::{
-        graph_ui_tools::GraphUITools,
+        graph_ui_state::GraphUIState,
         object_ui::{ObjectUi, ObjectWindow, SoundInputWidget, SoundOutputWidget},
     },
 };
@@ -12,13 +12,15 @@ pub struct MixerUi {}
 
 impl ObjectUi for MixerUi {
     type WrapperType = WrappedDynamicSoundProcessor<Mixer>;
+    type StateType = ();
 
     fn ui(
         &self,
         id: ObjectId,
         wrapper: &WrappedDynamicSoundProcessor<Mixer>,
-        graph_tools: &mut GraphUITools,
+        graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
+        _state: &(),
     ) {
         let object = wrapper.instance();
         let id = id.as_sound_processor_id().unwrap();

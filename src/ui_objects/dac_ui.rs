@@ -2,7 +2,7 @@ use crate::{
     core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
     objects::dac::Dac,
     ui_core::{
-        graph_ui_tools::GraphUITools,
+        graph_ui_state::GraphUIState,
         object_ui::{ObjectUi, ObjectWindow, SoundInputWidget},
     },
 };
@@ -12,12 +12,14 @@ pub struct DacUi {}
 
 impl ObjectUi for DacUi {
     type WrapperType = WrappedStaticSoundProcessor<Dac>;
+    type StateType = ();
     fn ui(
         &self,
         id: ObjectId,
         wrapper: &WrappedStaticSoundProcessor<Dac>,
-        graph_tools: &mut GraphUITools,
+        graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
+        _state: &(),
     ) {
         let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap()).show(
