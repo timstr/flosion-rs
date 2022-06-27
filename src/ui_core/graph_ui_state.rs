@@ -82,6 +82,10 @@ impl GraphLayout {
         self.number_outputs.clear();
     }
 
+    fn forget_object(&mut self, id: ObjectId) {
+        self.objects.states_mut().remove(&id);
+    }
+
     pub fn track_peg(&mut self, id: GraphId, rect: egui::Rect, layer: egui::LayerId) {
         match id {
             GraphId::NumberInput(id) => self.number_inputs.add(id, rect, layer),
@@ -277,6 +281,14 @@ impl GraphUIState {
                 self.selection.insert(*object_id);
             }
         }
+    }
+
+    pub fn forget_selection(&mut self) {
+        for id in &self.selection {
+            self.layout_state.forget_object(*id);
+            self.object_states.remove(id);
+        }
+        self.selection.clear();
     }
 
     pub fn selection(&self) -> &HashSet<ObjectId> {

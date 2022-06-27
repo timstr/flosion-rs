@@ -1,5 +1,8 @@
 use crate::{
-    core::{graphobject::GraphId, soundgraph::SoundGraph},
+    core::{
+        graphobject::{GraphId, ObjectId},
+        soundgraph::SoundGraph,
+    },
     ui_objects::object_factory::ObjectFactory,
 };
 use eframe::{egui, epi};
@@ -280,6 +283,21 @@ impl epi::App for FlosionApp {
             );
 
             self.ui_state.apply_pending_changes(&mut self.graph);
+
+            if self.summon_state.is_none() && ui.input().key_pressed(egui::Key::Delete) {
+                let selection = self.ui_state.selection();
+                for id in selection {
+                    match id {
+                        ObjectId::Sound(id) => {
+                            block_on(self.graph.remove_sound_processor(*id));
+                        }
+                        ObjectId::Number(id) => {
+                            block_on(self.graph.remove_number_source(*id));
+                        }
+                    }
+                }
+                self.ui_state.forget_selection();
+            }
         });
     }
 

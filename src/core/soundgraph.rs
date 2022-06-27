@@ -237,48 +237,31 @@ impl SoundGraph {
         handle
     }
 
-    pub async fn remove_dynamic_sound_processor<T: DynamicSoundProcessor>(
-        &mut self,
-        handle: DynamicSoundProcessorHandle<T>,
-    ) {
+    pub async fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
         let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
             .send(SoundEngineMessage::RemoveSoundProcessor {
-                processor_id: handle.id(),
+                processor_id,
                 result: outbound_result,
             })
             .unwrap();
         self.flush_idle_messages();
+        self.graph_objects
+            .retain(|o| o.0 != ObjectId::Sound(processor_id));
         result_future.await.unwrap();
     }
 
-    pub async fn remove_static_number_processor<T: StaticSoundProcessor>(
-        &mut self,
-        handle: StaticSoundProcessorHandle<T>,
-    ) {
-        let (result_future, outbound_result) = ResultFuture::new();
-        self.message_sender
-            .send(SoundEngineMessage::RemoveSoundProcessor {
-                processor_id: handle.id(),
-                result: outbound_result,
-            })
-            .unwrap();
-        self.flush_idle_messages();
-        result_future.await.unwrap();
-    }
-
-    pub async fn remove_number_source<T: PureNumberSource>(
-        &mut self,
-        handle: PureNumberSourceHandle<T>,
-    ) {
+    pub async fn remove_number_source(&mut self, source_id: NumberSourceId) {
         let (result_future, outbound_result) = ResultFuture::new();
         self.message_sender
             .send(SoundEngineMessage::RemoveNumberSource {
-                source_id: handle.id(),
+                source_id,
                 result: outbound_result,
             })
             .unwrap();
         self.flush_idle_messages();
+        self.graph_objects
+            .retain(|o| o.0 != ObjectId::Number(source_id));
         result_future.await.unwrap();
     }
 
