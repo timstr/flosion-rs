@@ -610,6 +610,12 @@ impl SoundEngine {
             self.disconnect_number_input(input_id).unwrap();
         }
 
+        // remove all number inputs belonging to the source
+        let number_inputs_to_remove = self.number_sources.get(&source_id).unwrap().inputs.clone();
+        for input_id in number_inputs_to_remove {
+            self.remove_number_input(input_id);
+        }
+
         // remove the number source from its owner, if any
         match self.number_sources.get(&source_id).unwrap().owner {
             NumberSourceOwner::SoundProcessor(spid) => {
