@@ -8,19 +8,25 @@ fn score_match(query: &str, content: &str) -> f32 {
     if query.len() == 0 || content.len() == 0 {
         return 0.0;
     }
-    let mut score: u32 = 0;
+    let mut score: i32 = 0;
     let mut q = query.chars();
     let mut qc = q.next();
-    let start_bonus = qc.unwrap() == content.chars().next().unwrap();
+    let mut start_bonus = true;
     for c in content.chars() {
-        if qc == Some(c) {
+        if qc.is_none() {
+            score -= 1;
+            break;
+        } else if qc == Some(c) {
             qc = q.next();
-        } else {
             score += 1;
+            if start_bonus {
+                score += 1;
+            }
+        } else {
+            start_bonus = false;
         }
     }
-    let base_score = (score as f32) / (content.len() as f32);
-    base_score + if start_bonus { 0.0 } else { 0.5 }
+    return score as f32;
 }
 
 struct MatchingObject {
@@ -121,7 +127,7 @@ impl SummonWidgetState {
             *s = score_match(&self.text, o.object_type.name());
         }
         self.object_scores
-            .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().reverse());
     }
 }
 
