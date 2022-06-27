@@ -31,13 +31,18 @@ struct StreamDammit {
 
 unsafe impl Send for StreamDammit {}
 
+struct DacData {
+    chunk_backlog: AtomicI32,
+    playing: AtomicBool,
+    first_chunk: AtomicBool,
+}
+
 pub struct Dac {
     input: SingleSoundInputHandle,
     stream: Mutex<StreamDammit>,
     chunk_sender: Mutex<Sender<SoundChunk>>,
-    chunk_backlog: Arc<AtomicI32>,
-    playing: Arc<AtomicBool>,
-    first_chunk: Arc<AtomicBool>,
+    pending_reset: AtomicBool,
+    shared_data: Arc<DacData>,
 }
 
 pub struct DacState {}
@@ -58,7 +63,11 @@ impl Dac {
     }
 
     pub fn is_playing(&self) -> bool {
-        self.playing.load(Ordering::SeqCst)
+        self.shared_data.playing.load(Ordering::SeqCst)
+    }
+
+    pub fn reset(&self) {
+        self.pending_reset.store(true, Ordering::SeqCst);
     }
 }
 
@@ -102,28 +111,32 @@ impl StaticSoundProcessor for Dac {
 
         let (tx, rx) = channel::<SoundChunk>();
 
-        let playing = Arc::new(AtomicBool::new(false));
-        let playing_also = Arc::clone(&playing);
-        let chunk_backlog = Arc::new(AtomicI32::new(0));
-        let chunk_backlog_also = Arc::clone(&chunk_backlog);
-        let first_chunk = Arc::new(AtomicBool::new(true));
-        let first_chunk_also = Arc::clone(&first_chunk);
+        let shared_data = Arc::new(DacData {
+            playing: AtomicBool::new(false),
+            chunk_backlog: AtomicI32::new(0),
+            first_chunk: AtomicBool::new(false),
+        });
 
         let mut chunk_index: usize = 0;
         let mut current_chunk: Option<SoundChunk> = None;
+        let thread_shared_data = Arc::clone(&shared_data);
 
         let mut get_next_sample = move || {
             if current_chunk.is_none() || chunk_index >= CHUNK_SIZE {
                 current_chunk = Some(loop {
                     if let Ok(mut next_chunk) = rx.try_recv() {
-                        let backlog = chunk_backlog.fetch_sub(1, Ordering::SeqCst);
+                        let backlog = thread_shared_data
+                            .chunk_backlog
+                            .fetch_sub(1, Ordering::SeqCst);
                         debug_assert!(backlog >= 0);
-                        let init = first_chunk.swap(false, Ordering::SeqCst);
+                        let init = thread_shared_data.first_chunk.swap(false, Ordering::SeqCst);
                         if init {
                             let mut dropped_chunk_count = 0;
                             loop {
                                 if let Ok(backlog_chunk) = rx.try_recv() {
-                                    let n = chunk_backlog.fetch_sub(1, Ordering::SeqCst);
+                                    let n = thread_shared_data
+                                        .chunk_backlog
+                                        .fetch_sub(1, Ordering::SeqCst);
                                     debug_assert!(n >= 0);
                                     if n == 0 {
                                         next_chunk = backlog_chunk;
@@ -143,7 +156,7 @@ impl StaticSoundProcessor for Dac {
                         }
                         break next_chunk;
                     }
-                    if !playing.load(Ordering::Relaxed) {
+                    if !thread_shared_data.playing.load(Ordering::Relaxed) {
                         break SoundChunk::new();
                     }
                     spin_sleep::sleep(Duration::from_micros(1_000));
@@ -184,14 +197,15 @@ impl StaticSoundProcessor for Dac {
                 .0,
             stream: Mutex::new(StreamDammit { stream }),
             chunk_sender: Mutex::new(tx),
-            chunk_backlog: chunk_backlog_also,
-            playing: playing_also,
-            first_chunk: first_chunk_also,
+            pending_reset: AtomicBool::new(false),
+            shared_data,
         }
     }
 
     fn process_audio(&self, _dst: &mut SoundChunk, mut sc: ProcessorContext<'_, DacState>) {
-        if sc.single_input_needs_reset(&self.input) {
+        if self.pending_reset.swap(false, Ordering::SeqCst)
+            || sc.single_input_needs_reset(&self.input)
+        {
             sc.reset_single_input(&self.input, 0);
         }
         let mut ch = SoundChunk::new();
@@ -199,7 +213,9 @@ impl StaticSoundProcessor for Dac {
 
         let sender = self.chunk_sender.lock();
         sender.send(ch).unwrap();
-        self.chunk_backlog.fetch_add(1, Ordering::SeqCst);
+        self.shared_data
+            .chunk_backlog
+            .fetch_add(1, Ordering::SeqCst);
     }
 
     fn produces_output(&self) -> bool {
@@ -207,14 +223,14 @@ impl StaticSoundProcessor for Dac {
     }
 
     fn on_start_processing(&self) {
-        self.playing.store(true, Ordering::SeqCst);
+        self.shared_data.playing.store(true, Ordering::SeqCst);
         let s = self.stream.lock();
         s.stream.play().unwrap();
-        self.first_chunk.store(true, Ordering::SeqCst);
+        self.shared_data.first_chunk.store(true, Ordering::SeqCst);
     }
 
     fn on_stop_processing(&self) {
-        self.playing.store(false, Ordering::SeqCst);
+        self.shared_data.playing.store(false, Ordering::SeqCst);
         let s = self.stream.lock();
         s.stream.pause().unwrap();
     }

@@ -39,7 +39,7 @@ impl ObjectUi for DacUi {
                     graph_tools,
                 ));
                 if ui.button("Reset").clicked() {
-                    todo!();
+                    wrapper.instance().reset();
                 }
             },
         );
