@@ -512,7 +512,7 @@ impl SoundEngine {
         let input_data = input_data.unwrap();
         let processor_id = match input_data.target {
             Some(pid) => pid,
-            None => return Err(SoundConnectionError::NoChange.into()),
+            None => return Ok(()),
         };
 
         input_data.target = None;
@@ -734,10 +734,6 @@ impl SoundEngine {
             Some(i) => i,
             None => return Err(NumberConnectionError::InputNotFound(input_id)),
         };
-
-        if input_data.target.is_none() {
-            return Err(NumberConnectionError::NoChange);
-        }
 
         input_data.target = None;
 

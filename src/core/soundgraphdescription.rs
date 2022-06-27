@@ -202,7 +202,7 @@ impl SoundGraphDescription {
         };
         let processor_id = match input_desc.target {
             Some(t) => t,
-            None => return Some(SoundConnectionError::NoChange),
+            None => return None,
         };
         if self.sound_processors.get(&processor_id).is_none() {
             return Some(SoundConnectionError::ProcessorNotFound(processor_id));
@@ -237,7 +237,7 @@ impl SoundGraphDescription {
         };
         let source_id = match input_desc.target {
             Some(t) => t,
-            None => return Some(NumberConnectionError::NoChange),
+            None => return None,
         };
         if self.number_sources.get_mut(&source_id).is_none() {
             return Some(NumberConnectionError::SourceNotFound(source_id));
