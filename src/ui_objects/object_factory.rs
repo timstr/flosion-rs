@@ -60,7 +60,7 @@ impl ObjectFactory {
             );
             let sp: &dyn GraphObject = h.wrapper();
             o.init_object(sp, args);
-            // TODO: make state
+            s.set_object_state(h.id().into(), o.make_state(args));
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -83,7 +83,7 @@ impl ObjectFactory {
                 block_on(g.add_static_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>());
             let sp: &dyn GraphObject = h.wrapper();
             o.init_object(sp, args);
-            // TODO: make state
+            s.set_object_state(h.id().into(), o.make_state(args));
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,

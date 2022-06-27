@@ -99,56 +99,45 @@ macro_rules! binary_number_source {
     };
 }
 
+// TODO: ternary functions:
+// muladd
+// linear map
+
 unary_number_source!(Negate, "negate", |x| -x);
+unary_number_source!(Floor, "floor", |x| x.floor());
+unary_number_source!(Ceil, "ceil", |x| x.ceil());
+unary_number_source!(Round, "round", |x| x.round());
+unary_number_source!(Trunc, "trunc", |x| x.trunc());
+unary_number_source!(Fract, "fract", |x| x.fract());
+unary_number_source!(Abs, "abs", |x| x.abs());
+unary_number_source!(Signum, "signum", |x| x.signum());
+unary_number_source!(Exp, "exp", |x| x.exp());
+unary_number_source!(Exp2, "exp2", |x| x.exp2());
+unary_number_source!(Exp10, "exp10", |x| (x * std::f32::consts::LN_10).exp());
+unary_number_source!(Log, "log", |x| x.ln());
+unary_number_source!(Log2, "log2", |x| x.log2());
+unary_number_source!(Log10, "log10", |x| x.log10());
+unary_number_source!(Cbrt, "cbrt", |x| x.cbrt());
+unary_number_source!(Sin, "sin", |x| x.sin());
+unary_number_source!(USin, "usin", |x| (x * std::f32::consts::TAU).sin());
+unary_number_source!(Cos, "cos", |x| x.cos());
+unary_number_source!(UCos, "ucos", |x| (x * std::f32::consts::TAU).cos());
+unary_number_source!(Tan, "tan", |x| x.tan());
+unary_number_source!(Asin, "asin", |x| x.asin());
+unary_number_source!(Acos, "acos", |x| x.acos());
+unary_number_source!(Atan, "atan", |x| x.atan());
+unary_number_source!(Sinh, "sinh", |x| x.sinh());
+unary_number_source!(Cosh, "cosh", |x| x.cosh());
+unary_number_source!(Tanh, "tanh", |x| x.tanh());
+unary_number_source!(Asinh, "asinh", |x| x.asinh());
+unary_number_source!(Acosh, "acosh", |x| x.acosh());
+unary_number_source!(Atanh, "atanh", |x| x.atanh());
 
 binary_number_source!(Add, "add", |a, b| a + b);
 binary_number_source!(Subtract, "subtract", |a, b| a - b);
 binary_number_source!(Multiply, "multiply", |a, b| a * b);
 binary_number_source!(Divide, "divide", |a, b| a / b);
-
-pub struct Sine {
-    pub input: NumberInputHandle,
-}
-
-impl NumberSource for Sine {
-    fn eval(&self, dst: &mut [f32], context: NumberContext) {
-        self.input.eval(dst, context);
-        numeric::apply_unary_inplace(dst, |x| x.sin());
-    }
-}
-
-impl WithObjectType for Sine {
-    const TYPE: ObjectType = ObjectType::new("sine");
-}
-
-impl PureNumberSource for Sine {
-    fn new(tools: &mut NumberSourceTools<'_>) -> Sine {
-        Sine {
-            input: tools.add_number_input().0,
-        }
-    }
-}
-
-pub struct UnitSine {
-    pub input: NumberInputHandle,
-}
-
-impl NumberSource for UnitSine {
-    fn eval(&self, dst: &mut [f32], context: NumberContext) {
-        self.input.eval(dst, context);
-        numeric::mul_scalar_inplace(dst, std::f32::consts::TAU);
-        numeric::apply_unary_inplace(dst, |x| x.sin());
-    }
-}
-
-impl WithObjectType for UnitSine {
-    const TYPE: ObjectType = ObjectType::new("unitsine");
-}
-
-impl PureNumberSource for UnitSine {
-    fn new(tools: &mut NumberSourceTools<'_>) -> UnitSine {
-        UnitSine {
-            input: tools.add_number_input().0,
-        }
-    }
-}
+binary_number_source!(Hypot, "hypot", |a, b| a.hypot(b));
+binary_number_source!(Copysign, "copysign", |a, b| a.copysign(b));
+binary_number_source!(Pow, "pow", |a, b| a.powf(b));
+binary_number_source!(Atan2, "atan2", |a, b| a.atan2(b));
