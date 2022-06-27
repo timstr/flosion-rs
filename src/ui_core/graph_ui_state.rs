@@ -179,6 +179,12 @@ impl<T: 'static> ObjectUiState for T {
     }
 }
 
+pub enum SelectionChange {
+    Replace,
+    Add,
+    Subtract,
+}
+
 pub struct GraphUIState {
     layout_state: GraphLayout,
     object_states: HashMap<ObjectId, Rc<RefCell<dyn ObjectUiState>>>,
@@ -273,12 +279,18 @@ impl GraphUIState {
         self.selection.remove(&object_id);
     }
 
-    pub fn select_with_rect(&mut self, rect: egui::Rect) {
+    pub fn select_with_rect(&mut self, rect: egui::Rect, change: SelectionChange) {
         // TODO: allow shift/alt to add/remove objects from selection
-        self.clear_selection();
+        if let SelectionChange::Replace = change {
+            self.clear_selection();
+        }
         for (object_id, object_state) in self.layout_state.objects().states() {
-            if rect.contains_rect(object_state.rect) {
-                self.selection.insert(*object_id);
+            if rect.intersects(object_state.rect) {
+                if let SelectionChange::Subtract = change {
+                    self.selection.remove(object_id);
+                } else {
+                    self.selection.insert(*object_id);
+                }
             }
         }
     }

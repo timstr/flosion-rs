@@ -9,7 +9,7 @@ use eframe::{egui, epi};
 use futures::executor::block_on;
 
 use super::{
-    graph_ui_state::GraphUIState,
+    graph_ui_state::{GraphUIState, SelectionChange},
     summon_widget::{SummonWidget, SummonWidgetState},
 };
 
@@ -111,10 +111,20 @@ impl epi::App for FlosionApp {
             }
             if bg_response.drag_released() {
                 if let Some(selection_area) = self.selection_area.take() {
-                    self.ui_state.select_with_rect(egui::Rect::from_two_pos(
-                        selection_area.start_location,
-                        selection_area.end_location,
-                    ));
+                    let change = if ui.input().modifiers.alt {
+                        SelectionChange::Subtract
+                    } else if ui.input().modifiers.shift {
+                        SelectionChange::Add
+                    } else {
+                        SelectionChange::Replace
+                    };
+                    self.ui_state.select_with_rect(
+                        egui::Rect::from_two_pos(
+                            selection_area.start_location,
+                            selection_area.end_location,
+                        ),
+                        change,
+                    );
                 }
             }
             if bg_response.double_clicked() {
