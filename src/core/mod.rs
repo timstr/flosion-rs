@@ -12,6 +12,7 @@ pub mod resample;
 pub mod resultfuture;
 pub mod samplefrequency;
 pub mod scratcharena;
+pub mod serialization;
 pub mod soundchunk;
 pub mod soundengine;
 pub mod soundgraph;
