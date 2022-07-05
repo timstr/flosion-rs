@@ -39,16 +39,16 @@ impl SoundState for WaveGeneratorState {
 impl DynamicSoundProcessor for WaveGenerator {
     type StateType = WaveGeneratorState;
 
-    fn new(tools: &mut SoundProcessorTools<'_, WaveGeneratorState>) -> WaveGenerator {
+    fn new_default(tools: &mut SoundProcessorTools<'_, WaveGeneratorState>) -> WaveGenerator {
         WaveGenerator {
-            phase: tools
-                .add_processor_number_source(|dst: &mut [f32], state: &WaveGeneratorState| {
+            phase: tools.add_processor_number_source(
+                |dst: &mut [f32], state: &WaveGeneratorState| {
                     numeric::copy(&state.phase, dst);
-                })
-                .0,
-            time: tools.add_processor_time().0,
-            amplitude: tools.add_number_input().0,
-            frequency: tools.add_number_input().0,
+                },
+            ),
+            time: tools.add_processor_time(),
+            amplitude: tools.add_number_input(),
+            frequency: tools.add_number_input(),
         }
     }
 

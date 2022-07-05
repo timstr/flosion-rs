@@ -8,7 +8,6 @@ use super::{
     gridspan::GridSpan,
     key::{Key, TypeErasedKey},
     keyrange::KeyRange,
-    resultfuture::ResultFuture,
     soundprocessortools::SoundProcessorTools,
     soundstate::{EmptyState, SoundState},
     statetable::{KeyedTable, Table, TableLock},
@@ -438,11 +437,7 @@ impl<K: Key, T: SoundState> KeyedSoundInputHandle<K, T> {
         self.input.num_keys()
     }
 
-    pub fn add_key<TT: SoundState>(
-        &mut self,
-        key: K,
-        tools: &mut SoundProcessorTools<TT>,
-    ) -> ResultFuture<(), ()> {
+    pub fn add_key<TT: SoundState>(&mut self, key: K, tools: &mut SoundProcessorTools<TT>) {
         tools.add_keyed_input_key(self.input.id(), TypeErasedKey::new(key))
     }
 
@@ -450,7 +445,7 @@ impl<K: Key, T: SoundState> KeyedSoundInputHandle<K, T> {
         &mut self,
         index: usize,
         tools: &mut SoundProcessorTools<TT>,
-    ) -> ResultFuture<(), ()> {
+    ) {
         tools.remove_keyed_input_key(self.input.id(), index)
     }
 

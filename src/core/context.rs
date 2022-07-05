@@ -12,7 +12,7 @@ use super::{
     samplefrequency::SAMPLE_FREQUENCY,
     scratcharena::{ScratchArena, ScratchSlice},
     soundchunk::SoundChunk,
-    soundengine::{
+    soundgraphdata::{
         EngineNumberInputData, EngineNumberSourceData, EngineSoundInputData,
         EngineSoundProcessorData,
     },

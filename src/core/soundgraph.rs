@@ -1,5 +1,8 @@
 use std::{
-    sync::{mpsc::Sender, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread::{self, JoinHandle},
 };
 
@@ -8,12 +11,13 @@ use parking_lot::RwLock;
 use super::{
     graphobject::{GraphObject, ObjectId, WithObjectType},
     numberinput::NumberInputId,
-    numbersource::{NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle},
+    numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
     numbersourcetools::NumberSourceTools,
-    resultfuture::ResultFuture,
-    soundengine::{SoundEngine, SoundEngineMessage},
+    serialization::{Archive, Deserializer},
+    soundengine::SoundEngine,
     soundgraphdescription::SoundGraphDescription,
     soundgrapherror::{NumberConnectionError, SoundGraphError},
+    soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundprocessor::{
         DynamicSoundProcessor, SoundProcessorData, SoundProcessorId, StaticSoundProcessor,
@@ -64,12 +68,6 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum AudioError {
-    AlreadyStarted,
-    AlreadyStopped,
-}
-
 pub struct SoundGraph {
     // NOTE: I'd really like to make these two mutually exclusive states into an enum,
     // but rust doesn't have an elegant way to replace a value with something depending
@@ -77,8 +75,10 @@ pub struct SoundGraph {
     engine_idle: Option<SoundEngine>,
     engine_running: Option<JoinHandle<SoundEngine>>,
 
-    message_sender: Sender<SoundEngineMessage>,
-    description: Arc<RwLock<SoundGraphDescription>>,
+    keep_running: Arc<AtomicBool>,
+
+    topology: Arc<RwLock<SoundGraphTopology>>,
+
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
     number_source_idgen: IdGenerator<NumberSourceId>,
@@ -89,13 +89,13 @@ pub struct SoundGraph {
 
 impl SoundGraph {
     pub fn new() -> SoundGraph {
-        let (eng, tx) = SoundEngine::new();
-        let description = eng.latest_description();
+        let (engine, keep_running) = SoundEngine::new();
+        let topology = engine.topology();
         SoundGraph {
-            engine_idle: Some(eng),
+            engine_idle: Some(engine),
             engine_running: None,
-            message_sender: tx,
-            description,
+            topology,
+            keep_running,
             sound_processor_idgen: IdGenerator::new(),
             sound_input_idgen: IdGenerator::new(),
             number_source_idgen: IdGenerator::new(),
@@ -104,69 +104,59 @@ impl SoundGraph {
         }
     }
 
-    pub async fn add_dynamic_sound_processor<T: DynamicSoundProcessor + WithObjectType>(
+    pub fn add_dynamic_sound_processor<'a, T: DynamicSoundProcessor + WithObjectType>(
         &mut self,
+        deserializer: Option<Deserializer<'a>>,
     ) -> DynamicSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
         let data = Arc::new(SoundProcessorData::<T::StateType>::new(id, false));
+        let mut topo = self.topology.read().clone();
         let mut tools = SoundProcessorTools::new(
             id,
             Arc::clone(&data),
+            &mut topo,
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
         );
-        let processor = Arc::new(T::new(&mut tools));
+        let processor = if let Some(d) = deserializer {
+            Arc::new(T::new_deserialized(&mut tools, d))
+        } else {
+            Arc::new(T::new_default(&mut tools))
+        };
+        self.update_topology(topo);
         let wrapper = Arc::new(WrappedDynamicSoundProcessor::new(
             Arc::clone(&processor),
             data,
         ));
-        let wrapper2 = Arc::clone(&wrapper);
-        let wrapper3 = Arc::clone(&wrapper);
-        self.graph_objects.push((ObjectId::Sound(id), wrapper3));
-        let (result_future, outbound_result) = ResultFuture::new();
-        self.message_sender
-            .send(SoundEngineMessage::AddSoundProcessor {
-                processor: wrapper2,
-                result: outbound_result,
-            })
-            .unwrap();
-        tools.deliver_messages(&mut self.message_sender);
-        self.flush_idle_messages();
-        result_future.await.unwrap();
         DynamicSoundProcessorHandle { wrapper, id }
     }
 
-    pub async fn add_static_sound_processor<T: StaticSoundProcessor + WithObjectType>(
+    pub fn add_static_sound_processor<'a, T: StaticSoundProcessor + WithObjectType>(
         &mut self,
+        deserializer: Option<Deserializer<'a>>,
     ) -> StaticSoundProcessorHandle<T> {
         let id = self.sound_processor_idgen.next_id();
         let data = Arc::new(SoundProcessorData::<T::StateType>::new(id, true));
+        let mut topo = self.topology.read().clone();
         let mut tools = SoundProcessorTools::new(
             id,
             Arc::clone(&data),
+            &mut topo,
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
         );
-        let processor = Arc::new(T::new(&mut tools));
+        let processor = if let Some(d) = deserializer {
+            Arc::new(T::new_deserialized(&mut tools, d))
+        } else {
+            Arc::new(T::new_default(&mut tools))
+        };
+        self.update_topology(topo);
         let wrapper = Arc::new(WrappedStaticSoundProcessor::new(
             Arc::clone(&processor),
             data,
         ));
-        let wrapper2 = Arc::clone(&wrapper);
-        let wrapper3 = Arc::clone(&wrapper);
-        self.graph_objects.push((ObjectId::Sound(id), wrapper3));
-        let (result_future, outbound_result) = ResultFuture::new();
-        self.message_sender
-            .send(SoundEngineMessage::AddSoundProcessor {
-                processor: wrapper2,
-                result: outbound_result,
-            })
-            .unwrap();
-        tools.deliver_messages(&mut self.message_sender);
-        self.flush_idle_messages();
-        result_future.await.unwrap();
         StaticSoundProcessorHandle { wrapper, id }
     }
 
@@ -179,16 +169,17 @@ impl SoundGraph {
         wrapper: &WrappedDynamicSoundProcessor<T>,
         f: F,
     ) {
+        let mut topo = self.topology.read().clone();
         let mut tools = SoundProcessorTools::new(
             wrapper.id(),
             Arc::clone(&wrapper.data()),
+            &mut topo,
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
         );
         f(wrapper, &mut tools);
-        tools.deliver_messages(&mut self.message_sender);
-        self.flush_idle_messages();
+        self.update_topology(topo);
     }
 
     pub fn apply_static_processor_tools<
@@ -200,163 +191,111 @@ impl SoundGraph {
         wrapper: &WrappedStaticSoundProcessor<T>,
         f: F,
     ) {
+        let mut topo = self.topology.read().clone();
         let mut tools = SoundProcessorTools::new(
             wrapper.id(),
             Arc::clone(&wrapper.data()),
+            &mut topo,
             &mut self.sound_input_idgen,
             &mut self.number_source_idgen,
             &mut self.number_input_idgen,
         );
         f(wrapper, &mut tools);
-        tools.deliver_messages(&mut self.message_sender);
-        self.flush_idle_messages();
+        self.update_topology(topo);
     }
 
-    pub async fn add_number_source<T: PureNumberSource + WithObjectType>(
+    pub fn add_number_source<'a, T: PureNumberSource + WithObjectType>(
         &mut self,
+        deserializer: Option<Deserializer<'a>>,
     ) -> PureNumberSourceHandle<T> {
         let id = self.number_source_idgen.next_id();
-        let mut tools = NumberSourceTools::new(id, &mut self.number_input_idgen);
-        let source = Arc::new(T::new(&mut tools));
-        let source2 = Arc::clone(&source);
-        let source3 = Arc::clone(&source);
-        self.graph_objects.push((ObjectId::Number(id), source3));
+        let mut topo = self.topology.read().clone();
+        let mut tools = NumberSourceTools::new(id, &mut topo, &mut self.number_input_idgen);
+        let source = if let Some(d) = deserializer {
+            Arc::new(T::new_deserialized(&mut tools, d))
+        } else {
+            Arc::new(T::new_default(&mut tools))
+        };
+        self.update_topology(topo);
         let handle = PureNumberSourceHandle::new(id, source);
-        let (result_future, outbound_result) = ResultFuture::new();
-        self.message_sender
-            .send(SoundEngineMessage::AddNumberSource {
-                id,
-                result: outbound_result,
-                owner: NumberSourceOwner::Nothing,
-                source: source2,
-            })
-            .unwrap();
-        tools.deliver_messages(&mut self.message_sender);
-        self.flush_idle_messages();
-        result_future.await.unwrap();
         handle
     }
 
-    pub async fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
-        let (result_future, outbound_result) = ResultFuture::new();
-        self.message_sender
-            .send(SoundEngineMessage::RemoveSoundProcessor {
-                processor_id,
-                result: outbound_result,
-            })
-            .unwrap();
-        self.flush_idle_messages();
-        self.graph_objects
-            .retain(|o| o.0 != ObjectId::Sound(processor_id));
-        result_future.await.unwrap();
+    pub fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
+        let mut topo = self.topology.read().clone();
+        topo.remove_sound_processor(processor_id);
+        self.update_topology(topo);
     }
 
-    pub async fn remove_number_source(&mut self, source_id: NumberSourceId) {
-        let (result_future, outbound_result) = ResultFuture::new();
-        self.message_sender
-            .send(SoundEngineMessage::RemoveNumberSource {
-                source_id,
-                result: outbound_result,
-            })
-            .unwrap();
-        self.flush_idle_messages();
-        self.graph_objects
-            .retain(|o| o.0 != ObjectId::Number(source_id));
-        result_future.await.unwrap();
+    pub fn remove_number_source(&mut self, source_id: NumberSourceId) {
+        let mut topo = self.topology.read().clone();
+        topo.remove_number_source(source_id);
+        self.update_topology(topo);
     }
 
     pub fn graph_objects(&self) -> &[(ObjectId, Arc<dyn GraphObject>)] {
         &self.graph_objects
     }
 
-    pub async fn connect_sound_input(
+    pub fn connect_sound_input(
         &mut self,
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
     ) -> Result<(), SoundGraphError> {
-        let (result_future, outbound_result) = ResultFuture::<(), SoundGraphError>::new();
-        self.message_sender
-            .send(SoundEngineMessage::ConnectSoundInput {
-                input_id,
-                processor_id,
-                result: outbound_result,
-            })
-            .unwrap();
-        self.flush_idle_messages();
-        result_future.await
+        let mut topo = self.topology.read().clone();
+        topo.connect_sound_input(input_id, processor_id)?;
+        self.update_topology(topo);
+        Ok(())
     }
 
-    pub async fn disconnect_sound_input(
+    pub fn disconnect_sound_input(
         &mut self,
         input_id: SoundInputId,
     ) -> Result<(), SoundGraphError> {
-        let (rf, result) = ResultFuture::<(), SoundGraphError>::new();
-        self.message_sender
-            .send(SoundEngineMessage::DisconnectSoundInput { input_id, result })
-            .unwrap();
-        self.flush_idle_messages();
-        rf.await
+        let mut topo = self.topology.read().clone();
+        topo.disconnect_sound_input(input_id)?;
+        self.update_topology(topo);
+        Ok(())
     }
 
-    pub async fn connect_number_input(
+    pub fn connect_number_input(
         &mut self,
         input_id: NumberInputId,
         source_id: NumberSourceId,
     ) -> Result<(), NumberConnectionError> {
-        let (rf, result) = ResultFuture::<(), NumberConnectionError>::new();
-        self.message_sender
-            .send(SoundEngineMessage::ConnectNumberInput {
-                input_id,
-                target_id: source_id,
-                result,
-            })
-            .unwrap();
-        self.flush_idle_messages();
-        rf.await
+        let mut topo = self.topology.read().clone();
+        topo.connect_number_input(input_id, source_id)?;
+        self.update_topology(topo);
+        Ok(())
     }
 
-    pub async fn disconnect_number_input(
+    pub fn disconnect_number_input(
         &mut self,
         input_id: NumberInputId,
     ) -> Result<(), NumberConnectionError> {
-        let (rf, result) = ResultFuture::<(), NumberConnectionError>::new();
-        self.message_sender
-            .send(SoundEngineMessage::DisconnectNumberInput { input_id, result })
-            .unwrap();
-        self.flush_idle_messages();
-        rf.await
+        let mut topo = self.topology.read().clone();
+        topo.disconnect_number_input(input_id)?;
+        self.update_topology(topo);
+        Ok(())
     }
 
-    pub fn start(&mut self) -> ResultFuture<(), ()> {
+    pub fn start(&mut self) {
         debug_assert!(self.engine_idle.is_some() != self.engine_running.is_some());
-        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
         if let Some(e) = self.engine_idle.take() {
             let mut e = e;
             self.engine_running = Some(thread::spawn(move || {
-                outbound_result.fulfill(Ok(()));
                 e.run();
                 e
             }));
-        } else {
-            outbound_result.fulfill(Err(()));
         }
-        result_future
     }
 
-    pub fn stop(&mut self) -> ResultFuture<(), ()> {
+    pub fn stop(&mut self) {
         debug_assert!(self.engine_idle.is_some() != self.engine_running.is_some());
-        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
         if let Some(jh) = self.engine_running.take() {
-            self.message_sender
-                .send(SoundEngineMessage::Stop {
-                    result: outbound_result,
-                })
-                .unwrap();
+            self.keep_running.store(false, Ordering::SeqCst);
             self.engine_idle = Some(jh.join().unwrap());
-        } else {
-            outbound_result.fulfill(Err(()));
         }
-        result_future
     }
 
     pub fn is_running(&self) -> bool {
@@ -364,12 +303,30 @@ impl SoundGraph {
     }
 
     pub fn describe(&self) -> SoundGraphDescription {
-        self.description.read().clone()
+        let topo = self.topology.read().clone();
+        topo.describe()
     }
 
-    fn flush_idle_messages(&mut self) {
-        if let Some(eng) = &mut self.engine_idle {
-            eng.flush_messages();
+    // pub fn serialize(&self) -> Archive {
+    //     // TODO:
+    //     // - serialize object contents and list of pegs
+    //     // - serialize connectivity
+    //     Archive::serialize_with(|mut s| {
+    //         for (object_id, object) in &self.graph_objects {
+    //             let mut s2 = s.subarchive();
+    //             s2.object(object_id);
+    //             s2.
+    //         }
+    //     })
+    // }
+
+    fn update_topology(&mut self, mut new_topology: SoundGraphTopology) {
+        {
+            let mut topo = self.topology.write();
+            // Swap topologies (to avoid waiting for destruction)
+            std::mem::swap(&mut *topo, &mut new_topology);
         }
+        // contents of old topology are now destroyed after
+        // lock is released
     }
 }

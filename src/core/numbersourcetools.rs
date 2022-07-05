@@ -1,59 +1,38 @@
-use std::sync::mpsc::Sender;
-
 use super::{
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::NumberSourceId,
-    resultfuture::ResultFuture,
-    soundengine::SoundEngineMessage,
+    soundgraphtopology::SoundGraphTopology,
     uniqueid::IdGenerator,
 };
 
 pub struct NumberSourceTools<'a> {
     number_source_id: NumberSourceId,
-    message_queue: Vec<SoundEngineMessage>,
+    topology: &'a mut SoundGraphTopology,
     number_input_idgen: &'a mut IdGenerator<NumberInputId>,
 }
 
 impl<'a> NumberSourceTools<'a> {
     pub(super) fn new(
         number_source_id: NumberSourceId,
+        topology: &'a mut SoundGraphTopology,
         number_input_idgen: &'a mut IdGenerator<NumberInputId>,
     ) -> NumberSourceTools<'a> {
         NumberSourceTools {
             number_source_id,
-            message_queue: Vec::new(),
+            topology,
             number_input_idgen,
         }
     }
 
-    pub fn add_number_input(&mut self) -> (NumberInputHandle, ResultFuture<(), ()>) {
+    pub fn add_number_input(&mut self) -> NumberInputHandle {
         let input_id = self.number_input_idgen.next_id();
-        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
-        let handle = NumberInputHandle::new(
-            input_id,
-            NumberInputOwner::NumberSource(self.number_source_id),
-        );
-        self.message_queue.push(SoundEngineMessage::AddNumberInput {
-            input: handle.clone(),
-            result: outbound_result,
-        });
-        (handle, result_future)
+        let owner = NumberInputOwner::NumberSource(self.number_source_id);
+        let handle = NumberInputHandle::new(input_id, owner);
+        self.topology.add_number_input(handle.clone());
+        handle
     }
 
-    pub fn remove_number_input(&mut self, handle: NumberInputHandle) -> ResultFuture<(), ()> {
-        let (result_future, outbound_result) = ResultFuture::<(), ()>::new();
-        self.message_queue
-            .push(SoundEngineMessage::RemoveNumberInput {
-                input_id: handle.id(),
-                result: outbound_result,
-            });
-        result_future
-    }
-
-    pub(super) fn deliver_messages(&mut self, sender: &'a Sender<SoundEngineMessage>) {
-        let msgs = std::mem::take(&mut self.message_queue);
-        for m in msgs {
-            sender.send(m).unwrap();
-        }
+    pub fn remove_number_input(&mut self, handle: NumberInputHandle) {
+        self.topology.remove_number_input(handle.id());
     }
 }

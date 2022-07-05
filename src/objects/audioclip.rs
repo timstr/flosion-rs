@@ -15,7 +15,9 @@ pub struct AudioClip {
 
 impl AudioClip {
     pub fn new() -> AudioClip {
-        AudioClip {audio_data: RwLock::new(Vec::new())}
+        AudioClip {
+            audio_data: RwLock::new(Vec::new()),
+        }
     }
 
     pub fn set_data(&self, data: Vec<(f32, f32)>) {
@@ -42,7 +44,7 @@ impl SoundState for AudioClipState {
 impl DynamicSoundProcessor for AudioClip {
     type StateType = AudioClipState;
 
-    fn new(_tools: &mut SoundProcessorTools<'_, AudioClipState>) -> AudioClip {
+    fn new_default(_tools: &mut SoundProcessorTools<'_, AudioClipState>) -> AudioClip {
         AudioClip {
             audio_data: RwLock::new(Vec::new()),
         }

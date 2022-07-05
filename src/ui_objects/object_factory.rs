@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use eframe::egui::Ui;
-use futures::executor::block_on;
 
 use crate::{
     core::{
         graphobject::{GraphObject, ObjectId, ObjectType, ObjectWrapper, WithObjectType},
         numbersource::PureNumberSource,
+        serialization::Deserializer,
         soundgraph::SoundGraph,
         soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
     },
@@ -19,9 +19,17 @@ use crate::{
 
 use super::all_objects::all_objects;
 
+enum ObjectInitialization<'a> {
+    Args((&'a mut GraphUIState, &'a ParsedArguments)),
+    Archive(Deserializer<'a>),
+}
+
 struct ObjectData {
     ui: Box<dyn AnyObjectUi>,
-    create: Box<dyn Fn(&mut SoundGraph, &mut GraphUIState, &dyn AnyObjectUi, &ParsedArguments)>,
+
+    // TODO: replace with e.g. Fn(Option<Deserializer>) -> &dyn AnyObjectUi
+    // to remove the code duplication below
+    create: Box<dyn Fn(&mut SoundGraph, &dyn AnyObjectUi, ObjectInitialization)>,
 }
 
 pub struct ObjectFactory {
@@ -51,16 +59,18 @@ impl ObjectFactory {
     where
         <T::WrapperType as ObjectWrapper>::Type: DynamicSoundProcessor,
     {
-        let create = |g: &mut SoundGraph,
-                      s: &mut GraphUIState,
-                      o: &dyn AnyObjectUi,
-                      args: &ParsedArguments| {
-            let h = block_on(
-                g.add_dynamic_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>(),
-            );
+        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, init: ObjectInitialization| {
+            let (d, a) = match init {
+                ObjectInitialization::Archive(d) => (Some(d), None),
+                ObjectInitialization::Args(a) => (None, Some(a)),
+            };
+            let h = g.add_dynamic_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>(d);
             let sp: &dyn GraphObject = h.wrapper();
-            o.init_object(sp, args);
-            s.set_object_state(h.id().into(), o.make_state(args));
+            if let Some(args) = a {
+                o.init_object_from_args(sp, args.1);
+                args.0
+                    .set_object_state(h.id().into(), o.make_ui_state(args.1));
+            }
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -75,15 +85,18 @@ impl ObjectFactory {
     where
         <T::WrapperType as ObjectWrapper>::Type: StaticSoundProcessor,
     {
-        let create = |g: &mut SoundGraph,
-                      s: &mut GraphUIState,
-                      o: &dyn AnyObjectUi,
-                      args: &ParsedArguments| {
-            let h =
-                block_on(g.add_static_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>());
+        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, init: ObjectInitialization| {
+            let (d, a) = match init {
+                ObjectInitialization::Archive(d) => (Some(d), None),
+                ObjectInitialization::Args(a) => (None, Some(a)),
+            };
+            let h = g.add_static_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>(d);
             let sp: &dyn GraphObject = h.wrapper();
-            o.init_object(sp, args);
-            s.set_object_state(h.id().into(), o.make_state(args));
+            if let Some(args) = a {
+                o.init_object_from_args(sp, args.1);
+                args.0
+                    .set_object_state(h.id().into(), o.make_ui_state(args.1));
+            }
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -98,14 +111,18 @@ impl ObjectFactory {
     where
         <T::WrapperType as ObjectWrapper>::Type: PureNumberSource,
     {
-        let create = |g: &mut SoundGraph,
-                      s: &mut GraphUIState,
-                      o: &dyn AnyObjectUi,
-                      args: &ParsedArguments| {
-            let h = block_on(g.add_number_source::<<T::WrapperType as ObjectWrapper>::Type>());
-            let ns: &dyn GraphObject = h.instance();
-            o.init_object(ns, args);
-            s.set_object_state(h.id().into(), o.make_state(args));
+        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, init: ObjectInitialization| {
+            let (d, a) = match init {
+                ObjectInitialization::Archive(d) => (Some(d), None),
+                ObjectInitialization::Args(a) => (None, Some(a)),
+            };
+            let h = g.add_number_source::<<T::WrapperType as ObjectWrapper>::Type>(d);
+            let sp: &dyn GraphObject = h.instance();
+            if let Some(args) = a {
+                o.init_object_from_args(sp, args.1);
+                args.0
+                    .set_object_state(h.id().into(), o.make_ui_state(args.1));
+            }
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -142,19 +159,45 @@ impl ObjectFactory {
         }
     }
 
-    pub fn create(
+    fn create_impl(
+        &self,
+        object_type: ObjectType,
+        graph: &mut SoundGraph,
+        init: ObjectInitialization,
+    ) {
+        match self.mapping.get(&object_type) {
+            Some(data) => (*data.create)(graph, &*data.ui, init),
+            None => println!(
+                "Warning: tried to create an object of unrecognized type \"{}\"",
+                object_type.name()
+            ),
+        }
+    }
+
+    pub fn create_from_args(
         &self,
         object_type: ObjectType,
         args: &ParsedArguments,
         graph: &mut SoundGraph,
         ui_state: &mut GraphUIState,
     ) {
-        match self.mapping.get(&object_type) {
-            Some(data) => (*data.create)(graph, ui_state, &*data.ui, args),
-            None => println!(
-                "Warning: tried to create an object of unrecognized type \"{}\"",
-                object_type.name()
-            ),
-        }
+        self.create_impl(
+            object_type,
+            graph,
+            ObjectInitialization::Args((ui_state, args)),
+        )
+    }
+
+    pub fn create_from_archive(
+        &self,
+        object_type: ObjectType,
+        graph: &mut SoundGraph,
+        deserializer: Deserializer,
+    ) {
+        self.create_impl(
+            object_type,
+            graph,
+            ObjectInitialization::Archive(deserializer),
+        )
     }
 }

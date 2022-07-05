@@ -6,6 +6,7 @@ use super::{
     context::{Context, ProcessorContext},
     graphobject::{ObjectWrapper, WithObjectType},
     gridspan::GridSpan,
+    serialization::{Deserializer, Serializer},
     soundchunk::SoundChunk,
     soundinput::SoundInputId,
     soundprocessortools::SoundProcessorTools,
@@ -34,17 +35,39 @@ impl UniqueId for SoundProcessorId {
 
 pub trait DynamicSoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: SoundState;
-    fn new(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
+    fn new_default(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
     where
         Self: Sized;
+    fn new_deserialized(
+        tools: &mut SoundProcessorTools<'_, Self::StateType>,
+        deserializer: Deserializer,
+    ) -> Self
+    where
+        Self: Sized,
+    {
+        debug_assert!(deserializer.is_empty());
+        Self::new_default(tools)
+    }
+    fn serialize(&self, _serializer: Serializer) {}
     fn process_audio(&self, dst: &mut SoundChunk, context: ProcessorContext<'_, Self::StateType>);
 }
 
 pub trait StaticSoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: SoundState;
-    fn new(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
+    fn new_default(tools: &mut SoundProcessorTools<'_, Self::StateType>) -> Self
     where
         Self: Sized;
+    fn new_deserialized(
+        tools: &mut SoundProcessorTools<'_, Self::StateType>,
+        deserializer: Deserializer,
+    ) -> Self
+    where
+        Self: Sized,
+    {
+        debug_assert!(deserializer.is_empty());
+        Self::new_default(tools)
+    }
+    fn serialize(&self, _serializer: Serializer) {}
     fn process_audio(&self, dst: &mut SoundChunk, context: ProcessorContext<'_, Self::StateType>);
     fn produces_output(&self) -> bool;
     fn on_start_processing(&self) {}

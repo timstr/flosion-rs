@@ -26,7 +26,7 @@ impl SoundState for WhiteNoiseState {
 impl DynamicSoundProcessor for WhiteNoise {
     type StateType = WhiteNoiseState;
 
-    fn new(_tools: &mut SoundProcessorTools<WhiteNoiseState>) -> WhiteNoise {
+    fn new_default(_tools: &mut SoundProcessorTools<WhiteNoiseState>) -> WhiteNoise {
         WhiteNoise {}
     }
 

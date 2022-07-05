@@ -1,5 +1,10 @@
 use std::{fs, io, path::Path};
 
+pub trait Serializable: Sized {
+    fn serialize(&self, serializer: &mut Serializer);
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()>;
+}
+
 #[derive(PartialEq, Eq, Debug)]
 pub enum PrimitiveType {
     Bool,
@@ -30,7 +35,7 @@ pub enum ValueType {
     // whose size in bytes can be queried,
     // useful during serialization to safely
     // divide work into non-overlapping chunks
-    Object,
+    SubArchive,
 }
 
 impl PrimitiveType {
@@ -74,7 +79,7 @@ impl ValueType {
             ValueType::Primitive(prim_type) => (0x00 | prim_type.to_nibble()),
             ValueType::Array(prim_type) => (0x10 | prim_type.to_nibble()),
             ValueType::String => 0x20,
-            ValueType::Object => 0x30,
+            ValueType::SubArchive => 0x30,
         }
     }
 
@@ -85,7 +90,7 @@ impl ValueType {
             0x00 => Ok(ValueType::Primitive(PrimitiveType::from_nibble(lo_nibble)?)),
             0x10 => Ok(ValueType::Array(PrimitiveType::from_nibble(lo_nibble)?)),
             0x20 => Ok(ValueType::String),
-            0x30 => Ok(ValueType::Object),
+            0x30 => Ok(ValueType::SubArchive),
             _ => Err(()),
         }
     }
@@ -297,9 +302,13 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    pub fn object<'b>(&'b mut self) -> Serializer<'b> {
-        self.data.push(ValueType::Object.to_byte());
+    pub fn subarchive<'b>(&'b mut self) -> Serializer<'b> {
+        self.data.push(ValueType::SubArchive.to_byte());
         Serializer::new_with_prefix_len(self.data)
+    }
+
+    pub fn object<T: Serializable>(&mut self, object: &T) {
+        object.serialize(self);
     }
 }
 
@@ -308,8 +317,8 @@ impl<'a> Drop for Serializer<'a> {
         let new_len = self.data.len();
         let delta_len = new_len - self.start_index;
         debug_assert!(delta_len >= u32::SIZE);
-        let object_len = (delta_len - u32::SIZE) as u32;
-        for (i, b) in object_len.to_be_bytes().iter().enumerate() {
+        let subarchive_line = (delta_len - u32::SIZE) as u32;
+        for (i, b) in subarchive_line.to_be_bytes().iter().enumerate() {
             self.data[self.start_index + i] = *b;
         }
     }
@@ -455,21 +464,25 @@ impl<'a> Deserializer<'a> {
         Ok(str_slice.to_string())
     }
 
-    pub fn object<'b>(&'b mut self) -> Result<Deserializer<'b>, ()> {
+    pub fn subarchive<'b>(&'b mut self) -> Result<Deserializer<'b>, ()> {
         if self.remaining_len() < (u8::SIZE + u32::SIZE) {
             return Err(());
         }
         let the_type = ValueType::from_byte(self.read_byte()?)?;
-        if the_type != ValueType::Object {
+        if the_type != ValueType::SubArchive {
             return Err(());
         }
         let len = u32::read(self)? as usize;
         if self.remaining_len() < len {
             return Err(());
         }
-        let object_slice: &[u8] = &self.data[self.position..(self.position + len)];
+        let subarchive_slice: &[u8] = &self.data[self.position..(self.position + len)];
         self.position += len;
-        Ok(Deserializer::new(object_slice))
+        Ok(Deserializer::new(subarchive_slice))
+    }
+
+    pub fn object<T: Serializable>(&mut self) -> Result<T, ()> {
+        T::deserialize(self)
     }
 
     pub fn peek_type(&self) -> Result<ValueType, ()> {
@@ -488,6 +501,10 @@ impl<'a> Deserializer<'a> {
             self.peek_byte(4)?,
         ]) as usize)
     }
+
+    pub fn is_empty(&self) -> bool {
+        return self.position == self.data.len();
+    }
 }
 
 #[cfg(test)]
@@ -504,7 +521,7 @@ mod tests {
             s1.string("Testing");
 
             {
-                let mut s2 = s1.object();
+                let mut s2 = s1.subarchive();
 
                 // YASSSS this should fail
                 // s1.u8(0);
@@ -545,9 +562,9 @@ mod tests {
         assert_eq!(d1.peek_length().unwrap(), "Testing".as_bytes().len());
         assert_eq!(d1.string().unwrap(), "Testing");
 
-        assert_eq!(d1.peek_type().unwrap(), ValueType::Object);
+        assert_eq!(d1.peek_type().unwrap(), ValueType::SubArchive);
         {
-            let mut d2 = d1.object().unwrap();
+            let mut d2 = d1.subarchive().unwrap();
             assert_eq!(
                 d2.peek_type().unwrap(),
                 ValueType::Primitive(PrimitiveType::U8)

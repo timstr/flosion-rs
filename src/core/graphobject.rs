@@ -3,6 +3,7 @@ use std::any::{type_name, Any};
 use super::{
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, PureNumberSource},
+    serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
     soundprocessor::{
         DynamicSoundProcessor, SoundProcessorId, StaticSoundProcessor,
@@ -43,6 +44,33 @@ impl ObjectId {
         match self {
             ObjectId::Number(id) => Some(*id),
             _ => None,
+        }
+    }
+}
+
+impl Serializable for ObjectId {
+    fn serialize(&self, serializer: &mut Serializer) {
+        match self {
+            ObjectId::Sound(spid) => {
+                serializer.u8(1);
+                serializer.u32(spid.0 as u32);
+            }
+            ObjectId::Number(nsid) => {
+                serializer.u8(2);
+                serializer.u32(nsid.0 as u32);
+            }
+        }
+    }
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+        match deserializer.u8()? {
+            1 => Ok(ObjectId::Sound(SoundProcessorId(
+                deserializer.u32()? as usize
+            ))),
+            2 => Ok(ObjectId::Number(NumberSourceId(
+                deserializer.u32()? as usize
+            ))),
+            _ => Err(()),
         }
     }
 }
@@ -103,6 +131,7 @@ pub trait GraphObject {
     fn get_type(&self) -> ObjectType;
     fn as_any(&self) -> &dyn Any;
     fn get_language_type_name(&self) -> &'static str;
+    fn serialize(&self, _serializer: Serializer);
 }
 
 pub trait WithObjectType: 'static {
@@ -127,6 +156,10 @@ impl<T: DynamicSoundProcessor> GraphObject for WrappedDynamicSoundProcessor<T> {
     fn get_language_type_name(&self) -> &'static str {
         type_name::<T>()
     }
+
+    fn serialize(&self, serializer: Serializer) {
+        self.instance().serialize(serializer);
+    }
 }
 
 impl<T: StaticSoundProcessor> GraphObject for WrappedStaticSoundProcessor<T> {
@@ -141,6 +174,10 @@ impl<T: StaticSoundProcessor> GraphObject for WrappedStaticSoundProcessor<T> {
     fn get_language_type_name(&self) -> &'static str {
         type_name::<T>()
     }
+
+    fn serialize(&self, serializer: Serializer) {
+        self.instance().serialize(serializer);
+    }
 }
 
 impl<T: PureNumberSource + WithObjectType> GraphObject for T {
@@ -154,5 +191,9 @@ impl<T: PureNumberSource + WithObjectType> GraphObject for T {
 
     fn get_language_type_name(&self) -> &'static str {
         type_name::<T>()
+    }
+
+    fn serialize(&self, serializer: Serializer) {
+        self.serialize(serializer);
     }
 }

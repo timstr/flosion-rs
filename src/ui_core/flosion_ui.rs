@@ -6,7 +6,6 @@ use crate::{
     ui_objects::object_factory::ObjectFactory,
 };
 use eframe::{egui, epi};
-use futures::executor::block_on;
 
 use super::{
     graph_ui_state::{GraphUIState, SelectionChange},
@@ -145,8 +144,12 @@ impl epi::App for FlosionApp {
                 if s.should_close() {
                     if s.selected_type().is_some() {
                         let (t, args) = s.parse_selected();
-                        self.all_object_uis
-                            .create(t, &args, &mut self.graph, &mut self.ui_state);
+                        self.all_object_uis.create_from_args(
+                            t,
+                            &args,
+                            &mut self.graph,
+                            &mut self.ui_state,
+                        );
                     }
                     self.summon_state = None;
                 }
@@ -160,32 +163,37 @@ impl epi::App for FlosionApp {
                 match id_src {
                     GraphId::NumberInput(niid) => {
                         if desc.number_inputs().get(&niid).unwrap().target().is_some() {
-                            block_on(self.graph.disconnect_number_input(niid))
+                            self.graph
+                                .disconnect_number_input(niid)
                                 .unwrap_or_else(|e| println!("Error: {:?}", e));
                         }
                         if let Some(GraphId::NumberSource(nsid)) = id_dst {
-                            block_on(self.graph.connect_number_input(niid, nsid))
+                            self.graph
+                                .connect_number_input(niid, nsid)
                                 .unwrap_or_else(|e| println!("Error: {:?}", e));
                         }
                     }
                     GraphId::NumberSource(nsid) => {
                         if let Some(GraphId::NumberInput(niid)) = id_dst {
-                            block_on(self.graph.connect_number_input(niid, nsid))
+                            self.graph
+                                .connect_number_input(niid, nsid)
                                 .unwrap_or_else(|e| println!("Error: {:?}", e));
                         }
                     }
                     GraphId::SoundInput(siid) => {
                         if desc.sound_inputs().get(&siid).unwrap().target().is_some() {
-                            block_on(self.graph.disconnect_sound_input(siid)).unwrap();
+                            self.graph.disconnect_sound_input(siid).unwrap();
                         }
                         if let Some(GraphId::SoundProcessor(spid)) = id_dst {
-                            block_on(self.graph.connect_sound_input(siid, spid))
+                            self.graph
+                                .connect_sound_input(siid, spid)
                                 .unwrap_or_else(|e| println!("Error: {:?}", e));
                         }
                     }
                     GraphId::SoundProcessor(spid) => {
                         if let Some(GraphId::SoundInput(siid)) = id_dst {
-                            block_on(self.graph.connect_sound_input(siid, spid))
+                            self.graph
+                                .connect_sound_input(siid, spid)
                                 .unwrap_or_else(|e| println!("Error: {:?}", e));
                         }
                     }
@@ -299,10 +307,10 @@ impl epi::App for FlosionApp {
                 for id in selection {
                     match id {
                         ObjectId::Sound(id) => {
-                            block_on(self.graph.remove_sound_processor(*id));
+                            self.graph.remove_sound_processor(*id);
                         }
                         ObjectId::Number(id) => {
-                            block_on(self.graph.remove_number_source(*id));
+                            self.graph.remove_number_source(*id);
                         }
                     }
                 }

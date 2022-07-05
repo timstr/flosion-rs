@@ -60,9 +60,9 @@ pub trait AnyObjectUi {
 
     fn arguments(&self) -> ArgumentList;
 
-    fn init_object(&self, object: &dyn GraphObject, args: &ParsedArguments);
+    fn init_object_from_args(&self, object: &dyn GraphObject, args: &ParsedArguments);
 
-    fn make_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>>;
+    fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>>;
 }
 
 impl<T: ObjectUi> AnyObjectUi for T {
@@ -93,7 +93,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
         self.ui(id, dc_object, graph_state, ui, state);
     }
 
-    fn init_object(&self, object: &dyn GraphObject, args: &ParsedArguments) {
+    fn init_object_from_args(&self, object: &dyn GraphObject, args: &ParsedArguments) {
         let any = object.as_any();
         debug_assert!(
             any.is::<T::WrapperType>(),
@@ -105,7 +105,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
         self.init_object(dc_object, args);
     }
 
-    fn make_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>> {
+    fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>> {
         let x: &T = self;
         Rc::new(RefCell::new(x.make_state(args)))
     }

@@ -24,7 +24,7 @@ impl Mixer {
     pub fn add_input(&self, tools: &mut SoundProcessorTools<'_, EmptyState>) {
         self.inputs
             .write()
-            .push(tools.add_single_sound_input(MIXER_INPUT_OPTIONS).0)
+            .push(tools.add_single_sound_input(MIXER_INPUT_OPTIONS))
     }
 
     pub fn remove_input(&self, id: SoundInputId, tools: &mut SoundProcessorTools<'_, EmptyState>) {
@@ -43,11 +43,11 @@ impl Mixer {
 impl DynamicSoundProcessor for Mixer {
     type StateType = EmptyState;
 
-    fn new(tools: &mut SoundProcessorTools<'_, EmptyState>) -> Mixer {
+    fn new_default(tools: &mut SoundProcessorTools<'_, EmptyState>) -> Mixer {
         Mixer {
             inputs: RwLock::new(vec![
-                tools.add_single_sound_input(MIXER_INPUT_OPTIONS).0,
-                tools.add_single_sound_input(MIXER_INPUT_OPTIONS).0,
+                tools.add_single_sound_input(MIXER_INPUT_OPTIONS),
+                tools.add_single_sound_input(MIXER_INPUT_OPTIONS),
             ]),
         }
     }

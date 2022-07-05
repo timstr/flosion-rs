@@ -34,7 +34,7 @@ impl WithObjectType for Constant {
 }
 
 impl PureNumberSource for Constant {
-    fn new(_tools: &mut NumberSourceTools<'_>) -> Constant {
+    fn new_default(_tools: &mut NumberSourceTools<'_>) -> Constant {
         Constant {
             value: AtomicF32::new(0.0),
         }
@@ -59,9 +59,9 @@ macro_rules! unary_number_source {
         }
 
         impl PureNumberSource for $name {
-            fn new(tools: &mut NumberSourceTools<'_>) -> $name {
+            fn new_default(tools: &mut NumberSourceTools<'_>) -> $name {
                 $name {
-                    input: tools.add_number_input().0,
+                    input: tools.add_number_input(),
                 }
             }
         }
@@ -89,10 +89,10 @@ macro_rules! binary_number_source {
         }
 
         impl PureNumberSource for $name {
-            fn new(tools: &mut NumberSourceTools<'_>) -> $name {
+            fn new_default(tools: &mut NumberSourceTools<'_>) -> $name {
                 $name {
-                    input_1: tools.add_number_input().0,
-                    input_2: tools.add_number_input().0,
+                    input_1: tools.add_number_input(),
+                    input_2: tools.add_number_input(),
                 }
             }
         }

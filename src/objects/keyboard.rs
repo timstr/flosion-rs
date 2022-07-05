@@ -122,18 +122,15 @@ impl Keyboard {
 impl StaticSoundProcessor for Keyboard {
     type StateType = KeyboardState;
 
-    fn new(tools: &mut SoundProcessorTools<'_, KeyboardState>) -> Keyboard {
-        let mut input = tools
-            .add_keyed_sound_input(InputOptions {
-                interruptible: true,
-                realtime: true,
-            })
-            .0;
+    fn new_default(tools: &mut SoundProcessorTools<'_, KeyboardState>) -> Keyboard {
+        let mut input = tools.add_keyed_sound_input(InputOptions {
+            interruptible: true,
+            realtime: true,
+        });
         let key_frequency = tools
             .add_keyed_input_number_source(&input, |dst: &mut [f32], state: &KeyboardKeyState| {
                 numeric::fill(dst, state.frequency)
-            })
-            .0;
+            });
         for i in 0..MAX_KEYS {
             input.add_key(KeyboardKey { index: i as u8 }, tools);
         }

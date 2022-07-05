@@ -78,14 +78,12 @@ impl SoundState for RecorderState {
 impl StaticSoundProcessor for Recorder {
     type StateType = RecorderState;
 
-    fn new(tools: &mut SoundProcessorTools<'_, RecorderState>) -> Recorder {
+    fn new_default(tools: &mut SoundProcessorTools<'_, RecorderState>) -> Recorder {
         let r = Recorder {
-            input: tools
-                .add_single_sound_input(InputOptions {
-                    interruptible: false,
-                    realtime: true,
-                })
-                .0,
+            input: tools.add_single_sound_input(InputOptions {
+                interruptible: false,
+                realtime: true,
+            }),
             recorded_chunk_groups: RwLock::new(vec![Vec::with_capacity(CHUNKS_PER_GROUP)]),
             recording: AtomicBool::new(false),
         };

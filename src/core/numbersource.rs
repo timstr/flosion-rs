@@ -5,6 +5,7 @@ use super::{
     graphobject::{ObjectWrapper, WithObjectType},
     key::Key,
     numbersourcetools::NumberSourceTools,
+    serialization::{Deserializer, Serializer},
     soundinput::{KeyedSoundInputHandle, SoundInputId},
     soundprocessor::{SoundProcessorData, SoundProcessorId},
     soundstate::{SoundState, StateOwner},
@@ -89,9 +90,17 @@ pub trait NumberSource: 'static + Sync + Send {
 }
 
 pub trait PureNumberSource: NumberSource + WithObjectType {
-    fn new(tools: &mut NumberSourceTools<'_>) -> Self
+    fn new_default(tools: &mut NumberSourceTools<'_>) -> Self
     where
         Self: Sized;
+    fn new_deserialized(tools: &mut NumberSourceTools<'_>, deserializer: Deserializer) -> Self
+    where
+        Self: Sized,
+    {
+        debug_assert!(deserializer.is_empty());
+        Self::new_default(tools)
+    }
+    fn serialize(&self, _serializer: Serializer) {}
 }
 
 pub struct PureNumberSourceHandle<T: PureNumberSource> {

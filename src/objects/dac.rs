@@ -74,7 +74,7 @@ impl Dac {
 impl StaticSoundProcessor for Dac {
     type StateType = DacState;
 
-    fn new(tools: &mut SoundProcessorTools<DacState>) -> Dac {
+    fn new_default(tools: &mut SoundProcessorTools<DacState>) -> Dac {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -189,12 +189,10 @@ impl StaticSoundProcessor for Dac {
             .unwrap();
 
         Dac {
-            input: tools
-                .add_single_sound_input(InputOptions {
-                    realtime: true,
-                    interruptible: false,
-                })
-                .0,
+            input: tools.add_single_sound_input(InputOptions {
+                realtime: true,
+                interruptible: false,
+            }),
             stream: Mutex::new(StreamDammit { stream }),
             chunk_sender: Mutex::new(tx),
             pending_reset: AtomicBool::new(false),

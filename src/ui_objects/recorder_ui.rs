@@ -1,5 +1,4 @@
 use eframe::egui::{self, Button};
-use futures::executor::block_on;
 
 use crate::{
     core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
@@ -58,7 +57,7 @@ impl ObjectUi for RecorderUi {
                 if ui.add(Button::new("Create AudioClip")).clicked() {
                     let a = object.copy_audio();
                     graph_tools.make_change(move |graph| {
-                        let ac = block_on(graph.add_dynamic_sound_processor::<AudioClip>());
+                        let ac = graph.add_dynamic_sound_processor::<AudioClip>(None);
                         ac.instance().set_data(a);
                     });
                 }
