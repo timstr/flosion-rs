@@ -25,37 +25,38 @@ pub enum StateOperation {
     Erase,
 }
 
+#[derive(Clone)]
 pub struct SoundGraphTopology {
-    sound_processors: Arc<HashMap<SoundProcessorId, EngineSoundProcessorData>>,
-    sound_inputs: Arc<HashMap<SoundInputId, EngineSoundInputData>>,
-    number_sources: Arc<HashMap<NumberSourceId, EngineNumberSourceData>>,
-    number_inputs: Arc<HashMap<NumberInputId, EngineNumberInputData>>,
+    sound_processors: HashMap<SoundProcessorId, EngineSoundProcessorData>,
+    sound_inputs: HashMap<SoundInputId, EngineSoundInputData>,
+    number_sources: HashMap<NumberSourceId, EngineNumberSourceData>,
+    number_inputs: HashMap<NumberInputId, EngineNumberInputData>,
 }
 
 impl SoundGraphTopology {
     pub fn new() -> SoundGraphTopology {
         SoundGraphTopology {
-            sound_processors: Arc::new(HashMap::new()),
-            sound_inputs: Arc::new(HashMap::new()),
-            number_sources: Arc::new(HashMap::new()),
-            number_inputs: Arc::new(HashMap::new()),
+            sound_processors: HashMap::new(),
+            sound_inputs: HashMap::new(),
+            number_sources: HashMap::new(),
+            number_inputs: HashMap::new(),
         }
     }
 
     pub fn sound_processors(&self) -> &HashMap<SoundProcessorId, EngineSoundProcessorData> {
-        &*self.sound_processors
+        &self.sound_processors
     }
 
     pub fn sound_inputs(&self) -> &HashMap<SoundInputId, EngineSoundInputData> {
-        &*self.sound_inputs
+        &self.sound_inputs
     }
 
     pub fn number_sources(&self) -> &HashMap<NumberSourceId, EngineNumberSourceData> {
-        &*self.number_sources
+        &self.number_sources
     }
 
     pub fn number_inputs(&self) -> &HashMap<NumberInputId, EngineNumberInputData> {
-        &*self.number_inputs
+        &self.number_inputs
     }
 
     pub fn add_sound_processor(&mut self, wrapper: Arc<dyn SoundProcessorWrapper>) {
@@ -65,8 +66,7 @@ impl SoundGraphTopology {
             "The processor id should not already be in use"
         );
         let data = EngineSoundProcessorData::new(wrapper, processor_id);
-        let procs = Arc::make_mut(&mut self.sound_processors);
-        procs.insert(processor_id, data);
+        self.sound_processors.insert(processor_id, data);
         // self.update_static_processor_cache();
     }
 
@@ -125,8 +125,6 @@ impl SoundGraphTopology {
         }
 
         {
-            let number_inputs = Arc::make_mut(&mut self.number_inputs);
-
             // remove all number inputs belonging to the processor
             for input_id in self
                 .sound_processors
@@ -134,27 +132,22 @@ impl SoundGraphTopology {
                 .unwrap()
                 .number_inputs()
             {
-                number_inputs.remove(&input_id).unwrap();
+                self.number_inputs.remove(&input_id).unwrap();
             }
         }
 
+        // disconnect all number sources belonging to the processor
+        for source_id in self
+            .sound_processors
+            .get(&processor_id)
+            .unwrap()
+            .number_sources()
         {
-            let number_sources = Arc::make_mut(&mut self.number_sources);
-            // disconnect all number sources belonging to the processor
-            for source_id in self
-                .sound_processors
-                .get(&processor_id)
-                .unwrap()
-                .number_sources()
-            {
-                number_sources.remove(&source_id).unwrap();
-            }
+            self.number_sources.remove(&source_id).unwrap();
         }
 
         // remove the processor
-        Arc::make_mut(&mut self.sound_processors)
-            .remove(&processor_id)
-            .unwrap();
+        self.sound_processors.remove(&processor_id).unwrap();
 
         // self.update_static_processor_cache();
     }
@@ -175,14 +168,12 @@ impl SoundGraphTopology {
             self.sound_inputs.get(&input.id()).is_none(),
             "The input id should not already be in use by a sound input"
         );
-        let proc_data = Arc::make_mut(&mut self.sound_processors)
-            .get_mut(&processor_id)
-            .unwrap();
+        let proc_data = self.sound_processors.get_mut(&processor_id).unwrap();
         proc_data.inputs_mut().push(input.id());
         let gs = GridSpan::new_contiguous(0, proc_data.wrapper().num_states());
         input.insert_states(gs);
         let input_data = EngineSoundInputData::new(input, processor_id);
-        Arc::make_mut(&mut self.sound_inputs).insert(input_data.id(), input_data);
+        self.sound_inputs.insert(input_data.id(), input_data);
     }
 
     pub fn remove_sound_input(&mut self, input_id: SoundInputId) {
@@ -198,19 +189,12 @@ impl SoundGraphTopology {
         if target.is_some() {
             self.disconnect_sound_input(input_id).unwrap();
         }
-        {
-            let number_sources = Arc::make_mut(&mut self.number_sources);
-            for nsid in number_sources_to_remove {
-                number_sources.remove(&nsid).unwrap();
-            }
+        for nsid in number_sources_to_remove {
+            self.number_sources.remove(&nsid).unwrap();
         }
-        let proc_data = Arc::make_mut(&mut self.sound_processors)
-            .get_mut(&owner)
-            .unwrap();
+        let proc_data = self.sound_processors.get_mut(&owner).unwrap();
         proc_data.inputs_mut().retain(|iid| *iid != input_id);
-        Arc::make_mut(&mut self.sound_inputs)
-            .remove(&input_id)
-            .unwrap();
+        self.sound_inputs.remove(&input_id).unwrap();
         // self.update_static_processor_cache();
     }
 
@@ -239,9 +223,7 @@ impl SoundGraphTopology {
     ) {
         let mut outbound_connections: Vec<(SoundProcessorId, GridSpan, SoundInputId)> = Vec::new();
 
-        let proc_data = Arc::make_mut(&mut self.sound_processors)
-            .get_mut(&proc_id)
-            .unwrap();
+        let proc_data = self.sound_processors.get_mut(&proc_id).unwrap();
         let proc = &mut proc_data.wrapper();
         let gs = match operation {
             StateOperation::Insert => proc.insert_dst_states(dst_iid, dst_states),
@@ -250,18 +232,15 @@ impl SoundGraphTopology {
         if proc.is_static() {
             return;
         }
-        {
-            let sound_inputs = Arc::make_mut(&mut self.sound_inputs);
-            for i in proc_data.inputs() {
-                let input_data = sound_inputs.get_mut(&i).unwrap();
-                let gsi = match operation {
-                    StateOperation::Insert => input_data.input().insert_states(gs),
-                    StateOperation::Erase => input_data.input().erase_states(gs),
-                };
-                if let Some(pid) = input_data.target() {
-                    outbound_connections.push((pid, gsi, input_data.id()));
-                };
-            }
+        for i in proc_data.inputs() {
+            let input_data = self.sound_inputs.get_mut(&i).unwrap();
+            let gsi = match operation {
+                StateOperation::Insert => input_data.input().insert_states(gs),
+                StateOperation::Erase => input_data.input().erase_states(gs),
+            };
+            if let Some(pid) = input_data.target() {
+                outbound_connections.push((pid, gsi, input_data.id()));
+            };
         }
 
         for (pid, gsi, iid) in outbound_connections {
@@ -285,7 +264,7 @@ impl SoundGraphTopology {
             return Err(err);
         }
 
-        let input_data = Arc::make_mut(&mut self.sound_inputs).get_mut(&input_id);
+        let input_data = self.sound_inputs.get_mut(&input_id);
         if input_data.is_none() {
             return Err(SoundConnectionError::InputNotFound(input_id).into());
         }
@@ -303,7 +282,7 @@ impl SoundGraphTopology {
         input_data.set_target(Some(processor_id));
 
         {
-            let proc_data = Arc::make_mut(&mut self.sound_processors).get_mut(&processor_id);
+            let proc_data = self.sound_processors.get_mut(&processor_id);
             if proc_data.is_none() {
                 return Err(SoundConnectionError::ProcessorNotFound(processor_id).into());
             }
@@ -349,7 +328,7 @@ impl SoundGraphTopology {
             return Err(err.into());
         }
 
-        let input_data = Arc::make_mut(&mut self.sound_inputs).get_mut(&input_id);
+        let input_data = self.sound_inputs.get_mut(&input_id);
         if input_data.is_none() {
             return Err(SoundConnectionError::InputNotFound(input_id).into());
         }
@@ -378,7 +357,7 @@ impl SoundGraphTopology {
         );
 
         {
-            let proc_data = Arc::make_mut(&mut self.sound_processors).get_mut(&processor_id);
+            let proc_data = self.sound_processors.get_mut(&processor_id);
             if proc_data.is_none() {
                 return Err(SoundConnectionError::ProcessorNotFound(processor_id).into());
             }
@@ -401,19 +380,15 @@ impl SoundGraphTopology {
     ) {
         debug_assert!(self.number_sources.get(&id).is_none());
         let data = EngineNumberSourceData::new(id, source, owner, Vec::new());
-        Arc::make_mut(&mut self.number_sources).insert(id, data);
+        self.number_sources.insert(id, data);
         match owner {
             NumberSourceOwner::SoundProcessor(spid) => {
-                let proc_data = Arc::make_mut(&mut self.sound_processors)
-                    .get_mut(&spid)
-                    .unwrap();
+                let proc_data = self.sound_processors.get_mut(&spid).unwrap();
                 debug_assert!(!proc_data.number_sources().contains(&id));
                 proc_data.number_sources_mut().push(id);
             }
             NumberSourceOwner::SoundInput(siid) => {
-                let input_data = Arc::make_mut(&mut self.sound_inputs)
-                    .get_mut(&siid)
-                    .unwrap();
+                let input_data = self.sound_inputs.get_mut(&siid).unwrap();
                 debug_assert!(!input_data.number_sources().contains(&id));
                 input_data.number_sources_mut().push(id);
             }
@@ -455,17 +430,13 @@ impl SoundGraphTopology {
         // remove the number source from its owner, if any
         match self.number_sources.get(&source_id).unwrap().owner() {
             NumberSourceOwner::SoundProcessor(spid) => {
-                let proc_data = Arc::make_mut(&mut self.sound_processors)
-                    .get_mut(&spid)
-                    .unwrap();
+                let proc_data = self.sound_processors.get_mut(&spid).unwrap();
                 proc_data
                     .number_sources_mut()
                     .retain(|iid| *iid != source_id);
             }
             NumberSourceOwner::SoundInput(siid) => {
-                let input_data = Arc::make_mut(&mut self.sound_inputs)
-                    .get_mut(&siid)
-                    .unwrap();
+                let input_data = self.sound_inputs.get_mut(&siid).unwrap();
                 input_data
                     .number_sources_mut()
                     .retain(|iid| *iid != source_id);
@@ -474,9 +445,7 @@ impl SoundGraphTopology {
         }
 
         // remove the number source
-        Arc::make_mut(&mut self.number_sources)
-            .remove(&source_id)
-            .unwrap();
+        self.number_sources.remove(&source_id).unwrap();
     }
 
     pub fn add_number_input(&mut self, handle: NumberInputHandle) {
@@ -485,20 +454,16 @@ impl SoundGraphTopology {
         debug_assert!(self.number_inputs.get(&id).is_none());
 
         let data = EngineNumberInputData::new(id, None, owner);
-        Arc::make_mut(&mut self.number_inputs).insert(id, data);
+        self.number_inputs.insert(id, data);
 
         match owner {
             NumberInputOwner::SoundProcessor(spid) => {
-                let proc_data = Arc::make_mut(&mut self.sound_processors)
-                    .get_mut(&spid)
-                    .unwrap();
+                let proc_data = self.sound_processors.get_mut(&spid).unwrap();
                 debug_assert!(!proc_data.number_inputs().contains(&id));
                 proc_data.number_inputs_mut().push(id);
             }
             NumberInputOwner::NumberSource(nsid) => {
-                let source_data = Arc::make_mut(&mut self.number_sources)
-                    .get_mut(&nsid)
-                    .unwrap();
+                let source_data = self.number_sources.get_mut(&nsid).unwrap();
                 debug_assert!(!source_data.inputs().contains(&id));
                 source_data.inputs_mut().push(id);
             }
@@ -518,20 +483,16 @@ impl SoundGraphTopology {
         }
         match owner {
             NumberInputOwner::SoundProcessor(spid) => {
-                let proc_data = Arc::make_mut(&mut self.sound_processors)
-                    .get_mut(&spid)
-                    .unwrap();
+                let proc_data = self.sound_processors.get_mut(&spid).unwrap();
                 proc_data.number_inputs_mut().retain(|niid| *niid != id);
             }
             NumberInputOwner::NumberSource(nsid) => {
-                let source_data = Arc::make_mut(&mut self.number_sources)
-                    .get_mut(&nsid)
-                    .unwrap();
+                let source_data = self.number_sources.get_mut(&nsid).unwrap();
                 source_data.inputs_mut().retain(|niid| *niid != id);
             }
         }
 
-        Arc::make_mut(&mut self.number_inputs).remove(&id);
+        self.number_inputs.remove(&id);
     }
 
     pub fn connect_number_input(
@@ -550,7 +511,7 @@ impl SoundGraphTopology {
             return Err(err.into_number().unwrap());
         }
 
-        let input_data = match Arc::make_mut(&mut self.number_inputs).get_mut(&input_id) {
+        let input_data = match self.number_inputs.get_mut(&input_id) {
             Some(i) => i,
             None => return Err(NumberConnectionError::InputNotFound(input_id)),
         };
@@ -586,7 +547,7 @@ impl SoundGraphTopology {
             return Err(err.into_number().unwrap());
         }
 
-        let input_data = match Arc::make_mut(&mut self.number_inputs).get_mut(&input_id) {
+        let input_data = match self.number_inputs.get_mut(&input_id) {
             Some(i) => i,
             None => return Err(NumberConnectionError::InputNotFound(input_id)),
         };
@@ -652,16 +613,5 @@ impl SoundGraphTopology {
             number_sources,
             number_inputs,
         )
-    }
-}
-
-impl Clone for SoundGraphTopology {
-    fn clone(&self) -> Self {
-        Self {
-            sound_processors: Arc::clone(&self.sound_processors),
-            sound_inputs: Arc::clone(&self.sound_inputs),
-            number_sources: Arc::clone(&self.number_sources),
-            number_inputs: Arc::clone(&self.number_inputs),
-        }
     }
 }
