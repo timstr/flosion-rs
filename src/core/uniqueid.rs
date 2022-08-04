@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-pub trait UniqueId: Default + Copy + PartialEq + Eq + Hash {
+pub trait UniqueId: Default + Copy + Clone + PartialEq + Eq + Hash {
     fn value(&self) -> usize;
     fn next(&self) -> Self;
 }

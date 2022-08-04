@@ -2,13 +2,10 @@ use std::any::{type_name, Any};
 
 use super::{
     numberinput::NumberInputId,
-    numbersource::{NumberSourceId, PureNumberSource},
+    numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
     serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
-    soundprocessor::{
-        DynamicSoundProcessor, SoundProcessorId, StaticSoundProcessor,
-        WrappedDynamicSoundProcessor, WrappedStaticSoundProcessor,
-    },
+    soundprocessor::{SoundProcessor, SoundProcessorHandle, SoundProcessorId},
 };
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash)]
@@ -144,7 +141,7 @@ pub trait ObjectWrapper: 'static {
     fn get_object(&self) -> &Self::Type;
 }
 
-impl<T: DynamicSoundProcessor> GraphObject for WrappedDynamicSoundProcessor<T> {
+impl<T: SoundProcessor> GraphObject for SoundProcessorHandle<T> {
     fn get_type(&self) -> ObjectType {
         T::TYPE
     }
@@ -157,43 +154,41 @@ impl<T: DynamicSoundProcessor> GraphObject for WrappedDynamicSoundProcessor<T> {
         type_name::<T>()
     }
 
-    fn serialize(&self, serializer: Serializer) {
-        self.instance().serialize(serializer);
+    fn serialize(&self, _serializer: Serializer) {
+        todo!()
     }
 }
 
-impl<T: StaticSoundProcessor> GraphObject for WrappedStaticSoundProcessor<T> {
-    fn get_type(&self) -> ObjectType {
-        T::TYPE
-    }
+impl<T: SoundProcessor> ObjectWrapper for SoundProcessorHandle<T> {
+    type Type = T;
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn get_language_type_name(&self) -> &'static str {
-        type_name::<T>()
-    }
-
-    fn serialize(&self, serializer: Serializer) {
-        self.instance().serialize(serializer);
+    fn get_object(&self) -> &T {
+        self.instance()
     }
 }
 
-impl<T: PureNumberSource + WithObjectType> GraphObject for T {
-    fn get_type(&self) -> ObjectType {
-        T::TYPE
-    }
+impl<T: PureNumberSource> ObjectWrapper for PureNumberSourceHandle<T> {
+    type Type = T;
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn get_language_type_name(&self) -> &'static str {
-        type_name::<T>()
-    }
-
-    fn serialize(&self, serializer: Serializer) {
-        self.serialize(serializer);
+    fn get_object(&self) -> &T {
+        self.instance()
     }
 }
+
+// impl<T: PureNumberSource + WithObjectType> GraphObject for T {
+//     fn get_type(&self) -> ObjectType {
+//         T::TYPE
+//     }
+
+//     fn as_any(&self) -> &dyn Any {
+//         self
+//     }
+
+//     fn get_language_type_name(&self) -> &'static str {
+//         type_name::<T>()
+//     }
+
+//     fn serialize(&self, serializer: Serializer) {
+//         self.serialize(serializer);
+//     }
+// }

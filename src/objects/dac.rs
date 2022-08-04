@@ -2,79 +2,62 @@ use std::{
     sync::{
         atomic::{AtomicBool, AtomicI32, Ordering},
         mpsc::{channel, Sender},
-        Arc,
+        Arc, Barrier,
     },
-    time::Duration,
+    thread::JoinHandle,
 };
 
 use crate::core::{
-    context::ProcessorContext,
+    context::Context,
     graphobject::{ObjectType, WithObjectType},
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundinput::{InputOptions, SingleSoundInputHandle},
-    soundprocessor::StaticSoundProcessor,
+    soundinput::InputOptions,
+    soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    soundstate::SoundState,
+    statetree::{SingleInput, SingleInputNode, State},
 };
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    SampleRate, Stream, StreamConfig, StreamError,
+    SampleRate, StreamConfig, StreamError,
 };
 use parking_lot::Mutex;
 
-struct StreamDammit {
-    stream: Stream,
-}
-
-unsafe impl Send for StreamDammit {}
-
-struct DacData {
+pub struct DacData {
     chunk_backlog: AtomicI32,
-    playing: AtomicBool,
-    first_chunk: AtomicBool,
+    stream_end_barrier: Barrier,
+    pending_reset: AtomicBool,
+    chunk_sender: Mutex<Sender<SoundChunk>>,
 }
 
 pub struct Dac {
-    input: SingleSoundInputHandle,
-    stream: Mutex<StreamDammit>,
-    chunk_sender: Mutex<Sender<SoundChunk>>,
-    pending_reset: AtomicBool,
+    pub input: SingleInput,
+    stream_thread: Option<JoinHandle<()>>,
     shared_data: Arc<DacData>,
 }
 
-pub struct DacState {}
-
-impl Default for DacState {
-    fn default() -> DacState {
-        DacState {}
+impl State for Arc<DacData> {
+    fn reset(&mut self) {
+        // Nothing to do
     }
-}
-
-impl SoundState for DacState {
-    fn reset(&mut self) {}
 }
 
 impl Dac {
-    pub fn input(&self) -> &SingleSoundInputHandle {
-        &self.input
-    }
-
-    pub fn is_playing(&self) -> bool {
-        self.shared_data.playing.load(Ordering::SeqCst)
-    }
-
     pub fn reset(&self) {
-        self.pending_reset.store(true, Ordering::SeqCst);
+        self.shared_data.pending_reset.store(true, Ordering::SeqCst);
     }
 }
 
-impl StaticSoundProcessor for Dac {
-    type StateType = DacState;
+impl SoundProcessor for Dac {
+    const IS_STATIC: bool = true;
 
-    fn new_default(tools: &mut SoundProcessorTools<DacState>) -> Dac {
+    type StateType = Arc<DacData>;
+
+    type InputType = SingleInput;
+
+    fn new(mut tools: SoundProcessorTools) -> Dac {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -112,55 +95,18 @@ impl StaticSoundProcessor for Dac {
         let (tx, rx) = channel::<SoundChunk>();
 
         let shared_data = Arc::new(DacData {
-            playing: AtomicBool::new(false),
             chunk_backlog: AtomicI32::new(0),
-            first_chunk: AtomicBool::new(false),
+            chunk_sender: Mutex::new(tx),
+            pending_reset: AtomicBool::new(false),
+            stream_end_barrier: Barrier::new(2),
         });
 
         let mut chunk_index: usize = 0;
         let mut current_chunk: Option<SoundChunk> = None;
-        let thread_shared_data = Arc::clone(&shared_data);
 
         let mut get_next_sample = move || {
             if current_chunk.is_none() || chunk_index >= CHUNK_SIZE {
-                current_chunk = Some(loop {
-                    if let Ok(mut next_chunk) = rx.try_recv() {
-                        let backlog = thread_shared_data
-                            .chunk_backlog
-                            .fetch_sub(1, Ordering::SeqCst);
-                        debug_assert!(backlog >= 0);
-                        let init = thread_shared_data.first_chunk.swap(false, Ordering::SeqCst);
-                        if init {
-                            let mut dropped_chunk_count = 0;
-                            loop {
-                                if let Ok(backlog_chunk) = rx.try_recv() {
-                                    let n = thread_shared_data
-                                        .chunk_backlog
-                                        .fetch_sub(1, Ordering::SeqCst);
-                                    debug_assert!(n >= 0);
-                                    if n == 0 {
-                                        next_chunk = backlog_chunk;
-                                    }
-                                    dropped_chunk_count += 1;
-                                } else {
-                                    break;
-                                }
-                            }
-                            if dropped_chunk_count > 1 {
-                                println!("Warning! Dac was slow to start and {} initial chunks were dropped", dropped_chunk_count)
-                            }
-                        } else {
-                            if backlog > 2 {
-                                println!("Warning! Dac is behind by {} chunks", backlog);
-                            }
-                        }
-                        break next_chunk;
-                    }
-                    if !thread_shared_data.playing.load(Ordering::Relaxed) {
-                        break SoundChunk::new();
-                    }
-                    spin_sleep::sleep(Duration::from_micros(1_000));
-                });
+                current_chunk = Some(rx.recv().unwrap_or_else(|_| SoundChunk::new()));
                 chunk_index = 0;
             }
             let c = current_chunk.as_ref().unwrap();
@@ -184,53 +130,66 @@ impl StaticSoundProcessor for Dac {
             println!("CPAL StreamError: {:?}", err);
         };
 
-        let stream = device
-            .build_output_stream(&config, data_callback, err_callback)
-            .unwrap();
+        let shared_data_also = Arc::clone(&shared_data);
+
+        let stream_thread = std::thread::spawn(move || {
+            let stream = device
+                .build_output_stream(&config, data_callback, err_callback)
+                .unwrap();
+            stream.play().unwrap();
+            shared_data_also.stream_end_barrier.wait();
+            stream.pause().unwrap();
+        });
 
         Dac {
-            input: tools.add_single_sound_input(InputOptions {
-                realtime: true,
-                interruptible: false,
-            }),
-            stream: Mutex::new(StreamDammit { stream }),
-            chunk_sender: Mutex::new(tx),
-            pending_reset: AtomicBool::new(false),
+            input: SingleInput::new(
+                InputOptions {
+                    realtime: true,
+                    interruptible: false,
+                },
+                &mut tools,
+            ),
+            stream_thread: Some(stream_thread),
             shared_data,
         }
     }
 
-    fn process_audio(&self, _dst: &mut SoundChunk, mut sc: ProcessorContext<'_, DacState>) {
-        if self.pending_reset.swap(false, Ordering::SeqCst)
-            || sc.single_input_needs_reset(&self.input)
-        {
-            sc.reset_single_input(&self.input, 0);
+    fn get_input(&self) -> &SingleInput {
+        &self.input
+    }
+
+    fn make_state(&self) -> Arc<DacData> {
+        Arc::clone(&self.shared_data)
+    }
+
+    fn process_audio(
+        state: &mut Arc<DacData>,
+        input: &mut SingleInputNode,
+        _dst: &mut SoundChunk,
+        ctx: Context,
+    ) {
+        if state.pending_reset.swap(false, Ordering::SeqCst) {
+            input.flag_for_reset();
         }
         let mut ch = SoundChunk::new();
-        sc.step_single_input(&self.input, &mut ch);
+        input.step(state, &mut ch, &ctx);
 
-        let sender = self.chunk_sender.lock();
-        sender.send(ch).unwrap();
-        self.shared_data
-            .chunk_backlog
-            .fetch_add(1, Ordering::SeqCst);
+        let sender = state.chunk_sender.lock();
+        match sender.send(ch) {
+            Ok(_) => {
+                state.chunk_backlog.fetch_add(1, Ordering::SeqCst);
+            }
+            Err(_) => {
+                println!("Oops! Dac::process_audio failed to send a chunk");
+            }
+        }
     }
+}
 
-    fn produces_output(&self) -> bool {
-        false
-    }
-
-    fn on_start_processing(&self) {
-        self.shared_data.playing.store(true, Ordering::SeqCst);
-        let s = self.stream.lock();
-        s.stream.play().unwrap();
-        self.shared_data.first_chunk.store(true, Ordering::SeqCst);
-    }
-
-    fn on_stop_processing(&self) {
-        self.shared_data.playing.store(false, Ordering::SeqCst);
-        let s = self.stream.lock();
-        s.stream.pause().unwrap();
+impl Drop for Dac {
+    fn drop(&mut self) {
+        self.shared_data.stream_end_barrier.wait();
+        self.stream_thread.take().unwrap().join().unwrap();
     }
 }
 

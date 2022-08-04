@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
+    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
     objects::dac::Dac,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -11,12 +11,12 @@ use crate::{
 pub struct DacUi {}
 
 impl ObjectUi for DacUi {
-    type WrapperType = WrappedStaticSoundProcessor<Dac>;
+    type WrapperType = SoundProcessorHandle<Dac>;
     type StateType = ();
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &WrappedStaticSoundProcessor<Dac>,
+        wrapper: &SoundProcessorHandle<Dac>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &(),
@@ -28,13 +28,8 @@ impl ObjectUi for DacUi {
             |ui, graph_tools| {
                 ui.label("Dac");
                 // ui.separator();
-                ui.label(if object.is_playing() {
-                    "Playing"
-                } else {
-                    "Paused"
-                });
                 ui.add(SoundInputWidget::new(
-                    object.input().id(),
+                    object.input.id(),
                     "Output",
                     graph_tools,
                 ));

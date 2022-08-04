@@ -7,7 +7,7 @@ use super::{
     soundgrapherror::{NumberConnectionError, SoundConnectionError, SoundGraphError},
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
-    soundstate::StateOwner,
+    statetree::StateOwner,
 };
 
 #[derive(Clone)]

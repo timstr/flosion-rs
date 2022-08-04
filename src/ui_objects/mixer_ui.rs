@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::WrappedDynamicSoundProcessor},
+    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
     objects::mixer::Mixer,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -11,17 +11,18 @@ use crate::{
 pub struct MixerUi {}
 
 impl ObjectUi for MixerUi {
-    type WrapperType = WrappedDynamicSoundProcessor<Mixer>;
+    type WrapperType = SoundProcessorHandle<Mixer>;
     type StateType = ();
 
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &WrappedDynamicSoundProcessor<Mixer>,
+        wrapper: &SoundProcessorHandle<Mixer>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &(),
     ) {
+        let wrapper = wrapper.clone();
         let object = wrapper.instance();
         let id = id.as_sound_processor_id().unwrap();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
@@ -38,8 +39,8 @@ impl ObjectUi for MixerUi {
                     graph_tools.make_change(move |sg| {
                         let w = w;
                         let input_id = input_id;
-                        sg.apply_dynamic_processor_tools(&w, |w, tools| {
-                            w.instance().remove_input(input_id, tools);
+                        sg.apply_processor_tools(w.id(), |mut tools| {
+                            w.instance().remove_input(input_id, &mut tools);
                         })
                     });
                 }
@@ -48,8 +49,8 @@ impl ObjectUi for MixerUi {
                 let w = wrapper.clone();
                 graph_tools.make_change(move |sg| {
                     let w = w;
-                    sg.apply_dynamic_processor_tools(&w, |w, tools| {
-                        w.instance().add_input(tools);
+                    sg.apply_processor_tools(w.id(), |mut tools| {
+                        w.instance().add_input(&mut tools);
                     })
                 });
             }

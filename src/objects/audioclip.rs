@@ -1,58 +1,68 @@
+use std::sync::Arc;
+
 use parking_lot::RwLock;
 
 use crate::core::{
-    context::ProcessorContext,
     graphobject::{ObjectType, WithObjectType},
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundprocessor::DynamicSoundProcessor,
+    soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    soundstate::SoundState,
+    statetree::{NoInputs, State},
 };
 
 pub struct AudioClip {
-    audio_data: RwLock<Vec<(f32, f32)>>,
+    audio_data: Arc<RwLock<Vec<(f32, f32)>>>,
+    input: NoInputs,
 }
 
 impl AudioClip {
-    pub fn new() -> AudioClip {
-        AudioClip {
-            audio_data: RwLock::new(Vec::new()),
-        }
-    }
-
     pub fn set_data(&self, data: Vec<(f32, f32)>) {
         *self.audio_data.write() = data;
     }
 }
 
 pub struct AudioClipState {
+    audio_data: Arc<RwLock<Vec<(f32, f32)>>>,
     playhead: usize,
 }
 
-impl Default for AudioClipState {
-    fn default() -> Self {
-        AudioClipState { playhead: 0 }
-    }
-}
-
-impl SoundState for AudioClipState {
+impl State for AudioClipState {
     fn reset(&mut self) {
         self.playhead = 0;
     }
 }
 
-impl DynamicSoundProcessor for AudioClip {
-    type StateType = AudioClipState;
+impl SoundProcessor for AudioClip {
+    const IS_STATIC: bool = false;
 
-    fn new_default(_tools: &mut SoundProcessorTools<'_, AudioClipState>) -> AudioClip {
+    type StateType = AudioClipState;
+    type InputType = NoInputs;
+
+    fn new(_tools: SoundProcessorTools) -> Self {
         AudioClip {
-            audio_data: RwLock::new(Vec::new()),
+            audio_data: Arc::new(RwLock::new(Vec::new())),
+            input: NoInputs::new(),
         }
     }
 
-    fn process_audio(&self, dst: &mut SoundChunk, context: ProcessorContext<'_, AudioClipState>) {
-        let mut state = context.write_state();
-        let data = self.audio_data.read();
+    fn get_input(&self) -> &Self::InputType {
+        &self.input
+    }
+
+    fn make_state(&self) -> Self::StateType {
+        AudioClipState {
+            audio_data: Arc::clone(&&self.audio_data),
+            playhead: 0,
+        }
+    }
+
+    fn process_audio(
+        state: &mut Self::StateType,
+        _inputs: &mut Self::InputType,
+        dst: &mut SoundChunk,
+        _context: crate::core::context::Context,
+    ) {
+        let data = state.audio_data.read();
         if data.len() == 0 {
             dst.silence();
             return;

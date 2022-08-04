@@ -84,7 +84,7 @@ impl epi::App for FlosionApp {
             self.ui_state.reset_pegs();
             for (object_id, object) in self.graph.graph_objects() {
                 self.all_object_uis.ui(
-                    *object_id,
+                    object_id,
                     object.as_ref(),
                     object.get_type(),
                     &mut self.ui_state,

@@ -9,16 +9,14 @@ use super::{
 pub fn all_objects() -> ObjectFactory {
     let mut all_uis = ObjectFactory::new_empty();
 
-    // Static sound processors
-    all_uis.register_static_sound_processor::<DacUi>();
-    all_uis.register_static_sound_processor::<KeyboardUi>();
-    all_uis.register_static_sound_processor::<RecorderUi>();
-
-    // Dynamic sound processors
-    all_uis.register_dynamic_sound_processor::<WaveGeneratorUi>();
-    all_uis.register_dynamic_sound_processor::<WhiteNoiseUi>();
-    all_uis.register_dynamic_sound_processor::<AudioClipUi>();
-    all_uis.register_dynamic_sound_processor::<MixerUi>();
+    // Sound processors
+    all_uis.register_sound_processor::<DacUi>();
+    all_uis.register_sound_processor::<KeyboardUi>();
+    all_uis.register_sound_processor::<RecorderUi>();
+    all_uis.register_sound_processor::<WaveGeneratorUi>();
+    all_uis.register_sound_processor::<WhiteNoiseUi>();
+    all_uis.register_sound_processor::<AudioClipUi>();
+    all_uis.register_sound_processor::<MixerUi>();
 
     // Pure number sources
     all_uis.register_number_source::<ConstantUi>();

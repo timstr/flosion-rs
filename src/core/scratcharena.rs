@@ -3,6 +3,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+// TODO: rewrite this whole thing, I don't like it anymore
+
 struct Stack {
     data: UnsafeCell<Vec<f32>>,
     occupied: Cell<usize>,

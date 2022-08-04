@@ -1,14 +1,13 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use super::{
-    context::NumberContext,
-    graphobject::{ObjectWrapper, WithObjectType},
+    context::Context,
+    graphobject::WithObjectType,
     key::Key,
     numbersourcetools::NumberSourceTools,
-    serialization::{Deserializer, Serializer},
-    soundinput::{KeyedSoundInputHandle, SoundInputId},
-    soundprocessor::{SoundProcessorData, SoundProcessorId},
-    soundstate::{SoundState, StateOwner},
+    soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
+    statetree::{State, StateOwner},
     uniqueid::UniqueId,
 };
 
@@ -86,21 +85,13 @@ impl NumberConfig {
 }
 
 pub trait NumberSource: 'static + Sync + Send {
-    fn eval(&self, dst: &mut [f32], context: NumberContext);
+    fn eval(&self, dst: &mut [f32], context: &Context);
 }
 
 pub trait PureNumberSource: NumberSource + WithObjectType {
-    fn new_default(tools: &mut NumberSourceTools<'_>) -> Self
+    fn new(tools: &mut NumberSourceTools<'_>) -> Self
     where
         Self: Sized;
-    fn new_deserialized(tools: &mut NumberSourceTools<'_>, deserializer: Deserializer) -> Self
-    where
-        Self: Sized,
-    {
-        debug_assert!(deserializer.is_empty());
-        Self::new_default(tools)
-    }
-    fn serialize(&self, _serializer: Serializer) {}
 }
 
 pub struct PureNumberSourceHandle<T: PureNumberSource> {
@@ -122,45 +113,53 @@ impl<T: PureNumberSource> PureNumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> ObjectWrapper for T {
-    type Type = T;
-
-    fn get_object(&self) -> &T {
-        &self
-    }
+pub trait StateFunction<S>: 'static + Sized + Sync + Send {
+    fn apply(&self, dst: &mut [f32], state: &S);
 }
 
-pub trait StateFunction<T: SoundState>: 'static + Sized + Sync + Send {
-    fn apply(&self, dst: &mut [f32], state: &T);
-}
-
-impl<T: SoundState, F: 'static + Sized + Sync + Send> StateFunction<T> for F
+impl<S, F: 'static + Sized + Sync + Send> StateFunction<S> for F
 where
-    F: Fn(&mut [f32], &T),
+    F: Fn(&mut [f32], &S),
 {
-    fn apply(&self, dst: &mut [f32], state: &T) {
+    fn apply(&self, dst: &mut [f32], state: &S) {
         (*self)(dst, state);
     }
 }
 
-pub struct ProcessorNumberSource<T: SoundState, F: StateFunction<T>> {
-    data: Arc<SoundProcessorData<T>>,
-    function: F,
+pub trait KeyStateFunction<K, S>: 'static + Sized + Sync + Send {
+    fn apply(&self, dst: &mut [f32], key: &K, state: &S);
 }
 
-impl<T: SoundState, F: StateFunction<T>> ProcessorNumberSource<T, F> {
-    pub(super) fn new(
-        data: Arc<SoundProcessorData<T>>,
-        function: F,
-    ) -> ProcessorNumberSource<T, F> {
-        ProcessorNumberSource { data, function }
+impl<K, S, F: 'static + Sized + Sync + Send> KeyStateFunction<K, S> for F
+where
+    F: Fn(&mut [f32], &K, &S),
+{
+    fn apply(&self, dst: &mut [f32], key: &K, state: &S) {
+        (*self)(dst, key, state);
     }
 }
 
-impl<T: SoundState, F: StateFunction<T>> NumberSource for ProcessorNumberSource<T, F> {
-    fn eval(&self, dst: &mut [f32], context: NumberContext) {
-        let state = context.sound_processor_state(&self.data);
-        self.function.apply(dst, &state.read());
+pub struct ProcessorNumberSource<S: State, F: StateFunction<S>> {
+    function: F,
+    processor_id: SoundProcessorId,
+    data: PhantomData<S>,
+}
+
+impl<S: State, F: StateFunction<S>> ProcessorNumberSource<S, F> {
+    pub(super) fn new(processor_id: SoundProcessorId, function: F) -> ProcessorNumberSource<S, F> {
+        ProcessorNumberSource {
+            function,
+            processor_id,
+            data: PhantomData::default(),
+        }
+    }
+}
+
+impl<S: State, F: StateFunction<S>> NumberSource for ProcessorNumberSource<S, F> {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
+        let state = context.find_processor_state(self.processor_id);
+        let state = state.downcast_if::<S>(self.processor_id).unwrap();
+        self.function.apply(dst, state);
     }
 }
 
@@ -175,7 +174,7 @@ impl ProcessorTimeNumberSource {
 }
 
 impl NumberSource for ProcessorTimeNumberSource {
-    fn eval(&self, dst: &mut [f32], context: NumberContext) {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
         context.current_time_at_sound_processor(self.processor_id, dst);
     }
 }
@@ -191,19 +190,19 @@ impl InputTimeNumberSource {
 }
 
 impl NumberSource for InputTimeNumberSource {
-    fn eval(&self, dst: &mut [f32], context: NumberContext) {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
         context.current_time_at_sound_input(self.input_id, dst);
     }
 }
 
-pub struct NumberSourceHandle {
+pub struct StateNumberSourceHandle {
     id: NumberSourceId,
     owner: NumberSourceOwner,
 }
 
-impl NumberSourceHandle {
-    pub(super) fn new(id: NumberSourceId, owner: NumberSourceOwner) -> NumberSourceHandle {
-        NumberSourceHandle { id, owner }
+impl StateNumberSourceHandle {
+    pub(super) fn new(id: NumberSourceId, owner: NumberSourceOwner) -> StateNumberSourceHandle {
+        StateNumberSourceHandle { id, owner }
     }
 
     pub fn id(&self) -> NumberSourceId {
@@ -233,24 +232,29 @@ impl NumberSourceHandle {
 //     }
 // }
 
-// TODO: elaborate to allow the current key to be passed by reference to the function in addition to the state
-pub struct KeyedInputNumberSource<K: Key, T: SoundState, F: StateFunction<T>> {
-    handle: KeyedSoundInputHandle<K, T>,
+pub struct KeyedInputNumberSource<K: Key, S: State, F: KeyStateFunction<K, S>> {
+    input_id: SoundInputId,
     function: F,
+    dummy_data: PhantomData<(K, S)>,
 }
 
-impl<K: Key, T: SoundState, F: StateFunction<T>> KeyedInputNumberSource<K, T, F> {
-    pub(super) fn new(
-        handle: KeyedSoundInputHandle<K, T>,
-        function: F,
-    ) -> KeyedInputNumberSource<K, T, F> {
-        KeyedInputNumberSource { handle, function }
+impl<K: Key, S: State, F: KeyStateFunction<K, S>> KeyedInputNumberSource<K, S, F> {
+    pub(super) fn new(input_id: SoundInputId, function: F) -> KeyedInputNumberSource<K, S, F> {
+        KeyedInputNumberSource {
+            input_id,
+            function,
+            dummy_data: PhantomData::default(),
+        }
     }
 }
 
-impl<K: Key, T: SoundState, F: StateFunction<T>> NumberSource for KeyedInputNumberSource<K, T, F> {
-    fn eval(&self, dst: &mut [f32], context: NumberContext) {
-        let state = context.keyed_input_state(&self.handle);
-        self.function.apply(dst, &state.read().state());
+impl<K: Key, S: State, F: KeyStateFunction<K, S>> NumberSource for KeyedInputNumberSource<K, S, F> {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
+        let (key, state, _timing) = context.find_keyed_input_state(self.input_id);
+        self.function.apply(
+            dst,
+            key.downcast_if::<K>(self.input_id).unwrap(),
+            state.downcast_if::<S>(self.input_id).unwrap(),
+        );
     }
 }

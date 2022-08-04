@@ -1,18 +1,16 @@
-use parking_lot::RwLock;
-
 use crate::core::{
-    context::ProcessorContext,
+    context::Context,
     graphobject::{ObjectType, WithObjectType},
     numeric,
     soundchunk::SoundChunk,
-    soundinput::{InputOptions, SingleSoundInputHandle, SoundInputId},
-    soundprocessor::DynamicSoundProcessor,
+    soundinput::{InputOptions, SoundInputId},
+    soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    soundstate::EmptyState,
+    statetree::{NoState, SingleInputList, SingleInputListNode},
 };
 
 pub struct Mixer {
-    inputs: RwLock<Vec<SingleSoundInputHandle>>,
+    inputs: SingleInputList,
 }
 
 const MIXER_INPUT_OPTIONS: InputOptions = InputOptions {
@@ -21,47 +19,54 @@ const MIXER_INPUT_OPTIONS: InputOptions = InputOptions {
 };
 
 impl Mixer {
-    pub fn add_input(&self, tools: &mut SoundProcessorTools<'_, EmptyState>) {
-        self.inputs
-            .write()
-            .push(tools.add_single_sound_input(MIXER_INPUT_OPTIONS))
+    pub fn add_input(&self, tools: &mut SoundProcessorTools) {
+        self.inputs.add_input(tools);
     }
 
-    pub fn remove_input(&self, id: SoundInputId, tools: &mut SoundProcessorTools<'_, EmptyState>) {
-        let mut inputs = self.inputs.write();
-        debug_assert!(inputs.iter().filter(|h| h.id() == id).count() == 1);
-        let i = inputs.iter().position(|h| h.id() == id).unwrap();
-        let h = inputs.remove(i);
-        tools.remove_single_sound_input(h);
+    pub fn remove_input(&self, id: SoundInputId, tools: &mut SoundProcessorTools) {
+        self.inputs.remove_input(id, tools);
     }
 
     pub fn get_input_ids(&self) -> Vec<SoundInputId> {
-        self.inputs.read().iter().map(|h| h.id()).collect()
+        self.inputs.get_input_ids()
     }
 }
 
-impl DynamicSoundProcessor for Mixer {
-    type StateType = EmptyState;
+impl SoundProcessor for Mixer {
+    const IS_STATIC: bool = false;
 
-    fn new_default(tools: &mut SoundProcessorTools<'_, EmptyState>) -> Mixer {
+    type StateType = NoState;
+    type InputType = SingleInputList;
+
+    fn new(mut tools: SoundProcessorTools) -> Self {
         Mixer {
-            inputs: RwLock::new(vec![
-                tools.add_single_sound_input(MIXER_INPUT_OPTIONS),
-                tools.add_single_sound_input(MIXER_INPUT_OPTIONS),
-            ]),
+            inputs: SingleInputList::new(2, MIXER_INPUT_OPTIONS, &mut tools),
         }
     }
 
-    fn process_audio(&self, dst: &mut SoundChunk, mut context: ProcessorContext<'_, EmptyState>) {
-        let inputs = self.inputs.read();
-        if inputs.len() == 0 {
+    fn get_input(&self) -> &Self::InputType {
+        &self.inputs
+    }
+
+    fn make_state(&self) -> Self::StateType {
+        NoState {}
+    }
+
+    fn process_audio(
+        state: &mut NoState,
+        inputs: &mut SingleInputListNode,
+        dst: &mut SoundChunk,
+        mut context: Context,
+    ) {
+        let ipts = inputs.get_mut();
+        if ipts.len() == 0 {
             dst.silence();
             return;
         }
-        context.step_single_input(inputs.first().unwrap(), dst);
+        ipts.first_mut().unwrap().step(state, dst, &mut context);
         let mut ch = SoundChunk::new();
-        for i in &inputs[1..] {
-            context.step_single_input(i, &mut ch);
+        for i in &mut ipts[1..] {
+            i.step(state, &mut ch, &mut context);
             numeric::add_inplace(&mut dst.l, &ch.l);
             numeric::add_inplace(&mut dst.r, &ch.r);
         }

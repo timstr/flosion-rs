@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::WrappedDynamicSoundProcessor},
+    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
     objects::wavegenerator::WaveGenerator,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -13,13 +13,13 @@ use crate::{
 pub struct WaveGeneratorUi {}
 
 impl ObjectUi for WaveGeneratorUi {
-    type WrapperType = WrappedDynamicSoundProcessor<WaveGenerator>;
+    type WrapperType = SoundProcessorHandle<WaveGenerator>;
     type StateType = ();
 
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &WrappedDynamicSoundProcessor<WaveGenerator>,
+        wrapper: &SoundProcessorHandle<WaveGenerator>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &(),

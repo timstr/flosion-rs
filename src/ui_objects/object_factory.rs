@@ -8,7 +8,7 @@ use crate::{
         numbersource::PureNumberSource,
         serialization::Deserializer,
         soundgraph::SoundGraph,
-        soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
+        soundprocessor::SoundProcessor,
     },
     ui_core::{
         arguments::ParsedArguments,
@@ -55,48 +55,13 @@ impl ObjectFactory {
         all_objects()
     }
 
-    pub fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
+    pub fn register_sound_processor<T: ObjectUi>(&mut self)
     where
-        <T::WrapperType as ObjectWrapper>::Type: DynamicSoundProcessor,
+        <T::WrapperType as ObjectWrapper>::Type: SoundProcessor,
     {
-        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, init: ObjectInitialization| {
-            let (d, a) = match init {
-                ObjectInitialization::Archive(d) => (Some(d), None),
-                ObjectInitialization::Args(a) => (None, Some(a)),
-            };
-            let h = g.add_dynamic_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>(d);
-            let sp: &dyn GraphObject = h.wrapper();
-            if let Some(args) = a {
-                o.init_object_from_args(sp, args.1);
-                args.0
-                    .set_object_state(h.id().into(), o.make_ui_state(args.1));
-            }
-        };
-        self.mapping.insert(
-            <T::WrapperType as ObjectWrapper>::Type::TYPE,
-            ObjectData {
-                ui: Box::new(T::default()),
-                create: Box::new(create),
-            },
-        );
-    }
-
-    pub fn register_static_sound_processor<T: ObjectUi>(&mut self)
-    where
-        <T::WrapperType as ObjectWrapper>::Type: StaticSoundProcessor,
-    {
-        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, init: ObjectInitialization| {
-            let (d, a) = match init {
-                ObjectInitialization::Archive(d) => (Some(d), None),
-                ObjectInitialization::Args(a) => (None, Some(a)),
-            };
-            let h = g.add_static_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>(d);
-            let sp: &dyn GraphObject = h.wrapper();
-            if let Some(args) = a {
-                o.init_object_from_args(sp, args.1);
-                args.0
-                    .set_object_state(h.id().into(), o.make_ui_state(args.1));
-            }
+        let create = |g: &mut SoundGraph, _o: &dyn AnyObjectUi, _init: ObjectInitialization| {
+            // TODO: either initialize from args or deserialize
+            g.add_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>();
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,
@@ -111,18 +76,9 @@ impl ObjectFactory {
     where
         <T::WrapperType as ObjectWrapper>::Type: PureNumberSource,
     {
-        let create = |g: &mut SoundGraph, o: &dyn AnyObjectUi, init: ObjectInitialization| {
-            let (d, a) = match init {
-                ObjectInitialization::Archive(d) => (Some(d), None),
-                ObjectInitialization::Args(a) => (None, Some(a)),
-            };
-            let h = g.add_number_source::<<T::WrapperType as ObjectWrapper>::Type>(d);
-            let sp: &dyn GraphObject = h.instance();
-            if let Some(args) = a {
-                o.init_object_from_args(sp, args.1);
-                args.0
-                    .set_object_state(h.id().into(), o.make_ui_state(args.1));
-            }
+        let create = |g: &mut SoundGraph, _o: &dyn AnyObjectUi, _init: ObjectInitialization| {
+            // TODO: either initialize from args or deserialize
+            g.add_pure_number_source::<<T::WrapperType as ObjectWrapper>::Type>();
         };
         self.mapping.insert(
             <T::WrapperType as ObjectWrapper>::Type::TYPE,

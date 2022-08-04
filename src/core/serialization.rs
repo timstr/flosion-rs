@@ -534,8 +534,6 @@ mod tests {
             s1.u8(1);
         });
 
-        // TODO: make a proper interface for constructing serializers and deserializers,
-        // and one that handles the prefix length for a new deserializer
         let mut d1 = archive.deserialize().unwrap();
         assert_eq!(
             d1.peek_type().unwrap(),

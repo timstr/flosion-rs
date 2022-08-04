@@ -1,39 +1,44 @@
 use rand::prelude::*;
 
 use crate::core::{
-    context::ProcessorContext,
+    context::Context,
     graphobject::{ObjectType, WithObjectType},
     soundchunk::SoundChunk,
-    soundprocessor::DynamicSoundProcessor,
+    soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    soundstate::SoundState,
+    statetree::{NoInputs, NoState},
 };
 
-pub struct WhiteNoise {}
+pub struct WhiteNoise {
+    inputs: NoInputs,
+}
 
-pub struct WhiteNoiseState {}
+impl SoundProcessor for WhiteNoise {
+    const IS_STATIC: bool = false;
 
-impl Default for WhiteNoiseState {
-    fn default() -> WhiteNoiseState {
-        WhiteNoiseState {}
+    type StateType = NoState;
+
+    type InputType = NoInputs;
+
+    fn new(_tools: SoundProcessorTools) -> Self {
+        WhiteNoise {
+            inputs: NoInputs::new(),
+        }
     }
-}
 
-impl SoundState for WhiteNoiseState {
-    fn reset(&mut self) {}
-}
+    fn get_input(&self) -> &Self::InputType {
+        &self.inputs
+    }
 
-impl DynamicSoundProcessor for WhiteNoise {
-    type StateType = WhiteNoiseState;
-
-    fn new_default(_tools: &mut SoundProcessorTools<WhiteNoiseState>) -> WhiteNoise {
-        WhiteNoise {}
+    fn make_state(&self) -> Self::StateType {
+        NoState {}
     }
 
     fn process_audio(
-        &self,
+        _state: &mut NoState,
+        _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
-        mut _context: ProcessorContext<'_, WhiteNoiseState>,
+        _ctx: Context,
     ) {
         for s in dst.l.iter_mut() {
             let r: f32 = thread_rng().gen();

@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::graphobject::ObjectId,
+    core::{graphobject::ObjectId, numbersource::PureNumberSourceHandle},
     objects::functions::*,
     ui_core::{
         arguments::{ArgumentList, ArgumentValue, ParsedArguments},
@@ -30,24 +30,24 @@ impl Default for ConstantUiState {
 }
 
 impl ObjectUi for ConstantUi {
-    type WrapperType = Constant;
+    type WrapperType = PureNumberSourceHandle<Constant>;
     type StateType = ConstantUiState;
     fn ui(
         &self,
         id: ObjectId,
-        object: &Constant,
+        object: &PureNumberSourceHandle<Constant>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         state: &ConstantUiState,
     ) {
         let id = id.as_number_source_id().unwrap();
         ObjectWindow::new_number_source(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            let mut v = object.get_value();
+            let mut v = object.instance().get_value();
             let v_old = v;
             ui.label(&state.name);
             ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
             if v != v_old {
-                object.set_value(v);
+                object.instance().set_value(v);
             }
             ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
         });
@@ -62,8 +62,8 @@ impl ObjectUi for ConstantUi {
         args
     }
 
-    fn init_object(&self, object: &Constant, args: &ParsedArguments) {
-        object.set_value(args.get("value").as_float());
+    fn init_object(&self, object: &PureNumberSourceHandle<Constant>, args: &ParsedArguments) {
+        object.instance().set_value(args.get("value").as_float());
     }
 
     fn make_state(&self, args: &ParsedArguments) -> Self::StateType {
@@ -81,12 +81,12 @@ macro_rules! unary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type WrapperType = $object;
+            type WrapperType = PureNumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
                 id: ObjectId,
-                object: &$object,
+                object: &PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
                 _state: &(),
@@ -98,7 +98,7 @@ macro_rules! unary_number_source_ui {
                     |ui, graph_tools| {
                         ui.label($display_name);
                         ui.add(NumberInputWidget::new(
-                            object.input.id(),
+                            object.instance().input.id(),
                             "Input",
                             graph_tools,
                         ));
@@ -120,12 +120,12 @@ macro_rules! binary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type WrapperType = $object;
+            type WrapperType = PureNumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
                 id: ObjectId,
-                object: &$object,
+                object: &PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
                 _state: &(),
@@ -137,12 +137,12 @@ macro_rules! binary_number_source_ui {
                     |ui, graph_tools| {
                         ui.label($display_name);
                         ui.add(NumberInputWidget::new(
-                            object.input_1.id(),
+                            object.instance().input_1.id(),
                             "Input 1",
                             graph_tools,
                         ));
                         ui.add(NumberInputWidget::new(
-                            object.input_2.id(),
+                            object.instance().input_2.id(),
                             "Input 2",
                             graph_tools,
                         ));

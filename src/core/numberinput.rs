@@ -1,8 +1,11 @@
-use core::slice;
+use std::slice;
 
 use super::{
-    context::NumberContext, numbersource::NumberSourceId, soundprocessor::SoundProcessorId,
-    soundstate::StateOwner, uniqueid::UniqueId,
+    context::Context,
+    numbersource::NumberSourceId,
+    soundprocessor::SoundProcessorId,
+    statetree::{NumberInputNode, StateOwner},
+    uniqueid::UniqueId,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -63,20 +66,16 @@ impl NumberInputHandle {
         self.owner
     }
 
-    pub fn eval(&self, dst: &mut [f32], context: NumberContext) {
-        context.evaluate_input(self.id, dst);
+    pub fn make_node(&self) -> NumberInputNode {
+        NumberInputNode::new(self.id)
+    }
+    pub fn eval(&self, dst: &mut [f32], context: &Context) {
+        context.evaluate_number_input(self.id, dst);
     }
 
-    pub fn eval_scalar(&self, context: NumberContext) -> f32 {
+    pub fn eval_scalar(&self, context: &Context) -> f32 {
         let mut x: f32 = 0.0;
-        context.evaluate_input(self.id, slice::from_mut(&mut x));
+        context.evaluate_number_input(self.id, slice::from_mut(&mut x));
         x
-    }
-
-    pub(super) fn clone(&self) -> NumberInputHandle {
-        NumberInputHandle {
-            id: self.id,
-            owner: self.owner,
-        }
     }
 }

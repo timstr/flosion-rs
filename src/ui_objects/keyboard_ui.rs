@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::WrappedStaticSoundProcessor},
+    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
     objects::keyboard::Keyboard,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -15,12 +15,12 @@ use crate::{
 pub struct KeyboardUi {}
 
 impl ObjectUi for KeyboardUi {
-    type WrapperType = WrappedStaticSoundProcessor<Keyboard>;
+    type WrapperType = SoundProcessorHandle<Keyboard>;
     type StateType = ();
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &WrappedStaticSoundProcessor<Keyboard>,
+        wrapper: &SoundProcessorHandle<Keyboard>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &(),
