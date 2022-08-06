@@ -7,7 +7,7 @@ use std::{
 use eframe::egui;
 
 use crate::core::{
-    graphobject::{GraphId, GraphObject, ObjectId, ObjectWrapper},
+    graphobject::{GraphId, GraphObject, ObjectId, TypedGraphObject},
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
     soundinput::SoundInputId,
@@ -20,7 +20,7 @@ use super::{
 };
 
 pub trait ObjectUi: 'static + Default {
-    type WrapperType: ObjectWrapper;
+    type WrapperType: TypedGraphObject;
     type StateType: Any + Default;
     fn ui(
         &self,
@@ -41,7 +41,7 @@ pub trait ObjectUi: 'static + Default {
 
     fn init_object(&self, _object: &Self::WrapperType, _args: &ParsedArguments) {}
 
-    fn make_state(&self, _args: &ParsedArguments) -> Self::StateType {
+    fn make_ui_state(&self, _args: &ParsedArguments) -> Self::StateType {
         Self::StateType::default()
     }
 }
@@ -107,7 +107,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
 
     fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>> {
         let x: &T = self;
-        Rc::new(RefCell::new(x.make_state(args)))
+        Rc::new(RefCell::new(x.make_ui_state(args)))
     }
 
     fn aliases(&self) -> &'static [&'static str] {

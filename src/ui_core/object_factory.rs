@@ -4,7 +4,7 @@ use eframe::egui::Ui;
 
 use crate::{
     core::{
-        graphobject::{GraphObject, ObjectId, ObjectType, ObjectWrapper, WithObjectType},
+        graphobject::{GraphObject, ObjectId, ObjectType, TypedGraphObject, WithObjectType},
         numbersource::PureNumberSource,
         serialization::Deserializer,
         soundgraph::SoundGraph,
@@ -17,11 +17,14 @@ use crate::{
     },
 };
 
-use super::all_objects::all_objects;
+use crate::ui_objects::all_objects::all_objects;
 
 enum ObjectInitialization<'a> {
-    Args((&'a mut GraphUIState, &'a ParsedArguments)),
-    Archive(Deserializer<'a>),
+    Args(&'a ParsedArguments),
+    Archive {
+        object_state: Deserializer<'a>,
+        ui_state: Deserializer<'a>,
+    },
 }
 
 struct ObjectData {
@@ -29,7 +32,7 @@ struct ObjectData {
 
     // TODO: replace with e.g. Fn(Option<Deserializer>) -> &dyn AnyObjectUi
     // to remove the code duplication below
-    create: Box<dyn Fn(&mut SoundGraph, &dyn AnyObjectUi, ObjectInitialization)>,
+    create: Box<dyn Fn(&mut SoundGraph, &mut GraphUIState, &dyn AnyObjectUi, ObjectInitialization)>,
 }
 
 pub struct ObjectFactory {
@@ -57,14 +60,26 @@ impl ObjectFactory {
 
     pub fn register_sound_processor<T: ObjectUi>(&mut self)
     where
-        <T::WrapperType as ObjectWrapper>::Type: SoundProcessor,
+        <T::WrapperType as TypedGraphObject>::Type: SoundProcessor,
     {
-        let create = |g: &mut SoundGraph, _o: &dyn AnyObjectUi, _init: ObjectInitialization| {
-            // TODO: either initialize from args or deserialize
-            g.add_sound_processor::<<T::WrapperType as ObjectWrapper>::Type>();
+        let create = |g: &mut SoundGraph,
+                      u: &mut GraphUIState,
+                      o: &dyn AnyObjectUi,
+                      init: ObjectInitialization| {
+            let h = g.add_sound_processor::<<T::WrapperType as TypedGraphObject>::Type>();
+            match init {
+                ObjectInitialization::Args(a) => {
+                    o.init_object_from_args(&h, a);
+                    u.set_object_state(h.id().into(), o.make_ui_state(a));
+                }
+                ObjectInitialization::Archive {
+                    object_state,
+                    ui_state,
+                } => todo!(),
+            }
         };
         self.mapping.insert(
-            <T::WrapperType as ObjectWrapper>::Type::TYPE,
+            <T::WrapperType as TypedGraphObject>::Type::TYPE,
             ObjectData {
                 ui: Box::new(T::default()),
                 create: Box::new(create),
@@ -74,14 +89,26 @@ impl ObjectFactory {
 
     pub fn register_number_source<T: ObjectUi>(&mut self)
     where
-        <T::WrapperType as ObjectWrapper>::Type: PureNumberSource,
+        <T::WrapperType as TypedGraphObject>::Type: PureNumberSource,
     {
-        let create = |g: &mut SoundGraph, _o: &dyn AnyObjectUi, _init: ObjectInitialization| {
-            // TODO: either initialize from args or deserialize
-            g.add_pure_number_source::<<T::WrapperType as ObjectWrapper>::Type>();
+        let create = |g: &mut SoundGraph,
+                      u: &mut GraphUIState,
+                      o: &dyn AnyObjectUi,
+                      init: ObjectInitialization| {
+            let h = g.add_pure_number_source::<<T::WrapperType as TypedGraphObject>::Type>();
+            match init {
+                ObjectInitialization::Args(a) => {
+                    o.init_object_from_args(&h, a);
+                    u.set_object_state(h.id().into(), o.make_ui_state(a));
+                }
+                ObjectInitialization::Archive {
+                    object_state,
+                    ui_state,
+                } => todo!(),
+            }
         };
         self.mapping.insert(
-            <T::WrapperType as ObjectWrapper>::Type::TYPE,
+            <T::WrapperType as TypedGraphObject>::Type::TYPE,
             ObjectData {
                 ui: Box::new(T::default()),
                 create: Box::new(create),
@@ -119,10 +146,11 @@ impl ObjectFactory {
         &self,
         object_type: ObjectType,
         graph: &mut SoundGraph,
+        ui_state: &mut GraphUIState,
         init: ObjectInitialization,
     ) {
         match self.mapping.get(&object_type) {
-            Some(data) => (*data.create)(graph, &*data.ui, init),
+            Some(data) => (*data.create)(graph, ui_state, &*data.ui, init),
             None => println!(
                 "Warning: tried to create an object of unrecognized type \"{}\"",
                 object_type.name()
@@ -133,14 +161,15 @@ impl ObjectFactory {
     pub fn create_from_args(
         &self,
         object_type: ObjectType,
-        args: &ParsedArguments,
         graph: &mut SoundGraph,
         ui_state: &mut GraphUIState,
+        args: &ParsedArguments,
     ) {
         self.create_impl(
             object_type,
             graph,
-            ObjectInitialization::Args((ui_state, args)),
+            ui_state,
+            ObjectInitialization::Args(args),
         )
     }
 
@@ -148,12 +177,18 @@ impl ObjectFactory {
         &self,
         object_type: ObjectType,
         graph: &mut SoundGraph,
-        deserializer: Deserializer,
+        ui_state: &mut GraphUIState,
+        object_deserializer: Deserializer,
+        ui_deserializer: Deserializer,
     ) {
         self.create_impl(
             object_type,
             graph,
-            ObjectInitialization::Archive(deserializer),
+            ui_state,
+            ObjectInitialization::Archive {
+                object_state: object_deserializer,
+                ui_state: ui_deserializer,
+            },
         )
     }
 }

@@ -131,14 +131,12 @@ pub trait GraphObject {
     fn serialize(&self, _serializer: Serializer);
 }
 
-pub trait WithObjectType: 'static {
-    const TYPE: ObjectType;
+pub trait TypedGraphObject: GraphObject {
+    type Type;
 }
 
-pub trait ObjectWrapper: 'static {
-    type Type: WithObjectType;
-
-    fn get_object(&self) -> &Self::Type;
+impl<T: SoundProcessor> TypedGraphObject for SoundProcessorHandle<T> {
+    type Type = T;
 }
 
 impl<T: SoundProcessor> GraphObject for SoundProcessorHandle<T> {
@@ -159,21 +157,53 @@ impl<T: SoundProcessor> GraphObject for SoundProcessorHandle<T> {
     }
 }
 
-impl<T: SoundProcessor> ObjectWrapper for SoundProcessorHandle<T> {
+impl<T: PureNumberSource> TypedGraphObject for PureNumberSourceHandle<T> {
     type Type = T;
+}
 
-    fn get_object(&self) -> &T {
-        self.instance()
+impl<T: PureNumberSource> GraphObject for PureNumberSourceHandle<T> {
+    fn get_type(&self) -> ObjectType {
+        T::TYPE
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn get_language_type_name(&self) -> &'static str {
+        type_name::<T>()
+    }
+
+    fn serialize(&self, _serializer: Serializer) {
+        todo!()
     }
 }
 
-impl<T: PureNumberSource> ObjectWrapper for PureNumberSourceHandle<T> {
-    type Type = T;
-
-    fn get_object(&self) -> &T {
-        self.instance()
-    }
+pub trait WithObjectType: 'static {
+    const TYPE: ObjectType;
 }
+
+// pub trait ObjectWrapper: 'static {
+//     type Type: WithObjectType;
+
+//     fn get_object(&self) -> &Self::Type;
+// }
+
+// impl<T: SoundProcessor> ObjectWrapper for SoundProcessorHandle<T> {
+//     type Type = T;
+
+//     fn get_object(&self) -> &T {
+//         self.instance()
+//     }
+// }
+
+// impl<T: PureNumberSource> ObjectWrapper for PureNumberSourceHandle<T> {
+//     type Type = T;
+
+//     fn get_object(&self) -> &T {
+//         self.instance()
+//     }
+// }
 
 // impl<T: PureNumberSource + WithObjectType> GraphObject for T {
 //     fn get_type(&self) -> ObjectType {

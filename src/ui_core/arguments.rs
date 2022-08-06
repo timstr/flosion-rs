@@ -5,17 +5,17 @@ pub enum ArgumentValue {
 }
 
 impl ArgumentValue {
-    pub fn as_float(&self) -> f32 {
+    pub fn as_float(&self) -> Option<f32> {
         match self {
-            ArgumentValue::Float(v) => *v,
-            ArgumentValue::String(_) => panic!(),
+            ArgumentValue::Float(v) => Some(*v),
+            ArgumentValue::String(_) => None,
         }
     }
 
-    pub fn as_string(&self) -> &String {
+    pub fn as_string(&self) -> Option<&str> {
         match self {
-            ArgumentValue::String(s) => s,
-            ArgumentValue::Float(_) => panic!(),
+            ArgumentValue::String(s) => Some(s),
+            ArgumentValue::Float(_) => None,
         }
     }
 }

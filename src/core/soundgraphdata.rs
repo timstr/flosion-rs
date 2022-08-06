@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::{
     numberinput::{NumberInputId, NumberInputOwner},
-    numbersource::{NumberSource, NumberSourceId, NumberSourceOwner},
+    numbersource::{NumberSource, NumberSourceId, NumberSourceOwner, PureNumberSource},
     soundgraphdescription::{
         NumberInputDescription, NumberSourceDescription, SoundInputDescription,
         SoundProcessorDescription,
@@ -137,6 +137,10 @@ impl EngineSoundProcessorData {
         &**self.processor.as_ref().unwrap()
     }
 
+    pub fn processor_arc(&self) -> Arc<dyn SoundProcessorWrapper> {
+        Arc::clone(self.processor.as_ref().unwrap())
+    }
+
     pub fn describe(&self) -> SoundProcessorDescription {
         SoundProcessorDescription::new(
             self.id,
@@ -182,7 +186,7 @@ impl EngineNumberInputData {
 
 pub struct EngineNumberSourceData {
     id: NumberSourceId,
-    instance: Arc<dyn NumberSource>,
+    instance: Option<Arc<dyn NumberSource>>,
     owner: NumberSourceOwner,
     inputs: Vec<NumberInputId>,
 }
@@ -190,16 +194,20 @@ pub struct EngineNumberSourceData {
 impl EngineNumberSourceData {
     pub fn new(
         id: NumberSourceId,
-        wrapper: Arc<dyn NumberSource>,
+        wrapper: Option<Arc<dyn NumberSource>>,
         owner: NumberSourceOwner,
-        inputs: Vec<NumberInputId>,
     ) -> Self {
         Self {
             id,
             instance: wrapper,
             owner,
-            inputs,
+            inputs: Vec::new(),
         }
+    }
+
+    pub fn set_source(&mut self, source: Arc<dyn NumberSource>) {
+        debug_assert!(self.instance.is_none());
+        self.instance = Some(source);
     }
 
     pub fn id(&self) -> NumberSourceId {
@@ -207,7 +215,11 @@ impl EngineNumberSourceData {
     }
 
     pub fn instance(&self) -> &dyn NumberSource {
-        &*self.instance
+        &**self.instance.as_ref().unwrap()
+    }
+
+    pub fn instance_arc(&self) -> Arc<dyn NumberSource> {
+        Arc::clone(self.instance.as_ref().unwrap())
     }
 
     pub fn owner(&self) -> NumberSourceOwner {

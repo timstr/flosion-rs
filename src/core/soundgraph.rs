@@ -91,16 +91,21 @@ impl SoundGraph {
         self.topology.read().describe()
     }
 
-    pub fn graph_objects(&self) -> Vec<(ObjectId, Arc<dyn GraphObject>)> {
-        todo!()
-        // let mut ret = Vec::<(ObjectId, Arc<dyn GraphObject>)>::new();
-        // let topo = self.topology.read();
-        // ret.extend(
-        //     topo.sound_processors()
-        //         .iter()
-        //         .map(|(id, data)| (id.into(), data.processor_arc())),
-        // );
-        // ret
+    pub fn graph_objects(&self) -> Vec<(ObjectId, Box<dyn GraphObject>)> {
+        let mut ret = Vec::<(ObjectId, Box<dyn GraphObject>)>::new();
+        let topo = self.topology.read();
+        for (id, data) in topo.sound_processors() {
+            ret.push((
+                ObjectId::Sound(*id),
+                data.processor_arc().as_graph_object(*id),
+            ));
+        }
+        for (id, data) in topo.number_sources() {
+            if let Some(obj) = data.instance_arc().as_graph_object(*id) {
+                ret.push((ObjectId::Number(*id), obj));
+            }
+        }
+        ret
     }
 
     pub fn disconnect_number_input(

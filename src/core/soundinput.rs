@@ -31,8 +31,8 @@ pub struct InputOptions {
 
 #[derive(Clone, Copy)]
 pub struct InputTiming {
-    elapsed_chunks: usize,
     sample_offset: usize,
+    // TODO: add pending sample offset for resseting
     needs_reset: bool,
 }
 
@@ -45,35 +45,20 @@ impl InputTiming {
         self.needs_reset
     }
 
-    pub fn advance_one_chunk(&mut self) -> () {
-        debug_assert!(!self.needs_reset);
-        self.elapsed_chunks += 1;
-    }
-
     pub fn reset(&mut self, sample_offset: usize) {
         debug_assert!(sample_offset < CHUNK_SIZE);
-        self.elapsed_chunks = 0;
         self.sample_offset = sample_offset;
         self.needs_reset = false;
     }
 
-    pub fn elapsed_chunks(&self) -> usize {
-        self.elapsed_chunks
-    }
-
     pub fn sample_offset(&self) -> usize {
         self.sample_offset
-    }
-
-    pub fn total_samples(&self) -> usize {
-        self.elapsed_chunks * CHUNK_SIZE + self.sample_offset
     }
 }
 
 impl Default for InputTiming {
     fn default() -> InputTiming {
         InputTiming {
-            elapsed_chunks: 0,
             sample_offset: 0,
             needs_reset: true,
         }

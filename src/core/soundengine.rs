@@ -97,10 +97,10 @@ impl SoundEngine {
 
         for cache in topology.static_processors() {
             let mut ch = SoundChunk::new();
-            cache
-                .tree()
-                .write()
-                .process_audio(&mut ch, Context::new(&*topology, &self.scratch_space));
+            cache.tree().write().process_audio(
+                &mut ch,
+                Context::new(cache.processor_id(), &*topology, &self.scratch_space),
+            );
             *cache.output().write() = Some(ch);
         }
     }

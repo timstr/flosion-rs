@@ -2,7 +2,7 @@ use crate::core::{
     context::Context,
     graphobject::{ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
-    numbersource::{NumberSource, PureNumberSource},
+    numbersource::PureNumberSource,
     numbersourcetools::NumberSourceTools,
     numeric,
 };
@@ -23,7 +23,13 @@ impl Constant {
     }
 }
 
-impl NumberSource for Constant {
+impl PureNumberSource for Constant {
+    fn new(_tools: NumberSourceTools<'_>) -> Constant {
+        Constant {
+            value: AtomicF32::new(0.0),
+        }
+    }
+
     fn eval(&self, dst: &mut [f32], _context: &Context) {
         numeric::fill(dst, self.value.load(Ordering::SeqCst));
     }
@@ -33,21 +39,19 @@ impl WithObjectType for Constant {
     const TYPE: ObjectType = ObjectType::new("constant");
 }
 
-impl PureNumberSource for Constant {
-    fn new(_tools: &mut NumberSourceTools<'_>) -> Constant {
-        Constant {
-            value: AtomicF32::new(0.0),
-        }
-    }
-}
-
 macro_rules! unary_number_source {
     ($name: ident, $namestr: literal, $f: expr) => {
         pub struct $name {
             pub input: NumberInputHandle,
         }
 
-        impl NumberSource for $name {
+        impl PureNumberSource for $name {
+            fn new(mut tools: NumberSourceTools<'_>) -> $name {
+                $name {
+                    input: tools.add_number_input(),
+                }
+            }
+
             fn eval(&self, dst: &mut [f32], context: &Context) {
                 self.input.eval(dst, context);
                 numeric::apply_unary_inplace(dst, $f);
@@ -56,14 +60,6 @@ macro_rules! unary_number_source {
 
         impl WithObjectType for $name {
             const TYPE: ObjectType = ObjectType::new($namestr);
-        }
-
-        impl PureNumberSource for $name {
-            fn new(tools: &mut NumberSourceTools<'_>) -> $name {
-                $name {
-                    input: tools.add_number_input(),
-                }
-            }
         }
     };
 }
@@ -75,7 +71,14 @@ macro_rules! binary_number_source {
             pub input_2: NumberInputHandle,
         }
 
-        impl NumberSource for $name {
+        impl PureNumberSource for $name {
+            fn new(mut tools: NumberSourceTools<'_>) -> $name {
+                $name {
+                    input_1: tools.add_number_input(),
+                    input_2: tools.add_number_input(),
+                }
+            }
+
             fn eval(&self, dst: &mut [f32], context: &Context) {
                 self.input_1.eval(dst, context);
                 let mut scratch_space = context.get_scratch_space(dst.len());
@@ -87,21 +90,12 @@ macro_rules! binary_number_source {
         impl WithObjectType for $name {
             const TYPE: ObjectType = ObjectType::new($namestr);
         }
-
-        impl PureNumberSource for $name {
-            fn new(tools: &mut NumberSourceTools<'_>) -> $name {
-                $name {
-                    input_1: tools.add_number_input(),
-                    input_2: tools.add_number_input(),
-                }
-            }
-        }
     };
 }
 
 // TODO: ternary functions:
 // muladd
-// linear map
+// linear map / lerp
 
 unary_number_source!(Negate, "negate", |x| -x);
 unary_number_source!(Floor, "floor", |x| x.floor());

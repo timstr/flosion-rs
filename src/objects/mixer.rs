@@ -6,7 +6,7 @@ use crate::core::{
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoState, SingleInputList, SingleInputListNode},
+    statetree::{NoState, ProcessorState, SingleInputList, SingleInputListNode},
 };
 
 pub struct Mixer {
@@ -53,7 +53,7 @@ impl SoundProcessor for Mixer {
     }
 
     fn process_audio(
-        state: &mut NoState,
+        state: &mut ProcessorState<NoState>,
         inputs: &mut SingleInputListNode,
         dst: &mut SoundChunk,
         mut context: Context,

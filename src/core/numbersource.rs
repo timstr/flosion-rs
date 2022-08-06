@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use super::{
     context::Context,
-    graphobject::WithObjectType,
+    graphobject::{GraphObject, WithObjectType},
     key::Key,
     numbersourcetools::NumberSourceTools,
     soundinput::SoundInputId,
@@ -86,12 +86,27 @@ impl NumberConfig {
 
 pub trait NumberSource: 'static + Sync + Send {
     fn eval(&self, dst: &mut [f32], context: &Context);
+    fn as_graph_object(self: Arc<Self>, _id: NumberSourceId) -> Option<Box<dyn GraphObject>> {
+        None
+    }
 }
 
-pub trait PureNumberSource: NumberSource + WithObjectType {
-    fn new(tools: &mut NumberSourceTools<'_>) -> Self
+pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
+    fn new(tools: NumberSourceTools<'_>) -> Self
     where
         Self: Sized;
+
+    fn eval(&self, dst: &mut [f32], context: &Context);
+}
+
+impl<T: PureNumberSource> NumberSource for T {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
+        T::eval(self, dst, context)
+    }
+
+    fn as_graph_object(self: Arc<Self>, id: NumberSourceId) -> Option<Box<dyn GraphObject>> {
+        Some(Box::new(PureNumberSourceHandle::new(id, Arc::clone(&self))))
+    }
 }
 
 pub struct PureNumberSourceHandle<T: PureNumberSource> {
@@ -110,6 +125,10 @@ impl<T: PureNumberSource> PureNumberSourceHandle<T> {
 
     pub fn instance(&self) -> &T {
         &*self.instance
+    }
+
+    pub fn instance_arc(&self) -> Arc<T> {
+        Arc::clone(&&self.instance)
     }
 }
 
@@ -157,8 +176,8 @@ impl<S: State, F: StateFunction<S>> ProcessorNumberSource<S, F> {
 
 impl<S: State, F: StateFunction<S>> NumberSource for ProcessorNumberSource<S, F> {
     fn eval(&self, dst: &mut [f32], context: &Context) {
-        let state = context.find_processor_state(self.processor_id);
-        let state = state.downcast_if::<S>(self.processor_id).unwrap();
+        let frame = context.find_processor_frame(self.processor_id);
+        let state = frame.state().downcast_if::<S>(self.processor_id).unwrap();
         self.function.apply(dst, state);
     }
 }
@@ -250,11 +269,11 @@ impl<K: Key, S: State, F: KeyStateFunction<K, S>> KeyedInputNumberSource<K, S, F
 
 impl<K: Key, S: State, F: KeyStateFunction<K, S>> NumberSource for KeyedInputNumberSource<K, S, F> {
     fn eval(&self, dst: &mut [f32], context: &Context) {
-        let (key, state, _timing) = context.find_keyed_input_state(self.input_id);
+        let frame = context.find_input_frame(self.input_id);
         self.function.apply(
             dst,
-            key.downcast_if::<K>(self.input_id).unwrap(),
-            state.downcast_if::<S>(self.input_id).unwrap(),
+            frame.key().downcast_if::<K>(self.input_id).unwrap(),
+            frame.state().downcast_if::<S>(self.input_id).unwrap(),
         );
     }
 }

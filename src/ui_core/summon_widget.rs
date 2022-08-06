@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::{core::graphobject::ObjectType, ui_objects::object_factory::ObjectFactory};
+use crate::{core::graphobject::ObjectType, ui_core::object_factory::ObjectFactory};
 
 use super::arguments::{ArgumentList, ParsedArguments};
 

@@ -6,7 +6,7 @@ use crate::core::{
     soundchunk::SoundChunk,
     soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, NoState},
+    statetree::{NoInputs, NoState, ProcessorState},
 };
 
 pub struct WhiteNoise {
@@ -35,7 +35,7 @@ impl SoundProcessor for WhiteNoise {
     }
 
     fn process_audio(
-        _state: &mut NoState,
+        _state: &mut ProcessorState<NoState>,
         _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
         _ctx: Context,

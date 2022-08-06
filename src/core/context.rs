@@ -7,79 +7,125 @@ use super::{
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputTiming, SoundInputId},
     soundprocessor::SoundProcessorId,
-    statetree::AnyData,
+    statetree::{AnyData, ProcessorState, ProcessorTiming, State},
 };
 
-struct ParentStackFrame<'a> {
-    frame: &'a StackFrame<'a>,
-    processor_state: AnyData<'a, SoundProcessorId>,
-    input_key: AnyData<'a, SoundInputId>,
-    input_state: AnyData<'a, SoundInputId>,
-    input_timing: &'a InputTiming,
+pub struct ProcessorStackFrame<'a> {
+    parent: &'a StackFrame<'a>,
+    state: AnyData<'a, SoundProcessorId>,
+    timing: &'a ProcessorTiming,
 }
 
-struct StackFrame<'a> {
-    parent: Option<ParentStackFrame<'a>>,
+impl<'a> ProcessorStackFrame<'a> {
+    pub fn state(&self) -> &AnyData<'a, SoundProcessorId> {
+        &self.state
+    }
 }
+
+pub struct InputStackFrame<'a> {
+    parent: &'a StackFrame<'a>,
+    key: AnyData<'a, SoundInputId>,
+    state: AnyData<'a, SoundInputId>,
+    timing: &'a InputTiming,
+}
+
+impl<'a> InputStackFrame<'a> {
+    pub fn key(&self) -> &AnyData<'a, SoundInputId> {
+        &self.key
+    }
+
+    pub fn state(&self) -> &AnyData<'a, SoundInputId> {
+        &self.state
+    }
+
+    pub fn timing(&self) -> &'a InputTiming {
+        self.timing
+    }
+}
+
+enum StackFrame<'a> {
+    Processor(ProcessorStackFrame<'a>),
+    Input(InputStackFrame<'a>),
+    Root,
+}
+
+// struct ParentStackFrame<'a> {
+//     frame: &'a StackFrame<'a>,
+//     processor_state: AnyData<'a, SoundProcessorId>,
+//     input_key: AnyData<'a, SoundInputId>,
+//     input_state: AnyData<'a, SoundInputId>,
+//     input_timing: &'a InputTiming,
+// }
+
+// struct StackFrame<'a> {
+//     parent: Option<ParentStackFrame<'a>>,
+// }
 
 impl<'a> StackFrame<'a> {
-    fn find_processor_frame(&self, processor_id: SoundProcessorId) -> &ParentStackFrame {
-        match &self.parent {
-            Some(p) => {
-                if p.processor_state.owner_id() == processor_id {
+    fn find_processor_frame(&self, processor_id: SoundProcessorId) -> &ProcessorStackFrame {
+        match self {
+            StackFrame::Processor(p) => {
+                if p.state.owner_id() == processor_id {
                     p
                 } else {
-                    p.frame.find_processor_frame(processor_id)
+                    p.parent.find_processor_frame(processor_id)
                 }
             }
-            None => {
+            StackFrame::Input(i) => i.parent.find_processor_frame(processor_id),
+            StackFrame::Root => {
                 panic!("Attempted to find a processor frame which is not in the context call stack")
             }
         }
     }
 
-    fn find_input_frame(&self, input_id: SoundInputId) -> &ParentStackFrame {
-        match &self.parent {
-            Some(p) => {
-                if p.input_key.owner_id() == input_id {
-                    p
+    fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
+        match self {
+            StackFrame::Processor(p) => p.parent.find_input_frame(input_id),
+            StackFrame::Input(i) => {
+                if i.state.owner_id() == input_id {
+                    i
                 } else {
-                    p.frame.find_input_frame(input_id)
+                    i.parent.find_input_frame(input_id)
                 }
             }
-            None => {
+            StackFrame::Root => {
                 panic!("Attempted to find an input frame which is not in the context call stack")
             }
         }
     }
 
     fn find_processor_sample_offset(&self, processor_id: SoundProcessorId) -> usize {
-        match &self.parent {
-            Some(p) => {
-                let s = p.input_timing.total_samples();
-                if p.processor_state.owner_id() == processor_id {
+        match self {
+            StackFrame::Processor(p) => {
+                let s = p.timing.elapsed_chunks() * CHUNK_SIZE;
+                if p.state.owner_id() == processor_id {
                     s
                 } else {
-                    s + p.frame.find_processor_sample_offset(processor_id)
+                    s + p.parent.find_processor_sample_offset(processor_id)
                 }
             }
-            None => {
+            StackFrame::Input(i) => {
+                i.timing.sample_offset() + i.parent.find_processor_sample_offset(processor_id)
+            }
+            StackFrame::Root => {
                 panic!("Attempted to find a processor frame which is not in the context call stack")
             }
         }
     }
 
     fn find_input_sample_offset(&self, input_id: SoundInputId) -> usize {
-        match &self.parent {
-            Some(p) => {
-                if p.input_state.owner_id() == input_id {
+        match self {
+            StackFrame::Processor(p) => {
+                p.timing.elapsed_chunks() * CHUNK_SIZE + p.parent.find_input_sample_offset(input_id)
+            }
+            StackFrame::Input(i) => {
+                if i.state.owner_id() == input_id {
                     0
                 } else {
-                    let s = p.input_timing.total_samples();
-                    s + p.frame.find_input_sample_offset(input_id)
+                    i.timing().sample_offset() + i.parent.find_input_sample_offset(input_id)
                 }
             }
-            None => {
+            StackFrame::Root => {
                 panic!("Attempted to find an input frame which is not in the context call stack")
             }
         }
@@ -87,49 +133,61 @@ impl<'a> StackFrame<'a> {
 }
 
 pub struct Context<'a> {
+    target_processor_id: Option<SoundProcessorId>,
     topology: &'a SoundGraphTopology,
     scratch_space: &'a ScratchArena,
     stack: StackFrame<'a>,
 }
 
 impl<'a> Context<'a> {
-    pub fn new(topology: &'a SoundGraphTopology, scratch_space: &'a ScratchArena) -> Context<'a> {
+    pub fn new(
+        target_processor_id: SoundProcessorId,
+        topology: &'a SoundGraphTopology,
+        scratch_space: &'a ScratchArena,
+    ) -> Context<'a> {
         Context {
+            target_processor_id: Some(target_processor_id),
             topology,
             scratch_space,
-            stack: StackFrame { parent: None },
+            stack: StackFrame::Root,
         }
     }
 
-    pub(super) fn push_input(
+    pub fn push_input(
         &'a self,
-        processor_state: AnyData<'a, SoundProcessorId>,
-        input_key: AnyData<'a, SoundInputId>,
-        input_state: AnyData<'a, SoundInputId>,
-        input_timing: &'a InputTiming,
+        target: Option<SoundProcessorId>,
+        key: AnyData<'a, SoundInputId>,
+        state: AnyData<'a, SoundInputId>,
+        timing: &'a InputTiming,
     ) -> Context<'a> {
         Context {
-            stack: StackFrame {
-                parent: Some(ParentStackFrame {
-                    frame: &self.stack,
-                    processor_state,
-                    input_key,
-                    input_state,
-                    input_timing,
-                }),
-            },
+            target_processor_id: target,
+            stack: StackFrame::Input(InputStackFrame {
+                parent: &self.stack,
+                key,
+                state,
+                timing,
+            }),
             topology: self.topology,
             scratch_space: self.scratch_space,
         }
     }
 
-    pub fn find_processor_state(
-        &self,
-        processor_id: SoundProcessorId,
-    ) -> AnyData<SoundProcessorId> {
-        self.stack
-            .find_processor_frame(processor_id)
-            .processor_state
+    pub fn push_processor_state<T: State>(&'a self, state: &'a ProcessorState<T>) -> Context<'a> {
+        Context {
+            target_processor_id: None,
+            stack: StackFrame::Processor(ProcessorStackFrame {
+                parent: &self.stack,
+                state: AnyData::new(self.target_processor_id.unwrap(), state.state()),
+                timing: state.timing(),
+            }),
+            topology: self.topology,
+            scratch_space: self.scratch_space,
+        }
+    }
+
+    pub fn find_processor_frame(&self, processor_id: SoundProcessorId) -> &ProcessorStackFrame {
+        self.stack.find_processor_frame(processor_id)
     }
 
     pub fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
@@ -156,22 +214,16 @@ impl<'a> Context<'a> {
     }
 
     // TODO: wrap this return value in something nicer
-    pub fn find_keyed_input_state(
-        &self,
-        input_id: super::soundinput::SoundInputId,
-    ) -> (AnyData<SoundInputId>, AnyData<SoundInputId>, &InputTiming) {
-        let frame = self.stack.find_input_frame(input_id);
-        (frame.input_key, frame.input_state, frame.input_timing)
+    pub fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
+        self.stack.find_input_frame(input_id)
     }
 
     fn current_time_impl(samples_at_start: usize, dst: &mut [f32]) {
-        let seconds_per_sample = SAMPLE_FREQUENCY as f32 / CHUNK_SIZE as f32;
+        let seconds_per_sample = 1.0 / SAMPLE_FREQUENCY as f32;
+        let t0 = samples_at_start as f32 * seconds_per_sample;
+        let t1 = (samples_at_start + dst.len()) as f32 * seconds_per_sample;
         // TODO: check whether dst is temporal or not
-        numeric::linspace(
-            dst,
-            samples_at_start as f32 * seconds_per_sample,
-            (samples_at_start + dst.len()) as f32 * seconds_per_sample,
-        );
+        numeric::linspace(dst, t0, t1);
     }
 
     pub fn current_time_at_sound_processor(&self, processor_id: SoundProcessorId, dst: &mut [f32]) {

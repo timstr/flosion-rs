@@ -12,7 +12,7 @@ use crate::core::{
     soundinput::InputOptions,
     soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{SingleInput, SingleInputNode, State},
+    statetree::{ProcessorState, SingleInput, SingleInputNode, State},
 };
 
 const CHUNKS_PER_GROUP: usize = 64;
@@ -115,7 +115,7 @@ impl SoundProcessor for Recorder {
     }
 
     fn process_audio(
-        state: &mut Arc<RecorderData>,
+        state: &mut ProcessorState<Arc<RecorderData>>,
         inputs: &mut SingleInputNode,
         dst: &mut SoundChunk,
         ctx: Context,

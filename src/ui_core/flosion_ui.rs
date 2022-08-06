@@ -1,14 +1,12 @@
-use crate::{
-    core::{
-        graphobject::{GraphId, ObjectId},
-        soundgraph::SoundGraph,
-    },
-    ui_objects::object_factory::ObjectFactory,
+use crate::core::{
+    graphobject::{GraphId, ObjectId},
+    soundgraph::SoundGraph,
 };
 use eframe::{egui, epi};
 
 use super::{
     graph_ui_state::{GraphUIState, SelectionChange},
+    object_factory::ObjectFactory,
     summon_widget::{SummonWidget, SummonWidgetState},
 };
 
@@ -146,9 +144,9 @@ impl epi::App for FlosionApp {
                         let (t, args) = s.parse_selected();
                         self.all_object_uis.create_from_args(
                             t,
-                            &args,
                             &mut self.graph,
                             &mut self.ui_state,
+                            &args,
                         );
                     }
                     self.summon_state = None;

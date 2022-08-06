@@ -8,7 +8,7 @@ use crate::core::{
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, NumberInputNode, State},
+    statetree::{NoInputs, NumberInputNode, ProcessorState, State},
 };
 
 pub struct WaveGenerator {
@@ -57,24 +57,36 @@ impl SoundProcessor for WaveGenerator {
     }
 
     fn make_state(&self) -> Self::StateType {
-        todo!()
+        WaveGeneratorState {
+            phase: [0.0; CHUNK_SIZE],
+            frequency: self.frequency.make_node(),
+            amplitude: self.amplitude.make_node(),
+        }
     }
 
     fn process_audio(
-        state: &mut WaveGeneratorState,
+        state: &mut ProcessorState<WaveGeneratorState>,
         _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
         context: Context,
     ) {
-        let phase_arr = &mut state.phase;
-        let prev_phase = *phase_arr.last().unwrap();
+        let prev_phase = *state.phase.last().unwrap();
         // TODO: mark phase_arr as samplewise temporal
-        state.frequency.eval(phase_arr, &context);
-        numeric::div_scalar_inplace(phase_arr, SAMPLE_FREQUENCY as f32);
-        numeric::exclusive_scan_inplace(phase_arr, prev_phase, |p1, p2| p1 + p2);
-        numeric::apply_unary_inplace(phase_arr, |x| x - x.floor());
+        {
+            let mut tmp = context.get_scratch_space(state.phase.len());
+            state
+                .frequency
+                .eval(tmp.get_mut(), &context.push_processor_state(state));
+            numeric::copy(tmp.get(), &mut state.phase);
+        }
+        numeric::div_scalar_inplace(&mut state.phase, SAMPLE_FREQUENCY as f32);
+        numeric::exclusive_scan_inplace(&mut state.phase, prev_phase, |p1, p2| p1 + p2);
+        numeric::apply_unary_inplace(&mut state.phase, |x| x - x.floor());
         // TODO: mark dst.l as samplewise temporal
-        state.amplitude.eval(&mut dst.l, &context);
+
+        state
+            .amplitude
+            .eval(&mut dst.l, &context.push_processor_state(state));
         numeric::copy(&dst.l, &mut dst.r);
     }
 }

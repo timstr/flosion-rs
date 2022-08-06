@@ -12,7 +12,7 @@ use crate::core::{
     soundinput::InputOptions,
     soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{KeyedInput, KeyedInputNode, NoState},
+    statetree::{KeyedInput, KeyedInputNode, NoState, ProcessorState},
 };
 
 pub struct KeyboardKey {
@@ -99,11 +99,11 @@ impl SoundProcessor for Keyboard {
     }
 
     fn make_state(&self) -> Self::StateType {
-        todo!()
+        NoState {}
     }
 
     fn process_audio(
-        state: &mut NoState,
+        state: &mut ProcessorState<NoState>,
         input: &mut KeyedInputNode<KeyboardKey, NoState>,
         dst: &mut SoundChunk,
         ctx: Context,
@@ -120,7 +120,7 @@ impl SoundProcessor for Keyboard {
                 // TODO: gather fine timing data and apply it here
                 kd.flag_for_reset();
             }
-            kd.step(state, dst, &ctx);
+            kd.step(state, &mut scratch_buffer, &ctx);
             // TODO: create FMA functions
             numeric::mul_scalar_inplace(&mut scratch_buffer.l, 0.1);
             numeric::mul_scalar_inplace(&mut scratch_buffer.r, 0.1);

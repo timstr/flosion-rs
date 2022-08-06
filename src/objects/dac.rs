@@ -16,7 +16,7 @@ use crate::core::{
     soundinput::InputOptions,
     soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{SingleInput, SingleInputNode, State},
+    statetree::{ProcessorState, SingleInput, SingleInputNode, State},
 };
 
 use cpal::{
@@ -163,7 +163,7 @@ impl SoundProcessor for Dac {
     }
 
     fn process_audio(
-        state: &mut Arc<DacData>,
+        state: &mut ProcessorState<Arc<DacData>>,
         input: &mut SingleInputNode,
         _dst: &mut SoundChunk,
         ctx: Context,

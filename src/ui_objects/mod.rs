@@ -4,7 +4,6 @@ pub mod dac_ui;
 pub mod functions_ui;
 pub mod keyboard_ui;
 pub mod mixer_ui;
-pub mod object_factory;
 pub mod recorder_ui;
 pub mod wavegenerator_ui;
 pub mod whitenoise_ui;

@@ -1,9 +1,9 @@
-use super::mixer_ui::MixerUi;
-use super::object_factory::ObjectFactory;
+use crate::ui_core::object_factory::ObjectFactory;
 
 use super::{
     audioclip_ui::AudioClipUi, dac_ui::DacUi, functions_ui::*, keyboard_ui::KeyboardUi,
-    recorder_ui::RecorderUi, wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
+    mixer_ui::MixerUi, recorder_ui::RecorderUi, wavegenerator_ui::WaveGeneratorUi,
+    whitenoise_ui::WhiteNoiseUi,
 };
 
 pub fn all_objects() -> ObjectFactory {

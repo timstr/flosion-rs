@@ -63,14 +63,16 @@ impl ObjectUi for ConstantUi {
     }
 
     fn init_object(&self, object: &PureNumberSourceHandle<Constant>, args: &ParsedArguments) {
-        object.instance().set_value(args.get("value").as_float());
+        object
+            .instance()
+            .set_value(args.get("value").as_float().unwrap());
     }
 
-    fn make_state(&self, args: &ParsedArguments) -> Self::StateType {
+    fn make_ui_state(&self, args: &ParsedArguments) -> Self::StateType {
         ConstantUiState {
-            min_value: args.get("min").as_float(),
-            max_value: args.get("max").as_float(),
-            name: args.get("name").as_string().clone(),
+            min_value: args.get("min").as_float().unwrap(),
+            max_value: args.get("max").as_float().unwrap(),
+            name: args.get("name").as_string().unwrap().to_string(),
         }
     }
 }

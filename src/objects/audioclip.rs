@@ -7,7 +7,7 @@ use crate::core::{
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundprocessor::SoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, State},
+    statetree::{NoInputs, ProcessorState, State},
 };
 
 pub struct AudioClip {
@@ -57,23 +57,24 @@ impl SoundProcessor for AudioClip {
     }
 
     fn process_audio(
-        state: &mut Self::StateType,
+        state: &mut ProcessorState<AudioClipState>,
         _inputs: &mut Self::InputType,
         dst: &mut SoundChunk,
         _context: crate::core::context::Context,
     ) {
-        let data = state.audio_data.read();
+        let st = state.state_mut();
+        let data = st.audio_data.read();
         if data.len() == 0 {
             dst.silence();
             return;
         }
         for i in 0..CHUNK_SIZE {
-            let s = data[state.playhead];
-            state.playhead += 1;
-            if state.playhead >= data.len() {
-                state.playhead -= data.len();
+            let s = data[st.playhead];
+            st.playhead += 1;
+            if st.playhead >= data.len() {
+                st.playhead -= data.len();
             }
-            debug_assert!(state.playhead < data.len());
+            debug_assert!(st.playhead < data.len());
             dst.l[i] = s.0;
             dst.r[i] = s.1;
         }

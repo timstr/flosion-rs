@@ -1,4 +1,10 @@
-use std::{any::Any, marker::PhantomData, slice, sync::Arc};
+use std::{
+    any::Any,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    slice,
+    sync::Arc,
+};
 
 use eframe::egui::mutex::RwLock;
 
@@ -64,20 +70,27 @@ impl SingleInputNode {
         }
     }
 
-    pub fn step<T: State>(&mut self, processor_state: &T, dst: &mut SoundChunk, ctx: &Context) {
+    pub fn step<T: State>(
+        &mut self,
+        processor_state: &ProcessorState<T>,
+        dst: &mut SoundChunk,
+        ctx: &Context,
+    ) {
         if let Some(node) = &mut self.target {
             if self.timing.needs_reset() {
                 node.reset();
                 self.timing.reset(0); // TODO: how to adjust sample offset?
             }
             let dummy = NoState::default();
-            let new_ctx = ctx.push_input(
-                AnyData::new(self.parent_processor_id, processor_state),
+            let ctx = ctx.push_processor_state(processor_state);
+            let ctx = ctx.push_input(
+                Some(node.id()),
+                // AnyData::new(self.parent_processor_id, processor_state),
                 AnyData::new(self.id, &dummy),
                 AnyData::new(self.id, &dummy),
                 &self.timing,
             );
-            node.process_audio(dst, new_ctx);
+            node.process_audio(dst, ctx);
         } else {
             dst.silence();
         }
@@ -172,20 +185,27 @@ impl<K: Key, S: State + Default> KeyedInputData<K, S> {
         }
     }
 
-    pub fn step<T: State>(&mut self, processor_state: &T, dst: &mut SoundChunk, ctx: &Context) {
+    pub fn step<T: State>(
+        &mut self,
+        processor_state: &ProcessorState<T>,
+        dst: &mut SoundChunk,
+        ctx: &Context,
+    ) {
         if let Some(node) = &mut self.target {
             if self.timing.needs_reset() {
                 self.state.reset();
                 node.reset();
                 self.timing.reset(0); // TODO: how to adjust sample offset?
             }
-            let new_ctx = ctx.push_input(
-                AnyData::new(self.parent_processor_id, processor_state),
+            let ctx = ctx.push_processor_state(processor_state);
+            let ctx = ctx.push_input(
+                Some(node.id()),
+                // AnyData::new(self.parent_processor_id, processor_state),
                 AnyData::new(self.id, &*self.key),
                 AnyData::new(self.id, &self.state),
                 &self.timing,
             );
-            node.process_audio(dst, new_ctx);
+            node.process_audio(dst, ctx);
         } else {
             dst.silence();
         }
@@ -223,6 +243,51 @@ impl<K: Key, S: State + Default> KeyedInputNode<K, S> {
 
 pub trait State: Sync + Send + 'static {
     fn reset(&mut self);
+}
+
+pub struct ProcessorState<T: State> {
+    state: T,
+    timing: ProcessorTiming,
+}
+
+impl<T: State> ProcessorState<T> {
+    pub(super) fn new(state: T) -> ProcessorState<T> {
+        ProcessorState {
+            state,
+            timing: ProcessorTiming::new(),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.state.reset();
+        self.timing.reset();
+    }
+
+    pub fn state(&self) -> &T {
+        &self.state
+    }
+
+    pub fn state_mut(&mut self) -> &mut T {
+        &mut self.state
+    }
+
+    pub fn timing(&self) -> &ProcessorTiming {
+        &self.timing
+    }
+}
+
+impl<T: State> Deref for ProcessorState<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl<T: State> DerefMut for ProcessorState<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
+    }
 }
 
 // impl<T> ProcessorState for T
@@ -420,14 +485,45 @@ impl NumberInputNode {
     }
 }
 
+pub struct ProcessorTiming {
+    elapsed_chunks: usize,
+}
+
+impl ProcessorTiming {
+    fn new() -> ProcessorTiming {
+        ProcessorTiming { elapsed_chunks: 0 }
+    }
+
+    fn reset(&mut self) {
+        self.elapsed_chunks = 0;
+    }
+
+    fn advance_one_chunk(&mut self) {
+        self.elapsed_chunks += 1;
+    }
+
+    pub fn elapsed_chunks(&self) -> usize {
+        self.elapsed_chunks
+    }
+}
+
 pub struct ProcessorNode<T: SoundProcessor> {
-    state: T::StateType,
+    id: SoundProcessorId,
+    state: ProcessorState<T::StateType>,
     inputs: <T::InputType as ProcessorInput>::NodeType,
 }
 
 impl<T: SoundProcessor> ProcessorNode<T> {
-    pub fn new(state: T::StateType, inputs: <T::InputType as ProcessorInput>::NodeType) -> Self {
-        Self { state, inputs }
+    pub fn new(
+        id: SoundProcessorId,
+        state: T::StateType,
+        inputs: <T::InputType as ProcessorInput>::NodeType,
+    ) -> Self {
+        Self {
+            id,
+            state: ProcessorState::new(state),
+            inputs,
+        }
     }
 
     fn reset(&mut self) {
@@ -437,15 +533,21 @@ impl<T: SoundProcessor> ProcessorNode<T> {
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) {
         T::process_audio(&mut self.state, &mut self.inputs, dst, ctx);
+        self.state.timing.advance_one_chunk();
     }
 }
 
 pub trait ProcessorNodeWrapper: Sync + Send {
+    fn id(&self) -> SoundProcessorId;
     fn reset(&mut self);
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context);
 }
 
 impl<T: SoundProcessor> ProcessorNodeWrapper for ProcessorNode<T> {
+    fn id(&self) -> SoundProcessorId {
+        self.id
+    }
+
     fn reset(&mut self) {
         (self as &mut ProcessorNode<T>).reset()
     }

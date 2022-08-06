@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use super::{
     context::Context,
-    graphobject::WithObjectType,
+    graphobject::{GraphObject, WithObjectType},
     soundchunk::SoundChunk,
     soundprocessortools::SoundProcessorTools,
-    statetree::{NodeAllocator, ProcessorInput, ProcessorNode, ProcessorNodeWrapper, State},
+    statetree::{
+        NodeAllocator, ProcessorInput, ProcessorNode, ProcessorNodeWrapper, ProcessorState, State,
+    },
     uniqueid::UniqueId,
 };
 
@@ -45,7 +47,7 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
     fn make_state(&self) -> Self::StateType;
 
     fn process_audio(
-        state: &mut Self::StateType,
+        state: &mut ProcessorState<Self::StateType>,
         inputs: &mut <Self::InputType as ProcessorInput>::NodeType,
         dst: &mut SoundChunk,
         context: Context,
@@ -55,17 +57,23 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
 pub trait SoundProcessorWrapper: Sync + Send + 'static {
     fn make_node(&self, allocator: &NodeAllocator) -> Box<dyn ProcessorNodeWrapper>;
     fn is_static(&self) -> bool;
+    fn as_graph_object(self: Arc<Self>, id: SoundProcessorId) -> Box<dyn GraphObject>;
 }
 
 impl<T: SoundProcessor> SoundProcessorWrapper for T {
     fn make_node(&self, allocator: &NodeAllocator) -> Box<dyn ProcessorNodeWrapper> {
         let input_node = self.get_input().make_node(allocator);
-        let processor_node = ProcessorNode::<T>::new(self.make_state(), input_node);
+        let processor_node =
+            ProcessorNode::<T>::new(allocator.processor_id(), self.make_state(), input_node);
         Box::new(processor_node)
     }
 
     fn is_static(&self) -> bool {
         Self::IS_STATIC
+    }
+
+    fn as_graph_object(self: Arc<Self>, id: SoundProcessorId) -> Box<dyn GraphObject> {
+        Box::new(SoundProcessorHandle::new(id, Arc::clone(&self)))
     }
 }
 
@@ -85,6 +93,10 @@ impl<T: SoundProcessor> SoundProcessorHandle<T> {
 
     pub fn instance(&self) -> &T {
         &*self.instance
+    }
+
+    pub fn instance_arc(&self) -> Arc<T> {
+        Arc::clone(&self.instance)
     }
 }
 

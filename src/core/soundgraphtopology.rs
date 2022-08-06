@@ -10,6 +10,7 @@ use super::{
         NumberSource, NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle,
         StateNumberSourceHandle,
     },
+    numbersourcetools::NumberSourceTools,
     soundchunk::SoundChunk,
     soundgraphdata::{
         EngineNumberInputData, EngineNumberSourceData, EngineSoundInputData,
@@ -314,7 +315,14 @@ impl SoundGraphTopology {
     }
 
     pub fn add_pure_number_source<T: PureNumberSource>(&mut self) -> PureNumberSourceHandle<T> {
-        todo!()
+        let id = self.number_source_idgen.next_id();
+        let data = EngineNumberSourceData::new(id, None, NumberSourceOwner::Nothing);
+        self.number_sources.insert(id, data);
+        let tools = NumberSourceTools::new(id, self);
+        let source = Arc::new(T::new(tools));
+        let source2 = Arc::clone(&source);
+        self.number_sources.get_mut(&id).unwrap().set_source(source);
+        PureNumberSourceHandle::new(id, source2)
     }
 
     pub fn add_state_number_source(
@@ -323,7 +331,7 @@ impl SoundGraphTopology {
         owner: NumberSourceOwner,
     ) -> StateNumberSourceHandle {
         let id = self.number_source_idgen.next_id();
-        let data = EngineNumberSourceData::new(id, source, owner, Vec::new());
+        let data = EngineNumberSourceData::new(id, Some(source), owner);
         self.number_sources.insert(id, data);
         match owner {
             NumberSourceOwner::SoundProcessor(spid) => {
@@ -336,7 +344,7 @@ impl SoundGraphTopology {
                 debug_assert!(!input_data.number_sources().contains(&id));
                 input_data.number_sources_mut().push(id);
             }
-            NumberSourceOwner::Nothing => (),
+            NumberSourceOwner::Nothing => panic!("A state number source must have an owner"),
         }
         StateNumberSourceHandle::new(id, owner)
     }
