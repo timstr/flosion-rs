@@ -2,7 +2,7 @@ use super::{
     numberinput::NumberInputId,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
-    scratcharena::{ScratchArena, ScratchSlice},
+    scratcharena::{BorrowedSlice, ScratchArena},
     soundchunk::CHUNK_SIZE,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputTiming, SoundInputId},
@@ -209,11 +209,10 @@ impl<'a> Context<'a> {
         source.instance().eval(dst, self);
     }
 
-    pub fn get_scratch_space(&self, size: usize) -> ScratchSlice {
+    pub fn get_scratch_space(&self, size: usize) -> BorrowedSlice {
         self.scratch_space.borrow_slice(size)
     }
 
-    // TODO: wrap this return value in something nicer
     pub fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
         self.stack.find_input_frame(input_id)
     }

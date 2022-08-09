@@ -30,8 +30,6 @@ enum ObjectInitialization<'a> {
 struct ObjectData {
     ui: Box<dyn AnyObjectUi>,
 
-    // TODO: replace with e.g. Fn(Option<Deserializer>) -> &dyn AnyObjectUi
-    // to remove the code duplication below
     create: Box<dyn Fn(&mut SoundGraph, &mut GraphUIState, &dyn AnyObjectUi, ObjectInitialization)>,
 }
 

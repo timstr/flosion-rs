@@ -224,6 +224,8 @@ impl epi::App for FlosionApp {
             // won't always be correct (an object might be positioned on top of
             // the peg it's connected to) and requires access to egui things
             // (e.g. memory().areas) which aren't yet exposed.
+            // On the other hand, is there any correct way to paint wires between
+            // two connected objects that are directly on top of one another?
             ui.with_layer_id(
                 egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
                 |ui| {

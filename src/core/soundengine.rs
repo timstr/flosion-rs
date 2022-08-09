@@ -19,17 +19,19 @@ use super::{
 pub struct SoundEngine {
     topology: Arc<RwLock<SoundGraphTopology>>,
     keep_running: Arc<AtomicBool>,
-    scratch_space: ScratchArena,
 }
 
 impl SoundEngine {
+    thread_local! {
+        static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
+    }
+
     pub fn new() -> (SoundEngine, Arc<AtomicBool>) {
         let keep_running = Arc::new(AtomicBool::new(false));
         (
             SoundEngine {
                 topology: Arc::new(RwLock::new(SoundGraphTopology::new())),
                 keep_running: Arc::clone(&keep_running),
-                scratch_space: ScratchArena::new(),
             },
             keep_running,
         )
@@ -49,7 +51,6 @@ impl SoundEngine {
 
         loop {
             self.process_audio();
-            self.scratch_space.cleanup();
             if !self.keep_running.load(Ordering::Relaxed) {
                 break;
             }
@@ -97,10 +98,12 @@ impl SoundEngine {
 
         for cache in topology.static_processors() {
             let mut ch = SoundChunk::new();
-            cache.tree().write().process_audio(
-                &mut ch,
-                Context::new(cache.processor_id(), &*topology, &self.scratch_space),
-            );
+            Self::SCRATCH_SPACE.with(|scratch_space| {
+                cache.tree().write().process_audio(
+                    &mut ch,
+                    Context::new(cache.processor_id(), &*topology, scratch_space),
+                );
+            });
             *cache.output().write() = Some(ch);
         }
     }

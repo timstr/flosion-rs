@@ -280,7 +280,6 @@ impl GraphUIState {
     }
 
     pub fn select_with_rect(&mut self, rect: egui::Rect, change: SelectionChange) {
-        // TODO: allow shift/alt to add/remove objects from selection
         if let SelectionChange::Replace = change {
             self.clear_selection();
         }
