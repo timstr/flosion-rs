@@ -164,7 +164,7 @@ impl GraphLayout {
     }
 }
 
-pub trait ObjectUiState {
+pub trait ObjectUiState: 'static {
     fn as_any(&self) -> &dyn Any;
     fn get_language_type_name(&self) -> &'static str;
 }
@@ -219,16 +219,11 @@ impl GraphUIState {
         &mut self.layout_state
     }
 
-    pub fn set_object_state(&mut self, id: ObjectId, state: Rc<RefCell<dyn ObjectUiState>>) {
-        self.object_states.insert(id, state);
+    pub fn set_object_state<T: ObjectUiState>(&mut self, id: ObjectId, state: T) {
+        self.object_states.insert(id, Rc::new(RefCell::new(state)));
     }
 
     pub fn get_object_state(&mut self, id: ObjectId) -> Rc<RefCell<dyn ObjectUiState>> {
-        // let entry = self
-        //     .object_states
-        //     .entry(id)
-        //     .or_insert_with(|| Rc::new(RefCell::new(T::default())));
-        // Rc::clone(&*entry)
         Rc::clone(&self.object_states.get(&id).unwrap())
     }
 

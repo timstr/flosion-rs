@@ -30,6 +30,10 @@ impl Mixer {
     pub fn get_input_ids(&self) -> Vec<SoundInputId> {
         self.inputs.get_input_ids()
     }
+
+    pub fn num_inputs(&self) -> usize {
+        self.inputs.length()
+    }
 }
 
 impl SoundProcessor for Mixer {

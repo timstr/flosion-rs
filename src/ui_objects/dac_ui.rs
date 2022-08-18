@@ -3,7 +3,7 @@ use crate::{
     objects::dac::Dac,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{ObjectUi, ObjectWindow, SoundInputWidget},
+        object_ui::{NoUIState, ObjectUi, ObjectWindow, SoundInputWidget},
     },
 };
 
@@ -12,14 +12,14 @@ pub struct DacUi {}
 
 impl ObjectUi for DacUi {
     type WrapperType = SoundProcessorHandle<Dac>;
-    type StateType = ();
+    type StateType = NoUIState;
     fn ui(
         &self,
         id: ObjectId,
         wrapper: &SoundProcessorHandle<Dac>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &(),
+        _state: &NoUIState,
     ) {
         let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap()).show(

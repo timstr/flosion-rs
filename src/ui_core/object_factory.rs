@@ -7,6 +7,7 @@ use crate::{
         graphobject::{GraphObject, ObjectId, ObjectType, TypedGraphObject, WithObjectType},
         numbersource::PureNumberSource,
         serialization::Deserializer,
+        serialization::Serializable,
         soundgraph::SoundGraph,
         soundprocessor::SoundProcessor,
     },
@@ -71,9 +72,13 @@ impl ObjectFactory {
                     u.set_object_state(h.id().into(), o.make_ui_state(a));
                 }
                 ObjectInitialization::Archive {
-                    object_state,
-                    ui_state,
-                } => todo!(),
+                    mut object_state,
+                    mut ui_state,
+                } => {
+                    o.init_object_from_archive(&h, &mut object_state);
+                    let state = T::StateType::deserialize(&mut ui_state).unwrap();
+                    u.set_object_state(h.id().into(), state);
+                }
             }
         };
         self.mapping.insert(
@@ -100,9 +105,13 @@ impl ObjectFactory {
                     u.set_object_state(h.id().into(), o.make_ui_state(a));
                 }
                 ObjectInitialization::Archive {
-                    object_state,
-                    ui_state,
-                } => todo!(),
+                    mut object_state,
+                    mut ui_state,
+                } => {
+                    o.init_object_from_archive(&h, &mut object_state);
+                    let state = T::StateType::deserialize(&mut ui_state).unwrap();
+                    u.set_object_state(h.id().into(), state);
+                }
             }
         };
         self.mapping.insert(

@@ -4,7 +4,8 @@ use crate::{
     ui_core::{
         graph_ui_state::GraphUIState,
         object_ui::{
-            NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow, SoundOutputWidget,
+            NoUIState, NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow,
+            SoundOutputWidget,
         },
     },
 };
@@ -14,7 +15,7 @@ pub struct WaveGeneratorUi {}
 
 impl ObjectUi for WaveGeneratorUi {
     type WrapperType = SoundProcessorHandle<WaveGenerator>;
-    type StateType = ();
+    type StateType = NoUIState;
 
     fn ui(
         &self,
@@ -22,7 +23,7 @@ impl ObjectUi for WaveGeneratorUi {
         wrapper: &SoundProcessorHandle<WaveGenerator>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &(),
+        _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
         let object = wrapper.instance();

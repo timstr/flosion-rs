@@ -10,6 +10,7 @@ use crate::core::{
     graphobject::{GraphId, GraphObject, ObjectId, TypedGraphObject},
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
+    serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
 };
@@ -19,9 +20,22 @@ use super::{
     graph_ui_state::{GraphUIState, ObjectUiState},
 };
 
+#[derive(Default)]
+pub struct NoUIState;
+
+impl Serializable for NoUIState {
+    fn serialize(&self, _serializer: &mut Serializer) {
+        // Nothing to do
+    }
+
+    fn deserialize(_deserializer: &mut Deserializer) -> Result<Self, ()> {
+        Ok(Self)
+    }
+}
+
 pub trait ObjectUi: 'static + Default {
     type WrapperType: TypedGraphObject;
-    type StateType: Any + Default;
+    type StateType: Any + Default + Serializable;
     fn ui(
         &self,
         id: ObjectId,
@@ -39,7 +53,11 @@ pub trait ObjectUi: 'static + Default {
         ArgumentList::new()
     }
 
-    fn init_object(&self, _object: &Self::WrapperType, _args: &ParsedArguments) {}
+    fn init_from_args(&self, _object: &Self::WrapperType, _args: &ParsedArguments) {}
+
+    fn init_from_archive(&self, _object: &Self::WrapperType, _archive: &mut Deserializer) {}
+
+    fn serialize_object(&self, _object: &Self::WrapperType, _serializer: &mut Serializer) {}
 
     fn make_ui_state(&self, _args: &ParsedArguments) -> Self::StateType {
         Self::StateType::default()
@@ -62,7 +80,22 @@ pub trait AnyObjectUi {
 
     fn init_object_from_args(&self, object: &dyn GraphObject, args: &ParsedArguments);
 
+    fn init_object_from_archive(&self, object: &dyn GraphObject, deserializer: &mut Deserializer);
+
+    fn serialize_object(&self, object: &dyn GraphObject, serializer: &mut Serializer);
+
     fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>>;
+}
+
+fn downcast_object<T: ObjectUi>(object: &dyn GraphObject) -> &T::WrapperType {
+    let any = object.as_any();
+    debug_assert!(
+        any.is::<T::WrapperType>(),
+        "AnyObjectUi expected to receive type {}, but got {} instead",
+        type_name::<T::WrapperType>(),
+        object.get_language_type_name()
+    );
+    any.downcast_ref::<T::WrapperType>().unwrap()
 }
 
 impl<T: ObjectUi> AnyObjectUi for T {
@@ -74,14 +107,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     ) {
-        let object_any = object.as_any();
-        debug_assert!(
-            object_any.is::<T::WrapperType>(),
-            "AnyObjectUi expected to receive object type {}, but got {} instead",
-            type_name::<T::WrapperType>(),
-            object.get_language_type_name()
-        );
-        let dc_object = object_any.downcast_ref::<T::WrapperType>().unwrap();
+        let dc_object = downcast_object::<T>(object);
         let state_any = object_ui_state.as_any();
         debug_assert!(
             state_any.is::<T::StateType>(),
@@ -94,15 +120,15 @@ impl<T: ObjectUi> AnyObjectUi for T {
     }
 
     fn init_object_from_args(&self, object: &dyn GraphObject, args: &ParsedArguments) {
-        let any = object.as_any();
-        debug_assert!(
-            any.is::<T::WrapperType>(),
-            "AnyObjectUi expected to receive type {}, but got {} instead",
-            type_name::<T::WrapperType>(),
-            object.get_language_type_name()
-        );
-        let dc_object = any.downcast_ref::<T::WrapperType>().unwrap();
-        self.init_object(dc_object, args);
+        self.init_from_args(downcast_object::<T>(object), args);
+    }
+
+    fn init_object_from_archive(&self, object: &dyn GraphObject, deserializer: &mut Deserializer) {
+        self.init_from_archive(downcast_object::<T>(object), deserializer);
+    }
+
+    fn serialize_object(&self, _object: &dyn GraphObject, _serializer: &mut Serializer) {
+        todo!();
     }
 
     fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>> {

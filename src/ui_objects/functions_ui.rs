@@ -1,12 +1,16 @@
 use eframe::egui;
 
 use crate::{
-    core::{graphobject::ObjectId, numbersource::PureNumberSourceHandle},
+    core::{
+        graphobject::ObjectId,
+        numbersource::PureNumberSourceHandle,
+        serialization::{Deserializer, Serializable, Serializer},
+    },
     objects::functions::*,
     ui_core::{
         arguments::{ArgumentList, ArgumentValue, ParsedArguments},
         graph_ui_state::GraphUIState,
-        object_ui::{NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow},
     },
 };
 
@@ -26,6 +30,22 @@ impl Default for ConstantUiState {
             max_value: 1.0,
             name: "Constant".to_string(),
         }
+    }
+}
+
+impl Serializable for ConstantUiState {
+    fn serialize(&self, serializer: &mut Serializer) {
+        serializer.f32(self.min_value);
+        serializer.f32(self.max_value);
+        serializer.string(&self.name);
+    }
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+        Ok(ConstantUiState {
+            min_value: deserializer.f32()?,
+            max_value: deserializer.f32()?,
+            name: deserializer.string()?,
+        })
     }
 }
 
@@ -62,7 +82,7 @@ impl ObjectUi for ConstantUi {
         args
     }
 
-    fn init_object(&self, object: &PureNumberSourceHandle<Constant>, args: &ParsedArguments) {
+    fn init_from_args(&self, object: &PureNumberSourceHandle<Constant>, args: &ParsedArguments) {
         object
             .instance()
             .set_value(args.get("value").as_float().unwrap());
@@ -75,6 +95,10 @@ impl ObjectUi for ConstantUi {
             name: args.get("name").as_string().unwrap().to_string(),
         }
     }
+
+    fn serialize_object(&self, object: &Self::WrapperType, serializer: &mut Serializer) {
+        serializer.f32(object.instance().get_value());
+    }
 }
 
 macro_rules! unary_number_source_ui {
@@ -84,14 +108,14 @@ macro_rules! unary_number_source_ui {
 
         impl ObjectUi for $name {
             type WrapperType = PureNumberSourceHandle<$object>;
-            type StateType = ();
+            type StateType = NoUIState;
             fn ui(
                 &self,
                 id: ObjectId,
                 object: &PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
-                _state: &(),
+                _state: &Self::StateType,
             ) {
                 let id = id.as_number_source_id().unwrap();
                 ObjectWindow::new_number_source(id).show(
@@ -123,14 +147,14 @@ macro_rules! binary_number_source_ui {
 
         impl ObjectUi for $name {
             type WrapperType = PureNumberSourceHandle<$object>;
-            type StateType = ();
+            type StateType = NoUIState;
             fn ui(
                 &self,
                 id: ObjectId,
                 object: &PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
-                _state: &(),
+                _state: &Self::StateType,
             ) {
                 let id = id.as_number_source_id().unwrap();
                 ObjectWindow::new_number_source(id).show(

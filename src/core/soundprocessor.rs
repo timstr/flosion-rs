@@ -42,8 +42,6 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
     where
         Self: Sized;
 
-    // TODO: serialize
-    // TODO: deserialize
     fn make_state(&self) -> Self::StateType;
 
     fn process_audio(

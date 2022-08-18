@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use parking_lot::RwLock;
 
@@ -18,6 +18,10 @@ pub struct AudioClip {
 impl AudioClip {
     pub fn set_data(&self, data: Vec<(f32, f32)>) {
         *self.audio_data.write() = data;
+    }
+
+    pub fn get_data<'a>(&'a self) -> impl 'a + Deref<Target = Vec<(f32, f32)>> {
+        self.audio_data.read()
     }
 }
 

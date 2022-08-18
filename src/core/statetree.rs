@@ -41,30 +41,20 @@ impl ProcessorInput for SingleInput {
     type NodeType = SingleInputNode;
 
     fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
-        SingleInputNode::new(
-            self.id,
-            allocator.processor_id(),
-            allocator.make_state_tree_for(self.id),
-        )
+        SingleInputNode::new(self.id, allocator.make_state_tree_for(self.id))
     }
 }
 
 pub struct SingleInputNode {
     id: SoundInputId,
-    parent_processor_id: SoundProcessorId,
     timing: InputTiming,
     target: Option<Box<dyn ProcessorNodeWrapper>>,
 }
 
 impl SingleInputNode {
-    pub fn new(
-        id: SoundInputId,
-        parent_processor_id: SoundProcessorId,
-        target: Option<Box<dyn ProcessorNodeWrapper>>,
-    ) -> SingleInputNode {
+    pub fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>) -> SingleInputNode {
         SingleInputNode {
             id,
-            parent_processor_id,
             timing: InputTiming::default(),
             target,
         }
@@ -149,7 +139,6 @@ impl<K: Key, S: State + Default> ProcessorInput for KeyedInput<K, S> {
                 .map(|k| {
                     KeyedInputData::new(
                         self.id,
-                        allocator.processor_id(),
                         allocator.make_state_tree_for(self.id),
                         Arc::clone(k),
                     )
@@ -161,7 +150,6 @@ impl<K: Key, S: State + Default> ProcessorInput for KeyedInput<K, S> {
 
 pub struct KeyedInputData<K: Key, S: State + Default> {
     id: SoundInputId,
-    parent_processor_id: SoundProcessorId,
     timing: InputTiming,
     target: Option<Box<dyn ProcessorNodeWrapper>>,
     key: Arc<K>,
@@ -169,15 +157,9 @@ pub struct KeyedInputData<K: Key, S: State + Default> {
 }
 
 impl<K: Key, S: State + Default> KeyedInputData<K, S> {
-    fn new(
-        id: SoundInputId,
-        parent_processor_id: SoundProcessorId,
-        target: Option<Box<dyn ProcessorNodeWrapper>>,
-        key: Arc<K>,
-    ) -> Self {
+    fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>, key: Arc<K>) -> Self {
         Self {
             id,
-            parent_processor_id,
             timing: InputTiming::default(),
             target,
             key,
@@ -422,6 +404,10 @@ impl SingleInputList {
     pub fn get_input_ids(&self) -> Vec<SoundInputId> {
         self.input_ids.read().clone()
     }
+
+    pub fn length(&self) -> usize {
+        self.input_ids.read().len()
+    }
 }
 
 impl ProcessorInput for SingleInputList {
@@ -433,13 +419,7 @@ impl ProcessorInput for SingleInputList {
                 .input_ids
                 .read()
                 .iter()
-                .map(|id| {
-                    SingleInputNode::new(
-                        *id,
-                        allocator.processor_id(),
-                        allocator.make_state_tree_for(*id),
-                    )
-                })
+                .map(|id| SingleInputNode::new(*id, allocator.make_state_tree_for(*id)))
                 .collect(),
         }
     }

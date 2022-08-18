@@ -1,9 +1,11 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
+    core::{
+        graphobject::ObjectId, serialization::Serializer, soundprocessor::SoundProcessorHandle,
+    },
     objects::mixer::Mixer,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{ObjectUi, ObjectWindow, SoundInputWidget, SoundOutputWidget},
+        object_ui::{NoUIState, ObjectUi, ObjectWindow, SoundInputWidget, SoundOutputWidget},
     },
 };
 
@@ -12,7 +14,7 @@ pub struct MixerUi {}
 
 impl ObjectUi for MixerUi {
     type WrapperType = SoundProcessorHandle<Mixer>;
-    type StateType = ();
+    type StateType = NoUIState;
 
     fn ui(
         &self,
@@ -20,7 +22,7 @@ impl ObjectUi for MixerUi {
         wrapper: &SoundProcessorHandle<Mixer>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &(),
+        _state: &NoUIState,
     ) {
         let wrapper = wrapper.clone();
         let object = wrapper.instance();
@@ -55,5 +57,9 @@ impl ObjectUi for MixerUi {
                 });
             }
         });
+    }
+
+    fn serialize_object(&self, object: &Self::WrapperType, serializer: &mut Serializer) {
+        serializer.u8(object.instance().num_inputs() as u8);
     }
 }
