@@ -219,8 +219,8 @@ impl GraphUIState {
         &mut self.layout_state
     }
 
-    pub fn set_object_state<T: ObjectUiState>(&mut self, id: ObjectId, state: T) {
-        self.object_states.insert(id, Rc::new(RefCell::new(state)));
+    pub fn set_object_state(&mut self, id: ObjectId, state: Rc<RefCell<dyn ObjectUiState>>) {
+        self.object_states.insert(id, state);
     }
 
     pub fn get_object_state(&mut self, id: ObjectId) -> Rc<RefCell<dyn ObjectUiState>> {

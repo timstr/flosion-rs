@@ -32,7 +32,7 @@ pub struct InputOptions {
 #[derive(Clone, Copy)]
 pub struct InputTiming {
     sample_offset: usize,
-    // TODO: add pending sample offset for resseting
+    // TODO: add pending sample offset for resetting
     needs_reset: bool,
 }
 

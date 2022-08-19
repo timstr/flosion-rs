@@ -1,4 +1,6 @@
+use std::rc::Rc;
 use std::collections::HashMap;
+use std::cell::RefCell;
 
 use eframe::egui::Ui;
 
@@ -77,6 +79,7 @@ impl ObjectFactory {
                 } => {
                     o.init_object_from_archive(&h, &mut object_state);
                     let state = T::StateType::deserialize(&mut ui_state).unwrap();
+                    let state = Rc::new(RefCell::new(state));
                     u.set_object_state(h.id().into(), state);
                 }
             }
@@ -110,6 +113,7 @@ impl ObjectFactory {
                 } => {
                     o.init_object_from_archive(&h, &mut object_state);
                     let state = T::StateType::deserialize(&mut ui_state).unwrap();
+                    let state = Rc::new(RefCell::new(state));
                     u.set_object_state(h.id().into(), state);
                 }
             }
