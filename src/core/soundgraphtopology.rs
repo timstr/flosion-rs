@@ -143,7 +143,7 @@ impl SoundGraphTopology {
             }
         }
         for input_id in sound_inputs_to_disconnect {
-            self.disconnect_sound_input(input_id).unwrap();
+            self.disconnect_sound_input_impl(input_id).unwrap();
         }
 
         // remove all sound inputs belonging to the processor
@@ -154,7 +154,7 @@ impl SoundGraphTopology {
             .sound_inputs()
             .clone();
         for input_id in sound_inputs_to_remove {
-            self.remove_sound_input(input_id);
+            self.remove_sound_input_impl(input_id);
         }
 
         // disconnect all number inputs from the sound processor
@@ -224,6 +224,12 @@ impl SoundGraphTopology {
     }
 
     pub fn remove_sound_input(&mut self, input_id: SoundInputId) {
+        let res = self.remove_sound_input_impl(input_id);
+        self.update_static_processor_cache();
+        res
+    }
+
+    fn remove_sound_input_impl(&mut self, input_id: SoundInputId) {
         let target;
         let owner;
         let number_sources_to_remove;
@@ -242,7 +248,6 @@ impl SoundGraphTopology {
         let proc_data = self.sound_processors.get_mut(&owner).unwrap();
         proc_data.sound_inputs_mut().retain(|iid| *iid != input_id);
         self.sound_inputs.remove(&input_id).unwrap();
-        self.update_static_processor_cache();
     }
 
     pub fn connect_sound_input(
@@ -289,6 +294,15 @@ impl SoundGraphTopology {
         &mut self,
         input_id: SoundInputId,
     ) -> Result<(), SoundGraphError> {
+        let res = self.disconnect_sound_input_impl(input_id);
+        self.update_static_processor_cache();
+        res
+    }
+
+    fn disconnect_sound_input_impl(
+        &mut self,
+        input_id: SoundInputId,
+    ) -> Result<(), SoundGraphError> {
         let mut desc = self.describe();
         debug_assert!(desc.find_error().is_none());
 
@@ -306,8 +320,6 @@ impl SoundGraphTopology {
         }
         let input_data = input_data.unwrap();
         input_data.set_target(None);
-
-        self.update_static_processor_cache();
 
         debug_assert!(self.describe().find_error().is_none());
 
