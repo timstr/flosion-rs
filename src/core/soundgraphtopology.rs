@@ -273,7 +273,7 @@ impl SoundGraphTopology {
         let input_data = input_data.unwrap();
         if let Some(pid) = input_data.target() {
             if pid == processor_id {
-                return Err(SoundConnectionError::NoChange.into());
+                return Ok(());
             }
             return Err(SoundConnectionError::InputOccupied {
                 input_id,
@@ -486,7 +486,7 @@ impl SoundGraphTopology {
 
         if let Some(t) = input_data.target() {
             if t == source_id {
-                return Err(NumberConnectionError::NoChange);
+                return Ok(());
             }
             return Err(NumberConnectionError::InputOccupied(input_id, t));
         }
@@ -564,6 +564,28 @@ impl SoundGraphTopology {
             number_sources,
             number_inputs,
         )
+    }
+
+    pub fn is_legal_sound_connection(
+        &self,
+        input_id: SoundInputId,
+        processor_id: SoundProcessorId,
+    ) -> bool {
+        let mut desc = self.describe();
+        debug_assert!(desc.find_error().is_none());
+        desc.add_sound_connection(input_id, processor_id);
+        desc.find_error().is_none()
+    }
+
+    pub fn is_legal_number_connection(
+        &self,
+        input_id: NumberInputId,
+        source_id: NumberSourceId,
+    ) -> bool {
+        let mut desc = self.describe();
+        debug_assert!(desc.find_error().is_none());
+        desc.add_number_connection(input_id, source_id);
+        desc.find_error().is_none()
     }
 
     fn update_static_processor_cache(&mut self) {

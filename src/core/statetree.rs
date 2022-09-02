@@ -16,7 +16,7 @@ use super::{
     soundchunk::SoundChunk,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, InputTiming, SoundInputId},
-    soundprocessor::{SoundProcessor, SoundProcessorId},
+    soundprocessor::{SoundProcessor, SoundProcessorId, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     uniqueid::UniqueId,
 };
@@ -60,16 +60,23 @@ impl SingleInputNode {
         }
     }
 
+    pub fn is_done(&self) -> bool {
+        self.timing.is_done()
+    }
+
     pub fn step<T: State>(
         &mut self,
         processor_state: &ProcessorState<T>,
         dst: &mut SoundChunk,
         ctx: &Context,
-    ) {
+    ) -> StreamStatus {
         if let Some(node) = &mut self.target {
             if self.timing.needs_reset() {
                 node.reset();
                 self.timing.reset(0); // TODO: how to adjust sample offset?
+            } else if self.timing.is_done() {
+                dst.silence();
+                return StreamStatus::Done;
             }
             let dummy = NoState::default();
             let ctx = ctx.push_processor_state(processor_state);
@@ -80,9 +87,16 @@ impl SingleInputNode {
                 AnyData::new(self.id, &dummy),
                 &self.timing,
             );
-            node.process_audio(dst, ctx);
+            let status = node.process_audio(dst, ctx);
+            debug_assert!(status != StreamStatus::StaticNoOutput);
+            if status == StreamStatus::Done {
+                debug_assert!(!self.timing.is_done());
+                self.timing.mark_as_done();
+            }
+            status
         } else {
             dst.silence();
+            StreamStatus::Done
         }
     }
 
@@ -511,16 +525,17 @@ impl<T: SoundProcessor> ProcessorNode<T> {
         self.inputs.flag_for_reset();
     }
 
-    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) {
-        T::process_audio(&mut self.state, &mut self.inputs, dst, ctx);
+    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
+        let status = T::process_audio(&mut self.state, &mut self.inputs, dst, ctx);
         self.state.timing.advance_one_chunk();
+        status
     }
 }
 
 pub trait ProcessorNodeWrapper: Sync + Send {
     fn id(&self) -> SoundProcessorId;
     fn reset(&mut self);
-    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context);
+    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
 }
 
 impl<T: SoundProcessor> ProcessorNodeWrapper for ProcessorNode<T> {
@@ -532,7 +547,7 @@ impl<T: SoundProcessor> ProcessorNodeWrapper for ProcessorNode<T> {
         (self as &mut ProcessorNode<T>).reset()
     }
 
-    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) {
+    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
         (self as &mut ProcessorNode<T>).process_audio(dst, ctx)
     }
 }

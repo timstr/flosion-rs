@@ -6,7 +6,7 @@ use crate::core::{
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundprocessor::SoundProcessor,
+    soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{NoInputs, NumberInputNode, ProcessorState, State},
 };
@@ -69,7 +69,7 @@ impl SoundProcessor for WaveGenerator {
         _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
         context: Context,
-    ) {
+    ) -> StreamStatus {
         let prev_phase = *state.phase.last().unwrap();
         // TODO: mark phase_arr as samplewise temporal
         {
@@ -88,6 +88,8 @@ impl SoundProcessor for WaveGenerator {
             .amplitude
             .eval(&mut dst.l, &context.push_processor_state(state));
         numeric::copy(&dst.l, &mut dst.r);
+
+        StreamStatus::Playing
     }
 }
 

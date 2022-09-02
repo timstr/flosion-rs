@@ -4,7 +4,7 @@ use crate::core::{
     numeric,
     soundchunk::SoundChunk,
     soundinput::{InputOptions, SoundInputId},
-    soundprocessor::SoundProcessor,
+    soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{NoState, ProcessorState, SingleInputList, SingleInputListNode},
 };
@@ -61,18 +61,28 @@ impl SoundProcessor for Mixer {
         inputs: &mut SingleInputListNode,
         dst: &mut SoundChunk,
         mut context: Context,
-    ) {
+    ) -> StreamStatus {
         let ipts = inputs.get_mut();
         if ipts.len() == 0 {
             dst.silence();
-            return;
+            return StreamStatus::Done;
         }
         ipts.first_mut().unwrap().step(state, dst, &mut context);
         let mut ch = SoundChunk::new();
+        let mut all_done = true;
         for i in &mut ipts[1..] {
+            if i.is_done() {
+                continue;
+            }
+            all_done = false;
             i.step(state, &mut ch, &mut context);
             numeric::add_inplace(&mut dst.l, &ch.l);
             numeric::add_inplace(&mut dst.r, &ch.r);
+        }
+        if all_done {
+            StreamStatus::Done
+        } else {
+            StreamStatus::Playing
         }
     }
 }

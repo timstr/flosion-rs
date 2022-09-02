@@ -1,10 +1,7 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, AtomicI32, Ordering},
-        mpsc::{channel, Sender},
-        Arc, Barrier,
-    },
-    thread::JoinHandle,
+use std::sync::{
+    atomic::{AtomicBool, AtomicI32, Ordering},
+    mpsc::{channel, Sender},
+    Arc, Barrier,
 };
 
 use crate::core::{
@@ -14,7 +11,7 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
-    soundprocessor::SoundProcessor,
+    soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{ProcessorState, SingleInput, SingleInputNode, State},
 };
@@ -34,7 +31,6 @@ pub struct DacData {
 
 pub struct Dac {
     pub input: SingleInput,
-    stream_thread: Option<JoinHandle<()>>,
     shared_data: Arc<DacData>,
 }
 
@@ -132,7 +128,7 @@ impl SoundProcessor for Dac {
 
         let shared_data_also = Arc::clone(&shared_data);
 
-        let stream_thread = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             let stream = device
                 .build_output_stream(&config, data_callback, err_callback)
                 .unwrap();
@@ -149,7 +145,6 @@ impl SoundProcessor for Dac {
                 },
                 &mut tools,
             ),
-            stream_thread: Some(stream_thread),
             shared_data,
         }
     }
@@ -167,7 +162,7 @@ impl SoundProcessor for Dac {
         input: &mut SingleInputNode,
         _dst: &mut SoundChunk,
         ctx: Context,
-    ) {
+    ) -> StreamStatus {
         if state.pending_reset.swap(false, Ordering::SeqCst) {
             input.flag_for_reset();
         }
@@ -183,15 +178,17 @@ impl SoundProcessor for Dac {
                 println!("Oops! Dac::process_audio failed to send a chunk");
             }
         }
+        StreamStatus::StaticNoOutput
     }
 }
 
-impl Drop for Dac {
-    fn drop(&mut self) {
-        self.shared_data.stream_end_barrier.wait();
-        self.stream_thread.take().unwrap().join().unwrap();
-    }
-}
+// impl Drop for Dac {
+//     fn drop(&mut self) {
+//         println!("Dropping Dac");
+//         self.shared_data.stream_end_barrier.wait();
+//         self.stream_thread.take().unwrap().join().unwrap();
+//     }
+// }
 
 impl WithObjectType for Dac {
     const TYPE: ObjectType = ObjectType::new("dac");

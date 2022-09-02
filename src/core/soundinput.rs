@@ -34,6 +34,7 @@ pub struct InputTiming {
     sample_offset: usize,
     // TODO: add pending sample offset for resetting
     needs_reset: bool,
+    is_done: bool,
 }
 
 impl InputTiming {
@@ -45,10 +46,19 @@ impl InputTiming {
         self.needs_reset
     }
 
+    pub fn is_done(&self) -> bool {
+        self.is_done
+    }
+
+    pub fn mark_as_done(&mut self) {
+        self.is_done = true;
+    }
+
     pub fn reset(&mut self, sample_offset: usize) {
         debug_assert!(sample_offset < CHUNK_SIZE);
         self.sample_offset = sample_offset;
         self.needs_reset = false;
+        self.is_done = false;
     }
 
     pub fn sample_offset(&self) -> usize {
@@ -61,6 +71,7 @@ impl Default for InputTiming {
         InputTiming {
             sample_offset: 0,
             needs_reset: true,
+            is_done: false,
         }
     }
 }

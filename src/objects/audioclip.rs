@@ -5,7 +5,7 @@ use parking_lot::RwLock;
 use crate::core::{
     graphobject::{ObjectType, WithObjectType},
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundprocessor::SoundProcessor,
+    soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{NoInputs, ProcessorState, State},
 };
@@ -65,23 +65,25 @@ impl SoundProcessor for AudioClip {
         _inputs: &mut Self::InputType,
         dst: &mut SoundChunk,
         _context: crate::core::context::Context,
-    ) {
+    ) -> StreamStatus {
         let st = state.state_mut();
         let data = st.audio_data.read();
         if data.len() == 0 {
             dst.silence();
-            return;
+            return StreamStatus::Done;
         }
         for i in 0..CHUNK_SIZE {
             let s = data[st.playhead];
             st.playhead += 1;
             if st.playhead >= data.len() {
+                // TODO: add an option to enable/disable looping
                 st.playhead -= data.len();
             }
             debug_assert!(st.playhead < data.len());
             dst.l[i] = s.0;
             dst.r[i] = s.1;
         }
+        StreamStatus::Playing
     }
 }
 

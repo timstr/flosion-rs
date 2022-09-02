@@ -10,7 +10,7 @@ use crate::core::{
     numeric,
     soundchunk::SoundChunk,
     soundinput::InputOptions,
-    soundprocessor::SoundProcessor,
+    soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{KeyedInput, KeyedInputNode, NoState, ProcessorState},
 };
@@ -107,7 +107,7 @@ impl SoundProcessor for Keyboard {
         input: &mut KeyedInputNode<KeyboardKey, NoState>,
         dst: &mut SoundChunk,
         ctx: Context,
-    ) {
+    ) -> StreamStatus {
         dst.silence();
         let mut scratch_buffer = SoundChunk::new();
         for kd in input.data_mut() {
@@ -129,6 +129,7 @@ impl SoundProcessor for Keyboard {
 
             kd.key().previous_id.store(curr_id, Ordering::SeqCst);
         }
+        StreamStatus::Playing
     }
 }
 

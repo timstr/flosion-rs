@@ -84,7 +84,7 @@ impl From<NumberSourceId> for ObjectId {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub enum GraphId {
     SoundInput(SoundInputId),
     SoundProcessor(SoundProcessorId),
@@ -93,7 +93,7 @@ pub enum GraphId {
 }
 
 impl GraphId {
-    pub fn inner_value(&self) -> usize {
+    pub fn as_usize(&self) -> usize {
         match self {
             GraphId::SoundInput(id) => id.0,
             GraphId::SoundProcessor(id) => id.0,
@@ -121,6 +121,27 @@ impl From<NumberInputId> for GraphId {
 impl From<NumberSourceId> for GraphId {
     fn from(id: NumberSourceId) -> GraphId {
         GraphId::NumberSource(id)
+    }
+}
+
+impl From<&SoundInputId> for GraphId {
+    fn from(id: &SoundInputId) -> GraphId {
+        GraphId::SoundInput(*id)
+    }
+}
+impl From<&SoundProcessorId> for GraphId {
+    fn from(id: &SoundProcessorId) -> GraphId {
+        GraphId::SoundProcessor(*id)
+    }
+}
+impl From<&NumberInputId> for GraphId {
+    fn from(id: &NumberInputId) -> GraphId {
+        GraphId::NumberInput(*id)
+    }
+}
+impl From<&NumberSourceId> for GraphId {
+    fn from(id: &NumberSourceId) -> GraphId {
+        GraphId::NumberSource(*id)
     }
 }
 

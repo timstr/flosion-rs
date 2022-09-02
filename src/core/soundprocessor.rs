@@ -29,6 +29,18 @@ impl UniqueId for SoundProcessorId {
     }
 }
 
+pub enum StreamRequest {
+    Continue,
+    Release { sample_offset: usize },
+}
+
+#[derive(PartialEq, Eq)]
+pub enum StreamStatus {
+    Playing,
+    Done,
+    StaticNoOutput,
+}
+
 pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
     const IS_STATIC: bool;
     type StateType: State;
@@ -49,7 +61,7 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
         inputs: &mut <Self::InputType as ProcessorInput>::NodeType,
         dst: &mut SoundChunk,
         context: Context,
-    );
+    ) -> StreamStatus;
 }
 
 pub trait SoundProcessorWrapper: Sync + Send + 'static {

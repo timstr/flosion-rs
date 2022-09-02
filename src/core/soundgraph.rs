@@ -147,6 +147,10 @@ impl SoundGraph {
         f(tools);
     }
 
+    pub fn topology(&self) -> Arc<RwLock<SoundGraphTopology>> {
+        Arc::clone(&self.topology)
+    }
+
     // fn update_topology(&mut self, mut new_topology: SoundGraphTopology) {
     //     {
     //         let mut topo = self.topology.write();

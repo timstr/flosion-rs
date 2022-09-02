@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use eframe::egui;
+use eframe::egui::{self};
 
 use crate::core::{
     graphobject::{GraphId, GraphObject, ObjectId, TypedGraphObject},
@@ -175,7 +175,10 @@ impl ObjectWindow {
         let id = egui::Id::new(s);
         let fill;
         let stroke;
-        if graph_tools.is_object_selected(self.object_id) {
+        if graph_tools.object_has_keyboard_focus(self.object_id) {
+            fill = egui::Color32::GREEN;
+            stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
+        } else if graph_tools.is_object_selected(self.object_id) {
             fill = egui::Color32::LIGHT_BLUE;
             stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
         } else {
@@ -243,20 +246,69 @@ impl ObjectWindow {
     }
 }
 
+fn key_to_string(key: egui::Key) -> String {
+    match key {
+        egui::Key::A => "A".to_string(),
+        egui::Key::B => "B".to_string(),
+        egui::Key::C => "C".to_string(),
+        egui::Key::D => "D".to_string(),
+        egui::Key::E => "E".to_string(),
+        egui::Key::F => "F".to_string(),
+        egui::Key::G => "G".to_string(),
+        egui::Key::H => "H".to_string(),
+        egui::Key::I => "I".to_string(),
+        egui::Key::J => "J".to_string(),
+        egui::Key::K => "K".to_string(),
+        egui::Key::L => "L".to_string(),
+        egui::Key::M => "M".to_string(),
+        egui::Key::N => "N".to_string(),
+        egui::Key::O => "O".to_string(),
+        egui::Key::P => "P".to_string(),
+        egui::Key::Q => "Q".to_string(),
+        egui::Key::R => "R".to_string(),
+        egui::Key::S => "S".to_string(),
+        egui::Key::T => "T".to_string(),
+        egui::Key::U => "U".to_string(),
+        egui::Key::V => "V".to_string(),
+        egui::Key::W => "W".to_string(),
+        egui::Key::X => "X".to_string(),
+        egui::Key::Y => "Y".to_string(),
+        egui::Key::Z => "Z".to_string(),
+        _ => "???".to_string(),
+    }
+}
+
 fn peg_ui(
     id: GraphId,
     color: egui::Color32,
     label: &str,
-    graph_state: &mut GraphUIState,
+    ui_state: &mut GraphUIState,
     ui: &mut egui::Ui,
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
-    graph_state
+    ui_state
         .layout_state_mut()
         .track_peg(id, rect, response.layer_id);
+    let display_str;
+    let popup_str;
+    let size_diff;
+    if ui_state.peg_has_keyboard_focus(id) {
+        display_str = "*".to_string();
+        popup_str = None;
+        size_diff = 5.0;
+    } else if let Some(key) = ui_state.peg_has_hotkey(id) {
+        display_str = key_to_string(key);
+        popup_str = Some(label);
+        size_diff = 0.0;
+    } else {
+        // display_str = format!("{}", id.as_usize());
+        display_str = "-".to_string();
+        popup_str = None;
+        size_diff = -3.0;
+    }
     let painter = ui.painter();
     painter.rect(
-        rect,
+        rect.expand(size_diff),
         5.0,
         color,
         egui::Stroke::new(2.0, egui::Color32::WHITE),
@@ -264,18 +316,36 @@ fn peg_ui(
     painter.text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
-        format!("{}", id.inner_value()),
+        display_str,
         egui::TextStyle::Monospace,
         egui::Color32::WHITE,
     );
+    if let Some(s) = popup_str {
+        let galley = painter.layout_no_wrap(
+            s.to_string(),
+            // rect.right_center() + egui::vec2(5.0, 0.0),
+            // egui::Align2::LEFT_CENTER,
+            egui::TextStyle::Monospace,
+            egui::Color32::WHITE,
+        );
+        let pos = rect.right_center() + egui::vec2(5.0, -0.5 * galley.rect.height());
+        painter.rect(
+            galley.rect.expand(3.0).translate(pos.to_vec2()),
+            3.0,
+            // egui::Color32::from_rgba_unmultiplied(0, 0, 0, 64),
+            egui::Color32::BLACK,
+            egui::Stroke::new(2.0, egui::Color32::WHITE),
+        );
+        painter.galley(pos, galley);
+    }
     if response.clicked() {
         // println!("SoundInputWidget[id={:?}] was clicked", self.sound_input_id);
     }
     if response.drag_started() {
-        graph_state.start_dragging(id);
+        ui_state.start_dragging(id);
     }
     if response.drag_released() {
-        graph_state.stop_dragging(id, response.interact_pointer_pos().unwrap());
+        ui_state.stop_dragging(id, response.interact_pointer_pos().unwrap());
     }
     let r = response.clone();
     response.on_hover_ui_at_pointer(|ui| {

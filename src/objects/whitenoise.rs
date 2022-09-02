@@ -4,7 +4,7 @@ use crate::core::{
     context::Context,
     graphobject::{ObjectType, WithObjectType},
     soundchunk::SoundChunk,
-    soundprocessor::SoundProcessor,
+    soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{NoInputs, NoState, ProcessorState},
 };
@@ -39,7 +39,7 @@ impl SoundProcessor for WhiteNoise {
         _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
         _ctx: Context,
-    ) {
+    ) -> StreamStatus {
         for s in dst.l.iter_mut() {
             let r: f32 = thread_rng().gen();
             *s = 0.2 * r - 0.1;
@@ -48,6 +48,7 @@ impl SoundProcessor for WhiteNoise {
             let r: f32 = thread_rng().gen();
             *s = 0.2 * r - 0.1;
         }
+        StreamStatus::Playing
     }
 }
 

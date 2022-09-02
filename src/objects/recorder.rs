@@ -10,7 +10,7 @@ use crate::core::{
     graphobject::{ObjectType, WithObjectType},
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
-    soundprocessor::SoundProcessor,
+    soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{ProcessorState, SingleInput, SingleInputNode, State},
 };
@@ -119,11 +119,11 @@ impl SoundProcessor for Recorder {
         inputs: &mut SingleInputNode,
         dst: &mut SoundChunk,
         ctx: Context,
-    ) {
-        inputs.step(state, dst, &ctx);
+    ) -> StreamStatus {
+        let s = inputs.step(state, dst, &ctx);
         let recording = state.recording.load(atomic::Ordering::Relaxed);
-        if !recording {
-            return;
+        if !recording || s == StreamStatus::Done {
+            return s;
         }
         let mut groups = state.recorded_chunk_groups.write();
         debug_assert!(groups.len() >= 1);
@@ -135,6 +135,7 @@ impl SoundProcessor for Recorder {
             new_group.push(dst.clone());
             groups.push(new_group);
         }
+        StreamStatus::Playing
     }
 }
 

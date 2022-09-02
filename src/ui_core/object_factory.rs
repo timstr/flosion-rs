@@ -1,6 +1,6 @@
-use std::rc::Rc;
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 use eframe::egui::Ui;
 
@@ -33,7 +33,14 @@ enum ObjectInitialization<'a> {
 struct ObjectData {
     ui: Box<dyn AnyObjectUi>,
 
-    create: Box<dyn Fn(&mut SoundGraph, &mut GraphUIState, &dyn AnyObjectUi, ObjectInitialization)>,
+    create: Box<
+        dyn Fn(
+            &mut SoundGraph,
+            &mut GraphUIState,
+            &dyn AnyObjectUi,
+            ObjectInitialization,
+        ) -> ObjectId,
+    >,
 }
 
 pub struct ObjectFactory {
@@ -66,7 +73,8 @@ impl ObjectFactory {
         let create = |g: &mut SoundGraph,
                       u: &mut GraphUIState,
                       o: &dyn AnyObjectUi,
-                      init: ObjectInitialization| {
+                      init: ObjectInitialization|
+         -> ObjectId {
             let h = g.add_sound_processor::<<T::WrapperType as TypedGraphObject>::Type>();
             match init {
                 ObjectInitialization::Args(a) => {
@@ -83,6 +91,7 @@ impl ObjectFactory {
                     u.set_object_state(h.id().into(), state);
                 }
             }
+            ObjectId::Sound(h.id())
         };
         self.mapping.insert(
             <T::WrapperType as TypedGraphObject>::Type::TYPE,
@@ -117,6 +126,7 @@ impl ObjectFactory {
                     u.set_object_state(h.id().into(), state);
                 }
             }
+            ObjectId::Number(h.id())
         };
         self.mapping.insert(
             <T::WrapperType as TypedGraphObject>::Type::TYPE,
@@ -159,11 +169,11 @@ impl ObjectFactory {
         graph: &mut SoundGraph,
         ui_state: &mut GraphUIState,
         init: ObjectInitialization,
-    ) {
+    ) -> ObjectId {
         match self.mapping.get(&object_type) {
             Some(data) => (*data.create)(graph, ui_state, &*data.ui, init),
-            None => println!(
-                "Warning: tried to create an object of unrecognized type \"{}\"",
+            None => panic!(
+                "Tried to create an object of unrecognized type \"{}\"",
                 object_type.name()
             ),
         }
@@ -175,7 +185,7 @@ impl ObjectFactory {
         graph: &mut SoundGraph,
         ui_state: &mut GraphUIState,
         args: &ParsedArguments,
-    ) {
+    ) -> ObjectId {
         self.create_impl(
             object_type,
             graph,
@@ -191,7 +201,7 @@ impl ObjectFactory {
         ui_state: &mut GraphUIState,
         object_deserializer: Deserializer,
         ui_deserializer: Deserializer,
-    ) {
+    ) -> ObjectId {
         self.create_impl(
             object_type,
             graph,

@@ -49,7 +49,7 @@ pub(super) struct SummonWidgetState {
     position: egui::Pos2,
     text: String,
     newly_created: bool,
-    should_close: bool,
+    ready: bool,
     selected_type: Option<ObjectType>,
     object_scores: Vec<(MatchingObject, f32)>,
     focus_object_index: Option<usize>,
@@ -86,15 +86,15 @@ impl SummonWidgetState {
             position,
             text: String::new(),
             newly_created: true,
-            should_close: false,
+            ready: false,
             selected_type: None,
             object_scores,
             focus_object_index: None,
         }
     }
 
-    pub(super) fn should_close(&self) -> bool {
-        self.should_close
+    pub(super) fn ready(&self) -> bool {
+        self.ready
     }
 
     pub(super) fn selected_type(&self) -> Option<ObjectType> {
@@ -194,12 +194,12 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                     self.state.update_matches();
                 }
                 if ui.input().key_pressed(egui::Key::Enter) {
-                    self.state.should_close = true;
+                    self.state.ready = true;
                     self.state.selected_type =
                         self.state.object_scores.get(0).map(|x| x.0.object_type);
                 }
                 if ui.input().key_pressed(egui::Key::Escape) {
-                    self.state.should_close = true;
+                    self.state.ready = true;
                 }
                 if t.gained_focus() {
                     self.state.focus_object_index = None;
@@ -253,7 +253,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                         let r = ui.add(egui::Label::new(layout_job).sense(egui::Sense::click()));
                         if r.clicked() {
                             self.state.selected_type = Some(object.object_type);
-                            self.state.should_close = true;
+                            self.state.ready = true;
                         }
                         if r.hovered() {
                             ui.output().cursor_icon = egui::CursorIcon::PointingHand;

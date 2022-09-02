@@ -58,10 +58,11 @@ impl Default for FlosionApp {
     fn default() -> FlosionApp {
         // let graph = block_on(create_test_sound_graph());
         let graph = SoundGraph::new();
+        let topo = graph.topology();
         FlosionApp {
             graph,
             all_object_uis: ObjectFactory::new(),
-            ui_state: GraphUIState::new(),
+            ui_state: GraphUIState::new(topo),
             summon_state: None,
             selection_area: None,
         }
@@ -88,6 +89,25 @@ impl epi::App for FlosionApp {
                     &mut self.ui_state,
                     ui,
                 );
+            }
+            for e in &ctx.input().events {
+                if let egui::Event::Key {
+                    key,
+                    pressed,
+                    modifiers,
+                } = e
+                {
+                    if !pressed {
+                        continue;
+                    }
+                    if *key == egui::Key::Escape {
+                        self.ui_state.cancel_hotkey(&self.graph);
+                    }
+                    if modifiers.any() {
+                        continue;
+                    }
+                    self.ui_state.activate_hotkey(*key, &mut self.graph);
+                }
             }
             let bg_response = ui.interact(
                 ui.input().screen_rect(),
@@ -139,15 +159,17 @@ impl epi::App for FlosionApp {
                 ui.add(SummonWidget::new(summon_state));
             }
             if let Some(s) = &self.summon_state {
-                if s.should_close() {
+                if s.ready() {
                     if s.selected_type().is_some() {
                         let (t, args) = s.parse_selected();
-                        self.all_object_uis.create_from_args(
+                        let new_object_id = self.all_object_uis.create_from_args(
                             t,
                             &mut self.graph,
                             &mut self.ui_state,
                             &args,
                         );
+                        self.ui_state.clear_selection();
+                        self.ui_state.select_object(new_object_id);
                     }
                     self.summon_state = None;
                 }

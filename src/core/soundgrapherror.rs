@@ -8,7 +8,6 @@ use super::{
 
 #[derive(Debug)]
 pub enum SoundConnectionError {
-    NoChange,
     CircularDependency {
         cycle: SoundPath,
     },
@@ -24,7 +23,6 @@ pub enum SoundConnectionError {
 
 #[derive(Debug)]
 pub enum NumberConnectionError {
-    NoChange,
     CircularDependency {
         cycle: NumberPath,
     },
