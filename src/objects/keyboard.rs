@@ -15,18 +15,25 @@ use crate::core::{
     statetree::{KeyedInput, KeyedInputNode, NoState, ProcessorState},
 };
 
+const INVALID_ID: i16 = -1;
+const KEY_PLAYING: i16 = -2;
+const KEY_NOT_PLAYING: i16 = -3;
+const KEY_RELEASED: i16 = -4;
+
 pub struct KeyboardKey {
     frequency: AtomicF32,
-    current_id: AtomicI16,
-    previous_id: AtomicI16,
+    id: AtomicI16,
+    curr_status: AtomicI16,
+    prev_status: AtomicI16,
 }
 
 impl KeyboardKey {
     fn new() -> Self {
         Self {
             frequency: AtomicF32::new(f32::NAN),
-            current_id: AtomicI16::new(-1),
-            previous_id: AtomicI16::new(-1),
+            id: AtomicI16::new(INVALID_ID),
+            curr_status: AtomicI16::new(KEY_NOT_PLAYING),
+            prev_status: AtomicI16::new(KEY_NOT_PLAYING),
         }
     }
 }
@@ -43,29 +50,29 @@ pub struct Keyboard {
 impl Keyboard {
     pub fn press_key(&self, key_id: u16, frequency: f32) {
         for ks in self.input.keys() {
-            if ks.current_id.load(Ordering::SeqCst) == (key_id as i16) {
+            if ks.id.load(Ordering::SeqCst) == (key_id as i16) {
                 return;
             }
         }
         for ks in self.input.keys() {
-            if ks.current_id.load(Ordering::SeqCst) == -1 {
-                ks.current_id.store(key_id as i16, Ordering::SeqCst);
+            if ks.id.load(Ordering::SeqCst) == INVALID_ID {
+                ks.id.store(key_id as i16, Ordering::SeqCst);
+                ks.prev_status.store(KEY_NOT_PLAYING, Ordering::SeqCst);
+                ks.curr_status.store(KEY_PLAYING, Ordering::SeqCst);
                 ks.frequency.store(frequency, Ordering::SeqCst);
                 return;
             }
         }
-        println!("Warning: keyboard is out of keys to press");
     }
 
     pub fn release_key(&self, key_id: u16) {
         for ks in self.input.keys() {
-            if ks.current_id.load(Ordering::SeqCst) == (key_id as i16) {
-                ks.current_id.store(-1, Ordering::SeqCst);
-                ks.frequency.store(f32::NAN, Ordering::SeqCst);
+            if ks.id.load(Ordering::SeqCst) == (key_id as i16) {
+                ks.curr_status.store(KEY_RELEASED, Ordering::SeqCst);
+                // ks.frequency.store(f32::NAN, Ordering::SeqCst);
                 return;
             }
         }
-        println!("Warning: keyboard attempted to release a key which was not held");
     }
 }
 
@@ -110,15 +117,22 @@ impl SoundProcessor for Keyboard {
     ) -> StreamStatus {
         dst.silence();
         let mut scratch_buffer = SoundChunk::new();
+        scratch_buffer.silence();
         for kd in input.data_mut() {
-            let prev_id = kd.key().previous_id.load(Ordering::SeqCst);
-            let curr_id = kd.key().current_id.load(Ordering::SeqCst);
-            if curr_id == -1 {
+            let key_id = kd.key().id.load(Ordering::SeqCst);
+            if key_id == INVALID_ID {
                 continue;
             }
-            if prev_id == -1 {
+            let prev_status = kd.key().prev_status.load(Ordering::SeqCst);
+            let mut curr_status = kd.key().curr_status.load(Ordering::SeqCst);
+            debug_assert!(curr_status != KEY_NOT_PLAYING);
+            if kd.needs_reset() {
                 // TODO: gather fine timing data and apply it here
-                kd.flag_for_reset();
+                kd.reset(0);
+            }
+            if curr_status == KEY_RELEASED && prev_status == KEY_PLAYING {
+                // TODO: gather fine timing data and apply it here
+                kd.request_release(0);
             }
             kd.step(state, &mut scratch_buffer, &ctx);
             // TODO: create FMA functions
@@ -127,7 +141,17 @@ impl SoundProcessor for Keyboard {
             numeric::add_inplace(&mut dst.l, &scratch_buffer.l);
             numeric::add_inplace(&mut dst.r, &scratch_buffer.r);
 
-            kd.key().previous_id.store(curr_id, Ordering::SeqCst);
+            // TODO: prevent inputs from playing forever if they don't respond to release requests
+            if kd.is_done() {
+                kd.key().id.store(INVALID_ID, Ordering::SeqCst);
+                kd.key()
+                    .curr_status
+                    .store(KEY_NOT_PLAYING, Ordering::SeqCst);
+                curr_status = KEY_NOT_PLAYING;
+                kd.require_reset();
+            }
+
+            kd.key().prev_status.store(curr_status, Ordering::SeqCst);
         }
         StreamStatus::Playing
     }

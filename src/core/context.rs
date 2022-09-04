@@ -26,7 +26,7 @@ pub struct InputStackFrame<'a> {
     parent: &'a StackFrame<'a>,
     key: AnyData<'a, SoundInputId>,
     state: AnyData<'a, SoundInputId>,
-    timing: &'a InputTiming,
+    timing: &'a mut InputTiming,
 }
 
 impl<'a> InputStackFrame<'a> {
@@ -38,8 +38,12 @@ impl<'a> InputStackFrame<'a> {
         &self.state
     }
 
-    pub fn timing(&self) -> &'a InputTiming {
+    pub fn timing(&'a self) -> &'a InputTiming {
         self.timing
+    }
+
+    pub fn take_pending_release(&mut self) -> Option<usize> {
+        self.timing.take_pending_release()
     }
 }
 
@@ -158,7 +162,7 @@ impl<'a> Context<'a> {
         target: Option<SoundProcessorId>,
         key: AnyData<'a, SoundInputId>,
         state: AnyData<'a, SoundInputId>,
-        timing: &'a InputTiming,
+        timing: &'a mut InputTiming,
     ) -> Context<'a> {
         Context {
             target_processor_id: target,
@@ -198,7 +202,7 @@ impl<'a> Context<'a> {
         // exists for modifying state trees in place
         let input = self.topology.number_inputs().get(&input_id).unwrap();
         if input.target().is_none() {
-            numeric::fill(dst, 0.0);
+            numeric::fill(dst, input.default_value());
             return;
         }
         let source = self
@@ -233,5 +237,23 @@ impl<'a> Context<'a> {
     pub fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
         let s = self.stack.find_input_sample_offset(input_id);
         Self::current_time_impl(s, dst);
+    }
+
+    pub fn pending_release(&self) -> Option<usize> {
+        if let StackFrame::Input(i) = &self.stack {
+            i.timing().pending_release()
+        } else {
+            debug_assert!(false);
+            None
+        }
+    }
+
+    pub fn take_pending_release(&mut self) -> Option<usize> {
+        if let StackFrame::Input(i) = &mut self.stack {
+            i.take_pending_release()
+        } else {
+            debug_assert!(false);
+            None
+        }
     }
 }

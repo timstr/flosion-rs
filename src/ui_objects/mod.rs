@@ -1,3 +1,4 @@
+pub mod adsr_ui;
 pub mod all_objects;
 pub mod audioclip_ui;
 pub mod dac_ui;

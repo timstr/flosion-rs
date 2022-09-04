@@ -1,9 +1,9 @@
 use crate::ui_core::object_factory::ObjectFactory;
 
 use super::{
-    audioclip_ui::AudioClipUi, dac_ui::DacUi, functions_ui::*, keyboard_ui::KeyboardUi,
-    mixer_ui::MixerUi, recorder_ui::RecorderUi, wavegenerator_ui::WaveGeneratorUi,
-    whitenoise_ui::WhiteNoiseUi,
+    adsr_ui::ADSRUi, audioclip_ui::AudioClipUi, dac_ui::DacUi, functions_ui::*,
+    keyboard_ui::KeyboardUi, mixer_ui::MixerUi, recorder_ui::RecorderUi,
+    wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
 };
 
 pub fn all_objects() -> ObjectFactory {
@@ -17,6 +17,7 @@ pub fn all_objects() -> ObjectFactory {
     all_uis.register_sound_processor::<WhiteNoiseUi>();
     all_uis.register_sound_processor::<AudioClipUi>();
     all_uis.register_sound_processor::<MixerUi>();
+    all_uis.register_sound_processor::<ADSRUi>();
 
     // Pure number sources
     all_uis.register_number_source::<ConstantUi>();

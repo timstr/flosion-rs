@@ -46,8 +46,8 @@ impl SoundProcessor for WaveGenerator {
                 },
             ),
             time: tools.add_processor_time(),
-            amplitude: tools.add_number_input(),
-            frequency: tools.add_number_input(),
+            amplitude: tools.add_number_input(0.0),
+            frequency: tools.add_number_input(250.0),
             input: NoInputs::default(),
         }
     }

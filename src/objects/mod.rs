@@ -1,3 +1,4 @@
+pub mod adsr;
 pub mod audioclip;
 pub mod dac;
 pub mod functions;

@@ -5,6 +5,7 @@ use parking_lot::RwLock;
 use crate::core::soundgrapherror::SoundConnectionError;
 
 use super::{
+    context::Context,
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
         NumberSource, NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle,
@@ -22,7 +23,7 @@ use super::{
     },
     soundgrapherror::{NumberConnectionError, SoundGraphError},
     soundinput::{InputOptions, SoundInputId},
-    soundprocessor::{SoundProcessor, SoundProcessorHandle, SoundProcessorId},
+    soundprocessor::{SoundProcessor, SoundProcessorHandle, SoundProcessorId, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     statetree::{NodeAllocator, ProcessorNodeWrapper},
     uniqueid::IdGenerator,
@@ -30,7 +31,7 @@ use super::{
 
 pub struct StaticProcessorCache {
     processor_id: SoundProcessorId,
-    cached_output: RwLock<Option<SoundChunk>>,
+    cached_output: Arc<RwLock<Option<SoundChunk>>>,
     tree: RwLock<Box<dyn ProcessorNodeWrapper>>,
 }
 
@@ -41,7 +42,7 @@ impl StaticProcessorCache {
     ) -> StaticProcessorCache {
         StaticProcessorCache {
             processor_id,
-            cached_output: RwLock::new(None),
+            cached_output: Arc::new(RwLock::new(None)),
             tree: RwLock::new(tree),
         }
     }
@@ -56,6 +57,26 @@ impl StaticProcessorCache {
 
     pub fn tree(&self) -> &RwLock<Box<dyn ProcessorNodeWrapper>> {
         &self.tree
+    }
+}
+
+struct CachedProcessorNode {
+    id: SoundProcessorId,
+    cache: Arc<RwLock<Option<SoundChunk>>>,
+}
+
+impl ProcessorNodeWrapper for CachedProcessorNode {
+    fn id(&self) -> SoundProcessorId {
+        self.id
+    }
+
+    fn reset(&mut self) {
+        // Nothing to do
+    }
+
+    fn process_audio(&mut self, dst: &mut SoundChunk, _ctx: Context) -> StreamStatus {
+        *dst = self.cache.read().unwrap();
+        StreamStatus::Playing
     }
 }
 
@@ -413,10 +434,14 @@ impl SoundGraphTopology {
         self.number_sources.remove(&source_id).unwrap();
     }
 
-    pub fn add_number_input(&mut self, owner: NumberInputOwner) -> NumberInputHandle {
+    pub fn add_number_input(
+        &mut self,
+        owner: NumberInputOwner,
+        default_value: f32,
+    ) -> NumberInputHandle {
         let id = self.number_input_idgen.next_id();
 
-        let data = EngineNumberInputData::new(id, None, owner);
+        let data = EngineNumberInputData::new(id, None, owner, default_value);
         self.number_inputs.insert(id, data);
 
         match owner {
@@ -529,13 +554,23 @@ impl SoundGraphTopology {
         match input_data.target() {
             Some(proc_id) => {
                 let allocator = NodeAllocator::new(proc_id, self);
-                Some(
-                    self.sound_processors
-                        .get(&proc_id)
-                        .unwrap()
-                        .processor()
-                        .make_node(&allocator),
-                )
+                let proc = self.sound_processors.get(&proc_id).unwrap().processor();
+                if proc.is_static() {
+                    let cache = self
+                        .static_processors
+                        .iter()
+                        .find_map(|p| {
+                            if p.processor_id == proc_id {
+                                Some(Arc::clone(&p.cached_output))
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap();
+                    Some(Box::new(CachedProcessorNode { id: proc_id, cache }))
+                } else {
+                    Some(proc.make_node(&allocator))
+                }
             }
             None => None,
         }

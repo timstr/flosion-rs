@@ -1,6 +1,6 @@
 use std::sync::{
-    atomic::{AtomicBool, AtomicI32, Ordering},
-    mpsc::{channel, Sender},
+    atomic::{AtomicBool, Ordering},
+    mpsc::{sync_channel, SyncSender, TrySendError},
     Arc, Barrier,
 };
 
@@ -20,13 +20,11 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, StreamConfig, StreamError,
 };
-use parking_lot::Mutex;
 
 pub struct DacData {
-    chunk_backlog: AtomicI32,
     stream_end_barrier: Barrier,
     pending_reset: AtomicBool,
-    chunk_sender: Mutex<Sender<SoundChunk>>,
+    chunk_sender: SyncSender<SoundChunk>,
 }
 
 pub struct Dac {
@@ -88,11 +86,10 @@ impl SoundProcessor for Dac {
             config.channels, config.sample_rate.0, config.buffer_size
         );
 
-        let (tx, rx) = channel::<SoundChunk>();
+        let (tx, rx) = sync_channel::<SoundChunk>(0);
 
         let shared_data = Arc::new(DacData {
-            chunk_backlog: AtomicI32::new(0),
-            chunk_sender: Mutex::new(tx),
+            chunk_sender: tx,
             pending_reset: AtomicBool::new(false),
             stream_end_barrier: Barrier::new(2),
         });
@@ -163,19 +160,16 @@ impl SoundProcessor for Dac {
         _dst: &mut SoundChunk,
         ctx: Context,
     ) -> StreamStatus {
-        if state.pending_reset.swap(false, Ordering::SeqCst) {
-            input.flag_for_reset();
+        if input.needs_reset() || state.pending_reset.swap(false, Ordering::SeqCst) {
+            input.reset(0);
         }
         let mut ch = SoundChunk::new();
         input.step(state, &mut ch, &ctx);
 
-        let sender = state.chunk_sender.lock();
-        match sender.send(ch) {
-            Ok(_) => {
-                state.chunk_backlog.fetch_add(1, Ordering::SeqCst);
-            }
-            Err(_) => {
-                println!("Oops! Dac::process_audio failed to send a chunk");
+        if let Err(e) = state.chunk_sender.try_send(ch) {
+            match e {
+                TrySendError::Full(_) => println!("Dac dropped a chunk"),
+                TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
             }
         }
         StreamStatus::StaticNoOutput

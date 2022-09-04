@@ -21,6 +21,37 @@ use super::{
     uniqueid::UniqueId,
 };
 
+fn step_input<T: State>(
+    timing: &mut InputTiming,
+    target: &mut Option<Box<dyn ProcessorNodeWrapper>>,
+    processor_state: &ProcessorState<T>,
+    dst: &mut SoundChunk,
+    ctx: &Context,
+    input_key: AnyData<SoundInputId>,
+    input_state: AnyData<SoundInputId>,
+) -> StreamStatus {
+    debug_assert!(!timing.needs_reset());
+    if timing.is_done() {
+        dst.silence();
+        return StreamStatus::Done;
+    }
+    if let Some(node) = target {
+        let ctx = ctx.push_processor_state(processor_state);
+        let ctx = ctx.push_input(Some(node.id()), input_key, input_state, timing);
+        let status = node.process_audio(dst, ctx);
+        debug_assert!(status != StreamStatus::StaticNoOutput);
+        if status == StreamStatus::Done {
+            debug_assert!(!timing.is_done());
+            timing.mark_as_done();
+        }
+        status
+    } else {
+        timing.mark_as_done();
+        dst.silence();
+        StreamStatus::Done
+    }
+}
+
 pub struct SingleInput {
     id: SoundInputId,
 }
@@ -61,7 +92,11 @@ impl SingleInputNode {
     }
 
     pub fn is_done(&self) -> bool {
-        self.timing.is_done()
+        self.target.is_none() || self.timing.is_done()
+    }
+
+    pub fn request_release(&mut self, sample_offset: usize) {
+        self.timing.request_release(sample_offset);
     }
 
     pub fn step<T: State>(
@@ -70,38 +105,31 @@ impl SingleInputNode {
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
-        if let Some(node) = &mut self.target {
-            if self.timing.needs_reset() {
-                node.reset();
-                self.timing.reset(0); // TODO: how to adjust sample offset?
-            } else if self.timing.is_done() {
-                dst.silence();
-                return StreamStatus::Done;
-            }
-            let dummy = NoState::default();
-            let ctx = ctx.push_processor_state(processor_state);
-            let ctx = ctx.push_input(
-                Some(node.id()),
-                // AnyData::new(self.parent_processor_id, processor_state),
-                AnyData::new(self.id, &dummy),
-                AnyData::new(self.id, &dummy),
-                &self.timing,
-            );
-            let status = node.process_audio(dst, ctx);
-            debug_assert!(status != StreamStatus::StaticNoOutput);
-            if status == StreamStatus::Done {
-                debug_assert!(!self.timing.is_done());
-                self.timing.mark_as_done();
-            }
-            status
-        } else {
-            dst.silence();
-            StreamStatus::Done
-        }
+        let dummy = NoState::default();
+        step_input(
+            &mut self.timing,
+            &mut self.target,
+            processor_state,
+            dst,
+            ctx,
+            AnyData::new(self.id, &dummy),
+            AnyData::new(self.id, &dummy),
+        )
     }
 
-    pub fn flag_for_reset(&mut self) {
+    pub fn needs_reset(&self) -> bool {
+        self.timing.needs_reset()
+    }
+
+    pub fn require_reset(&mut self) {
         self.timing.require_reset();
+    }
+
+    pub fn reset(&mut self, sample_offset: usize) {
+        if let Some(t) = &mut self.target {
+            t.reset();
+        }
+        self.timing.reset(sample_offset);
     }
 }
 
@@ -181,30 +209,29 @@ impl<K: Key, S: State + Default> KeyedInputData<K, S> {
         }
     }
 
+    pub fn is_done(&self) -> bool {
+        self.target.is_none() || self.timing.is_done()
+    }
+
+    pub fn request_release(&mut self, sample_offset: usize) {
+        self.timing.request_release(sample_offset);
+    }
+
     pub fn step<T: State>(
         &mut self,
         processor_state: &ProcessorState<T>,
         dst: &mut SoundChunk,
         ctx: &Context,
-    ) {
-        if let Some(node) = &mut self.target {
-            if self.timing.needs_reset() {
-                self.state.reset();
-                node.reset();
-                self.timing.reset(0); // TODO: how to adjust sample offset?
-            }
-            let ctx = ctx.push_processor_state(processor_state);
-            let ctx = ctx.push_input(
-                Some(node.id()),
-                // AnyData::new(self.parent_processor_id, processor_state),
-                AnyData::new(self.id, &*self.key),
-                AnyData::new(self.id, &self.state),
-                &self.timing,
-            );
-            node.process_audio(dst, ctx);
-        } else {
-            dst.silence();
-        }
+    ) -> StreamStatus {
+        step_input(
+            &mut self.timing,
+            &mut self.target,
+            processor_state,
+            dst,
+            ctx,
+            AnyData::new(self.id, &*self.key),
+            AnyData::new(self.id, &self.state),
+        )
     }
 
     pub fn key(&self) -> &K {
@@ -218,8 +245,20 @@ impl<K: Key, S: State + Default> KeyedInputData<K, S> {
     pub fn state_mut(&mut self) -> &mut S {
         &mut self.state
     }
-    pub fn flag_for_reset(&mut self) {
+
+    pub fn needs_reset(&self) -> bool {
+        self.timing.needs_reset()
+    }
+
+    pub fn require_reset(&mut self) {
         self.timing.require_reset();
+    }
+
+    pub fn reset(&mut self, sample_offset: usize) {
+        if let Some(t) = &mut self.target {
+            t.reset();
+        }
+        self.timing.reset(sample_offset);
     }
 }
 
@@ -342,7 +381,7 @@ pub trait InputNode: Sync + Send {
 
 impl InputNode for SingleInputNode {
     fn flag_for_reset(&mut self) {
-        (self as &mut SingleInputNode).flag_for_reset()
+        self.timing.require_reset();
     }
 }
 
@@ -473,9 +512,11 @@ impl NumberInputNode {
         context.evaluate_number_input(self.id, dst);
     }
 
-    pub fn eval_scalar(&self, dst: &mut f32, context: &Context) {
-        let s = slice::from_mut(dst);
+    pub fn eval_scalar(&self, context: &Context) -> f32 {
+        let mut dst: f32 = 0.0;
+        let s = slice::from_mut(&mut dst);
         context.evaluate_number_input(self.id, s);
+        dst
     }
 }
 

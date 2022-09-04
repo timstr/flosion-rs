@@ -156,11 +156,22 @@ pub struct EngineNumberInputData {
     id: NumberInputId,
     target: Option<NumberSourceId>,
     owner: NumberInputOwner,
+    default_value: f32,
 }
 
 impl EngineNumberInputData {
-    pub fn new(id: NumberInputId, target: Option<NumberSourceId>, owner: NumberInputOwner) -> Self {
-        Self { id, target, owner }
+    pub fn new(
+        id: NumberInputId,
+        target: Option<NumberSourceId>,
+        owner: NumberInputOwner,
+        default_value: f32,
+    ) -> Self {
+        Self {
+            id,
+            target,
+            owner,
+            default_value,
+        }
     }
 
     pub fn id(&self) -> NumberInputId {
@@ -181,6 +192,10 @@ impl EngineNumberInputData {
 
     pub fn describe(&self) -> NumberInputDescription {
         NumberInputDescription::new(self.id, self.target, self.owner)
+    }
+
+    pub fn default_value(&self) -> f32 {
+        self.default_value
     }
 }
 

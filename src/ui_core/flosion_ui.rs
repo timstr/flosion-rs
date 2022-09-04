@@ -1,8 +1,16 @@
-use crate::core::{
-    graphobject::{GraphId, ObjectId},
-    soundgraph::SoundGraph,
+use std::sync::Arc;
+
+use crate::{
+    core::{
+        graphobject::{GraphId, ObjectId},
+        soundgraph::SoundGraph,
+    },
+    objects::{
+        adsr::ADSR, dac::Dac, functions::USin, keyboard::Keyboard, wavegenerator::WaveGenerator,
+    },
 };
 use eframe::{egui, epi};
+use parking_lot::RwLock;
 
 use super::{
     graph_ui_state::{GraphUIState, SelectionChange},
@@ -17,10 +25,36 @@ struct SelectionState {
 
 pub struct FlosionApp {
     graph: SoundGraph,
-    all_object_uis: ObjectFactory,
+    factory: Arc<RwLock<ObjectFactory>>,
     ui_state: GraphUIState,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
+}
+
+fn create_test_sound_graph() -> SoundGraph {
+    let mut sg = SoundGraph::new();
+    let dac = sg.add_sound_processor::<Dac>();
+    let keyboard = sg.add_sound_processor::<Keyboard>();
+    let adsr = sg.add_sound_processor::<ADSR>();
+    let wavegen = sg.add_sound_processor::<WaveGenerator>();
+    sg.connect_sound_input(dac.instance().input.id(), keyboard.id())
+        .unwrap();
+    sg.connect_sound_input(keyboard.instance().input.id(), adsr.id())
+        .unwrap();
+    sg.connect_sound_input(adsr.instance().input.id(), wavegen.id())
+        .unwrap();
+    let usin = sg.add_pure_number_source::<USin>();
+    sg.connect_number_input(wavegen.instance().amplitude.id(), usin.id())
+        .unwrap();
+    sg.connect_number_input(usin.instance().input.id(), wavegen.instance().phase.id())
+        .unwrap();
+    sg.connect_number_input(
+        wavegen.instance().frequency.id(),
+        keyboard.instance().key_frequency.id(),
+    )
+    .unwrap();
+    sg.start();
+    sg
 }
 
 // async fn create_test_sound_graph() -> SoundGraph {
@@ -57,12 +91,14 @@ pub struct FlosionApp {
 impl Default for FlosionApp {
     fn default() -> FlosionApp {
         // let graph = block_on(create_test_sound_graph());
-        let graph = SoundGraph::new();
+        let graph = create_test_sound_graph();
+        // let graph = SoundGraph::new();
         let topo = graph.topology();
+        let factory = Arc::new(RwLock::new(ObjectFactory::new()));
         FlosionApp {
             graph,
-            all_object_uis: ObjectFactory::new(),
-            ui_state: GraphUIState::new(topo),
+            ui_state: GraphUIState::new(topo, Arc::clone(&factory)),
+            factory,
             summon_state: None,
             selection_area: None,
         }
@@ -81,14 +117,17 @@ impl epi::App for FlosionApp {
                 }
             }
             self.ui_state.reset_pegs();
-            for (object_id, object) in self.graph.graph_objects() {
-                self.all_object_uis.ui(
-                    object_id,
-                    object.as_ref(),
-                    object.get_type(),
-                    &mut self.ui_state,
-                    ui,
-                );
+            {
+                let factory = self.factory.read();
+                for (object_id, object) in self.graph.graph_objects() {
+                    factory.ui(
+                        object_id,
+                        object.as_ref(),
+                        object.get_type(),
+                        &mut self.ui_state,
+                        ui,
+                    );
+                }
             }
             for e in &ctx.input().events {
                 if let egui::Event::Key {
@@ -149,7 +188,7 @@ impl epi::App for FlosionApp {
                     Some(_) => None,
                     None => Some(SummonWidgetState::new(
                         pointer_pos.unwrap(),
-                        &self.all_object_uis,
+                        &self.factory.read(),
                     )),
                 };
             } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
@@ -162,7 +201,7 @@ impl epi::App for FlosionApp {
                 if s.ready() {
                     if s.selected_type().is_some() {
                         let (t, args) = s.parse_selected();
-                        let new_object_id = self.all_object_uis.create_from_args(
+                        let new_object_id = self.factory.read().create_from_args(
                             t,
                             &mut self.graph,
                             &mut self.ui_state,

@@ -198,8 +198,8 @@ impl ObjectWindow {
             .get_object_location(self.object_id)
         {
             area = area.current_pos(state.rect.left_top());
-        } else {
-            area = area.current_pos(ctx.input().pointer.interact_pos().unwrap());
+        } else if let Some(pos) = ctx.input().pointer.interact_pos() {
+            area = area.current_pos(pos);
         }
         area = area.movable(true);
         let r = area.show(ctx, |ui| frame.show(ui, |ui| add_contents(ui, graph_tools)));

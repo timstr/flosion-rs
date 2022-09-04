@@ -23,10 +23,18 @@ impl UniqueId for SoundInputId {
 #[derive(Copy, Clone)]
 pub struct InputOptions {
     // Will the input ever be paused or reset by the sound processor?
+    // TODO: rename this, it's misleading
     pub interruptible: bool,
 
     // Will the input's speed of time always be the same as the sound processor's?
     pub realtime: bool,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ReleaseStatus {
+    NotYet,
+    Pending { offset: usize },
+    Released,
 }
 
 #[derive(Clone, Copy)]
@@ -35,6 +43,7 @@ pub struct InputTiming {
     // TODO: add pending sample offset for resetting
     needs_reset: bool,
     is_done: bool,
+    release: ReleaseStatus,
 }
 
 impl InputTiming {
@@ -54,11 +63,41 @@ impl InputTiming {
         self.is_done = true;
     }
 
+    pub fn request_release(&mut self, sample_offset: usize) {
+        debug_assert!(self.release == ReleaseStatus::NotYet);
+        debug_assert!(sample_offset < CHUNK_SIZE);
+        self.release = ReleaseStatus::Pending {
+            offset: sample_offset,
+        };
+    }
+
+    pub fn pending_release(&self) -> Option<usize> {
+        if let ReleaseStatus::Pending { offset } = self.release {
+            Some(offset)
+        } else {
+            None
+        }
+    }
+
+    pub fn take_pending_release(&mut self) -> Option<usize> {
+        if let ReleaseStatus::Pending { offset } = self.release {
+            self.release = ReleaseStatus::Released;
+            Some(offset)
+        } else {
+            None
+        }
+    }
+
+    pub fn was_released(&self) -> bool {
+        self.release == ReleaseStatus::Released
+    }
+
     pub fn reset(&mut self, sample_offset: usize) {
         debug_assert!(sample_offset < CHUNK_SIZE);
         self.sample_offset = sample_offset;
         self.needs_reset = false;
         self.is_done = false;
+        self.release = ReleaseStatus::NotYet;
     }
 
     pub fn sample_offset(&self) -> usize {
@@ -72,6 +111,7 @@ impl Default for InputTiming {
             sample_offset: 0,
             needs_reset: true,
             is_done: false,
+            release: ReleaseStatus::NotYet,
         }
     }
 }

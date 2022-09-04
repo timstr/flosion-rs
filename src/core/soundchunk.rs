@@ -1,5 +1,6 @@
 pub const CHUNK_SIZE: usize = 1024;
 
+#[derive(Clone, Copy)]
 pub struct SoundChunk {
     pub l: [f32; CHUNK_SIZE],
     pub r: [f32; CHUNK_SIZE],
@@ -25,11 +26,5 @@ impl SoundChunk {
     pub fn copy_from(&mut self, other: &SoundChunk) {
         self.l = other.l;
         self.r = other.r;
-    }
-}
-
-impl Clone for SoundChunk {
-    fn clone(&self) -> SoundChunk {
-        SoundChunk { l: self.l.clone(), r: self.r.clone() }
     }
 }

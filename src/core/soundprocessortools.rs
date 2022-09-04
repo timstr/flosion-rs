@@ -58,9 +58,11 @@ impl<'a> SoundProcessorTools<'a> {
             .add_state_number_source(source, NumberSourceOwner::SoundInput(input_id))
     }
 
-    pub fn add_number_input(&mut self) -> NumberInputHandle {
-        self.topology
-            .add_number_input(NumberInputOwner::SoundProcessor(self.processor_id))
+    pub fn add_number_input(&mut self, default_value: f32) -> NumberInputHandle {
+        self.topology.add_number_input(
+            NumberInputOwner::SoundProcessor(self.processor_id),
+            default_value,
+        )
     }
 
     pub fn add_processor_time(&mut self) -> StateNumberSourceHandle {

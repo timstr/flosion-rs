@@ -21,6 +21,8 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
+use super::object_factory::ObjectFactory;
+
 pub struct LayoutState {
     pub rect: egui::Rect,
     pub layer: egui::LayerId,
@@ -238,10 +240,14 @@ pub struct GraphUIState {
     peg_hotkeys: PegHotKeys,
     selection: HashSet<ObjectId>,
     graph_topology: Arc<RwLock<SoundGraphTopology>>,
+    object_factory: Arc<RwLock<ObjectFactory>>,
 }
 
 impl GraphUIState {
-    pub(super) fn new(topology: Arc<RwLock<SoundGraphTopology>>) -> GraphUIState {
+    pub(super) fn new(
+        topology: Arc<RwLock<SoundGraphTopology>>,
+        object_factory: Arc<RwLock<ObjectFactory>>,
+    ) -> GraphUIState {
         GraphUIState {
             layout_state: GraphLayout::new(),
             object_states: HashMap::new(),
@@ -252,6 +258,7 @@ impl GraphUIState {
             pending_changes: Vec::new(),
             selection: HashSet::new(),
             graph_topology: topology,
+            object_factory,
         }
     }
 
@@ -273,7 +280,30 @@ impl GraphUIState {
     }
 
     pub fn get_object_state(&mut self, id: ObjectId) -> Rc<RefCell<dyn ObjectUiState>> {
-        Rc::clone(&self.object_states.get(&id).unwrap())
+        let topo = &self.graph_topology;
+        let factory = &self.object_factory;
+        let state = self.object_states.entry(id).or_insert_with(|| {
+            let topo = topo.read();
+            let object_type = match id {
+                ObjectId::Sound(spid) => topo
+                    .sound_processors()
+                    .get(&spid)
+                    .unwrap()
+                    .processor_arc()
+                    .as_graph_object(spid)
+                    .get_type(),
+                ObjectId::Number(nsid) => topo
+                    .number_sources()
+                    .get(&nsid)
+                    .unwrap()
+                    .instance_arc()
+                    .as_graph_object(nsid)
+                    .unwrap()
+                    .get_type(),
+            };
+            factory.read().make_default_ui_state_for(&object_type)
+        });
+        Rc::clone(&state)
     }
 
     pub fn make_change<F: FnOnce(&mut SoundGraph) -> () + 'static>(&mut self, f: F) {
