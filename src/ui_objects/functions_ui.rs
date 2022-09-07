@@ -96,6 +96,15 @@ impl ObjectUi for ConstantUi {
         }
     }
 
+    fn make_default_ui_state(&self, object: &PureNumberSourceHandle<Constant>) -> Self::StateType {
+        let v = object.instance().get_value();
+        ConstantUiState {
+            min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
+            max_value: 2.0 * v.abs(),
+            name: "Constant".to_string(),
+        }
+    }
+
     fn serialize_object(&self, object: &Self::WrapperType, serializer: &mut Serializer) {
         serializer.f32(object.instance().get_value());
     }

@@ -45,8 +45,6 @@ struct ObjectData {
             ObjectInitialization,
         ) -> ObjectId,
     >,
-
-    make_ui_state: Box<dyn Fn() -> Rc<RefCell<dyn ObjectUiState>>>,
 }
 
 pub struct ObjectFactory {
@@ -99,14 +97,11 @@ impl ObjectFactory {
             }
             ObjectId::Sound(h.id())
         };
-        let make_ui_state =
-            || -> Rc<RefCell<dyn ObjectUiState>> { Rc::new(RefCell::new(T::StateType::default())) };
         self.mapping.insert(
             <T::WrapperType as TypedGraphObject>::Type::TYPE,
             ObjectData {
                 ui: Box::new(T::default()),
                 create: Box::new(create),
-                make_ui_state: Box::new(make_ui_state),
             },
         );
     }
@@ -137,14 +132,11 @@ impl ObjectFactory {
             }
             ObjectId::Number(h.id())
         };
-        let make_ui_state =
-            || -> Rc<RefCell<dyn ObjectUiState>> { Rc::new(RefCell::new(T::StateType::default())) };
         self.mapping.insert(
             <T::WrapperType as TypedGraphObject>::Type::TYPE,
             ObjectData {
                 ui: Box::new(T::default()),
                 create: Box::new(create),
-                make_ui_state: Box::new(make_ui_state),
             },
         );
     }
@@ -227,13 +219,14 @@ impl ObjectFactory {
 
     pub fn make_default_ui_state_for(
         &self,
-        object_type: &ObjectType,
+        object: &dyn GraphObject,
     ) -> Rc<RefCell<dyn ObjectUiState>> {
-        match self.mapping.get(&object_type) {
-            Some(data) => (*data.make_ui_state)(),
+        let t = object.get_type();
+        match self.mapping.get(&t) {
+            Some(data) => data.ui.make_default_ui_state(object),
             None => panic!(
                 "Tried to create ui state for an object of unrecognized type \"{}\"",
-                object_type.name()
+                t.name()
             ),
         }
     }

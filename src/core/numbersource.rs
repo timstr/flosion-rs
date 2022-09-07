@@ -109,6 +109,7 @@ impl<T: PureNumberSource> NumberSource for T {
     }
 }
 
+// TODO: consider implementing Deref<Target=T>
 pub struct PureNumberSourceHandle<T: PureNumberSource> {
     id: NumberSourceId,
     instance: Arc<T>,

@@ -6,7 +6,11 @@ use crate::{
         soundgraph::SoundGraph,
     },
     objects::{
-        adsr::ADSR, dac::Dac, functions::USin, keyboard::Keyboard, wavegenerator::WaveGenerator,
+        adsr::ADSR,
+        dac::Dac,
+        functions::{Constant, Divide, Exp, Fract, Multiply, Negate, USin},
+        keyboard::Keyboard,
+        wavegenerator::WaveGenerator,
     },
 };
 use eframe::{egui, epi};
@@ -44,15 +48,82 @@ fn create_test_sound_graph() -> SoundGraph {
     sg.connect_sound_input(adsr.instance().input.id(), wavegen.id())
         .unwrap();
     let usin = sg.add_pure_number_source::<USin>();
+    let const_rate = sg.add_pure_number_source::<Constant>();
+    let mul_time1 = sg.add_pure_number_source::<Multiply>();
+    let mul_time2 = sg.add_pure_number_source::<Multiply>();
+    let fract = sg.add_pure_number_source::<Fract>();
+    let const_slope = sg.add_pure_number_source::<Constant>();
+    let mul_fract = sg.add_pure_number_source::<Multiply>();
+    let neg = sg.add_pure_number_source::<Negate>();
+    let exp = sg.add_pure_number_source::<Exp>();
+    let mul_freq1 = sg.add_pure_number_source::<Multiply>();
+    let mul_freq2 = sg.add_pure_number_source::<Multiply>();
+    let const_peak_freq = sg.add_pure_number_source::<Constant>();
+    let const_base_freq = sg.add_pure_number_source::<Constant>();
+    let div_freq = sg.add_pure_number_source::<Divide>();
+    let const_attack_time = sg.add_pure_number_source::<Constant>();
+    let const_decay_time = sg.add_pure_number_source::<Constant>();
+    let const_sustain_level = sg.add_pure_number_source::<Constant>();
+    let const_release_time = sg.add_pure_number_source::<Constant>();
     sg.connect_number_input(wavegen.instance().amplitude.id(), usin.id())
         .unwrap();
     sg.connect_number_input(usin.instance().input.id(), wavegen.instance().phase.id())
         .unwrap();
+
     sg.connect_number_input(
-        wavegen.instance().frequency.id(),
+        mul_time1.instance().input_1.id(),
+        wavegen.instance().time.id(),
+    )
+    .unwrap();
+    sg.connect_number_input(mul_time1.instance().input_2.id(), div_freq.id())
+        .unwrap();
+    sg.connect_number_input(mul_time2.instance().input_1.id(), const_rate.id())
+        .unwrap();
+    sg.connect_number_input(mul_time2.instance().input_2.id(), mul_time1.id())
+        .unwrap();
+    sg.connect_number_input(fract.instance().input.id(), mul_time2.id())
+        .unwrap();
+    sg.connect_number_input(mul_fract.instance().input_1.id(), fract.id())
+        .unwrap();
+    sg.connect_number_input(mul_fract.instance().input_2.id(), const_slope.id())
+        .unwrap();
+    sg.connect_number_input(neg.instance().input.id(), mul_fract.id())
+        .unwrap();
+    sg.connect_number_input(exp.instance().input.id(), neg.id())
+        .unwrap();
+    sg.connect_number_input(mul_freq1.instance().input_1.id(), const_peak_freq.id())
+        .unwrap();
+    sg.connect_number_input(mul_freq1.instance().input_2.id(), exp.id())
+        .unwrap();
+    sg.connect_number_input(
+        div_freq.instance().input_1.id(),
         keyboard.instance().key_frequency.id(),
     )
     .unwrap();
+    sg.connect_number_input(div_freq.instance().input_2.id(), const_base_freq.id())
+        .unwrap();
+    sg.connect_number_input(mul_freq2.instance().input_1.id(), mul_freq1.id())
+        .unwrap();
+    sg.connect_number_input(mul_freq2.instance().input_2.id(), div_freq.id())
+        .unwrap();
+    sg.connect_number_input(wavegen.instance().frequency.id(), mul_freq2.id())
+        .unwrap();
+    sg.connect_number_input(adsr.instance().attack_time.id(), const_attack_time.id())
+        .unwrap();
+    sg.connect_number_input(adsr.instance().decay_time.id(), const_decay_time.id())
+        .unwrap();
+    sg.connect_number_input(adsr.instance().sustain_level.id(), const_sustain_level.id())
+        .unwrap();
+    sg.connect_number_input(adsr.instance().release_time.id(), const_release_time.id())
+        .unwrap();
+    const_attack_time.instance().set_value(0.01);
+    const_decay_time.instance().set_value(0.05);
+    const_sustain_level.instance().set_value(0.6);
+    const_release_time.instance().set_value(0.25);
+    const_base_freq.instance().set_value(250.0);
+    const_peak_freq.instance().set_value(500.0);
+    const_rate.instance().set_value(100.0);
+    const_slope.instance().set_value(7.5);
     sg.start();
     sg
 }

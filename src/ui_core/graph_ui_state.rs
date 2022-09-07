@@ -284,24 +284,22 @@ impl GraphUIState {
         let factory = &self.object_factory;
         let state = self.object_states.entry(id).or_insert_with(|| {
             let topo = topo.read();
-            let object_type = match id {
+            let object = match id {
                 ObjectId::Sound(spid) => topo
                     .sound_processors()
                     .get(&spid)
                     .unwrap()
                     .processor_arc()
-                    .as_graph_object(spid)
-                    .get_type(),
+                    .as_graph_object(spid),
                 ObjectId::Number(nsid) => topo
                     .number_sources()
                     .get(&nsid)
                     .unwrap()
                     .instance_arc()
                     .as_graph_object(nsid)
-                    .unwrap()
-                    .get_type(),
+                    .unwrap(),
             };
-            factory.read().make_default_ui_state_for(&object_type)
+            factory.read().make_default_ui_state_for(&*object)
         });
         Rc::clone(&state)
     }

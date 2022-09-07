@@ -62,6 +62,10 @@ pub trait ObjectUi: 'static + Default {
     fn make_ui_state(&self, _args: &ParsedArguments) -> Self::StateType {
         Self::StateType::default()
     }
+
+    fn make_default_ui_state(&self, _object: &Self::WrapperType) -> Self::StateType {
+        Self::StateType::default()
+    }
 }
 
 pub trait AnyObjectUi {
@@ -85,6 +89,8 @@ pub trait AnyObjectUi {
     fn serialize_object(&self, object: &dyn GraphObject, serializer: &mut Serializer);
 
     fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>>;
+
+    fn make_default_ui_state(&self, object: &dyn GraphObject) -> Rc<RefCell<dyn ObjectUiState>>;
 }
 
 fn downcast_object<T: ObjectUi>(object: &dyn GraphObject) -> &T::WrapperType {
@@ -142,6 +148,11 @@ impl<T: ObjectUi> AnyObjectUi for T {
 
     fn arguments(&self) -> ArgumentList {
         self.arguments()
+    }
+
+    fn make_default_ui_state(&self, object: &dyn GraphObject) -> Rc<RefCell<dyn ObjectUiState>> {
+        let state = self.make_default_ui_state(downcast_object::<T>(object));
+        Rc::new(RefCell::new(state))
     }
 }
 

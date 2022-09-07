@@ -87,6 +87,7 @@ impl<T: SoundProcessor> SoundProcessorWrapper for T {
     }
 }
 
+// TODO: consider implementing Deref<Target=T>
 pub struct SoundProcessorHandle<T: SoundProcessor> {
     id: SoundProcessorId,
     instance: Arc<T>,
