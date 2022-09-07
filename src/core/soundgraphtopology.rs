@@ -149,6 +149,40 @@ impl SoundGraphTopology {
     }
 
     pub fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
+        debug_assert!(self.describe().find_error().is_none());
+
+        // disconnect all number inputs from the sound processor
+        let mut number_inputs_to_disconnect: Vec<NumberInputId> = Vec::new();
+        for (input_id, input_data) in self.number_inputs.iter() {
+            // if this number input belongs to the sound processor, disconnect it
+            if let NumberInputOwner::SoundProcessor(spid) = input_data.owner() {
+                if spid == processor_id {
+                    number_inputs_to_disconnect.push(*input_id);
+                }
+            }
+            // if this number input is connected to a number source belonging to
+            // the sound processor, remove it
+            if let Some(target) = input_data.target() {
+                let target_data = self.number_sources.get(&target).unwrap();
+                match target_data.owner() {
+                    NumberSourceOwner::SoundProcessor(spid) => {
+                        if spid == processor_id {
+                            number_inputs_to_disconnect.push(*input_id);
+                        }
+                    }
+                    NumberSourceOwner::SoundInput(siid) => {
+                        if self.sound_inputs.get(&siid).unwrap().owner() == processor_id {
+                            number_inputs_to_disconnect.push(*input_id);
+                        }
+                    }
+                    NumberSourceOwner::Nothing => (),
+                }
+            }
+        }
+        for input_id in number_inputs_to_disconnect {
+            self.disconnect_number_input_impl(input_id).unwrap();
+        }
+
         // disconnect all sound inputs from the processor
         let mut sound_inputs_to_disconnect: Vec<SoundInputId> = Vec::new();
         for (input_id, input_data) in self.sound_inputs.iter() {
@@ -178,30 +212,6 @@ impl SoundGraphTopology {
             self.remove_sound_input_impl(input_id);
         }
 
-        // disconnect all number inputs from the sound processor
-        let mut number_inputs_to_disconnect: Vec<NumberInputId> = Vec::new();
-        for (input_id, input_data) in self.number_inputs.iter() {
-            // if this number input belongs to the sound processor, disconnect it
-            if let NumberInputOwner::SoundProcessor(spid) = input_data.owner() {
-                if spid == processor_id {
-                    number_inputs_to_disconnect.push(*input_id);
-                }
-            }
-            // if this number input is connected to a number source belonging to
-            // the sound processor, remove it
-            if let Some(target) = input_data.target() {
-                let target_data = self.number_sources.get(&target).unwrap();
-                if let NumberSourceOwner::SoundProcessor(spid) = target_data.owner() {
-                    if spid == processor_id {
-                        number_inputs_to_disconnect.push(*input_id);
-                    }
-                }
-            }
-        }
-        for input_id in number_inputs_to_disconnect {
-            self.disconnect_number_input(input_id).unwrap();
-        }
-
         {
             // remove all number inputs belonging to the processor
             for input_id in self
@@ -228,6 +238,10 @@ impl SoundGraphTopology {
         self.sound_processors.remove(&processor_id).unwrap();
 
         self.update_static_processor_cache();
+
+        debug_assert!(self.describe().find_error().is_none());
+
+        // TODO: Disconnect number sources relying on state which has just gone out of scope"
     }
 
     pub fn add_sound_input(
@@ -315,15 +329,6 @@ impl SoundGraphTopology {
         &mut self,
         input_id: SoundInputId,
     ) -> Result<(), SoundGraphError> {
-        let res = self.disconnect_sound_input_impl(input_id);
-        self.update_static_processor_cache();
-        res
-    }
-
-    fn disconnect_sound_input_impl(
-        &mut self,
-        input_id: SoundInputId,
-    ) -> Result<(), SoundGraphError> {
         let mut desc = self.describe();
         debug_assert!(desc.find_error().is_none());
 
@@ -334,15 +339,22 @@ impl SoundGraphTopology {
         if let Some(err) = desc.find_error() {
             return Err(err.into());
         }
+        let res = self.disconnect_sound_input_impl(input_id);
+        self.update_static_processor_cache();
+        debug_assert!(self.describe().find_error().is_none());
+        res
+    }
 
+    fn disconnect_sound_input_impl(
+        &mut self,
+        input_id: SoundInputId,
+    ) -> Result<(), SoundGraphError> {
         let input_data = self.sound_inputs.get_mut(&input_id);
         if input_data.is_none() {
             return Err(SoundConnectionError::InputNotFound(input_id).into());
         }
         let input_data = input_data.unwrap();
         input_data.set_target(None);
-
-        debug_assert!(self.describe().find_error().is_none());
 
         Ok(())
     }
@@ -432,6 +444,8 @@ impl SoundGraphTopology {
 
         // remove the number source
         self.number_sources.remove(&source_id).unwrap();
+
+        debug_assert!(self.describe().find_error().is_none());
     }
 
     pub fn add_number_input(
@@ -482,6 +496,8 @@ impl SoundGraphTopology {
         }
 
         self.number_inputs.remove(&id);
+
+        debug_assert!(self.describe().find_error().is_none());
     }
 
     pub fn connect_number_input(
@@ -518,6 +534,8 @@ impl SoundGraphTopology {
 
         input_data.set_target(Some(source_id));
 
+        debug_assert!(self.describe().find_error().is_none());
+
         Ok(())
     }
 
@@ -536,6 +554,17 @@ impl SoundGraphTopology {
             return Err(err.into_number().unwrap());
         }
 
+        let res = self.disconnect_number_input_impl(input_id);
+
+        debug_assert!(self.describe().find_error().is_none());
+
+        res
+    }
+
+    fn disconnect_number_input_impl(
+        &mut self,
+        input_id: NumberInputId,
+    ) -> Result<(), NumberConnectionError> {
         let input_data = match self.number_inputs.get_mut(&input_id) {
             Some(i) => i,
             None => return Err(NumberConnectionError::InputNotFound(input_id)),
