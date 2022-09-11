@@ -4,16 +4,20 @@ use crate::{
     core::{
         graphobject::{GraphId, ObjectId},
         soundgraph::SoundGraph,
+        soundgraphdescription::SoundGraphDescription,
     },
     objects::{
         adsr::ADSR,
         dac::Dac,
-        functions::{Constant, Divide, Exp, Fract, Multiply, Negate, USin},
+        functions::{Constant, Divide, Exp, Fract, Multiply, Negate, Pow, USin},
         keyboard::Keyboard,
         wavegenerator::WaveGenerator,
     },
 };
-use eframe::{egui, epi};
+use eframe::{
+    egui::{self, CtxRef, Response, Ui},
+    epi,
+};
 use parking_lot::RwLock;
 
 use super::{
@@ -61,13 +65,19 @@ fn create_test_sound_graph() -> SoundGraph {
     let const_peak_freq = sg.add_pure_number_source::<Constant>();
     let const_base_freq = sg.add_pure_number_source::<Constant>();
     let div_freq = sg.add_pure_number_source::<Divide>();
+    let pow = sg.add_pure_number_source::<Pow>();
     let const_attack_time = sg.add_pure_number_source::<Constant>();
     let const_decay_time = sg.add_pure_number_source::<Constant>();
     let const_sustain_level = sg.add_pure_number_source::<Constant>();
     let const_release_time = sg.add_pure_number_source::<Constant>();
-    sg.connect_number_input(wavegen.instance().amplitude.id(), usin.id())
+    let const_exponent = sg.add_pure_number_source::<Constant>();
+    sg.connect_number_input(wavegen.instance().amplitude.id(), pow.id())
         .unwrap();
     sg.connect_number_input(usin.instance().input.id(), wavegen.instance().phase.id())
+        .unwrap();
+    sg.connect_number_input(pow.instance().input_1.id(), usin.id())
+        .unwrap();
+    sg.connect_number_input(pow.instance().input_2.id(), const_exponent.id())
         .unwrap();
 
     sg.connect_number_input(
@@ -124,6 +134,7 @@ fn create_test_sound_graph() -> SoundGraph {
     const_peak_freq.instance().set_value(500.0);
     const_rate.instance().set_value(100.0);
     const_slope.instance().set_value(7.5);
+    const_exponent.instance().set_value(8.0);
     sg.start();
     sg
 }
@@ -176,6 +187,284 @@ impl Default for FlosionApp {
     }
 }
 
+impl FlosionApp {
+    fn draw_all_objects(&mut self, ui: &mut Ui) {
+        {
+            let factory = self.factory.read();
+            for (object_id, object) in self.graph.graph_objects() {
+                factory.ui(
+                    object_id,
+                    object.as_ref(),
+                    object.get_type(),
+                    &mut self.ui_state,
+                    ui,
+                );
+            }
+        }
+    }
+
+    fn handle_hotkeys(&mut self, ctx: &CtxRef) {
+        for e in &ctx.input().events {
+            if let egui::Event::Key {
+                key,
+                pressed,
+                modifiers,
+            } = e
+            {
+                if !pressed {
+                    continue;
+                }
+                if *key == egui::Key::Escape {
+                    self.ui_state.cancel_hotkey(&self.graph);
+                }
+                if modifiers.any() {
+                    continue;
+                }
+                self.ui_state.activate_hotkey(*key, &mut self.graph);
+            }
+        }
+    }
+
+    fn handle_drag_objects(&mut self, ui: &mut Ui, bg_response: &Response) {
+        let pointer_pos = bg_response.interact_pointer_pos();
+        if bg_response.drag_started() {
+            self.selection_area = Some(SelectionState {
+                start_location: pointer_pos.unwrap(),
+                end_location: pointer_pos.unwrap(),
+            });
+        }
+        if bg_response.dragged() {
+            if let Some(selection_area) = &mut self.selection_area {
+                selection_area.end_location = pointer_pos.unwrap();
+            }
+        }
+        if bg_response.drag_released() {
+            if let Some(selection_area) = self.selection_area.take() {
+                let change = if ui.input().modifiers.alt {
+                    SelectionChange::Subtract
+                } else if ui.input().modifiers.shift {
+                    SelectionChange::Add
+                } else {
+                    SelectionChange::Replace
+                };
+                self.ui_state.select_with_rect(
+                    egui::Rect::from_two_pos(
+                        selection_area.start_location,
+                        selection_area.end_location,
+                    ),
+                    change,
+                );
+            }
+        }
+    }
+
+    fn handle_summon_widget(&mut self, ui: &mut Ui, bg_response: &Response) {
+        let pointer_pos = bg_response.interact_pointer_pos();
+        if bg_response.double_clicked() {
+            self.summon_state = match self.summon_state {
+                Some(_) => None,
+                None => Some(SummonWidgetState::new(
+                    pointer_pos.unwrap(),
+                    &self.factory.read(),
+                )),
+            };
+        } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
+            self.summon_state = None;
+        }
+        if let Some(summon_state) = self.summon_state.as_mut() {
+            ui.add(SummonWidget::new(summon_state));
+        }
+        if let Some(s) = &self.summon_state {
+            if s.ready() {
+                if s.selected_type().is_some() {
+                    let (t, args) = s.parse_selected();
+                    let new_object_id = self.factory.read().create_from_args(
+                        t,
+                        &mut self.graph,
+                        &mut self.ui_state,
+                        &args,
+                    );
+                    self.ui_state.clear_selection();
+                    self.ui_state.select_object(new_object_id);
+                }
+                self.summon_state = None;
+            }
+        }
+    }
+
+    fn handle_dropped_pegs(&mut self, ui: &mut Ui, desc: &SoundGraphDescription) {
+        if self.ui_state.peg_was_dropped() {
+            let id_src = self.ui_state.dropped_peg_id().unwrap();
+            let p = self.ui_state.drop_location().unwrap();
+            let id_dst = self.ui_state.layout_state().find_peg_near(p, ui);
+            match id_src {
+                GraphId::NumberInput(niid) => {
+                    if desc.number_inputs().get(&niid).unwrap().target().is_some() {
+                        self.graph
+                            .disconnect_number_input(niid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                    }
+                    if let Some(GraphId::NumberSource(nsid)) = id_dst {
+                        self.graph
+                            .connect_number_input(niid, nsid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                    }
+                }
+                GraphId::NumberSource(nsid) => {
+                    if let Some(GraphId::NumberInput(niid)) = id_dst {
+                        self.graph
+                            .connect_number_input(niid, nsid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                    }
+                }
+                GraphId::SoundInput(siid) => {
+                    if desc.sound_inputs().get(&siid).unwrap().target().is_some() {
+                        self.graph.disconnect_sound_input(siid).unwrap();
+                    }
+                    if let Some(GraphId::SoundProcessor(spid)) = id_dst {
+                        self.graph
+                            .connect_sound_input(siid, spid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                    }
+                }
+                GraphId::SoundProcessor(spid) => {
+                    if let Some(GraphId::SoundInput(siid)) = id_dst {
+                        self.graph
+                            .connect_sound_input(siid, spid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                    }
+                }
+            }
+        }
+    }
+
+    fn draw_selection_rect(&mut self, ui: &mut Ui) {
+        if let Some(selection_area) = &self.selection_area {
+            ui.with_layer_id(
+                egui::LayerId::new(egui::Order::Background, egui::Id::new("selection")),
+                |ui| {
+                    let painter = ui.painter();
+                    painter.rect(
+                        egui::Rect::from_two_pos(
+                            selection_area.start_location,
+                            selection_area.end_location,
+                        ),
+                        0.0,
+                        egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
+                        egui::Stroke::new(
+                            2.0,
+                            egui::Color32::from_rgba_unmultiplied(255, 255, 0, 64),
+                        ),
+                    )
+                },
+            );
+        }
+    }
+
+    fn draw_wires(&mut self, ui: &mut Ui, desc: &SoundGraphDescription) {
+        // TODO: consider choosing which layer to paint the wire on, rather
+        // than always painting the wire on top. However, choosing the layer
+        // won't always be correct (an object might be positioned on top of
+        // the peg it's connected to) and requires access to egui things
+        // (e.g. memory().areas) which aren't yet exposed.
+        // On the other hand, is there any correct way to paint wires between
+        // two connected objects that are directly on top of one another?
+        ui.with_layer_id(
+            egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
+            |ui| {
+                let painter = ui.painter();
+                let drag_peg = self.ui_state.peg_being_dragged();
+                for (siid, si) in desc.sound_inputs() {
+                    if let Some(spid) = si.target() {
+                        let layout = self.ui_state.layout_state();
+                        let si_state = layout.sound_inputs().get(siid).unwrap();
+                        let sp_state = layout.sound_outputs().get(&spid).unwrap();
+                        let faint = drag_peg == Some(GraphId::SoundInput(*siid));
+                        painter.line_segment(
+                            [si_state.center(), sp_state.center()],
+                            egui::Stroke::new(
+                                2.0,
+                                egui::Color32::from_rgba_unmultiplied(
+                                    0,
+                                    255,
+                                    0,
+                                    if faint { 64 } else { 255 },
+                                ),
+                            ),
+                        );
+                    }
+                }
+                for (niid, ni) in desc.number_inputs() {
+                    if let Some(nsid) = ni.target() {
+                        let layout = self.ui_state.layout_state();
+                        let ni_state = layout.number_inputs().get(niid).unwrap();
+                        let ns_state = layout.number_outputs().get(&nsid).unwrap();
+                        let faint = drag_peg == Some(GraphId::NumberInput(*niid));
+                        painter.line_segment(
+                            [ni_state.center(), ns_state.center()],
+                            egui::Stroke::new(
+                                2.0,
+                                egui::Color32::from_rgba_unmultiplied(
+                                    0,
+                                    0,
+                                    255,
+                                    if faint { 64 } else { 255 },
+                                ),
+                            ),
+                        );
+                    }
+                }
+                if let Some(gid) = self.ui_state.peg_being_dragged() {
+                    let cursor_pos = ui.input().pointer.interact_pos().unwrap();
+                    let layout = self.ui_state.layout_state();
+                    let other_pos;
+                    let color;
+                    // TODO: there's a bug in here somewhere, dragging from a input or output
+                    // causes the wire to be dragged from the wrong place
+                    match gid {
+                        GraphId::NumberInput(niid) => {
+                            other_pos = layout.number_inputs().get(&niid).unwrap().center();
+                            color = egui::Color32::from_rgb(0, 0, 255);
+                        }
+                        GraphId::NumberSource(nsid) => {
+                            other_pos = layout.number_outputs().get(&nsid).unwrap().center();
+                            color = egui::Color32::from_rgb(0, 0, 255);
+                        }
+                        GraphId::SoundInput(siid) => {
+                            other_pos = layout.sound_inputs().get(&siid).unwrap().center();
+                            color = egui::Color32::from_rgb(0, 255, 0);
+                        }
+                        GraphId::SoundProcessor(spid) => {
+                            other_pos = layout.sound_outputs().get(&spid).unwrap().center();
+                            color = egui::Color32::from_rgb(0, 255, 0);
+                        }
+                    }
+                    painter.line_segment([cursor_pos, other_pos], egui::Stroke::new(2.0, color));
+                }
+            },
+        );
+    }
+
+    fn handle_delete_objects(&mut self, ui: &mut Ui) {
+        if self.summon_state.is_none() && ui.input().key_pressed(egui::Key::Delete) {
+            let selection = self.ui_state.selection().clone();
+            for id in selection {
+                match id {
+                    ObjectId::Sound(id) => {
+                        self.ui_state
+                            .make_change(move |g| g.remove_sound_processor(id));
+                    }
+                    ObjectId::Number(id) => {
+                        self.ui_state
+                            .make_change(move |g| g.remove_number_source(id));
+                    }
+                }
+            }
+            self.ui_state.forget_selection();
+        }
+    }
+}
+
 impl epi::App for FlosionApp {
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -188,266 +477,25 @@ impl epi::App for FlosionApp {
                 }
             }
             self.ui_state.reset_pegs();
-            {
-                let factory = self.factory.read();
-                for (object_id, object) in self.graph.graph_objects() {
-                    factory.ui(
-                        object_id,
-                        object.as_ref(),
-                        object.get_type(),
-                        &mut self.ui_state,
-                        ui,
-                    );
-                }
-            }
-            for e in &ctx.input().events {
-                if let egui::Event::Key {
-                    key,
-                    pressed,
-                    modifiers,
-                } = e
-                {
-                    if !pressed {
-                        continue;
-                    }
-                    if *key == egui::Key::Escape {
-                        self.ui_state.cancel_hotkey(&self.graph);
-                    }
-                    if modifiers.any() {
-                        continue;
-                    }
-                    self.ui_state.activate_hotkey(*key, &mut self.graph);
-                }
-            }
+            self.draw_all_objects(ui);
+            self.handle_hotkeys(ctx);
             let bg_response = ui.interact(
                 ui.input().screen_rect(),
                 egui::Id::new("background"),
                 egui::Sense::click_and_drag(),
             );
-            let pointer_pos = bg_response.interact_pointer_pos();
-            if bg_response.drag_started() {
-                self.selection_area = Some(SelectionState {
-                    start_location: pointer_pos.unwrap(),
-                    end_location: pointer_pos.unwrap(),
-                });
-            }
-            if bg_response.dragged() {
-                if let Some(selection_area) = &mut self.selection_area {
-                    selection_area.end_location = pointer_pos.unwrap();
-                }
-            }
-            if bg_response.drag_released() {
-                if let Some(selection_area) = self.selection_area.take() {
-                    let change = if ui.input().modifiers.alt {
-                        SelectionChange::Subtract
-                    } else if ui.input().modifiers.shift {
-                        SelectionChange::Add
-                    } else {
-                        SelectionChange::Replace
-                    };
-                    self.ui_state.select_with_rect(
-                        egui::Rect::from_two_pos(
-                            selection_area.start_location,
-                            selection_area.end_location,
-                        ),
-                        change,
-                    );
-                }
-            }
-            if bg_response.double_clicked() {
-                self.summon_state = match self.summon_state {
-                    Some(_) => None,
-                    None => Some(SummonWidgetState::new(
-                        pointer_pos.unwrap(),
-                        &self.factory.read(),
-                    )),
-                };
-            } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
-                self.summon_state = None;
-            }
-            if let Some(summon_state) = self.summon_state.as_mut() {
-                ui.add(SummonWidget::new(summon_state));
-            }
-            if let Some(s) = &self.summon_state {
-                if s.ready() {
-                    if s.selected_type().is_some() {
-                        let (t, args) = s.parse_selected();
-                        let new_object_id = self.factory.read().create_from_args(
-                            t,
-                            &mut self.graph,
-                            &mut self.ui_state,
-                            &args,
-                        );
-                        self.ui_state.clear_selection();
-                        self.ui_state.select_object(new_object_id);
-                    }
-                    self.summon_state = None;
-                }
-            }
-
+            self.handle_drag_objects(ui, &bg_response);
+            self.handle_summon_widget(ui, &bg_response);
             let desc = self.graph.describe();
-            if self.ui_state.peg_was_dropped() {
-                let id_src = self.ui_state.dropped_peg_id().unwrap();
-                let p = self.ui_state.drop_location().unwrap();
-                let id_dst = self.ui_state.layout_state().find_peg_near(p, ui);
-                match id_src {
-                    GraphId::NumberInput(niid) => {
-                        if desc.number_inputs().get(&niid).unwrap().target().is_some() {
-                            self.graph
-                                .disconnect_number_input(niid)
-                                .unwrap_or_else(|e| println!("Error: {:?}", e));
-                        }
-                        if let Some(GraphId::NumberSource(nsid)) = id_dst {
-                            self.graph
-                                .connect_number_input(niid, nsid)
-                                .unwrap_or_else(|e| println!("Error: {:?}", e));
-                        }
-                    }
-                    GraphId::NumberSource(nsid) => {
-                        if let Some(GraphId::NumberInput(niid)) = id_dst {
-                            self.graph
-                                .connect_number_input(niid, nsid)
-                                .unwrap_or_else(|e| println!("Error: {:?}", e));
-                        }
-                    }
-                    GraphId::SoundInput(siid) => {
-                        if desc.sound_inputs().get(&siid).unwrap().target().is_some() {
-                            self.graph.disconnect_sound_input(siid).unwrap();
-                        }
-                        if let Some(GraphId::SoundProcessor(spid)) = id_dst {
-                            self.graph
-                                .connect_sound_input(siid, spid)
-                                .unwrap_or_else(|e| println!("Error: {:?}", e));
-                        }
-                    }
-                    GraphId::SoundProcessor(spid) => {
-                        if let Some(GraphId::SoundInput(siid)) = id_dst {
-                            self.graph
-                                .connect_sound_input(siid, spid)
-                                .unwrap_or_else(|e| println!("Error: {:?}", e));
-                        }
-                    }
-                }
-            }
+            self.handle_dropped_pegs(ui, &desc);
 
-            if let Some(selection_area) = &self.selection_area {
-                ui.with_layer_id(
-                    egui::LayerId::new(egui::Order::Background, egui::Id::new("selection")),
-                    |ui| {
-                        let painter = ui.painter();
-                        painter.rect(
-                            egui::Rect::from_two_pos(
-                                selection_area.start_location,
-                                selection_area.end_location,
-                            ),
-                            0.0,
-                            egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
-                            egui::Stroke::new(
-                                2.0,
-                                egui::Color32::from_rgba_unmultiplied(255, 255, 0, 64),
-                            ),
-                        )
-                    },
-                );
-            }
+            self.draw_selection_rect(ui);
 
-            // TODO: consider choosing which layer to paint the wire on, rather
-            // than always painting the wire on top. However, choosing the layer
-            // won't always be correct (an object might be positioned on top of
-            // the peg it's connected to) and requires access to egui things
-            // (e.g. memory().areas) which aren't yet exposed.
-            // On the other hand, is there any correct way to paint wires between
-            // two connected objects that are directly on top of one another?
-            ui.with_layer_id(
-                egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
-                |ui| {
-                    let painter = ui.painter();
-                    let drag_peg = self.ui_state.peg_being_dragged();
-                    for (siid, si) in desc.sound_inputs() {
-                        if let Some(spid) = si.target() {
-                            let layout = self.ui_state.layout_state();
-                            let si_state = layout.sound_inputs().get(siid).unwrap();
-                            let sp_state = layout.sound_outputs().get(&spid).unwrap();
-                            let faint = drag_peg == Some(GraphId::SoundInput(*siid));
-                            painter.line_segment(
-                                [si_state.center(), sp_state.center()],
-                                egui::Stroke::new(
-                                    2.0,
-                                    egui::Color32::from_rgba_unmultiplied(
-                                        0,
-                                        255,
-                                        0,
-                                        if faint { 64 } else { 255 },
-                                    ),
-                                ),
-                            );
-                        }
-                    }
-                    for (niid, ni) in desc.number_inputs() {
-                        if let Some(nsid) = ni.target() {
-                            let layout = self.ui_state.layout_state();
-                            let ni_state = layout.number_inputs().get(niid).unwrap();
-                            let ns_state = layout.number_outputs().get(&nsid).unwrap();
-                            let faint = drag_peg == Some(GraphId::NumberInput(*niid));
-                            painter.line_segment(
-                                [ni_state.center(), ns_state.center()],
-                                egui::Stroke::new(
-                                    2.0,
-                                    egui::Color32::from_rgba_unmultiplied(
-                                        0,
-                                        0,
-                                        255,
-                                        if faint { 64 } else { 255 },
-                                    ),
-                                ),
-                            );
-                        }
-                    }
-                    if let Some(gid) = self.ui_state.peg_being_dragged() {
-                        let cursor_pos = ui.input().pointer.interact_pos().unwrap();
-                        let layout = self.ui_state.layout_state();
-                        let other_pos;
-                        let color;
-                        match gid {
-                            GraphId::NumberInput(niid) => {
-                                other_pos = layout.number_inputs().get(&niid).unwrap().center();
-                                color = egui::Color32::from_rgb(0, 0, 255);
-                            }
-                            GraphId::NumberSource(nsid) => {
-                                other_pos = layout.number_outputs().get(&nsid).unwrap().center();
-                                color = egui::Color32::from_rgb(0, 0, 255);
-                            }
-                            GraphId::SoundInput(siid) => {
-                                other_pos = layout.sound_inputs().get(&siid).unwrap().center();
-                                color = egui::Color32::from_rgb(0, 255, 0);
-                            }
-                            GraphId::SoundProcessor(spid) => {
-                                other_pos = layout.sound_outputs().get(&spid).unwrap().center();
-                                color = egui::Color32::from_rgb(0, 255, 0);
-                            }
-                        }
-                        painter
-                            .line_segment([cursor_pos, other_pos], egui::Stroke::new(2.0, color));
-                    }
-                },
-            );
+            self.draw_wires(ui, &desc);
+
+            self.handle_delete_objects(ui);
 
             self.ui_state.apply_pending_changes(&mut self.graph);
-
-            if self.summon_state.is_none() && ui.input().key_pressed(egui::Key::Delete) {
-                let selection = self.ui_state.selection();
-                for id in selection {
-                    match id {
-                        ObjectId::Sound(id) => {
-                            self.graph.remove_sound_processor(*id);
-                        }
-                        ObjectId::Number(id) => {
-                            self.graph.remove_number_source(*id);
-                        }
-                    }
-                }
-                self.ui_state.forget_selection();
-            }
         });
     }
 

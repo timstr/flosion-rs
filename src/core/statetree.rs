@@ -217,6 +217,10 @@ impl<K: Key, S: State + Default> KeyedInputData<K, S> {
         self.timing.request_release(sample_offset);
     }
 
+    pub fn was_released(&self) -> bool {
+        self.timing.was_released()
+    }
+
     pub fn step<T: State>(
         &mut self,
         processor_state: &ProcessorState<T>,
