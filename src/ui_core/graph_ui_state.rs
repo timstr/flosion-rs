@@ -15,6 +15,7 @@ use crate::core::{
     numberinput::{NumberInputId, NumberInputOwner},
     numbersource::{NumberSourceId, NumberSourceOwner},
     soundgraph::SoundGraph,
+    soundgraphdescription::SoundGraphDescription,
     soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
@@ -545,7 +546,7 @@ impl GraphUIState {
         self.peg_hotkeys.mapping.get(&id).map(|x| x.0)
     }
 
-    pub fn activate_hotkey(&mut self, key: egui::Key, graph: &mut SoundGraph) {
+    pub fn activate_hotkey(&mut self, key: egui::Key, desc: &SoundGraphDescription) {
         let action =
             self.peg_hotkeys
                 .mapping
@@ -567,20 +568,18 @@ impl GraphUIState {
             HotKeyAction::Connect(gid1, gid2) => {
                 match (gid1, gid2) {
                     (GraphId::NumberInput(niid), GraphId::NumberSource(nsid)) => {
-                        graph.disconnect_number_input(niid).unwrap();
-                        graph.connect_number_input(niid, nsid).unwrap();
+                        self.make_change(move |g| {
+                            g.disconnect_number_input(niid).unwrap();
+                            g.connect_number_input(niid, nsid).unwrap();
+                        });
                         self.keyboard_focus_state = KeyboardFocusState::NumberSource(nsid);
                     }
                     (GraphId::NumberSource(nsid), GraphId::NumberInput(niid)) => {
-                        graph.disconnect_number_input(niid).unwrap();
-                        graph.connect_number_input(niid, nsid).unwrap();
-                        let owner = graph
-                            .topology()
-                            .read()
-                            .number_inputs()
-                            .get(&niid)
-                            .unwrap()
-                            .owner();
+                        self.make_change(move |g| {
+                            g.disconnect_number_input(niid).unwrap();
+                            g.connect_number_input(niid, nsid).unwrap();
+                        });
+                        let owner = desc.number_inputs().get(&niid).unwrap().owner();
                         self.keyboard_focus_state = match owner {
                             NumberInputOwner::SoundProcessor(i) => {
                                 KeyboardFocusState::SoundProcessor(i)
@@ -591,20 +590,18 @@ impl GraphUIState {
                         };
                     }
                     (GraphId::SoundInput(siid), GraphId::SoundProcessor(spid)) => {
-                        graph.disconnect_sound_input(siid).unwrap();
-                        graph.connect_sound_input(siid, spid).unwrap();
+                        self.make_change(move |g| {
+                            g.disconnect_sound_input(siid).unwrap();
+                            g.connect_sound_input(siid, spid).unwrap();
+                        });
                         self.keyboard_focus_state = KeyboardFocusState::SoundProcessor(spid);
                     }
                     (GraphId::SoundProcessor(spid), GraphId::SoundInput(siid)) => {
-                        graph.disconnect_sound_input(siid).unwrap();
-                        graph.connect_sound_input(siid, spid).unwrap();
-                        let owner = graph
-                            .topology()
-                            .read()
-                            .sound_inputs()
-                            .get(&siid)
-                            .unwrap()
-                            .owner();
+                        self.make_change(move |g| {
+                            g.disconnect_sound_input(siid).unwrap();
+                            g.connect_sound_input(siid, spid).unwrap();
+                        });
+                        let owner = desc.sound_inputs().get(&siid).unwrap().owner();
                         self.keyboard_focus_state = KeyboardFocusState::SoundProcessor(owner);
                     }
                     (_, _) => panic!(),
@@ -614,29 +611,27 @@ impl GraphUIState {
         self.update_peg_hotkeys_from_keyboard_focus();
     }
 
-    pub fn cancel_hotkey(&mut self, graph: &SoundGraph) {
-        let topo = graph.topology();
-        let topo = topo.read();
+    pub fn cancel_hotkey(&mut self, desc: &SoundGraphDescription) {
         self.keyboard_focus_state = match self.keyboard_focus_state {
             KeyboardFocusState::SoundInput(siid) => {
-                let o = topo.sound_inputs().get(&siid).unwrap().owner();
+                let o = desc.sound_inputs().get(&siid).unwrap().owner();
                 KeyboardFocusState::SoundProcessor(o)
             }
             KeyboardFocusState::SoundOutput(spid) => KeyboardFocusState::SoundProcessor(spid),
             KeyboardFocusState::NumberInput(niid) => {
-                let o = topo.number_inputs().get(&niid).unwrap().owner();
+                let o = desc.number_inputs().get(&niid).unwrap().owner();
                 match o {
                     NumberInputOwner::SoundProcessor(i) => KeyboardFocusState::SoundProcessor(i),
                     NumberInputOwner::NumberSource(i) => KeyboardFocusState::NumberSource(i),
                 }
             }
             KeyboardFocusState::NumberOutput(nsid) => {
-                let o = topo.number_sources().get(&nsid).unwrap().owner();
+                let o = desc.number_sources().get(&nsid).unwrap().owner();
                 match o {
                     NumberSourceOwner::Nothing => panic!(),
                     NumberSourceOwner::SoundProcessor(i) => KeyboardFocusState::SoundProcessor(i),
                     NumberSourceOwner::SoundInput(i) => KeyboardFocusState::SoundProcessor(
-                        topo.sound_inputs().get(&i).unwrap().owner(),
+                        desc.sound_inputs().get(&i).unwrap().owner(),
                     ),
                 }
             }

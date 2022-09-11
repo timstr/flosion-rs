@@ -139,40 +139,8 @@ fn create_test_sound_graph() -> SoundGraph {
     sg
 }
 
-// async fn create_test_sound_graph() -> SoundGraph {
-//     let mut sg: SoundGraph = SoundGraph::new();
-//     let wavegen = sg.add_dynamic_sound_processor::<WaveGenerator>().await;
-//     let dac = sg.add_static_sound_processor::<Dac>().await;
-//     let dac_input_id = dac.instance().input().id();
-//     let kb = sg.add_static_sound_processor::<Keyboard>().await;
-//     let usine = sg.add_number_source::<UnitSine>().await;
-//     sg.connect_sound_input(kb.instance().input.id(), wavegen.id())
-//         .await
-//         .unwrap();
-//     sg.connect_sound_input(dac_input_id, kb.id()).await.unwrap();
-//     sg.connect_number_input(wavegen.instance().amplitude.id(), usine.id())
-//         .await
-//         .unwrap();
-//     sg.connect_number_input(usine.instance().input.id(), wavegen.instance().phase.id())
-//         .await
-//         .unwrap();
-//     sg.connect_number_input(
-//         wavegen.instance().frequency.id(),
-//         kb.instance().key_frequency.id(),
-//     )
-//     .await
-//     .unwrap();
-//     println!(
-//         "The Keyboard's keyed input has {} keys",
-//         kb.instance().input.num_keys()
-//     );
-//     println!("The WaveGenerator has {} states", wavegen.num_states());
-//     sg
-// }
-
 impl Default for FlosionApp {
     fn default() -> FlosionApp {
-        // let graph = block_on(create_test_sound_graph());
         let graph = create_test_sound_graph();
         // let graph = SoundGraph::new();
         let topo = graph.topology();
@@ -188,22 +156,18 @@ impl Default for FlosionApp {
 }
 
 impl FlosionApp {
-    fn draw_all_objects(&mut self, ui: &mut Ui) {
-        {
-            let factory = self.factory.read();
-            for (object_id, object) in self.graph.graph_objects() {
-                factory.ui(
-                    object_id,
-                    object.as_ref(),
-                    object.get_type(),
-                    &mut self.ui_state,
-                    ui,
-                );
-            }
+    fn draw_all_objects(
+        ui: &mut Ui,
+        factory: &ObjectFactory,
+        graph: &SoundGraph,
+        ui_state: &mut GraphUIState,
+    ) {
+        for (object_id, object) in graph.graph_objects() {
+            factory.ui(object_id, object.as_ref(), object.get_type(), ui_state, ui);
         }
     }
 
-    fn handle_hotkeys(&mut self, ctx: &CtxRef) {
+    fn handle_hotkeys(ctx: &CtxRef, ui_state: &mut GraphUIState, desc: &SoundGraphDescription) {
         for e in &ctx.input().events {
             if let egui::Event::Key {
                 key,
@@ -215,31 +179,36 @@ impl FlosionApp {
                     continue;
                 }
                 if *key == egui::Key::Escape {
-                    self.ui_state.cancel_hotkey(&self.graph);
+                    ui_state.cancel_hotkey(desc);
                 }
                 if modifiers.any() {
                     continue;
                 }
-                self.ui_state.activate_hotkey(*key, &mut self.graph);
+                ui_state.activate_hotkey(*key, desc);
             }
         }
     }
 
-    fn handle_drag_objects(&mut self, ui: &mut Ui, bg_response: &Response) {
+    fn handle_drag_objects(
+        ui: &mut Ui,
+        bg_response: &Response,
+        selection_area: &mut Option<SelectionState>,
+        ui_state: &mut GraphUIState,
+    ) {
         let pointer_pos = bg_response.interact_pointer_pos();
         if bg_response.drag_started() {
-            self.selection_area = Some(SelectionState {
+            *selection_area = Some(SelectionState {
                 start_location: pointer_pos.unwrap(),
                 end_location: pointer_pos.unwrap(),
             });
         }
         if bg_response.dragged() {
-            if let Some(selection_area) = &mut self.selection_area {
+            if let Some(selection_area) = selection_area {
                 selection_area.end_location = pointer_pos.unwrap();
             }
         }
         if bg_response.drag_released() {
-            if let Some(selection_area) = self.selection_area.take() {
+            if let Some(selection_area) = selection_area.take() {
                 let change = if ui.input().modifiers.alt {
                     SelectionChange::Subtract
                 } else if ui.input().modifiers.shift {
@@ -247,7 +216,7 @@ impl FlosionApp {
                 } else {
                     SelectionChange::Replace
                 };
-                self.ui_state.select_with_rect(
+                ui_state.select_with_rect(
                     egui::Rect::from_two_pos(
                         selection_area.start_location,
                         selection_area.end_location,
@@ -258,6 +227,8 @@ impl FlosionApp {
         }
     }
 
+    // TODO: does graph need to be mutated here?
+    // can GraphUIState.make_change be used instead?
     fn handle_summon_widget(&mut self, ui: &mut Ui, bg_response: &Response) {
         let pointer_pos = bg_response.interact_pointer_pos();
         if bg_response.double_clicked() {
@@ -292,54 +263,60 @@ impl FlosionApp {
         }
     }
 
-    fn handle_dropped_pegs(&mut self, ui: &mut Ui, desc: &SoundGraphDescription) {
-        if self.ui_state.peg_was_dropped() {
-            let id_src = self.ui_state.dropped_peg_id().unwrap();
-            let p = self.ui_state.drop_location().unwrap();
-            let id_dst = self.ui_state.layout_state().find_peg_near(p, ui);
-            match id_src {
-                GraphId::NumberInput(niid) => {
-                    if desc.number_inputs().get(&niid).unwrap().target().is_some() {
-                        self.graph
-                            .disconnect_number_input(niid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
-                    }
-                    if let Some(GraphId::NumberSource(nsid)) = id_dst {
-                        self.graph
-                            .connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
-                    }
+    fn handle_dropped_pegs(ui: &mut Ui, ui_state: &mut GraphUIState, desc: &SoundGraphDescription) {
+        if !ui_state.peg_was_dropped() {
+            return;
+        }
+        let id_src = ui_state.dropped_peg_id().unwrap();
+        let p = ui_state.drop_location().unwrap();
+        let id_dst = ui_state.layout_state().find_peg_near(p, ui);
+        match id_src {
+            GraphId::NumberInput(niid) => {
+                if desc.number_inputs().get(&niid).unwrap().target().is_some() {
+                    ui_state.make_change(move |g| {
+                        g.disconnect_number_input(niid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                    });
                 }
-                GraphId::NumberSource(nsid) => {
-                    if let Some(GraphId::NumberInput(niid)) = id_dst {
-                        self.graph
-                            .connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
-                    }
+                if let Some(GraphId::NumberSource(nsid)) = id_dst {
+                    ui_state.make_change(move |g| {
+                        g.connect_number_input(niid, nsid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                    });
                 }
-                GraphId::SoundInput(siid) => {
-                    if desc.sound_inputs().get(&siid).unwrap().target().is_some() {
-                        self.graph.disconnect_sound_input(siid).unwrap();
-                    }
-                    if let Some(GraphId::SoundProcessor(spid)) = id_dst {
-                        self.graph
-                            .connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
-                    }
+            }
+            GraphId::NumberSource(nsid) => {
+                if let Some(GraphId::NumberInput(niid)) = id_dst {
+                    ui_state.make_change(move |g| {
+                        g.connect_number_input(niid, nsid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                    });
                 }
-                GraphId::SoundProcessor(spid) => {
-                    if let Some(GraphId::SoundInput(siid)) = id_dst {
-                        self.graph
-                            .connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
-                    }
+            }
+            GraphId::SoundInput(siid) => {
+                if desc.sound_inputs().get(&siid).unwrap().target().is_some() {
+                    ui_state.make_change(move |g| g.disconnect_sound_input(siid).unwrap());
+                }
+                if let Some(GraphId::SoundProcessor(spid)) = id_dst {
+                    ui_state.make_change(move |g| {
+                        g.connect_sound_input(siid, spid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                    });
+                }
+            }
+            GraphId::SoundProcessor(spid) => {
+                if let Some(GraphId::SoundInput(siid)) = id_dst {
+                    ui_state.make_change(move |g| {
+                        g.connect_sound_input(siid, spid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                    });
                 }
             }
         }
     }
 
-    fn draw_selection_rect(&mut self, ui: &mut Ui) {
-        if let Some(selection_area) = &self.selection_area {
+    fn draw_selection_rect(ui: &mut Ui, selection_area: &Option<SelectionState>) {
+        if let Some(selection_area) = selection_area {
             ui.with_layer_id(
                 egui::LayerId::new(egui::Order::Background, egui::Id::new("selection")),
                 |ui| {
@@ -361,7 +338,7 @@ impl FlosionApp {
         }
     }
 
-    fn draw_wires(&mut self, ui: &mut Ui, desc: &SoundGraphDescription) {
+    fn draw_wires(ui: &mut Ui, ui_state: &GraphUIState, desc: &SoundGraphDescription) {
         // TODO: consider choosing which layer to paint the wire on, rather
         // than always painting the wire on top. However, choosing the layer
         // won't always be correct (an object might be positioned on top of
@@ -373,10 +350,10 @@ impl FlosionApp {
             egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
             |ui| {
                 let painter = ui.painter();
-                let drag_peg = self.ui_state.peg_being_dragged();
+                let drag_peg = ui_state.peg_being_dragged();
                 for (siid, si) in desc.sound_inputs() {
                     if let Some(spid) = si.target() {
-                        let layout = self.ui_state.layout_state();
+                        let layout = ui_state.layout_state();
                         let si_state = layout.sound_inputs().get(siid).unwrap();
                         let sp_state = layout.sound_outputs().get(&spid).unwrap();
                         let faint = drag_peg == Some(GraphId::SoundInput(*siid));
@@ -396,7 +373,7 @@ impl FlosionApp {
                 }
                 for (niid, ni) in desc.number_inputs() {
                     if let Some(nsid) = ni.target() {
-                        let layout = self.ui_state.layout_state();
+                        let layout = ui_state.layout_state();
                         let ni_state = layout.number_inputs().get(niid).unwrap();
                         let ns_state = layout.number_outputs().get(&nsid).unwrap();
                         let faint = drag_peg == Some(GraphId::NumberInput(*niid));
@@ -414,16 +391,18 @@ impl FlosionApp {
                         );
                     }
                 }
-                if let Some(gid) = self.ui_state.peg_being_dragged() {
+                if let Some(gid) = ui_state.peg_being_dragged() {
                     let cursor_pos = ui.input().pointer.interact_pos().unwrap();
-                    let layout = self.ui_state.layout_state();
+                    let layout = ui_state.layout_state();
                     let other_pos;
                     let color;
-                    // TODO: there's a bug in here somewhere, dragging from a input or output
-                    // causes the wire to be dragged from the wrong place
                     match gid {
                         GraphId::NumberInput(niid) => {
-                            other_pos = layout.number_inputs().get(&niid).unwrap().center();
+                            if let Some(nsid) = desc.number_inputs().get(&niid).unwrap().target() {
+                                other_pos = layout.number_outputs().get(&nsid).unwrap().center();
+                            } else {
+                                other_pos = layout.number_inputs().get(&niid).unwrap().center();
+                            }
                             color = egui::Color32::from_rgb(0, 0, 255);
                         }
                         GraphId::NumberSource(nsid) => {
@@ -431,7 +410,11 @@ impl FlosionApp {
                             color = egui::Color32::from_rgb(0, 0, 255);
                         }
                         GraphId::SoundInput(siid) => {
-                            other_pos = layout.sound_inputs().get(&siid).unwrap().center();
+                            if let Some(spid) = desc.sound_inputs().get(&siid).unwrap().target() {
+                                other_pos = layout.sound_outputs().get(&spid).unwrap().center();
+                            } else {
+                                other_pos = layout.sound_inputs().get(&siid).unwrap().center();
+                            }
                             color = egui::Color32::from_rgb(0, 255, 0);
                         }
                         GraphId::SoundProcessor(spid) => {
@@ -446,7 +429,10 @@ impl FlosionApp {
     }
 
     fn handle_delete_objects(&mut self, ui: &mut Ui) {
-        if self.summon_state.is_none() && ui.input().key_pressed(egui::Key::Delete) {
+        if self.summon_state.is_some() {
+            return;
+        }
+        if ui.input().key_pressed(egui::Key::Delete) {
             let selection = self.ui_state.selection().clone();
             for id in selection {
                 match id {
@@ -477,21 +463,29 @@ impl epi::App for FlosionApp {
                 }
             }
             self.ui_state.reset_pegs();
-            self.draw_all_objects(ui);
-            self.handle_hotkeys(ctx);
+            {
+                let factory = self.factory.read();
+                Self::draw_all_objects(ui, &factory, &self.graph, &mut self.ui_state);
+            }
+            let desc = self.graph.describe();
+            Self::handle_hotkeys(ctx, &mut self.ui_state, &desc);
             let bg_response = ui.interact(
                 ui.input().screen_rect(),
                 egui::Id::new("background"),
                 egui::Sense::click_and_drag(),
             );
-            self.handle_drag_objects(ui, &bg_response);
+            Self::handle_drag_objects(
+                ui,
+                &bg_response,
+                &mut self.selection_area,
+                &mut self.ui_state,
+            );
             self.handle_summon_widget(ui, &bg_response);
-            let desc = self.graph.describe();
-            self.handle_dropped_pegs(ui, &desc);
+            Self::handle_dropped_pegs(ui, &mut self.ui_state, &desc);
 
-            self.draw_selection_rect(ui);
+            Self::draw_selection_rect(ui, &self.selection_area);
 
-            self.draw_wires(ui, &desc);
+            Self::draw_wires(ui, &self.ui_state, &desc);
 
             self.handle_delete_objects(ui);
 

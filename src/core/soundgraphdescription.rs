@@ -42,6 +42,10 @@ impl SoundInputDescription {
     pub fn target(&self) -> Option<SoundProcessorId> {
         self.target
     }
+
+    pub fn owner(&self) -> SoundProcessorId {
+        self.owner
+    }
 }
 
 #[derive(Clone)]
@@ -86,6 +90,10 @@ impl NumberSourceDescription {
     ) -> NumberSourceDescription {
         NumberSourceDescription { id, inputs, owner }
     }
+
+    pub fn owner(&self) -> NumberSourceOwner {
+        self.owner
+    }
 }
 
 #[derive(Clone)]
@@ -106,6 +114,10 @@ impl NumberInputDescription {
 
     pub fn target(&self) -> Option<NumberSourceId> {
         self.target
+    }
+
+    pub fn owner(&self) -> NumberInputOwner {
+        self.owner
     }
 }
 
@@ -674,42 +686,6 @@ impl SoundGraphDescription {
         dfs(input_id, &mut stateful_sources, self);
         stateful_sources
     }
-
-    // pub fn find_all_stateful_dependents_of(&self, source: NumberSourceId) -> Vec<NumberInputId> {
-    //     fn dfs(
-    //         input_id: NumberInputId,
-    //         source_id: NumberSourceId,
-    //         graph: &SoundGraphDescription,
-    //     ) -> bool {
-    //         let input_desc = graph.number_inputs.get(&input_id).unwrap();
-    //         if let Some(target_id) = input_desc.target {
-    //             if target_id == source_id {
-    //                 return true;
-    //             }
-    //             let target_desc = graph.number_sources.get(&target_id).unwrap();
-    //             for target_input_id in &target_desc.inputs {
-    //                 if dfs(*target_input_id, source_id, graph) {
-    //                     return true;
-    //                 }
-    //             }
-    //         }
-    //         false
-    //     }
-
-    //     let mut stateful_dependents: Vec<NumberInputId> = Vec::new();
-    //     for input_id in self.number_inputs.values().filter_map(|input_desc| {
-    //         if input_desc.owner.is_stateful() {
-    //             Some(input_desc.id)
-    //         } else {
-    //             None
-    //         }
-    //     }) {
-    //         if dfs(input_id, source, self) {
-    //             stateful_dependents.push(input_id);
-    //         }
-    //     }
-    //     stateful_dependents
-    // }
 
     pub fn find_invalid_number_connections(&self) -> Vec<(NumberSourceId, NumberInputId)> {
         let mut bad_dependencies: Vec<(NumberSourceId, NumberInputId)> = Vec::new();
