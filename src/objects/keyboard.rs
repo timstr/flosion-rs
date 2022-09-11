@@ -23,8 +23,7 @@ const KEY_RELEASED: i16 = -4;
 pub struct KeyboardKey {
     frequency: AtomicF32,
     id: AtomicI16,
-    curr_status: AtomicI16,
-    prev_status: AtomicI16,
+    status: AtomicI16,
 }
 
 impl KeyboardKey {
@@ -32,8 +31,7 @@ impl KeyboardKey {
         Self {
             frequency: AtomicF32::new(f32::NAN),
             id: AtomicI16::new(INVALID_ID),
-            curr_status: AtomicI16::new(KEY_NOT_PLAYING),
-            prev_status: AtomicI16::new(KEY_NOT_PLAYING),
+            status: AtomicI16::new(KEY_NOT_PLAYING),
         }
     }
 }
@@ -57,8 +55,7 @@ impl Keyboard {
         for ks in self.input.keys() {
             if ks.id.load(Ordering::SeqCst) == INVALID_ID {
                 ks.id.store(key_id as i16, Ordering::SeqCst);
-                ks.prev_status.store(KEY_NOT_PLAYING, Ordering::SeqCst);
-                ks.curr_status.store(KEY_PLAYING, Ordering::SeqCst);
+                ks.status.store(KEY_PLAYING, Ordering::SeqCst);
                 ks.frequency.store(frequency, Ordering::SeqCst);
                 return;
             }
@@ -68,7 +65,7 @@ impl Keyboard {
     pub fn release_key(&self, key_id: u16) {
         for ks in self.input.keys() {
             if ks.id.load(Ordering::SeqCst) == (key_id as i16) {
-                ks.curr_status.store(KEY_RELEASED, Ordering::SeqCst);
+                ks.status.store(KEY_RELEASED, Ordering::SeqCst);
                 // ks.frequency.store(f32::NAN, Ordering::SeqCst);
                 return;
             }
@@ -123,14 +120,13 @@ impl SoundProcessor for Keyboard {
             if key_id == INVALID_ID {
                 continue;
             }
-            let prev_status = kd.key().prev_status.load(Ordering::SeqCst);
-            let mut curr_status = kd.key().curr_status.load(Ordering::SeqCst);
-            debug_assert!(curr_status != KEY_NOT_PLAYING);
+            let status = kd.key().status.load(Ordering::SeqCst);
+            debug_assert!(status != KEY_NOT_PLAYING);
             if kd.needs_reset() {
                 // TODO: gather fine timing data and apply it here
                 kd.reset(0);
             }
-            if curr_status == KEY_RELEASED && prev_status == KEY_PLAYING {
+            if status == KEY_RELEASED && !kd.was_released() {
                 // TODO: gather fine timing data and apply it here
                 kd.request_release(0);
             }
@@ -144,14 +140,9 @@ impl SoundProcessor for Keyboard {
             // TODO: prevent inputs from playing forever if they don't respond to release requests
             if kd.is_done() {
                 kd.key().id.store(INVALID_ID, Ordering::SeqCst);
-                kd.key()
-                    .curr_status
-                    .store(KEY_NOT_PLAYING, Ordering::SeqCst);
-                curr_status = KEY_NOT_PLAYING;
+                kd.key().status.store(KEY_NOT_PLAYING, Ordering::SeqCst);
                 kd.require_reset();
             }
-
-            kd.key().prev_status.store(curr_status, Ordering::SeqCst);
         }
         StreamStatus::Playing
     }
