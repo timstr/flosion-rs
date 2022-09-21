@@ -89,7 +89,7 @@ impl InputTiming {
     }
 
     pub fn was_released(&self) -> bool {
-        self.release == ReleaseStatus::Released
+        self.release != ReleaseStatus::NotYet
     }
 
     pub fn reset(&mut self, sample_offset: usize) {
