@@ -7,3 +7,14 @@ pub mod mixer;
 pub mod recorder;
 pub mod wavegenerator;
 pub mod whitenoise;
+
+// TODO
+// - resampler
+// - sequencer
+// - melody
+// - microphone
+// - FFT filter
+// - feedback
+// - phase vocoder
+// - scatter
+// - more waveforms

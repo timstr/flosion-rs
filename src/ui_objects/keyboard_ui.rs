@@ -64,6 +64,7 @@ impl ObjectUi for KeyboardUi {
             {
                 if ui.input().key_down(*k) {
                     let f = 256.0_f32 * (2.0_f32).powf((i as f32) / 12.0_f32);
+                    // let f = 128.0_f32 * ((i + 1) as f32); // heh
                     object.press_key(i as u16, f);
                 }
                 if ui.input().key_released(*k) {

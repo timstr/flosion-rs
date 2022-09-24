@@ -173,8 +173,11 @@ impl<T: SoundProcessor> GraphObject for SoundProcessorHandle<T> {
         type_name::<T>()
     }
 
-    fn serialize(&self, _serializer: Serializer) {
-        todo!()
+    fn serialize(&self, mut serializer: Serializer) {
+        serializer.object(&ObjectId::Sound(self.id()));
+        serializer.string(T::TYPE.name());
+        let s = serializer.subarchive();
+        self.instance().serialize(s);
     }
 }
 

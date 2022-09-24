@@ -12,6 +12,7 @@ use super::{
     graphobject::{GraphObject, ObjectId},
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
+    serialization::Serializer,
     soundengine::SoundEngine,
     soundgraphdescription::SoundGraphDescription,
     soundgrapherror::{NumberConnectionError, SoundGraphError},
@@ -151,13 +152,11 @@ impl SoundGraph {
         Arc::clone(&self.topology)
     }
 
-    // fn update_topology(&mut self, mut new_topology: SoundGraphTopology) {
-    //     {
-    //         let mut topo = self.topology.write();
-    //         // Swap topologies (to avoid waiting for destruction)
-    //         std::mem::swap(&mut *topo, &mut new_topology);
-    //     }
-    //     // contents of old topology are now destroyed after
-    //     // lock is released
-    // }
+    pub fn serialize(&self, serializer: &mut Serializer) {
+        todo!()
+    }
+
+    pub fn serialize_subset(&self, serializer: &mut Serializer, objects: &[ObjectId]) {
+        todo!()
+    }
 }

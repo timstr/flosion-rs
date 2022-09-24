@@ -3,6 +3,7 @@ use std::sync::Arc;
 use super::{
     context::Context,
     graphobject::{GraphObject, WithObjectType},
+    serialization::Serializer,
     soundchunk::SoundChunk,
     soundprocessortools::SoundProcessorTools,
     statetree::{
@@ -62,6 +63,8 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus;
+
+    fn serialize(&self, serializer: Serializer);
 }
 
 pub trait SoundProcessorWrapper: Sync + Send + 'static {
