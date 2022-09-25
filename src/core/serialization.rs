@@ -1,4 +1,4 @@
-use std::{fs, io, path::Path};
+use std::{fs, io, marker::PhantomData, path::Path};
 
 pub trait Serializable: Sized {
     fn serialize(&self, serializer: &mut Serializer);
@@ -99,8 +99,11 @@ impl ValueType {
 trait PrimitiveReadWrite: Sized {
     const SIZE: usize;
     const TYPE: PrimitiveType;
-    fn write(&self, data: &mut Vec<u8>);
-    fn read(data: &mut Deserializer) -> Result<Self, ()>;
+    fn write_to(&self, data: &mut Vec<u8>);
+
+    // Precondition: the deserializer has a remaining length of
+    // at least `Self::SIZE` bytes
+    fn read_from(data: &mut Deserializer) -> Self;
 }
 
 macro_rules! impl_primitive_read_write {
@@ -108,17 +111,17 @@ macro_rules! impl_primitive_read_write {
         impl PrimitiveReadWrite for $primitive {
             const SIZE: usize = $size;
             const TYPE: PrimitiveType = $typetag;
-            fn write(&self, data: &mut Vec<u8>) {
+            fn write_to(&self, data: &mut Vec<u8>) {
                 for b in self.to_be_bytes() {
                     data.push(b);
                 }
             }
-            fn read(d: &mut Deserializer) -> Result<Self, ()> {
+            fn read_from(d: &mut Deserializer) -> Self {
                 let mut bytes = Self::default().to_be_bytes();
                 for b in &mut bytes {
-                    *b = d.read_byte()?;
+                    *b = d.read_byte().unwrap();
                 }
-                Ok(Self::from_be_bytes(bytes))
+                Self::from_be_bytes(bytes)
             }
         }
     };
@@ -139,16 +142,12 @@ impl PrimitiveReadWrite for bool {
     const SIZE: usize = 1;
     const TYPE: PrimitiveType = PrimitiveType::Bool;
 
-    fn write(&self, data: &mut Vec<u8>) {
+    fn write_to(&self, data: &mut Vec<u8>) {
         data.push(if *self { 1 } else { 0 });
     }
 
-    fn read(d: &mut Deserializer) -> Result<bool, ()> {
-        match d.read_byte()? {
-            0 => Ok(false),
-            1 => Ok(true),
-            _ => Err(()),
-        }
+    fn read_from(d: &mut Deserializer) -> bool {
+        d.read_byte().unwrap() != 0
     }
 }
 
@@ -208,24 +207,41 @@ impl<'a> Serializer<'a> {
     fn new_with_prefix_len(data: &'a mut Vec<u8>) -> Serializer<'a> {
         let start_index = data.len();
         let placeholder_len: u32 = 0;
-        placeholder_len.write(data);
+        placeholder_len.write_to(data);
         Serializer { data, start_index }
     }
 
     fn write_primitive<T: PrimitiveReadWrite>(&mut self, x: T) {
         self.data.reserve(u8::SIZE + T::SIZE);
         self.data.push(ValueType::Primitive(T::TYPE).to_byte());
-        x.write(self.data);
+        x.write_to(self.data);
     }
 
-    fn write_primitive_array<T: PrimitiveReadWrite>(&mut self, x: &[T]) {
+    fn write_primitive_array_slice<T: PrimitiveReadWrite>(&mut self, x: &[T]) {
         self.data
             .reserve(u8::SIZE + u32::SIZE + (x.len() * T::SIZE));
         self.data.push(ValueType::Array(T::TYPE).to_byte());
         let len = x.len() as u32;
-        len.write(self.data);
+        len.write_to(self.data);
         for xi in x {
-            xi.write(self.data);
+            xi.write_to(self.data);
+        }
+    }
+
+    fn write_primitive_array_iter<I: Iterator>(&mut self, it: I)
+    where
+        I::Item: PrimitiveReadWrite,
+    {
+        self.data.push(ValueType::Array(I::Item::TYPE).to_byte());
+        let array_start_index = self.data.len();
+        let mut n_items: u32 = 0;
+        n_items.write_to(self.data);
+        while let Some(x) = it.next() {
+            x.write_to(self.data);
+            n_items += 1;
+        }
+        for (i, b) in n_items.to_be_bytes().iter().enumerate() {
+            self.data[array_start_index + i] = *b;
         }
     }
 
@@ -260,35 +276,66 @@ impl<'a> Serializer<'a> {
         self.write_primitive::<f64>(x);
     }
 
-    pub fn array_u8(&mut self, x: &[u8]) {
-        self.write_primitive_array::<u8>(x);
+    pub fn array_slice_u8(&mut self, x: &[u8]) {
+        self.write_primitive_array_slice::<u8>(x);
     }
-    pub fn array_i8(&mut self, x: &[i8]) {
-        self.write_primitive_array::<i8>(x);
+    pub fn array_slice_i8(&mut self, x: &[i8]) {
+        self.write_primitive_array_slice::<i8>(x);
     }
-    pub fn array_u16(&mut self, x: &[u16]) {
-        self.write_primitive_array::<u16>(x);
+    pub fn array_slice_u16(&mut self, x: &[u16]) {
+        self.write_primitive_array_slice::<u16>(x);
     }
-    pub fn array_i16(&mut self, x: &[i16]) {
-        self.write_primitive_array::<i16>(x);
+    pub fn array_slice_i16(&mut self, x: &[i16]) {
+        self.write_primitive_array_slice::<i16>(x);
     }
-    pub fn array_u32(&mut self, x: &[u32]) {
-        self.write_primitive_array::<u32>(x);
+    pub fn array_slice_u32(&mut self, x: &[u32]) {
+        self.write_primitive_array_slice::<u32>(x);
     }
-    pub fn array_i32(&mut self, x: &[i32]) {
-        self.write_primitive_array::<i32>(x);
+    pub fn array_slice_i32(&mut self, x: &[i32]) {
+        self.write_primitive_array_slice::<i32>(x);
     }
-    pub fn array_u64(&mut self, x: &[u64]) {
-        self.write_primitive_array::<u64>(x);
+    pub fn array_slice_u64(&mut self, x: &[u64]) {
+        self.write_primitive_array_slice::<u64>(x);
     }
-    pub fn array_i64(&mut self, x: &[i64]) {
-        self.write_primitive_array::<i64>(x);
+    pub fn array_slice_i64(&mut self, x: &[i64]) {
+        self.write_primitive_array_slice::<i64>(x);
     }
-    pub fn array_f32(&mut self, x: &[f32]) {
-        self.write_primitive_array::<f32>(x);
+    pub fn array_slice_f32(&mut self, x: &[f32]) {
+        self.write_primitive_array_slice::<f32>(x);
     }
-    pub fn array_f64(&mut self, x: &[f64]) {
-        self.write_primitive_array::<f64>(x);
+    pub fn array_slice_f64(&mut self, x: &[f64]) {
+        self.write_primitive_array_slice::<f64>(x);
+    }
+
+    pub fn array_iter_u8<I: Iterator<Item = u8>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_i8<I: Iterator<Item = i8>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_u16<I: Iterator<Item = u16>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_i16<I: Iterator<Item = i16>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_u32<I: Iterator<Item = u32>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_i32<I: Iterator<Item = i32>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_u64<I: Iterator<Item = u64>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_i64<I: Iterator<Item = i64>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_f32<I: Iterator<Item = f32>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
+    }
+    pub fn array_iter_f64<I: Iterator<Item = f64>>(&mut self, it: I) {
+        self.write_primitive_array_iter(it);
     }
 
     pub fn string(&mut self, x: &str) {
@@ -296,7 +343,7 @@ impl<'a> Serializer<'a> {
         self.data.reserve(u8::SIZE + u32::SIZE + bytes.len());
         self.data.push(ValueType::String.to_byte());
         let len = bytes.len() as u32;
-        len.write(self.data);
+        len.write_to(self.data);
         for b in bytes {
             self.data.push(*b);
         }
@@ -321,6 +368,37 @@ impl<'a> Drop for Serializer<'a> {
         for (i, b) in subarchive_line.to_be_bytes().iter().enumerate() {
             self.data[self.start_index + i] = *b;
         }
+    }
+}
+
+pub struct DeserializerIterator<'a, T> {
+    deserializer: &'a mut Deserializer<'a>,
+    remaining: usize,
+    _phantom_data: PhantomData<T>,
+}
+
+impl<'a, T> DeserializerIterator<'a, T> {
+    fn new(
+        deserializer: &'a mut Deserializer<'a>,
+        remaining: usize,
+    ) -> DeserializerIterator<'a, T> {
+        DeserializerIterator {
+            deserializer,
+            remaining,
+            _phantom_data: PhantomData,
+        }
+    }
+}
+
+impl<'a, T: PrimitiveReadWrite> Iterator for DeserializerIterator<'a, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<T> {
+        if self.remaining == 0 {
+            return None;
+        }
+        self.remaining -= 1;
+        Some(T::read_from(self.deserializer))
     }
 }
 
@@ -366,10 +444,10 @@ impl<'a> Deserializer<'a> {
         if the_type != ValueType::Primitive(T::TYPE) {
             return Err(());
         }
-        T::read(self)
+        Ok(T::read_from(self))
     }
 
-    fn read_primitive_array<T: PrimitiveReadWrite>(&mut self) -> Result<Vec<T>, ()> {
+    fn read_primitive_array_slice<T: PrimitiveReadWrite>(&mut self) -> Result<Vec<T>, ()> {
         if self.remaining_len() < (u8::SIZE + u32::SIZE) {
             return Err(());
         }
@@ -377,11 +455,28 @@ impl<'a> Deserializer<'a> {
         if the_type != ValueType::Array(T::TYPE) {
             return Err(());
         }
-        let len = u32::read(self)? as usize;
+        let len = u32::read_from(self) as usize;
         if self.remaining_len() < (len * T::SIZE) {
             return Err(());
         }
-        (0..len).map(|_| T::read(self)).collect()
+        Ok((0..len).map(|_| T::read_from(self)).collect())
+    }
+
+    fn read_primitive_array_iter<T: PrimitiveReadWrite>(
+        &'a mut self,
+    ) -> Result<DeserializerIterator<'a, T>, ()> {
+        if self.remaining_len() < (u8::SIZE + u32::SIZE) {
+            return Err(());
+        }
+        let the_type = ValueType::from_byte(self.read_byte()?)?;
+        if the_type != ValueType::Array(T::TYPE) {
+            return Err(());
+        }
+        let len = u32::read_from(self) as usize;
+        if self.remaining_len() < (len * T::SIZE) {
+            return Err(());
+        }
+        Ok(DeserializerIterator::new(self, len))
     }
 
     pub fn u8(&mut self) -> Result<u8, ()> {
@@ -415,35 +510,39 @@ impl<'a> Deserializer<'a> {
         self.read_primitive::<f64>()
     }
 
-    pub fn array_u8(&mut self) -> Result<Vec<u8>, ()> {
-        self.read_primitive_array::<u8>()
+    pub fn array_slice_u8(&mut self) -> Result<Vec<u8>, ()> {
+        self.read_primitive_array_slice::<u8>()
     }
-    pub fn array_i8(&mut self) -> Result<Vec<i8>, ()> {
-        self.read_primitive_array::<i8>()
+    pub fn array_slice_i8(&mut self) -> Result<Vec<i8>, ()> {
+        self.read_primitive_array_slice::<i8>()
     }
-    pub fn array_u16(&mut self) -> Result<Vec<u16>, ()> {
-        self.read_primitive_array::<u16>()
+    pub fn array_slice_u16(&mut self) -> Result<Vec<u16>, ()> {
+        self.read_primitive_array_slice::<u16>()
     }
-    pub fn array_i16(&mut self) -> Result<Vec<i16>, ()> {
-        self.read_primitive_array::<i16>()
+    pub fn array_slice_i16(&mut self) -> Result<Vec<i16>, ()> {
+        self.read_primitive_array_slice::<i16>()
     }
-    pub fn array_u32(&mut self) -> Result<Vec<u32>, ()> {
-        self.read_primitive_array::<u32>()
+    pub fn array_slice_u32(&mut self) -> Result<Vec<u32>, ()> {
+        self.read_primitive_array_slice::<u32>()
     }
-    pub fn array_i32(&mut self) -> Result<Vec<i32>, ()> {
-        self.read_primitive_array::<i32>()
+    pub fn array_slice_i32(&mut self) -> Result<Vec<i32>, ()> {
+        self.read_primitive_array_slice::<i32>()
     }
-    pub fn array_u64(&mut self) -> Result<Vec<u64>, ()> {
-        self.read_primitive_array::<u64>()
+    pub fn array_slice_u64(&mut self) -> Result<Vec<u64>, ()> {
+        self.read_primitive_array_slice::<u64>()
     }
-    pub fn array_i64(&mut self) -> Result<Vec<i64>, ()> {
-        self.read_primitive_array::<i64>()
+    pub fn array_slice_i64(&mut self) -> Result<Vec<i64>, ()> {
+        self.read_primitive_array_slice::<i64>()
     }
-    pub fn array_f32(&mut self) -> Result<Vec<f32>, ()> {
-        self.read_primitive_array::<f32>()
+    pub fn array_slice_f32(&mut self) -> Result<Vec<f32>, ()> {
+        self.read_primitive_array_slice::<f32>()
     }
-    pub fn array_f64(&mut self) -> Result<Vec<f64>, ()> {
-        self.read_primitive_array::<f64>()
+    pub fn array_slice_f64(&mut self) -> Result<Vec<f64>, ()> {
+        self.read_primitive_array_slice::<f64>()
+    }
+
+    pub fn array_iter_f32(&'a mut self) -> Result<DeserializerIterator<'a, f32>, ()> {
+        self.read_primitive_array_iter::<f32>()
     }
 
     pub fn string(&mut self) -> Result<String, ()> {
@@ -454,7 +553,7 @@ impl<'a> Deserializer<'a> {
         if the_type != ValueType::String {
             return Err(());
         }
-        let len = u32::read(self)? as usize;
+        let len = u32::read_from(self) as usize;
         if self.remaining_len() < len {
             return Err(());
         }
@@ -472,7 +571,7 @@ impl<'a> Deserializer<'a> {
         if the_type != ValueType::SubArchive {
             return Err(());
         }
-        let len = u32::read(self)? as usize;
+        let len = u32::read_from(self) as usize;
         if self.remaining_len() < len {
             return Err(());
         }
@@ -516,8 +615,8 @@ mod tests {
         let archive = Archive::serialize_with(|mut s1| {
             s1.u8(1);
             s1.u16(2);
-            s1.array_u8(&[0, 1, 2, 3]);
-            s1.array_u64(&[10, 11, 12, 13]);
+            s1.array_slice_u8(&[0, 1, 2, 3]);
+            s1.array_slice_u64(&[10, 11, 12, 13]);
             s1.string("Testing");
 
             {
@@ -528,8 +627,8 @@ mod tests {
 
                 s2.u8(3);
                 s2.u16(4);
-                s2.array_u8(&[20, 21, 22, 23]);
-                s2.array_u64(&[30, 31, 32, 33]);
+                s2.array_slice_u8(&[20, 21, 22, 23]);
+                s2.array_slice_u64(&[30, 31, 32, 33]);
             }
             s1.u8(1);
         });
@@ -549,13 +648,13 @@ mod tests {
         assert_eq!(d1.u16().unwrap(), 2);
         assert_eq!(d1.peek_type().unwrap(), ValueType::Array(PrimitiveType::U8));
         assert_eq!(d1.peek_length().unwrap(), 4);
-        assert_eq!(d1.array_u8().unwrap(), vec![0, 1, 2, 3]);
+        assert_eq!(d1.array_slice_u8().unwrap(), vec![0, 1, 2, 3]);
         assert_eq!(
             d1.peek_type().unwrap(),
             ValueType::Array(PrimitiveType::U64)
         );
         assert_eq!(d1.peek_length().unwrap(), 4);
-        assert_eq!(d1.array_u64().unwrap(), vec![10, 11, 12, 13]);
+        assert_eq!(d1.array_slice_u64().unwrap(), vec![10, 11, 12, 13]);
         assert_eq!(d1.peek_type().unwrap(), ValueType::String);
         assert_eq!(d1.peek_length().unwrap(), "Testing".as_bytes().len());
         assert_eq!(d1.string().unwrap(), "Testing");
@@ -577,13 +676,13 @@ mod tests {
             assert_eq!(d2.u16().unwrap(), 4);
             assert_eq!(d2.peek_type().unwrap(), ValueType::Array(PrimitiveType::U8));
             assert_eq!(d2.peek_length().unwrap(), 4);
-            assert_eq!(d2.array_u8().unwrap(), vec![20, 21, 22, 23]);
+            assert_eq!(d2.array_slice_u8().unwrap(), vec![20, 21, 22, 23]);
             assert_eq!(
                 d2.peek_type().unwrap(),
                 ValueType::Array(PrimitiveType::U64)
             );
             assert_eq!(d2.peek_length().unwrap(), 4);
-            assert_eq!(d2.array_u64().unwrap(), vec![30, 31, 32, 33]);
+            assert_eq!(d2.array_slice_u64().unwrap(), vec![30, 31, 32, 33]);
             assert!(d2.peek_type().is_err());
             assert!(d2.peek_length().is_err());
             assert_eq!(d2.remaining_len(), 0);

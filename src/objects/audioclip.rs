@@ -4,6 +4,8 @@ use parking_lot::RwLock;
 
 use crate::core::{
     graphobject::{ObjectType, WithObjectType},
+    serialization::Serializer,
+    soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
@@ -11,22 +13,22 @@ use crate::core::{
 };
 
 pub struct AudioClip {
-    audio_data: Arc<RwLock<Vec<(f32, f32)>>>,
+    data: Arc<RwLock<SoundBuffer>>,
     input: NoInputs,
 }
 
 impl AudioClip {
-    pub fn set_data(&self, data: Vec<(f32, f32)>) {
-        *self.audio_data.write() = data;
+    pub fn set_data(&self, data: SoundBuffer) {
+        *self.data.write() = data;
     }
 
-    pub fn get_data<'a>(&'a self) -> impl 'a + Deref<Target = Vec<(f32, f32)>> {
-        self.audio_data.read()
+    pub fn get_data<'a>(&'a self) -> impl 'a + Deref<Target = SoundBuffer> {
+        self.data.read()
     }
 }
 
 pub struct AudioClipState {
-    audio_data: Arc<RwLock<Vec<(f32, f32)>>>,
+    data: Arc<RwLock<SoundBuffer>>,
     playhead: usize,
 }
 
@@ -43,8 +45,9 @@ impl SoundProcessor for AudioClip {
     type InputType = NoInputs;
 
     fn new(_tools: SoundProcessorTools) -> Self {
+        let data = SoundBuffer::new_empty();
         AudioClip {
-            audio_data: Arc::new(RwLock::new(Vec::new())),
+            data: Arc::new(RwLock::new(data)),
             input: NoInputs::new(),
         }
     }
@@ -55,7 +58,7 @@ impl SoundProcessor for AudioClip {
 
     fn make_state(&self) -> Self::StateType {
         AudioClipState {
-            audio_data: Arc::clone(&&self.audio_data),
+            data: Arc::clone(&self.data),
             playhead: 0,
         }
     }
@@ -67,23 +70,46 @@ impl SoundProcessor for AudioClip {
         _context: crate::core::context::Context,
     ) -> StreamStatus {
         let st = state.state_mut();
-        let data = st.audio_data.read();
-        if data.len() == 0 {
+        let data = st.data.read();
+        if data.sample_len() == 0 {
             dst.silence();
             return StreamStatus::Done;
         }
         for i in 0..CHUNK_SIZE {
-            let s = data[st.playhead];
+            // TODO: don't repeat this every sample
+            let ci = st.playhead / CHUNK_SIZE;
+            let si = st.playhead % CHUNK_SIZE;
+            let c = &data.chunks()[ci];
             st.playhead += 1;
-            if st.playhead >= data.len() {
+            if st.playhead >= data.sample_len() {
                 // TODO: add an option to enable/disable looping
-                st.playhead -= data.len();
+                st.playhead -= data.sample_len();
             }
-            debug_assert!(st.playhead < data.len());
-            dst.l[i] = s.0;
-            dst.r[i] = s.1;
+            debug_assert!(st.playhead < data.sample_len());
+            dst.l[i] = c.l[si];
+            dst.r[i] = c.r[si];
         }
         StreamStatus::Playing
+    }
+
+    fn serialize(&self, serializer: Serializer) {
+        let data = self.data.read();
+        serializer.array_iter_f32(
+            data.chunks()
+                .iter()
+                .map(|c| &c.l[..])
+                .flatten()
+                .take(data.sample_len())
+                .cloned(),
+        );
+        serializer.array_iter_f32(
+            data.chunks()
+                .iter()
+                .map(|c| &c.r[..])
+                .flatten()
+                .take(data.sample_len())
+                .cloned(),
+        );
     }
 }
 

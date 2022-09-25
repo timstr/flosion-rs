@@ -64,7 +64,7 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
         context: Context,
     ) -> StreamStatus;
 
-    fn serialize(&self, serializer: Serializer);
+    fn serialize(&self, serializer: Serializer) {}
 }
 
 pub trait SoundProcessorWrapper: Sync + Send + 'static {

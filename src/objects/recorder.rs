@@ -8,6 +8,7 @@ use parking_lot::RwLock;
 use crate::core::{
     context::Context,
     graphobject::{ObjectType, WithObjectType},
+    serialization::Serializer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
     soundprocessor::{SoundProcessor, StreamStatus},
@@ -136,6 +137,12 @@ impl SoundProcessor for Recorder {
             groups.push(new_group);
         }
         StreamStatus::Playing
+    }
+
+    fn serialize(&self, serializer: Serializer) {
+        let data = self.data.recorded_chunk_groups.read();
+        serializer.array_iter_f32(data.iter().flatten().map(|c| &c.l[..]).flatten().cloned());
+        serializer.array_iter_f32(data.iter().flatten().map(|c| &c.r[..]).flatten().cloned());
     }
 }
 

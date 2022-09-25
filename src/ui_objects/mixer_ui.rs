@@ -1,7 +1,5 @@
 use crate::{
-    core::{
-        graphobject::ObjectId, serialization::Serializer, soundprocessor::SoundProcessorHandle,
-    },
+    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
     objects::mixer::Mixer,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -57,9 +55,5 @@ impl ObjectUi for MixerUi {
                 });
             }
         });
-    }
-
-    fn serialize_object(&self, object: &Self::WrapperType, serializer: &mut Serializer) {
-        serializer.u8(object.instance().num_inputs() as u8);
     }
 }

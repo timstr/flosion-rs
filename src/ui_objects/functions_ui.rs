@@ -104,10 +104,6 @@ impl ObjectUi for ConstantUi {
             name: "Constant".to_string(),
         }
     }
-
-    fn serialize_object(&self, object: &Self::WrapperType, serializer: &mut Serializer) {
-        serializer.f32(object.instance().get_value());
-    }
 }
 
 macro_rules! unary_number_source_ui {

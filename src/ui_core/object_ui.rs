@@ -57,8 +57,6 @@ pub trait ObjectUi: 'static + Default {
 
     fn init_from_archive(&self, _object: &Self::WrapperType, _archive: &mut Deserializer) {}
 
-    fn serialize_object(&self, _object: &Self::WrapperType, _serializer: &mut Serializer) {}
-
     fn make_ui_state(&self, _args: &ParsedArguments) -> Self::StateType {
         Self::StateType::default()
     }
@@ -85,8 +83,6 @@ pub trait AnyObjectUi {
     fn init_object_from_args(&self, object: &dyn GraphObject, args: &ParsedArguments);
 
     fn init_object_from_archive(&self, object: &dyn GraphObject, deserializer: &mut Deserializer);
-
-    fn serialize_object(&self, object: &dyn GraphObject, serializer: &mut Serializer);
 
     fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>>;
 
@@ -131,10 +127,6 @@ impl<T: ObjectUi> AnyObjectUi for T {
 
     fn init_object_from_archive(&self, object: &dyn GraphObject, deserializer: &mut Deserializer) {
         self.init_from_archive(downcast_object::<T>(object), deserializer);
-    }
-
-    fn serialize_object(&self, _object: &dyn GraphObject, _serializer: &mut Serializer) {
-        todo!();
     }
 
     fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>> {

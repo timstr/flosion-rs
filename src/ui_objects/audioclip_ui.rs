@@ -1,9 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{
-        graphobject::ObjectId, serialization::Serializer, soundprocessor::SoundProcessorHandle,
-    },
+    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
     objects::audioclip::AudioClip,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -30,17 +28,5 @@ impl ObjectUi for AudioClipUi {
             ui.label("AudioClip");
             ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
         })
-    }
-
-    fn serialize_object(&self, object: &Self::WrapperType, serializer: &mut Serializer) {
-        // TODO: consider avoiding the temporary copy here by adding an iterator-based interface to Serializer
-        let v: Vec<f32> = object
-            .instance()
-            .get_data()
-            .iter()
-            .map(|x| [x.0, x.1])
-            .flatten()
-            .collect();
-        serializer.array_f32(&v);
     }
 }
