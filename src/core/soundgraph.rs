@@ -17,7 +17,7 @@ use super::{
     serialization::Serializer,
     soundengine::SoundEngine,
     soundgraphdescription::SoundGraphDescription,
-    soundgrapherror::{NumberConnectionError, SoundGraphError},
+    soundgrapherror::{NumberConnectionError, SoundConnectionError, SoundGraphError},
     soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundprocessor::{SoundProcessor, SoundProcessorHandle, SoundProcessorId},
@@ -70,6 +70,26 @@ impl SoundGraph {
         self.topology
             .write()
             .connect_sound_input(input_id, processor_id)
+    }
+
+    pub fn sound_input_target(
+        &self,
+        input_id: SoundInputId,
+    ) -> Result<Option<SoundProcessorId>, SoundConnectionError> {
+        match self.topology.read().sound_inputs().get(&input_id) {
+            Some(i) => Ok(i.target()),
+            None => return Err(SoundConnectionError::InputNotFound(input_id)),
+        }
+    }
+
+    pub fn number_input_target(
+        &self,
+        input_id: NumberInputId,
+    ) -> Result<Option<NumberSourceId>, NumberConnectionError> {
+        match self.topology.read().number_inputs().get(&input_id) {
+            Some(i) => Ok(i.target()),
+            None => return Err(NumberConnectionError::InputNotFound(input_id)),
+        }
     }
 
     pub fn start(&mut self) {

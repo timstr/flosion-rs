@@ -133,6 +133,15 @@ impl<T: PureNumberSource> PureNumberSourceHandle<T> {
     }
 }
 
+impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            instance: Arc::clone(&self.instance),
+        }
+    }
+}
+
 pub trait StateFunction<S>: 'static + Sized + Sync + Send {
     fn apply(&self, dst: &mut [f32], state: &S);
 }

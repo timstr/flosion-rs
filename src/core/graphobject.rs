@@ -164,6 +164,20 @@ pub trait GraphObject {
     fn serialize(&self, serializer: Serializer);
 }
 
+pub fn object_to_sound_processor<T: SoundProcessor>(
+    object: &dyn GraphObject,
+) -> Option<SoundProcessorHandle<T>> {
+    let h = object.as_any().downcast_ref::<SoundProcessorHandle<T>>();
+    h.map(|h| h.clone())
+}
+
+pub fn object_to_number_source<T: PureNumberSource>(
+    object: &dyn GraphObject,
+) -> Option<PureNumberSourceHandle<T>> {
+    let h = object.as_any().downcast_ref::<PureNumberSourceHandle<T>>();
+    h.map(|h| h.clone())
+}
+
 pub trait TypedGraphObject: GraphObject {
     type Type;
 }

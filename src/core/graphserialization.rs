@@ -338,7 +338,7 @@ pub fn deserialize_sound_graph(
         let nsids = s1.array_slice_u16()?;
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
-        let s2 = deserializer.subarchive()?;
+        let s2 = s1.subarchive()?;
         let new_sp = object_factory.create_from_archive(&name, dst_graph, s2);
         new_objects.push(new_sp.get_id());
         let new_spid = match new_sp.get_id() {
@@ -387,7 +387,7 @@ pub fn deserialize_sound_graph(
         let spid = s1.u16()?;
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
-        let s2 = deserializer.subarchive()?;
+        let s2 = s1.subarchive()?;
         let new_ns = object_factory.create_from_archive(&name, dst_graph, s2);
         new_objects.push(new_ns.get_id());
         let new_nsid = match new_ns.get_id() {

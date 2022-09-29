@@ -26,3 +26,6 @@ pub mod soundprocessor;
 pub mod soundprocessortools;
 pub mod statetree;
 pub mod uniqueid;
+
+#[cfg(test)]
+mod test;
