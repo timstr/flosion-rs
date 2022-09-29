@@ -3,7 +3,7 @@ use std::{ops::Deref, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::core::{
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     serialization::Serializer,
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -44,7 +44,9 @@ impl SoundProcessor for AudioClip {
     type StateType = AudioClipState;
     type InputType = NoInputs;
 
-    fn new(_tools: SoundProcessorTools) -> Self {
+    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
+        // TODO
+        println!("TODO: actually initialize AudioClip");
         let data = SoundBuffer::new_empty();
         AudioClip {
             data: Arc::new(RwLock::new(data)),
@@ -92,24 +94,10 @@ impl SoundProcessor for AudioClip {
         StreamStatus::Playing
     }
 
-    fn serialize(&self, serializer: Serializer) {
+    fn serialize(&self, mut serializer: Serializer) {
         let data = self.data.read();
-        serializer.array_iter_f32(
-            data.chunks()
-                .iter()
-                .map(|c| &c.l[..])
-                .flatten()
-                .take(data.sample_len())
-                .cloned(),
-        );
-        serializer.array_iter_f32(
-            data.chunks()
-                .iter()
-                .map(|c| &c.r[..])
-                .flatten()
-                .take(data.sample_len())
-                .cloned(),
-        );
+        serializer.array_iter_f32(data.samples_l());
+        serializer.array_iter_f32(data.samples_r());
     }
 }
 

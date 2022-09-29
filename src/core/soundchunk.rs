@@ -27,4 +27,12 @@ impl SoundChunk {
         self.l = other.l;
         self.r = other.r;
     }
+
+    pub fn samples<'a>(&'a self) -> impl 'a + Iterator<Item = (f32, f32)> {
+        self.l.iter().cloned().zip(self.r.iter().cloned())
+    }
+
+    pub fn samples_mut<'a>(&'a mut self) -> impl 'a + Iterator<Item = (&mut f32, &mut f32)> {
+        self.l.iter_mut().zip(self.r.iter_mut())
+    }
 }

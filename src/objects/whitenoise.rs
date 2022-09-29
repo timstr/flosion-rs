@@ -2,7 +2,7 @@ use rand::prelude::*;
 
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     soundchunk::SoundChunk,
     soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
@@ -20,7 +20,7 @@ impl SoundProcessor for WhiteNoise {
 
     type InputType = NoInputs;
 
-    fn new(_tools: SoundProcessorTools) -> Self {
+    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
         WhiteNoise {
             inputs: NoInputs::new(),
         }

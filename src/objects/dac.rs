@@ -6,7 +6,7 @@ use std::sync::{
 
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -51,7 +51,7 @@ impl SoundProcessor for Dac {
 
     type InputType = SingleInput;
 
-    fn new(mut tools: SoundProcessorTools) -> Dac {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Dac {
         let host = cpal::default_host();
         let device = host
             .default_output_device()

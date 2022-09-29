@@ -22,7 +22,7 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::object_factory::ObjectFactory;
+use super::ui_factory::UiFactory;
 
 pub struct LayoutState {
     pub rect: egui::Rect,
@@ -241,13 +241,13 @@ pub struct GraphUIState {
     peg_hotkeys: PegHotKeys,
     selection: HashSet<ObjectId>,
     graph_topology: Arc<RwLock<SoundGraphTopology>>,
-    object_factory: Arc<RwLock<ObjectFactory>>,
+    ui_factory: Arc<RwLock<UiFactory>>,
 }
 
 impl GraphUIState {
     pub(super) fn new(
         topology: Arc<RwLock<SoundGraphTopology>>,
-        object_factory: Arc<RwLock<ObjectFactory>>,
+        object_factory: Arc<RwLock<UiFactory>>,
     ) -> GraphUIState {
         GraphUIState {
             layout_state: GraphLayout::new(),
@@ -259,7 +259,7 @@ impl GraphUIState {
             pending_changes: Vec::new(),
             selection: HashSet::new(),
             graph_topology: topology,
-            object_factory,
+            ui_factory: object_factory,
         }
     }
 
@@ -282,7 +282,7 @@ impl GraphUIState {
 
     pub fn get_object_state(&mut self, id: ObjectId) -> Rc<RefCell<dyn ObjectUiState>> {
         let topo = &self.graph_topology;
-        let factory = &self.object_factory;
+        let factory = &self.ui_factory;
         let state = self.object_states.entry(id).or_insert_with(|| {
             let topo = topo.read();
             let object = match id {
@@ -300,7 +300,7 @@ impl GraphUIState {
                     .as_graph_object(nsid)
                     .unwrap(),
             };
-            factory.read().make_default_ui_state_for(&*object)
+            factory.read().create_default_state(&*object)
         });
         Rc::clone(&state)
     }

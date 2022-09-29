@@ -7,6 +7,7 @@ use std::{
 use eframe::egui::{self};
 
 use crate::core::{
+    arguments::{ArgumentList, ParsedArguments},
     graphobject::{GraphId, GraphObject, ObjectId, TypedGraphObject},
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
@@ -15,10 +16,7 @@ use crate::core::{
     soundprocessor::SoundProcessorId,
 };
 
-use super::{
-    arguments::{ArgumentList, ParsedArguments},
-    graph_ui_state::{GraphUIState, ObjectUiState},
-};
+use super::graph_ui_state::{GraphUIState, ObjectUiState};
 
 #[derive(Default)]
 pub struct NoUIState;
@@ -31,6 +29,11 @@ impl Serializable for NoUIState {
     fn deserialize(_deserializer: &mut Deserializer) -> Result<Self, ()> {
         Ok(Self)
     }
+}
+
+pub enum UiInitialization<'a> {
+    Args(&'a ParsedArguments),
+    Default,
 }
 
 pub trait ObjectUi: 'static + Default {
@@ -53,15 +56,11 @@ pub trait ObjectUi: 'static + Default {
         ArgumentList::new()
     }
 
-    fn init_from_args(&self, _object: &Self::WrapperType, _args: &ParsedArguments) {}
-
-    fn init_from_archive(&self, _object: &Self::WrapperType, _archive: &mut Deserializer) {}
-
-    fn make_ui_state(&self, _args: &ParsedArguments) -> Self::StateType {
-        Self::StateType::default()
-    }
-
-    fn make_default_ui_state(&self, _object: &Self::WrapperType) -> Self::StateType {
+    fn make_ui_state(
+        &self,
+        _wrapper: &Self::WrapperType,
+        _init: UiInitialization,
+    ) -> Self::StateType {
         Self::StateType::default()
     }
 }
@@ -80,13 +79,11 @@ pub trait AnyObjectUi {
 
     fn arguments(&self) -> ArgumentList;
 
-    fn init_object_from_args(&self, object: &dyn GraphObject, args: &ParsedArguments);
-
-    fn init_object_from_archive(&self, object: &dyn GraphObject, deserializer: &mut Deserializer);
-
-    fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>>;
-
-    fn make_default_ui_state(&self, object: &dyn GraphObject) -> Rc<RefCell<dyn ObjectUiState>>;
+    fn make_ui_state(
+        &self,
+        object: &dyn GraphObject,
+        init: UiInitialization,
+    ) -> Rc<RefCell<dyn ObjectUiState>>;
 }
 
 fn downcast_object<T: ObjectUi>(object: &dyn GraphObject) -> &T::WrapperType {
@@ -121,19 +118,6 @@ impl<T: ObjectUi> AnyObjectUi for T {
         self.ui(id, dc_object, graph_state, ui, state);
     }
 
-    fn init_object_from_args(&self, object: &dyn GraphObject, args: &ParsedArguments) {
-        self.init_from_args(downcast_object::<T>(object), args);
-    }
-
-    fn init_object_from_archive(&self, object: &dyn GraphObject, deserializer: &mut Deserializer) {
-        self.init_from_archive(downcast_object::<T>(object), deserializer);
-    }
-
-    fn make_ui_state(&self, args: &ParsedArguments) -> Rc<RefCell<dyn ObjectUiState>> {
-        let x: &T = self;
-        Rc::new(RefCell::new(x.make_ui_state(args)))
-    }
-
     fn aliases(&self) -> &'static [&'static str] {
         self.aliases()
     }
@@ -142,9 +126,13 @@ impl<T: ObjectUi> AnyObjectUi for T {
         self.arguments()
     }
 
-    fn make_default_ui_state(&self, object: &dyn GraphObject) -> Rc<RefCell<dyn ObjectUiState>> {
-        let state = self.make_default_ui_state(downcast_object::<T>(object));
-        Rc::new(RefCell::new(state))
+    fn make_ui_state(
+        &self,
+        object: &dyn GraphObject,
+        init: UiInitialization,
+    ) -> Rc<RefCell<dyn ObjectUiState>> {
+        let dc_object = downcast_object::<T>(object);
+        Rc::new(RefCell::new((self as &T).make_ui_state(dc_object, init)))
     }
 }
 

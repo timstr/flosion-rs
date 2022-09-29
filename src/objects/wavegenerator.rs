@@ -1,6 +1,6 @@
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
     numbersource::StateNumberSourceHandle,
     numeric,
@@ -38,7 +38,7 @@ impl SoundProcessor for WaveGenerator {
 
     type InputType = NoInputs;
 
-    fn new(mut tools: SoundProcessorTools) -> Self {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
         WaveGenerator {
             phase: tools.add_processor_number_source::<Self, _>(
                 |dst: &mut [f32], state: &WaveGeneratorState| {

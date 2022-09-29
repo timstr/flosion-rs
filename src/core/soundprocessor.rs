@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::{
     context::Context,
-    graphobject::{GraphObject, WithObjectType},
+    graphobject::{GraphObject, ObjectInitialization, WithObjectType},
     serialization::Serializer,
     soundchunk::SoundChunk,
     soundprocessortools::SoundProcessorTools,
@@ -47,7 +47,7 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: State;
     type InputType: ProcessorInput;
 
-    fn new(tools: SoundProcessorTools) -> Self
+    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Self
     where
         Self: Sized;
 
@@ -64,7 +64,7 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
         context: Context,
     ) -> StreamStatus;
 
-    fn serialize(&self, serializer: Serializer) {}
+    fn serialize(&self, _serializer: Serializer) {}
 }
 
 pub trait SoundProcessorWrapper: Sync + Send + 'static {

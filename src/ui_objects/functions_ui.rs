@@ -2,17 +2,22 @@ use eframe::egui;
 
 use crate::{
     core::{
+        arguments::{ArgumentList, ArgumentValue},
         graphobject::ObjectId,
         numbersource::PureNumberSourceHandle,
         serialization::{Deserializer, Serializable, Serializer},
     },
     objects::functions::*,
     ui_core::{
-        arguments::{ArgumentList, ArgumentValue, ParsedArguments},
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow},
+        object_ui::{
+            NoUIState, NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow,
+            UiInitialization,
+        },
     },
 };
+
+// TODO: distinguish constant from slider
 
 #[derive(Default)]
 pub struct ConstantUi {}
@@ -82,28 +87,50 @@ impl ObjectUi for ConstantUi {
         args
     }
 
-    fn init_from_args(&self, object: &PureNumberSourceHandle<Constant>, args: &ParsedArguments) {
-        object
-            .instance()
-            .set_value(args.get("value").as_float().unwrap());
-    }
-
-    fn make_ui_state(&self, args: &ParsedArguments) -> Self::StateType {
-        ConstantUiState {
-            min_value: args.get("min").as_float().unwrap(),
-            max_value: args.get("max").as_float().unwrap(),
-            name: args.get("name").as_string().unwrap().to_string(),
+    fn make_ui_state(
+        &self,
+        object: &PureNumberSourceHandle<Constant>,
+        init: UiInitialization,
+    ) -> Self::StateType {
+        match init {
+            UiInitialization::Args(args) => ConstantUiState {
+                min_value: args.get("min").as_float().unwrap(),
+                max_value: args.get("max").as_float().unwrap(),
+                name: args.get("name").as_string().unwrap().to_string(),
+            },
+            UiInitialization::Default => {
+                let v = object.instance().get_value();
+                ConstantUiState {
+                    min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
+                    max_value: 2.0 * v.abs(),
+                    name: "Constant".to_string(),
+                }
+            }
         }
     }
 
-    fn make_default_ui_state(&self, object: &PureNumberSourceHandle<Constant>) -> Self::StateType {
-        let v = object.instance().get_value();
-        ConstantUiState {
-            min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
-            max_value: 2.0 * v.abs(),
-            name: "Constant".to_string(),
-        }
-    }
+    // fn init_from_args(&self, object: &PureNumberSourceHandle<Constant>, args: &ParsedArguments) {
+    //     object
+    //         .instance()
+    //         .set_value(args.get("value").as_float().unwrap());
+    // }
+
+    // fn make_ui_state(&self, args: &ParsedArguments) -> Self::StateType {
+    //     ConstantUiState {
+    //         min_value: args.get("min").as_float().unwrap(),
+    //         max_value: args.get("max").as_float().unwrap(),
+    //         name: args.get("name").as_string().unwrap().to_string(),
+    //     }
+    // }
+
+    // fn make_default_ui_state(&self, object: &PureNumberSourceHandle<Constant>) -> Self::StateType {
+    //     let v = object.instance().get_value();
+    //     ConstantUiState {
+    //         min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
+    //         max_value: 2.0 * v.abs(),
+    //         name: "Constant".to_string(),
+    //     }
+    // }
 }
 
 macro_rules! unary_number_source_ui {

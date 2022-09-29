@@ -1,6 +1,7 @@
 use std::any::{type_name, Any};
 
 use super::{
+    arguments::ParsedArguments,
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
     serialization::{Deserializer, Serializable, Serializer},
@@ -77,10 +78,20 @@ impl From<SoundProcessorId> for ObjectId {
         ObjectId::Sound(id)
     }
 }
+impl From<&SoundProcessorId> for ObjectId {
+    fn from(id: &SoundProcessorId) -> ObjectId {
+        ObjectId::Sound(*id)
+    }
+}
 
 impl From<NumberSourceId> for ObjectId {
     fn from(id: NumberSourceId) -> ObjectId {
         ObjectId::Number(id)
+    }
+}
+impl From<&NumberSourceId> for ObjectId {
+    fn from(id: &NumberSourceId) -> ObjectId {
+        ObjectId::Number(*id)
     }
 }
 
@@ -146,10 +157,11 @@ impl From<&NumberSourceId> for GraphId {
 }
 
 pub trait GraphObject {
+    fn get_id(&self) -> ObjectId;
     fn get_type(&self) -> ObjectType;
     fn as_any(&self) -> &dyn Any;
     fn get_language_type_name(&self) -> &'static str;
-    fn serialize(&self, _serializer: Serializer);
+    fn serialize(&self, serializer: Serializer);
 }
 
 pub trait TypedGraphObject: GraphObject {
@@ -161,6 +173,10 @@ impl<T: SoundProcessor> TypedGraphObject for SoundProcessorHandle<T> {
 }
 
 impl<T: SoundProcessor> GraphObject for SoundProcessorHandle<T> {
+    fn get_id(&self) -> ObjectId {
+        self.id().into()
+    }
+
     fn get_type(&self) -> ObjectType {
         T::TYPE
     }
@@ -173,11 +189,8 @@ impl<T: SoundProcessor> GraphObject for SoundProcessorHandle<T> {
         type_name::<T>()
     }
 
-    fn serialize(&self, mut serializer: Serializer) {
-        serializer.object(&ObjectId::Sound(self.id()));
-        serializer.string(T::TYPE.name());
-        let s = serializer.subarchive();
-        self.instance().serialize(s);
+    fn serialize(&self, serializer: Serializer) {
+        self.instance().serialize(serializer);
     }
 }
 
@@ -186,6 +199,10 @@ impl<T: PureNumberSource> TypedGraphObject for PureNumberSourceHandle<T> {
 }
 
 impl<T: PureNumberSource> GraphObject for PureNumberSourceHandle<T> {
+    fn get_id(&self) -> ObjectId {
+        self.id().into()
+    }
+
     fn get_type(&self) -> ObjectType {
         T::TYPE
     }
@@ -203,46 +220,12 @@ impl<T: PureNumberSource> GraphObject for PureNumberSourceHandle<T> {
     }
 }
 
+pub enum ObjectInitialization<'a> {
+    Args(&'a ParsedArguments),
+    Archive(Deserializer<'a>),
+    Default,
+}
+
 pub trait WithObjectType: 'static {
     const TYPE: ObjectType;
 }
-
-// pub trait ObjectWrapper: 'static {
-//     type Type: WithObjectType;
-
-//     fn get_object(&self) -> &Self::Type;
-// }
-
-// impl<T: SoundProcessor> ObjectWrapper for SoundProcessorHandle<T> {
-//     type Type = T;
-
-//     fn get_object(&self) -> &T {
-//         self.instance()
-//     }
-// }
-
-// impl<T: PureNumberSource> ObjectWrapper for PureNumberSourceHandle<T> {
-//     type Type = T;
-
-//     fn get_object(&self) -> &T {
-//         self.instance()
-//     }
-// }
-
-// impl<T: PureNumberSource + WithObjectType> GraphObject for T {
-//     fn get_type(&self) -> ObjectType {
-//         T::TYPE
-//     }
-
-//     fn as_any(&self) -> &dyn Any {
-//         self
-//     }
-
-//     fn get_language_type_name(&self) -> &'static str {
-//         type_name::<T>()
-//     }
-
-//     fn serialize(&self, serializer: Serializer) {
-//         self.serialize(serializer);
-//     }
-// }

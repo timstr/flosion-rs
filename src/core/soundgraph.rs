@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -9,7 +10,8 @@ use std::{
 use parking_lot::RwLock;
 
 use super::{
-    graphobject::{GraphObject, ObjectId},
+    graphobject::{GraphObject, ObjectId, ObjectInitialization},
+    graphserialization::serialize_sound_graph,
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
     serialization::Serializer,
@@ -46,12 +48,18 @@ impl SoundGraph {
         }
     }
 
-    pub fn add_sound_processor<T: SoundProcessor>(&mut self) -> SoundProcessorHandle<T> {
-        self.topology.write().add_sound_processor::<T>()
+    pub fn add_sound_processor<T: SoundProcessor>(
+        &mut self,
+        init: ObjectInitialization,
+    ) -> SoundProcessorHandle<T> {
+        self.topology.write().add_sound_processor::<T>(init)
     }
 
-    pub fn add_pure_number_source<T: PureNumberSource>(&mut self) -> PureNumberSourceHandle<T> {
-        self.topology.write().add_pure_number_source::<T>()
+    pub fn add_pure_number_source<T: PureNumberSource>(
+        &mut self,
+        init: ObjectInitialization,
+    ) -> PureNumberSourceHandle<T> {
+        self.topology.write().add_pure_number_source::<T>(init)
     }
 
     pub fn connect_sound_input(
@@ -92,18 +100,15 @@ impl SoundGraph {
         self.topology.read().describe()
     }
 
-    pub fn graph_objects(&self) -> Vec<(ObjectId, Box<dyn GraphObject>)> {
-        let mut ret = Vec::<(ObjectId, Box<dyn GraphObject>)>::new();
+    pub fn graph_objects(&self) -> Vec<Box<dyn GraphObject>> {
+        let mut ret: Vec<Box<dyn GraphObject>> = Vec::new();
         let topo = self.topology.read();
         for (id, data) in topo.sound_processors() {
-            ret.push((
-                ObjectId::Sound(*id),
-                data.processor_arc().as_graph_object(*id),
-            ));
+            ret.push(data.processor_arc().as_graph_object(*id));
         }
         for (id, data) in topo.number_sources() {
             if let Some(obj) = data.instance_arc().as_graph_object(*id) {
-                ret.push((ObjectId::Number(*id), obj));
+                ret.push(obj);
             }
         }
         ret
@@ -153,10 +158,10 @@ impl SoundGraph {
     }
 
     pub fn serialize(&self, serializer: &mut Serializer) {
-        todo!()
+        serialize_sound_graph(self, None, serializer)
     }
 
-    pub fn serialize_subset(&self, serializer: &mut Serializer, objects: &[ObjectId]) {
-        todo!()
+    pub fn serialize_subset(&self, serializer: &mut Serializer, objects: &HashSet<ObjectId>) {
+        serialize_sound_graph(self, Some(objects), serializer);
     }
 }

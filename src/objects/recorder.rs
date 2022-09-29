@@ -7,8 +7,9 @@ use parking_lot::RwLock;
 
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     serialization::Serializer,
+    soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
     soundprocessor::{SoundProcessor, StreamStatus},
@@ -18,14 +19,15 @@ use crate::core::{
 
 const CHUNKS_PER_GROUP: usize = 64;
 pub struct RecorderData {
-    recorded_chunk_groups: RwLock<Vec<Vec<SoundChunk>>>,
+    recorded_chunk_groups: RwLock<Vec<SoundBuffer>>,
     recording: AtomicBool,
 }
 
 impl RecorderData {
     pub fn new() -> Self {
+        let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
         Self {
-            recorded_chunk_groups: RwLock::new(vec![Vec::with_capacity(CHUNKS_PER_GROUP)]),
+            recorded_chunk_groups: RwLock::new(vec![buf]),
             recording: AtomicBool::new(false),
         }
     }
@@ -55,31 +57,26 @@ impl Recorder {
         self.data.recording.load(atomic::Ordering::Relaxed)
     }
 
-    pub fn copy_audio(&self) -> Vec<(f32, f32)> {
+    pub fn copy_audio(&self) -> SoundBuffer {
         let chunk_groups = self.data.recorded_chunk_groups.read();
-        let n = self.recording_length();
-        // let chunk_groups = self.chunk_groups.read();
-        // let cgs: &Vec<Vec<SoundChunk>> = &*chunk_groups;
-        let mut v: Vec<(f32, f32)> = Vec::with_capacity(n);
+        let mut b = SoundBuffer::new_with_capacity(chunk_groups.len() * CHUNKS_PER_GROUP);
         for cg in &*chunk_groups {
-            for c in cg {
-                for i in 0..CHUNK_SIZE {
-                    v.push((c.l[i], c.r[i]));
-                }
+            for c in cg.chunks() {
+                b.push_chunk(c);
             }
         }
-        debug_assert!(v.len() == n);
-        v
+        b
     }
 
     pub fn clear_recording(&self) {
-        *self.data.recorded_chunk_groups.write() = vec![Vec::with_capacity(CHUNKS_PER_GROUP)];
+        let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
+        *self.data.recorded_chunk_groups.write() = vec![buf];
     }
 
     pub fn recording_length(&self) -> usize {
         let mut n: usize = 0;
         for ch in &*self.data.recorded_chunk_groups.read() {
-            n += CHUNK_SIZE * ch.len();
+            n += CHUNK_SIZE * ch.chunks().len();
         }
         n
     }
@@ -92,7 +89,9 @@ impl SoundProcessor for Recorder {
 
     type InputType = SingleInput;
 
-    fn new(mut tools: SoundProcessorTools) -> Self {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
+        // TODO
+        println!("TODO: actually initialize Recorder");
         let r = Recorder {
             input: SingleInput::new(
                 InputOptions {
@@ -129,20 +128,20 @@ impl SoundProcessor for Recorder {
         let mut groups = state.recorded_chunk_groups.write();
         debug_assert!(groups.len() >= 1);
         let last_group = groups.last_mut().unwrap();
-        if last_group.len() < last_group.capacity() {
-            last_group.push(dst.clone());
+        if last_group.chunks().len() < last_group.chunk_capacity() {
+            last_group.push_chunk(dst);
         } else {
-            let mut new_group = Vec::<SoundChunk>::with_capacity(CHUNKS_PER_GROUP);
-            new_group.push(dst.clone());
+            let mut new_group = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
+            new_group.push_chunk(dst);
             groups.push(new_group);
         }
         StreamStatus::Playing
     }
 
-    fn serialize(&self, serializer: Serializer) {
+    fn serialize(&self, mut serializer: Serializer) {
         let data = self.data.recorded_chunk_groups.read();
-        serializer.array_iter_f32(data.iter().flatten().map(|c| &c.l[..]).flatten().cloned());
-        serializer.array_iter_f32(data.iter().flatten().map(|c| &c.r[..]).flatten().cloned());
+        serializer.array_iter_f32(data.iter().flat_map(|b| b.samples_l()));
+        serializer.array_iter_f32(data.iter().flat_map(|b| b.samples_r()));
     }
 }
 

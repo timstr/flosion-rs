@@ -1,6 +1,6 @@
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
@@ -85,7 +85,7 @@ impl SoundProcessor for ADSR {
 
     type InputType = SingleInput;
 
-    fn new(mut tools: SoundProcessorTools) -> Self {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
         ADSR {
             input: SingleInput::new(
                 InputOptions {

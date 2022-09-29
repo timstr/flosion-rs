@@ -4,7 +4,7 @@ use atomic_float::AtomicF32;
 
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     key::Key,
     numbersource::StateNumberSourceHandle,
     numeric,
@@ -80,7 +80,7 @@ impl SoundProcessor for Keyboard {
 
     type InputType = KeyedInput<KeyboardKey, NoState>;
 
-    fn new(mut tools: SoundProcessorTools) -> Self {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
         let input = KeyedInput::new(
             InputOptions {
                 interruptible: true,

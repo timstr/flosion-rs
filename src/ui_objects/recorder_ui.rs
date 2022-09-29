@@ -1,7 +1,10 @@
 use eframe::egui::{self, Button};
 
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
+    core::{
+        graphobject::{ObjectId, ObjectInitialization},
+        soundprocessor::SoundProcessorHandle,
+    },
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -57,7 +60,8 @@ impl ObjectUi for RecorderUi {
                 if ui.add(Button::new("Create AudioClip")).clicked() {
                     let a = object.copy_audio();
                     graph_tools.make_change(move |graph| {
-                        let ac = graph.add_sound_processor::<AudioClip>();
+                        let ac =
+                            graph.add_sound_processor::<AudioClip>(ObjectInitialization::Default);
                         ac.instance().set_data(a);
                     });
                 }

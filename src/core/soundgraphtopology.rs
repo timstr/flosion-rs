@@ -6,6 +6,7 @@ use crate::core::soundgrapherror::SoundConnectionError;
 
 use super::{
     context::Context,
+    graphobject::ObjectInitialization,
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
         NumberSource, NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle,
@@ -131,14 +132,17 @@ impl SoundGraphTopology {
         &self.static_processors
     }
 
-    pub fn add_sound_processor<T: SoundProcessor>(&mut self) -> SoundProcessorHandle<T> {
+    pub fn add_sound_processor<T: SoundProcessor>(
+        &mut self,
+        init: ObjectInitialization,
+    ) -> SoundProcessorHandle<T> {
         let processor_id = self.sound_processor_idgen.next_id();
         let data = EngineSoundProcessorData::new_without_processor(processor_id);
         self.sound_processors.insert(processor_id, data);
         let processor;
         {
             let tools = SoundProcessorTools::new(processor_id, self);
-            processor = Arc::new(T::new(tools));
+            processor = Arc::new(T::new(tools, init));
         }
         self.sound_processors
             .get_mut(&processor_id)
@@ -359,12 +363,15 @@ impl SoundGraphTopology {
         Ok(())
     }
 
-    pub fn add_pure_number_source<T: PureNumberSource>(&mut self) -> PureNumberSourceHandle<T> {
+    pub fn add_pure_number_source<T: PureNumberSource>(
+        &mut self,
+        init: ObjectInitialization,
+    ) -> PureNumberSourceHandle<T> {
         let id = self.number_source_idgen.next_id();
         let data = EngineNumberSourceData::new(id, None, NumberSourceOwner::Nothing);
         self.number_sources.insert(id, data);
         let tools = NumberSourceTools::new(id, self);
-        let source = Arc::new(T::new(tools));
+        let source = Arc::new(T::new(tools, init));
         let source2 = Arc::clone(&source);
         self.number_sources.get_mut(&id).unwrap().set_source(source);
         PureNumberSourceHandle::new(id, source2)

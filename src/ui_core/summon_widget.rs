@@ -1,9 +1,10 @@
 use eframe::egui;
 
-use crate::{core::graphobject::ObjectType, ui_core::object_factory::ObjectFactory};
+use crate::core::arguments::{ArgumentList, ParsedArguments};
 
-use super::arguments::{ArgumentList, ParsedArguments};
+use super::ui_factory::UiFactory;
 
+// TODO: why doesn't this work nicely for + - * / ?
 fn score_match(query: &str, content: &str) -> f32 {
     if query.len() == 0 || content.len() == 0 {
         return 0.0;
@@ -30,17 +31,17 @@ fn score_match(query: &str, content: &str) -> f32 {
 }
 
 struct MatchingObject {
-    object_type: ObjectType,
-    alias: Option<&'static str>,
+    object_type_str: String,
+    alias: Option<String>,
     arguments: ArgumentList,
 }
 
 impl MatchingObject {
-    fn name(&self) -> &'static str {
-        if let Some(n) = self.alias {
+    fn name(&self) -> &str {
+        if let Some(n) = self.alias.as_ref() {
             n
         } else {
-            self.object_type.name()
+            &self.object_type_str
         }
     }
 }
@@ -50,19 +51,19 @@ pub(super) struct SummonWidgetState {
     text: String,
     newly_created: bool,
     ready: bool,
-    selected_type: Option<ObjectType>,
+    selected_type: Option<String>,
     object_scores: Vec<(MatchingObject, f32)>,
     focus_object_index: Option<usize>,
 }
 
 impl SummonWidgetState {
-    pub(super) fn new(position: egui::Pos2, all_objects: &ObjectFactory) -> SummonWidgetState {
+    pub(super) fn new(position: egui::Pos2, all_objects: &UiFactory) -> SummonWidgetState {
         let mut object_scores: Vec<(MatchingObject, f32)> = Vec::new();
         for t in all_objects.all_object_types() {
-            let ui = all_objects.get_object_ui(*t);
+            let ui = all_objects.get_object_ui(t);
             object_scores.push((
                 MatchingObject {
-                    object_type: *t,
+                    object_type_str: t.to_string(),
                     alias: None,
                     arguments: ui.arguments(),
                 },
@@ -71,8 +72,8 @@ impl SummonWidgetState {
             for alias in ui.aliases() {
                 object_scores.push((
                     MatchingObject {
-                        object_type: *t,
-                        alias: Some(alias),
+                        object_type_str: t.to_string(),
+                        alias: Some(alias.to_string()),
                         arguments: ui.arguments(),
                     },
                     0.0,
@@ -80,7 +81,7 @@ impl SummonWidgetState {
             }
         }
 
-        object_scores.sort_by_key(|(o, _)| o.name());
+        object_scores.sort_by_key(|o| o.0.name().to_string()); // TODO: wtf lifetime? should not need to_string
 
         SummonWidgetState {
             position,
@@ -97,34 +98,31 @@ impl SummonWidgetState {
         self.ready
     }
 
-    pub(super) fn selected_type(&self) -> Option<ObjectType> {
-        self.selected_type
+    pub(super) fn selected_type(&self) -> Option<&str> {
+        self.selected_type.as_ref().map(|s| &**s)
     }
 
-    pub(super) fn parse_selected(&self) -> (ObjectType, ParsedArguments) {
-        let selected = match self.selected_type {
-            Some(s) => s,
-            None => panic!(),
-        };
+    pub(super) fn parse_selected(&self) -> (&str, ParsedArguments) {
+        let selected: &str = &*self.selected_type.as_ref().unwrap();
         let object = &self
             .object_scores
             .iter()
-            .find(|(o, _)| o.object_type == selected)
+            .find(|(o, _)| o.object_type_str == selected)
             .unwrap()
             .0;
-        debug_assert!(self.selected_type.unwrap().name() == object.object_type.name());
+        debug_assert!(selected == object.object_type_str);
         let args_str: Vec<&str> = self.text.split_whitespace().collect();
         let args = object.arguments.parse(if args_str.len() >= 1 {
             &args_str[1..]
         } else {
             &[]
         });
-        (object.object_type, args)
+        (&object.object_type_str, args)
     }
 
     fn update_matches(&mut self) {
         for (o, s) in self.object_scores.iter_mut() {
-            *s = score_match(&self.text, o.object_type.name());
+            *s = score_match(&self.text, &o.object_type_str);
         }
         self.object_scores
             .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().reverse());
@@ -195,8 +193,11 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                 }
                 if ui.input().key_pressed(egui::Key::Enter) {
                     self.state.ready = true;
-                    self.state.selected_type =
-                        self.state.object_scores.get(0).map(|x| x.0.object_type);
+                    self.state.selected_type = self
+                        .state
+                        .object_scores
+                        .get(0)
+                        .map(|x| x.0.object_type_str.clone());
                 }
                 if ui.input().key_pressed(egui::Key::Escape) {
                     self.state.ready = true;
@@ -230,7 +231,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                         );
                         if object.alias.is_some() {
                             layout_job.append(
-                                &format!("={}", object.object_type.name()),
+                                &format!("={}", object.object_type_str),
                                 5.0,
                                 egui::TextFormat {
                                     color: egui::Color32::from_rgba_unmultiplied(c, c, c, 128),
@@ -252,7 +253,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                         }
                         let r = ui.add(egui::Label::new(layout_job).sense(egui::Sense::click()));
                         if r.clicked() {
-                            self.state.selected_type = Some(object.object_type);
+                            self.state.selected_type = Some(object.object_type_str.clone());
                             self.state.ready = true;
                         }
                         if r.hovered() {

@@ -1,4 +1,8 @@
-use super::soundchunk::{SoundChunk, CHUNK_SIZE};
+use super::{
+    numeric,
+    serialization::{Deserializer, Serializable, Serializer},
+    soundchunk::{SoundChunk, CHUNK_SIZE},
+};
 
 pub struct SoundBuffer {
     chunks: Vec<SoundChunk>,
@@ -13,12 +17,27 @@ impl SoundBuffer {
         }
     }
 
+    pub fn new_with_capacity(num_chunks: usize) -> SoundBuffer {
+        SoundBuffer {
+            chunks: Vec::with_capacity(num_chunks),
+            sample_len: 0,
+        }
+    }
+
     pub fn new(chunks: Vec<SoundChunk>, sample_len: usize) -> SoundBuffer {
         debug_assert!((|| {
             let n_chunks = chunks.len();
             sample_len >= (n_chunks * CHUNK_SIZE) && sample_len < ((n_chunks + 1) * CHUNK_SIZE)
         })());
         SoundBuffer { chunks, sample_len }
+    }
+
+    pub fn reserve_chunks(&mut self, additional_chunks: usize) {
+        self.chunks.reserve(additional_chunks);
+    }
+
+    pub fn chunk_capacity(&self) -> usize {
+        self.chunks.capacity()
     }
 
     pub fn chunks(&self) -> &Vec<SoundChunk> {
@@ -29,9 +48,67 @@ impl SoundBuffer {
         self.sample_len
     }
 
-    // TODO:
-    // - push_sample
-    // - push_chunk
-    // - push_chunk_partial
-    // - extend from other buffer
+    pub fn samples_l<'a>(&'a self) -> impl 'a + Iterator<Item = f32> {
+        self.chunks.iter().map(|c| &c.l[..]).flatten().cloned()
+    }
+
+    pub fn samples_r<'a>(&'a self) -> impl 'a + Iterator<Item = f32> {
+        self.chunks.iter().map(|c| &c.r[..]).flatten().cloned()
+    }
+
+    pub fn samples<'a>(&'a self) -> impl 'a + Iterator<Item = [f32; 2]> {
+        self.chunks
+            .iter()
+            .flat_map(|c| c.l.iter().cloned().zip(c.r.iter().cloned()))
+            .map(|(l, r)| [l, r])
+    }
+
+    pub fn push_chunk(&mut self, ch: &SoundChunk) {
+        // TODO
+        // if last stored chunk is not used entirely (self.sample_len % CHUNK_SIZE != 0),
+        // copy start of new chunk into end of last stored chunk. Then copy remainder of
+        // new chunk into beginning of a newly stored chunk
+        let offset = self.sample_len % CHUNK_SIZE;
+        let split_ch = CHUNK_SIZE - offset;
+        if offset > 0 {
+            let dst = self.chunks.last_mut().unwrap();
+            numeric::copy(&ch.l[..split_ch], &mut dst.l[offset..]);
+            numeric::copy(&ch.r[..split_ch], &mut dst.r[offset..]);
+        }
+        let mut new_ch = SoundChunk::new();
+        numeric::copy(&ch.l[split_ch..], &mut new_ch.l[..offset]);
+        numeric::copy(&ch.r[split_ch..], &mut new_ch.r[..offset]);
+    }
+}
+
+impl Serializable for SoundBuffer {
+    fn serialize(&self, serializer: &mut Serializer) {
+        serializer.array_iter_f32(self.samples().flatten());
+    }
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+        let n_samples_x2 = deserializer.peek_length()?;
+        if n_samples_x2 % 2 != 0 {
+            return Err(());
+        }
+        let n_samples = n_samples_x2 / 2;
+        let mut sample_iter = deserializer.array_iter_f32()?;
+        let mut ch = SoundChunk::new();
+        let mut i_ch: usize = 0;
+        let mut chunks = Vec::<SoundChunk>::with_capacity(n_samples / CHUNK_SIZE);
+        while let Some(l) = sample_iter.next() {
+            let r = sample_iter.next().unwrap();
+            if i_ch == CHUNK_SIZE {
+                i_ch = 0;
+                chunks.push(ch.clone());
+                ch.silence();
+            }
+            ch.l[i_ch] = l;
+            ch.r[i_ch] = r;
+        }
+        Ok(SoundBuffer {
+            chunks,
+            sample_len: n_samples,
+        })
+    }
 }

@@ -1,4 +1,10 @@
-use crate::ui_core::object_factory::ObjectFactory;
+use crate::{
+    core::{
+        graphobject::TypedGraphObject, numbersource::PureNumberSource,
+        object_factory::ObjectFactory, soundprocessor::SoundProcessor,
+    },
+    ui_core::{object_ui::ObjectUi, ui_factory::UiFactory},
+};
 
 use super::{
     adsr_ui::ADSRUi, audioclip_ui::AudioClipUi, dac_ui::DacUi, functions_ui::*,
@@ -6,60 +12,98 @@ use super::{
     wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
 };
 
-pub fn all_objects() -> ObjectFactory {
-    let mut all_uis = ObjectFactory::new_empty();
+struct RegistrationHelper<'a> {
+    object_factory: &'a mut ObjectFactory,
+    ui_factory: &'a mut UiFactory,
+}
+
+impl<'a> RegistrationHelper<'a> {
+    fn new(
+        object_factory: &'a mut ObjectFactory,
+        ui_factory: &'a mut UiFactory,
+    ) -> RegistrationHelper<'a> {
+        RegistrationHelper {
+            object_factory,
+            ui_factory,
+        }
+    }
+
+    fn register_sound_processor<T: ObjectUi>(&mut self)
+    where
+        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: SoundProcessor,
+    {
+        self.object_factory
+            .register_sound_processor::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
+        self.ui_factory.register_sound_processor::<T>();
+    }
+
+    fn register_number_source<T: ObjectUi>(&mut self)
+    where
+        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: PureNumberSource,
+    {
+        self.object_factory
+            .register_number_source::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
+        self.ui_factory.register_number_source::<T>();
+    }
+}
+
+pub fn all_objects() -> (ObjectFactory, UiFactory) {
+    let mut object_factory = ObjectFactory::new_empty();
+    let mut ui_factory = UiFactory::new_empty();
+
+    let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     // Sound processors
-    all_uis.register_sound_processor::<DacUi>();
-    all_uis.register_sound_processor::<KeyboardUi>();
-    all_uis.register_sound_processor::<RecorderUi>();
-    all_uis.register_sound_processor::<WaveGeneratorUi>();
-    all_uis.register_sound_processor::<WhiteNoiseUi>();
-    all_uis.register_sound_processor::<AudioClipUi>();
-    all_uis.register_sound_processor::<MixerUi>();
-    all_uis.register_sound_processor::<ADSRUi>();
+    helper.register_sound_processor::<DacUi>();
+    helper.register_sound_processor::<KeyboardUi>();
+    helper.register_sound_processor::<RecorderUi>();
+    helper.register_sound_processor::<WaveGeneratorUi>();
+    helper.register_sound_processor::<WhiteNoiseUi>();
+    helper.register_sound_processor::<AudioClipUi>();
+    helper.register_sound_processor::<MixerUi>();
+    helper.register_sound_processor::<ADSRUi>();
 
     // Pure number sources
-    all_uis.register_number_source::<ConstantUi>();
+    helper.register_number_source::<ConstantUi>();
 
-    all_uis.register_number_source::<NegateUi>();
-    all_uis.register_number_source::<FloorUi>();
-    all_uis.register_number_source::<CeilUi>();
-    all_uis.register_number_source::<RoundUi>();
-    all_uis.register_number_source::<TruncUi>();
-    all_uis.register_number_source::<FractUi>();
-    all_uis.register_number_source::<AbsUi>();
-    all_uis.register_number_source::<SignumUi>();
-    all_uis.register_number_source::<ExpUi>();
-    all_uis.register_number_source::<Exp2Ui>();
-    all_uis.register_number_source::<Exp10Ui>();
-    all_uis.register_number_source::<LogUi>();
-    all_uis.register_number_source::<Log2Ui>();
-    all_uis.register_number_source::<Log10Ui>();
-    all_uis.register_number_source::<CbrtUi>();
-    all_uis.register_number_source::<SinUi>();
-    all_uis.register_number_source::<USinUi>();
-    all_uis.register_number_source::<CosUi>();
-    all_uis.register_number_source::<UCosUi>();
-    all_uis.register_number_source::<TanUi>();
-    all_uis.register_number_source::<AsinUi>();
-    all_uis.register_number_source::<AcosUi>();
-    all_uis.register_number_source::<AtanUi>();
-    all_uis.register_number_source::<SinhUi>();
-    all_uis.register_number_source::<CoshUi>();
-    all_uis.register_number_source::<TanhUi>();
-    all_uis.register_number_source::<AsinhUi>();
-    all_uis.register_number_source::<AcoshUi>();
-    all_uis.register_number_source::<AtanhUi>();
+    helper.register_number_source::<NegateUi>();
+    helper.register_number_source::<FloorUi>();
+    helper.register_number_source::<CeilUi>();
+    helper.register_number_source::<RoundUi>();
+    helper.register_number_source::<TruncUi>();
+    helper.register_number_source::<FractUi>();
+    helper.register_number_source::<AbsUi>();
+    helper.register_number_source::<SignumUi>();
+    helper.register_number_source::<ExpUi>();
+    helper.register_number_source::<Exp2Ui>();
+    helper.register_number_source::<Exp10Ui>();
+    helper.register_number_source::<LogUi>();
+    helper.register_number_source::<Log2Ui>();
+    helper.register_number_source::<Log10Ui>();
+    helper.register_number_source::<CbrtUi>();
+    helper.register_number_source::<SinUi>();
+    helper.register_number_source::<USinUi>();
+    helper.register_number_source::<CosUi>();
+    helper.register_number_source::<UCosUi>();
+    helper.register_number_source::<TanUi>();
+    helper.register_number_source::<AsinUi>();
+    helper.register_number_source::<AcosUi>();
+    helper.register_number_source::<AtanUi>();
+    helper.register_number_source::<SinhUi>();
+    helper.register_number_source::<CoshUi>();
+    helper.register_number_source::<TanhUi>();
+    helper.register_number_source::<AsinhUi>();
+    helper.register_number_source::<AcoshUi>();
+    helper.register_number_source::<AtanhUi>();
 
-    all_uis.register_number_source::<AddUi>();
-    all_uis.register_number_source::<SubtractUi>();
-    all_uis.register_number_source::<MultiplyUi>();
-    all_uis.register_number_source::<DivideUi>();
-    all_uis.register_number_source::<HypotUi>();
-    all_uis.register_number_source::<CopysignUi>();
-    all_uis.register_number_source::<PowUi>();
-    all_uis.register_number_source::<Atan2Ui>();
+    helper.register_number_source::<AddUi>();
+    helper.register_number_source::<SubtractUi>();
+    helper.register_number_source::<MultiplyUi>();
+    helper.register_number_source::<DivideUi>();
+    helper.register_number_source::<HypotUi>();
+    helper.register_number_source::<CopysignUi>();
+    helper.register_number_source::<PowUi>();
+    helper.register_number_source::<Atan2Ui>();
 
-    all_uis
+    (object_factory, ui_factory)
 }

@@ -1,6 +1,6 @@
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
     numbersource::PureNumberSource,
     numbersourcetools::NumberSourceTools,
@@ -24,7 +24,9 @@ impl Constant {
 }
 
 impl PureNumberSource for Constant {
-    fn new(_tools: NumberSourceTools<'_>) -> Constant {
+    fn new(_tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Constant {
+        // TODO
+        println!("TODO: actually initialize Constant");
         Constant {
             value: AtomicF32::new(0.0),
         }
@@ -46,7 +48,7 @@ macro_rules! unary_number_source {
         }
 
         impl PureNumberSource for $name {
-            fn new(mut tools: NumberSourceTools<'_>) -> $name {
+            fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> $name {
                 $name {
                     input: tools.add_number_input(),
                 }
@@ -72,7 +74,7 @@ macro_rules! binary_number_source {
         }
 
         impl PureNumberSource for $name {
-            fn new(mut tools: NumberSourceTools<'_>) -> $name {
+            fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> $name {
                 $name {
                     input_1: tools.add_number_input(),
                     input_2: tools.add_number_input(),

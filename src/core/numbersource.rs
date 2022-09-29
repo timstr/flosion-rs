@@ -2,7 +2,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use super::{
     context::Context,
-    graphobject::{GraphObject, WithObjectType},
+    graphobject::{GraphObject, ObjectInitialization, WithObjectType},
     key::Key,
     numbersourcetools::NumberSourceTools,
     soundinput::SoundInputId,
@@ -92,7 +92,7 @@ pub trait NumberSource: 'static + Sync + Send {
 }
 
 pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
-    fn new(tools: NumberSourceTools<'_>) -> Self
+    fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Self
     where
         Self: Sized;
 

@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     core::{
-        graphobject::{GraphId, ObjectId},
+        graphobject::{GraphId, ObjectId, ObjectInitialization},
+        object_factory::ObjectFactory,
         soundgraph::SoundGraph,
         soundgraphdescription::SoundGraphDescription,
     },
@@ -13,6 +14,7 @@ use crate::{
         keyboard::Keyboard,
         wavegenerator::WaveGenerator,
     },
+    ui_objects::all_objects::all_objects,
 };
 use eframe::{
     egui::{self, CtxRef, Response, Ui},
@@ -22,8 +24,8 @@ use parking_lot::RwLock;
 
 use super::{
     graph_ui_state::{GraphUIState, SelectionChange},
-    object_factory::ObjectFactory,
     summon_widget::{SummonWidget, SummonWidgetState},
+    ui_factory::UiFactory,
 };
 
 struct SelectionState {
@@ -33,7 +35,8 @@ struct SelectionState {
 
 pub struct FlosionApp {
     graph: SoundGraph,
-    factory: Arc<RwLock<ObjectFactory>>,
+    object_factory: Arc<RwLock<ObjectFactory>>,
+    ui_factory: Arc<RwLock<UiFactory>>,
     ui_state: GraphUIState,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
@@ -41,36 +44,36 @@ pub struct FlosionApp {
 
 fn create_test_sound_graph() -> SoundGraph {
     let mut sg = SoundGraph::new();
-    let dac = sg.add_sound_processor::<Dac>();
-    let keyboard = sg.add_sound_processor::<Keyboard>();
-    let adsr = sg.add_sound_processor::<ADSR>();
-    let wavegen = sg.add_sound_processor::<WaveGenerator>();
+    let dac = sg.add_sound_processor::<Dac>(ObjectInitialization::Default);
+    let keyboard = sg.add_sound_processor::<Keyboard>(ObjectInitialization::Default);
+    let adsr = sg.add_sound_processor::<ADSR>(ObjectInitialization::Default);
+    let wavegen = sg.add_sound_processor::<WaveGenerator>(ObjectInitialization::Default);
     sg.connect_sound_input(dac.instance().input.id(), keyboard.id())
         .unwrap();
     sg.connect_sound_input(keyboard.instance().input.id(), adsr.id())
         .unwrap();
     sg.connect_sound_input(adsr.instance().input.id(), wavegen.id())
         .unwrap();
-    let usin = sg.add_pure_number_source::<USin>();
-    let const_rate = sg.add_pure_number_source::<Constant>();
-    let mul_time1 = sg.add_pure_number_source::<Multiply>();
-    let mul_time2 = sg.add_pure_number_source::<Multiply>();
-    let fract = sg.add_pure_number_source::<Fract>();
-    let const_slope = sg.add_pure_number_source::<Constant>();
-    let mul_fract = sg.add_pure_number_source::<Multiply>();
-    let neg = sg.add_pure_number_source::<Negate>();
-    let exp = sg.add_pure_number_source::<Exp>();
-    let mul_freq1 = sg.add_pure_number_source::<Multiply>();
-    let mul_freq2 = sg.add_pure_number_source::<Multiply>();
-    let const_peak_freq = sg.add_pure_number_source::<Constant>();
-    let const_base_freq = sg.add_pure_number_source::<Constant>();
-    let div_freq = sg.add_pure_number_source::<Divide>();
-    let pow = sg.add_pure_number_source::<Pow>();
-    let const_attack_time = sg.add_pure_number_source::<Constant>();
-    let const_decay_time = sg.add_pure_number_source::<Constant>();
-    let const_sustain_level = sg.add_pure_number_source::<Constant>();
-    let const_release_time = sg.add_pure_number_source::<Constant>();
-    let const_exponent = sg.add_pure_number_source::<Constant>();
+    let usin = sg.add_pure_number_source::<USin>(ObjectInitialization::Default);
+    let const_rate = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let mul_time1 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
+    let mul_time2 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
+    let fract = sg.add_pure_number_source::<Fract>(ObjectInitialization::Default);
+    let const_slope = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let mul_fract = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
+    let neg = sg.add_pure_number_source::<Negate>(ObjectInitialization::Default);
+    let exp = sg.add_pure_number_source::<Exp>(ObjectInitialization::Default);
+    let mul_freq1 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
+    let mul_freq2 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
+    let const_peak_freq = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let const_base_freq = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let div_freq = sg.add_pure_number_source::<Divide>(ObjectInitialization::Default);
+    let pow = sg.add_pure_number_source::<Pow>(ObjectInitialization::Default);
+    let const_attack_time = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let const_decay_time = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let const_sustain_level = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let const_release_time = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let const_exponent = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
     sg.connect_number_input(wavegen.instance().amplitude.id(), pow.id())
         .unwrap();
     sg.connect_number_input(usin.instance().input.id(), wavegen.instance().phase.id())
@@ -144,11 +147,14 @@ impl Default for FlosionApp {
         let graph = create_test_sound_graph();
         // let graph = SoundGraph::new();
         let topo = graph.topology();
-        let factory = Arc::new(RwLock::new(ObjectFactory::new()));
+        let (object_factory, ui_factory) = all_objects();
+        let object_factory = Arc::new(RwLock::new(object_factory));
+        let ui_factory = Arc::new(RwLock::new(ui_factory));
         FlosionApp {
             graph,
-            ui_state: GraphUIState::new(topo, Arc::clone(&factory)),
-            factory,
+            ui_state: GraphUIState::new(topo, Arc::clone(&ui_factory)),
+            object_factory,
+            ui_factory,
             summon_state: None,
             selection_area: None,
         }
@@ -158,12 +164,12 @@ impl Default for FlosionApp {
 impl FlosionApp {
     fn draw_all_objects(
         ui: &mut Ui,
-        factory: &ObjectFactory,
+        factory: &UiFactory,
         graph: &SoundGraph,
         ui_state: &mut GraphUIState,
     ) {
-        for (object_id, object) in graph.graph_objects() {
-            factory.ui(object_id, object.as_ref(), object.get_type(), ui_state, ui);
+        for object in graph.graph_objects() {
+            factory.ui(object.as_ref(), ui_state, ui);
         }
     }
 
@@ -236,7 +242,7 @@ impl FlosionApp {
                 Some(_) => None,
                 None => Some(SummonWidgetState::new(
                     pointer_pos.unwrap(),
-                    &self.factory.read(),
+                    &self.ui_factory.read(),
                 )),
             };
         } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
@@ -249,14 +255,19 @@ impl FlosionApp {
             if s.ready() {
                 if s.selected_type().is_some() {
                     let (t, args) = s.parse_selected();
-                    let new_object_id = self.factory.read().create_from_args(
-                        t,
-                        &mut self.graph,
-                        &mut self.ui_state,
-                        &args,
-                    );
+                    // TODO: how to distinguish args for ui from args for object, if ever needed?
+                    let new_object =
+                        self.object_factory
+                            .read()
+                            .create_from_args(t, &mut self.graph, &args);
+                    let new_state = self
+                        .ui_factory
+                        .read()
+                        .create_state_from_args(&*new_object, &args);
+                    self.ui_state
+                        .set_object_state(new_object.get_id(), new_state);
                     self.ui_state.clear_selection();
-                    self.ui_state.select_object(new_object_id);
+                    self.ui_state.select_object(new_object.get_id());
                 }
                 self.summon_state = None;
             }
@@ -464,7 +475,7 @@ impl epi::App for FlosionApp {
             }
             self.ui_state.reset_pegs();
             {
-                let factory = self.factory.read();
+                let factory = self.ui_factory.read();
                 Self::draw_all_objects(ui, &factory, &self.graph, &mut self.ui_state);
             }
             let desc = self.graph.describe();

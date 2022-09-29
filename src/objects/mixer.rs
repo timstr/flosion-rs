@@ -1,6 +1,6 @@
 use crate::core::{
     context::Context,
-    graphobject::{ObjectType, WithObjectType},
+    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numeric,
     soundchunk::SoundChunk,
     soundinput::{InputOptions, SoundInputId},
@@ -42,7 +42,9 @@ impl SoundProcessor for Mixer {
     type StateType = NoState;
     type InputType = SingleInputList;
 
-    fn new(mut tools: SoundProcessorTools) -> Self {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
+        // TODO
+        println!("TODO: actually initialize Mixer");
         Mixer {
             inputs: SingleInputList::new(2, MIXER_INPUT_OPTIONS, &mut tools),
         }

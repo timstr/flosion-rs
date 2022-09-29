@@ -228,7 +228,7 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    fn write_primitive_array_iter<I: Iterator>(&mut self, it: I)
+    fn write_primitive_array_iter<I: Iterator>(&mut self, mut it: I)
     where
         I::Item: PrimitiveReadWrite,
     {
@@ -372,19 +372,14 @@ impl<'a> Drop for Serializer<'a> {
 }
 
 pub struct DeserializerIterator<'a, T> {
-    deserializer: &'a mut Deserializer<'a>,
-    remaining: usize,
+    deserializer: Deserializer<'a>,
     _phantom_data: PhantomData<T>,
 }
 
 impl<'a, T> DeserializerIterator<'a, T> {
-    fn new(
-        deserializer: &'a mut Deserializer<'a>,
-        remaining: usize,
-    ) -> DeserializerIterator<'a, T> {
+    fn new(deserializer: Deserializer<'a>) -> DeserializerIterator<'a, T> {
         DeserializerIterator {
             deserializer,
-            remaining,
             _phantom_data: PhantomData,
         }
     }
@@ -394,11 +389,10 @@ impl<'a, T: PrimitiveReadWrite> Iterator for DeserializerIterator<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
-        if self.remaining == 0 {
+        if self.deserializer.is_empty() {
             return None;
         }
-        self.remaining -= 1;
-        Some(T::read_from(self.deserializer))
+        Some(T::read_from(&mut self.deserializer))
     }
 }
 
@@ -462,9 +456,9 @@ impl<'a> Deserializer<'a> {
         Ok((0..len).map(|_| T::read_from(self)).collect())
     }
 
-    fn read_primitive_array_iter<T: PrimitiveReadWrite>(
-        &'a mut self,
-    ) -> Result<DeserializerIterator<'a, T>, ()> {
+    fn read_primitive_array_iter<'b, T: PrimitiveReadWrite>(
+        &'b mut self,
+    ) -> Result<DeserializerIterator<'b, T>, ()> {
         if self.remaining_len() < (u8::SIZE + u32::SIZE) {
             return Err(());
         }
@@ -473,10 +467,13 @@ impl<'a> Deserializer<'a> {
             return Err(());
         }
         let len = u32::read_from(self) as usize;
-        if self.remaining_len() < (len * T::SIZE) {
+        let byte_len = len * T::SIZE;
+        if self.remaining_len() < byte_len {
             return Err(());
         }
-        Ok(DeserializerIterator::new(self, len))
+        let d = Deserializer::new(&self.data[self.position..self.position + byte_len]);
+        self.position += byte_len;
+        Ok(DeserializerIterator::new(d))
     }
 
     pub fn u8(&mut self) -> Result<u8, ()> {
@@ -541,8 +538,35 @@ impl<'a> Deserializer<'a> {
         self.read_primitive_array_slice::<f64>()
     }
 
-    pub fn array_iter_f32(&'a mut self) -> Result<DeserializerIterator<'a, f32>, ()> {
+    pub fn array_iter_u8<'b>(&'b mut self) -> Result<DeserializerIterator<'b, u8>, ()> {
+        self.read_primitive_array_iter::<u8>()
+    }
+    pub fn array_iter_i8<'b>(&'b mut self) -> Result<DeserializerIterator<'b, i8>, ()> {
+        self.read_primitive_array_iter::<i8>()
+    }
+    pub fn array_iter_u16<'b>(&'b mut self) -> Result<DeserializerIterator<'b, u16>, ()> {
+        self.read_primitive_array_iter::<u16>()
+    }
+    pub fn array_iter_i16<'b>(&'b mut self) -> Result<DeserializerIterator<'b, i16>, ()> {
+        self.read_primitive_array_iter::<i16>()
+    }
+    pub fn array_iter_u32<'b>(&'b mut self) -> Result<DeserializerIterator<'b, u32>, ()> {
+        self.read_primitive_array_iter::<u32>()
+    }
+    pub fn array_iter_i32<'b>(&'b mut self) -> Result<DeserializerIterator<'b, i32>, ()> {
+        self.read_primitive_array_iter::<i32>()
+    }
+    pub fn array_iter_u64<'b>(&'b mut self) -> Result<DeserializerIterator<'b, u64>, ()> {
+        self.read_primitive_array_iter::<u64>()
+    }
+    pub fn array_iter_i64<'b>(&'b mut self) -> Result<DeserializerIterator<'b, i64>, ()> {
+        self.read_primitive_array_iter::<i64>()
+    }
+    pub fn array_iter_f32<'b>(&'b mut self) -> Result<DeserializerIterator<'b, f32>, ()> {
         self.read_primitive_array_iter::<f32>()
+    }
+    pub fn array_iter_f64<'b>(&'b mut self) -> Result<DeserializerIterator<'b, f64>, ()> {
+        self.read_primitive_array_iter::<f64>()
     }
 
     pub fn string(&mut self) -> Result<String, ()> {
