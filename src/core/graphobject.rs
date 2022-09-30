@@ -4,7 +4,7 @@ use super::{
     arguments::ParsedArguments,
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
-    serialization::{Deserializer, Serializable, Serializer},
+    serialization::{Deserializer, Serializer},
     soundinput::SoundInputId,
     soundprocessor::{SoundProcessor, SoundProcessorHandle, SoundProcessorId},
 };
@@ -42,33 +42,6 @@ impl ObjectId {
         match self {
             ObjectId::Number(id) => Some(*id),
             _ => None,
-        }
-    }
-}
-
-impl Serializable for ObjectId {
-    fn serialize(&self, serializer: &mut Serializer) {
-        match self {
-            ObjectId::Sound(spid) => {
-                serializer.u8(1);
-                serializer.u32(spid.0 as u32);
-            }
-            ObjectId::Number(nsid) => {
-                serializer.u8(2);
-                serializer.u32(nsid.0 as u32);
-            }
-        }
-    }
-
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
-        match deserializer.u8()? {
-            1 => Ok(ObjectId::Sound(SoundProcessorId(
-                deserializer.u32()? as usize
-            ))),
-            2 => Ok(ObjectId::Number(NumberSourceId(
-                deserializer.u32()? as usize
-            ))),
-            _ => Err(()),
         }
     }
 }

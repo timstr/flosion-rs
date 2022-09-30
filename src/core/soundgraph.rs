@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -10,11 +9,9 @@ use std::{
 use parking_lot::RwLock;
 
 use super::{
-    graphobject::{GraphObject, ObjectId, ObjectInitialization},
-    graphserialization::serialize_sound_graph,
+    graphobject::{GraphObject, ObjectInitialization},
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
-    serialization::Serializer,
     soundengine::SoundEngine,
     soundgraphdescription::SoundGraphDescription,
     soundgrapherror::{NumberConnectionError, SoundConnectionError, SoundGraphError},
@@ -175,13 +172,5 @@ impl SoundGraph {
 
     pub fn topology(&self) -> Arc<RwLock<SoundGraphTopology>> {
         Arc::clone(&self.topology)
-    }
-
-    pub fn serialize(&self, serializer: &mut Serializer) {
-        serialize_sound_graph(self, None, serializer)
-    }
-
-    pub fn serialize_subset(&self, serializer: &mut Serializer, objects: &HashSet<ObjectId>) {
-        serialize_sound_graph(self, Some(objects), serializer);
     }
 }

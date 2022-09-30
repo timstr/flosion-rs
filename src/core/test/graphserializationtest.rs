@@ -14,13 +14,15 @@ fn test_empty_graph() {
     let g = SoundGraph::new();
     assert_eq!(g.graph_objects().len(), 0);
 
-    let a = Archive::serialize_with(|mut s| serialize_sound_graph(&g, None, &mut s));
+    let a = Archive::serialize_with(|mut s| {
+        serialize_sound_graph(&g, None, &mut s);
+    });
 
     let mut g2 = SoundGraph::new();
 
     let mut d = a.deserialize().unwrap();
     let object_factory = ObjectFactory::new_empty();
-    let new_objects = deserialize_sound_graph(&mut g2, &mut d, &object_factory).unwrap();
+    let (new_objects, _idmap) = deserialize_sound_graph(&mut g2, &mut d, &object_factory).unwrap();
 
     assert_eq!(new_objects.len(), 0);
 
@@ -33,14 +35,16 @@ fn test_just_dac() {
     g.add_sound_processor::<Dac>(ObjectInitialization::Default);
     assert_eq!(g.graph_objects().len(), 1);
 
-    let a = Archive::serialize_with(|mut s| serialize_sound_graph(&g, None, &mut s));
+    let a = Archive::serialize_with(|mut s| {
+        serialize_sound_graph(&g, None, &mut s);
+    });
 
     let mut g2 = SoundGraph::new();
 
     let mut d = a.deserialize().unwrap();
     let mut object_factory = ObjectFactory::new_empty();
     object_factory.register_sound_processor::<Dac>();
-    let new_objects = deserialize_sound_graph(&mut g2, &mut d, &object_factory).unwrap();
+    let (new_objects, _idmap) = deserialize_sound_graph(&mut g2, &mut d, &object_factory).unwrap();
 
     assert_eq!(new_objects.len(), 1);
     let objs = g2.graph_objects();
@@ -57,7 +61,9 @@ fn test_audioclip_to_dac() {
         .unwrap();
     assert_eq!(g.graph_objects().len(), 2);
 
-    let a = Archive::serialize_with(|mut s| serialize_sound_graph(&g, None, &mut s));
+    let a = Archive::serialize_with(|mut s| {
+        serialize_sound_graph(&g, None, &mut s);
+    });
 
     let mut g2 = SoundGraph::new();
 
@@ -65,7 +71,7 @@ fn test_audioclip_to_dac() {
     let mut object_factory = ObjectFactory::new_empty();
     object_factory.register_sound_processor::<Dac>();
     object_factory.register_sound_processor::<AudioClip>();
-    let new_objects = deserialize_sound_graph(&mut g2, &mut d, &object_factory).unwrap();
+    let (new_objects, _idmap) = deserialize_sound_graph(&mut g2, &mut d, &object_factory).unwrap();
 
     assert_eq!(new_objects.len(), 2);
     let objs = g2.graph_objects();

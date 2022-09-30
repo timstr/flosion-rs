@@ -8,7 +8,7 @@ use eframe::egui::{self};
 
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
-    graphobject::{GraphId, GraphObject, ObjectId, TypedGraphObject},
+    graphobject::{GraphId, GraphObject, ObjectId, ObjectInitialization, TypedGraphObject},
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
     serialization::{Deserializer, Serializable, Serializer},
@@ -82,8 +82,8 @@ pub trait AnyObjectUi {
     fn make_ui_state(
         &self,
         object: &dyn GraphObject,
-        init: UiInitialization,
-    ) -> Rc<RefCell<dyn ObjectUiState>>;
+        init: ObjectInitialization,
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()>;
 }
 
 fn downcast_object<T: ObjectUi>(object: &dyn GraphObject) -> &T::WrapperType {
@@ -129,10 +129,19 @@ impl<T: ObjectUi> AnyObjectUi for T {
     fn make_ui_state(
         &self,
         object: &dyn GraphObject,
-        init: UiInitialization,
-    ) -> Rc<RefCell<dyn ObjectUiState>> {
+        init: ObjectInitialization,
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
         let dc_object = downcast_object::<T>(object);
-        Rc::new(RefCell::new((self as &T).make_ui_state(dc_object, init)))
+        let state: T::StateType = match init {
+            ObjectInitialization::Args(a) => {
+                self.make_ui_state(dc_object, UiInitialization::Args(a))
+            }
+            ObjectInitialization::Archive(mut a) => T::StateType::deserialize(&mut a)?,
+            ObjectInitialization::Default => {
+                self.make_ui_state(dc_object, UiInitialization::Default)
+            }
+        };
+        Ok(Rc::new(RefCell::new(state)))
     }
 }
 

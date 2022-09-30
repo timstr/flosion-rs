@@ -12,8 +12,10 @@ use parking_lot::RwLock;
 
 use crate::core::{
     graphobject::{GraphId, ObjectId},
+    graphserialization::{ForwardGraphIdMap, ReverseGraphIdMap},
     numberinput::{NumberInputId, NumberInputOwner},
     numbersource::{NumberSourceId, NumberSourceOwner},
+    serialization::{Deserializer, Serializable, Serializer},
     soundgraph::SoundGraph,
     soundgraphdescription::SoundGraphDescription,
     soundgraphtopology::SoundGraphTopology,
@@ -23,6 +25,30 @@ use crate::core::{
 };
 
 use super::ui_factory::UiFactory;
+
+fn serialize_object_id(id: ObjectId, serializer: &mut Serializer, idmap: &ForwardGraphIdMap) {
+    match id {
+        ObjectId::Sound(i) => {
+            serializer.u8(1);
+            serializer.u16(idmap.sound_processors().map_id(i).unwrap());
+        }
+        ObjectId::Number(i) => {
+            serializer.u8(2);
+            serializer.u16(idmap.number_sources().map_id(i).unwrap());
+        }
+    }
+}
+
+fn deserialize_object_id(
+    deserializer: &mut Deserializer,
+    idmap: &ReverseGraphIdMap,
+) -> Result<ObjectId, ()> {
+    Ok(match deserializer.u8()? {
+        1 => ObjectId::Sound(idmap.sound_processors().map_id(deserializer.u16()?)),
+        2 => ObjectId::Number(idmap.number_sources().map_id(deserializer.u16()?).into()),
+        _ => return Err(()),
+    })
+}
 
 pub struct LayoutState {
     pub rect: egui::Rect,
@@ -170,20 +196,66 @@ impl GraphLayout {
         }
         None
     }
+
+    pub fn serialize_positions(
+        &self,
+        serializer: &mut Serializer,
+        subset: Option<&HashSet<ObjectId>>,
+        idmap: &ForwardGraphIdMap,
+    ) {
+        let is_selected = |id: ObjectId| match subset {
+            Some(s) => s.get(&id).is_some(),
+            None => true,
+        };
+        let mut s1 = serializer.subarchive();
+        for (id, layout) in &self.objects.states {
+            if !is_selected(*id) {
+                continue;
+            }
+            serialize_object_id(*id, &mut s1, idmap);
+            s1.f32(layout.rect.left());
+            s1.f32(layout.rect.top());
+        }
+    }
+
+    pub fn deserialize_positions(
+        &mut self,
+        deserializer: &mut Deserializer,
+        idmap: &ReverseGraphIdMap,
+    ) -> Result<(), ()> {
+        let mut d1 = deserializer.subarchive()?;
+        while !d1.is_empty() {
+            let id: ObjectId = deserialize_object_id(&mut d1, idmap)?;
+            let left = d1.f32()?;
+            let top = d1.f32()?;
+            let layout = self.objects.states.entry(id).or_insert(LayoutState {
+                rect: egui::Rect::NAN,
+                layer: egui::LayerId::debug(),
+            });
+            layout.rect.set_left(left);
+            layout.rect.set_top(top);
+        }
+        Ok(())
+    }
 }
 
 pub trait ObjectUiState: 'static {
     fn as_any(&self) -> &dyn Any;
     fn get_language_type_name(&self) -> &'static str;
+    fn serialize(&self, serializer: &mut Serializer);
 }
 
-impl<T: 'static> ObjectUiState for T {
+impl<T: 'static + Serializable> ObjectUiState for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn get_language_type_name(&self) -> &'static str {
         type_name::<T>()
+    }
+
+    fn serialize(&self, serializer: &mut Serializer) {
+        serializer.object(self);
     }
 }
 
@@ -231,7 +303,7 @@ pub enum KeyboardFocusState {
 }
 
 pub struct GraphUIState {
-    // TODO: move some things here into an enum to make mutual exclusion clearer
+    // TODO: move some things here into an enum to make mutual exclusion / different modes of interface clearer
     layout_state: GraphLayout,
     object_states: HashMap<ObjectId, Rc<RefCell<dyn ObjectUiState>>>,
     peg_being_dragged: Option<GraphId>,
@@ -647,5 +719,65 @@ impl GraphUIState {
             f(graph);
         }
         debug_assert!(self.pending_changes.len() == 0);
+    }
+
+    pub fn serialize_ui_states(
+        &self,
+        serializer: &mut Serializer,
+        subset: Option<&HashSet<ObjectId>>,
+        idmap: &ForwardGraphIdMap,
+    ) {
+        // TODO: create a helper struct and stop rewriting this
+        let is_selected = |id: ObjectId| match subset {
+            Some(s) => s.get(&id).is_some(),
+            None => true,
+        };
+        self.layout_state
+            .serialize_positions(serializer, subset, idmap);
+        let mut s1 = serializer.subarchive();
+        for (id, state) in &self.object_states {
+            if !is_selected(*id) {
+                continue;
+            }
+            serialize_object_id(*id, &mut s1, idmap);
+            let mut s2 = s1.subarchive();
+            state.borrow().serialize(&mut s2);
+        }
+    }
+
+    pub fn deserialize_ui_states(
+        &mut self,
+        deserializer: &mut Deserializer,
+        idmap: &ReverseGraphIdMap,
+        topology: &SoundGraphTopology,
+        ui_factory: &UiFactory,
+    ) -> Result<(), ()> {
+        self.layout_state
+            .deserialize_positions(deserializer, idmap)?;
+        let mut d1 = deserializer.subarchive()?;
+        while !d1.is_empty() {
+            let id = deserialize_object_id(&mut d1, idmap)?;
+            // NOTE that id may suffice to get newly-created object, which can be used to get objectui from uifactory, which can deserialize properly
+            let obj = match id {
+                // TODO: proper error handling instead of unwrap
+                ObjectId::Sound(i) => topology
+                    .sound_processors()
+                    .get(&i)
+                    .unwrap()
+                    .processor_arc()
+                    .as_graph_object(i),
+                ObjectId::Number(i) => topology
+                    .number_sources()
+                    .get(&i)
+                    .unwrap()
+                    .instance_arc()
+                    .as_graph_object(i)
+                    .unwrap(),
+            };
+            let d2 = d1.subarchive()?;
+            let state = ui_factory.create_state_from_archive(&*obj, d2)?;
+            self.set_object_state(id, state);
+        }
+        Ok(())
     }
 }

@@ -4,14 +4,15 @@ use eframe::egui::Ui;
 
 use crate::core::{
     arguments::ParsedArguments,
-    graphobject::{GraphObject, TypedGraphObject, WithObjectType},
+    graphobject::{GraphObject, ObjectInitialization, TypedGraphObject, WithObjectType},
     numbersource::PureNumberSource,
+    serialization::Deserializer,
     soundprocessor::SoundProcessor,
 };
 
 use super::{
     graph_ui_state::{GraphUIState, ObjectUiState},
-    object_ui::{AnyObjectUi, ObjectUi, UiInitialization},
+    object_ui::{AnyObjectUi, ObjectUi},
 };
 
 struct ObjectData {
@@ -82,8 +83,8 @@ impl UiFactory {
     fn create_state_impl(
         &self,
         object: &dyn GraphObject,
-        init: UiInitialization,
-    ) -> Rc<RefCell<dyn ObjectUiState>> {
+        init: ObjectInitialization,
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
         let name = object.get_type().name();
         match self.mapping.get(name) {
             Some(data) => data.ui.make_ui_state(object, init),
@@ -95,7 +96,8 @@ impl UiFactory {
     }
 
     pub fn create_default_state(&self, object: &dyn GraphObject) -> Rc<RefCell<dyn ObjectUiState>> {
-        self.create_state_impl(object, UiInitialization::Default)
+        self.create_state_impl(object, ObjectInitialization::Default)
+            .unwrap()
     }
 
     pub fn create_state_from_args(
@@ -103,6 +105,15 @@ impl UiFactory {
         object: &dyn GraphObject,
         args: &ParsedArguments,
     ) -> Rc<RefCell<dyn ObjectUiState>> {
-        self.create_state_impl(object, UiInitialization::Args(args))
+        self.create_state_impl(object, ObjectInitialization::Args(args))
+            .unwrap()
+    }
+
+    pub fn create_state_from_archive(
+        &self,
+        object: &dyn GraphObject,
+        deserializer: Deserializer,
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
+        self.create_state_impl(object, ObjectInitialization::Archive(deserializer))
     }
 }
