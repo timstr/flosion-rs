@@ -275,11 +275,10 @@ impl FlosionApp {
     }
 
     fn handle_dropped_pegs(ui: &mut Ui, ui_state: &mut GraphUIState, desc: &SoundGraphDescription) {
-        if !ui_state.peg_was_dropped() {
-            return;
-        }
-        let id_src = ui_state.dropped_peg_id().unwrap();
-        let p = ui_state.drop_location().unwrap();
+        let (id_src, p) = match ui_state.peg_being_dropped() {
+            Some(x) => x,
+            None => return,
+        };
         let id_dst = ui_state.layout_state().find_peg_near(p, ui);
         match id_src {
             GraphId::NumberInput(niid) => {
@@ -456,8 +455,8 @@ impl FlosionApp {
                             .make_change(move |g| g.remove_number_source(id));
                     }
                 }
+                self.ui_state.forget(id);
             }
-            self.ui_state.forget_selection();
         }
     }
 }

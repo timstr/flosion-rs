@@ -292,8 +292,7 @@ impl PegHotKeys {
 }
 
 #[derive(Copy, Clone)]
-pub enum KeyboardFocusState {
-    Nothing,
+enum KeyboardFocusState {
     SoundProcessor(SoundProcessorId),
     NumberSource(NumberSourceId),
     SoundInput(SoundInputId),
@@ -302,16 +301,25 @@ pub enum KeyboardFocusState {
     NumberOutput(NumberSourceId),
 }
 
+enum UiMode {
+    Passive,
+    DraggingPeg(GraphId),
+    DroppingPeg((GraphId, egui::Pos2)),
+    UsingKeyboardNav((KeyboardFocusState, PegHotKeys)),
+    Selecting(HashSet<ObjectId>),
+}
+
 pub struct GraphUIState {
     // TODO: move some things here into an enum to make mutual exclusion / different modes of interface clearer
     layout_state: GraphLayout,
     object_states: HashMap<ObjectId, Rc<RefCell<dyn ObjectUiState>>>,
-    peg_being_dragged: Option<GraphId>,
-    dropped_peg: Option<(GraphId, egui::Pos2)>,
+    // peg_being_dragged: Option<GraphId>,
+    // dropped_peg: Option<(GraphId, egui::Pos2)>,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph) -> ()>>,
-    keyboard_focus_state: KeyboardFocusState,
-    peg_hotkeys: PegHotKeys,
-    selection: HashSet<ObjectId>,
+    // keyboard_focus_state: KeyboardFocusState,
+    // peg_hotkeys: PegHotKeys,
+    // selection: HashSet<ObjectId>,
+    mode: UiMode,
     graph_topology: Arc<RwLock<SoundGraphTopology>>,
     ui_factory: Arc<RwLock<UiFactory>>,
 }
@@ -324,12 +332,8 @@ impl GraphUIState {
         GraphUIState {
             layout_state: GraphLayout::new(),
             object_states: HashMap::new(),
-            peg_being_dragged: None,
-            dropped_peg: None,
-            keyboard_focus_state: KeyboardFocusState::Nothing,
-            peg_hotkeys: PegHotKeys::new(),
             pending_changes: Vec::new(),
-            selection: HashSet::new(),
+            mode: UiMode::Passive,
             graph_topology: topology,
             ui_factory: object_factory,
         }
@@ -337,7 +341,6 @@ impl GraphUIState {
 
     pub(super) fn reset_pegs(&mut self) {
         self.layout_state.reset_pegs();
-        self.dropped_peg = None;
     }
 
     pub(super) fn layout_state(&self) -> &GraphLayout {
@@ -382,111 +385,159 @@ impl GraphUIState {
     }
 
     pub(super) fn start_dragging(&mut self, graph_id: GraphId) {
-        debug_assert!(self.peg_being_dragged.is_none());
-        self.peg_being_dragged = Some(graph_id);
+        self.mode = UiMode::DraggingPeg(graph_id);
     }
 
     pub(super) fn stop_dragging(&mut self, graph_id: GraphId, location: egui::Pos2) {
-        if self.peg_being_dragged.is_none() {
-            return;
+        match self.mode {
+            UiMode::DraggingPeg(_) => self.mode = UiMode::DroppingPeg((graph_id, location)),
+            _ => (),
         }
-        let drag_peg = self.peg_being_dragged.take().unwrap();
-        debug_assert!(drag_peg == graph_id);
-        debug_assert!(self.dropped_peg.is_none());
-        self.dropped_peg = Some((drag_peg, location));
     }
 
     pub(super) fn peg_being_dragged(&self) -> Option<GraphId> {
-        self.peg_being_dragged
+        match self.mode {
+            UiMode::DraggingPeg(id) => Some(id),
+            _ => None,
+        }
     }
 
-    pub(super) fn peg_was_dropped(&self) -> bool {
-        self.dropped_peg.is_some()
-    }
-
-    pub(super) fn drop_location(&self) -> Option<egui::Pos2> {
-        self.dropped_peg.map(|(_id, p)| p)
-    }
-
-    pub(super) fn dropped_peg_id(&self) -> Option<GraphId> {
-        self.dropped_peg.map(|(id, _p)| id)
+    pub(super) fn peg_being_dropped(&self) -> Option<(GraphId, egui::Pos2)> {
+        match self.mode {
+            UiMode::DroppingPeg(p) => Some(p),
+            _ => None,
+        }
     }
 
     pub fn clear_selection(&mut self) {
-        self.selection.clear();
-        self.update_keyboard_focus_from_selection();
+        match self.mode {
+            UiMode::Selecting(_) => self.mode = UiMode::Passive,
+            _ => (),
+        }
     }
 
     pub fn select_object(&mut self, object_id: ObjectId) {
-        self.selection.insert(object_id);
-        self.update_keyboard_focus_from_selection();
+        match &mut self.mode {
+            UiMode::Selecting(s) => {
+                s.insert(object_id);
+            }
+            _ => {
+                let mut s = HashSet::new();
+                s.insert(object_id);
+                self.mode = UiMode::Selecting(s);
+            }
+        }
     }
 
     pub fn deselect_object(&mut self, object_id: ObjectId) {
-        self.selection.remove(&object_id);
-        self.update_keyboard_focus_from_selection();
+        match &mut self.mode {
+            UiMode::Selecting(s) => {
+                s.remove(&object_id);
+                if s.len() == 0 {
+                    self.mode = UiMode::Passive;
+                }
+            }
+            _ => (),
+        }
     }
 
     pub fn select_with_rect(&mut self, rect: egui::Rect, change: SelectionChange) {
+        let mut selection = match &mut self.mode {
+            UiMode::Selecting(s) => {
+                let mut ss = HashSet::new();
+                std::mem::swap(s, &mut ss);
+                self.mode = UiMode::Passive;
+                ss
+            }
+            _ => HashSet::new(),
+        };
+
         if let SelectionChange::Replace = change {
-            self.clear_selection();
+            selection.clear();
         }
         for (object_id, object_state) in self.layout_state.objects().states() {
             if rect.intersects(object_state.rect) {
                 if let SelectionChange::Subtract = change {
-                    self.selection.remove(object_id);
+                    selection.remove(object_id);
                 } else {
-                    self.selection.insert(*object_id);
+                    selection.insert(*object_id);
                 }
             }
         }
-        self.update_keyboard_focus_from_selection();
-    }
 
-    pub fn forget_selection(&mut self) {
-        for id in &self.selection {
-            self.layout_state.forget_object(*id);
-            self.object_states.remove(id);
+        if selection.len() > 0 {
+            self.mode = UiMode::Selecting(selection)
+        } else {
+            self.mode = UiMode::Passive;
         }
-        self.selection.clear();
-        self.update_keyboard_focus_from_selection();
     }
 
-    pub fn selection(&self) -> &HashSet<ObjectId> {
-        &self.selection
+    pub fn forget(&mut self, id: ObjectId) {
+        self.layout_state.forget_object(id);
+        self.object_states.remove(&id);
+        match &mut self.mode {
+            UiMode::Selecting(s) => {
+                s.remove(&id);
+                if s.len() == 0 {
+                    self.mode = UiMode::Passive;
+                }
+            }
+            _ => (),
+        }
+    }
+
+    pub fn selection(&self) -> HashSet<ObjectId> {
+        match &self.mode {
+            UiMode::Selecting(s) => s.clone(),
+            _ => HashSet::new(),
+        }
     }
 
     pub fn is_object_selected(&self, object_id: ObjectId) -> bool {
-        self.selection.contains(&object_id)
+        match &self.mode {
+            UiMode::Selecting(s) => s.contains(&object_id),
+            _ => false,
+        }
     }
 
     pub fn move_selection(&mut self, delta: egui::Vec2) {
         let objects = self.layout_state.objects_mut();
-        for s in &self.selection {
-            let state = objects.states_mut().get_mut(s).unwrap();
-            state.rect = state.rect.translate(delta);
+        match &self.mode {
+            UiMode::Selecting(selection) => {
+                for s in selection {
+                    let state = objects.states_mut().get_mut(s).unwrap();
+                    state.rect = state.rect.translate(delta);
+                }
+            }
+            _ => (),
         }
     }
 
     fn update_keyboard_focus_from_selection(&mut self) {
-        self.keyboard_focus_state = KeyboardFocusState::Nothing;
-        if self.selection.len() != 1 {
-            self.update_peg_hotkeys_from_keyboard_focus();
-            return;
-        }
-        let selected_object = *self.selection.iter().next().unwrap();
-        self.keyboard_focus_state = match selected_object {
-            ObjectId::Sound(spid) => KeyboardFocusState::SoundProcessor(spid),
-            ObjectId::Number(nsid) => KeyboardFocusState::NumberSource(nsid),
-        };
-        self.update_peg_hotkeys_from_keyboard_focus();
+        // TODO: press key when one object is selected to enter focus
+        // and give this mode a better name
+        // self.keyboard_focus_state = KeyboardFocusState::Nothing;
+        // if self.selection.len() != 1 {
+        //     self.update_peg_hotkeys_from_keyboard_focus();
+        //     return;
+        // }
+        // let selected_object = *self.selection.iter().next().unwrap();
+        // self.keyboard_focus_state = match selected_object {
+        //     ObjectId::Sound(spid) => KeyboardFocusState::SoundProcessor(spid),
+        //     ObjectId::Number(nsid) => KeyboardFocusState::NumberSource(nsid),
+        // };
+        // self.update_peg_hotkeys_from_keyboard_focus();
     }
 
     fn update_peg_hotkeys_from_keyboard_focus(&mut self) {
+        let (keyboard_focus_state, peg_hotkeys) = match &mut self.mode {
+            UiMode::UsingKeyboardNav(x) => x,
+            _ => return,
+        };
+
         let mut available_pegs: Vec<(GraphId, HotKeyAction)> = Vec::new();
         let topo = self.graph_topology.read();
-        match self.keyboard_focus_state {
-            KeyboardFocusState::Nothing => (),
+        match keyboard_focus_state {
             KeyboardFocusState::SoundProcessor(spid) => {
                 let sp = topo.sound_processors().get(&spid).unwrap();
                 // TODO: if the processor produces output, add all sound inputs that it can legally be connected to
@@ -514,7 +565,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::SoundInput(siid) => {
                 for spid in topo.sound_processors().keys() {
-                    if topo.is_legal_sound_connection(siid, *spid) {
+                    if topo.is_legal_sound_connection(*siid, *spid) {
                         available_pegs
                             .push((spid.into(), HotKeyAction::Connect(siid.into(), spid.into())));
                     }
@@ -522,7 +573,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::SoundOutput(spid) => {
                 for siid in topo.sound_inputs().keys() {
-                    if topo.is_legal_sound_connection(*siid, spid) {
+                    if topo.is_legal_sound_connection(*siid, *spid) {
                         available_pegs
                             .push((siid.into(), HotKeyAction::Connect(spid.into(), siid.into())));
                     }
@@ -530,7 +581,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::NumberInput(niid) => {
                 for nsid in topo.number_sources().keys() {
-                    if topo.is_legal_number_connection(niid, *nsid) {
+                    if topo.is_legal_number_connection(*niid, *nsid) {
                         available_pegs
                             .push((nsid.into(), HotKeyAction::Connect(niid.into(), nsid.into())));
                     }
@@ -538,7 +589,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::NumberOutput(nsid) => {
                 for niid in topo.number_inputs().keys() {
-                    if topo.is_legal_number_connection(*niid, nsid) {
+                    if topo.is_legal_number_connection(*niid, *nsid) {
                         available_pegs
                             .push((niid.into(), HotKeyAction::Connect(nsid.into(), niid.into())));
                     }
@@ -546,13 +597,11 @@ impl GraphUIState {
             }
         }
         // TODO: try to persist hotkeys of pegs that remain available
-        self.peg_hotkeys.clear();
-        self.peg_hotkeys
-            .replace(self.assign_hotkeys_to_pegs(&available_pegs));
+        peg_hotkeys.clear();
+        peg_hotkeys.replace(Self::assign_hotkeys_to_pegs(&available_pegs));
     }
 
     fn assign_hotkeys_to_pegs(
-        &self,
         pegs_actions: &[(GraphId, HotKeyAction)],
     ) -> HashMap<GraphId, (egui::Key, HotKeyAction)> {
         // TODO: arrange hotkeys such that their onscreen layout corresponds reasonably well to the keyboard layout
@@ -597,40 +646,55 @@ impl GraphUIState {
     }
 
     pub fn object_has_keyboard_focus(&self, object: ObjectId) -> bool {
-        match (object, self.keyboard_focus_state) {
-            (ObjectId::Sound(spid1), KeyboardFocusState::SoundProcessor(spid2)) => spid1 == spid2,
-            (ObjectId::Number(nsid1), KeyboardFocusState::NumberSource(nsid2)) => nsid1 == nsid2,
+        let keyboard_focus = match &self.mode {
+            UiMode::UsingKeyboardNav(p) => &p.0,
+            _ => return false,
+        };
+        match (object, keyboard_focus) {
+            (ObjectId::Sound(spid1), KeyboardFocusState::SoundProcessor(spid2)) => spid1 == *spid2,
+            (ObjectId::Number(nsid1), KeyboardFocusState::NumberSource(nsid2)) => nsid1 == *nsid2,
             _ => false,
         }
     }
 
     pub fn peg_has_keyboard_focus(&self, id: GraphId) -> bool {
-        match (id, self.keyboard_focus_state) {
-            (GraphId::NumberInput(i1), KeyboardFocusState::NumberInput(i2)) => i1 == i2,
-            (GraphId::NumberSource(i1), KeyboardFocusState::NumberOutput(i2)) => i1 == i2,
-            (GraphId::SoundInput(i1), KeyboardFocusState::SoundInput(i2)) => i1 == i2,
-            (GraphId::SoundProcessor(i1), KeyboardFocusState::SoundOutput(i2)) => i1 == i2,
+        let keyboard_focus = match &self.mode {
+            UiMode::UsingKeyboardNav(p) => &p.0,
+            _ => return false,
+        };
+        match (id, keyboard_focus) {
+            (GraphId::NumberInput(i1), KeyboardFocusState::NumberInput(i2)) => i1 == *i2,
+            (GraphId::NumberSource(i1), KeyboardFocusState::NumberOutput(i2)) => i1 == *i2,
+            (GraphId::SoundInput(i1), KeyboardFocusState::SoundInput(i2)) => i1 == *i2,
+            (GraphId::SoundProcessor(i1), KeyboardFocusState::SoundOutput(i2)) => i1 == *i2,
             (_, _) => false,
         }
     }
 
     pub fn peg_has_hotkey(&self, id: GraphId) -> Option<egui::Key> {
-        self.peg_hotkeys.mapping.get(&id).map(|x| x.0)
+        match &self.mode {
+            UiMode::UsingKeyboardNav(x) => x.1.mapping.get(&id).map(|x| x.0),
+            _ => None,
+        }
     }
 
     pub fn activate_hotkey(&mut self, key: egui::Key, desc: &SoundGraphDescription) {
-        let action =
-            self.peg_hotkeys
-                .mapping
-                .iter()
-                .find_map(|(_, (k, a))| if *k == key { Some(*a) } else { None });
+        let (keyboard_focus, peg_hotkeys) = match &mut self.mode {
+            UiMode::UsingKeyboardNav(p) => p,
+            _ => return,
+        };
+
+        let action = peg_hotkeys
+            .mapping
+            .iter()
+            .find_map(|(_, (k, a))| if *k == key { Some(*a) } else { None });
         let action = match action {
             Some(a) => a,
             None => return,
         };
         match action {
             HotKeyAction::Activate(gid) => {
-                self.keyboard_focus_state = match gid {
+                *keyboard_focus = match gid {
                     GraphId::SoundInput(siid) => KeyboardFocusState::SoundInput(siid),
                     GraphId::SoundProcessor(spid) => KeyboardFocusState::SoundOutput(spid),
                     GraphId::NumberInput(niid) => KeyboardFocusState::NumberInput(niid),
@@ -640,19 +704,19 @@ impl GraphUIState {
             HotKeyAction::Connect(gid1, gid2) => {
                 match (gid1, gid2) {
                     (GraphId::NumberInput(niid), GraphId::NumberSource(nsid)) => {
-                        self.make_change(move |g| {
+                        self.pending_changes.push(Box::new(move |g| {
                             g.disconnect_number_input(niid).unwrap();
                             g.connect_number_input(niid, nsid).unwrap();
-                        });
-                        self.keyboard_focus_state = KeyboardFocusState::NumberSource(nsid);
+                        }));
+                        *keyboard_focus = KeyboardFocusState::NumberSource(nsid);
                     }
                     (GraphId::NumberSource(nsid), GraphId::NumberInput(niid)) => {
-                        self.make_change(move |g| {
+                        self.pending_changes.push(Box::new(move |g| {
                             g.disconnect_number_input(niid).unwrap();
                             g.connect_number_input(niid, nsid).unwrap();
-                        });
+                        }));
                         let owner = desc.number_inputs().get(&niid).unwrap().owner();
-                        self.keyboard_focus_state = match owner {
+                        *keyboard_focus = match owner {
                             NumberInputOwner::SoundProcessor(i) => {
                                 KeyboardFocusState::SoundProcessor(i)
                             }
@@ -662,19 +726,19 @@ impl GraphUIState {
                         };
                     }
                     (GraphId::SoundInput(siid), GraphId::SoundProcessor(spid)) => {
-                        self.make_change(move |g| {
+                        self.pending_changes.push(Box::new(move |g| {
                             g.disconnect_sound_input(siid).unwrap();
                             g.connect_sound_input(siid, spid).unwrap();
-                        });
-                        self.keyboard_focus_state = KeyboardFocusState::SoundProcessor(spid);
+                        }));
+                        *keyboard_focus = KeyboardFocusState::SoundProcessor(spid);
                     }
                     (GraphId::SoundProcessor(spid), GraphId::SoundInput(siid)) => {
-                        self.make_change(move |g| {
+                        self.pending_changes.push(Box::new(move |g| {
                             g.disconnect_sound_input(siid).unwrap();
                             g.connect_sound_input(siid, spid).unwrap();
-                        });
+                        }));
                         let owner = desc.sound_inputs().get(&siid).unwrap().owner();
-                        self.keyboard_focus_state = KeyboardFocusState::SoundProcessor(owner);
+                        *keyboard_focus = KeyboardFocusState::SoundProcessor(owner);
                     }
                     (_, _) => panic!(),
                 };
@@ -684,32 +748,42 @@ impl GraphUIState {
     }
 
     pub fn cancel_hotkey(&mut self, desc: &SoundGraphDescription) {
-        self.keyboard_focus_state = match self.keyboard_focus_state {
+        let keyboard_focus = match &mut self.mode {
+            UiMode::UsingKeyboardNav(p) => &mut p.0,
+            _ => return,
+        };
+
+        match keyboard_focus {
             KeyboardFocusState::SoundInput(siid) => {
                 let o = desc.sound_inputs().get(&siid).unwrap().owner();
-                KeyboardFocusState::SoundProcessor(o)
+                *keyboard_focus = KeyboardFocusState::SoundProcessor(o);
             }
-            KeyboardFocusState::SoundOutput(spid) => KeyboardFocusState::SoundProcessor(spid),
+            KeyboardFocusState::SoundOutput(spid) => {
+                *keyboard_focus = KeyboardFocusState::SoundProcessor(*spid);
+            }
             KeyboardFocusState::NumberInput(niid) => {
                 let o = desc.number_inputs().get(&niid).unwrap().owner();
-                match o {
+                *keyboard_focus = match o {
                     NumberInputOwner::SoundProcessor(i) => KeyboardFocusState::SoundProcessor(i),
                     NumberInputOwner::NumberSource(i) => KeyboardFocusState::NumberSource(i),
-                }
+                };
             }
             KeyboardFocusState::NumberOutput(nsid) => {
                 let o = desc.number_sources().get(&nsid).unwrap().owner();
-                match o {
+                *keyboard_focus = match o {
                     NumberSourceOwner::Nothing => panic!(),
                     NumberSourceOwner::SoundProcessor(i) => KeyboardFocusState::SoundProcessor(i),
                     NumberSourceOwner::SoundInput(i) => KeyboardFocusState::SoundProcessor(
                         desc.sound_inputs().get(&i).unwrap().owner(),
                     ),
-                }
+                };
             }
-            KeyboardFocusState::Nothing => KeyboardFocusState::Nothing,
-            KeyboardFocusState::SoundProcessor(_) => KeyboardFocusState::Nothing,
-            KeyboardFocusState::NumberSource(_) => KeyboardFocusState::Nothing,
+            KeyboardFocusState::SoundProcessor(_) => {
+                self.mode = UiMode::Passive;
+            }
+            KeyboardFocusState::NumberSource(_) => {
+                self.mode = UiMode::Passive;
+            }
         };
         self.update_peg_hotkeys_from_keyboard_focus();
     }

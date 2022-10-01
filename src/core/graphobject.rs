@@ -129,6 +129,27 @@ impl From<&NumberSourceId> for GraphId {
     }
 }
 
+impl From<&mut SoundInputId> for GraphId {
+    fn from(id: &mut SoundInputId) -> GraphId {
+        GraphId::SoundInput(*id)
+    }
+}
+impl From<&mut SoundProcessorId> for GraphId {
+    fn from(id: &mut SoundProcessorId) -> GraphId {
+        GraphId::SoundProcessor(*id)
+    }
+}
+impl From<&mut NumberInputId> for GraphId {
+    fn from(id: &mut NumberInputId) -> GraphId {
+        GraphId::NumberInput(*id)
+    }
+}
+impl From<&mut NumberSourceId> for GraphId {
+    fn from(id: &mut NumberSourceId) -> GraphId {
+        GraphId::NumberSource(*id)
+    }
+}
+
 pub trait GraphObject {
     fn get_id(&self) -> ObjectId;
     fn get_type(&self) -> ObjectType;
