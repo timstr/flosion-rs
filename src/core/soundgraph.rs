@@ -9,7 +9,7 @@ use std::{
 use parking_lot::RwLock;
 
 use super::{
-    graphobject::{GraphObject, ObjectInitialization},
+    graphobject::{GraphObject, ObjectId, ObjectInitialization},
     numberinput::NumberInputId,
     numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
     soundengine::SoundEngine,
@@ -158,6 +158,10 @@ impl SoundGraph {
 
     pub fn remove_number_source(&self, id: NumberSourceId) {
         self.topology.write().remove_number_source(id)
+    }
+
+    pub fn remove_objects<I: Iterator<Item = ObjectId>>(&self, objects: I) {
+        self.topology.write().remove_objects(objects);
     }
 
     pub fn apply_processor_tools<F: Fn(SoundProcessorTools)>(

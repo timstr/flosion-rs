@@ -6,7 +6,7 @@ use super::{
     numbersource::{NumberSourceId, NumberSourceOwner},
     object_factory::ObjectFactory,
     serialization::{Deserializer, Serializer},
-    soundgraphdata::{EngineNumberSourceData, EngineSoundProcessorData},
+    soundgraphdata::EngineNumberSourceData,
     soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
@@ -71,10 +71,19 @@ impl ForwardGraphIdMap {
         &self.number_inputs
     }
 
-    fn visit_sound_processor_data(&mut self, proc_data: &EngineSoundProcessorData) {
+    fn visit_sound_input_data(&mut self, topo: &SoundGraphTopology, id: SoundInputId) {
+        let input_data = topo.sound_inputs().get(&id).unwrap();
+        self.sound_inputs.add_id(id);
+        for x in input_data.number_sources() {
+            self.number_sources.add_id(*x);
+        }
+    }
+
+    fn visit_sound_processor_data(&mut self, topo: &SoundGraphTopology, id: SoundProcessorId) {
+        let proc_data = topo.sound_processors().get(&id).unwrap();
         self.sound_processors.add_id(proc_data.id());
         for x in proc_data.sound_inputs() {
-            self.sound_inputs.add_id(*x);
+            self.visit_sound_input_data(topo, *x);
         }
         for x in proc_data.number_sources() {
             self.number_sources.add_id(*x);
@@ -211,19 +220,17 @@ pub fn serialize_sound_graph(
     //    during deserialization, ids can be repopulated while objects are being
     //    deserialized in the second step). Serialize the number of each type of id.
     let mut idmap = ForwardGraphIdMap::new();
-    let mut num_sound_processors: usize = 0;
-    let mut num_number_sources: usize = 0;
-    for pd in graph_topo.sound_processors().values() {
-        if is_selected(pd.id().into()) {
-            idmap.visit_sound_processor_data(pd);
-            num_sound_processors += 1;
+    for spid in graph_topo.sound_processors().keys() {
+        if is_selected(spid.into()) {
+            idmap.visit_sound_processor_data(graph_topo, *spid);
         }
     }
     for ns in graph_topo.number_sources().values() {
         if is_selected(ns.id().into()) {
-            debug_assert!(ns.owner() == NumberSourceOwner::Nothing);
-            idmap.visit_number_source_data(ns);
-            num_number_sources += 1;
+            debug_assert!(subset.is_none() || ns.owner() == NumberSourceOwner::Nothing);
+            if ns.owner() == NumberSourceOwner::Nothing {
+                idmap.visit_number_source_data(ns);
+            }
         }
     }
     idmap.serialize(serializer);
@@ -237,20 +244,27 @@ pub fn serialize_sound_graph(
     //     2f. the object instance
     //         NOTE that sound processors will be responsible for (de)serializing
     //         multiinput keys
-    serializer.u16(num_sound_processors as u16);
+    let mut sound_processors_section = serializer.subarchive();
     for pd in graph_topo.sound_processors().values() {
         if !is_selected(pd.id().into()) {
             continue;
         }
-        let mut s1 = serializer.subarchive();
+        let mut s1 = sound_processors_section.subarchive();
         // the sound processor's own id
         s1.u16(idmap.sound_processors.map_id(pd.id()).unwrap());
-        // the sound input ids
-        s1.array_iter_u16(
-            pd.sound_inputs()
-                .iter()
-                .map(|x| idmap.sound_inputs.map_id(*x).unwrap()),
-        );
+        // the sound inputs and their number sources
+        let mut s2 = s1.subarchive();
+        for x in pd.sound_inputs() {
+            s2.u16(idmap.sound_inputs.map_id(*x).unwrap());
+            let input_data = graph_topo.sound_inputs().get(x).unwrap();
+            s2.array_iter_u16(
+                input_data
+                    .number_sources()
+                    .iter()
+                    .map(|i| idmap.number_sources.map_id(*i).unwrap()),
+            );
+        }
+        std::mem::drop(s2);
         // the number source ids
         s1.array_iter_u16(
             pd.number_sources()
@@ -270,14 +284,18 @@ pub fn serialize_sound_graph(
         let s2 = s1.subarchive();
         obj.serialize(s2);
     }
-    // TODO: same for number source objects
-    serializer.u16(num_number_sources as u16);
+    std::mem::drop(sound_processors_section);
+
+    let mut number_sources_section = serializer.subarchive();
     for ns in graph_topo.number_sources().values() {
         if !is_selected(ns.id().into()) {
             continue;
         }
-        debug_assert!(ns.owner() == NumberSourceOwner::Nothing);
-        let mut s1 = serializer.subarchive();
+        debug_assert!(subset.is_none() || ns.owner() == NumberSourceOwner::Nothing);
+        if ns.owner() != NumberSourceOwner::Nothing {
+            continue;
+        }
+        let mut s1 = number_sources_section.subarchive();
         // the number sources' own id
         s1.u16(idmap.number_sources.map_id(ns.id()).unwrap());
         // the number input ids
@@ -293,6 +311,7 @@ pub fn serialize_sound_graph(
         let s2 = s1.subarchive();
         obj.serialize(s2);
     }
+    std::mem::drop(number_sources_section);
 
     // 3. serialize all sound/number connections between ids that were visited in step 1
     serializer.array_iter_u16(
@@ -321,11 +340,18 @@ pub fn serialize_sound_graph(
             .filter_map(|si| {
                 let t = match si.target() {
                     Some(t) => t,
-                    None => return None,
+                    None => {
+                        println!("Skipping a number input because it has no target");
+                        return None;
+                    }
                 };
                 let i = idmap.number_inputs.map_id(si.id());
                 let o = idmap.number_sources.map_id(t);
                 if i.is_none() || o.is_none() {
+                    println!(
+                        "Skipping a number input because it{} is not mapped",
+                        if i.is_none() { "" } else { "s target" }
+                    );
                     return None;
                 }
                 Some([i.unwrap(), o.unwrap()])
@@ -361,16 +387,24 @@ pub fn deserialize_sound_graph(
     // then map id of new object, and ensure that number of
     // sound/number inputs/sources match and map their new id
     // in order to the serialized ids
-    let num_sound_processors = deserializer.u16()? as usize;
-    for _ in 0..num_sound_processors {
-        let mut s1 = deserializer.subarchive()?;
+    let mut sound_processors_section = deserializer.subarchive()?;
+    while !sound_processors_section.is_empty() {
+        let mut s1 = sound_processors_section.subarchive()?;
         let spid = s1.u16()?;
-        let siids = s1.array_slice_u16()?;
+        let mut sound_inputs: Vec<(u16, Vec<u16>)> = Vec::new();
+        let mut s2 = s1.subarchive()?;
+        while !s2.is_empty() {
+            let siid = s2.u16()?;
+            let nsids = s2.array_slice_u16()?;
+            sound_inputs.push((siid, nsids));
+        }
+        std::mem::drop(s2);
         let nsids = s1.array_slice_u16()?;
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
         let s2 = s1.subarchive()?;
         let new_sp = object_factory.create_from_archive(&name, dst_graph_topo, s2);
+        // TODO: how to asser that s2 is empty, and object was completely deserialized?
         new_objects.push(new_sp.get_id());
         let new_spid = match new_sp.get_id() {
             ObjectId::Sound(i) => i,
@@ -378,7 +412,7 @@ pub fn deserialize_sound_graph(
         };
         idmap.add_sound_processor(spid, new_spid)?;
         let sp_data = dst_graph_topo.sound_processors().get(&new_spid).unwrap();
-        if sp_data.sound_inputs().len() != siids.len() {
+        if sp_data.sound_inputs().len() != sound_inputs.len() {
             println!(
                 "Wrong number of sound inputs deserialized for sound processor \"{}\"",
                 name
@@ -399,8 +433,16 @@ pub fn deserialize_sound_graph(
             );
             return Err(());
         }
-        for (old_id, new_id) in siids.iter().zip(sp_data.sound_inputs()) {
-            idmap.add_sound_input(*old_id, *new_id)?;
+        for ((old_siid, old_nsids), new_id) in sound_inputs.iter().zip(sp_data.sound_inputs()) {
+            idmap.add_sound_input(*old_siid, *new_id)?;
+            let new_nsids = dst_graph_topo
+                .sound_inputs()
+                .get(new_id)
+                .unwrap()
+                .number_sources();
+            for (old_nsid, new_nsid) in old_nsids.iter().zip(new_nsids.iter()) {
+                idmap.add_number_source(*old_nsid, *new_nsid)?;
+            }
         }
         for (old_id, new_id) in nsids.iter().zip(sp_data.number_sources()) {
             idmap.add_number_source(*old_id, *new_id)?;
@@ -408,16 +450,18 @@ pub fn deserialize_sound_graph(
         for (old_id, new_id) in niids.iter().zip(sp_data.number_inputs()) {
             idmap.add_number_input(*old_id, *new_id)?;
         }
+        debug_assert!(s1.is_empty());
     }
 
-    let num_number_sources = deserializer.u16()? as usize;
-    for _ in 0..num_number_sources {
-        let mut s1 = deserializer.subarchive()?;
+    let mut number_sources_section = deserializer.subarchive()?;
+    while !number_sources_section.is_empty() {
+        let mut s1 = number_sources_section.subarchive()?;
         let spid = s1.u16()?;
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
         let s2 = s1.subarchive()?;
         let new_ns = object_factory.create_from_archive(&name, dst_graph_topo, s2);
+        // TODO: how to asser that s2 is empty, and object was completely deserialized?
         new_objects.push(new_ns.get_id());
         let new_nsid = match new_ns.get_id() {
             ObjectId::Sound(_) => return Err(()),
@@ -435,6 +479,7 @@ pub fn deserialize_sound_graph(
         for (old_id, new_id) in niids.iter().zip(ns_data.inputs()) {
             idmap.add_number_input(*old_id, *new_id)?;
         }
+        debug_assert!(s1.is_empty());
     }
 
     if !idmap.is_full() {

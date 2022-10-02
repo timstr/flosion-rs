@@ -436,14 +436,7 @@ impl FlosionApp {
 
     fn delete_selection(ui_state: &mut GraphUIState) {
         let selection = ui_state.selection();
-        ui_state.make_change(move |g| {
-            for id in selection {
-                match id {
-                    ObjectId::Sound(id) => g.remove_sound_processor(id),
-                    ObjectId::Number(id) => g.remove_number_source(id),
-                }
-            }
-        });
+        ui_state.make_change(move |g| g.remove_objects(selection.into_iter()));
     }
 
     fn serialize_selection(ui_state: &GraphUIState, topo: &SoundGraphTopology) -> Option<String> {

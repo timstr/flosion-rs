@@ -6,7 +6,7 @@ use crate::core::soundgrapherror::SoundConnectionError;
 
 use super::{
     context::Context,
-    graphobject::ObjectInitialization,
+    graphobject::{ObjectId, ObjectInitialization},
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
         NumberSource, NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle,
@@ -154,7 +154,14 @@ impl SoundGraphTopology {
 
     pub fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
         debug_assert!(self.describe().find_error().is_none());
+        self.remove_sound_processor_impl(processor_id);
 
+        self.update_static_processor_cache();
+
+        debug_assert!(self.describe().find_error().is_none());
+    }
+
+    fn remove_sound_processor_impl(&mut self, processor_id: SoundProcessorId) {
         // disconnect all number inputs from the sound processor
         let mut number_inputs_to_disconnect: Vec<NumberInputId> = Vec::new();
         for (input_id, input_data) in self.number_inputs.iter() {
@@ -241,10 +248,6 @@ impl SoundGraphTopology {
         // remove the processor
         self.sound_processors.remove(&processor_id).unwrap();
 
-        self.update_static_processor_cache();
-
-        debug_assert!(self.describe().find_error().is_none());
-
         // TODO: Disconnect number sources relying on state which has just gone out of scope"
     }
 
@@ -279,7 +282,7 @@ impl SoundGraphTopology {
             number_sources_to_remove = input_data.number_sources().clone();
         }
         if target.is_some() {
-            self.disconnect_sound_input(input_id).unwrap();
+            self.disconnect_sound_input_impl(input_id).unwrap();
         }
         for nsid in number_sources_to_remove {
             self.number_sources.remove(&nsid).unwrap();
@@ -402,6 +405,11 @@ impl SoundGraphTopology {
     }
 
     pub fn remove_number_source(&mut self, source_id: NumberSourceId) {
+        self.remove_number_source_impl(source_id);
+        debug_assert!(self.describe().find_error().is_none());
+    }
+
+    fn remove_number_source_impl(&mut self, source_id: NumberSourceId) {
         let mut inputs_to_disconnect: Vec<NumberInputId> = Vec::new();
         for (input_id, input_data) in self.number_inputs.iter() {
             // if this input belongs to the number source, disconnect it
@@ -418,7 +426,7 @@ impl SoundGraphTopology {
             }
         }
         for input_id in inputs_to_disconnect {
-            self.disconnect_number_input(input_id).unwrap();
+            self.disconnect_number_input_impl(input_id).unwrap();
         }
 
         // remove all number inputs belonging to the source
@@ -429,7 +437,7 @@ impl SoundGraphTopology {
             .inputs()
             .clone();
         for input_id in number_inputs_to_remove {
-            Self::remove_number_input(self, input_id);
+            self.remove_number_input(input_id);
         }
 
         // remove the number source from its owner, if any
@@ -451,8 +459,6 @@ impl SoundGraphTopology {
 
         // remove the number source
         self.number_sources.remove(&source_id).unwrap();
-
-        debug_assert!(self.describe().find_error().is_none());
     }
 
     pub fn add_number_input(
@@ -580,6 +586,17 @@ impl SoundGraphTopology {
         input_data.set_target(None);
 
         Ok(())
+    }
+
+    pub fn remove_objects<I: Iterator<Item = ObjectId>>(&mut self, objects: I) {
+        for oid in objects {
+            match oid {
+                ObjectId::Sound(i) => self.remove_sound_processor_impl(i),
+                ObjectId::Number(i) => self.remove_number_source_impl(i),
+            }
+        }
+        self.update_static_processor_cache();
+        debug_assert!(self.describe().find_error().is_none());
     }
 
     pub(super) fn make_state_tree_for(
