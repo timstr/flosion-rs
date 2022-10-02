@@ -367,11 +367,6 @@ pub fn deserialize_sound_graph(
     deserializer: &mut Deserializer,
     object_factory: &ObjectFactory,
 ) -> Result<(Vec<ObjectId>, ReverseGraphIdMap), ()> {
-    // TODO
-    // - refer to serialize_sound_graph above
-    // - add new objects to dst_graph
-    // - return the ids of all newly created objects
-
     let mut new_objects: Vec<ObjectId> = Vec::new();
 
     // 1. Deserialize the initial id mapping
@@ -403,7 +398,7 @@ pub fn deserialize_sound_graph(
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
         let s2 = s1.subarchive()?;
-        let new_sp = object_factory.create_from_archive(&name, dst_graph_topo, s2);
+        let new_sp = object_factory.create_from_archive(&name, dst_graph_topo, s2)?;
         // TODO: how to asser that s2 is empty, and object was completely deserialized?
         new_objects.push(new_sp.get_id());
         let new_spid = match new_sp.get_id() {
@@ -460,7 +455,7 @@ pub fn deserialize_sound_graph(
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
         let s2 = s1.subarchive()?;
-        let new_ns = object_factory.create_from_archive(&name, dst_graph_topo, s2);
+        let new_ns = object_factory.create_from_archive(&name, dst_graph_topo, s2)?;
         // TODO: how to asser that s2 is empty, and object was completely deserialized?
         new_objects.push(new_ns.get_id());
         let new_nsid = match new_ns.get_id() {

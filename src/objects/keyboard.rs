@@ -12,7 +12,7 @@ use crate::core::{
     soundinput::InputOptions,
     soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{KeyedInput, KeyedInputNode, NoState, ProcessorState},
+    statetree::{KeyedInput, KeyedInputNode, ProcessorState},
 };
 
 const INVALID_ID: i16 = -1;
@@ -41,7 +41,7 @@ impl Key for KeyboardKey {}
 const MAX_KEYS: usize = 8;
 
 pub struct Keyboard {
-    pub input: KeyedInput<KeyboardKey, NoState>,
+    pub input: KeyedInput<KeyboardKey, ()>,
     pub key_frequency: StateNumberSourceHandle,
 }
 
@@ -76,11 +76,11 @@ impl Keyboard {
 impl SoundProcessor for Keyboard {
     const IS_STATIC: bool = true;
 
-    type StateType = NoState;
+    type StateType = ();
 
-    type InputType = KeyedInput<KeyboardKey, NoState>;
+    type InputType = KeyedInput<KeyboardKey, ()>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let input = KeyedInput::new(
             InputOptions {
                 interruptible: true,
@@ -92,10 +92,10 @@ impl SoundProcessor for Keyboard {
         let key_frequency = input.add_number_source(&mut tools, |dst, k, _s| {
             numeric::fill(dst, k.frequency.load(Ordering::Relaxed));
         });
-        Keyboard {
+        Ok(Keyboard {
             input,
             key_frequency,
-        }
+        })
     }
 
     fn get_input(&self) -> &Self::InputType {
@@ -103,12 +103,12 @@ impl SoundProcessor for Keyboard {
     }
 
     fn make_state(&self) -> Self::StateType {
-        NoState {}
+        ()
     }
 
     fn process_audio(
-        state: &mut ProcessorState<NoState>,
-        input: &mut KeyedInputNode<KeyboardKey, NoState>,
+        state: &mut ProcessorState<()>,
+        input: &mut KeyedInputNode<KeyboardKey, ()>,
         dst: &mut SoundChunk,
         ctx: Context,
     ) -> StreamStatus {

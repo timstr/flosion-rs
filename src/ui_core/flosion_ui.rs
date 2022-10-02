@@ -13,7 +13,7 @@ use crate::{
     objects::{
         adsr::ADSR,
         dac::Dac,
-        functions::{Constant, Divide, Exp, Fract, Multiply, Negate, Pow, USin},
+        functions::{Constant, Divide, Exp, Fract, Multiply, Negate, Pow, SineWave},
         keyboard::Keyboard,
         wavegenerator::WaveGenerator,
     },
@@ -47,41 +47,89 @@ pub struct FlosionApp {
 
 fn create_test_sound_graph() -> SoundGraph {
     let mut sg = SoundGraph::new();
-    let dac = sg.add_sound_processor::<Dac>(ObjectInitialization::Default);
-    let keyboard = sg.add_sound_processor::<Keyboard>(ObjectInitialization::Default);
-    let adsr = sg.add_sound_processor::<ADSR>(ObjectInitialization::Default);
-    let wavegen = sg.add_sound_processor::<WaveGenerator>(ObjectInitialization::Default);
+    let dac = sg
+        .add_sound_processor::<Dac>(ObjectInitialization::Default)
+        .unwrap();
+    let keyboard = sg
+        .add_sound_processor::<Keyboard>(ObjectInitialization::Default)
+        .unwrap();
+    let adsr = sg
+        .add_sound_processor::<ADSR>(ObjectInitialization::Default)
+        .unwrap();
+    let wavegen = sg
+        .add_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
+        .unwrap();
     sg.connect_sound_input(dac.input.id(), keyboard.id())
         .unwrap();
     sg.connect_sound_input(keyboard.input.id(), adsr.id())
         .unwrap();
     sg.connect_sound_input(adsr.input.id(), wavegen.id())
         .unwrap();
-    let usin = sg.add_pure_number_source::<USin>(ObjectInitialization::Default);
-    let const_rate = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let mul_time1 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
-    let mul_time2 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
-    let fract = sg.add_pure_number_source::<Fract>(ObjectInitialization::Default);
-    let const_slope = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let mul_fract = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
-    let neg = sg.add_pure_number_source::<Negate>(ObjectInitialization::Default);
-    let exp = sg.add_pure_number_source::<Exp>(ObjectInitialization::Default);
-    let mul_freq1 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
-    let mul_freq2 = sg.add_pure_number_source::<Multiply>(ObjectInitialization::Default);
-    let const_peak_freq = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let const_base_freq = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let div_freq = sg.add_pure_number_source::<Divide>(ObjectInitialization::Default);
-    let pow = sg.add_pure_number_source::<Pow>(ObjectInitialization::Default);
-    let const_attack_time = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let const_decay_time = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let const_sustain_level = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let const_release_time = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
-    let const_exponent = sg.add_pure_number_source::<Constant>(ObjectInitialization::Default);
+    let sinwave = sg
+        .add_pure_number_source::<SineWave>(ObjectInitialization::Default)
+        .unwrap();
+    let const_rate = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let mul_time1 = sg
+        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
+        .unwrap();
+    let mul_time2 = sg
+        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
+        .unwrap();
+    let fract = sg
+        .add_pure_number_source::<Fract>(ObjectInitialization::Default)
+        .unwrap();
+    let const_slope = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let mul_fract = sg
+        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
+        .unwrap();
+    let neg = sg
+        .add_pure_number_source::<Negate>(ObjectInitialization::Default)
+        .unwrap();
+    let exp = sg
+        .add_pure_number_source::<Exp>(ObjectInitialization::Default)
+        .unwrap();
+    let mul_freq1 = sg
+        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
+        .unwrap();
+    let mul_freq2 = sg
+        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
+        .unwrap();
+    let const_peak_freq = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let const_base_freq = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let div_freq = sg
+        .add_pure_number_source::<Divide>(ObjectInitialization::Default)
+        .unwrap();
+    let pow = sg
+        .add_pure_number_source::<Pow>(ObjectInitialization::Default)
+        .unwrap();
+    let const_attack_time = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let const_decay_time = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let const_sustain_level = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let const_release_time = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
+    let const_exponent = sg
+        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
+        .unwrap();
     sg.connect_number_input(wavegen.amplitude.id(), pow.id())
         .unwrap();
-    sg.connect_number_input(usin.input.id(), wavegen.phase.id())
+    sg.connect_number_input(sinwave.input.id(), wavegen.phase.id())
         .unwrap();
-    sg.connect_number_input(pow.input_1.id(), usin.id())
+    sg.connect_number_input(pow.input_1.id(), sinwave.id())
         .unwrap();
     sg.connect_number_input(pow.input_2.id(), const_exponent.id())
         .unwrap();
@@ -242,13 +290,21 @@ impl FlosionApp {
         if let Some(s) = &self.summon_state {
             if s.ready() {
                 if s.selected_type().is_some() {
-                    let (t, args) = s.parse_selected();
+                    let (type_name, args) = s.parse_selected();
                     // TODO: how to distinguish args for ui from args for object, if ever needed?
+                    // See also note in Constant::new
                     let new_object = self.object_factory.read().create_from_args(
-                        t,
+                        type_name,
                         &mut self.graph.topology().write(),
                         &args,
                     );
+                    let new_object = match new_object {
+                        Ok(o) => o,
+                        Err(_) => {
+                            println!("Failed to create an object of type {}", type_name);
+                            return;
+                        }
+                    };
                     let new_state = self
                         .ui_factory
                         .read()
@@ -345,6 +401,7 @@ impl FlosionApp {
         // (e.g. memory().areas) which aren't yet exposed.
         // On the other hand, is there any correct way to paint wires between
         // two connected objects that are directly on top of one another?
+        // TODO: curvy wires
         ui.with_layer_id(
             egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
             |ui| {

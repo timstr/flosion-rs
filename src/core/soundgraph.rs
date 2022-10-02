@@ -48,14 +48,14 @@ impl SoundGraph {
     pub fn add_sound_processor<T: SoundProcessor>(
         &mut self,
         init: ObjectInitialization,
-    ) -> SoundProcessorHandle<T> {
+    ) -> Result<SoundProcessorHandle<T>, ()> {
         self.topology.write().add_sound_processor::<T>(init)
     }
 
     pub fn add_pure_number_source<T: PureNumberSource>(
         &mut self,
         init: ObjectInitialization,
-    ) -> PureNumberSourceHandle<T> {
+    ) -> Result<PureNumberSourceHandle<T>, ()> {
         self.topology.write().add_pure_number_source::<T>(init)
     }
 

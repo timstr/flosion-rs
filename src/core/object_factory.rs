@@ -11,7 +11,9 @@ use super::{
 };
 
 struct ObjectData {
-    create: Box<dyn Fn(&mut SoundGraphTopology, ObjectInitialization) -> Box<dyn GraphObject>>,
+    create: Box<
+        dyn Fn(&mut SoundGraphTopology, ObjectInitialization) -> Result<Box<dyn GraphObject>, ()>,
+    >,
 }
 
 pub struct ObjectFactory {
@@ -26,11 +28,12 @@ impl ObjectFactory {
     }
 
     pub fn register_sound_processor<T: SoundProcessor>(&mut self) {
-        let create =
-            |g: &mut SoundGraphTopology, init: ObjectInitialization| -> Box<dyn GraphObject> {
-                let h = g.add_sound_processor::<T>(init);
-                h.instance_arc().as_graph_object(h.id())
-            };
+        let create = |g: &mut SoundGraphTopology,
+                      init: ObjectInitialization|
+         -> Result<Box<dyn GraphObject>, ()> {
+            let h = g.add_sound_processor::<T>(init)?;
+            Ok(h.instance_arc().as_graph_object(h.id()))
+        };
         self.mapping.insert(
             T::TYPE.name(),
             ObjectData {
@@ -41,8 +44,8 @@ impl ObjectFactory {
 
     pub fn register_number_source<T: PureNumberSource>(&mut self) {
         let create = |g: &mut SoundGraphTopology, init: ObjectInitialization| {
-            let h = g.add_pure_number_source::<T>(init);
-            h.instance_arc().as_graph_object(h.id()).unwrap()
+            let h = g.add_pure_number_source::<T>(init)?;
+            Ok(h.instance_arc().as_graph_object(h.id()).unwrap())
         };
         self.mapping.insert(
             T::TYPE.name(),
@@ -57,7 +60,7 @@ impl ObjectFactory {
         object_type_str: &str,
         graph_topo: &mut SoundGraphTopology,
         init: ObjectInitialization,
-    ) -> Box<dyn GraphObject> {
+    ) -> Result<Box<dyn GraphObject>, ()> {
         match self.mapping.get(object_type_str) {
             Some(data) => (*data.create)(graph_topo, init),
             None => panic!(
@@ -72,7 +75,7 @@ impl ObjectFactory {
         object_type_str: &str,
         graph_topo: &mut SoundGraphTopology,
         args: &ParsedArguments,
-    ) -> Box<dyn GraphObject> {
+    ) -> Result<Box<dyn GraphObject>, ()> {
         self.create_impl(
             object_type_str,
             graph_topo,
@@ -85,7 +88,7 @@ impl ObjectFactory {
         object_type_str: &str,
         graph_topo: &mut SoundGraphTopology,
         deserializer: Deserializer,
-    ) -> Box<dyn GraphObject> {
+    ) -> Result<Box<dyn GraphObject>, ()> {
         self.create_impl(
             object_type_str,
             graph_topo,

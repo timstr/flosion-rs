@@ -38,8 +38,8 @@ impl SoundProcessor for WaveGenerator {
 
     type InputType = NoInputs;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
-        WaveGenerator {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+        Ok(WaveGenerator {
             phase: tools.add_processor_number_source::<Self, _>(
                 |dst: &mut [f32], state: &WaveGeneratorState| {
                     numeric::copy(&state.phase, dst);
@@ -49,7 +49,7 @@ impl SoundProcessor for WaveGenerator {
             amplitude: tools.add_number_input(0.0),
             frequency: tools.add_number_input(250.0),
             input: NoInputs::default(),
-        }
+        })
     }
 
     fn get_input(&self) -> &Self::InputType {

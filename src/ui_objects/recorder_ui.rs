@@ -62,7 +62,10 @@ impl ObjectUi for RecorderUi {
                     graph_tools.make_change(move |graph| {
                         let ac =
                             graph.add_sound_processor::<AudioClip>(ObjectInitialization::Default);
-                        ac.instance().set_data(a);
+                        match ac {
+                            Ok(ac) => ac.set_data(a),
+                            Err(_) => println!("Recorder failed to create an AudioClip"),
+                        }
                     });
                 }
             }

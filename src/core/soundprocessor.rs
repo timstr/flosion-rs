@@ -47,7 +47,7 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: State;
     type InputType: ProcessorInput;
 
-    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Self
+    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 

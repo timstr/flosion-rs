@@ -6,7 +6,7 @@ use crate::core::{
     soundchunk::SoundChunk,
     soundprocessor::{SoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, NoState, ProcessorState},
+    statetree::{NoInputs, ProcessorState},
 };
 
 pub struct WhiteNoise {
@@ -16,14 +16,14 @@ pub struct WhiteNoise {
 impl SoundProcessor for WhiteNoise {
     const IS_STATIC: bool = false;
 
-    type StateType = NoState;
+    type StateType = ();
 
     type InputType = NoInputs;
 
-    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
-        WhiteNoise {
+    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+        Ok(WhiteNoise {
             inputs: NoInputs::new(),
-        }
+        })
     }
 
     fn get_input(&self) -> &Self::InputType {
@@ -31,11 +31,11 @@ impl SoundProcessor for WhiteNoise {
     }
 
     fn make_state(&self) -> Self::StateType {
-        NoState {}
+        ()
     }
 
     fn process_audio(
-        _state: &mut ProcessorState<NoState>,
+        _state: &mut ProcessorState<()>,
         _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
         _ctx: Context,

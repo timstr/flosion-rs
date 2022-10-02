@@ -64,10 +64,6 @@ impl SoundBuffer {
     }
 
     pub fn push_chunk(&mut self, ch: &SoundChunk) {
-        // TODO
-        // if last stored chunk is not used entirely (self.sample_len % CHUNK_SIZE != 0),
-        // copy start of new chunk into end of last stored chunk. Then copy remainder of
-        // new chunk into beginning of a newly stored chunk
         let offset = self.sample_len % CHUNK_SIZE;
         let split_ch = CHUNK_SIZE - offset;
         if offset > 0 {
@@ -78,6 +74,17 @@ impl SoundBuffer {
         let mut new_ch = SoundChunk::new();
         numeric::copy(&ch.l[split_ch..], &mut new_ch.l[..offset]);
         numeric::copy(&ch.r[split_ch..], &mut new_ch.r[..offset]);
+    }
+
+    pub fn push_sample(&mut self, l: f32, r: f32) {
+        let offset = self.sample_len % CHUNK_SIZE;
+        if offset == 0 {
+            self.chunks.push(SoundChunk::new());
+        }
+        let ch = self.chunks.last_mut().unwrap();
+        ch.l[0] = l;
+        ch.r[0] = r;
+        self.sample_len += 1;
     }
 }
 

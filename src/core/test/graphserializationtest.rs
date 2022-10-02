@@ -10,7 +10,7 @@ use crate::{
         soundgraph::SoundGraph,
     },
     objects::{
-        audioclip::AudioClip, dac::Dac, functions::USin, keyboard::Keyboard,
+        audioclip::AudioClip, dac::Dac, functions::SineWave, keyboard::Keyboard,
         wavegenerator::WaveGenerator,
     },
 };
@@ -63,8 +63,12 @@ fn test_just_dac() {
 #[test]
 fn test_audioclip_to_dac() {
     let mut g = SoundGraph::new();
-    let dac = g.add_sound_processor::<Dac>(ObjectInitialization::Default);
-    let ac = g.add_sound_processor::<AudioClip>(ObjectInitialization::Default);
+    let dac = g
+        .add_sound_processor::<Dac>(ObjectInitialization::Default)
+        .unwrap();
+    let ac = g
+        .add_sound_processor::<AudioClip>(ObjectInitialization::Default)
+        .unwrap();
     g.connect_sound_input(dac.input.id(), ac.id()).unwrap();
     assert_eq!(g.graph_objects().len(), 2);
 
@@ -112,10 +116,18 @@ fn test_audioclip_to_dac() {
 #[test]
 fn test_wavegen_keyboard_dac() {
     let mut g = SoundGraph::new();
-    let dac = g.add_sound_processor::<Dac>(ObjectInitialization::Default);
-    let kbd = g.add_sound_processor::<Keyboard>(ObjectInitialization::Default);
-    let wav = g.add_sound_processor::<WaveGenerator>(ObjectInitialization::Default);
-    let sin = g.add_pure_number_source::<USin>(ObjectInitialization::Default);
+    let dac = g
+        .add_sound_processor::<Dac>(ObjectInitialization::Default)
+        .unwrap();
+    let kbd = g
+        .add_sound_processor::<Keyboard>(ObjectInitialization::Default)
+        .unwrap();
+    let wav = g
+        .add_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
+        .unwrap();
+    let sin = g
+        .add_pure_number_source::<SineWave>(ObjectInitialization::Default)
+        .unwrap();
     g.connect_sound_input(dac.input.id(), kbd.id()).unwrap();
     g.connect_sound_input(kbd.input.id(), wav.id()).unwrap();
     g.connect_number_input(wav.frequency.id(), kbd.key_frequency.id())
@@ -137,7 +149,7 @@ fn test_wavegen_keyboard_dac() {
     object_factory.register_sound_processor::<Dac>();
     object_factory.register_sound_processor::<Keyboard>();
     object_factory.register_sound_processor::<WaveGenerator>();
-    object_factory.register_number_source::<USin>();
+    object_factory.register_number_source::<SineWave>();
     let (new_objects, _idmap) =
         deserialize_sound_graph(&mut g2.topology().write(), &mut d, &object_factory).unwrap();
 
@@ -162,7 +174,7 @@ fn test_wavegen_keyboard_dac() {
             assert!(new_wav.is_none());
             new_wav = Some(x);
         }
-        if let Some(x) = object_to_number_source::<USin>(&*o) {
+        if let Some(x) = object_to_number_source::<SineWave>(&*o) {
             assert!(new_sin.is_none());
             new_sin = Some(x);
         }

@@ -232,9 +232,7 @@ unary_number_source_ui!(Log2Ui, Log2, "Log2", []);
 unary_number_source_ui!(Log10Ui, Log10, "Log10", []);
 unary_number_source_ui!(CbrtUi, Cbrt, "Cbrt", []);
 unary_number_source_ui!(SinUi, Sin, "Sin", []);
-unary_number_source_ui!(USinUi, USin, "USin", []);
 unary_number_source_ui!(CosUi, Cos, "Cos", []);
-unary_number_source_ui!(UCosUi, UCos, "UCos", []);
 unary_number_source_ui!(TanUi, Tan, "Tan", []);
 unary_number_source_ui!(AsinUi, Asin, "Asin", []);
 unary_number_source_ui!(AcosUi, Acos, "Acos", []);
@@ -245,6 +243,12 @@ unary_number_source_ui!(TanhUi, Tanh, "Tanh", []);
 unary_number_source_ui!(AsinhUi, Asinh, "Asinh", []);
 unary_number_source_ui!(AcoshUi, Acosh, "Acosh", []);
 unary_number_source_ui!(AtanhUi, Atanh, "Atanh", []);
+
+unary_number_source_ui!(SineWaveUi, SineWave, "SineWave", []);
+unary_number_source_ui!(CosineWaveUi, CosineWave, "CosineWave", []);
+unary_number_source_ui!(SquareWaveUi, SquareWave, "SquareWave", []);
+unary_number_source_ui!(SawWaveUi, SawWave, "SawWave", []);
+unary_number_source_ui!(TriangleWaveUi, TriangleWave, "TriangleWave", []);
 
 binary_number_source_ui!(AddUi, Add, "Add", ["+", "plus"]);
 binary_number_source_ui!(SubtractUi, Subtract, "Subtract", ["-", "minus"]);

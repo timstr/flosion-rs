@@ -8,7 +8,7 @@ use parking_lot::RwLock;
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    serialization::Serializer,
+    serialization::{Serializable, Serializer},
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
@@ -24,8 +24,7 @@ pub struct RecorderData {
 }
 
 impl RecorderData {
-    pub fn new() -> Self {
-        let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
+    pub fn new(buf: SoundBuffer) -> Self {
         Self {
             recorded_chunk_groups: RwLock::new(vec![buf]),
             recording: AtomicBool::new(false),
@@ -89,9 +88,11 @@ impl SoundProcessor for Recorder {
 
     type InputType = SingleInput;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
-        // TODO
-        println!("TODO: actually initialize Recorder");
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+        let buf = match _init {
+            ObjectInitialization::Archive(mut a) => SoundBuffer::deserialize(&mut a)?,
+            _ => SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP),
+        };
         let r = Recorder {
             input: SingleInput::new(
                 InputOptions {
@@ -100,10 +101,10 @@ impl SoundProcessor for Recorder {
                 },
                 &mut tools,
             ),
-            data: Arc::new(RecorderData::new()),
+            data: Arc::new(RecorderData::new(buf)),
         };
         debug_assert!(r.recording_length() == 0);
-        r
+        Ok(r)
     }
 
     fn get_input(&self) -> &Self::InputType {
@@ -140,8 +141,7 @@ impl SoundProcessor for Recorder {
 
     fn serialize(&self, mut serializer: Serializer) {
         let data = self.data.recorded_chunk_groups.read();
-        serializer.array_iter_f32(data.iter().flat_map(|b| b.samples_l()));
-        serializer.array_iter_f32(data.iter().flat_map(|b| b.samples_r()));
+        serializer.array_iter_f32(data.iter().flat_map(|b| b.samples()).flatten());
     }
 }
 

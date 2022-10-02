@@ -11,10 +11,6 @@ pub fn resample_interleave<F: FnMut() -> (f32, f32)>(
     let mut remainder: f32 = 0.0;
     // TODO: implement something nicer than nearest neighbour
     let mut s = get_next_input_sample();
-    // assert!(
-    //     input_sample_rate == output_sample_rate,
-    //     "TODO: fix resampling"
-    // ); // HACK
     for p in output.chunks_exact_mut(2) {
         while remainder >= 1.0 {
             s = get_next_input_sample();

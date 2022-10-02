@@ -105,15 +105,14 @@ impl SingleInputNode {
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
-        let dummy = NoState::default();
         step_input(
             &mut self.timing,
             &mut self.target,
             processor_state,
             dst,
             ctx,
-            AnyData::new(self.id, &dummy),
-            AnyData::new(self.id, &dummy),
+            AnyData::new(self.id, &()),
+            AnyData::new(self.id, &()),
         )
     }
 
@@ -364,9 +363,7 @@ impl<'a, I: UniqueId> AnyData<'a, I> {
     }
 }
 
-#[derive(Default)]
-pub struct NoState {} // TODO: is this needed? Could probably replace with unit type ()
-impl State for NoState {
+impl State for () {
     fn reset(&mut self) {}
 }
 

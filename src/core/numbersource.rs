@@ -93,7 +93,7 @@ pub trait NumberSource: 'static + Sync + Send {
 }
 
 pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
-    fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Self
+    fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 
