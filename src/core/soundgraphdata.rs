@@ -133,18 +133,18 @@ impl EngineSoundProcessorData {
         &mut self.number_inputs
     }
 
-    pub fn processor(&self) -> &dyn SoundProcessorWrapper {
+    pub fn instance(&self) -> &dyn SoundProcessorWrapper {
         &**self.processor.as_ref().unwrap()
     }
 
-    pub fn processor_arc(&self) -> Arc<dyn SoundProcessorWrapper> {
+    pub fn instance_arc(&self) -> Arc<dyn SoundProcessorWrapper> {
         Arc::clone(self.processor.as_ref().unwrap())
     }
 
     pub fn describe(&self) -> SoundProcessorDescription {
         SoundProcessorDescription::new(
             self.id,
-            self.processor().is_static(),
+            self.instance().is_static(),
             self.sound_inputs.clone(),
             self.number_sources.clone(),
             self.number_inputs.clone(),

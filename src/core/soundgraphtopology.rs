@@ -607,7 +607,7 @@ impl SoundGraphTopology {
         match input_data.target() {
             Some(proc_id) => {
                 let allocator = NodeAllocator::new(proc_id, self);
-                let proc = self.sound_processors.get(&proc_id).unwrap().processor();
+                let proc = self.sound_processors.get(&proc_id).unwrap().instance();
                 if proc.is_static() {
                     let cache = self
                         .static_processors
@@ -681,7 +681,7 @@ impl SoundGraphTopology {
             .sound_processors
             .values()
             .filter_map(|proc_data| {
-                if proc_data.processor().is_static() {
+                if proc_data.instance().is_static() {
                     Some(proc_data.id())
                 } else {
                     None
@@ -722,9 +722,9 @@ impl SoundGraphTopology {
                 Some(idx) => {
                     let pid = remaining_static_proc_ids.remove(idx);
                     let proc_data = self.sound_processors.get(&pid).unwrap();
-                    debug_assert!(proc_data.processor().is_static());
+                    debug_assert!(proc_data.instance().is_static());
                     let allocator = NodeAllocator::new(pid, self);
-                    let tree = proc_data.processor().make_node(&allocator);
+                    let tree = proc_data.instance().make_node(&allocator);
                     self.static_processors
                         .push(StaticProcessorCache::new(pid, tree))
                 }

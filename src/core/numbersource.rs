@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
 use super::{
     context::Context,
@@ -99,7 +99,7 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
 
     fn eval(&self, dst: &mut [f32], context: &Context);
 
-    fn serialize(&self, serializer: Serializer) {}
+    fn serialize(&self, _serializer: Serializer) {}
 }
 
 impl<T: PureNumberSource> NumberSource for T {
@@ -112,7 +112,6 @@ impl<T: PureNumberSource> NumberSource for T {
     }
 }
 
-// TODO: consider implementing Deref<Target=T>
 pub struct PureNumberSourceHandle<T: PureNumberSource> {
     id: NumberSourceId,
     instance: Arc<T>,
@@ -142,6 +141,14 @@ impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
             id: self.id.clone(),
             instance: Arc::clone(&self.instance),
         }
+    }
+}
+
+impl<T: PureNumberSource> Deref for PureNumberSourceHandle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.instance()
     }
 }
 

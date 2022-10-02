@@ -79,7 +79,7 @@ impl SoundEngine {
             topology
                 .sound_processors()
                 .iter()
-                .filter_map(|(pid, pdata)| if pdata.processor().is_static() {
+                .filter_map(|(pid, pdata)| if pdata.instance().is_static() {
                     Some(*pid)
                 } else {
                     None

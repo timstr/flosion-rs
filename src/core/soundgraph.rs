@@ -121,7 +121,7 @@ impl SoundGraph {
         let mut ret: Vec<Box<dyn GraphObject>> = Vec::new();
         let topo = self.topology.read();
         for (id, data) in topo.sound_processors() {
-            ret.push(data.processor_arc().as_graph_object(*id));
+            ret.push(data.instance_arc().as_graph_object(*id));
         }
         for (id, data) in topo.number_sources() {
             if let Some(obj) = data.instance_arc().as_graph_object(*id) {

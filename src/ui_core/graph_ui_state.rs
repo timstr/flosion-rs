@@ -388,7 +388,7 @@ impl GraphUIState {
                     .sound_processors()
                     .get(&spid)
                     .unwrap()
-                    .processor_arc()
+                    .instance_arc()
                     .as_graph_object(spid),
                 ObjectId::Number(nsid) => topo
                     .number_sources()
@@ -913,7 +913,7 @@ impl GraphUIState {
                     .sound_processors()
                     .get(&i)
                     .unwrap()
-                    .processor_arc()
+                    .instance_arc()
                     .as_graph_object(i),
                 ObjectId::Number(i) => topology
                     .number_sources()

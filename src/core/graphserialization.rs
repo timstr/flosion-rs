@@ -277,7 +277,7 @@ pub fn serialize_sound_graph(
                 .iter()
                 .map(|x| idmap.number_inputs.map_id(*x).unwrap()),
         );
-        let obj = pd.processor_arc().as_graph_object(pd.id());
+        let obj = pd.instance_arc().as_graph_object(pd.id());
         // the type name
         s1.string(obj.get_type().name());
         // the instance itself
