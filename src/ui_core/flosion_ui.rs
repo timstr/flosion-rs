@@ -3,9 +3,12 @@ use std::sync::Arc;
 use crate::{
     core::{
         graphobject::{GraphId, ObjectId, ObjectInitialization},
+        graphserialization::{deserialize_sound_graph, serialize_sound_graph},
         object_factory::ObjectFactory,
+        serialization::Archive,
         soundgraph::SoundGraph,
         soundgraphdescription::SoundGraphDescription,
+        soundgraphtopology::SoundGraphTopology,
     },
     objects::{
         adsr::ADSR,
@@ -17,8 +20,8 @@ use crate::{
     ui_objects::all_objects::all_objects,
 };
 use eframe::{
-    egui::{self, CtxRef, Response, Ui},
-    epi,
+    self,
+    egui::{self, Response, Ui},
 };
 use parking_lot::RwLock;
 
@@ -142,8 +145,9 @@ fn create_test_sound_graph() -> SoundGraph {
     sg
 }
 
-impl Default for FlosionApp {
-    fn default() -> FlosionApp {
+impl FlosionApp {
+    pub fn new(_cc: &eframe::CreationContext) -> FlosionApp {
+        // TODO: learn about what CreationContext offers
         let graph = create_test_sound_graph();
         // let graph = SoundGraph::new();
         let topo = graph.topology();
@@ -159,9 +163,7 @@ impl Default for FlosionApp {
             selection_area: None,
         }
     }
-}
 
-impl FlosionApp {
     fn draw_all_objects(
         ui: &mut Ui,
         factory: &UiFactory,
@@ -173,26 +175,19 @@ impl FlosionApp {
         }
     }
 
-    fn handle_hotkeys(ctx: &CtxRef, ui_state: &mut GraphUIState, desc: &SoundGraphDescription) {
-        for e in &ctx.input().events {
-            if let egui::Event::Key {
-                key,
-                pressed,
-                modifiers,
-            } = e
-            {
-                if !pressed {
-                    continue;
-                }
-                if *key == egui::Key::Escape {
-                    ui_state.cancel_hotkey(desc);
-                }
-                if modifiers.any() {
-                    continue;
-                }
-                ui_state.activate_hotkey(*key, desc);
-            }
+    fn handle_hotkey(
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+        ui_state: &mut GraphUIState,
+        desc: &SoundGraphDescription,
+    ) -> bool {
+        if key == egui::Key::Escape {
+            return ui_state.cancel_hotkey(desc);
         }
+        if modifiers.any() {
+            return false;
+        }
+        ui_state.activate_hotkey(key, desc)
     }
 
     fn handle_drag_objects(
@@ -256,10 +251,11 @@ impl FlosionApp {
                 if s.selected_type().is_some() {
                     let (t, args) = s.parse_selected();
                     // TODO: how to distinguish args for ui from args for object, if ever needed?
-                    let new_object =
-                        self.object_factory
-                            .read()
-                            .create_from_args(t, &mut self.graph, &args);
+                    let new_object = self.object_factory.read().create_from_args(
+                        t,
+                        &mut self.graph.topology().write(),
+                        &args,
+                    );
                     let new_state = self
                         .ui_factory
                         .read()
@@ -438,31 +434,50 @@ impl FlosionApp {
         );
     }
 
-    fn handle_delete_objects(&mut self, ui: &mut Ui) {
-        if self.summon_state.is_some() {
-            return;
-        }
-        if ui.input().key_pressed(egui::Key::Delete) {
-            let selection = self.ui_state.selection().clone();
+    fn delete_selection(ui_state: &mut GraphUIState) {
+        let selection = ui_state.selection();
+        ui_state.make_change(move |g| {
             for id in selection {
                 match id {
-                    ObjectId::Sound(id) => {
-                        self.ui_state
-                            .make_change(move |g| g.remove_sound_processor(id));
-                    }
-                    ObjectId::Number(id) => {
-                        self.ui_state
-                            .make_change(move |g| g.remove_number_source(id));
-                    }
+                    ObjectId::Sound(id) => g.remove_sound_processor(id),
+                    ObjectId::Number(id) => g.remove_number_source(id),
                 }
-                self.ui_state.forget(id);
             }
+        });
+    }
+
+    fn serialize_selection(ui_state: &GraphUIState, topo: &SoundGraphTopology) -> Option<String> {
+        let selection = ui_state.selection();
+        if selection.is_empty() {
+            return None;
         }
+        let archive = Archive::serialize_with(|mut serializer| {
+            let idmap = serialize_sound_graph(topo, Some(&selection), &mut serializer);
+            ui_state.serialize_ui_states(&mut serializer, Some(&selection), &idmap);
+        });
+        let bytes = archive.into_vec();
+        let b64_str = base64::encode(&bytes);
+        Some(b64_str)
+    }
+
+    fn deserialize(
+        ui_state: &mut GraphUIState,
+        data: &str,
+        topo: &mut SoundGraphTopology,
+        object_factory: &ObjectFactory,
+        ui_factory: &UiFactory,
+    ) -> Result<Vec<ObjectId>, ()> {
+        let bytes = base64::decode(data).map_err(|_| ())?;
+        let archive = Archive::from_vec(bytes);
+        let mut deserializer = archive.deserialize()?;
+        let (objects, idmap) = deserialize_sound_graph(topo, &mut deserializer, object_factory)?;
+        ui_state.deserialize_ui_states(&mut deserializer, &idmap, topo, ui_factory)?;
+        Ok(objects)
     }
 }
 
-impl epi::App for FlosionApp {
-    fn update(&mut self, ctx: &egui::CtxRef, _frame: &epi::Frame) {
+impl eframe::App for FlosionApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let running = self.graph.is_running();
             if ui.button(if running { "Pause" } else { "Play" }).clicked() {
@@ -478,9 +493,9 @@ impl epi::App for FlosionApp {
                 Self::draw_all_objects(ui, &factory, &self.graph, &mut self.ui_state);
             }
             let desc = self.graph.describe();
-            Self::handle_hotkeys(ctx, &mut self.ui_state, &desc);
+            let screen_rect = ui.input().screen_rect();
             let bg_response = ui.interact(
-                ui.input().screen_rect(),
+                screen_rect,
                 egui::Id::new("background"),
                 egui::Sense::click_and_drag(),
             );
@@ -497,13 +512,68 @@ impl epi::App for FlosionApp {
 
             Self::draw_wires(ui, &self.ui_state, &desc);
 
-            self.handle_delete_objects(ui);
+            if self.summon_state.is_none() {
+                let mut copied_text: Option<String> = None;
+                for event in &ctx.input().events {
+                    match event {
+                        egui::Event::Copy => {
+                            if let Some(s) = Self::serialize_selection(
+                                &self.ui_state,
+                                &self.graph.topology().read(),
+                            ) {
+                                copied_text = Some(s);
+                            }
+                        }
+                        egui::Event::Cut => {
+                            if let Some(s) = Self::serialize_selection(
+                                &self.ui_state,
+                                &self.graph.topology().read(),
+                            ) {
+                                copied_text = Some(s);
+                            }
+                            Self::delete_selection(&mut self.ui_state);
+                        }
+                        egui::Event::Paste(data) => {
+                            let res = Self::deserialize(
+                                &mut self.ui_state,
+                                data,
+                                &mut self.graph.topology().write(),
+                                &self.object_factory.read(),
+                                &self.ui_factory.read(),
+                            );
+                            match res {
+                                Ok(object_ids) => self
+                                    .ui_state
+                                    .set_selection(object_ids.into_iter().collect()),
+                                Err(_) => println!("Failed to paste data"),
+                            }
+                        }
+                        egui::Event::Key {
+                            key,
+                            pressed,
+                            modifiers,
+                        } => {
+                            if !pressed {
+                                continue;
+                            }
+                            if *key == egui::Key::Delete && !modifiers.any() {
+                                Self::delete_selection(&mut self.ui_state);
+                                continue;
+                            }
+                            if Self::handle_hotkey(*key, *modifiers, &mut self.ui_state, &desc) {
+                                continue;
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+                if let Some(s) = copied_text {
+                    ui.output().copied_text = s;
+                }
+            }
 
             self.ui_state.apply_pending_changes(&mut self.graph);
+            self.ui_state.cleanup();
         });
-    }
-
-    fn name(&self) -> &str {
-        "Flosion"
     }
 }

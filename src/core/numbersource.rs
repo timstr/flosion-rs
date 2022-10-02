@@ -5,6 +5,7 @@ use super::{
     graphobject::{GraphObject, ObjectInitialization, WithObjectType},
     key::Key,
     numbersourcetools::NumberSourceTools,
+    serialization::Serializer,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
     statetree::{State, StateOwner},
@@ -97,6 +98,8 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
         Self: Sized;
 
     fn eval(&self, dst: &mut [f32], context: &Context);
+
+    fn serialize(&self, serializer: Serializer) {}
 }
 
 impl<T: PureNumberSource> NumberSource for T {

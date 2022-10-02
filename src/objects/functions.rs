@@ -5,6 +5,7 @@ use crate::core::{
     numbersource::PureNumberSource,
     numbersourcetools::NumberSourceTools,
     numeric,
+    serialization::Serializer,
 };
 use atomic_float::AtomicF32;
 use std::sync::atomic::Ordering;
@@ -25,15 +26,24 @@ impl Constant {
 
 impl PureNumberSource for Constant {
     fn new(_tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Constant {
-        // TODO
-        println!("TODO: actually initialize Constant");
+        let value = match _init {
+            // TODO: I don't like the hidden dependency on ConstantUi right here
+            // for the argument name
+            ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
+            ObjectInitialization::Archive(mut d) => d.f32().unwrap_or(0.0),
+            ObjectInitialization::Default => 0.0,
+        };
         Constant {
-            value: AtomicF32::new(0.0),
+            value: AtomicF32::new(value),
         }
     }
 
     fn eval(&self, dst: &mut [f32], _context: &Context) {
         numeric::fill(dst, self.value.load(Ordering::SeqCst));
+    }
+
+    fn serialize(&self, mut serializer: Serializer) {
+        serializer.f32(self.get_value());
     }
 }
 

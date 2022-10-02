@@ -76,8 +76,8 @@ impl PrimitiveType {
 impl ValueType {
     fn to_byte(&self) -> u8 {
         match self {
-            ValueType::Primitive(prim_type) => (0x00 | prim_type.to_nibble()),
-            ValueType::Array(prim_type) => (0x10 | prim_type.to_nibble()),
+            ValueType::Primitive(prim_type) => 0x00 | prim_type.to_nibble(),
+            ValueType::Array(prim_type) => 0x10 | prim_type.to_nibble(),
             ValueType::String => 0x20,
             ValueType::SubArchive => 0x30,
         }

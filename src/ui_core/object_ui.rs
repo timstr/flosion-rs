@@ -164,7 +164,7 @@ impl ObjectWindow {
 
     pub fn show<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
         self,
-        ctx: &egui::CtxRef,
+        ctx: &egui::Context,
         graph_tools: &mut GraphUIState,
         add_contents: F,
     ) {
@@ -189,7 +189,7 @@ impl ObjectWindow {
         let frame = egui::Frame::default()
             .fill(fill)
             .stroke(stroke)
-            .margin(egui::Vec2::splat(10.0));
+            .inner_margin(egui::Vec2::splat(10.0));
 
         let mut area = egui::Area::new(id);
         // let layer_id = area.layer();
@@ -317,7 +317,7 @@ fn peg_ui(
         rect.center(),
         egui::Align2::CENTER_CENTER,
         display_str,
-        egui::TextStyle::Monospace,
+        egui::FontId::monospace(16.0),
         egui::Color32::WHITE,
     );
     if let Some(s) = popup_str {
@@ -325,7 +325,7 @@ fn peg_ui(
             s.to_string(),
             // rect.right_center() + egui::vec2(5.0, 0.0),
             // egui::Align2::LEFT_CENTER,
-            egui::TextStyle::Monospace,
+            egui::FontId::monospace(16.0),
             egui::Color32::WHITE,
         );
         let pos = rect.right_center() + egui::vec2(5.0, -0.5 * galley.rect.height());

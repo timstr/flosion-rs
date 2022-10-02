@@ -8,7 +8,10 @@ fn main() {
     //     process::exit(-1);
     // }));
 
-    let app = FlosionApp::default();
     let native_options = eframe::NativeOptions::default();
-    eframe::run_native(Box::new(app), native_options);
+    eframe::run_native(
+        "Flosion",
+        native_options,
+        Box::new(|cc| Box::new(FlosionApp::new(cc))),
+    );
 }

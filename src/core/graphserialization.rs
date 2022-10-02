@@ -1,15 +1,13 @@
 use std::collections::HashSet;
 
-use crate::core::numbersource::NumberSourceOwner;
-
 use super::{
     graphobject::ObjectId,
     numberinput::NumberInputId,
-    numbersource::NumberSourceId,
+    numbersource::{NumberSourceId, NumberSourceOwner},
     object_factory::ObjectFactory,
     serialization::{Deserializer, Serializer},
-    soundgraph::SoundGraph,
     soundgraphdata::{EngineNumberSourceData, EngineSoundProcessorData},
+    soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
     uniqueid::UniqueId,
@@ -200,7 +198,7 @@ impl ReverseGraphIdMap {
 }
 
 pub fn serialize_sound_graph(
-    graph: &SoundGraph,
+    graph_topo: &SoundGraphTopology,
     subset: Option<&HashSet<ObjectId>>,
     serializer: &mut Serializer,
 ) -> ForwardGraphIdMap {
@@ -209,22 +207,19 @@ pub fn serialize_sound_graph(
         None => true,
     };
 
-    let topo = graph.topology();
-    let topo = topo.read();
-
     // 1. visit all objects and note their associated ids (do this first so that
     //    during deserialization, ids can be repopulated while objects are being
     //    deserialized in the second step). Serialize the number of each type of id.
     let mut idmap = ForwardGraphIdMap::new();
     let mut num_sound_processors: usize = 0;
     let mut num_number_sources: usize = 0;
-    for pd in topo.sound_processors().values() {
+    for pd in graph_topo.sound_processors().values() {
         if is_selected(pd.id().into()) {
             idmap.visit_sound_processor_data(pd);
             num_sound_processors += 1;
         }
     }
-    for ns in topo.number_sources().values() {
+    for ns in graph_topo.number_sources().values() {
         if is_selected(ns.id().into()) {
             debug_assert!(ns.owner() == NumberSourceOwner::Nothing);
             idmap.visit_number_source_data(ns);
@@ -243,7 +238,7 @@ pub fn serialize_sound_graph(
     //         NOTE that sound processors will be responsible for (de)serializing
     //         multiinput keys
     serializer.u16(num_sound_processors as u16);
-    for pd in topo.sound_processors().values() {
+    for pd in graph_topo.sound_processors().values() {
         if !is_selected(pd.id().into()) {
             continue;
         }
@@ -277,7 +272,7 @@ pub fn serialize_sound_graph(
     }
     // TODO: same for number source objects
     serializer.u16(num_number_sources as u16);
-    for ns in topo.number_sources().values() {
+    for ns in graph_topo.number_sources().values() {
         if !is_selected(ns.id().into()) {
             continue;
         }
@@ -301,7 +296,8 @@ pub fn serialize_sound_graph(
 
     // 3. serialize all sound/number connections between ids that were visited in step 1
     serializer.array_iter_u16(
-        topo.sound_inputs()
+        graph_topo
+            .sound_inputs()
             .values()
             .filter_map(|si| {
                 let t = match si.target() {
@@ -319,7 +315,8 @@ pub fn serialize_sound_graph(
     );
 
     serializer.array_iter_u16(
-        topo.number_inputs()
+        graph_topo
+            .number_inputs()
             .values()
             .filter_map(|si| {
                 let t = match si.target() {
@@ -340,7 +337,7 @@ pub fn serialize_sound_graph(
 }
 
 pub fn deserialize_sound_graph(
-    dst_graph: &mut SoundGraph,
+    dst_graph_topo: &mut SoundGraphTopology,
     deserializer: &mut Deserializer,
     object_factory: &ObjectFactory,
 ) -> Result<(Vec<ObjectId>, ReverseGraphIdMap), ()> {
@@ -373,16 +370,14 @@ pub fn deserialize_sound_graph(
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
         let s2 = s1.subarchive()?;
-        let new_sp = object_factory.create_from_archive(&name, dst_graph, s2);
+        let new_sp = object_factory.create_from_archive(&name, dst_graph_topo, s2);
         new_objects.push(new_sp.get_id());
         let new_spid = match new_sp.get_id() {
             ObjectId::Sound(i) => i,
             ObjectId::Number(_) => return Err(()),
         };
         idmap.add_sound_processor(spid, new_spid)?;
-        let topo = dst_graph.topology();
-        let topo = topo.read();
-        let sp_data = topo.sound_processors().get(&new_spid).unwrap();
+        let sp_data = dst_graph_topo.sound_processors().get(&new_spid).unwrap();
         if sp_data.sound_inputs().len() != siids.len() {
             println!(
                 "Wrong number of sound inputs deserialized for sound processor \"{}\"",
@@ -422,16 +417,14 @@ pub fn deserialize_sound_graph(
         let niids = s1.array_slice_u16()?;
         let name = s1.string()?;
         let s2 = s1.subarchive()?;
-        let new_ns = object_factory.create_from_archive(&name, dst_graph, s2);
+        let new_ns = object_factory.create_from_archive(&name, dst_graph_topo, s2);
         new_objects.push(new_ns.get_id());
         let new_nsid = match new_ns.get_id() {
             ObjectId::Sound(_) => return Err(()),
             ObjectId::Number(i) => i,
         };
         idmap.add_number_source(spid, new_nsid)?;
-        let topo = dst_graph.topology();
-        let topo = topo.read();
-        let ns_data = topo.number_sources().get(&new_nsid).unwrap();
+        let ns_data = dst_graph_topo.number_sources().get(&new_nsid).unwrap();
         if ns_data.inputs().len() != niids.len() {
             println!(
                 "Wrong number of number inputs deserialized for sound processor \"{}\"",
@@ -458,7 +451,9 @@ pub fn deserialize_sound_graph(
         let old_spid = sid_iter.next().unwrap();
         let new_siid = idmap.sound_inputs.map_id(old_siid);
         let new_spid = idmap.sound_processors.map_id(old_spid);
-        dst_graph.connect_sound_input(new_siid, new_spid).unwrap();
+        dst_graph_topo
+            .connect_sound_input(new_siid, new_spid)
+            .unwrap();
     }
 
     if deserializer.peek_length()? % 2 != 0 {
@@ -469,7 +464,9 @@ pub fn deserialize_sound_graph(
         let old_nsid = nid_iter.next().unwrap();
         let new_niid = idmap.number_inputs.map_id(old_niid);
         let new_nsid = idmap.number_sources.map_id(old_nsid);
-        dst_graph.connect_number_input(new_niid, new_nsid).unwrap();
+        dst_graph_topo
+            .connect_number_input(new_niid, new_nsid)
+            .unwrap();
     }
 
     Ok((new_objects, idmap))

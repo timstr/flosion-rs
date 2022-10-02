@@ -6,7 +6,7 @@ use super::ui_factory::UiFactory;
 
 // TODO: why doesn't this work nicely for + - * / ?
 fn score_match(query: &str, content: &str) -> f32 {
-    if query.len() == 0 || content.len() == 0 {
+    if query.is_empty() || content.is_empty() {
         return 0.0;
     }
     let mut score: i32 = 0;
@@ -148,7 +148,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                 egui::Frame::none()
                     .fill(egui::Color32::BLACK)
                     .stroke(egui::Stroke::new(2.0, egui::Color32::WHITE))
-                    .margin(egui::Vec2::splat(5.0)),
+                    .inner_margin(egui::Vec2::splat(5.0)),
             )
             .resizable(false)
             .fixed_pos(self.state.position)

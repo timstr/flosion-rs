@@ -107,46 +107,12 @@ impl From<NumberSourceId> for GraphId {
         GraphId::NumberSource(id)
     }
 }
-
-impl From<&SoundInputId> for GraphId {
-    fn from(id: &SoundInputId) -> GraphId {
-        GraphId::SoundInput(*id)
-    }
-}
-impl From<&SoundProcessorId> for GraphId {
-    fn from(id: &SoundProcessorId) -> GraphId {
-        GraphId::SoundProcessor(*id)
-    }
-}
-impl From<&NumberInputId> for GraphId {
-    fn from(id: &NumberInputId) -> GraphId {
-        GraphId::NumberInput(*id)
-    }
-}
-impl From<&NumberSourceId> for GraphId {
-    fn from(id: &NumberSourceId) -> GraphId {
-        GraphId::NumberSource(*id)
-    }
-}
-
-impl From<&mut SoundInputId> for GraphId {
-    fn from(id: &mut SoundInputId) -> GraphId {
-        GraphId::SoundInput(*id)
-    }
-}
-impl From<&mut SoundProcessorId> for GraphId {
-    fn from(id: &mut SoundProcessorId) -> GraphId {
-        GraphId::SoundProcessor(*id)
-    }
-}
-impl From<&mut NumberInputId> for GraphId {
-    fn from(id: &mut NumberInputId) -> GraphId {
-        GraphId::NumberInput(*id)
-    }
-}
-impl From<&mut NumberSourceId> for GraphId {
-    fn from(id: &mut NumberSourceId) -> GraphId {
-        GraphId::NumberSource(*id)
+impl From<ObjectId> for GraphId {
+    fn from(id: ObjectId) -> GraphId {
+        match id {
+            ObjectId::Sound(i) => GraphId::SoundProcessor(i),
+            ObjectId::Number(i) => GraphId::NumberSource(i),
+        }
     }
 }
 
@@ -223,8 +189,8 @@ impl<T: PureNumberSource> GraphObject for PureNumberSourceHandle<T> {
         type_name::<T>()
     }
 
-    fn serialize(&self, _serializer: Serializer) {
-        todo!()
+    fn serialize(&self, serializer: Serializer) {
+        self.instance().serialize(serializer);
     }
 }
 

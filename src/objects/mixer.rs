@@ -65,7 +65,7 @@ impl SoundProcessor for Mixer {
         mut context: Context,
     ) -> StreamStatus {
         let ipts = inputs.get_mut();
-        if ipts.len() == 0 {
+        if ipts.is_empty() {
             dst.silence();
             return StreamStatus::Done;
         }

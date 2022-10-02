@@ -2,15 +2,16 @@ use std::collections::HashMap;
 
 use crate::core::{
     arguments::ParsedArguments, graphobject::ObjectInitialization, numbersource::PureNumberSource,
-    serialization::Deserializer, soundgraph::SoundGraph, soundprocessor::SoundProcessor,
+    serialization::Deserializer, soundprocessor::SoundProcessor,
 };
 
 use super::{
-    graphobject::GraphObject, numbersource::NumberSource, soundprocessor::SoundProcessorWrapper,
+    graphobject::GraphObject, numbersource::NumberSource, soundgraphtopology::SoundGraphTopology,
+    soundprocessor::SoundProcessorWrapper,
 };
 
 struct ObjectData {
-    create: Box<dyn Fn(&mut SoundGraph, ObjectInitialization) -> Box<dyn GraphObject>>,
+    create: Box<dyn Fn(&mut SoundGraphTopology, ObjectInitialization) -> Box<dyn GraphObject>>,
 }
 
 pub struct ObjectFactory {
@@ -25,10 +26,11 @@ impl ObjectFactory {
     }
 
     pub fn register_sound_processor<T: SoundProcessor>(&mut self) {
-        let create = |g: &mut SoundGraph, init: ObjectInitialization| -> Box<dyn GraphObject> {
-            let h = g.add_sound_processor::<T>(init);
-            h.instance_arc().as_graph_object(h.id())
-        };
+        let create =
+            |g: &mut SoundGraphTopology, init: ObjectInitialization| -> Box<dyn GraphObject> {
+                let h = g.add_sound_processor::<T>(init);
+                h.instance_arc().as_graph_object(h.id())
+            };
         self.mapping.insert(
             T::TYPE.name(),
             ObjectData {
@@ -38,7 +40,7 @@ impl ObjectFactory {
     }
 
     pub fn register_number_source<T: PureNumberSource>(&mut self) {
-        let create = |g: &mut SoundGraph, init: ObjectInitialization| {
+        let create = |g: &mut SoundGraphTopology, init: ObjectInitialization| {
             let h = g.add_pure_number_source::<T>(init);
             h.instance_arc().as_graph_object(h.id()).unwrap()
         };
@@ -53,11 +55,11 @@ impl ObjectFactory {
     fn create_impl(
         &self,
         object_type_str: &str,
-        graph: &mut SoundGraph,
+        graph_topo: &mut SoundGraphTopology,
         init: ObjectInitialization,
     ) -> Box<dyn GraphObject> {
         match self.mapping.get(object_type_str) {
-            Some(data) => (*data.create)(graph, init),
+            Some(data) => (*data.create)(graph_topo, init),
             None => panic!(
                 "Tried to create an object of unrecognized type \"{}\"",
                 object_type_str
@@ -68,21 +70,25 @@ impl ObjectFactory {
     pub fn create_from_args(
         &self,
         object_type_str: &str,
-        graph: &mut SoundGraph,
+        graph_topo: &mut SoundGraphTopology,
         args: &ParsedArguments,
     ) -> Box<dyn GraphObject> {
-        self.create_impl(object_type_str, graph, ObjectInitialization::Args(args))
+        self.create_impl(
+            object_type_str,
+            graph_topo,
+            ObjectInitialization::Args(args),
+        )
     }
 
     pub fn create_from_archive(
         &self,
         object_type_str: &str,
-        graph: &mut SoundGraph,
+        graph_topo: &mut SoundGraphTopology,
         deserializer: Deserializer,
     ) -> Box<dyn GraphObject> {
         self.create_impl(
             object_type_str,
-            graph,
+            graph_topo,
             ObjectInitialization::Archive(deserializer),
         )
     }
