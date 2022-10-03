@@ -4,46 +4,32 @@ use crate::core::arguments::{ArgumentList, ParsedArguments};
 
 use super::ui_factory::UiFactory;
 
-// TODO: why doesn't this work nicely for + - * / ?
 fn score_match(query: &str, content: &str) -> f32 {
-    if query.is_empty() || content.is_empty() {
-        return 0.0;
-    }
-    let mut score: i32 = 0;
-    let mut q = query.chars();
-    let mut qc = q.next();
-    let mut start_bonus = true;
-    for c in content.chars() {
-        if qc.is_none() {
-            score -= 1;
-            break;
-        } else if qc == Some(c) {
-            qc = q.next();
-            score += 1;
-            if start_bonus {
-                score += 1;
+    let mut score: f32 = 0.0;
+    let mut qi = query.chars();
+    let mut qc = qi.next();
+    let mut first = true;
+    for cc in content.chars() {
+        if let Some(c) = qc {
+            if cc == c {
+                score += if first { 2.0 } else { 1.0 };
+                qc = qi.next();
+            } else {
+                score -= 0.2;
+                first = false;
             }
         } else {
-            start_bonus = false;
+            score -= 0.1;
+            first = false;
         }
     }
-    return score as f32;
+    score
 }
 
 struct MatchingObject {
     object_type_str: String,
-    alias: Option<String>,
+    display_str: String,
     arguments: ArgumentList,
-}
-
-impl MatchingObject {
-    fn name(&self) -> &str {
-        if let Some(n) = self.alias.as_ref() {
-            n
-        } else {
-            &self.object_type_str
-        }
-    }
 }
 
 pub(super) struct SummonWidgetState {
@@ -64,7 +50,7 @@ impl SummonWidgetState {
             object_scores.push((
                 MatchingObject {
                     object_type_str: t.to_string(),
-                    alias: None,
+                    display_str: t.to_string(),
                     arguments: ui.arguments(),
                 },
                 0.0,
@@ -73,7 +59,7 @@ impl SummonWidgetState {
                 object_scores.push((
                     MatchingObject {
                         object_type_str: t.to_string(),
-                        alias: Some(alias.to_string()),
+                        display_str: alias.to_string(),
                         arguments: ui.arguments(),
                     },
                     0.0,
@@ -81,7 +67,7 @@ impl SummonWidgetState {
             }
         }
 
-        object_scores.sort_by_key(|o| o.0.name().to_string()); // TODO: wtf lifetime? should not need to_string
+        object_scores.sort_by(|a, b| a.0.display_str.cmp(&b.0.display_str));
 
         SummonWidgetState {
             position,
@@ -122,7 +108,7 @@ impl SummonWidgetState {
 
     fn update_matches(&mut self) {
         for (o, s) in self.object_scores.iter_mut() {
-            *s = score_match(&self.text, &o.object_type_str);
+            *s = score_match(&self.text, &o.display_str);
         }
         self.object_scores
             .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().reverse());
@@ -222,14 +208,14 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                         let c = 64_u8 + ((255 - 64) as f32 * t) as u8;
                         let mut layout_job = egui::text::LayoutJob::default();
                         layout_job.append(
-                            object.name(),
+                            &object.display_str,
                             0.0,
                             egui::TextFormat {
                                 color: egui::Color32::from_rgb(c, c, c),
                                 ..Default::default()
                             },
                         );
-                        if object.alias.is_some() {
+                        if object.display_str != object.object_type_str {
                             layout_job.append(
                                 &format!("={}", object.object_type_str),
                                 5.0,
