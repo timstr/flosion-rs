@@ -10,7 +10,7 @@ use crate::{
         soundgraph::SoundGraph,
     },
     objects::{
-        audioclip::AudioClip, dac::Dac, functions::USin, keyboard::Keyboard,
+        audioclip::AudioClip, dac::Dac, functions::SineWave, keyboard::Keyboard,
         wavegenerator::WaveGenerator,
     },
 };
@@ -63,10 +63,13 @@ fn test_just_dac() {
 #[test]
 fn test_audioclip_to_dac() {
     let mut g = SoundGraph::new();
-    let dac = g.add_sound_processor::<Dac>(ObjectInitialization::Default);
-    let ac = g.add_sound_processor::<AudioClip>(ObjectInitialization::Default);
-    g.connect_sound_input(dac.instance().input.id(), ac.id())
+    let dac = g
+        .add_sound_processor::<Dac>(ObjectInitialization::Default)
         .unwrap();
+    let ac = g
+        .add_sound_processor::<AudioClip>(ObjectInitialization::Default)
+        .unwrap();
+    g.connect_sound_input(dac.input.id(), ac.id()).unwrap();
     assert_eq!(g.graph_objects().len(), 2);
 
     let a = Archive::serialize_with(|mut s| {
@@ -105,8 +108,7 @@ fn test_audioclip_to_dac() {
     let new_ac = new_ac.unwrap();
 
     assert_eq!(
-        g2.sound_input_target(new_dac.instance().input.id())
-            .unwrap(),
+        g2.sound_input_target(new_dac.input.id()).unwrap(),
         Some(new_ac.id())
     );
 }
@@ -114,22 +116,25 @@ fn test_audioclip_to_dac() {
 #[test]
 fn test_wavegen_keyboard_dac() {
     let mut g = SoundGraph::new();
-    let dac = g.add_sound_processor::<Dac>(ObjectInitialization::Default);
-    let kbd = g.add_sound_processor::<Keyboard>(ObjectInitialization::Default);
-    let wav = g.add_sound_processor::<WaveGenerator>(ObjectInitialization::Default);
-    let sin = g.add_pure_number_source::<USin>(ObjectInitialization::Default);
-    g.connect_sound_input(dac.instance().input.id(), kbd.id())
+    let dac = g
+        .add_sound_processor::<Dac>(ObjectInitialization::Default)
         .unwrap();
-    g.connect_sound_input(kbd.instance().input.id(), wav.id())
+    let kbd = g
+        .add_sound_processor::<Keyboard>(ObjectInitialization::Default)
         .unwrap();
-    g.connect_number_input(
-        wav.instance().frequency.id(),
-        kbd.instance().key_frequency.id(),
-    )
-    .unwrap();
-    g.connect_number_input(sin.instance().input.id(), wav.instance().phase.id())
+    let wav = g
+        .add_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
         .unwrap();
-    g.connect_number_input(wav.instance().amplitude.id(), sin.id())
+    let sin = g
+        .add_pure_number_source::<SineWave>(ObjectInitialization::Default)
+        .unwrap();
+    g.connect_sound_input(dac.input.id(), kbd.id()).unwrap();
+    g.connect_sound_input(kbd.input.id(), wav.id()).unwrap();
+    g.connect_number_input(wav.frequency.id(), kbd.key_frequency.id())
+        .unwrap();
+    g.connect_number_input(sin.input.id(), wav.phase.id())
+        .unwrap();
+    g.connect_number_input(wav.amplitude.id(), sin.id())
         .unwrap();
     assert_eq!(g.graph_objects().len(), 4);
 
@@ -144,7 +149,7 @@ fn test_wavegen_keyboard_dac() {
     object_factory.register_sound_processor::<Dac>();
     object_factory.register_sound_processor::<Keyboard>();
     object_factory.register_sound_processor::<WaveGenerator>();
-    object_factory.register_number_source::<USin>();
+    object_factory.register_number_source::<SineWave>();
     let (new_objects, _idmap) =
         deserialize_sound_graph(&mut g2.topology().write(), &mut d, &object_factory).unwrap();
 
@@ -169,7 +174,7 @@ fn test_wavegen_keyboard_dac() {
             assert!(new_wav.is_none());
             new_wav = Some(x);
         }
-        if let Some(x) = object_to_number_source::<USin>(&*o) {
+        if let Some(x) = object_to_number_source::<SineWave>(&*o) {
             assert!(new_sin.is_none());
             new_sin = Some(x);
         }
@@ -185,28 +190,23 @@ fn test_wavegen_keyboard_dac() {
     let new_sin = new_sin.unwrap();
 
     assert_eq!(
-        g2.sound_input_target(new_dac.instance().input.id())
-            .unwrap(),
+        g2.sound_input_target(new_dac.input.id()).unwrap(),
         Some(new_kbd.id())
     );
     assert_eq!(
-        g2.sound_input_target(new_kbd.instance().input.id())
-            .unwrap(),
+        g2.sound_input_target(new_kbd.input.id()).unwrap(),
         Some(new_wav.id())
     );
     assert_eq!(
-        g2.number_input_target(new_wav.instance().frequency.id())
-            .unwrap(),
-        Some(new_kbd.instance().key_frequency.id())
+        g2.number_input_target(new_wav.frequency.id()).unwrap(),
+        Some(new_kbd.key_frequency.id())
     );
     assert_eq!(
-        g2.number_input_target(new_sin.instance().input.id())
-            .unwrap(),
-        Some(new_wav.instance().phase.id())
+        g2.number_input_target(new_sin.input.id()).unwrap(),
+        Some(new_wav.phase.id())
     );
     assert_eq!(
-        g2.number_input_target(new_wav.instance().amplitude.id())
-            .unwrap(),
+        g2.number_input_target(new_wav.amplitude.id()).unwrap(),
         Some(new_sin.id())
     );
 }

@@ -4,25 +4,21 @@ pub fn resample_interleave<F: FnMut() -> (f32, f32)>(
     input_sample_rate: u32,
     output_sample_rate: u32,
 ) {
-    // debug_assert!(input_sample_rate > 0);
-    // debug_assert!(output_sample_rate > 0);
-    // debug_assert!(output.len() % 2 == 0);
-    // let ratio = (input_sample_rate as f32) / (output_sample_rate as f32);
-    // let mut remainder: f32 = 0.0;
-    // // TODO: implement something nicer than nearest neighbour
-    // let mut s = get_next_input_sample();
-    assert!(
-        input_sample_rate == output_sample_rate,
-        "TODO: fix resampling"
-    ); // HACK
+    debug_assert!(input_sample_rate > 0);
+    debug_assert!(output_sample_rate > 0);
+    debug_assert!(output.len() % 2 == 0);
+    let ratio = (input_sample_rate as f32) / (output_sample_rate as f32);
+    let mut remainder: f32 = 0.0;
+    // TODO: implement something nicer than nearest neighbour
+    let mut s = get_next_input_sample();
     for p in output.chunks_exact_mut(2) {
-        // while remainder >= 1.0 {
-        //     s = get_next_input_sample();
-        //     remainder -= 1.0;
-        // }
-        let s = get_next_input_sample(); // HACK
+        while remainder >= 1.0 {
+            s = get_next_input_sample();
+            remainder -= 1.0;
+        }
+        // let s = get_next_input_sample(); // HACK
         p[0] = s.0;
         p[1] = s.1;
-        // remainder += ratio;
+        remainder += ratio;
     }
 }

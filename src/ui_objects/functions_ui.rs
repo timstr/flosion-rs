@@ -67,7 +67,7 @@ impl ObjectUi for ConstantUi {
     ) {
         let id = id.as_number_source_id().unwrap();
         ObjectWindow::new_number_source(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            let mut v = object.instance().get_value();
+            let mut v = object.get_value();
             let v_old = v;
             ui.label(&state.name);
             ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
@@ -99,7 +99,7 @@ impl ObjectUi for ConstantUi {
                 name: args.get("name").as_string().unwrap().to_string(),
             },
             UiInitialization::Default => {
-                let v = object.instance().get_value();
+                let v = object.get_value();
                 ConstantUiState {
                     min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
                     max_value: 2.0 * v.abs(),
@@ -156,7 +156,7 @@ macro_rules! unary_number_source_ui {
                     |ui, graph_tools| {
                         ui.label($display_name);
                         ui.add(NumberInputWidget::new(
-                            object.instance().input.id(),
+                            object.input.id(),
                             "Input",
                             graph_tools,
                         ));
@@ -195,12 +195,12 @@ macro_rules! binary_number_source_ui {
                     |ui, graph_tools| {
                         ui.label($display_name);
                         ui.add(NumberInputWidget::new(
-                            object.instance().input_1.id(),
+                            object.input_1.id(),
                             "Input 1",
                             graph_tools,
                         ));
                         ui.add(NumberInputWidget::new(
-                            object.instance().input_2.id(),
+                            object.input_2.id(),
                             "Input 2",
                             graph_tools,
                         ));
@@ -232,9 +232,7 @@ unary_number_source_ui!(Log2Ui, Log2, "Log2", []);
 unary_number_source_ui!(Log10Ui, Log10, "Log10", []);
 unary_number_source_ui!(CbrtUi, Cbrt, "Cbrt", []);
 unary_number_source_ui!(SinUi, Sin, "Sin", []);
-unary_number_source_ui!(USinUi, USin, "USin", []);
 unary_number_source_ui!(CosUi, Cos, "Cos", []);
-unary_number_source_ui!(UCosUi, UCos, "UCos", []);
 unary_number_source_ui!(TanUi, Tan, "Tan", []);
 unary_number_source_ui!(AsinUi, Asin, "Asin", []);
 unary_number_source_ui!(AcosUi, Acos, "Acos", []);
@@ -245,6 +243,12 @@ unary_number_source_ui!(TanhUi, Tanh, "Tanh", []);
 unary_number_source_ui!(AsinhUi, Asinh, "Asinh", []);
 unary_number_source_ui!(AcoshUi, Acosh, "Acosh", []);
 unary_number_source_ui!(AtanhUi, Atanh, "Atanh", []);
+
+unary_number_source_ui!(SineWaveUi, SineWave, "SineWave", []);
+unary_number_source_ui!(CosineWaveUi, CosineWave, "CosineWave", []);
+unary_number_source_ui!(SquareWaveUi, SquareWave, "SquareWave", []);
+unary_number_source_ui!(SawWaveUi, SawWave, "SawWave", []);
+unary_number_source_ui!(TriangleWaveUi, TriangleWave, "TriangleWave", []);
 
 binary_number_source_ui!(AddUi, Add, "Add", ["+", "plus"]);
 binary_number_source_ui!(SubtractUi, Subtract, "Subtract", ["-", "minus"]);

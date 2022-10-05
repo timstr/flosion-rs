@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use super::{
     context::Context,
@@ -47,7 +47,7 @@ pub trait SoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: State;
     type InputType: ProcessorInput;
 
-    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Self
+    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 
@@ -90,7 +90,6 @@ impl<T: SoundProcessor> SoundProcessorWrapper for T {
     }
 }
 
-// TODO: consider implementing Deref<Target=T>
 pub struct SoundProcessorHandle<T: SoundProcessor> {
     id: SoundProcessorId,
     instance: Arc<T>,
@@ -120,5 +119,13 @@ impl<T: SoundProcessor> Clone for SoundProcessorHandle<T> {
             id: self.id,
             instance: Arc::clone(&self.instance),
         }
+    }
+}
+
+impl<T: SoundProcessor> Deref for SoundProcessorHandle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.instance()
     }
 }

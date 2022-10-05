@@ -135,21 +135,21 @@ impl SoundGraphTopology {
     pub fn add_sound_processor<T: SoundProcessor>(
         &mut self,
         init: ObjectInitialization,
-    ) -> SoundProcessorHandle<T> {
+    ) -> Result<SoundProcessorHandle<T>, ()> {
         let processor_id = self.sound_processor_idgen.next_id();
         let data = EngineSoundProcessorData::new_without_processor(processor_id);
         self.sound_processors.insert(processor_id, data);
         let processor;
         {
             let tools = SoundProcessorTools::new(processor_id, self);
-            processor = Arc::new(T::new(tools, init));
+            processor = Arc::new(T::new(tools, init)?);
         }
         self.sound_processors
             .get_mut(&processor_id)
             .unwrap()
             .set_processor(Arc::<T>::clone(&processor));
         self.update_static_processor_cache();
-        SoundProcessorHandle::new(processor_id, processor)
+        Ok(SoundProcessorHandle::new(processor_id, processor))
     }
 
     pub fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
@@ -369,15 +369,15 @@ impl SoundGraphTopology {
     pub fn add_pure_number_source<T: PureNumberSource>(
         &mut self,
         init: ObjectInitialization,
-    ) -> PureNumberSourceHandle<T> {
+    ) -> Result<PureNumberSourceHandle<T>, ()> {
         let id = self.number_source_idgen.next_id();
         let data = EngineNumberSourceData::new(id, None, NumberSourceOwner::Nothing);
         self.number_sources.insert(id, data);
         let tools = NumberSourceTools::new(id, self);
-        let source = Arc::new(T::new(tools, init));
+        let source = Arc::new(T::new(tools, init)?);
         let source2 = Arc::clone(&source);
         self.number_sources.get_mut(&id).unwrap().set_source(source);
-        PureNumberSourceHandle::new(id, source2)
+        Ok(PureNumberSourceHandle::new(id, source2))
     }
 
     pub fn add_state_number_source(
@@ -607,7 +607,7 @@ impl SoundGraphTopology {
         match input_data.target() {
             Some(proc_id) => {
                 let allocator = NodeAllocator::new(proc_id, self);
-                let proc = self.sound_processors.get(&proc_id).unwrap().processor();
+                let proc = self.sound_processors.get(&proc_id).unwrap().instance();
                 if proc.is_static() {
                     let cache = self
                         .static_processors
@@ -681,7 +681,7 @@ impl SoundGraphTopology {
             .sound_processors
             .values()
             .filter_map(|proc_data| {
-                if proc_data.processor().is_static() {
+                if proc_data.instance().is_static() {
                     Some(proc_data.id())
                 } else {
                     None
@@ -722,9 +722,9 @@ impl SoundGraphTopology {
                 Some(idx) => {
                     let pid = remaining_static_proc_ids.remove(idx);
                     let proc_data = self.sound_processors.get(&pid).unwrap();
-                    debug_assert!(proc_data.processor().is_static());
+                    debug_assert!(proc_data.instance().is_static());
                     let allocator = NodeAllocator::new(pid, self);
-                    let tree = proc_data.processor().make_node(&allocator);
+                    let tree = proc_data.instance().make_node(&allocator);
                     self.static_processors
                         .push(StaticProcessorCache::new(pid, tree))
                 }

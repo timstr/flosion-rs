@@ -82,9 +82,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     helper.register_number_source::<Log10Ui>();
     helper.register_number_source::<CbrtUi>();
     helper.register_number_source::<SinUi>();
-    helper.register_number_source::<USinUi>();
     helper.register_number_source::<CosUi>();
-    helper.register_number_source::<UCosUi>();
     helper.register_number_source::<TanUi>();
     helper.register_number_source::<AsinUi>();
     helper.register_number_source::<AcosUi>();
@@ -95,6 +93,12 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     helper.register_number_source::<AsinhUi>();
     helper.register_number_source::<AcoshUi>();
     helper.register_number_source::<AtanhUi>();
+
+    helper.register_number_source::<SineWaveUi>();
+    helper.register_number_source::<CosineWaveUi>();
+    helper.register_number_source::<SquareWaveUi>();
+    helper.register_number_source::<SawWaveUi>();
+    helper.register_number_source::<TriangleWaveUi>();
 
     helper.register_number_source::<AddUi>();
     helper.register_number_source::<SubtractUi>();

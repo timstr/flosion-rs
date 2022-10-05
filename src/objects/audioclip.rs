@@ -44,14 +44,29 @@ impl SoundProcessor for AudioClip {
     type StateType = AudioClipState;
     type InputType = NoInputs;
 
-    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
-        // TODO
-        println!("TODO: actually initialize AudioClip");
-        let data = SoundBuffer::new_empty();
-        AudioClip {
+    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+        let data = match _init {
+            ObjectInitialization::Args(_) => SoundBuffer::new_empty(),
+            ObjectInitialization::Archive(mut a) => {
+                let mut b = SoundBuffer::new_empty();
+                let l = a.peek_length()?;
+                if l % 2 != 0 {
+                    return Err(());
+                }
+                b.reserve_chunks(l / (2 * CHUNK_SIZE));
+                let mut samples = a.array_iter_f32()?;
+                while let Some(l) = samples.next() {
+                    let r = samples.next().unwrap();
+                    b.push_sample(l, r);
+                }
+                b
+            }
+            ObjectInitialization::Default => SoundBuffer::new_empty(),
+        };
+        Ok(AudioClip {
             data: Arc::new(RwLock::new(data)),
             input: NoInputs::new(),
-        }
+        })
     }
 
     fn get_input(&self) -> &Self::InputType {
@@ -96,8 +111,7 @@ impl SoundProcessor for AudioClip {
 
     fn serialize(&self, mut serializer: Serializer) {
         let data = self.data.read();
-        serializer.array_iter_f32(data.samples_l());
-        serializer.array_iter_f32(data.samples_r());
+        serializer.array_iter_f32(data.samples().flatten());
     }
 }
 

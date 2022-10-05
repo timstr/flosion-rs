@@ -388,7 +388,7 @@ impl GraphUIState {
                     .sound_processors()
                     .get(&spid)
                     .unwrap()
-                    .processor_arc()
+                    .instance_arc()
                     .as_graph_object(spid),
                 ObjectId::Number(nsid) => topo
                     .number_sources()
@@ -613,9 +613,6 @@ impl GraphUIState {
         match *keyboard_focus_state {
             KeyboardFocusState::SoundProcessor(spid) => {
                 let sp = topo.sound_processors().get(&spid).unwrap();
-                // TODO: if the processor produces output, add all sound inputs that it can legally be connected to
-                // TODO: if the processor has exactly one input, add all sound outputs that can legally connect to it
-                // TODO: don't add the processor's id if it doesn't produce output
                 available_pegs.push((spid.into(), HotKeyAction::Activate(spid.into())));
                 for si in sp.sound_inputs().iter().cloned() {
                     available_pegs.push((si.into(), HotKeyAction::Activate(si.into())));
@@ -628,8 +625,6 @@ impl GraphUIState {
                 }
             }
             KeyboardFocusState::NumberSource(nsid) => {
-                // TODO: add all number inputs that the number source's output can legally be connected to
-                // TODO: if the number source has exactly one input, add all number outputs that can legally connect to it
                 let ns = topo.number_sources().get(&nsid).unwrap();
                 available_pegs.push((nsid.into(), HotKeyAction::Activate(nsid.into())));
                 for ni in ns.inputs().iter().cloned() {
@@ -876,7 +871,6 @@ impl GraphUIState {
         subset: Option<&HashSet<ObjectId>>,
         idmap: &ForwardGraphIdMap,
     ) {
-        // TODO: create a helper struct and stop rewriting this
         let is_selected = |id: ObjectId| match subset {
             Some(s) => s.get(&id).is_some(),
             None => true,
@@ -906,22 +900,21 @@ impl GraphUIState {
         let mut d1 = deserializer.subarchive()?;
         while !d1.is_empty() {
             let id = deserialize_object_id(&mut d1, idmap)?;
-            // NOTE that id may suffice to get newly-created object, which can be used to get objectui from uifactory, which can deserialize properly
             let obj = match id {
-                // TODO: proper error handling instead of unwrap
-                ObjectId::Sound(i) => topology
-                    .sound_processors()
-                    .get(&i)
-                    .unwrap()
-                    .processor_arc()
-                    .as_graph_object(i),
-                ObjectId::Number(i) => topology
-                    .number_sources()
-                    .get(&i)
-                    .unwrap()
-                    .instance_arc()
-                    .as_graph_object(i)
-                    .unwrap(),
+                ObjectId::Sound(i) => match topology.sound_processors().get(&i) {
+                    Some(sp) => sp.instance_arc().as_graph_object(i),
+                    None => return Err(()),
+                },
+                ObjectId::Number(i) => match topology.number_sources().get(&i) {
+                    Some(ns) => {
+                        if let Some(o) = ns.instance_arc().as_graph_object(i) {
+                            o
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    None => return Err(()),
+                },
             };
             let d2 = d1.subarchive()?;
             let state = ui_factory.create_state_from_archive(&*obj, d2)?;

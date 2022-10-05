@@ -85,8 +85,8 @@ impl SoundProcessor for ADSR {
 
     type InputType = SingleInput;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Self {
-        ADSR {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+        Ok(ADSR {
             input: SingleInput::new(
                 InputOptions {
                     interruptible: false,
@@ -98,7 +98,7 @@ impl SoundProcessor for ADSR {
             decay_time: tools.add_number_input(0.2),
             sustain_level: tools.add_number_input(0.5),
             release_time: tools.add_number_input(0.25),
-        }
+        })
     }
 
     fn get_input(&self) -> &Self::InputType {

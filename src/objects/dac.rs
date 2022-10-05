@@ -51,8 +51,9 @@ impl SoundProcessor for Dac {
 
     type InputType = SingleInput;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Dac {
+    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let host = cpal::default_host();
+        // TODO: propagate these errors
         let device = host
             .default_output_device()
             .expect("No output device available");
@@ -134,7 +135,7 @@ impl SoundProcessor for Dac {
             stream.pause().unwrap();
         });
 
-        Dac {
+        Ok(Dac {
             input: SingleInput::new(
                 InputOptions {
                     realtime: true,
@@ -143,7 +144,7 @@ impl SoundProcessor for Dac {
                 &mut tools,
             ),
             shared_data,
-        }
+        })
     }
 
     fn get_input(&self) -> &SingleInput {

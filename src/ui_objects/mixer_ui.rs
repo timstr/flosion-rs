@@ -40,7 +40,7 @@ impl ObjectUi for MixerUi {
                         let w = w;
                         let input_id = input_id;
                         sg.apply_processor_tools(w.id(), |mut tools| {
-                            w.instance().remove_input(input_id, &mut tools);
+                            w.remove_input(input_id, &mut tools);
                         })
                     });
                 }
@@ -50,7 +50,7 @@ impl ObjectUi for MixerUi {
                 graph_tools.make_change(move |sg| {
                     let w = w;
                     sg.apply_processor_tools(w.id(), |mut tools| {
-                        w.instance().add_input(&mut tools);
+                        w.add_input(&mut tools);
                     })
                 });
             }

@@ -21,7 +21,6 @@ impl<'a> NumberSourceTools<'a> {
     }
 
     pub fn add_number_input(&mut self) -> NumberInputHandle {
-        // TODO: default_value for number source inputs
         let default_value: f32 = 0.0;
         self.topology.add_number_input(
             NumberInputOwner::NumberSource(self.number_source_id),
