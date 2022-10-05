@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use std::{
+    fs::File,
+    io::{Read, Write},
+    sync::Arc,
+};
 
 use crate::{
     core::{
@@ -24,6 +28,7 @@ use eframe::{
     egui::{self, Response, Ui},
 };
 use parking_lot::RwLock;
+use rfd::FileDialog;
 
 use super::{
     graph_ui_state::{GraphUIState, SelectionChange},
@@ -188,6 +193,86 @@ impl FlosionApp {
             return false;
         }
         ui_state.activate_hotkey(key, desc)
+    }
+
+    fn handle_save_open(
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+        ui_state: &mut GraphUIState,
+        graph: &SoundGraph,
+        object_factory: &ObjectFactory,
+        ui_factory: &UiFactory,
+    ) -> bool {
+        if !modifiers.command_only() {
+            return false;
+        }
+        match key {
+            egui::Key::S => {
+                let path = FileDialog::new()
+                    .add_filter("Flosion project files", &["flo"])
+                    .save_file();
+                let path = match path {
+                    Some(p) => p,
+                    None => {
+                        println!("No file was selected");
+                        return true;
+                    }
+                };
+                // TODO: no need to base64 encode
+                let data = Self::serialize(ui_state, &graph.topology().read(), false).unwrap();
+                let mut file = match File::create(&path) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        println!("Failed to create file at {}: {}", path.to_str().unwrap(), e);
+                        return true;
+                    }
+                };
+                if let Err(e) = file.write(data.as_bytes()) {
+                    println!(
+                        "Error while writing to file at {}: {}",
+                        path.to_str().unwrap(),
+                        e
+                    );
+                }
+                true
+            }
+            egui::Key::O => {
+                // TODO: delete everything else? prompt user first?
+                let path = FileDialog::new()
+                    .add_filter("Flosion project files", &["flo"])
+                    .pick_file();
+                let path = match path {
+                    Some(p) => p,
+                    None => {
+                        println!("No file was selected");
+                        return true;
+                    }
+                };
+                let mut file = match File::open(&path) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        println!("Failed to create file: {}", e);
+                        return true;
+                    }
+                };
+                let mut data = String::new();
+                if let Err(e) = file.read_to_string(&mut data) {
+                    println!("Failed to read file at {}: {}", path.to_str().unwrap(), e);
+                    return true;
+                }
+                if let Err(_) = Self::deserialize(
+                    ui_state,
+                    &data,
+                    &mut graph.topology().write(),
+                    object_factory,
+                    ui_factory,
+                ) {
+                    println!("Error while deserializing objects");
+                }
+                true
+            }
+            _ => false,
+        }
     }
 
     fn handle_drag_objects(
@@ -434,19 +519,29 @@ impl FlosionApp {
         );
     }
 
+    // TODO: make this fail-proof
     fn delete_selection(ui_state: &mut GraphUIState) {
         let selection = ui_state.selection();
         ui_state.make_change(move |g| g.remove_objects(selection.into_iter()));
     }
 
-    fn serialize_selection(ui_state: &GraphUIState, topo: &SoundGraphTopology) -> Option<String> {
-        let selection = ui_state.selection();
-        if selection.is_empty() {
-            return None;
-        }
+    fn serialize(
+        ui_state: &GraphUIState,
+        topo: &SoundGraphTopology,
+        use_selection: bool,
+    ) -> Option<String> {
+        let selection = if use_selection {
+            let s = ui_state.selection();
+            if s.is_empty() {
+                return None;
+            }
+            Some(s)
+        } else {
+            None
+        };
         let archive = Archive::serialize_with(|mut serializer| {
-            let idmap = serialize_sound_graph(topo, Some(&selection), &mut serializer);
-            ui_state.serialize_ui_states(&mut serializer, Some(&selection), &idmap);
+            let idmap = serialize_sound_graph(topo, selection.as_ref(), &mut serializer);
+            ui_state.serialize_ui_states(&mut serializer, selection.as_ref(), &idmap);
         });
         let bytes = archive.into_vec();
         let b64_str = base64::encode(&bytes);
@@ -510,18 +605,16 @@ impl eframe::App for FlosionApp {
                 for event in &ctx.input().events {
                     match event {
                         egui::Event::Copy => {
-                            if let Some(s) = Self::serialize_selection(
-                                &self.ui_state,
-                                &self.graph.topology().read(),
-                            ) {
+                            if let Some(s) =
+                                Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
+                            {
                                 copied_text = Some(s);
                             }
                         }
                         egui::Event::Cut => {
-                            if let Some(s) = Self::serialize_selection(
-                                &self.ui_state,
-                                &self.graph.topology().read(),
-                            ) {
+                            if let Some(s) =
+                                Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
+                            {
                                 copied_text = Some(s);
                             }
                             Self::delete_selection(&mut self.ui_state);
@@ -547,6 +640,16 @@ impl eframe::App for FlosionApp {
                             modifiers,
                         } => {
                             if !pressed {
+                                continue;
+                            }
+                            if Self::handle_save_open(
+                                *key,
+                                *modifiers,
+                                &mut self.ui_state,
+                                &self.graph,
+                                &self.object_factory.read(),
+                                &self.ui_factory.read(),
+                            ) {
                                 continue;
                             }
                             if *key == egui::Key::Delete && !modifiers.any() {

@@ -341,17 +341,12 @@ pub fn serialize_sound_graph(
                 let t = match si.target() {
                     Some(t) => t,
                     None => {
-                        println!("Skipping a number input because it has no target");
                         return None;
                     }
                 };
                 let i = idmap.number_inputs.map_id(si.id());
                 let o = idmap.number_sources.map_id(t);
                 if i.is_none() || o.is_none() {
-                    println!(
-                        "Skipping a number input because it{} is not mapped",
-                        if i.is_none() { "" } else { "s target" }
-                    );
                     return None;
                 }
                 Some([i.unwrap(), o.unwrap()])
