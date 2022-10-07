@@ -274,7 +274,12 @@ impl FlosionApp {
                     .add_filter("Flosion project files", &["flo"])
                     .save_file();
                 let path = match path {
-                    Some(p) => p,
+                    Some(mut p) => {
+                        if p.extension().is_none() {
+                            p.set_extension("flo");
+                        }
+                        p
+                    }
                     None => {
                         println!("No file was selected");
                         return true;
