@@ -117,6 +117,9 @@ impl GraphLayout {
     }
 
     fn retain(&mut self, ids: &HashSet<GraphId>) {
+        self.objects
+            .states_mut()
+            .retain(|i, _| ids.contains(&(*i).into()));
         self.sound_inputs
             .states_mut()
             .retain(|i, _| ids.contains(&(*i).into()));
@@ -865,6 +868,102 @@ impl GraphUIState {
         debug_assert!(self.pending_changes.is_empty());
     }
 
+    #[cfg(debug_assertions)]
+    pub(crate) fn check_invariants(&self) -> bool {
+        println!("Checking invariants");
+        let topo = self.graph_topology.read();
+        let mut good = true;
+        for i in topo.sound_processors().keys() {
+            if !self.object_states.contains_key(&i.into()) {
+                println!("Sound processor {} does not have a ui state", i.0);
+                good = false;
+            }
+        }
+        for (i, ns) in topo.number_sources() {
+            if ns.owner() == NumberSourceOwner::Nothing {
+                if !self.object_states.contains_key(&i.into()) {
+                    println!("Pure number source {} does not have a ui state", i.0);
+                    good = false;
+                }
+            }
+        }
+        for i in self.object_states.keys() {
+            match i {
+                ObjectId::Sound(i) => {
+                    if !topo.sound_processors().contains_key(i) {
+                        println!("A ui state exists for non-existent sound processor {}", i.0);
+                        good = false;
+                    }
+                }
+                ObjectId::Number(i) => {
+                    if !topo.number_sources().contains_key(i) {
+                        println!("A ui state exists for non-existent number source {}", i.0);
+                        good = false;
+                    }
+                }
+            }
+        }
+        for i in self.layout_state.objects().states().keys() {
+            match i {
+                ObjectId::Sound(i) => {
+                    if !topo.sound_processors().contains_key(i) {
+                        println!(
+                            "An object position exists for a non-existent sound processor {}",
+                            i.0
+                        );
+                        good = false;
+                    }
+                }
+                ObjectId::Number(i) => {
+                    if !topo.number_sources().contains_key(i) {
+                        println!(
+                            "An object position exists for a non-existent number source {}",
+                            i.0
+                        );
+                        good = false;
+                    }
+                }
+            }
+        }
+        for i in self.layout_state.sound_outputs().keys() {
+            if !topo.sound_processors().contains_key(i) {
+                println!(
+                    "A screen position exists for a non-existent sound output {}",
+                    i.0
+                );
+                good = false;
+            }
+        }
+        for i in self.layout_state.sound_inputs().keys() {
+            if !topo.sound_inputs().contains_key(i) {
+                println!(
+                    "A screen position exists for a non-existent sound input {}",
+                    i.0
+                );
+                good = false;
+            }
+        }
+        for i in self.layout_state.number_outputs().keys() {
+            if !topo.number_sources().contains_key(i) {
+                println!(
+                    "A screen position exists for a non-existent number output {}",
+                    i.0
+                );
+                good = false;
+            }
+        }
+        for i in self.layout_state.number_inputs().keys() {
+            if !topo.number_inputs().contains_key(i) {
+                println!(
+                    "A screen position exists for a non-existent number output {}",
+                    i.0
+                );
+                good = false;
+            }
+        }
+        good
+    }
+
     pub fn serialize_ui_states(
         &self,
         serializer: &mut Serializer,
@@ -921,5 +1020,27 @@ impl GraphUIState {
             self.set_object_state(id, state);
         }
         Ok(())
+    }
+
+    pub fn select_all(&mut self) {
+        let mut ids: HashSet<ObjectId> = HashSet::new();
+        {
+            let topo = self.graph_topology.read();
+            for i in topo.sound_processors().keys() {
+                ids.insert(i.into());
+            }
+            for (i, ns) in topo.number_sources() {
+                if ns.owner() == NumberSourceOwner::Nothing {
+                    ids.insert(i.into());
+                }
+            }
+        }
+        self.set_selection(ids);
+    }
+
+    pub fn select_none(&mut self) {
+        if let UiMode::Selecting(_) = self.mode {
+            self.mode = UiMode::Passive;
+        }
     }
 }
