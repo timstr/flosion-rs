@@ -236,7 +236,28 @@ impl FlosionApp {
         ui_state.activate_hotkey(key, desc)
     }
 
-    fn handle_save_open(
+    fn handle_shortcuts_selection(
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+        ui_state: &mut GraphUIState,
+    ) -> bool {
+        if !modifiers.command_only() {
+            return false;
+        }
+        match key {
+            egui::Key::A => {
+                ui_state.select_all();
+                true
+            }
+            egui::Key::D => {
+                ui_state.select_none();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_shortcuts_save_open(
         key: egui::Key,
         modifiers: egui::Modifiers,
         ui_state: &mut GraphUIState,
@@ -692,7 +713,14 @@ impl eframe::App for FlosionApp {
                             if !pressed {
                                 continue;
                             }
-                            if Self::handle_save_open(
+                            if Self::handle_shortcuts_selection(
+                                *key,
+                                *modifiers,
+                                &mut self.ui_state,
+                            ) {
+                                continue;
+                            }
+                            if Self::handle_shortcuts_save_open(
                                 *key,
                                 *modifiers,
                                 &mut self.ui_state,
