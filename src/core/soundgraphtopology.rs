@@ -437,7 +437,7 @@ impl SoundGraphTopology {
             .inputs()
             .clone();
         for input_id in number_inputs_to_remove {
-            self.remove_number_input(input_id);
+            self.remove_number_input_impl(input_id);
         }
 
         // remove the number source from its owner, if any
@@ -487,6 +487,11 @@ impl SoundGraphTopology {
     }
 
     pub fn remove_number_input(&mut self, id: NumberInputId) {
+        self.remove_number_input_impl(id);
+        debug_assert!(self.describe().find_error().is_none());
+    }
+
+    fn remove_number_input_impl(&mut self, id: NumberInputId) {
         let target;
         let owner;
         {
@@ -509,8 +514,6 @@ impl SoundGraphTopology {
         }
 
         self.number_inputs.remove(&id);
-
-        debug_assert!(self.describe().find_error().is_none());
     }
 
     pub fn connect_number_input(
