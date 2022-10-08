@@ -53,18 +53,6 @@ enum StackFrame<'a> {
     Root,
 }
 
-// struct ParentStackFrame<'a> {
-//     frame: &'a StackFrame<'a>,
-//     processor_state: AnyData<'a, SoundProcessorId>,
-//     input_key: AnyData<'a, SoundInputId>,
-//     input_state: AnyData<'a, SoundInputId>,
-//     input_timing: &'a InputTiming,
-// }
-
-// struct StackFrame<'a> {
-//     parent: Option<ParentStackFrame<'a>>,
-// }
-
 impl<'a> StackFrame<'a> {
     fn find_processor_frame(&self, processor_id: SoundProcessorId) -> &ProcessorStackFrame {
         match self {

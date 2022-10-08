@@ -559,7 +559,10 @@ impl FlosionApp {
                     }
                 }
                 if let Some(gid) = ui_state.peg_being_dragged() {
-                    let cursor_pos = ui.input().pointer.interact_pos().unwrap();
+                    let cursor_pos = match ui.input().pointer.interact_pos() {
+                        Some(p) => p,
+                        None => return,
+                    };
                     let layout = ui_state.layout_state();
                     let other_pos;
                     let color;
@@ -639,6 +642,72 @@ impl FlosionApp {
         ui_state.deserialize_ui_states(&mut deserializer, &idmap, topo, ui_factory)?;
         Ok(objects)
     }
+
+    fn handle_event(&mut self, event: &egui::Event, ui: &egui::Ui, desc: &SoundGraphDescription) {
+        match event {
+            egui::Event::Copy => {
+                if let Some(s) =
+                    Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
+                {
+                    ui.output().copied_text = s;
+                }
+            }
+            egui::Event::Cut => {
+                if let Some(s) =
+                    Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
+                {
+                    ui.output().copied_text = s;
+                }
+                Self::delete_selection(&mut self.ui_state);
+            }
+            egui::Event::Paste(data) => {
+                let res = Self::deserialize(
+                    &mut self.ui_state,
+                    data,
+                    &mut self.graph.topology().write(),
+                    &self.object_factory.read(),
+                    &self.ui_factory.read(),
+                );
+                match res {
+                    Ok(object_ids) => self
+                        .ui_state
+                        .set_selection(object_ids.into_iter().collect()),
+                    Err(_) => println!("Failed to paste data"),
+                }
+            }
+            egui::Event::Key {
+                key,
+                pressed,
+                modifiers,
+            } => {
+                if !pressed {
+                    return;
+                }
+                if Self::handle_shortcuts_selection(*key, *modifiers, &mut self.ui_state) {
+                    return;
+                }
+                if Self::handle_shortcuts_save_open(
+                    *key,
+                    *modifiers,
+                    &mut self.ui_state,
+                    &self.graph,
+                    &self.object_factory.read(),
+                    &self.ui_factory.read(),
+                ) {
+                    return;
+                }
+                if *key == egui::Key::Delete && !modifiers.any() {
+                    Self::delete_selection(&mut self.ui_state);
+                    return;
+                }
+                if Self::handle_hotkey(*key, *modifiers, &mut self.ui_state, &desc) {
+                    return;
+                }
+            }
+            egui::Event::PointerGone => self.ui_state.stop_dragging(None),
+            _ => (),
+        }
+    }
 }
 
 impl eframe::App for FlosionApp {
@@ -678,77 +747,9 @@ impl eframe::App for FlosionApp {
             Self::draw_wires(ui, &self.ui_state, &desc);
 
             if self.summon_state.is_none() {
-                let mut copied_text: Option<String> = None;
-                for event in &ctx.input().events {
-                    match event {
-                        egui::Event::Copy => {
-                            if let Some(s) =
-                                Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
-                            {
-                                copied_text = Some(s);
-                            }
-                        }
-                        egui::Event::Cut => {
-                            if let Some(s) =
-                                Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
-                            {
-                                copied_text = Some(s);
-                            }
-                            Self::delete_selection(&mut self.ui_state);
-                        }
-                        egui::Event::Paste(data) => {
-                            let res = Self::deserialize(
-                                &mut self.ui_state,
-                                data,
-                                &mut self.graph.topology().write(),
-                                &self.object_factory.read(),
-                                &self.ui_factory.read(),
-                            );
-                            match res {
-                                Ok(object_ids) => self
-                                    .ui_state
-                                    .set_selection(object_ids.into_iter().collect()),
-                                Err(_) => println!("Failed to paste data"),
-                            }
-                        }
-                        egui::Event::Key {
-                            key,
-                            pressed,
-                            modifiers,
-                        } => {
-                            if !pressed {
-                                continue;
-                            }
-                            if Self::handle_shortcuts_selection(
-                                *key,
-                                *modifiers,
-                                &mut self.ui_state,
-                            ) {
-                                continue;
-                            }
-                            if Self::handle_shortcuts_save_open(
-                                *key,
-                                *modifiers,
-                                &mut self.ui_state,
-                                &self.graph,
-                                &self.object_factory.read(),
-                                &self.ui_factory.read(),
-                            ) {
-                                continue;
-                            }
-                            if *key == egui::Key::Delete && !modifiers.any() {
-                                Self::delete_selection(&mut self.ui_state);
-                                continue;
-                            }
-                            if Self::handle_hotkey(*key, *modifiers, &mut self.ui_state, &desc) {
-                                continue;
-                            }
-                        }
-                        _ => (),
-                    }
-                }
-                if let Some(s) = copied_text {
-                    ui.output().copied_text = s;
+                let events = std::mem::take(&mut ctx.input_mut().events);
+                for event in &events {
+                    self.handle_event(event, ui, &desc);
                 }
             }
 

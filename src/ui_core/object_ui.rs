@@ -323,8 +323,6 @@ fn peg_ui(
     if let Some(s) = popup_str {
         let galley = painter.layout_no_wrap(
             s.to_string(),
-            // rect.right_center() + egui::vec2(5.0, 0.0),
-            // egui::Align2::LEFT_CENTER,
             egui::FontId::monospace(16.0),
             egui::Color32::WHITE,
         );
@@ -332,20 +330,16 @@ fn peg_ui(
         painter.rect(
             galley.rect.expand(3.0).translate(pos.to_vec2()),
             3.0,
-            // egui::Color32::from_rgba_unmultiplied(0, 0, 0, 64),
             egui::Color32::BLACK,
             egui::Stroke::new(2.0, egui::Color32::WHITE),
         );
         painter.galley(pos, galley);
     }
-    if response.clicked() {
-        // println!("SoundInputWidget[id={:?}] was clicked", self.sound_input_id);
-    }
     if response.drag_started() {
         ui_state.start_dragging(id);
     }
     if response.drag_released() {
-        ui_state.stop_dragging(id, response.interact_pointer_pos().unwrap());
+        ui_state.stop_dragging(Some(response.interact_pointer_pos().unwrap()));
     }
     let r = response.clone();
     response.on_hover_ui_at_pointer(|ui| {

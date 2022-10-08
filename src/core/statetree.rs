@@ -328,15 +328,6 @@ impl<T: State> DerefMut for ProcessorState<T> {
     }
 }
 
-// impl<T> ProcessorState for T
-// where
-//     T: Default + Copy + Sync + Send + 'static,
-// {
-//     fn reset(&mut self) {
-//         *self = Self::default();
-//     }
-// }
-
 #[derive(Clone, Copy)]
 pub struct AnyData<'a, I: UniqueId> {
     owner_id: I,

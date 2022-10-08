@@ -177,14 +177,6 @@ impl SoundProcessor for Dac {
     }
 }
 
-// impl Drop for Dac {
-//     fn drop(&mut self) {
-//         println!("Dropping Dac");
-//         self.shared_data.stream_end_barrier.wait();
-//         self.stream_thread.take().unwrap().join().unwrap();
-//     }
-// }
-
 impl WithObjectType for Dac {
     const TYPE: ObjectType = ObjectType::new("dac");
 }

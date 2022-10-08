@@ -253,24 +253,6 @@ impl StateNumberSourceHandle {
     }
 }
 
-// pub struct SingleInputNumberSource<F: StateFunction<EmptyState>> {
-//     handle: SingleSoundInputHandle,
-//     function: F,
-// }
-
-// impl<F: StateFunction<EmptyState>> SingleInputNumberSource<F> {
-//     pub(super) fn new(handle: SingleSoundInputHandle, function: F) -> SingleInputNumberSource<F> {
-//         SingleInputNumberSource { handle, function }
-//     }
-// }
-
-// impl<F: StateFunction<EmptyState>> NumberSource for SingleInputNumberSource<F> {
-//     fn eval(&self, dst: &mut [f32], context: NumberContext) {
-//         let state = context.single_input_state(&self.handle);
-//         self.function.apply(dst, &state.read());
-//     }
-// }
-
 pub struct KeyedInputNumberSource<K: Key, S: State, F: KeyStateFunction<K, S>> {
     input_id: SoundInputId,
     function: F,

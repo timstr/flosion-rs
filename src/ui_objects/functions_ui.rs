@@ -108,29 +108,6 @@ impl ObjectUi for ConstantUi {
             }
         }
     }
-
-    // fn init_from_args(&self, object: &PureNumberSourceHandle<Constant>, args: &ParsedArguments) {
-    //     object
-    //         .instance()
-    //         .set_value(args.get("value").as_float().unwrap());
-    // }
-
-    // fn make_ui_state(&self, args: &ParsedArguments) -> Self::StateType {
-    //     ConstantUiState {
-    //         min_value: args.get("min").as_float().unwrap(),
-    //         max_value: args.get("max").as_float().unwrap(),
-    //         name: args.get("name").as_string().unwrap().to_string(),
-    //     }
-    // }
-
-    // fn make_default_ui_state(&self, object: &PureNumberSourceHandle<Constant>) -> Self::StateType {
-    //     let v = object.instance().get_value();
-    //     ConstantUiState {
-    //         min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
-    //         max_value: 2.0 * v.abs(),
-    //         name: "Constant".to_string(),
-    //     }
-    // }
 }
 
 macro_rules! unary_number_source_ui {

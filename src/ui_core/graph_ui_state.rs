@@ -414,10 +414,12 @@ impl GraphUIState {
         self.mode = UiMode::DraggingPeg(graph_id);
     }
 
-    pub(super) fn stop_dragging(&mut self, graph_id: GraphId, location: egui::Pos2) {
-        match self.mode {
-            UiMode::DraggingPeg(_) => self.mode = UiMode::DroppingPeg((graph_id, location)),
-            _ => (),
+    pub(super) fn stop_dragging(&mut self, location: Option<egui::Pos2>) {
+        if let UiMode::DraggingPeg(i) = &self.mode {
+            self.mode = match location {
+                Some(l) => UiMode::DroppingPeg((*i, l)),
+                None => UiMode::Passive,
+            };
         }
     }
 
@@ -870,7 +872,6 @@ impl GraphUIState {
 
     #[cfg(debug_assertions)]
     pub(crate) fn check_invariants(&self) -> bool {
-        println!("Checking invariants");
         let topo = self.graph_topology.read();
         let mut good = true;
         for i in topo.sound_processors().keys() {
