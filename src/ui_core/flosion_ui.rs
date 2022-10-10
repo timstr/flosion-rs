@@ -6,20 +6,13 @@ use std::{
 
 use crate::{
     core::{
-        graphobject::{GraphId, ObjectId, ObjectInitialization},
+        graphobject::{GraphId, ObjectId},
         graphserialization::{deserialize_sound_graph, serialize_sound_graph},
         object_factory::ObjectFactory,
         serialization::Archive,
         soundgraph::SoundGraph,
         soundgraphdescription::SoundGraphDescription,
         soundgraphtopology::SoundGraphTopology,
-    },
-    objects::{
-        adsr::ADSR,
-        dac::Dac,
-        functions::{Constant, Divide, Exp, Fract, Multiply, Negate, Pow, SineWave},
-        keyboard::Keyboard,
-        wavegenerator::WaveGenerator,
     },
     ui_objects::all_objects::all_objects,
 };
@@ -50,152 +43,11 @@ pub struct FlosionApp {
     selection_area: Option<SelectionState>,
 }
 
-fn create_test_sound_graph() -> SoundGraph {
-    let mut sg = SoundGraph::new();
-    let dac = sg
-        .add_sound_processor::<Dac>(ObjectInitialization::Default)
-        .unwrap();
-    let keyboard = sg
-        .add_sound_processor::<Keyboard>(ObjectInitialization::Default)
-        .unwrap();
-    let adsr = sg
-        .add_sound_processor::<ADSR>(ObjectInitialization::Default)
-        .unwrap();
-    let wavegen = sg
-        .add_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
-        .unwrap();
-    sg.connect_sound_input(dac.input.id(), keyboard.id())
-        .unwrap();
-    sg.connect_sound_input(keyboard.input.id(), adsr.id())
-        .unwrap();
-    sg.connect_sound_input(adsr.input.id(), wavegen.id())
-        .unwrap();
-    let sinwave = sg
-        .add_pure_number_source::<SineWave>(ObjectInitialization::Default)
-        .unwrap();
-    let const_rate = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let mul_time1 = sg
-        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
-        .unwrap();
-    let mul_time2 = sg
-        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
-        .unwrap();
-    let fract = sg
-        .add_pure_number_source::<Fract>(ObjectInitialization::Default)
-        .unwrap();
-    let const_slope = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let mul_fract = sg
-        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
-        .unwrap();
-    let neg = sg
-        .add_pure_number_source::<Negate>(ObjectInitialization::Default)
-        .unwrap();
-    let exp = sg
-        .add_pure_number_source::<Exp>(ObjectInitialization::Default)
-        .unwrap();
-    let mul_freq1 = sg
-        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
-        .unwrap();
-    let mul_freq2 = sg
-        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
-        .unwrap();
-    let const_peak_freq = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let const_base_freq = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let div_freq = sg
-        .add_pure_number_source::<Divide>(ObjectInitialization::Default)
-        .unwrap();
-    let pow = sg
-        .add_pure_number_source::<Pow>(ObjectInitialization::Default)
-        .unwrap();
-    let const_attack_time = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let const_decay_time = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let const_sustain_level = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let const_release_time = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    let const_exponent = sg
-        .add_pure_number_source::<Constant>(ObjectInitialization::Default)
-        .unwrap();
-    sg.connect_number_input(wavegen.amplitude.id(), pow.id())
-        .unwrap();
-    sg.connect_number_input(sinwave.input.id(), wavegen.phase.id())
-        .unwrap();
-    sg.connect_number_input(pow.input_1.id(), sinwave.id())
-        .unwrap();
-    sg.connect_number_input(pow.input_2.id(), const_exponent.id())
-        .unwrap();
-
-    sg.connect_number_input(mul_time1.input_1.id(), wavegen.time.id())
-        .unwrap();
-    sg.connect_number_input(mul_time1.input_2.id(), div_freq.id())
-        .unwrap();
-    sg.connect_number_input(mul_time2.input_1.id(), const_rate.id())
-        .unwrap();
-    sg.connect_number_input(mul_time2.input_2.id(), mul_time1.id())
-        .unwrap();
-    sg.connect_number_input(fract.input.id(), mul_time2.id())
-        .unwrap();
-    sg.connect_number_input(mul_fract.input_1.id(), fract.id())
-        .unwrap();
-    sg.connect_number_input(mul_fract.input_2.id(), const_slope.id())
-        .unwrap();
-    sg.connect_number_input(neg.input.id(), mul_fract.id())
-        .unwrap();
-    sg.connect_number_input(exp.input.id(), neg.id()).unwrap();
-    sg.connect_number_input(mul_freq1.input_1.id(), const_peak_freq.id())
-        .unwrap();
-    sg.connect_number_input(mul_freq1.input_2.id(), exp.id())
-        .unwrap();
-    sg.connect_number_input(div_freq.input_1.id(), keyboard.key_frequency.id())
-        .unwrap();
-    sg.connect_number_input(div_freq.input_2.id(), const_base_freq.id())
-        .unwrap();
-    sg.connect_number_input(mul_freq2.input_1.id(), mul_freq1.id())
-        .unwrap();
-    sg.connect_number_input(mul_freq2.input_2.id(), div_freq.id())
-        .unwrap();
-    sg.connect_number_input(wavegen.frequency.id(), mul_freq2.id())
-        .unwrap();
-    sg.connect_number_input(adsr.attack_time.id(), const_attack_time.id())
-        .unwrap();
-    sg.connect_number_input(adsr.decay_time.id(), const_decay_time.id())
-        .unwrap();
-    sg.connect_number_input(adsr.sustain_level.id(), const_sustain_level.id())
-        .unwrap();
-    sg.connect_number_input(adsr.release_time.id(), const_release_time.id())
-        .unwrap();
-    const_attack_time.set_value(0.01);
-    const_decay_time.set_value(0.05);
-    const_sustain_level.set_value(0.6);
-    const_release_time.set_value(0.25);
-    const_base_freq.set_value(250.0);
-    const_peak_freq.set_value(500.0);
-    const_rate.set_value(100.0);
-    const_slope.set_value(7.5);
-    const_exponent.set_value(8.0);
-    sg.start();
-    sg
-}
-
 impl FlosionApp {
     pub fn new(_cc: &eframe::CreationContext) -> FlosionApp {
         // TODO: learn about what CreationContext offers
-        let graph = create_test_sound_graph();
-        // let graph = SoundGraph::new();
+        let mut graph = SoundGraph::new();
+        graph.start();
         let topo = graph.topology();
         let (object_factory, ui_factory) = all_objects();
         let object_factory = Arc::new(RwLock::new(object_factory));
@@ -755,6 +607,7 @@ impl eframe::App for FlosionApp {
 
             debug_assert!(self.ui_state.check_invariants());
             self.ui_state.apply_pending_changes(&mut self.graph);
+            self.ui_state.make_states_for_new_objects();
             self.ui_state.cleanup();
             debug_assert!(self.ui_state.check_invariants());
         });

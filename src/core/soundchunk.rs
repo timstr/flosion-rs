@@ -23,9 +23,8 @@ impl SoundChunk {
         }
     }
 
-    pub fn copy_from(&mut self, other: &SoundChunk) {
-        self.l = other.l;
-        self.r = other.r;
+    pub fn sample(&self, index: usize) -> (f32, f32) {
+        (self.l[index], self.r[index])
     }
 
     pub fn samples<'a>(&'a self) -> impl 'a + Iterator<Item = (f32, f32)> {

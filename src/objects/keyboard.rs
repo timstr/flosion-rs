@@ -82,10 +82,7 @@ impl SoundProcessor for Keyboard {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let input = KeyedInput::new(
-            InputOptions {
-                interruptible: true,
-                realtime: true,
-            },
+            InputOptions { realtime: true },
             &mut tools,
             (0..MAX_KEYS).map(|_| KeyboardKey::new()).collect(),
         );

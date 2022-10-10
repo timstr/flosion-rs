@@ -22,10 +22,6 @@ impl UniqueId for SoundInputId {
 
 #[derive(Copy, Clone)]
 pub struct InputOptions {
-    // Will the input ever be paused or reset by the sound processor?
-    // TODO: rename this, it's misleading
-    pub interruptible: bool,
-
     // Will the input's speed of time always be the same as the sound processor's?
     pub realtime: bool,
 }

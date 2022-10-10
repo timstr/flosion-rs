@@ -5,11 +5,11 @@ pub mod functions;
 pub mod keyboard;
 pub mod mixer;
 pub mod recorder;
+pub mod resampler;
 pub mod wavegenerator;
 pub mod whitenoise;
 
 // TODO
-// - resampler
 // - sequencer
 // - melody
 // - microphone

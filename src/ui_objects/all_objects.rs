@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     adsr_ui::ADSRUi, audioclip_ui::AudioClipUi, dac_ui::DacUi, functions_ui::*,
-    keyboard_ui::KeyboardUi, mixer_ui::MixerUi, recorder_ui::RecorderUi,
+    keyboard_ui::KeyboardUi, mixer_ui::MixerUi, recorder_ui::RecorderUi, resampler_ui::ResamplerUi,
     wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
 };
 
@@ -54,14 +54,15 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     // Sound processors
+    helper.register_sound_processor::<ADSRUi>();
+    helper.register_sound_processor::<AudioClipUi>();
     helper.register_sound_processor::<DacUi>();
     helper.register_sound_processor::<KeyboardUi>();
     helper.register_sound_processor::<RecorderUi>();
+    helper.register_sound_processor::<ResamplerUi>();
     helper.register_sound_processor::<WaveGeneratorUi>();
     helper.register_sound_processor::<WhiteNoiseUi>();
-    helper.register_sound_processor::<AudioClipUi>();
     helper.register_sound_processor::<MixerUi>();
-    helper.register_sound_processor::<ADSRUi>();
 
     // Pure number sources
     helper.register_number_source::<ConstantUi>();

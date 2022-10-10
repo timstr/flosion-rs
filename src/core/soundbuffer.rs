@@ -70,10 +70,14 @@ impl SoundBuffer {
             let dst = self.chunks.last_mut().unwrap();
             numeric::copy(&ch.l[..split_ch], &mut dst.l[offset..]);
             numeric::copy(&ch.r[..split_ch], &mut dst.r[offset..]);
+            let mut new_ch = SoundChunk::new();
+            numeric::copy(&ch.l[split_ch..], &mut new_ch.l[..offset]);
+            numeric::copy(&ch.r[split_ch..], &mut new_ch.r[..offset]);
+            self.chunks.push(new_ch);
+        } else {
+            self.chunks.push(*ch);
         }
-        let mut new_ch = SoundChunk::new();
-        numeric::copy(&ch.l[split_ch..], &mut new_ch.l[..offset]);
-        numeric::copy(&ch.r[split_ch..], &mut new_ch.r[..offset]);
+        self.sample_len += CHUNK_SIZE;
     }
 
     pub fn push_sample(&mut self, l: f32, r: f32) {

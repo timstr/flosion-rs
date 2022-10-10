@@ -94,13 +94,7 @@ impl SoundProcessor for Recorder {
             _ => SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP),
         };
         let r = Recorder {
-            input: SingleInput::new(
-                InputOptions {
-                    interruptible: false,
-                    realtime: true,
-                },
-                &mut tools,
-            ),
+            input: SingleInput::new(InputOptions { realtime: true }, &mut tools),
             data: Arc::new(RecorderData::new(buf)),
         };
         debug_assert!(r.recording_length() == 0);
@@ -121,6 +115,9 @@ impl SoundProcessor for Recorder {
         dst: &mut SoundChunk,
         ctx: Context,
     ) -> StreamStatus {
+        if inputs.needs_reset() {
+            inputs.reset(0);
+        }
         let s = inputs.step(state, dst, &ctx);
         let recording = state.recording.load(atomic::Ordering::Relaxed);
         if !recording || s == StreamStatus::Done {

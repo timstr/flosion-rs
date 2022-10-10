@@ -22,13 +22,12 @@ impl ObjectUi for ADSRUi {
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &SoundProcessorHandle<ADSR>,
+        object: &SoundProcessorHandle<ADSR>,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
         _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_state, |ui, graph_state| {
             ui.label("ADSR");
             ui.add(SoundInputWidget::new(

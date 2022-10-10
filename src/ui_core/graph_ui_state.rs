@@ -382,28 +382,7 @@ impl GraphUIState {
     }
 
     pub fn get_object_state(&mut self, id: ObjectId) -> Rc<RefCell<dyn ObjectUiState>> {
-        let topo = &self.graph_topology;
-        let factory = &self.ui_factory;
-        let state = self.object_states.entry(id).or_insert_with(|| {
-            let topo = topo.read();
-            let object = match id {
-                ObjectId::Sound(spid) => topo
-                    .sound_processors()
-                    .get(&spid)
-                    .unwrap()
-                    .instance_arc()
-                    .as_graph_object(spid),
-                ObjectId::Number(nsid) => topo
-                    .number_sources()
-                    .get(&nsid)
-                    .unwrap()
-                    .instance_arc()
-                    .as_graph_object(nsid)
-                    .unwrap(),
-            };
-            factory.read().create_default_state(&*object)
-        });
-        Rc::clone(&state)
+        Rc::clone(self.object_states.get(&id).unwrap())
     }
 
     pub fn make_change<F: FnOnce(&mut SoundGraph) -> () + 'static>(&mut self, f: F) {
@@ -1042,6 +1021,25 @@ impl GraphUIState {
     pub fn select_none(&mut self) {
         if let UiMode::Selecting(_) = self.mode {
             self.mode = UiMode::Passive;
+        }
+    }
+
+    pub fn make_states_for_new_objects(&mut self) {
+        let topo = self.graph_topology.read();
+        for (i, spd) in topo.sound_processors() {
+            self.object_states.entry(i.into()).or_insert_with(|| {
+                let o = spd.instance_arc().as_graph_object(*i);
+                self.ui_factory.read().create_default_state(&*o)
+            });
+        }
+        for (i, nsd) in topo.number_sources() {
+            if nsd.owner() != NumberSourceOwner::Nothing {
+                continue;
+            }
+            self.object_states.entry(i.into()).or_insert_with(|| {
+                let o = nsd.instance_arc().as_graph_object(*i).unwrap();
+                self.ui_factory.read().create_default_state(&*o)
+            });
         }
     }
 }

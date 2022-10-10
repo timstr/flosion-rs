@@ -44,9 +44,8 @@ impl SoundProcessor for AudioClip {
     type StateType = AudioClipState;
     type InputType = NoInputs;
 
-    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
-        let data = match _init {
-            ObjectInitialization::Args(_) => SoundBuffer::new_empty(),
+    fn new(_tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
+        let data = match init {
             ObjectInitialization::Archive(mut a) => {
                 let mut b = SoundBuffer::new_empty();
                 let l = a.peek_length()?;
@@ -61,7 +60,7 @@ impl SoundProcessor for AudioClip {
                 }
                 b
             }
-            ObjectInitialization::Default => SoundBuffer::new_empty(),
+            _ => SoundBuffer::new_empty(),
         };
         Ok(AudioClip {
             data: Arc::new(RwLock::new(data)),
@@ -100,7 +99,7 @@ impl SoundProcessor for AudioClip {
             st.playhead += 1;
             if st.playhead >= data.sample_len() {
                 // TODO: add an option to enable/disable looping
-                st.playhead -= data.sample_len();
+                st.playhead = 0;
             }
             debug_assert!(st.playhead < data.sample_len());
             dst.l[i] = c.l[si];

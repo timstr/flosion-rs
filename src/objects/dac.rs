@@ -136,13 +136,7 @@ impl SoundProcessor for Dac {
         });
 
         Ok(Dac {
-            input: SingleInput::new(
-                InputOptions {
-                    realtime: true,
-                    interruptible: false,
-                },
-                &mut tools,
-            ),
+            input: SingleInput::new(InputOptions { realtime: true }, &mut tools),
             shared_data,
         })
     }
