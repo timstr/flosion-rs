@@ -10,7 +10,6 @@ use eframe::egui::mutex::RwLock;
 
 use super::{
     context::Context,
-    key::Key,
     numberinput::NumberInputId,
     numbersource::{KeyedInputNumberSource, StateNumberSourceHandle},
     soundchunk::SoundChunk,
@@ -27,7 +26,6 @@ fn step_input<T: State>(
     processor_state: &ProcessorState<T>,
     dst: &mut SoundChunk,
     ctx: &Context,
-    input_key: AnyData<SoundInputId>,
     input_state: AnyData<SoundInputId>,
 ) -> StreamStatus {
     debug_assert!(!timing.needs_reset());
@@ -37,7 +35,7 @@ fn step_input<T: State>(
     }
     if let Some(node) = target {
         let ctx = ctx.push_processor_state(processor_state);
-        let ctx = ctx.push_input(Some(node.id()), input_key, input_state, timing);
+        let ctx = ctx.push_input(Some(node.id()), input_state, timing);
         let status = node.process_audio(dst, ctx);
         debug_assert!(status != StreamStatus::StaticNoOutput);
         if status == StreamStatus::Done {
@@ -112,7 +110,6 @@ impl SingleInputNode {
             dst,
             ctx,
             AnyData::new(self.id, &()),
-            AnyData::new(self.id, &()),
         )
     }
 
@@ -132,19 +129,19 @@ impl SingleInputNode {
     }
 }
 
-pub struct KeyedInput<K: Key, S: State + Default> {
+pub struct KeyedInput<S: State + Default> {
     id: SoundInputId,
-    keys: Vec<Arc<K>>,
-    dummy_state: PhantomData<S>,
+    num_keys: usize,
+    phantom_data: PhantomData<S>,
 }
 
-impl<K: Key, S: State + Default> KeyedInput<K, S> {
-    pub fn new(options: InputOptions, tools: &mut SoundProcessorTools, keys: Vec<K>) -> Self {
-        let id = tools.add_sound_input(options, keys.len());
+impl<S: State + Default> KeyedInput<S> {
+    pub fn new(options: InputOptions, tools: &mut SoundProcessorTools, num_keys: usize) -> Self {
+        let id = tools.add_sound_input(options, num_keys);
         Self {
             id,
-            keys: keys.into_iter().map(Arc::new).collect(),
-            dummy_state: PhantomData::default(),
+            num_keys,
+            phantom_data: PhantomData,
         }
     }
 
@@ -152,11 +149,7 @@ impl<K: Key, S: State + Default> KeyedInput<K, S> {
         self.id
     }
 
-    pub fn keys(&self) -> &[Arc<K>] {
-        &self.keys
-    }
-
-    pub fn add_number_source<F: Fn(&mut [f32], &K, &S)>(
+    pub fn add_number_source<F: Fn(&mut [f32], &S)>(
         &self,
         tools: &mut SoundProcessorTools,
         f: F,
@@ -164,46 +157,36 @@ impl<K: Key, S: State + Default> KeyedInput<K, S> {
     where
         F: 'static + Sync + Send + Sized,
     {
-        let source = Arc::new(KeyedInputNumberSource::<K, S, F>::new(self.id, f));
+        let source = Arc::new(KeyedInputNumberSource::<S, F>::new(self.id, f));
         tools.add_input_number_source(self.id, source)
     }
 }
 
-impl<K: Key, S: State + Default> ProcessorInput for KeyedInput<K, S> {
-    type NodeType = KeyedInputNode<K, S>;
+impl<S: State + Default> ProcessorInput for KeyedInput<S> {
+    type NodeType = KeyedInputNode<S>;
 
     fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
         KeyedInputNode {
-            data: self
-                .keys
-                .iter()
-                .map(|k| {
-                    KeyedInputData::new(
-                        self.id,
-                        allocator.make_state_tree_for(self.id),
-                        Arc::clone(k),
-                    )
-                })
+            data: (0..self.num_keys)
+                .map(|k| KeyedInputData::new(self.id, allocator.make_state_tree_for(self.id)))
                 .collect(),
         }
     }
 }
 
-pub struct KeyedInputData<K: Key, S: State + Default> {
+pub struct KeyedInputData<S: State + Default> {
     id: SoundInputId,
     timing: InputTiming,
     target: Option<Box<dyn ProcessorNodeWrapper>>,
-    key: Arc<K>,
     state: S,
 }
 
-impl<K: Key, S: State + Default> KeyedInputData<K, S> {
-    fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>, key: Arc<K>) -> Self {
+impl<S: State + Default> KeyedInputData<S> {
+    fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>) -> Self {
         Self {
             id,
             timing: InputTiming::default(),
             target,
-            key,
             state: S::default(),
         }
     }
@@ -232,13 +215,8 @@ impl<K: Key, S: State + Default> KeyedInputData<K, S> {
             processor_state,
             dst,
             ctx,
-            AnyData::new(self.id, &*self.key),
             AnyData::new(self.id, &self.state),
         )
-    }
-
-    pub fn key(&self) -> &K {
-        &*self.key
     }
 
     pub fn state(&self) -> &S {
@@ -265,16 +243,16 @@ impl<K: Key, S: State + Default> KeyedInputData<K, S> {
     }
 }
 
-pub struct KeyedInputNode<K: Key, S: State + Default> {
-    data: Vec<KeyedInputData<K, S>>,
+pub struct KeyedInputNode<S: State + Default> {
+    data: Vec<KeyedInputData<S>>,
 }
 
-impl<K: Key, S: State + Default> KeyedInputNode<K, S> {
-    pub fn data(&self) -> &[KeyedInputData<K, S>] {
+impl<S: State + Default> KeyedInputNode<S> {
+    pub fn data(&self) -> &[KeyedInputData<S>] {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut [KeyedInputData<K, S>] {
+    pub fn data_mut(&mut self) -> &mut [KeyedInputData<S>] {
         &mut self.data
     }
 }
@@ -377,7 +355,7 @@ impl InputNode for SingleInputNode {
     }
 }
 
-impl<K: Key, S: State + Default> InputNode for KeyedInputNode<K, S> {
+impl<S: State + Default> InputNode for KeyedInputNode<S> {
     fn flag_for_reset(&mut self) {
         for d in &mut self.data {
             d.timing.require_reset();

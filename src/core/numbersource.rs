@@ -3,7 +3,6 @@ use std::{marker::PhantomData, ops::Deref, sync::Arc};
 use super::{
     context::Context,
     graphobject::{GraphObject, ObjectInitialization, WithObjectType},
-    key::Key,
     numbersourcetools::NumberSourceTools,
     serialization::Serializer,
     soundinput::SoundInputId,
@@ -165,19 +164,6 @@ where
     }
 }
 
-pub trait KeyStateFunction<K, S>: 'static + Sized + Sync + Send {
-    fn apply(&self, dst: &mut [f32], key: &K, state: &S);
-}
-
-impl<K, S, F: 'static + Sized + Sync + Send> KeyStateFunction<K, S> for F
-where
-    F: Fn(&mut [f32], &K, &S),
-{
-    fn apply(&self, dst: &mut [f32], key: &K, state: &S) {
-        (*self)(dst, key, state);
-    }
-}
-
 pub struct ProcessorNumberSource<S: State, F: StateFunction<S>> {
     function: F,
     processor_id: SoundProcessorId,
@@ -253,14 +239,14 @@ impl StateNumberSourceHandle {
     }
 }
 
-pub struct KeyedInputNumberSource<K: Key, S: State, F: KeyStateFunction<K, S>> {
+pub struct KeyedInputNumberSource<S: State, F: StateFunction<S>> {
     input_id: SoundInputId,
     function: F,
-    dummy_data: PhantomData<(K, S)>,
+    dummy_data: PhantomData<S>,
 }
 
-impl<K: Key, S: State, F: KeyStateFunction<K, S>> KeyedInputNumberSource<K, S, F> {
-    pub(super) fn new(input_id: SoundInputId, function: F) -> KeyedInputNumberSource<K, S, F> {
+impl<S: State, F: StateFunction<S>> KeyedInputNumberSource<S, F> {
+    pub(super) fn new(input_id: SoundInputId, function: F) -> KeyedInputNumberSource<S, F> {
         KeyedInputNumberSource {
             input_id,
             function,
@@ -269,13 +255,10 @@ impl<K: Key, S: State, F: KeyStateFunction<K, S>> KeyedInputNumberSource<K, S, F
     }
 }
 
-impl<K: Key, S: State, F: KeyStateFunction<K, S>> NumberSource for KeyedInputNumberSource<K, S, F> {
+impl<S: State, F: StateFunction<S>> NumberSource for KeyedInputNumberSource<S, F> {
     fn eval(&self, dst: &mut [f32], context: &Context) {
         let frame = context.find_input_frame(self.input_id);
-        self.function.apply(
-            dst,
-            frame.key().downcast_if::<K>(self.input_id).unwrap(),
-            frame.state().downcast_if::<S>(self.input_id).unwrap(),
-        );
+        self.function
+            .apply(dst, frame.state().downcast_if::<S>(self.input_id).unwrap());
     }
 }

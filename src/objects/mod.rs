@@ -17,3 +17,5 @@ pub mod whitenoise;
 // - feedback
 // - phase vocoder
 // - scatter
+// - ensemble
+// - compressor

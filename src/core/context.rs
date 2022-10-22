@@ -24,16 +24,11 @@ impl<'a> ProcessorStackFrame<'a> {
 
 pub struct InputStackFrame<'a> {
     parent: &'a StackFrame<'a>,
-    key: AnyData<'a, SoundInputId>,
     state: AnyData<'a, SoundInputId>,
     timing: &'a mut InputTiming,
 }
 
 impl<'a> InputStackFrame<'a> {
-    pub fn key(&self) -> &AnyData<'a, SoundInputId> {
-        &self.key
-    }
-
     pub fn state(&self) -> &AnyData<'a, SoundInputId> {
         &self.state
     }
@@ -148,7 +143,6 @@ impl<'a> Context<'a> {
     pub fn push_input(
         &'a self,
         target: Option<SoundProcessorId>,
-        key: AnyData<'a, SoundInputId>,
         state: AnyData<'a, SoundInputId>,
         timing: &'a mut InputTiming,
     ) -> Context<'a> {
@@ -156,7 +150,6 @@ impl<'a> Context<'a> {
             target_processor_id: target,
             stack: StackFrame::Input(InputStackFrame {
                 parent: &self.stack,
-                key,
                 state,
                 timing,
             }),
