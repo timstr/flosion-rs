@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
+    core::{graphobject::ObjectId, soundprocessor::DynamicSoundProcessorHandle},
     objects::adsr::ADSR,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -16,13 +16,13 @@ use crate::{
 pub struct ADSRUi;
 
 impl ObjectUi for ADSRUi {
-    type WrapperType = SoundProcessorHandle<ADSR>;
+    type WrapperType = DynamicSoundProcessorHandle<ADSR>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         id: ObjectId,
-        object: &SoundProcessorHandle<ADSR>,
+        object: &DynamicSoundProcessorHandle<ADSR>,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
         _state: &NoUIState,

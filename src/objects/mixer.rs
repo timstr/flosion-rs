@@ -5,9 +5,9 @@ use crate::core::{
     serialization::Serializer,
     soundchunk::SoundChunk,
     soundinput::{InputOptions, SoundInputId},
-    soundprocessor::{SoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{ProcessorState, SingleInputList, SingleInputListNode},
+    statetree::{SingleInputList, SingleInputListNode, StateAndTiming},
 };
 
 pub struct Mixer {
@@ -34,9 +34,7 @@ impl Mixer {
     }
 }
 
-impl SoundProcessor for Mixer {
-    const IS_STATIC: bool = false;
-
+impl DynamicSoundProcessor for Mixer {
     type StateType = ();
     type InputType = SingleInputList;
 
@@ -63,7 +61,7 @@ impl SoundProcessor for Mixer {
     }
 
     fn process_audio(
-        state: &mut ProcessorState<()>,
+        state: &mut StateAndTiming<()>,
         inputs: &mut SingleInputListNode,
         dst: &mut SoundChunk,
         mut context: Context,

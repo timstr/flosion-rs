@@ -6,9 +6,9 @@ use crate::core::{
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundprocessor::{SoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, NumberInputNode, ProcessorState, State},
+    statetree::{NoInputs, NumberInputNode, State, StateAndTiming},
 };
 
 pub struct WaveGenerator {
@@ -31,17 +31,15 @@ impl State for WaveGeneratorState {
     }
 }
 
-impl SoundProcessor for WaveGenerator {
-    const IS_STATIC: bool = false;
-
+impl DynamicSoundProcessor for WaveGenerator {
     type StateType = WaveGeneratorState;
 
     type InputType = NoInputs;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
-            phase: tools.add_processor_number_source::<Self, _>(
-                |dst: &mut [f32], state: &WaveGeneratorState| {
+            phase: tools.add_dynamic_processor_number_source::<Self, _>(
+                |dst: &mut [f32], state: &StateAndTiming<WaveGeneratorState>| {
                     numeric::copy(&state.phase, dst);
                 },
             ),
@@ -65,7 +63,7 @@ impl SoundProcessor for WaveGenerator {
     }
 
     fn process_audio(
-        state: &mut ProcessorState<WaveGeneratorState>,
+        state: &mut StateAndTiming<WaveGeneratorState>,
         _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
         context: Context,

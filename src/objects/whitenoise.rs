@@ -4,18 +4,16 @@ use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     soundchunk::SoundChunk,
-    soundprocessor::{SoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, ProcessorState},
+    statetree::{NoInputs, StateAndTiming},
 };
 
 pub struct WhiteNoise {
     inputs: NoInputs,
 }
 
-impl SoundProcessor for WhiteNoise {
-    const IS_STATIC: bool = false;
-
+impl DynamicSoundProcessor for WhiteNoise {
     type StateType = ();
 
     type InputType = NoInputs;
@@ -35,7 +33,7 @@ impl SoundProcessor for WhiteNoise {
     }
 
     fn process_audio(
-        _state: &mut ProcessorState<()>,
+        _state: &mut StateAndTiming<()>,
         _inputs: &mut NoInputs,
         dst: &mut SoundChunk,
         _ctx: Context,

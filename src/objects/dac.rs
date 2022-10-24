@@ -11,9 +11,9 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
-    soundprocessor::{SoundProcessor, StreamStatus},
+    soundprocessor::StaticSoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{ProcessorState, SingleInput, SingleInputNode, State},
+    statetree::{SingleInput, SingleInputNode},
 };
 
 use cpal::{
@@ -32,23 +32,13 @@ pub struct Dac {
     shared_data: Arc<DacData>,
 }
 
-impl State for Arc<DacData> {
-    fn reset(&mut self) {
-        // Nothing to do
-    }
-}
-
 impl Dac {
     pub fn reset(&self) {
         self.shared_data.pending_reset.store(true, Ordering::SeqCst);
     }
 }
 
-impl SoundProcessor for Dac {
-    const IS_STATIC: bool = true;
-
-    type StateType = Arc<DacData>;
-
+impl StaticSoundProcessor for Dac {
     type InputType = SingleInput;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
@@ -141,33 +131,19 @@ impl SoundProcessor for Dac {
         })
     }
 
-    fn get_input(&self) -> &SingleInput {
-        &self.input
-    }
-
-    fn make_state(&self) -> Arc<DacData> {
-        Arc::clone(&self.shared_data)
-    }
-
-    fn process_audio(
-        state: &mut ProcessorState<Arc<DacData>>,
-        input: &mut SingleInputNode,
-        _dst: &mut SoundChunk,
-        ctx: Context,
-    ) -> StreamStatus {
-        if input.needs_reset() || state.pending_reset.swap(false, Ordering::SeqCst) {
+    fn process_audio(&self, input: &mut SingleInputNode, _dst: &mut SoundChunk, ctx: Context) {
+        if input.needs_reset() || self.shared_data.pending_reset.swap(false, Ordering::SeqCst) {
             input.reset(0);
         }
         let mut ch = SoundChunk::new();
-        input.step(state, &mut ch, &ctx);
+        input.step(self, &mut ch, &ctx);
 
-        if let Err(e) = state.chunk_sender.try_send(ch) {
+        if let Err(e) = self.shared_data.chunk_sender.try_send(ch) {
             match e {
                 TrySendError::Full(_) => println!("Dac dropped a chunk"),
                 TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
             }
         }
-        StreamStatus::StaticNoOutput
     }
 }
 

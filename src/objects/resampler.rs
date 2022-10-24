@@ -4,9 +4,9 @@ use crate::core::{
     numberinput::NumberInputHandle,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
-    soundprocessor::{SoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NumberInputNode, ProcessorState, SingleInput, SingleInputNode, State},
+    statetree::{NumberInputNode, SingleInput, SingleInputNode, State, StateAndTiming},
 };
 
 pub struct Resampler {
@@ -30,9 +30,7 @@ impl State for ResamplerState {
     }
 }
 
-impl SoundProcessor for Resampler {
-    const IS_STATIC: bool = false;
-
+impl DynamicSoundProcessor for Resampler {
     type StateType = ResamplerState;
 
     type InputType = SingleInput;
@@ -59,7 +57,7 @@ impl SoundProcessor for Resampler {
     }
 
     fn process_audio(
-        state: &mut ProcessorState<ResamplerState>,
+        state: &mut StateAndTiming<ResamplerState>,
         inputs: &mut SingleInputNode,
         dst: &mut SoundChunk,
         context: Context,
@@ -72,7 +70,7 @@ impl SoundProcessor for Resampler {
             state.input_chunk = ch;
             state.init = true;
         }
-        let mut get_next_sample = |s: &mut ProcessorState<ResamplerState>| -> (f32, f32) {
+        let mut get_next_sample = |s: &mut StateAndTiming<ResamplerState>| -> (f32, f32) {
             s.sample_index += 1;
             if s.sample_index >= CHUNK_SIZE {
                 let mut ch: SoundChunk = SoundChunk::new();

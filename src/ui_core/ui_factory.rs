@@ -7,7 +7,7 @@ use crate::core::{
     graphobject::{GraphObject, ObjectInitialization, TypedGraphObject, WithObjectType},
     numbersource::PureNumberSource,
     serialization::Deserializer,
-    soundprocessor::SoundProcessor,
+    soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
 };
 
 use super::{
@@ -30,9 +30,22 @@ impl UiFactory {
         }
     }
 
-    pub fn register_sound_processor<T: ObjectUi>(&mut self)
+    pub fn register_static_sound_processor<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: SoundProcessor,
+        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: StaticSoundProcessor,
+    {
+        let name = <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type::TYPE.name();
+        self.mapping.insert(
+            name,
+            ObjectData {
+                ui: Box::new(T::default()),
+            },
+        );
+    }
+
+    pub fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
+    where
+        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: DynamicSoundProcessor,
     {
         let name = <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type::TYPE.name();
         self.mapping.insert(

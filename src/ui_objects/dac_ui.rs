@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
+    core::{graphobject::ObjectId, soundprocessor::StaticSoundProcessorHandle},
     objects::dac::Dac,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -11,12 +11,12 @@ use crate::{
 pub struct DacUi {}
 
 impl ObjectUi for DacUi {
-    type WrapperType = SoundProcessorHandle<Dac>;
+    type WrapperType = StaticSoundProcessorHandle<Dac>;
     type StateType = NoUIState;
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &SoundProcessorHandle<Dac>,
+        wrapper: &StaticSoundProcessorHandle<Dac>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,

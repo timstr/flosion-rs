@@ -7,7 +7,7 @@ use super::{
     serialization::Serializer,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
-    statetree::{State, StateOwner},
+    statetree::{ProcessorState, State, StateOwner},
     uniqueid::UniqueId,
 };
 
@@ -164,13 +164,13 @@ where
     }
 }
 
-pub struct ProcessorNumberSource<S: State, F: StateFunction<S>> {
+pub struct ProcessorNumberSource<S: ProcessorState, F: StateFunction<S>> {
     function: F,
     processor_id: SoundProcessorId,
     data: PhantomData<S>,
 }
 
-impl<S: State, F: StateFunction<S>> ProcessorNumberSource<S, F> {
+impl<S: ProcessorState, F: StateFunction<S>> ProcessorNumberSource<S, F> {
     pub(super) fn new(processor_id: SoundProcessorId, function: F) -> ProcessorNumberSource<S, F> {
         ProcessorNumberSource {
             function,
@@ -180,10 +180,10 @@ impl<S: State, F: StateFunction<S>> ProcessorNumberSource<S, F> {
     }
 }
 
-impl<S: State, F: StateFunction<S>> NumberSource for ProcessorNumberSource<S, F> {
+impl<S: ProcessorState, F: StateFunction<S>> NumberSource for ProcessorNumberSource<S, F> {
     fn eval(&self, dst: &mut [f32], context: &Context) {
-        let frame = context.find_processor_frame(self.processor_id);
-        let state = frame.state().downcast_if::<S>(self.processor_id).unwrap();
+        let state = context.find_processor_state(self.processor_id);
+        let state = state.downcast_if::<S>(self.processor_id).unwrap();
         self.function.apply(dst, state);
     }
 }

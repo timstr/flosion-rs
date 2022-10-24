@@ -2,12 +2,14 @@ use std::collections::HashMap;
 
 use crate::core::{
     arguments::ParsedArguments, graphobject::ObjectInitialization, numbersource::PureNumberSource,
-    serialization::Deserializer, soundprocessor::SoundProcessor,
+    serialization::Deserializer,
 };
 
 use super::{
-    graphobject::GraphObject, numbersource::NumberSource, soundgraphtopology::SoundGraphTopology,
-    soundprocessor::SoundProcessorWrapper,
+    graphobject::GraphObject,
+    numbersource::NumberSource,
+    soundgraphtopology::SoundGraphTopology,
+    soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
 };
 
 struct ObjectData {
@@ -27,12 +29,27 @@ impl ObjectFactory {
         }
     }
 
-    pub fn register_sound_processor<T: SoundProcessor>(&mut self) {
+    pub fn register_static_sound_processor<T: StaticSoundProcessor>(&mut self) {
         let create = |g: &mut SoundGraphTopology,
                       init: ObjectInitialization|
          -> Result<Box<dyn GraphObject>, ()> {
-            let h = g.add_sound_processor::<T>(init)?;
-            Ok(h.instance_arc().as_graph_object(h.id()))
+            let h = g.add_static_sound_processor::<T>(init)?;
+            Ok(h.as_graph_object())
+        };
+        self.mapping.insert(
+            T::TYPE.name(),
+            ObjectData {
+                create: Box::new(create),
+            },
+        );
+    }
+
+    pub fn register_dynamic_sound_processor<T: DynamicSoundProcessor>(&mut self) {
+        let create = |g: &mut SoundGraphTopology,
+                      init: ObjectInitialization|
+         -> Result<Box<dyn GraphObject>, ()> {
+            let h = g.add_dynamic_sound_processor::<T>(init)?;
+            Ok(h.as_graph_object())
         };
         self.mapping.insert(
             T::TYPE.name(),

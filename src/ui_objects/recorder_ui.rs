@@ -3,7 +3,7 @@ use eframe::egui::{self, Button};
 use crate::{
     core::{
         graphobject::{ObjectId, ObjectInitialization},
-        soundprocessor::SoundProcessorHandle,
+        soundprocessor::StaticSoundProcessorHandle,
     },
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
@@ -16,13 +16,13 @@ use crate::{
 pub struct RecorderUi;
 
 impl ObjectUi for RecorderUi {
-    type WrapperType = SoundProcessorHandle<Recorder>;
+    type WrapperType = StaticSoundProcessorHandle<Recorder>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &SoundProcessorHandle<Recorder>,
+        wrapper: &StaticSoundProcessorHandle<Recorder>,
         graph_tools: &mut GraphUIState,
         ui: &mut egui::Ui,
         _state: &NoUIState,
@@ -60,8 +60,9 @@ impl ObjectUi for RecorderUi {
                 if ui.add(Button::new("Create AudioClip")).clicked() {
                     let a = object.copy_audio();
                     graph_tools.make_change(move |graph| {
-                        let ac =
-                            graph.add_sound_processor::<AudioClip>(ObjectInitialization::Default);
+                        let ac = graph.add_dynamic_sound_processor::<AudioClip>(
+                            ObjectInitialization::Default,
+                        );
                         match ac {
                             Ok(ac) => ac.set_data(a),
                             Err(_) => println!("Recorder failed to create an AudioClip"),

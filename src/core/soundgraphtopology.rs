@@ -24,7 +24,11 @@ use super::{
     },
     soundgrapherror::{NumberConnectionError, SoundGraphError},
     soundinput::{InputOptions, SoundInputId},
-    soundprocessor::{SoundProcessor, SoundProcessorHandle, SoundProcessorId, StreamStatus},
+    soundprocessor::{
+        DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
+        SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
+        StaticSoundProcessorWithId, StreamStatus,
+    },
     soundprocessortools::SoundProcessorTools,
     statetree::{NodeAllocator, ProcessorNodeWrapper},
     uniqueid::IdGenerator,
@@ -132,24 +136,46 @@ impl SoundGraphTopology {
         &self.static_processors
     }
 
-    pub fn add_sound_processor<T: SoundProcessor>(
+    pub fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
-    ) -> Result<SoundProcessorHandle<T>, ()> {
-        let processor_id = self.sound_processor_idgen.next_id();
-        let data = EngineSoundProcessorData::new_without_processor(processor_id);
-        self.sound_processors.insert(processor_id, data);
+    ) -> Result<StaticSoundProcessorHandle<T>, ()> {
+        let id = self.sound_processor_idgen.next_id();
+        let data = EngineSoundProcessorData::new_without_processor(id);
+        self.sound_processors.insert(id, data);
         let processor;
         {
-            let tools = SoundProcessorTools::new(processor_id, self);
-            processor = Arc::new(T::new(tools, init)?);
+            let tools = SoundProcessorTools::new(id, self);
+            processor = Arc::new(StaticSoundProcessorWithId::new(T::new(tools, init)?, id));
         }
+        let processor2 = Arc::clone(&processor);
         self.sound_processors
-            .get_mut(&processor_id)
+            .get_mut(&id)
             .unwrap()
-            .set_processor(Arc::<T>::clone(&processor));
+            .set_processor(processor2);
         self.update_static_processor_cache();
-        Ok(SoundProcessorHandle::new(processor_id, processor))
+        Ok(StaticSoundProcessorHandle::new(processor))
+    }
+
+    pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
+        &mut self,
+        init: ObjectInitialization,
+    ) -> Result<DynamicSoundProcessorHandle<T>, ()> {
+        let id = self.sound_processor_idgen.next_id();
+        let data = EngineSoundProcessorData::new_without_processor(id);
+        self.sound_processors.insert(id, data);
+        let processor;
+        {
+            let tools = SoundProcessorTools::new(id, self);
+            processor = Arc::new(DynamicSoundProcessorWithId::new(T::new(tools, init)?, id));
+        }
+        let processor2 = Arc::clone(&processor);
+        self.sound_processors
+            .get_mut(&id)
+            .unwrap()
+            .set_processor(processor2);
+        self.update_static_processor_cache();
+        Ok(DynamicSoundProcessorHandle::new(processor))
     }
 
     pub fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {

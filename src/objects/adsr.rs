@@ -6,9 +6,9 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
-    soundprocessor::{SoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NumberInputNode, ProcessorState, SingleInput, SingleInputNode, State},
+    statetree::{NumberInputNode, SingleInput, SingleInputNode, State, StateAndTiming},
 };
 
 #[derive(Debug)]
@@ -78,9 +78,7 @@ fn chunked_interp(
     }
 }
 
-impl SoundProcessor for ADSR {
-    const IS_STATIC: bool = false;
-
+impl DynamicSoundProcessor for ADSR {
     type StateType = ADSRState;
 
     type InputType = SingleInput;
@@ -114,7 +112,7 @@ impl SoundProcessor for ADSR {
     }
 
     fn process_audio(
-        state: &mut ProcessorState<ADSRState>,
+        state: &mut StateAndTiming<ADSRState>,
         input: &mut SingleInputNode,
         dst: &mut SoundChunk,
         mut context: Context,
@@ -219,7 +217,7 @@ impl SoundProcessor for ADSR {
         if input.needs_reset() {
             input.reset(0);
         }
-        input.step(&state, dst, &context);
+        input.step(state, dst, &context);
         numeric::mul_inplace(&mut dst.l, &level);
         numeric::mul_inplace(&mut dst.r, &level);
 

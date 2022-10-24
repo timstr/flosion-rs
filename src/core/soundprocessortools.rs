@@ -8,7 +8,8 @@ use super::{
     },
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
-    soundprocessor::{SoundProcessor, SoundProcessorId},
+    soundprocessor::{DynamicSoundProcessor, SoundProcessorId, StaticSoundProcessor},
+    statetree::StateAndTiming,
 };
 
 pub struct SoundProcessorTools<'a> {
@@ -40,7 +41,19 @@ impl<'a> SoundProcessorTools<'a> {
         self.topology.remove_sound_input(input_id);
     }
 
-    pub fn add_processor_number_source<T: SoundProcessor, F: StateFunction<T::StateType>>(
+    pub fn add_dynamic_processor_number_source<
+        T: DynamicSoundProcessor,
+        F: StateFunction<StateAndTiming<T::StateType>>,
+    >(
+        &mut self,
+        function: F,
+    ) -> StateNumberSourceHandle {
+        let source = Arc::new(ProcessorNumberSource::new(self.processor_id, function));
+        self.topology
+            .add_state_number_source(source, NumberSourceOwner::SoundProcessor(self.processor_id))
+    }
+
+    pub fn add_static_processor_number_source<T: StaticSoundProcessor, F: StateFunction<T>>(
         &mut self,
         function: F,
     ) -> StateNumberSourceHandle {

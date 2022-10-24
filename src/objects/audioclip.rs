@@ -7,9 +7,9 @@ use crate::core::{
     serialization::Serializer,
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundprocessor::{SoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, ProcessorState, State},
+    statetree::{NoInputs, State, StateAndTiming},
 };
 
 pub struct AudioClip {
@@ -38,9 +38,7 @@ impl State for AudioClipState {
     }
 }
 
-impl SoundProcessor for AudioClip {
-    const IS_STATIC: bool = false;
-
+impl DynamicSoundProcessor for AudioClip {
     type StateType = AudioClipState;
     type InputType = NoInputs;
 
@@ -80,7 +78,7 @@ impl SoundProcessor for AudioClip {
     }
 
     fn process_audio(
-        state: &mut ProcessorState<AudioClipState>,
+        state: &mut StateAndTiming<AudioClipState>,
         _inputs: &mut Self::InputType,
         dst: &mut SoundChunk,
         _context: crate::core::context::Context,

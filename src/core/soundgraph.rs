@@ -17,7 +17,10 @@ use super::{
     soundgrapherror::{NumberConnectionError, SoundConnectionError, SoundGraphError},
     soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
-    soundprocessor::{SoundProcessor, SoundProcessorHandle, SoundProcessorId},
+    soundprocessor::{
+        DynamicSoundProcessor, DynamicSoundProcessorHandle, SoundProcessorId, StaticSoundProcessor,
+        StaticSoundProcessorHandle,
+    },
     soundprocessortools::SoundProcessorTools,
 };
 
@@ -45,11 +48,18 @@ impl SoundGraph {
         }
     }
 
-    pub fn add_sound_processor<T: SoundProcessor>(
+    pub fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
-    ) -> Result<SoundProcessorHandle<T>, ()> {
-        self.topology.write().add_sound_processor::<T>(init)
+    ) -> Result<StaticSoundProcessorHandle<T>, ()> {
+        self.topology.write().add_static_sound_processor::<T>(init)
+    }
+
+    pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
+        &mut self,
+        init: ObjectInitialization,
+    ) -> Result<DynamicSoundProcessorHandle<T>, ()> {
+        self.topology.write().add_dynamic_sound_processor::<T>(init)
     }
 
     pub fn add_pure_number_source<T: PureNumberSource>(
@@ -121,7 +131,7 @@ impl SoundGraph {
         let mut ret: Vec<Box<dyn GraphObject>> = Vec::new();
         let topo = self.topology.read();
         for (id, data) in topo.sound_processors() {
-            ret.push(data.instance_arc().as_graph_object(*id));
+            ret.push(data.instance_arc().as_graph_object());
         }
         for (id, data) in topo.number_sources() {
             if let Some(obj) = data.instance_arc().as_graph_object(*id) {

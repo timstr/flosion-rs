@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
+    core::{graphobject::ObjectId, soundprocessor::DynamicSoundProcessorHandle},
     objects::resampler::Resampler,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -14,12 +14,12 @@ use crate::{
 pub struct ResamplerUi {}
 
 impl ObjectUi for ResamplerUi {
-    type WrapperType = SoundProcessorHandle<Resampler>;
+    type WrapperType = DynamicSoundProcessorHandle<Resampler>;
     type StateType = NoUIState;
     fn ui(
         &self,
         id: ObjectId,
-        object: &SoundProcessorHandle<Resampler>,
+        object: &DynamicSoundProcessorHandle<Resampler>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,

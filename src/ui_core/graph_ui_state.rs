@@ -981,7 +981,7 @@ impl GraphUIState {
             let id = deserialize_object_id(&mut d1, idmap)?;
             let obj = match id {
                 ObjectId::Sound(i) => match topology.sound_processors().get(&i) {
-                    Some(sp) => sp.instance_arc().as_graph_object(i),
+                    Some(sp) => sp.instance_arc().as_graph_object(),
                     None => return Err(()),
                 },
                 ObjectId::Number(i) => match topology.number_sources().get(&i) {
@@ -1028,7 +1028,7 @@ impl GraphUIState {
         let topo = self.graph_topology.read();
         for (i, spd) in topo.sound_processors() {
             self.object_states.entry(i.into()).or_insert_with(|| {
-                let o = spd.instance_arc().as_graph_object(*i);
+                let o = spd.instance_arc().as_graph_object();
                 self.ui_factory.read().create_default_state(&*o)
             });
         }

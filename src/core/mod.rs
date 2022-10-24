@@ -2,6 +2,7 @@ pub mod arguments;
 pub mod context;
 pub mod graphobject;
 pub mod graphserialization;
+pub mod inputqueue;
 pub mod numberinput;
 pub mod numbersource;
 pub mod numbersourcetools;

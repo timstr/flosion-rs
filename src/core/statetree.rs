@@ -15,15 +15,51 @@ use super::{
     soundchunk::SoundChunk,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, InputTiming, SoundInputId},
-    soundprocessor::{SoundProcessor, SoundProcessorId, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, SoundProcessorId, StaticSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     uniqueid::UniqueId,
 };
 
-fn step_input<T: State>(
+pub trait ProcessorState: 'static + Sync + Send {
+    fn state(&self) -> &dyn Any;
+
+    fn is_static(&self) -> bool;
+
+    fn timing(&self) -> Option<&ProcessorTiming>;
+}
+
+impl<T: StaticSoundProcessor> ProcessorState for T {
+    fn state(&self) -> &dyn Any {
+        self
+    }
+
+    fn is_static(&self) -> bool {
+        true
+    }
+
+    fn timing(&self) -> Option<&ProcessorTiming> {
+        None
+    }
+}
+
+impl<T: State> ProcessorState for StateAndTiming<T> {
+    fn state(&self) -> &dyn Any {
+        (self as &StateAndTiming<T>).state()
+    }
+
+    fn is_static(&self) -> bool {
+        false
+    }
+
+    fn timing(&self) -> Option<&ProcessorTiming> {
+        Some((self as &StateAndTiming<T>).timing())
+    }
+}
+
+fn step_input<T: ProcessorState>(
     timing: &mut InputTiming,
     target: &mut Option<Box<dyn ProcessorNodeWrapper>>,
-    processor_state: &ProcessorState<T>,
+    state: &T,
     dst: &mut SoundChunk,
     ctx: &Context,
     input_state: AnyData<SoundInputId>,
@@ -34,10 +70,9 @@ fn step_input<T: State>(
         return StreamStatus::Done;
     }
     if let Some(node) = target {
-        let ctx = ctx.push_processor_state(processor_state);
+        let ctx = ctx.push_processor_state(state);
         let ctx = ctx.push_input(Some(node.id()), input_state, timing);
         let status = node.process_audio(dst, ctx);
-        debug_assert!(status != StreamStatus::StaticNoOutput);
         if status == StreamStatus::Done {
             debug_assert!(!timing.is_done());
             timing.mark_as_done();
@@ -97,9 +132,24 @@ impl SingleInputNode {
         self.timing.request_release(sample_offset);
     }
 
-    pub fn step<T: State>(
+    // TODO:
+    // - ProcessorState no longer makes sense because static processors have no explicit state
+    // - Static processors should not be special-cased here because they can and do use all
+    //   the same types of inputs as dynamic processors and because it should be possible to
+    //   put the processor's own data onto the audio processing call stack.
+    // - Why is timing part of ProcessorState anyway? Shouldn't the same information be accessible
+    //   through the call stack? It could be moved into DynamicSoundProcessorWrapper perhaps
+    //     - timing is included because the processor decides when to invoke its inputs, and
+    //       those inputs need access to timing just like they need access to state when they're
+    //       called on.
+    // - OTOH, how to enforce that
+    //     1. dynamic processors always pass their state
+    //     2. static processors always pass themselves
+    //   seems like a clear use case for a dedicated trait with blanket implementations for dynamic
+    //   processor states and static processors directly
+    pub fn step<T: ProcessorState>(
         &mut self,
-        processor_state: &ProcessorState<T>,
+        processor_state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
@@ -129,6 +179,7 @@ impl SingleInputNode {
     }
 }
 
+// TODO: move outside of statetree
 pub struct KeyedInput<S: State + Default> {
     id: SoundInputId,
     num_keys: usize,
@@ -203,9 +254,9 @@ impl<S: State + Default> KeyedInputData<S> {
         self.timing.was_released()
     }
 
-    pub fn step<T: State>(
+    pub fn step<T: ProcessorState>(
         &mut self,
-        processor_state: &ProcessorState<T>,
+        processor_state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
@@ -261,14 +312,14 @@ pub trait State: Sync + Send + 'static {
     fn reset(&mut self);
 }
 
-pub struct ProcessorState<T: State> {
+pub struct StateAndTiming<T: State> {
     state: T,
     timing: ProcessorTiming,
 }
 
-impl<T: State> ProcessorState<T> {
-    pub(super) fn new(state: T) -> ProcessorState<T> {
-        ProcessorState {
+impl<T: State> StateAndTiming<T> {
+    pub(super) fn new(state: T) -> StateAndTiming<T> {
+        StateAndTiming {
             state,
             timing: ProcessorTiming::new(),
         }
@@ -292,7 +343,7 @@ impl<T: State> ProcessorState<T> {
     }
 }
 
-impl<T: State> Deref for ProcessorState<T> {
+impl<T: State> Deref for StateAndTiming<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -300,7 +351,7 @@ impl<T: State> Deref for ProcessorState<T> {
     }
 }
 
-impl<T: State> DerefMut for ProcessorState<T> {
+impl<T: State> DerefMut for StateAndTiming<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.state
     }
@@ -313,7 +364,7 @@ pub struct AnyData<'a, I: UniqueId> {
 }
 
 impl<'a, I: UniqueId> AnyData<'a, I> {
-    pub fn new<T: 'static>(owner_id: I, data: &'a T) -> Self {
+    pub fn new(owner_id: I, data: &'a dyn Any) -> Self {
         Self { owner_id, data }
     }
 
@@ -512,13 +563,13 @@ impl ProcessorTiming {
     }
 }
 
-pub struct ProcessorNode<T: SoundProcessor> {
+pub struct DynamicProcessorNode<T: DynamicSoundProcessor> {
     id: SoundProcessorId,
-    state: ProcessorState<T::StateType>,
+    state: StateAndTiming<T::StateType>,
     inputs: <T::InputType as ProcessorInput>::NodeType,
 }
 
-impl<T: SoundProcessor> ProcessorNode<T> {
+impl<T: DynamicSoundProcessor> DynamicProcessorNode<T> {
     pub fn new(
         id: SoundProcessorId,
         state: T::StateType,
@@ -526,7 +577,7 @@ impl<T: SoundProcessor> ProcessorNode<T> {
     ) -> Self {
         Self {
             id,
-            state: ProcessorState::new(state),
+            state: StateAndTiming::new(state),
             inputs,
         }
     }
@@ -549,17 +600,17 @@ pub trait ProcessorNodeWrapper: Sync + Send {
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
 }
 
-impl<T: SoundProcessor> ProcessorNodeWrapper for ProcessorNode<T> {
+impl<T: DynamicSoundProcessor> ProcessorNodeWrapper for DynamicProcessorNode<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
 
     fn reset(&mut self) {
-        (self as &mut ProcessorNode<T>).reset()
+        (self as &mut DynamicProcessorNode<T>).reset()
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
-        (self as &mut ProcessorNode<T>).process_audio(dst, ctx)
+        (self as &mut DynamicProcessorNode<T>).process_audio(dst, ctx)
     }
 }
 

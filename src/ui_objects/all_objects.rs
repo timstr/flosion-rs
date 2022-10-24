@@ -1,7 +1,9 @@
 use crate::{
     core::{
-        graphobject::TypedGraphObject, numbersource::PureNumberSource,
-        object_factory::ObjectFactory, soundprocessor::SoundProcessor,
+        graphobject::TypedGraphObject,
+        numbersource::PureNumberSource,
+        object_factory::ObjectFactory,
+        soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
     },
     ui_core::{object_ui::ObjectUi, ui_factory::UiFactory},
 };
@@ -35,13 +37,22 @@ impl<'a> RegistrationHelper<'a> {
         }
     }
 
-    fn register_sound_processor<T: ObjectUi>(&mut self)
+    fn register_static_sound_processor<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: SoundProcessor,
+        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: StaticSoundProcessor,
     {
         self.object_factory
-            .register_sound_processor::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
-        self.ui_factory.register_sound_processor::<T>();
+            .register_static_sound_processor::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
+        self.ui_factory.register_static_sound_processor::<T>();
+    }
+
+    fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
+    where
+        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: DynamicSoundProcessor,
+    {
+        self.object_factory
+            .register_dynamic_sound_processor::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
+        self.ui_factory.register_dynamic_sound_processor::<T>();
     }
 
     fn register_number_source<T: ObjectUi>(&mut self)
@@ -60,16 +71,18 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
 
     let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
-    // Sound processors
-    helper.register_sound_processor::<ADSRUi>();
-    helper.register_sound_processor::<AudioClipUi>();
-    helper.register_sound_processor::<DacUi>();
+    // Static sound processors
+    helper.register_static_sound_processor::<DacUi>();
+    helper.register_static_sound_processor::<RecorderUi>();
     // helper.register_sound_processor::<KeyboardUi>();
-    helper.register_sound_processor::<RecorderUi>();
-    helper.register_sound_processor::<ResamplerUi>();
-    helper.register_sound_processor::<WaveGeneratorUi>();
-    helper.register_sound_processor::<WhiteNoiseUi>();
-    helper.register_sound_processor::<MixerUi>();
+
+    // Dynamicic sound processors
+    helper.register_dynamic_sound_processor::<ADSRUi>();
+    helper.register_dynamic_sound_processor::<AudioClipUi>();
+    helper.register_dynamic_sound_processor::<ResamplerUi>();
+    helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
+    helper.register_dynamic_sound_processor::<WhiteNoiseUi>();
+    helper.register_dynamic_sound_processor::<MixerUi>();
 
     // Pure number sources
     helper.register_number_source::<ConstantUi>();

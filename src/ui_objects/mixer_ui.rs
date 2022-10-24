@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::SoundProcessorHandle},
+    core::{graphobject::ObjectId, soundprocessor::DynamicSoundProcessorHandle},
     objects::mixer::Mixer,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -11,13 +11,13 @@ use crate::{
 pub struct MixerUi {}
 
 impl ObjectUi for MixerUi {
-    type WrapperType = SoundProcessorHandle<Mixer>;
+    type WrapperType = DynamicSoundProcessorHandle<Mixer>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &SoundProcessorHandle<Mixer>,
+        wrapper: &DynamicSoundProcessorHandle<Mixer>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,

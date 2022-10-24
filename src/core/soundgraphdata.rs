@@ -8,7 +8,7 @@ use super::{
         SoundProcessorDescription,
     },
     soundinput::{InputOptions, SoundInputId},
-    soundprocessor::{SoundProcessorId, SoundProcessorWrapper},
+    soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
 pub struct EngineSoundInputData {
@@ -83,7 +83,7 @@ impl EngineSoundInputData {
 
 pub struct EngineSoundProcessorData {
     id: SoundProcessorId,
-    processor: Option<Arc<dyn SoundProcessorWrapper>>,
+    processor: Option<Arc<dyn SoundProcessor>>,
     sound_inputs: Vec<SoundInputId>,
     number_sources: Vec<NumberSourceId>,
     number_inputs: Vec<NumberInputId>,
@@ -100,7 +100,7 @@ impl EngineSoundProcessorData {
         }
     }
 
-    pub fn set_processor(&mut self, processor: Arc<dyn SoundProcessorWrapper>) {
+    pub fn set_processor(&mut self, processor: Arc<dyn SoundProcessor>) {
         debug_assert!(self.processor.is_none());
         self.processor = Some(processor);
     }
@@ -133,11 +133,11 @@ impl EngineSoundProcessorData {
         &mut self.number_inputs
     }
 
-    pub fn instance(&self) -> &dyn SoundProcessorWrapper {
+    pub fn instance(&self) -> &dyn SoundProcessor {
         &**self.processor.as_ref().unwrap()
     }
 
-    pub fn instance_arc(&self) -> Arc<dyn SoundProcessorWrapper> {
+    pub fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
         Arc::clone(self.processor.as_ref().unwrap())
     }
 
