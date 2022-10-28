@@ -4,9 +4,10 @@ use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     soundchunk::SoundChunk,
+    soundinputtypes::NoInputs,
     soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, StateAndTiming},
+    statetree::StateAndTiming,
 };
 
 pub struct WhiteNoise {

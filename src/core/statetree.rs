@@ -1,22 +1,14 @@
 use std::{
     any::Any,
-    marker::PhantomData,
     ops::{Deref, DerefMut},
-    slice,
-    sync::Arc,
 };
-
-use eframe::egui::mutex::RwLock;
 
 use super::{
     context::Context,
-    numberinput::NumberInputId,
-    numbersource::{KeyedInputNumberSource, StateNumberSourceHandle},
+    nodeallocator::NodeAllocator,
     soundchunk::SoundChunk,
-    soundgraphtopology::SoundGraphTopology,
-    soundinput::{InputOptions, InputTiming, SoundInputId},
+    soundinput::SoundInputId,
     soundprocessor::{DynamicSoundProcessor, SoundProcessorId, StaticSoundProcessor, StreamStatus},
-    soundprocessortools::SoundProcessorTools,
     uniqueid::UniqueId,
 };
 
@@ -54,267 +46,6 @@ impl<T: State> ProcessorState for StateAndTiming<T> {
     fn timing(&self) -> Option<&ProcessorTiming> {
         Some((self as &StateAndTiming<T>).timing())
     }
-}
-
-fn step_input<T: ProcessorState>(
-    timing: &mut InputTiming,
-    target: &mut Option<Box<dyn ProcessorNodeWrapper>>,
-    state: &T,
-    dst: &mut SoundChunk,
-    ctx: &Context,
-    input_state: AnyData<SoundInputId>,
-) -> StreamStatus {
-    debug_assert!(!timing.needs_reset());
-    if timing.is_done() {
-        dst.silence();
-        return StreamStatus::Done;
-    }
-    if let Some(node) = target {
-        let ctx = ctx.push_processor_state(state);
-        let ctx = ctx.push_input(Some(node.id()), input_state, timing);
-        let status = node.process_audio(dst, ctx);
-        if status == StreamStatus::Done {
-            debug_assert!(!timing.is_done());
-            timing.mark_as_done();
-        }
-        status
-    } else {
-        timing.mark_as_done();
-        dst.silence();
-        StreamStatus::Done
-    }
-}
-
-pub struct SingleInput {
-    id: SoundInputId,
-}
-
-impl SingleInput {
-    pub fn new(options: InputOptions, tools: &mut SoundProcessorTools) -> SingleInput {
-        SingleInput {
-            id: tools.add_sound_input(options, /*num_keys=*/ 1),
-        }
-    }
-
-    pub fn id(&self) -> SoundInputId {
-        self.id
-    }
-}
-
-impl ProcessorInput for SingleInput {
-    type NodeType = SingleInputNode;
-
-    fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
-        SingleInputNode::new(self.id, allocator.make_state_tree_for(self.id))
-    }
-}
-
-pub struct SingleInputNode {
-    id: SoundInputId,
-    timing: InputTiming,
-    target: Option<Box<dyn ProcessorNodeWrapper>>,
-}
-
-impl SingleInputNode {
-    pub fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>) -> SingleInputNode {
-        SingleInputNode {
-            id,
-            timing: InputTiming::default(),
-            target,
-        }
-    }
-
-    pub fn is_done(&self) -> bool {
-        self.target.is_none() || self.timing.is_done()
-    }
-
-    pub fn request_release(&mut self, sample_offset: usize) {
-        self.timing.request_release(sample_offset);
-    }
-
-    // TODO:
-    // - ProcessorState no longer makes sense because static processors have no explicit state
-    // - Static processors should not be special-cased here because they can and do use all
-    //   the same types of inputs as dynamic processors and because it should be possible to
-    //   put the processor's own data onto the audio processing call stack.
-    // - Why is timing part of ProcessorState anyway? Shouldn't the same information be accessible
-    //   through the call stack? It could be moved into DynamicSoundProcessorWrapper perhaps
-    //     - timing is included because the processor decides when to invoke its inputs, and
-    //       those inputs need access to timing just like they need access to state when they're
-    //       called on.
-    // - OTOH, how to enforce that
-    //     1. dynamic processors always pass their state
-    //     2. static processors always pass themselves
-    //   seems like a clear use case for a dedicated trait with blanket implementations for dynamic
-    //   processor states and static processors directly
-    pub fn step<T: ProcessorState>(
-        &mut self,
-        processor_state: &T,
-        dst: &mut SoundChunk,
-        ctx: &Context,
-    ) -> StreamStatus {
-        step_input(
-            &mut self.timing,
-            &mut self.target,
-            processor_state,
-            dst,
-            ctx,
-            AnyData::new(self.id, &()),
-        )
-    }
-
-    pub fn needs_reset(&self) -> bool {
-        self.timing.needs_reset()
-    }
-
-    pub fn require_reset(&mut self) {
-        self.timing.require_reset();
-    }
-
-    pub fn reset(&mut self, sample_offset: usize) {
-        if let Some(t) = &mut self.target {
-            t.reset();
-        }
-        self.timing.reset(sample_offset);
-    }
-}
-
-// TODO: move outside of statetree
-pub struct KeyedInput<S: State + Default> {
-    id: SoundInputId,
-    num_keys: usize,
-    phantom_data: PhantomData<S>,
-}
-
-impl<S: State + Default> KeyedInput<S> {
-    pub fn new(options: InputOptions, tools: &mut SoundProcessorTools, num_keys: usize) -> Self {
-        let id = tools.add_sound_input(options, num_keys);
-        Self {
-            id,
-            num_keys,
-            phantom_data: PhantomData,
-        }
-    }
-
-    pub fn id(&self) -> SoundInputId {
-        self.id
-    }
-
-    pub fn add_number_source<F: Fn(&mut [f32], &S)>(
-        &self,
-        tools: &mut SoundProcessorTools,
-        f: F,
-    ) -> StateNumberSourceHandle
-    where
-        F: 'static + Sync + Send + Sized,
-    {
-        let source = Arc::new(KeyedInputNumberSource::<S, F>::new(self.id, f));
-        tools.add_input_number_source(self.id, source)
-    }
-}
-
-impl<S: State + Default> ProcessorInput for KeyedInput<S> {
-    type NodeType = KeyedInputNode<S>;
-
-    fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
-        KeyedInputNode {
-            data: (0..self.num_keys)
-                .map(|k| KeyedInputData::new(self.id, allocator.make_state_tree_for(self.id)))
-                .collect(),
-        }
-    }
-}
-
-pub struct KeyedInputData<S: State + Default> {
-    id: SoundInputId,
-    timing: InputTiming,
-    target: Option<Box<dyn ProcessorNodeWrapper>>,
-    state: S,
-}
-
-impl<S: State + Default> KeyedInputData<S> {
-    fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>) -> Self {
-        Self {
-            id,
-            timing: InputTiming::default(),
-            target,
-            state: S::default(),
-        }
-    }
-
-    pub fn is_done(&self) -> bool {
-        self.target.is_none() || self.timing.is_done()
-    }
-
-    pub fn request_release(&mut self, sample_offset: usize) {
-        self.timing.request_release(sample_offset);
-    }
-
-    pub fn was_released(&self) -> bool {
-        self.timing.was_released()
-    }
-
-    pub fn step<T: ProcessorState>(
-        &mut self,
-        processor_state: &T,
-        dst: &mut SoundChunk,
-        ctx: &Context,
-    ) -> StreamStatus {
-        step_input(
-            &mut self.timing,
-            &mut self.target,
-            processor_state,
-            dst,
-            ctx,
-            AnyData::new(self.id, &self.state),
-        )
-    }
-
-    pub fn state(&self) -> &S {
-        &self.state
-    }
-
-    pub fn state_mut(&mut self) -> &mut S {
-        &mut self.state
-    }
-
-    pub fn needs_reset(&self) -> bool {
-        self.timing.needs_reset()
-    }
-
-    pub fn require_reset(&mut self) {
-        self.timing.require_reset();
-    }
-
-    pub fn reset(&mut self, sample_offset: usize) {
-        if let Some(t) = &mut self.target {
-            t.reset();
-        }
-        self.timing.reset(sample_offset);
-    }
-}
-
-pub struct KeyedInputNode<S: State + Default> {
-    data: Vec<KeyedInputData<S>>,
-}
-
-impl<S: State + Default> KeyedInputNode<S> {
-    pub fn data(&self) -> &[KeyedInputData<S>] {
-        &self.data
-    }
-
-    pub fn data_mut(&mut self) -> &mut [KeyedInputData<S>] {
-        &mut self.data
-    }
-}
-
-pub trait State: Sync + Send + 'static {
-    fn reset(&mut self);
-}
-
-pub struct StateAndTiming<T: State> {
-    state: T,
-    timing: ProcessorTiming,
 }
 
 impl<T: State> StateAndTiming<T> {
@@ -387,8 +118,12 @@ impl State for () {
     fn reset(&mut self) {}
 }
 
-pub trait ProcessorInput {
-    type NodeType: InputNode;
+impl SoundInputNode for () {
+    fn flag_for_reset(&mut self) {}
+}
+
+pub trait SoundProcessorInput {
+    type NodeType: SoundInputNode;
 
     fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType;
 }
@@ -396,149 +131,29 @@ pub trait ProcessorInput {
 // Trait used for automating allocation and reallocation of node inputs
 // Not concerned with actual audio processing or providing access to
 // said inputs - concrete types will provide those.
-pub trait InputNode: Sync + Send {
+pub trait SoundInputNode: Sync + Send {
     fn flag_for_reset(&mut self);
-}
 
-impl InputNode for SingleInputNode {
-    fn flag_for_reset(&mut self) {
-        self.timing.require_reset();
-    }
-}
-
-impl<S: State + Default> InputNode for KeyedInputNode<S> {
-    fn flag_for_reset(&mut self) {
-        for d in &mut self.data {
-            d.timing.require_reset();
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct NoInputs {}
-
-impl NoInputs {
-    pub fn new() -> NoInputs {
-        NoInputs {}
-    }
-}
-
-impl ProcessorInput for NoInputs {
-    type NodeType = NoInputs;
-
-    fn make_node(&self, _allocator: &NodeAllocator) -> Self::NodeType {
-        NoInputs {}
-    }
-}
-
-impl InputNode for NoInputs {
-    fn flag_for_reset(&mut self) {
-        // Nothing to do
-    }
-}
-
-pub struct SingleInputList {
-    // NOTE: this RwLock is mostly a formality, since
-    // SoundProcessorTools is required to change the input
-    // anyway and therefore mutable access to the topology
-    // is already held
-    input_ids: RwLock<Vec<SoundInputId>>,
-    options: InputOptions,
-}
-
-impl SingleInputList {
-    pub fn new(
-        count: usize,
-        options: InputOptions,
-        tools: &mut SoundProcessorTools,
-    ) -> SingleInputList {
-        SingleInputList {
-            input_ids: RwLock::new(
-                (0..count)
-                    .map(|_| tools.add_sound_input(options, /*num_keys=*/ 1))
-                    .collect(),
-            ),
-            options,
-        }
-    }
-
-    pub fn add_input(&self, tools: &mut SoundProcessorTools) {
-        self.input_ids
-            .write()
-            .push(tools.add_sound_input(self.options, /*num_keys=*/ 1));
-    }
-
-    pub fn remove_input(&self, id: SoundInputId, tools: &mut SoundProcessorTools) {
-        let mut input_ids = self.input_ids.write();
-        assert!(input_ids.iter().filter(|i| **i == id).count() == 1);
-        tools.remove_sound_input(id);
-        input_ids.retain(|i| *i != id);
-    }
-
-    pub fn get_input_ids(&self) -> Vec<SoundInputId> {
-        self.input_ids.read().clone()
-    }
-
-    pub fn length(&self) -> usize {
-        self.input_ids.read().len()
-    }
-}
-
-impl ProcessorInput for SingleInputList {
-    type NodeType = SingleInputListNode;
-
-    fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
-        SingleInputListNode {
-            inputs: self
-                .input_ids
-                .read()
-                .iter()
-                .map(|id| SingleInputNode::new(*id, allocator.make_state_tree_for(*id)))
-                .collect(),
-        }
-    }
-}
-
-pub struct SingleInputListNode {
-    inputs: Vec<SingleInputNode>,
-}
-
-impl SingleInputListNode {
-    pub fn get(&self) -> &[SingleInputNode] {
-        &self.inputs
-    }
-    pub fn get_mut(&mut self) -> &mut [SingleInputNode] {
-        &mut self.inputs
-    }
-}
-
-impl InputNode for SingleInputListNode {
-    fn flag_for_reset(&mut self) {
-        for i in &mut self.inputs {
-            i.flag_for_reset();
-        }
-    }
-}
-
-pub struct NumberInputNode {
-    id: NumberInputId,
-}
-
-impl NumberInputNode {
-    pub(super) fn new(id: NumberInputId) -> Self {
-        Self { id }
-    }
-
-    pub fn eval(&self, dst: &mut [f32], context: &Context) {
-        context.evaluate_number_input(self.id, dst);
-    }
-
-    pub fn eval_scalar(&self, context: &Context) -> f32 {
-        let mut dst: f32 = 0.0;
-        let s = slice::from_mut(&mut dst);
-        context.evaluate_number_input(self.id, s);
-        dst
-    }
+    // TODO: get rid of public node allocator interface
+    // TODO:
+    // - how to deal with varying numbers of inputs, e.g. singleinput vs. singleinputlist?
+    //     - some kind of iterator interface?
+    //       e.g.
+    //           fn get_inputs(&self) -> impl Iterator<Type=SomethingSomethingGraphNode>;
+    //       where node implementations iterate over their allocated inputs.
+    //       seems a bit awkward, although an iterator over mutable references could allow
+    //       in-place modification somewhat straightforwardly. But this approach also seems
+    //       like it will lead to difficulties getting lifetimes right.
+    //     - some kind of visitor pattern?
+    //       e.g.
+    //           fn visit_inputs<F: Fn(&SomethingSomethingGraphNode)>(&self, f: F);
+    //       where node implementations call `f` on each of their allocated inputs.
+    //       I like this approach and I think I will choose it. The visitor function
+    //       can inspect and modify (if a _mut version is provided) allocated notes
+    //       at the same time, and lifetimes shouldn't be an issue. Might need to use
+    //       a trait object (&dyn Fn ...) for the visitor if this trait needs to be
+    //       object safe.
+    //     -
 }
 
 pub struct ProcessorTiming {
@@ -566,38 +181,44 @@ impl ProcessorTiming {
 pub struct DynamicProcessorNode<T: DynamicSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
-    inputs: <T::InputType as ProcessorInput>::NodeType,
+    input: <T::InputType as SoundProcessorInput>::NodeType,
 }
 
 impl<T: DynamicSoundProcessor> DynamicProcessorNode<T> {
     pub fn new(
         id: SoundProcessorId,
         state: T::StateType,
-        inputs: <T::InputType as ProcessorInput>::NodeType,
+        inputs: <T::InputType as SoundProcessorInput>::NodeType,
     ) -> Self {
         Self {
             id,
             state: StateAndTiming::new(state),
-            inputs,
+            input: inputs,
         }
     }
 
     fn reset(&mut self) {
         self.state.reset();
-        self.inputs.flag_for_reset();
+        self.input.flag_for_reset();
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
-        let status = T::process_audio(&mut self.state, &mut self.inputs, dst, ctx);
+        let status = T::process_audio(&mut self.state, &mut self.input, dst, ctx);
         self.state.timing.advance_one_chunk();
         status
     }
 }
 
+// TODO: implement StaticProcessorNode here to replace existing functionality in
+// SoundGraphTopology's static processor cache (at least w.r.t. storing the cached
+// audio in the static processor node)
+
 pub trait ProcessorNodeWrapper: Sync + Send {
     fn id(&self) -> SoundProcessorId;
     fn reset(&mut self);
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
+    fn input_node(&self) -> &dyn SoundInputNode;
+    // TODO: input_node_mut when needed for modifying state graph
 }
 
 impl<T: DynamicSoundProcessor> ProcessorNodeWrapper for DynamicProcessorNode<T> {
@@ -612,6 +233,10 @@ impl<T: DynamicSoundProcessor> ProcessorNodeWrapper for DynamicProcessorNode<T> 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
         (self as &mut DynamicProcessorNode<T>).process_audio(dst, ctx)
     }
+
+    fn input_node(&self) -> &dyn SoundInputNode {
+        &self.input
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -620,30 +245,11 @@ pub enum StateOwner {
     SoundProcessor(SoundProcessorId),
 }
 
-pub struct NodeAllocator<'a> {
-    processor_id: SoundProcessorId,
-    topology: &'a SoundGraphTopology,
+pub trait State: Sync + Send + 'static {
+    fn reset(&mut self);
 }
 
-impl<'a> NodeAllocator<'a> {
-    pub fn new(
-        processor_id: SoundProcessorId,
-        topology: &'a SoundGraphTopology,
-    ) -> NodeAllocator<'a> {
-        NodeAllocator {
-            processor_id,
-            topology,
-        }
-    }
-
-    pub fn processor_id(&self) -> SoundProcessorId {
-        self.processor_id
-    }
-
-    pub fn make_state_tree_for(
-        &self,
-        input_id: SoundInputId,
-    ) -> Option<Box<dyn ProcessorNodeWrapper>> {
-        self.topology.make_state_tree_for(input_id)
-    }
+pub struct StateAndTiming<T: State> {
+    state: T,
+    timing: ProcessorTiming,
 }

@@ -1,6 +1,12 @@
 use crate::core::soundchunk::CHUNK_SIZE;
 
-use super::uniqueid::UniqueId;
+use super::{
+    context::Context,
+    soundchunk::SoundChunk,
+    soundprocessor::StreamStatus,
+    statetree::{AnyData, ProcessorNodeWrapper, ProcessorState},
+    uniqueid::UniqueId,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundInputId(pub usize);
@@ -109,5 +115,40 @@ impl Default for InputTiming {
             is_done: false,
             release: ReleaseStatus::NotYet,
         }
+    }
+}
+
+// TODO: move this to a dedicated struct that
+// 1. wraps the target (Option<Box<dyn ProcessorNodeWrapper>>) into a clean interface
+// 2. provides easy access for the upcoming node allocation whatever to modify the
+//    target in place
+// Maybe call it SoundInputTarget?
+// Have each SoundInputNode implementation store one of these for each
+pub(crate) fn step_sound_input<T: ProcessorState>(
+    timing: &mut InputTiming,
+    target: &mut Option<Box<dyn ProcessorNodeWrapper>>,
+    state: &T,
+    dst: &mut SoundChunk,
+    ctx: &Context,
+    input_state: AnyData<SoundInputId>,
+) -> StreamStatus {
+    debug_assert!(!timing.needs_reset());
+    if timing.is_done() {
+        dst.silence();
+        return StreamStatus::Done;
+    }
+    if let Some(node) = target {
+        let ctx = ctx.push_processor_state(state);
+        let ctx = ctx.push_input(Some(node.id()), input_state, timing);
+        let status = node.process_audio(dst, ctx);
+        if status == StreamStatus::Done {
+            debug_assert!(!timing.is_done());
+            timing.mark_as_done();
+        }
+        status
+    } else {
+        timing.mark_as_done();
+        dst.silence();
+        StreamStatus::Done
     }
 }

@@ -1,14 +1,15 @@
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::NumberInputHandle,
+    numberinput::{NumberInputHandle, NumberInputNode},
     numbersource::StateNumberSourceHandle,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
+    soundinputtypes::NoInputs,
     soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, NumberInputNode, State, StateAndTiming},
+    statetree::{State, StateAndTiming},
 };
 
 pub struct WaveGenerator {

@@ -3,12 +3,12 @@ use std::{ops::Deref, sync::Arc};
 use super::{
     context::Context,
     graphobject::{GraphObject, ObjectInitialization, ObjectType, WithObjectType},
+    nodeallocator::NodeAllocator,
     serialization::Serializer,
     soundchunk::SoundChunk,
     soundprocessortools::SoundProcessorTools,
     statetree::{
-        DynamicProcessorNode, NodeAllocator, ProcessorInput, ProcessorNodeWrapper, State,
-        StateAndTiming,
+        DynamicProcessorNode, ProcessorNodeWrapper, SoundProcessorInput, State, StateAndTiming,
     },
     uniqueid::UniqueId,
 };
@@ -42,60 +42,16 @@ pub enum StreamStatus {
     Done,
 }
 
-// TODO:
-// list of akward things that making static and dynamic processors the same
-// forces me to do for static processors:
-// - define a state type that is usually the unit type () and unused
-// - jump through weird synchronization hoops just to give the processor node
-//   temporary access to the processor's data
-// - provide a value for a pointless boolean IS_STATIC which provides
-//   information that should just be part of the type system
-// - make_state is kinda pointless too
-// What I would prefer:
-// - separate patterns for static and dynamic processor which embrace the
-//   peculiarities of either while (mostly?) automatically providing a shared
-//   interface for both
-//     - dynamic processor only:
-//         - state type
-//         - make_state
-//         - sound processor node type
-//     - static processor only:
-//         - process_audio receives self
-//     - both
-//         - object type
-//         - sound input type
-//         - serialization
-// - perhaps using a general-purpose SoundProcessor trait that has blanket
-//   implementations for DynamicSoundProcessor and StaticSoundProcessor
-// - ugh but mutual exclusion of traits grumble grumble, I tried this before
-// - please rustc I promise I won't ever have a type that is both static and
-//   dynamic
-// - is it possible to design this in such a way that there are no conflicting
-//   blanket implementations?
-// - is there an easy way to achieve something like this without blanket trait
-//   implementations?
-// - maybe move methods of sound processor, dynamicsoundprocessor, and
-//   staticsoundprocessor into three unrelated traits?
-// - maybe do something with a pair of generic struct DynamicSoundProcessor<T>
-//   and StaticSoundProcessor<T> that both implement a SoundProcessorTrait?
-//   Seems promising. The generic parameter T for those two structs might
-//   themselves need to implement specific traits, BUT those traits can now be
-//   tailored specifically to dynamic and static processors. The current
-//   SoundProcessorWrapper trait should be able to be implemented for those
-//   DynamicSoundProcessor<T> and StaticSoundProcessor<T>, with little change to
-//   its interface.
-
 pub trait StaticSoundProcessor: 'static + Sync + Send + WithObjectType {
-    type InputType: ProcessorInput;
+    type InputType: SoundProcessorInput;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 
-    // TODO: how to use input nodes here?
     fn process_audio(
         &self,
-        input: &mut <Self::InputType as ProcessorInput>::NodeType,
+        input: &mut <Self::InputType as SoundProcessorInput>::NodeType,
         dst: &mut SoundChunk,
         context: Context,
     );
@@ -106,7 +62,7 @@ pub trait StaticSoundProcessor: 'static + Sync + Send + WithObjectType {
 pub trait DynamicSoundProcessor: 'static + Sync + Send + WithObjectType {
     type StateType: State;
 
-    type InputType: ProcessorInput;
+    type InputType: SoundProcessorInput;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>
     where
@@ -120,7 +76,7 @@ pub trait DynamicSoundProcessor: 'static + Sync + Send + WithObjectType {
 
     fn process_audio(
         state: &mut StateAndTiming<Self::StateType>,
-        inputs: &mut <Self::InputType as ProcessorInput>::NodeType,
+        inputs: &mut <Self::InputType as SoundProcessorInput>::NodeType,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus;

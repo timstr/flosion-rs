@@ -7,6 +7,7 @@ use crate::core::soundgrapherror::SoundConnectionError;
 use super::{
     context::Context,
     graphobject::{ObjectId, ObjectInitialization},
+    nodeallocator::NodeAllocator,
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
         NumberSource, NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle,
@@ -30,7 +31,7 @@ use super::{
         StaticSoundProcessorWithId, StreamStatus,
     },
     soundprocessortools::SoundProcessorTools,
-    statetree::{NodeAllocator, ProcessorNodeWrapper},
+    statetree::{ProcessorNodeWrapper, SoundInputNode},
     uniqueid::IdGenerator,
 };
 
@@ -65,12 +66,14 @@ impl StaticProcessorCache {
     }
 }
 
-struct CachedProcessorNode {
+struct CachedStaticProcessorNode {
     id: SoundProcessorId,
     cache: Arc<RwLock<Option<SoundChunk>>>,
 }
 
-impl ProcessorNodeWrapper for CachedProcessorNode {
+// NOTE: this node represents the *result* of having a static processor,
+// NOT the actual invocation of a static processor
+impl ProcessorNodeWrapper for CachedStaticProcessorNode {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
@@ -82,6 +85,10 @@ impl ProcessorNodeWrapper for CachedProcessorNode {
     fn process_audio(&mut self, dst: &mut SoundChunk, _ctx: Context) -> StreamStatus {
         *dst = self.cache.read().unwrap();
         StreamStatus::Playing
+    }
+
+    fn input_node(&self) -> &dyn SoundInputNode {
+        &()
     }
 }
 
@@ -649,7 +656,7 @@ impl SoundGraphTopology {
                             }
                         })
                         .unwrap();
-                    Some(Box::new(CachedProcessorNode { id: proc_id, cache }))
+                    Some(Box::new(CachedStaticProcessorNode { id: proc_id, cache }))
                 } else {
                     Some(proc.make_node(&allocator))
                 }

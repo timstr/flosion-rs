@@ -11,9 +11,9 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
+    soundinputtypes::{SingleInput, SingleInputNode},
     soundprocessor::StaticSoundProcessor,
     soundprocessortools::SoundProcessorTools,
-    statetree::{SingleInput, SingleInputNode},
 };
 
 use cpal::{

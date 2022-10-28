@@ -9,9 +9,9 @@ use crate::core::{
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
+    soundinputtypes::{SingleInput, SingleInputNode},
     soundprocessor::{StaticSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{SingleInput, SingleInputNode},
 };
 
 const CHUNKS_PER_GROUP: usize = 64;

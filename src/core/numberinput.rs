@@ -1,11 +1,8 @@
 use std::slice;
 
 use super::{
-    context::Context,
-    numbersource::NumberSourceId,
-    soundprocessor::SoundProcessorId,
-    statetree::{NumberInputNode, StateOwner},
-    uniqueid::UniqueId,
+    context::Context, numbersource::NumberSourceId, soundprocessor::SoundProcessorId,
+    statetree::StateOwner, uniqueid::UniqueId,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -69,6 +66,7 @@ impl NumberInputHandle {
     pub fn make_node(&self) -> NumberInputNode {
         NumberInputNode::new(self.id)
     }
+
     pub fn eval(&self, dst: &mut [f32], context: &Context) {
         context.evaluate_number_input(self.id, dst);
     }
@@ -77,5 +75,26 @@ impl NumberInputHandle {
         let mut x: f32 = 0.0;
         context.evaluate_number_input(self.id, slice::from_mut(&mut x));
         x
+    }
+}
+
+pub struct NumberInputNode {
+    id: NumberInputId,
+}
+
+impl NumberInputNode {
+    pub(super) fn new(id: NumberInputId) -> Self {
+        Self { id }
+    }
+
+    pub fn eval(&self, dst: &mut [f32], context: &Context) {
+        context.evaluate_number_input(self.id, dst);
+    }
+
+    pub fn eval_scalar(&self, context: &Context) -> f32 {
+        let mut dst: f32 = 0.0;
+        let s = slice::from_mut(&mut dst);
+        context.evaluate_number_input(self.id, s);
+        dst
     }
 }

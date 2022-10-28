@@ -6,6 +6,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# TODO: read about profiles and optimization settings
+# https://doc.rust-lang.org/cargo/reference/profiles.html
+
 [dependencies]
 cpal = "0.13.3"
 rand = "0.8.3"

@@ -1,12 +1,13 @@
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::NumberInputHandle,
+    numberinput::{NumberInputHandle, NumberInputNode},
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
+    soundinputtypes::{SingleInput, SingleInputNode},
     soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NumberInputNode, SingleInput, SingleInputNode, State, StateAndTiming},
+    statetree::{State, StateAndTiming},
 };
 
 pub struct Resampler {

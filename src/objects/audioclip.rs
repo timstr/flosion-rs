@@ -7,9 +7,10 @@ use crate::core::{
     serialization::Serializer,
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
+    soundinputtypes::NoInputs,
     soundprocessor::{DynamicSoundProcessor, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{NoInputs, State, StateAndTiming},
+    statetree::{State, StateAndTiming},
 };
 
 pub struct AudioClip {
