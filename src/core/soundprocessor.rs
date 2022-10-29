@@ -34,11 +34,6 @@ impl UniqueId for SoundProcessorId {
     }
 }
 
-pub(crate) enum StreamRequest {
-    Continue,
-    Release { sample_offset: usize },
-}
-
 #[derive(PartialEq, Eq)]
 pub enum StreamStatus {
     Playing,
@@ -97,10 +92,6 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
         Self { processor, id }
     }
 
-    pub(crate) fn instance(&self) -> &T {
-        &self.processor
-    }
-
     pub(crate) fn id(&self) -> SoundProcessorId {
         self.id
     }
@@ -118,10 +109,6 @@ pub(crate) struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
 impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
     pub(crate) fn new(processor: T, id: SoundProcessorId) -> Self {
         Self { processor, id }
-    }
-
-    pub(crate) fn instance(&self) -> &T {
-        &self.processor
     }
 
     pub(crate) fn id(&self) -> SoundProcessorId {
@@ -349,7 +336,7 @@ impl<T: State> StateAndTiming<T> {
         &mut self.state
     }
 
-    pub fn timing(&self) -> &ProcessorTiming {
+    pub(super) fn timing(&self) -> &ProcessorTiming {
         &self.timing
     }
 }

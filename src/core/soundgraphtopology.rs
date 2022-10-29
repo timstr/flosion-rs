@@ -435,7 +435,7 @@ impl SoundGraphTopology {
             }
             NumberSourceOwner::Nothing => panic!("A state number source must have an owner"),
         }
-        StateNumberSourceHandle::new(id, owner)
+        StateNumberSourceHandle::new(id)
     }
 
     pub(super) fn remove_number_source(&mut self, source_id: NumberSourceId) {
@@ -517,7 +517,7 @@ impl SoundGraphTopology {
                 source_data.inputs_mut().push(id);
             }
         }
-        NumberInputHandle::new(id, owner)
+        NumberInputHandle::new(id)
     }
 
     pub(super) fn remove_number_input(&mut self, id: NumberInputId) {

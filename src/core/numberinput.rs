@@ -47,20 +47,15 @@ impl NumberInputOwner {
 
 pub struct NumberInputHandle {
     id: NumberInputId,
-    owner: NumberInputOwner,
 }
 
 impl NumberInputHandle {
-    pub(super) fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
-        NumberInputHandle { id, owner }
+    pub(super) fn new(id: NumberInputId) -> NumberInputHandle {
+        NumberInputHandle { id }
     }
 
     pub fn id(&self) -> NumberInputId {
         self.id
-    }
-
-    pub(super) fn owner(&self) -> NumberInputOwner {
-        self.owner
     }
 
     pub fn make_node(&self) -> NumberInputNode {

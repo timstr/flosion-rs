@@ -144,15 +144,6 @@ impl SoundGraphDescription {
         }
     }
 
-    pub(super) fn new_empty() -> SoundGraphDescription {
-        SoundGraphDescription {
-            sound_processors: HashMap::new(),
-            sound_inputs: HashMap::new(),
-            number_sources: HashMap::new(),
-            number_inputs: HashMap::new(),
-        }
-    }
-
     pub(crate) fn sound_inputs(&self) -> &HashMap<SoundInputId, SoundInputDescription> {
         &self.sound_inputs
     }

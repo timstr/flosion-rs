@@ -59,16 +59,8 @@ impl ForwardGraphIdMap {
         &self.sound_processors
     }
 
-    pub(super) fn sound_inputs(&self) -> &ForwardIdMap<SoundInputId> {
-        &self.sound_inputs
-    }
-
     pub(crate) fn number_sources(&self) -> &ForwardIdMap<NumberSourceId> {
         &self.number_sources
-    }
-
-    pub(super) fn number_inputs(&self) -> &ForwardIdMap<NumberInputId> {
-        &self.number_inputs
     }
 
     fn visit_sound_input_data(&mut self, topo: &SoundGraphTopology, id: SoundInputId) {
@@ -166,16 +158,8 @@ impl ReverseGraphIdMap {
         &self.sound_processors
     }
 
-    pub(super) fn sound_inputs(&self) -> &ReverseIdMap<SoundInputId> {
-        &self.sound_inputs
-    }
-
     pub(crate) fn number_sources(&self) -> &ReverseIdMap<NumberSourceId> {
         &self.number_sources
-    }
-
-    pub(super) fn number_inputs(&self) -> &ReverseIdMap<NumberInputId> {
-        &self.number_inputs
     }
 
     fn add_sound_processor(

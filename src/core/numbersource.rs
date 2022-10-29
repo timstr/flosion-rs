@@ -222,20 +222,15 @@ impl NumberSource for InputTimeNumberSource {
 
 pub struct StateNumberSourceHandle {
     id: NumberSourceId,
-    owner: NumberSourceOwner,
 }
 
 impl StateNumberSourceHandle {
-    pub(super) fn new(id: NumberSourceId, owner: NumberSourceOwner) -> StateNumberSourceHandle {
-        StateNumberSourceHandle { id, owner }
+    pub(super) fn new(id: NumberSourceId) -> StateNumberSourceHandle {
+        StateNumberSourceHandle { id }
     }
 
     pub fn id(&self) -> NumberSourceId {
         self.id
-    }
-
-    pub(super) fn owner(&self) -> NumberSourceOwner {
-        self.owner
     }
 }
 

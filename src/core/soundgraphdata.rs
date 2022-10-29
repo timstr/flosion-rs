@@ -41,14 +41,6 @@ impl EngineSoundInputData {
         self.id
     }
 
-    pub(super) fn options(&self) -> InputOptions {
-        self.options
-    }
-
-    pub(super) fn num_keys(&self) -> usize {
-        self.num_keys
-    }
-
     pub(super) fn target(&self) -> Option<SoundProcessorId> {
         self.target
     }
