@@ -5,9 +5,9 @@ use crate::core::{
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
     soundinputtypes::{SingleInput, SingleInputNode},
-    soundprocessor::{DynamicSoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{State, StateAndTiming},
+    state::State,
 };
 
 pub struct Resampler {

@@ -87,7 +87,7 @@ impl ObjectFactory {
         }
     }
 
-    pub fn create_from_args(
+    pub(crate) fn create_from_args(
         &self,
         object_type_str: &str,
         graph_topo: &mut SoundGraphTopology,
@@ -100,7 +100,7 @@ impl ObjectFactory {
         )
     }
 
-    pub fn create_from_archive(
+    pub(crate) fn create_from_archive(
         &self,
         object_type_str: &str,
         graph_topo: &mut SoundGraphTopology,

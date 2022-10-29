@@ -6,9 +6,8 @@ use crate::core::{
     soundchunk::SoundChunk,
     soundinput::{InputOptions, SoundInputId},
     soundinputtypes::{SingleInputList, SingleInputListNode},
-    soundprocessor::{DynamicSoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::StateAndTiming,
 };
 
 pub struct Mixer {

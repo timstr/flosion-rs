@@ -13,7 +13,7 @@ use super::{
     uniqueid::UniqueId,
 };
 
-pub struct ForwardIdMap<T: UniqueId> {
+pub(crate) struct ForwardIdMap<T: UniqueId> {
     ids: Vec<T>,
 }
 
@@ -29,7 +29,7 @@ impl<T: UniqueId> ForwardIdMap<T> {
         self.ids.push(id);
     }
 
-    pub fn map_id(&self, id: T) -> Option<u16> {
+    pub(crate) fn map_id(&self, id: T) -> Option<u16> {
         self.ids.iter().position(|i| *i == id).map(|i| i as u16)
     }
 
@@ -38,7 +38,7 @@ impl<T: UniqueId> ForwardIdMap<T> {
     }
 }
 
-pub struct ForwardGraphIdMap {
+pub(crate) struct ForwardGraphIdMap {
     sound_processors: ForwardIdMap<SoundProcessorId>,
     sound_inputs: ForwardIdMap<SoundInputId>,
     number_sources: ForwardIdMap<NumberSourceId>,
@@ -55,19 +55,19 @@ impl ForwardGraphIdMap {
         }
     }
 
-    pub fn sound_processors(&self) -> &ForwardIdMap<SoundProcessorId> {
+    pub(crate) fn sound_processors(&self) -> &ForwardIdMap<SoundProcessorId> {
         &self.sound_processors
     }
 
-    pub fn sound_inputs(&self) -> &ForwardIdMap<SoundInputId> {
+    pub(super) fn sound_inputs(&self) -> &ForwardIdMap<SoundInputId> {
         &self.sound_inputs
     }
 
-    pub fn number_sources(&self) -> &ForwardIdMap<NumberSourceId> {
+    pub(crate) fn number_sources(&self) -> &ForwardIdMap<NumberSourceId> {
         &self.number_sources
     }
 
-    pub fn number_inputs(&self) -> &ForwardIdMap<NumberInputId> {
+    pub(super) fn number_inputs(&self) -> &ForwardIdMap<NumberInputId> {
         &self.number_inputs
     }
 
@@ -108,7 +108,7 @@ impl ForwardGraphIdMap {
     }
 }
 
-pub struct ReverseIdMap<T: UniqueId> {
+pub(crate) struct ReverseIdMap<T: UniqueId> {
     ids: Vec<Option<T>>,
 }
 
@@ -132,7 +132,7 @@ impl<T: UniqueId> ReverseIdMap<T> {
         Ok(())
     }
 
-    pub fn map_id(&self, serialization_id: u16) -> T {
+    pub(crate) fn map_id(&self, serialization_id: u16) -> T {
         self.ids[serialization_id as usize].unwrap()
     }
 
@@ -141,7 +141,7 @@ impl<T: UniqueId> ReverseIdMap<T> {
     }
 }
 
-pub struct ReverseGraphIdMap {
+pub(crate) struct ReverseGraphIdMap {
     sound_processors: ReverseIdMap<SoundProcessorId>,
     sound_inputs: ReverseIdMap<SoundInputId>,
     number_sources: ReverseIdMap<NumberSourceId>,
@@ -162,19 +162,19 @@ impl ReverseGraphIdMap {
         })
     }
 
-    pub fn sound_processors(&self) -> &ReverseIdMap<SoundProcessorId> {
+    pub(crate) fn sound_processors(&self) -> &ReverseIdMap<SoundProcessorId> {
         &self.sound_processors
     }
 
-    pub fn sound_inputs(&self) -> &ReverseIdMap<SoundInputId> {
+    pub(super) fn sound_inputs(&self) -> &ReverseIdMap<SoundInputId> {
         &self.sound_inputs
     }
 
-    pub fn number_sources(&self) -> &ReverseIdMap<NumberSourceId> {
+    pub(crate) fn number_sources(&self) -> &ReverseIdMap<NumberSourceId> {
         &self.number_sources
     }
 
-    pub fn number_inputs(&self) -> &ReverseIdMap<NumberInputId> {
+    pub(super) fn number_inputs(&self) -> &ReverseIdMap<NumberInputId> {
         &self.number_inputs
     }
 
@@ -206,7 +206,7 @@ impl ReverseGraphIdMap {
     }
 }
 
-pub fn serialize_sound_graph(
+pub(crate) fn serialize_sound_graph(
     graph_topo: &SoundGraphTopology,
     subset: Option<&HashSet<ObjectId>>,
     serializer: &mut Serializer,
@@ -357,7 +357,7 @@ pub fn serialize_sound_graph(
     idmap
 }
 
-pub fn deserialize_sound_graph(
+pub(crate) fn deserialize_sound_graph(
     dst_graph_topo: &mut SoundGraphTopology,
     deserializer: &mut Deserializer,
     object_factory: &ObjectFactory,

@@ -1,92 +1,14 @@
-use std::{
-    any::Any,
-    ops::{Deref, DerefMut},
-};
+use std::{any::Any, collections::HashMap};
 
 use super::{
     context::Context,
     nodeallocator::NodeAllocator,
     soundchunk::SoundChunk,
     soundinput::SoundInputId,
-    soundprocessor::{DynamicSoundProcessor, SoundProcessorId, StaticSoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, SoundProcessorId, StateAndTiming, StreamStatus},
+    state::State,
     uniqueid::UniqueId,
 };
-
-pub trait ProcessorState: 'static + Sync + Send {
-    fn state(&self) -> &dyn Any;
-
-    fn is_static(&self) -> bool;
-
-    fn timing(&self) -> Option<&ProcessorTiming>;
-}
-
-impl<T: StaticSoundProcessor> ProcessorState for T {
-    fn state(&self) -> &dyn Any {
-        self
-    }
-
-    fn is_static(&self) -> bool {
-        true
-    }
-
-    fn timing(&self) -> Option<&ProcessorTiming> {
-        None
-    }
-}
-
-impl<T: State> ProcessorState for StateAndTiming<T> {
-    fn state(&self) -> &dyn Any {
-        (self as &StateAndTiming<T>).state()
-    }
-
-    fn is_static(&self) -> bool {
-        false
-    }
-
-    fn timing(&self) -> Option<&ProcessorTiming> {
-        Some((self as &StateAndTiming<T>).timing())
-    }
-}
-
-impl<T: State> StateAndTiming<T> {
-    pub(super) fn new(state: T) -> StateAndTiming<T> {
-        StateAndTiming {
-            state,
-            timing: ProcessorTiming::new(),
-        }
-    }
-
-    fn reset(&mut self) {
-        self.state.reset();
-        self.timing.reset();
-    }
-
-    pub fn state(&self) -> &T {
-        &self.state
-    }
-
-    pub fn state_mut(&mut self) -> &mut T {
-        &mut self.state
-    }
-
-    pub fn timing(&self) -> &ProcessorTiming {
-        &self.timing
-    }
-}
-
-impl<T: State> Deref for StateAndTiming<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl<T: State> DerefMut for StateAndTiming<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.state
-    }
-}
 
 #[derive(Clone, Copy)]
 pub struct AnyData<'a, I: UniqueId> {
@@ -112,10 +34,6 @@ impl<'a, I: UniqueId> AnyData<'a, I> {
         debug_assert!(r.is_some());
         Some(r.unwrap())
     }
-}
-
-impl State for () {
-    fn reset(&mut self) {}
 }
 
 impl SoundInputNode for () {
@@ -156,28 +74,6 @@ pub trait SoundInputNode: Sync + Send {
     //     -
 }
 
-pub struct ProcessorTiming {
-    elapsed_chunks: usize,
-}
-
-impl ProcessorTiming {
-    fn new() -> ProcessorTiming {
-        ProcessorTiming { elapsed_chunks: 0 }
-    }
-
-    fn reset(&mut self) {
-        self.elapsed_chunks = 0;
-    }
-
-    fn advance_one_chunk(&mut self) {
-        self.elapsed_chunks += 1;
-    }
-
-    pub fn elapsed_chunks(&self) -> usize {
-        self.elapsed_chunks
-    }
-}
-
 pub struct DynamicProcessorNode<T: DynamicSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
@@ -213,6 +109,8 @@ impl<T: DynamicSoundProcessor> DynamicProcessorNode<T> {
 // SoundGraphTopology's static processor cache (at least w.r.t. storing the cached
 // audio in the static processor node)
 
+// TODO: make this not pub, wrap it in a Option<Box<...>> or Option<Arc<...>> for state
+// graph allocation. An enum might be suitable for the different ownership types there.
 pub trait ProcessorNodeWrapper: Sync + Send {
     fn id(&self) -> SoundProcessorId;
     fn reset(&mut self);
@@ -239,17 +137,48 @@ impl<T: DynamicSoundProcessor> ProcessorNodeWrapper for DynamicProcessorNode<T> 
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum StateOwner {
-    SoundInput(SoundInputId),
-    SoundProcessor(SoundProcessorId),
+// TODO
+// - a struct to represent a group of mutually-synchronous sound processors
+// - an algorithm for finding all synchronous groups
+// - a struct for allocating nodes within a specific group that stores
+//   cached processor nodes (this is context sensitive and cannot apply to the entire topology at once)
+// - a processor node implementation for cached processors
+// - oh right, multiple processor outputs too (this can wait until after caching, esp. since it requires caching)
+// - (from below) in-place modification of sound nodes
+//
+// How to keep track of potentially multiple copies of the same synchronous group when allocating?
+// - in order to allocate shared nodes for cached processors, some reference to already-allocated
+//   nodes and/or synchronous groups is needed
+// - maybe allocate every node in a synchronous groups at once before visiting any processors of any other groups?
+//     - yeeeaaaah then allocate all processor dependencies not already included in the group
+//     - a quick proof that this works correctly by treating dependencies in isolation: Assume that processors
+//       nodes for multiple dependencious outside a given synchronous group cannot be allocated in isolation.
+//       This implies that for a given synchronous group A which depends upon two processors in other groups,
+//       those two other processors might be part of the same other group B. But, because both processors
+//       are not part of A, they must be depended upon via two separate non-synchronous inputs. Thus, for those
+//       two inputs, their dependencies (the two other processors) are not synchronized. Thus, they cannot be
+//       in the same (context-dependent) synchronous group. Thus, they can be allocated in complete isolation
+//       of one another, and so by contradiction, other processors depended upon by a synchronous group can
+//       always be allocated in isolation.
+// - This would require me to support modifying the state tree/graph in-place to add pointers to nodes in a specific
+//   non-depth-first order, but I want that anyway for preserving all possible audio states when changing connections
+//   in the sound graph.
+//     - on a slight side note, in-place modification of the state graph will also prove useful for drop-in
+//       addition of synchronous sound processors to an existing stream without disrupting playback
+//
+// - note that there can exist synchronous groups connected to multiple static processors, all of which should
+//   be allocated together. In other words, starting at a single static processor and going depth-first is not
+//   enough, some kind of queue is needed to track visited nodes (a second queue would also be useful for tracking
+//   which nodes from other synchronous groups to visit next as described above)
+#[derive(Eq, PartialEq)]
+pub(super) struct SynchronousGroupId(usize);
+
+#[derive(Hash, Eq, PartialEq)]
+pub(super) struct ProcessorRoute {
+    processor: SoundProcessorId,
+    via_input: SoundInputId,
 }
 
-pub trait State: Sync + Send + 'static {
-    fn reset(&mut self);
-}
-
-pub struct StateAndTiming<T: State> {
-    state: T,
-    timing: ProcessorTiming,
+pub(super) struct SynchronousPartition {
+    processors: HashMap<ProcessorRoute, SynchronousGroupId>,
 }

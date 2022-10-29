@@ -6,38 +6,38 @@ use super::{
     soundchunk::CHUNK_SIZE,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputTiming, SoundInputId},
-    soundprocessor::SoundProcessorId,
-    statetree::{AnyData, ProcessorState},
+    soundprocessor::{ProcessorState, SoundProcessorId},
+    statetree::AnyData,
 };
 
-pub struct ProcessorStackFrame<'a> {
+pub(super) struct ProcessorStackFrame<'a> {
     parent: &'a StackFrame<'a>,
     processor_id: SoundProcessorId,
     data: &'a dyn ProcessorState,
 }
 
 impl<'a> ProcessorStackFrame<'a> {
-    pub fn data(&self) -> &'a dyn ProcessorState {
+    pub(super) fn data(&self) -> &'a dyn ProcessorState {
         self.data
     }
 }
 
-pub struct InputStackFrame<'a> {
+pub(super) struct InputStackFrame<'a> {
     parent: &'a StackFrame<'a>,
     state: AnyData<'a, SoundInputId>,
     timing: &'a mut InputTiming,
 }
 
 impl<'a> InputStackFrame<'a> {
-    pub fn state(&self) -> &AnyData<'a, SoundInputId> {
+    pub(super) fn state(&self) -> &AnyData<'a, SoundInputId> {
         &self.state
     }
 
-    pub fn timing(&'a self) -> &'a InputTiming {
+    pub(super) fn timing(&'a self) -> &'a InputTiming {
         self.timing
     }
 
-    pub fn take_pending_release(&mut self) -> Option<usize> {
+    pub(super) fn take_pending_release(&mut self) -> Option<usize> {
         self.timing.take_pending_release()
     }
 }
@@ -137,7 +137,7 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    pub fn new(
+    pub(super) fn new(
         target_processor_id: SoundProcessorId,
         topology: &'a SoundGraphTopology,
         scratch_space: &'a ScratchArena,
@@ -150,7 +150,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn push_input(
+    pub(super) fn push_input(
         &'a self,
         target: Option<SoundProcessorId>,
         state: AnyData<'a, SoundInputId>,
@@ -181,14 +181,14 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn find_processor_state(
+    pub(super) fn find_processor_state(
         &self,
         processor_id: SoundProcessorId,
     ) -> AnyData<'a, SoundProcessorId> {
         self.stack.find_processor_state(processor_id)
     }
 
-    pub fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
+    pub(super) fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
         // TODO: avoid a second hashmap lookup here by storing Arc to number source
         // in each input
         // TODO (much later): consider avoiding all lookups by storing an optional
@@ -211,7 +211,7 @@ impl<'a> Context<'a> {
         self.scratch_space.borrow_slice(size)
     }
 
-    pub fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
+    pub(super) fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
         self.stack.find_input_frame(input_id)
     }
 
@@ -223,12 +223,16 @@ impl<'a> Context<'a> {
         numeric::linspace(dst, t0, t1);
     }
 
-    pub fn current_time_at_sound_processor(&self, processor_id: SoundProcessorId, dst: &mut [f32]) {
+    pub(super) fn current_time_at_sound_processor(
+        &self,
+        processor_id: SoundProcessorId,
+        dst: &mut [f32],
+    ) {
         let s = self.stack.find_processor_sample_offset(processor_id);
         Self::current_time_impl(s, dst);
     }
 
-    pub fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
+    pub(super) fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
         let s = self.stack.find_input_sample_offset(input_id);
         Self::current_time_impl(s, dst);
     }

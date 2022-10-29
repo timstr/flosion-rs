@@ -2,7 +2,7 @@ use std::slice;
 
 use super::{
     context::Context, numbersource::NumberSourceId, soundprocessor::SoundProcessorId,
-    statetree::StateOwner, uniqueid::UniqueId,
+    state::StateOwner, uniqueid::UniqueId,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -24,20 +24,20 @@ impl UniqueId for NumberInputId {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum NumberInputOwner {
+pub(crate) enum NumberInputOwner {
     SoundProcessor(SoundProcessorId),
     NumberSource(NumberSourceId),
 }
 
 impl NumberInputOwner {
-    pub fn is_stateful(&self) -> bool {
+    pub(super) fn is_stateful(&self) -> bool {
         match self {
             NumberInputOwner::SoundProcessor(_) => true,
             NumberInputOwner::NumberSource(_) => false,
         }
     }
 
-    pub fn as_state_owner(&self) -> Option<StateOwner> {
+    pub(super) fn as_state_owner(&self) -> Option<StateOwner> {
         match self {
             NumberInputOwner::SoundProcessor(spid) => Some(StateOwner::SoundProcessor(*spid)),
             NumberInputOwner::NumberSource(_) => None,
@@ -51,7 +51,7 @@ pub struct NumberInputHandle {
 }
 
 impl NumberInputHandle {
-    pub fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
+    pub(super) fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
         NumberInputHandle { id, owner }
     }
 
@@ -59,7 +59,7 @@ impl NumberInputHandle {
         self.id
     }
 
-    pub fn owner(&self) -> NumberInputOwner {
+    pub(super) fn owner(&self) -> NumberInputOwner {
         self.owner
     }
 

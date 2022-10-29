@@ -8,11 +8,10 @@ use super::{
     numbersource::{KeyedInputNumberSource, StateNumberSourceHandle},
     soundchunk::SoundChunk,
     soundinput::{step_sound_input, InputOptions, InputTiming, SoundInputId},
-    soundprocessor::StreamStatus,
+    soundprocessor::{ProcessorState, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{
-        AnyData, ProcessorNodeWrapper, ProcessorState, SoundInputNode, SoundProcessorInput, State,
-    },
+    state::State,
+    statetree::{AnyData, ProcessorNodeWrapper, SoundInputNode, SoundProcessorInput},
 };
 
 pub struct SingleInput {

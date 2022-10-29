@@ -22,10 +22,10 @@ pub struct BorrowedSlice {
 }
 
 impl BorrowedSlice {
-    pub fn get(&self) -> &[f32] {
+    fn get(&self) -> &[f32] {
         &(*self.slice.as_ref().unwrap())[0..self.size]
     }
-    pub fn get_mut(&mut self) -> &mut [f32] {
+    fn get_mut(&mut self) -> &mut [f32] {
         &mut (*self.slice.as_mut().unwrap())[0..self.size]
     }
 }
@@ -63,7 +63,7 @@ impl SliceQueue {
     }
 }
 
-pub struct ScratchArena {
+pub(super) struct ScratchArena {
     queues: RefCell<HashMap<u8, Rc<RefCell<SliceQueue>>>>,
 }
 
@@ -74,7 +74,7 @@ impl ScratchArena {
         }
     }
 
-    pub fn borrow_slice(&self, size: usize) -> BorrowedSlice {
+    pub(super) fn borrow_slice(&self, size: usize) -> BorrowedSlice {
         let k = ilog2(size);
         let s = 1_usize << k;
         let mut qs = self.queues.borrow_mut();

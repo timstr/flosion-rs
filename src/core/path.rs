@@ -3,7 +3,7 @@ use super::{
     soundprocessor::SoundProcessorId,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SoundPath {
     pub connections: Vec<(SoundProcessorId, SoundInputId)>,
 }
@@ -48,7 +48,7 @@ impl SoundPath {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NumberPath {
     pub connections: Vec<(NumberSourceId, NumberInputId)>,
 }
@@ -90,13 +90,5 @@ impl NumberPath {
 
     pub fn pop(&mut self) -> Option<(NumberSourceId, NumberInputId)> {
         self.connections.pop()
-    }
-}
-
-impl Clone for NumberPath {
-    fn clone(&self) -> NumberPath {
-        NumberPath {
-            connections: self.connections.clone(),
-        }
     }
 }

@@ -35,14 +35,14 @@ use super::{
     uniqueid::IdGenerator,
 };
 
-pub struct StaticProcessorCache {
+pub(super) struct StaticProcessorCache {
     processor_id: SoundProcessorId,
     cached_output: Arc<RwLock<Option<SoundChunk>>>,
     tree: RwLock<Box<dyn ProcessorNodeWrapper>>,
 }
 
 impl StaticProcessorCache {
-    pub fn new(
+    fn new(
         processor_id: SoundProcessorId,
         tree: Box<dyn ProcessorNodeWrapper>,
     ) -> StaticProcessorCache {
@@ -53,15 +53,15 @@ impl StaticProcessorCache {
         }
     }
 
-    pub fn processor_id(&self) -> SoundProcessorId {
+    pub(super) fn processor_id(&self) -> SoundProcessorId {
         self.processor_id
     }
 
-    pub fn output(&self) -> &RwLock<Option<SoundChunk>> {
+    pub(super) fn output(&self) -> &RwLock<Option<SoundChunk>> {
         &self.cached_output
     }
 
-    pub fn tree(&self) -> &RwLock<Box<dyn ProcessorNodeWrapper>> {
+    pub(super) fn tree(&self) -> &RwLock<Box<dyn ProcessorNodeWrapper>> {
         &self.tree
     }
 }
@@ -92,7 +92,7 @@ impl ProcessorNodeWrapper for CachedStaticProcessorNode {
     }
 }
 
-pub struct SoundGraphTopology {
+pub(crate) struct SoundGraphTopology {
     sound_processors: HashMap<SoundProcessorId, EngineSoundProcessorData>,
     sound_inputs: HashMap<SoundInputId, EngineSoundInputData>,
     number_sources: HashMap<NumberSourceId, EngineNumberSourceData>,
@@ -103,11 +103,12 @@ pub struct SoundGraphTopology {
     number_source_idgen: IdGenerator<NumberSourceId>,
     number_input_idgen: IdGenerator<NumberInputId>,
 
+    // TODO: put this somewhere else?
     static_processors: Vec<StaticProcessorCache>,
 }
 
 impl SoundGraphTopology {
-    pub fn new() -> SoundGraphTopology {
+    pub(super) fn new() -> SoundGraphTopology {
         SoundGraphTopology {
             sound_processors: HashMap::new(),
             sound_inputs: HashMap::new(),
@@ -123,27 +124,27 @@ impl SoundGraphTopology {
         }
     }
 
-    pub fn sound_processors(&self) -> &HashMap<SoundProcessorId, EngineSoundProcessorData> {
+    pub(crate) fn sound_processors(&self) -> &HashMap<SoundProcessorId, EngineSoundProcessorData> {
         &self.sound_processors
     }
 
-    pub fn sound_inputs(&self) -> &HashMap<SoundInputId, EngineSoundInputData> {
+    pub(crate) fn sound_inputs(&self) -> &HashMap<SoundInputId, EngineSoundInputData> {
         &self.sound_inputs
     }
 
-    pub fn number_sources(&self) -> &HashMap<NumberSourceId, EngineNumberSourceData> {
+    pub(crate) fn number_sources(&self) -> &HashMap<NumberSourceId, EngineNumberSourceData> {
         &self.number_sources
     }
 
-    pub fn number_inputs(&self) -> &HashMap<NumberInputId, EngineNumberInputData> {
+    pub(crate) fn number_inputs(&self) -> &HashMap<NumberInputId, EngineNumberInputData> {
         &self.number_inputs
     }
 
-    pub fn static_processors(&self) -> &Vec<StaticProcessorCache> {
+    pub(super) fn static_processors(&self) -> &Vec<StaticProcessorCache> {
         &self.static_processors
     }
 
-    pub fn add_static_sound_processor<T: StaticSoundProcessor>(
+    pub(super) fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
     ) -> Result<StaticSoundProcessorHandle<T>, ()> {
@@ -164,7 +165,7 @@ impl SoundGraphTopology {
         Ok(StaticSoundProcessorHandle::new(processor))
     }
 
-    pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
+    pub(super) fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
     ) -> Result<DynamicSoundProcessorHandle<T>, ()> {
@@ -185,7 +186,7 @@ impl SoundGraphTopology {
         Ok(DynamicSoundProcessorHandle::new(processor))
     }
 
-    pub fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
+    pub(super) fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
         debug_assert!(self.describe().find_error().is_none());
         self.remove_sound_processor_impl(processor_id);
 
@@ -284,7 +285,7 @@ impl SoundGraphTopology {
         // TODO: Disconnect number sources relying on state which has just gone out of scope"
     }
 
-    pub fn add_sound_input(
+    pub(super) fn add_sound_input(
         &mut self,
         processor_id: SoundProcessorId,
         options: InputOptions,
@@ -298,7 +299,7 @@ impl SoundGraphTopology {
         input_id
     }
 
-    pub fn remove_sound_input(&mut self, input_id: SoundInputId) {
+    pub(super) fn remove_sound_input(&mut self, input_id: SoundInputId) {
         let res = self.remove_sound_input_impl(input_id);
         self.update_static_processor_cache();
         res
@@ -325,7 +326,7 @@ impl SoundGraphTopology {
         self.sound_inputs.remove(&input_id).unwrap();
     }
 
-    pub fn connect_sound_input(
+    pub(super) fn connect_sound_input(
         &mut self,
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
@@ -365,7 +366,7 @@ impl SoundGraphTopology {
         Ok(())
     }
 
-    pub fn disconnect_sound_input(
+    pub(super) fn disconnect_sound_input(
         &mut self,
         input_id: SoundInputId,
     ) -> Result<(), SoundGraphError> {
@@ -399,7 +400,7 @@ impl SoundGraphTopology {
         Ok(())
     }
 
-    pub fn add_pure_number_source<T: PureNumberSource>(
+    pub(super) fn add_pure_number_source<T: PureNumberSource>(
         &mut self,
         init: ObjectInitialization,
     ) -> Result<PureNumberSourceHandle<T>, ()> {
@@ -413,7 +414,7 @@ impl SoundGraphTopology {
         Ok(PureNumberSourceHandle::new(id, source2))
     }
 
-    pub fn add_state_number_source(
+    pub(super) fn add_state_number_source(
         &mut self,
         source: Arc<dyn NumberSource>,
         owner: NumberSourceOwner,
@@ -437,7 +438,7 @@ impl SoundGraphTopology {
         StateNumberSourceHandle::new(id, owner)
     }
 
-    pub fn remove_number_source(&mut self, source_id: NumberSourceId) {
+    pub(super) fn remove_number_source(&mut self, source_id: NumberSourceId) {
         self.remove_number_source_impl(source_id);
         debug_assert!(self.describe().find_error().is_none());
     }
@@ -494,7 +495,7 @@ impl SoundGraphTopology {
         self.number_sources.remove(&source_id).unwrap();
     }
 
-    pub fn add_number_input(
+    pub(super) fn add_number_input(
         &mut self,
         owner: NumberInputOwner,
         default_value: f32,
@@ -519,7 +520,7 @@ impl SoundGraphTopology {
         NumberInputHandle::new(id, owner)
     }
 
-    pub fn remove_number_input(&mut self, id: NumberInputId) {
+    pub(super) fn remove_number_input(&mut self, id: NumberInputId) {
         self.remove_number_input_impl(id);
         debug_assert!(self.describe().find_error().is_none());
     }
@@ -549,7 +550,7 @@ impl SoundGraphTopology {
         self.number_inputs.remove(&id);
     }
 
-    pub fn connect_number_input(
+    pub(super) fn connect_number_input(
         &mut self,
         input_id: NumberInputId,
         source_id: NumberSourceId,
@@ -588,7 +589,7 @@ impl SoundGraphTopology {
         Ok(())
     }
 
-    pub fn disconnect_number_input(
+    pub(super) fn disconnect_number_input(
         &mut self,
         input_id: NumberInputId,
     ) -> Result<(), NumberConnectionError> {
@@ -624,7 +625,7 @@ impl SoundGraphTopology {
         Ok(())
     }
 
-    pub fn remove_objects<I: Iterator<Item = ObjectId>>(&mut self, objects: I) {
+    pub(super) fn remove_objects<I: Iterator<Item = ObjectId>>(&mut self, objects: I) {
         for oid in objects {
             match oid {
                 ObjectId::Sound(i) => self.remove_sound_processor_impl(i),
@@ -665,7 +666,7 @@ impl SoundGraphTopology {
         }
     }
 
-    pub fn describe(&self) -> SoundGraphDescription {
+    pub(super) fn describe(&self) -> SoundGraphDescription {
         let mut sound_processors = HashMap::<SoundProcessorId, SoundProcessorDescription>::new();
         for proc_data in self.sound_processors.values() {
             sound_processors.insert(proc_data.id(), proc_data.describe());
@@ -690,7 +691,7 @@ impl SoundGraphTopology {
         )
     }
 
-    pub fn is_legal_sound_connection(
+    pub(crate) fn is_legal_sound_connection(
         &self,
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
@@ -701,7 +702,7 @@ impl SoundGraphTopology {
         desc.find_error().is_none()
     }
 
-    pub fn is_legal_number_connection(
+    pub(crate) fn is_legal_number_connection(
         &self,
         input_id: NumberInputId,
         source_id: NumberSourceId,

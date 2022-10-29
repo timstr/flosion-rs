@@ -6,8 +6,8 @@ use super::{
     numbersourcetools::NumberSourceTools,
     serialization::Serializer,
     soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
-    statetree::{ProcessorState, State, StateOwner},
+    soundprocessor::{ProcessorState, SoundProcessorId},
+    state::{State, StateOwner},
     uniqueid::UniqueId,
 };
 
@@ -30,14 +30,14 @@ impl UniqueId for NumberSourceId {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum NumberSourceOwner {
+pub(crate) enum NumberSourceOwner {
     Nothing,
     SoundProcessor(SoundProcessorId),
     SoundInput(SoundInputId),
 }
 
 impl NumberSourceOwner {
-    pub fn is_stateful(&self) -> bool {
+    pub(super) fn is_stateful(&self) -> bool {
         match self {
             NumberSourceOwner::Nothing => false,
             NumberSourceOwner::SoundProcessor(_) => true,
@@ -45,7 +45,7 @@ impl NumberSourceOwner {
         }
     }
 
-    pub fn as_state_owner(&self) -> Option<StateOwner> {
+    pub(super) fn as_state_owner(&self) -> Option<StateOwner> {
         match self {
             NumberSourceOwner::Nothing => None,
             NumberSourceOwner::SoundProcessor(spid) => Some(StateOwner::SoundProcessor(*spid)),
@@ -84,7 +84,7 @@ impl NumberConfig {
     }
 }
 
-pub trait NumberSource: 'static + Sync + Send {
+pub(crate) trait NumberSource: 'static + Sync + Send {
     fn eval(&self, dst: &mut [f32], context: &Context);
     fn as_graph_object(self: Arc<Self>, _id: NumberSourceId) -> Option<Box<dyn GraphObject>> {
         None
@@ -129,7 +129,7 @@ impl<T: PureNumberSource> PureNumberSourceHandle<T> {
         &*self.instance
     }
 
-    pub fn instance_arc(&self) -> Arc<T> {
+    pub(super) fn instance_arc(&self) -> Arc<T> {
         Arc::clone(&&self.instance)
     }
 }
@@ -234,7 +234,7 @@ impl StateNumberSourceHandle {
         self.id
     }
 
-    pub fn owner(&self) -> NumberSourceOwner {
+    pub(super) fn owner(&self) -> NumberSourceOwner {
         self.owner
     }
 }

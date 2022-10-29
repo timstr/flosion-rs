@@ -7,9 +7,9 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinputtypes::NoInputs,
-    soundprocessor::{DynamicSoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{State, StateAndTiming},
+    state::State,
 };
 
 pub struct WaveGenerator {
@@ -75,8 +75,8 @@ impl DynamicSoundProcessor for WaveGenerator {
             let mut tmp = context.get_scratch_space(state.phase.len());
             state
                 .frequency
-                .eval(tmp.get_mut(), &context.push_processor_state(state));
-            numeric::copy(tmp.get(), &mut state.phase);
+                .eval(&mut tmp, &context.push_processor_state(state));
+            numeric::copy(&tmp, &mut state.phase);
         }
         numeric::div_scalar_inplace(&mut state.phase, SAMPLE_FREQUENCY as f32);
         numeric::exclusive_scan_inplace(&mut state.phase, prev_phase, |p1, p2| p1 + p2);

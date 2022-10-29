@@ -123,7 +123,7 @@ impl SoundGraph {
         self.engine_running.is_some()
     }
 
-    pub fn describe(&self) -> SoundGraphDescription {
+    pub(crate) fn describe(&self) -> SoundGraphDescription {
         self.topology.read().describe()
     }
 
@@ -184,7 +184,7 @@ impl SoundGraph {
         f(tools);
     }
 
-    pub fn topology(&self) -> Arc<RwLock<SoundGraphTopology>> {
+    pub(crate) fn topology(&self) -> Arc<RwLock<SoundGraphTopology>> {
         Arc::clone(&self.topology)
     }
 }

@@ -7,11 +7,11 @@ use super::{
     soundgrapherror::{NumberConnectionError, SoundConnectionError, SoundGraphError},
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
-    statetree::StateOwner,
+    state::StateOwner,
 };
 
 #[derive(Clone)]
-pub struct SoundInputDescription {
+pub(crate) struct SoundInputDescription {
     id: SoundInputId,
     options: InputOptions,
     num_keys: usize,
@@ -21,7 +21,7 @@ pub struct SoundInputDescription {
 }
 
 impl SoundInputDescription {
-    pub fn new(
+    pub(super) fn new(
         id: SoundInputId,
         options: InputOptions,
         num_keys: usize,
@@ -39,17 +39,17 @@ impl SoundInputDescription {
         }
     }
 
-    pub fn target(&self) -> Option<SoundProcessorId> {
+    pub(crate) fn target(&self) -> Option<SoundProcessorId> {
         self.target
     }
 
-    pub fn owner(&self) -> SoundProcessorId {
+    pub(crate) fn owner(&self) -> SoundProcessorId {
         self.owner
     }
 }
 
 #[derive(Clone)]
-pub struct SoundProcessorDescription {
+pub(crate) struct SoundProcessorDescription {
     id: SoundProcessorId,
     is_static: bool,
     inputs: Vec<SoundInputId>,
@@ -58,7 +58,7 @@ pub struct SoundProcessorDescription {
 }
 
 impl SoundProcessorDescription {
-    pub fn new(
+    pub(super) fn new(
         id: SoundProcessorId,
         is_static: bool,
         inputs: Vec<SoundInputId>,
@@ -76,14 +76,14 @@ impl SoundProcessorDescription {
 }
 
 #[derive(Clone)]
-pub struct NumberSourceDescription {
+pub(crate) struct NumberSourceDescription {
     id: NumberSourceId,
     inputs: Vec<NumberInputId>,
     owner: NumberSourceOwner,
 }
 
 impl NumberSourceDescription {
-    pub fn new(
+    pub(super) fn new(
         id: NumberSourceId,
         inputs: Vec<NumberInputId>,
         owner: NumberSourceOwner,
@@ -91,20 +91,20 @@ impl NumberSourceDescription {
         NumberSourceDescription { id, inputs, owner }
     }
 
-    pub fn owner(&self) -> NumberSourceOwner {
+    pub(crate) fn owner(&self) -> NumberSourceOwner {
         self.owner
     }
 }
 
 #[derive(Clone)]
-pub struct NumberInputDescription {
+pub(crate) struct NumberInputDescription {
     id: NumberInputId,
     target: Option<NumberSourceId>,
     owner: NumberInputOwner,
 }
 
 impl NumberInputDescription {
-    pub fn new(
+    pub(super) fn new(
         id: NumberInputId,
         target: Option<NumberSourceId>,
         owner: NumberInputOwner,
@@ -112,17 +112,17 @@ impl NumberInputDescription {
         NumberInputDescription { id, target, owner }
     }
 
-    pub fn target(&self) -> Option<NumberSourceId> {
+    pub(crate) fn target(&self) -> Option<NumberSourceId> {
         self.target
     }
 
-    pub fn owner(&self) -> NumberInputOwner {
+    pub(crate) fn owner(&self) -> NumberInputOwner {
         self.owner
     }
 }
 
 #[derive(Clone)]
-pub struct SoundGraphDescription {
+pub(crate) struct SoundGraphDescription {
     sound_processors: HashMap<SoundProcessorId, SoundProcessorDescription>,
     sound_inputs: HashMap<SoundInputId, SoundInputDescription>,
     number_sources: HashMap<NumberSourceId, NumberSourceDescription>,
@@ -130,7 +130,7 @@ pub struct SoundGraphDescription {
 }
 
 impl SoundGraphDescription {
-    pub fn new(
+    pub(super) fn new(
         sound_processors: HashMap<SoundProcessorId, SoundProcessorDescription>,
         sound_inputs: HashMap<SoundInputId, SoundInputDescription>,
         number_sources: HashMap<NumberSourceId, NumberSourceDescription>,
@@ -144,7 +144,7 @@ impl SoundGraphDescription {
         }
     }
 
-    pub fn new_empty() -> SoundGraphDescription {
+    pub(super) fn new_empty() -> SoundGraphDescription {
         SoundGraphDescription {
             sound_processors: HashMap::new(),
             sound_inputs: HashMap::new(),
@@ -153,23 +153,23 @@ impl SoundGraphDescription {
         }
     }
 
-    pub fn sound_inputs(&self) -> &HashMap<SoundInputId, SoundInputDescription> {
+    pub(crate) fn sound_inputs(&self) -> &HashMap<SoundInputId, SoundInputDescription> {
         &self.sound_inputs
     }
 
-    pub fn sound_processors(&self) -> &HashMap<SoundProcessorId, SoundProcessorDescription> {
+    pub(crate) fn sound_processors(&self) -> &HashMap<SoundProcessorId, SoundProcessorDescription> {
         &self.sound_processors
     }
 
-    pub fn number_inputs(&self) -> &HashMap<NumberInputId, NumberInputDescription> {
+    pub(crate) fn number_inputs(&self) -> &HashMap<NumberInputId, NumberInputDescription> {
         &self.number_inputs
     }
 
-    pub fn number_sources(&self) -> &HashMap<NumberSourceId, NumberSourceDescription> {
+    pub(crate) fn number_sources(&self) -> &HashMap<NumberSourceId, NumberSourceDescription> {
         &self.number_sources
     }
 
-    pub fn find_error(&self) -> Option<SoundGraphError> {
+    pub(super) fn find_error(&self) -> Option<SoundGraphError> {
         self.check_missing_ids();
 
         if let Some(path) = self.find_sound_cycle() {
@@ -188,7 +188,7 @@ impl SoundGraphDescription {
         None
     }
 
-    pub fn add_sound_connection(
+    pub(super) fn add_sound_connection(
         &mut self,
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
@@ -204,7 +204,7 @@ impl SoundGraphDescription {
         None
     }
 
-    pub fn remove_sound_connection(
+    pub(super) fn remove_sound_connection(
         &mut self,
         input_id: SoundInputId,
     ) -> Option<SoundConnectionError> {
@@ -223,7 +223,7 @@ impl SoundGraphDescription {
         None
     }
 
-    pub fn add_number_connection(
+    pub(super) fn add_number_connection(
         &mut self,
         input_id: NumberInputId,
         source_id: NumberSourceId,
@@ -239,7 +239,7 @@ impl SoundGraphDescription {
         None
     }
 
-    pub fn remove_number_connection(
+    pub(super) fn remove_number_connection(
         &mut self,
         input_id: NumberInputId,
     ) -> Option<NumberConnectionError> {
@@ -258,7 +258,7 @@ impl SoundGraphDescription {
         None
     }
 
-    pub fn check_missing_ids(&self) {
+    pub(super) fn check_missing_ids(&self) {
         for sp in self.sound_processors.values() {
             // for each sound processor
             for i in &sp.inputs {
@@ -489,7 +489,7 @@ impl SoundGraphDescription {
         // whew, made it
     }
 
-    pub fn find_sound_cycle(&self) -> Option<SoundPath> {
+    pub(super) fn find_sound_cycle(&self) -> Option<SoundPath> {
         fn dfs_find_cycle(
             input_id: SoundInputId,
             visited: &mut Vec<SoundInputId>,
@@ -538,7 +538,7 @@ impl SoundGraphDescription {
         }
     }
 
-    pub fn validate_sound_connections(&self) -> Option<SoundConnectionError> {
+    pub(super) fn validate_sound_connections(&self) -> Option<SoundConnectionError> {
         fn visit(
             proc_id: SoundProcessorId,
             states_to_add: usize,
@@ -584,7 +584,7 @@ impl SoundGraphDescription {
         None
     }
 
-    pub fn find_number_cycle(&self) -> Option<NumberPath> {
+    pub(super) fn find_number_cycle(&self) -> Option<NumberPath> {
         fn dfs_find_cycle(
             input_id: NumberInputId,
             visited: &mut Vec<NumberInputId>,
@@ -661,7 +661,7 @@ impl SoundGraphDescription {
         }
     }
 
-    pub fn find_all_stateful_dependencies_of(
+    pub(super) fn find_all_stateful_dependencies_of(
         &self,
         input_id: NumberInputId,
     ) -> Vec<NumberSourceId> {
@@ -687,7 +687,7 @@ impl SoundGraphDescription {
         stateful_sources
     }
 
-    pub fn find_invalid_number_connections(&self) -> Vec<(NumberSourceId, NumberInputId)> {
+    pub(super) fn find_invalid_number_connections(&self) -> Vec<(NumberSourceId, NumberInputId)> {
         let mut bad_dependencies: Vec<(NumberSourceId, NumberInputId)> = Vec::new();
 
         for input_desc in self

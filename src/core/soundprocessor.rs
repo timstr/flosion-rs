@@ -1,4 +1,8 @@
-use std::{ops::Deref, sync::Arc};
+use std::{
+    any::Any,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use super::{
     context::Context,
@@ -7,9 +11,8 @@ use super::{
     serialization::Serializer,
     soundchunk::SoundChunk,
     soundprocessortools::SoundProcessorTools,
-    statetree::{
-        DynamicProcessorNode, ProcessorNodeWrapper, SoundProcessorInput, State, StateAndTiming,
-    },
+    state::State,
+    statetree::{DynamicProcessorNode, ProcessorNodeWrapper, SoundProcessorInput},
     uniqueid::UniqueId,
 };
 
@@ -31,7 +34,7 @@ impl UniqueId for SoundProcessorId {
     }
 }
 
-pub enum StreamRequest {
+pub(crate) enum StreamRequest {
     Continue,
     Release { sample_offset: usize },
 }
@@ -84,7 +87,7 @@ pub trait DynamicSoundProcessor: 'static + Sync + Send + WithObjectType {
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
+pub(crate) struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
 }
@@ -94,11 +97,11 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
         Self { processor, id }
     }
 
-    pub fn instance(&self) -> &T {
+    pub(crate) fn instance(&self) -> &T {
         &self.processor
     }
 
-    pub fn id(&self) -> SoundProcessorId {
+    pub(crate) fn id(&self) -> SoundProcessorId {
         self.id
     }
 }
@@ -107,7 +110,7 @@ impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
 
-pub struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
+pub(crate) struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
 }
@@ -117,11 +120,11 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
         Self { processor, id }
     }
 
-    pub fn instance(&self) -> &T {
+    pub(crate) fn instance(&self) -> &T {
         &self.processor
     }
 
-    pub fn id(&self) -> SoundProcessorId {
+    pub(crate) fn id(&self) -> SoundProcessorId {
         self.id
     }
 }
@@ -130,7 +133,7 @@ impl<T: DynamicSoundProcessor> WithObjectType for DynamicSoundProcessorWithId<T>
     const TYPE: ObjectType = T::TYPE;
 }
 
-pub trait SoundProcessor: 'static + Sync + Send {
+pub(crate) trait SoundProcessor: 'static + Sync + Send {
     fn serialize(&self, serializer: Serializer);
 
     fn is_static(&self) -> bool;
@@ -211,7 +214,7 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
         &self.processor.processor
     }
 
-    pub fn as_graph_object(&self) -> Box<dyn GraphObject> {
+    pub(crate) fn as_graph_object(&self) -> Box<dyn GraphObject> {
         Box::new(self.clone())
     }
 }
@@ -257,7 +260,110 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
         &self.processor.processor
     }
 
-    pub fn as_graph_object(&self) -> Box<dyn GraphObject> {
+    pub(crate) fn as_graph_object(&self) -> Box<dyn GraphObject> {
         Box::new(self.clone())
+    }
+}
+
+pub struct ProcessorTiming {
+    elapsed_chunks: usize,
+}
+
+impl ProcessorTiming {
+    fn new() -> ProcessorTiming {
+        ProcessorTiming { elapsed_chunks: 0 }
+    }
+
+    fn reset(&mut self) {
+        self.elapsed_chunks = 0;
+    }
+
+    pub(super) fn advance_one_chunk(&mut self) {
+        self.elapsed_chunks += 1;
+    }
+
+    pub fn elapsed_chunks(&self) -> usize {
+        self.elapsed_chunks
+    }
+}
+
+pub struct StateAndTiming<T: State> {
+    state: T,
+    pub(super) timing: ProcessorTiming,
+}
+
+pub trait ProcessorState: 'static + Sync + Send {
+    fn state(&self) -> &dyn Any;
+
+    fn is_static(&self) -> bool;
+
+    fn timing(&self) -> Option<&ProcessorTiming>;
+}
+
+impl<T: StaticSoundProcessor> ProcessorState for T {
+    fn state(&self) -> &dyn Any {
+        self
+    }
+
+    fn is_static(&self) -> bool {
+        true
+    }
+
+    fn timing(&self) -> Option<&ProcessorTiming> {
+        None
+    }
+}
+
+impl<T: State> ProcessorState for StateAndTiming<T> {
+    fn state(&self) -> &dyn Any {
+        (self as &StateAndTiming<T>).state()
+    }
+
+    fn is_static(&self) -> bool {
+        false
+    }
+
+    fn timing(&self) -> Option<&ProcessorTiming> {
+        Some((self as &StateAndTiming<T>).timing())
+    }
+}
+
+impl<T: State> StateAndTiming<T> {
+    pub(super) fn new(state: T) -> StateAndTiming<T> {
+        StateAndTiming {
+            state,
+            timing: ProcessorTiming::new(),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.state.reset();
+        self.timing.reset();
+    }
+
+    pub fn state(&self) -> &T {
+        &self.state
+    }
+
+    pub fn state_mut(&mut self) -> &mut T {
+        &mut self.state
+    }
+
+    pub fn timing(&self) -> &ProcessorTiming {
+        &self.timing
+    }
+}
+
+impl<T: State> Deref for StateAndTiming<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl<T: State> DerefMut for StateAndTiming<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
     }
 }

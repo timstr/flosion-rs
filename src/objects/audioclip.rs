@@ -8,9 +8,9 @@ use crate::core::{
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinputtypes::NoInputs,
-    soundprocessor::{DynamicSoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::{State, StateAndTiming},
+    state::State,
 };
 
 pub struct AudioClip {

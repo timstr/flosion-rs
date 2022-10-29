@@ -212,7 +212,7 @@ impl GraphLayout {
         None
     }
 
-    pub fn serialize_positions(
+    fn serialize_positions(
         &self,
         serializer: &mut Serializer,
         subset: Option<&HashSet<ObjectId>>,
@@ -233,7 +233,7 @@ impl GraphLayout {
         }
     }
 
-    pub fn deserialize_positions(
+    fn deserialize_positions(
         &mut self,
         deserializer: &mut Deserializer,
         idmap: &ReverseGraphIdMap,
@@ -730,7 +730,7 @@ impl GraphUIState {
         }
     }
 
-    pub fn activate_hotkey(&mut self, key: egui::Key, desc: &SoundGraphDescription) -> bool {
+    pub(super) fn activate_hotkey(&mut self, key: egui::Key, desc: &SoundGraphDescription) -> bool {
         let (keyboard_focus, peg_hotkeys) = match &mut self.mode {
             UiMode::UsingKeyboardNav(p) => p,
             _ => return false,
@@ -800,7 +800,7 @@ impl GraphUIState {
         true
     }
 
-    pub fn cancel_hotkey(&mut self, desc: &SoundGraphDescription) -> bool {
+    pub(super) fn cancel_hotkey(&mut self, desc: &SoundGraphDescription) -> bool {
         let keyboard_focus = match &mut self.mode {
             UiMode::UsingKeyboardNav(p) => &mut p.0,
             _ => return false,
@@ -944,7 +944,7 @@ impl GraphUIState {
         good
     }
 
-    pub fn serialize_ui_states(
+    pub(super) fn serialize_ui_states(
         &self,
         serializer: &mut Serializer,
         subset: Option<&HashSet<ObjectId>>,
@@ -967,7 +967,7 @@ impl GraphUIState {
         }
     }
 
-    pub fn deserialize_ui_states(
+    pub(super) fn deserialize_ui_states(
         &mut self,
         deserializer: &mut Deserializer,
         idmap: &ReverseGraphIdMap,

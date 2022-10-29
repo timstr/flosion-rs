@@ -16,7 +16,7 @@ use super::{
     soundgraphtopology::SoundGraphTopology,
 };
 
-pub struct SoundEngine {
+pub(super) struct SoundEngine {
     topology: Arc<RwLock<SoundGraphTopology>>,
     keep_running: Arc<AtomicBool>,
 }
@@ -26,7 +26,7 @@ impl SoundEngine {
         static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
     }
 
-    pub fn new() -> (SoundEngine, Arc<AtomicBool>) {
+    pub(super) fn new() -> (SoundEngine, Arc<AtomicBool>) {
         let keep_running = Arc::new(AtomicBool::new(false));
         (
             SoundEngine {
@@ -37,11 +37,11 @@ impl SoundEngine {
         )
     }
 
-    pub fn topology(&self) -> Arc<RwLock<SoundGraphTopology>> {
+    pub(super) fn topology(&self) -> Arc<RwLock<SoundGraphTopology>> {
         Arc::clone(&self.topology)
     }
 
-    pub fn run(&mut self) {
+    pub(super) fn run(&mut self) {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
         let chunk_duration = Duration::from_micros((1_000_000.0 / chunks_per_sec) as u64);
 

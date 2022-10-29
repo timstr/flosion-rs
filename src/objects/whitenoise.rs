@@ -5,9 +5,8 @@ use crate::core::{
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     soundchunk::SoundChunk,
     soundinputtypes::NoInputs,
-    soundprocessor::{DynamicSoundProcessor, StreamStatus},
+    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
-    statetree::StateAndTiming,
 };
 
 pub struct WhiteNoise {

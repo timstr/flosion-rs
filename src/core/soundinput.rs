@@ -3,8 +3,8 @@ use crate::core::soundchunk::CHUNK_SIZE;
 use super::{
     context::Context,
     soundchunk::SoundChunk,
-    soundprocessor::StreamStatus,
-    statetree::{AnyData, ProcessorNodeWrapper, ProcessorState},
+    soundprocessor::{ProcessorState, StreamStatus},
+    statetree::{AnyData, ProcessorNodeWrapper},
     uniqueid::UniqueId,
 };
 
@@ -124,7 +124,7 @@ impl Default for InputTiming {
 //    target in place
 // Maybe call it SoundInputTarget?
 // Have each SoundInputNode implementation store one of these for each
-pub(crate) fn step_sound_input<T: ProcessorState>(
+pub(super) fn step_sound_input<T: ProcessorState>(
     timing: &mut InputTiming,
     target: &mut Option<Box<dyn ProcessorNodeWrapper>>,
     state: &T,

@@ -11,7 +11,7 @@ use super::{
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
-pub struct EngineSoundInputData {
+pub(crate) struct EngineSoundInputData {
     id: SoundInputId,
     options: InputOptions,
     num_keys: usize,
@@ -21,7 +21,7 @@ pub struct EngineSoundInputData {
 }
 
 impl EngineSoundInputData {
-    pub fn new(
+    pub(super) fn new(
         id: SoundInputId,
         options: InputOptions,
         num_keys: usize,
@@ -37,39 +37,39 @@ impl EngineSoundInputData {
         }
     }
 
-    pub fn id(&self) -> SoundInputId {
+    pub(super) fn id(&self) -> SoundInputId {
         self.id
     }
 
-    pub fn options(&self) -> InputOptions {
+    pub(super) fn options(&self) -> InputOptions {
         self.options
     }
 
-    pub fn num_keys(&self) -> usize {
+    pub(super) fn num_keys(&self) -> usize {
         self.num_keys
     }
 
-    pub fn target(&self) -> Option<SoundProcessorId> {
+    pub(super) fn target(&self) -> Option<SoundProcessorId> {
         self.target
     }
 
-    pub fn set_target(&mut self, target: Option<SoundProcessorId>) {
+    pub(super) fn set_target(&mut self, target: Option<SoundProcessorId>) {
         self.target = target;
     }
 
-    pub fn owner(&self) -> SoundProcessorId {
+    pub(super) fn owner(&self) -> SoundProcessorId {
         self.owner
     }
 
-    pub fn number_sources(&self) -> &Vec<NumberSourceId> {
+    pub(super) fn number_sources(&self) -> &Vec<NumberSourceId> {
         &self.number_sources
     }
 
-    pub fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
+    pub(super) fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
         &mut self.number_sources
     }
 
-    pub fn describe(&self) -> SoundInputDescription {
+    pub(super) fn describe(&self) -> SoundInputDescription {
         SoundInputDescription::new(
             self.id,
             self.options,
@@ -81,7 +81,7 @@ impl EngineSoundInputData {
     }
 }
 
-pub struct EngineSoundProcessorData {
+pub(crate) struct EngineSoundProcessorData {
     id: SoundProcessorId,
     processor: Option<Arc<dyn SoundProcessor>>,
     sound_inputs: Vec<SoundInputId>,
@@ -90,7 +90,7 @@ pub struct EngineSoundProcessorData {
 }
 
 impl EngineSoundProcessorData {
-    pub fn new_without_processor(id: SoundProcessorId) -> EngineSoundProcessorData {
+    pub(super) fn new_without_processor(id: SoundProcessorId) -> EngineSoundProcessorData {
         EngineSoundProcessorData {
             id,
             processor: None,
@@ -100,48 +100,48 @@ impl EngineSoundProcessorData {
         }
     }
 
-    pub fn set_processor(&mut self, processor: Arc<dyn SoundProcessor>) {
+    pub(super) fn set_processor(&mut self, processor: Arc<dyn SoundProcessor>) {
         debug_assert!(self.processor.is_none());
         self.processor = Some(processor);
     }
 
-    pub fn id(&self) -> SoundProcessorId {
+    pub(super) fn id(&self) -> SoundProcessorId {
         self.id
     }
 
-    pub fn sound_inputs(&self) -> &Vec<SoundInputId> {
+    pub(crate) fn sound_inputs(&self) -> &Vec<SoundInputId> {
         &self.sound_inputs
     }
 
-    pub fn sound_inputs_mut(&mut self) -> &mut Vec<SoundInputId> {
+    pub(super) fn sound_inputs_mut(&mut self) -> &mut Vec<SoundInputId> {
         &mut self.sound_inputs
     }
 
-    pub fn number_sources(&self) -> &Vec<NumberSourceId> {
+    pub(crate) fn number_sources(&self) -> &Vec<NumberSourceId> {
         &self.number_sources
     }
 
-    pub fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
+    pub(super) fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
         &mut self.number_sources
     }
 
-    pub fn number_inputs(&self) -> &Vec<NumberInputId> {
+    pub(crate) fn number_inputs(&self) -> &Vec<NumberInputId> {
         &self.number_inputs
     }
 
-    pub fn number_inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
+    pub(super) fn number_inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
         &mut self.number_inputs
     }
 
-    pub fn instance(&self) -> &dyn SoundProcessor {
+    pub(super) fn instance(&self) -> &dyn SoundProcessor {
         &**self.processor.as_ref().unwrap()
     }
 
-    pub fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
+    pub(crate) fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
         Arc::clone(self.processor.as_ref().unwrap())
     }
 
-    pub fn describe(&self) -> SoundProcessorDescription {
+    pub(super) fn describe(&self) -> SoundProcessorDescription {
         SoundProcessorDescription::new(
             self.id,
             self.instance().is_static(),
@@ -152,7 +152,7 @@ impl EngineSoundProcessorData {
     }
 }
 
-pub struct EngineNumberInputData {
+pub(crate) struct EngineNumberInputData {
     id: NumberInputId,
     target: Option<NumberSourceId>,
     owner: NumberInputOwner,
@@ -160,7 +160,7 @@ pub struct EngineNumberInputData {
 }
 
 impl EngineNumberInputData {
-    pub fn new(
+    pub(super) fn new(
         id: NumberInputId,
         target: Option<NumberSourceId>,
         owner: NumberInputOwner,
@@ -174,32 +174,32 @@ impl EngineNumberInputData {
         }
     }
 
-    pub fn id(&self) -> NumberInputId {
+    pub(super) fn id(&self) -> NumberInputId {
         self.id
     }
 
-    pub fn target(&self) -> Option<NumberSourceId> {
+    pub(super) fn target(&self) -> Option<NumberSourceId> {
         self.target
     }
 
-    pub fn set_target(&mut self, target: Option<NumberSourceId>) {
+    pub(super) fn set_target(&mut self, target: Option<NumberSourceId>) {
         self.target = target;
     }
 
-    pub fn owner(&self) -> NumberInputOwner {
+    pub(super) fn owner(&self) -> NumberInputOwner {
         self.owner
     }
 
-    pub fn describe(&self) -> NumberInputDescription {
+    pub(super) fn describe(&self) -> NumberInputDescription {
         NumberInputDescription::new(self.id, self.target, self.owner)
     }
 
-    pub fn default_value(&self) -> f32 {
+    pub(super) fn default_value(&self) -> f32 {
         self.default_value
     }
 }
 
-pub struct EngineNumberSourceData {
+pub(crate) struct EngineNumberSourceData {
     id: NumberSourceId,
     instance: Option<Arc<dyn NumberSource>>,
     owner: NumberSourceOwner,
@@ -207,7 +207,7 @@ pub struct EngineNumberSourceData {
 }
 
 impl EngineNumberSourceData {
-    pub fn new(
+    pub(super) fn new(
         id: NumberSourceId,
         wrapper: Option<Arc<dyn NumberSource>>,
         owner: NumberSourceOwner,
@@ -220,36 +220,36 @@ impl EngineNumberSourceData {
         }
     }
 
-    pub fn set_source(&mut self, source: Arc<dyn NumberSource>) {
+    pub(super) fn set_source(&mut self, source: Arc<dyn NumberSource>) {
         debug_assert!(self.instance.is_none());
         self.instance = Some(source);
     }
 
-    pub fn id(&self) -> NumberSourceId {
+    pub(super) fn id(&self) -> NumberSourceId {
         self.id
     }
 
-    pub fn instance(&self) -> &dyn NumberSource {
+    pub(super) fn instance(&self) -> &dyn NumberSource {
         &**self.instance.as_ref().unwrap()
     }
 
-    pub fn instance_arc(&self) -> Arc<dyn NumberSource> {
+    pub(crate) fn instance_arc(&self) -> Arc<dyn NumberSource> {
         Arc::clone(self.instance.as_ref().unwrap())
     }
 
-    pub fn owner(&self) -> NumberSourceOwner {
+    pub(crate) fn owner(&self) -> NumberSourceOwner {
         self.owner
     }
 
-    pub fn inputs(&self) -> &Vec<NumberInputId> {
+    pub(crate) fn inputs(&self) -> &Vec<NumberInputId> {
         &self.inputs
     }
 
-    pub fn inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
+    pub(super) fn inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
         &mut self.inputs
     }
 
-    pub fn describe(&self) -> NumberSourceDescription {
+    pub(super) fn describe(&self) -> NumberSourceDescription {
         NumberSourceDescription::new(self.id, self.inputs.clone(), self.owner)
     }
 }
