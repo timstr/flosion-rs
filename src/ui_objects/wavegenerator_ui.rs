@@ -14,38 +14,37 @@ use crate::{
 pub struct WaveGeneratorUi {}
 
 impl ObjectUi for WaveGeneratorUi {
-    type WrapperType = DynamicSoundProcessorHandle<WaveGenerator>;
+    type HandleType = DynamicSoundProcessorHandle<WaveGenerator>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &DynamicSoundProcessorHandle<WaveGenerator>,
+        wavgen: DynamicSoundProcessorHandle<WaveGenerator>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        let object = wrapper.instance();
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("WaveGenerator");
             ui.add(NumberInputWidget::new(
-                object.amplitude.id(),
+                wavgen.amplitude.id(),
                 "Amplitude",
                 graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
-                object.time.id(),
+                wavgen.time.id(),
                 "Time",
                 graph_tools,
             ));
             ui.add(NumberInputWidget::new(
-                object.frequency.id(),
+                wavgen.frequency.id(),
                 "Frequency",
                 graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
-                object.phase.id(),
+                wavgen.phase.id(),
                 "Phase",
                 graph_tools,
             ));

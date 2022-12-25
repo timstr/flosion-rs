@@ -4,7 +4,7 @@ use eframe::egui::Ui;
 
 use crate::core::{
     arguments::ParsedArguments,
-    graphobject::{GraphObject, ObjectInitialization, TypedGraphObject, WithObjectType},
+    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization, WithObjectType},
     numbersource::PureNumberSource,
     serialization::Deserializer,
     soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
@@ -32,9 +32,9 @@ impl UiFactory {
 
     pub fn register_static_sound_processor<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: StaticSoundProcessor,
+        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: StaticSoundProcessor,
     {
-        let name = <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type::TYPE.name();
+        let name = <<T as ObjectUi>::HandleType as ObjectHandle>::Type::TYPE.name();
         self.mapping.insert(
             name,
             ObjectData {
@@ -45,9 +45,9 @@ impl UiFactory {
 
     pub fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: DynamicSoundProcessor,
+        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: DynamicSoundProcessor,
     {
-        let name = <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type::TYPE.name();
+        let name = <<T as ObjectUi>::HandleType as ObjectHandle>::Type::TYPE.name();
         self.mapping.insert(
             name,
             ObjectData {
@@ -58,9 +58,9 @@ impl UiFactory {
 
     pub fn register_number_source<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: PureNumberSource,
+        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: PureNumberSource,
     {
-        let name = <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type::TYPE.name();
+        let name = <<T as ObjectUi>::HandleType as ObjectHandle>::Type::TYPE.name();
         self.mapping.insert(
             name,
             ObjectData {
@@ -77,9 +77,11 @@ impl UiFactory {
         &*self.mapping.get(object_type_str).unwrap().ui
     }
 
-    pub fn ui(&self, object: &dyn GraphObject, graph_state: &mut GraphUIState, ui: &mut Ui) {
+    // NOTE: Arc is used since some UI objects may want to store an Arc to the graph object,
+    // e.g. in a callback function that is passed elsewhere
+    pub fn ui(&self, object: &GraphObjectHandle, graph_state: &mut GraphUIState, ui: &mut Ui) {
         let name = object.get_type().name();
-        let id = object.get_id();
+        let id = object.id();
         match self.mapping.get(name) {
             Some(data) => {
                 let state_rc = graph_state.get_object_state(id);
@@ -95,7 +97,7 @@ impl UiFactory {
 
     fn create_state_impl(
         &self,
-        object: &dyn GraphObject,
+        object: &GraphObjectHandle,
         init: ObjectInitialization,
     ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
         let name = object.get_type().name();
@@ -108,14 +110,17 @@ impl UiFactory {
         }
     }
 
-    pub fn create_default_state(&self, object: &dyn GraphObject) -> Rc<RefCell<dyn ObjectUiState>> {
+    pub fn create_default_state(
+        &self,
+        object: &GraphObjectHandle,
+    ) -> Rc<RefCell<dyn ObjectUiState>> {
         self.create_state_impl(object, ObjectInitialization::Default)
             .unwrap()
     }
 
     pub fn create_state_from_args(
         &self,
-        object: &dyn GraphObject,
+        object: &GraphObjectHandle,
         args: &ParsedArguments,
     ) -> Rc<RefCell<dyn ObjectUiState>> {
         self.create_state_impl(object, ObjectInitialization::Args(args))
@@ -124,7 +129,7 @@ impl UiFactory {
 
     pub fn create_state_from_archive(
         &self,
-        object: &dyn GraphObject,
+        object: &GraphObjectHandle,
         deserializer: Deserializer,
     ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
         self.create_state_impl(object, ObjectInitialization::Archive(deserializer))

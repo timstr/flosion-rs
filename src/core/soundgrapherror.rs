@@ -6,13 +6,15 @@ use super::{
     soundprocessor::SoundProcessorId,
 };
 
-#[derive(Debug)]
-pub enum SoundConnectionError {
+#[derive(Debug, Eq, PartialEq)]
+pub enum SoundError {
+    ProcessorIdTaken(SoundProcessorId),
+    InputIdTaken(SoundInputId),
     CircularDependency {
         cycle: SoundPath,
     },
     StaticTooManyStates(SoundProcessorId),
-    StaticNotRealtime(SoundProcessorId),
+    StaticNotSynchronous(SoundProcessorId),
     ProcessorNotFound(SoundProcessorId),
     InputNotFound(SoundInputId),
     InputOccupied {
@@ -21,8 +23,10 @@ pub enum SoundConnectionError {
     },
 }
 
-#[derive(Debug)]
-pub enum NumberConnectionError {
+#[derive(Debug, Eq, PartialEq)]
+pub enum NumberError {
+    SourceIdTaken(NumberSourceId),
+    InputIdTaken(NumberInputId),
     CircularDependency {
         cycle: NumberPath,
     },
@@ -34,21 +38,21 @@ pub enum NumberConnectionError {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum SoundGraphError {
-    Number(NumberConnectionError),
-    Sound(SoundConnectionError),
+    Number(NumberError),
+    Sound(SoundError),
 }
 
 impl SoundGraphError {
-    pub fn into_number(self) -> Option<NumberConnectionError> {
+    pub fn into_number(self) -> Option<NumberError> {
         match self {
             SoundGraphError::Number(e) => Some(e),
             _ => None,
         }
     }
 
-    pub fn into_sound(self) -> Option<SoundConnectionError> {
+    pub fn into_sound(self) -> Option<SoundError> {
         match self {
             SoundGraphError::Sound(e) => Some(e),
             _ => None,
@@ -56,14 +60,14 @@ impl SoundGraphError {
     }
 }
 
-impl From<SoundConnectionError> for SoundGraphError {
-    fn from(e: SoundConnectionError) -> SoundGraphError {
+impl From<SoundError> for SoundGraphError {
+    fn from(e: SoundError) -> SoundGraphError {
         SoundGraphError::Sound(e)
     }
 }
 
-impl From<NumberConnectionError> for SoundGraphError {
-    fn from(e: NumberConnectionError) -> SoundGraphError {
+impl From<NumberError> for SoundGraphError {
+    fn from(e: NumberError) -> SoundGraphError {
         SoundGraphError::Number(e)
     }
 }

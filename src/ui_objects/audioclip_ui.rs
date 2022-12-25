@@ -13,12 +13,12 @@ use crate::{
 pub struct AudioClipUi {}
 
 impl ObjectUi for AudioClipUi {
-    type WrapperType = DynamicSoundProcessorHandle<AudioClip>;
+    type HandleType = DynamicSoundProcessorHandle<AudioClip>;
     type StateType = NoUIState;
     fn ui(
         &self,
         id: ObjectId,
-        _object: &DynamicSoundProcessorHandle<AudioClip>,
+        _object: DynamicSoundProcessorHandle<AudioClip>,
         graph_tools: &mut GraphUIState,
         ui: &mut egui::Ui,
         _state: &NoUIState,

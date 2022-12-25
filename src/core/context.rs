@@ -1,4 +1,5 @@
 use super::{
+    anydata::AnyData,
     numberinput::NumberInputId,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
@@ -7,7 +8,6 @@ use super::{
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputTiming, SoundInputId},
     soundprocessor::{ProcessorState, SoundProcessorId},
-    statetree::AnyData,
 };
 
 pub(super) struct ProcessorStackFrame<'a> {
@@ -150,6 +150,9 @@ impl<'a> Context<'a> {
         }
     }
 
+    // TODO: it appears that input states and processor states are always pushed a pair at a time.
+    // Consider avoiding half the indirections by storing both in the same frame, and by making
+    // the root frame always correspond to a static processor without a target input
     pub(super) fn push_input(
         &'a self,
         target: Option<SoundProcessorId>,
@@ -189,20 +192,14 @@ impl<'a> Context<'a> {
     }
 
     pub(super) fn evaluate_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
-        // TODO: avoid a second hashmap lookup here by storing Arc to number source
-        // in each input
-        // TODO (much later): consider avoiding all lookups by storing an optional
-        // Arc to the number source in the input node directly, if/when a mechanism
-        // exists for modifying state trees in place
-        let input = self.topology.number_inputs().get(&input_id).unwrap();
+        let input = self.topology.number_input(input_id).unwrap();
         if input.target().is_none() {
             numeric::fill(dst, input.default_value());
             return;
         }
         let source = self
             .topology
-            .number_sources()
-            .get(&input.target().unwrap())
+            .number_source(input.target().unwrap())
             .unwrap();
         source.instance().eval(dst, self);
     }

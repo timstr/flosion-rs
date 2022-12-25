@@ -39,7 +39,8 @@ impl Dac {
 }
 
 impl StaticSoundProcessor for Dac {
-    type InputType = SingleInput;
+    type SoundInputType = SingleInput;
+    type NumberInputType = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let host = cpal::default_host();
@@ -126,17 +127,32 @@ impl StaticSoundProcessor for Dac {
         });
 
         Ok(Dac {
-            input: SingleInput::new(InputOptions { realtime: true }, &mut tools),
+            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             shared_data,
         })
     }
 
-    fn process_audio(&self, input: &mut SingleInputNode, _dst: &mut SoundChunk, ctx: Context) {
-        if input.needs_reset() || self.shared_data.pending_reset.swap(false, Ordering::SeqCst) {
-            input.reset(0);
+    fn get_sound_input(&self) -> &SingleInput {
+        &self.input
+    }
+
+    fn make_number_inputs(&self) -> Self::NumberInputType {
+        ()
+    }
+
+    fn process_audio(
+        &self,
+        sound_input: &mut SingleInputNode,
+        _number_input: &Self::NumberInputType,
+        _dst: &mut SoundChunk,
+        ctx: Context,
+    ) {
+        if sound_input.needs_reset() || self.shared_data.pending_reset.swap(false, Ordering::SeqCst)
+        {
+            sound_input.reset(0);
         }
         let mut ch = SoundChunk::new();
-        input.step(self, &mut ch, &ctx);
+        sound_input.step(self, &mut ch, &ctx);
 
         if let Err(e) = self.shared_data.chunk_sender.try_send(ch) {
             match e {

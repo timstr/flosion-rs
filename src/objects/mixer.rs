@@ -14,7 +14,7 @@ pub struct Mixer {
     inputs: SingleInputList,
 }
 
-const MIXER_INPUT_OPTIONS: InputOptions = InputOptions { realtime: true };
+const MIXER_INPUT_OPTIONS: InputOptions = InputOptions::Synchronous;
 
 impl Mixer {
     pub fn add_input(&self, tools: &mut SoundProcessorTools) {
@@ -36,7 +36,8 @@ impl Mixer {
 
 impl DynamicSoundProcessor for Mixer {
     type StateType = ();
-    type InputType = SingleInputList;
+    type SoundInputType = SingleInputList;
+    type NumberInputType = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_inputs: usize = match _init {
@@ -52,7 +53,7 @@ impl DynamicSoundProcessor for Mixer {
         })
     }
 
-    fn get_input(&self) -> &Self::InputType {
+    fn get_sound_input(&self) -> &Self::SoundInputType {
         &self.inputs
     }
 
@@ -60,13 +61,18 @@ impl DynamicSoundProcessor for Mixer {
         ()
     }
 
+    fn make_number_inputs(&self) -> Self::NumberInputType {
+        ()
+    }
+
     fn process_audio(
         state: &mut StateAndTiming<()>,
-        inputs: &mut SingleInputListNode,
+        sound_inputs: &mut SingleInputListNode,
+        _number_inputs: &Self::NumberInputType,
         dst: &mut SoundChunk,
         mut context: Context,
     ) -> StreamStatus {
-        let ipts = inputs.get_mut();
+        let ipts = sound_inputs.get_mut();
         if ipts.is_empty() {
             dst.silence();
             return StreamStatus::Done;

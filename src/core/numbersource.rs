@@ -2,7 +2,7 @@ use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
 use super::{
     context::Context,
-    graphobject::{GraphObject, ObjectInitialization, WithObjectType},
+    graphobject::{GraphObjectHandle, ObjectInitialization, WithObjectType},
     numbersourcetools::NumberSourceTools,
     serialization::Serializer,
     soundinput::SoundInputId,
@@ -86,7 +86,8 @@ impl NumberConfig {
 
 pub(crate) trait NumberSource: 'static + Sync + Send {
     fn eval(&self, dst: &mut [f32], context: &Context);
-    fn as_graph_object(self: Arc<Self>, _id: NumberSourceId) -> Option<Box<dyn GraphObject>> {
+
+    fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
         None
     }
 }
@@ -101,45 +102,54 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-impl<T: PureNumberSource> NumberSource for T {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
-        T::eval(self, dst, context)
+pub struct PureNumberSourceWithId<T: PureNumberSource> {
+    source: T,
+    id: NumberSourceId,
+}
+
+impl<T: PureNumberSource> PureNumberSourceWithId<T> {
+    pub(crate) fn new(source: T, id: NumberSourceId) -> PureNumberSourceWithId<T> {
+        PureNumberSourceWithId { source, id }
     }
 
-    fn as_graph_object(self: Arc<Self>, id: NumberSourceId) -> Option<Box<dyn GraphObject>> {
-        Some(Box::new(PureNumberSourceHandle::new(id, Arc::clone(&self))))
+    pub(crate) fn id(&self) -> NumberSourceId {
+        self.id
+    }
+}
+
+impl<T: PureNumberSource> Deref for PureNumberSourceWithId<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.source
+    }
+}
+
+impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
+        T::eval(&*self, dst, context)
+    }
+
+    fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
+        Some(GraphObjectHandle::new(self))
     }
 }
 
 pub struct PureNumberSourceHandle<T: PureNumberSource> {
-    id: NumberSourceId,
-    instance: Arc<T>,
+    instance: Arc<PureNumberSourceWithId<T>>,
 }
 
 impl<T: PureNumberSource> PureNumberSourceHandle<T> {
-    pub(super) fn new(id: NumberSourceId, instance: Arc<T>) -> PureNumberSourceHandle<T> {
-        PureNumberSourceHandle { id, instance }
+    pub(super) fn new(instance: Arc<PureNumberSourceWithId<T>>) -> Self {
+        Self { instance }
     }
 
     pub fn id(&self) -> NumberSourceId {
-        self.id
+        self.instance.id()
     }
 
-    pub fn instance(&self) -> &T {
-        &*self.instance
-    }
-
-    pub(super) fn instance_arc(&self) -> Arc<T> {
-        Arc::clone(&&self.instance)
-    }
-}
-
-impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            instance: Arc::clone(&self.instance),
-        }
+    pub fn into_graph_object(self) -> GraphObjectHandle {
+        GraphObjectHandle::new(self.instance)
     }
 }
 
@@ -147,7 +157,15 @@ impl<T: PureNumberSource> Deref for PureNumberSourceHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.instance()
+        &*self.instance
+    }
+}
+
+impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: Arc::clone(&self.instance),
+        }
     }
 }
 

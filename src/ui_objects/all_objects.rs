@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        graphobject::TypedGraphObject,
+        graphobject::ObjectHandle,
         numbersource::PureNumberSource,
         object_factory::ObjectFactory,
         soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
@@ -39,28 +39,29 @@ impl<'a> RegistrationHelper<'a> {
 
     fn register_static_sound_processor<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: StaticSoundProcessor,
+        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: StaticSoundProcessor,
     {
         self.object_factory
-            .register_static_sound_processor::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
+            .register_static_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>(
+            );
         self.ui_factory.register_static_sound_processor::<T>();
     }
 
     fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: DynamicSoundProcessor,
+        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: DynamicSoundProcessor,
     {
         self.object_factory
-            .register_dynamic_sound_processor::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
+            .register_dynamic_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>();
         self.ui_factory.register_dynamic_sound_processor::<T>();
     }
 
     fn register_number_source<T: ObjectUi>(&mut self)
     where
-        <<T as ObjectUi>::WrapperType as TypedGraphObject>::Type: PureNumberSource,
+        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: PureNumberSource,
     {
         self.object_factory
-            .register_number_source::<<<T as ObjectUi>::WrapperType as TypedGraphObject>::Type>();
+            .register_number_source::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>();
         self.ui_factory.register_number_source::<T>();
     }
 }

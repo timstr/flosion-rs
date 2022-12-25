@@ -7,7 +7,6 @@ use crate::core::{
     serialization::Serializer,
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundinputtypes::NoInputs,
     soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
@@ -15,7 +14,6 @@ use crate::core::{
 
 pub struct AudioClip {
     data: Arc<RwLock<SoundBuffer>>,
-    input: NoInputs,
 }
 
 impl AudioClip {
@@ -41,7 +39,8 @@ impl State for AudioClipState {
 
 impl DynamicSoundProcessor for AudioClip {
     type StateType = AudioClipState;
-    type InputType = NoInputs;
+    type SoundInputType = ();
+    type NumberInputType = ();
 
     fn new(_tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
         let data = match init {
@@ -63,12 +62,11 @@ impl DynamicSoundProcessor for AudioClip {
         };
         Ok(AudioClip {
             data: Arc::new(RwLock::new(data)),
-            input: NoInputs::new(),
         })
     }
 
-    fn get_input(&self) -> &Self::InputType {
-        &self.input
+    fn get_sound_input(&self) -> &Self::SoundInputType {
+        &()
     }
 
     fn make_state(&self) -> Self::StateType {
@@ -78,9 +76,14 @@ impl DynamicSoundProcessor for AudioClip {
         }
     }
 
+    fn make_number_inputs(&self) -> Self::NumberInputType {
+        ()
+    }
+
     fn process_audio(
         state: &mut StateAndTiming<AudioClipState>,
-        _inputs: &mut Self::InputType,
+        _sound_inputs: &mut Self::SoundInputType,
+        _number_inputs: &Self::NumberInputType,
         dst: &mut SoundChunk,
         _context: crate::core::context::Context,
     ) -> StreamStatus {

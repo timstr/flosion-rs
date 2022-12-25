@@ -1,14 +1,20 @@
-use std::any::{type_name, Any};
+use std::{
+    any::{type_name, Any},
+    sync::Arc,
+};
 
 use super::{
     arguments::ParsedArguments,
     numberinput::NumberInputId,
-    numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
+    numbersource::{
+        NumberSourceId, PureNumberSource, PureNumberSourceHandle, PureNumberSourceWithId,
+    },
     serialization::{Deserializer, Serializer},
     soundinput::SoundInputId,
     soundprocessor::{
-        DynamicSoundProcessor, DynamicSoundProcessorHandle, SoundProcessorId, StaticSoundProcessor,
-        StaticSoundProcessorHandle,
+        DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
+        SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
+        StaticSoundProcessorWithId,
     },
 };
 
@@ -119,46 +125,98 @@ impl From<ObjectId> for GraphId {
     }
 }
 
-pub trait GraphObject {
+pub trait GraphObject: 'static + Send + Sync {
     fn get_id(&self) -> ObjectId;
     fn get_type(&self) -> ObjectType;
-    fn as_any(&self) -> &dyn Any;
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
     fn get_language_type_name(&self) -> &'static str;
     fn serialize(&self, serializer: Serializer);
 }
 
-pub trait TypedGraphObject: GraphObject {
+#[derive(Clone)]
+pub struct GraphObjectHandle {
+    instance: Arc<dyn GraphObject>,
+}
+
+impl GraphObjectHandle {
+    pub(super) fn new(instance: Arc<dyn GraphObject>) -> Self {
+        Self { instance }
+    }
+
+    pub(crate) fn id(&self) -> ObjectId {
+        self.instance.get_id()
+    }
+
+    pub(crate) fn get_type(&self) -> ObjectType {
+        self.instance.get_type()
+    }
+
+    pub(crate) fn instance(&self) -> &dyn GraphObject {
+        &*self.instance
+    }
+
+    pub(super) fn into_static_sound_processor<T: StaticSoundProcessor>(
+        self,
+    ) -> Option<StaticSoundProcessorHandle<T>> {
+        let arc_any = self.instance.into_arc_any();
+        match arc_any.downcast::<StaticSoundProcessorWithId<T>>() {
+            Ok(obj) => Some(StaticSoundProcessorHandle::new(obj)),
+            Err(_) => None,
+        }
+    }
+
+    pub(super) fn into_dynamic_sound_processor<T: DynamicSoundProcessor>(
+        self,
+    ) -> Option<DynamicSoundProcessorHandle<T>> {
+        let arc_any = self.instance.into_arc_any();
+        match arc_any.downcast::<DynamicSoundProcessorWithId<T>>() {
+            Ok(obj) => Some(DynamicSoundProcessorHandle::new(obj)),
+            Err(_) => None,
+        }
+    }
+
+    pub(super) fn into_pure_number_source<T: PureNumberSource>(
+        self,
+    ) -> Option<PureNumberSourceHandle<T>> {
+        let arc_any = self.instance.into_arc_any();
+        match arc_any.downcast::<PureNumberSourceWithId<T>>() {
+            Ok(obj) => Some(PureNumberSourceHandle::new(obj)),
+            Err(_) => None,
+        }
+    }
+}
+
+pub trait ObjectHandle: Sized {
     type Type;
+
+    fn from_graph_object(object: GraphObjectHandle) -> Option<Self>;
 }
 
-pub fn object_to_static_sound_processor<T: StaticSoundProcessor>(
-    object: &dyn GraphObject,
-) -> Option<StaticSoundProcessorHandle<T>> {
-    object
-        .as_any()
-        .downcast_ref::<StaticSoundProcessorHandle<T>>()
-        .cloned()
+impl<T: StaticSoundProcessor> ObjectHandle for StaticSoundProcessorHandle<T> {
+    type Type = T;
+
+    fn from_graph_object(object: GraphObjectHandle) -> Option<Self> {
+        object.into_static_sound_processor()
+    }
 }
 
-pub fn object_to_dynamic_sound_processor<T: DynamicSoundProcessor>(
-    object: &dyn GraphObject,
-) -> Option<DynamicSoundProcessorHandle<T>> {
-    object
-        .as_any()
-        .downcast_ref::<DynamicSoundProcessorHandle<T>>()
-        .cloned()
+impl<T: DynamicSoundProcessor> ObjectHandle for DynamicSoundProcessorHandle<T> {
+    type Type = T;
+
+    fn from_graph_object(object: GraphObjectHandle) -> Option<Self> {
+        object.into_dynamic_sound_processor()
+    }
 }
 
-pub fn object_to_number_source<T: PureNumberSource>(
-    object: &dyn GraphObject,
-) -> Option<PureNumberSourceHandle<T>> {
-    object
-        .as_any()
-        .downcast_ref::<PureNumberSourceHandle<T>>()
-        .cloned()
+impl<T: PureNumberSource> ObjectHandle for PureNumberSourceHandle<T> {
+    type Type = T;
+
+    fn from_graph_object(object: GraphObjectHandle) -> Option<Self> {
+        object.into_pure_number_source()
+    }
 }
 
-impl<T: StaticSoundProcessor> GraphObject for StaticSoundProcessorHandle<T> {
+impl<T: StaticSoundProcessor> GraphObject for StaticSoundProcessorWithId<T> {
     fn get_id(&self) -> ObjectId {
         self.id().into()
     }
@@ -167,24 +225,24 @@ impl<T: StaticSoundProcessor> GraphObject for StaticSoundProcessorHandle<T> {
         T::TYPE
     }
 
-    fn as_any(&self) -> &dyn Any {
+    // fn as_any(&self) -> &dyn Any {
+    //     self
+    // }
+
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
         self
     }
 
     fn get_language_type_name(&self) -> &'static str {
-        type_name::<T>()
+        type_name::<Self>()
     }
 
     fn serialize(&self, serializer: Serializer) {
-        self.instance().serialize(serializer);
+        (&*self as &T).serialize(serializer);
     }
 }
 
-impl<T: StaticSoundProcessor> TypedGraphObject for StaticSoundProcessorHandle<T> {
-    type Type = T;
-}
-
-impl<T: DynamicSoundProcessor> GraphObject for DynamicSoundProcessorHandle<T> {
+impl<T: DynamicSoundProcessor> GraphObject for DynamicSoundProcessorWithId<T> {
     fn get_id(&self) -> ObjectId {
         self.id().into()
     }
@@ -193,24 +251,25 @@ impl<T: DynamicSoundProcessor> GraphObject for DynamicSoundProcessorHandle<T> {
         T::TYPE
     }
 
-    fn as_any(&self) -> &dyn Any {
+    // fn as_any(&self) -> &dyn Any {
+    //     self
+    // }
+
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
         self
     }
 
     fn get_language_type_name(&self) -> &'static str {
-        type_name::<T>()
+        type_name::<Self>()
     }
 
     fn serialize(&self, serializer: Serializer) {
-        self.instance().serialize(serializer);
+        let s: &T = &*self;
+        s.serialize(serializer);
     }
 }
 
-impl<T: DynamicSoundProcessor> TypedGraphObject for DynamicSoundProcessorHandle<T> {
-    type Type = T;
-}
-
-impl<T: PureNumberSource> GraphObject for PureNumberSourceHandle<T> {
+impl<T: PureNumberSource> GraphObject for PureNumberSourceWithId<T> {
     fn get_id(&self) -> ObjectId {
         self.id().into()
     }
@@ -219,21 +278,22 @@ impl<T: PureNumberSource> GraphObject for PureNumberSourceHandle<T> {
         T::TYPE
     }
 
-    fn as_any(&self) -> &dyn Any {
+    // fn as_any(&self) -> &dyn Any {
+    //     self
+    // }
+
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
         self
     }
 
     fn get_language_type_name(&self) -> &'static str {
-        type_name::<T>()
+        type_name::<Self>()
     }
 
     fn serialize(&self, serializer: Serializer) {
-        self.instance().serialize(serializer);
+        let s: &T = &*self;
+        s.serialize(serializer);
     }
-}
-
-impl<T: PureNumberSource> TypedGraphObject for PureNumberSourceHandle<T> {
-    type Type = T;
 }
 
 pub enum ObjectInitialization<'a> {

@@ -1,12 +1,15 @@
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::{NumberInputHandle, NumberInputNode},
+    numberinput::NumberInputHandle,
+    numberinputnode::{
+        NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
+        NumberInputNodeVisitorMut,
+    },
     numbersource::StateNumberSourceHandle,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundinputtypes::NoInputs,
     soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
@@ -17,13 +20,27 @@ pub struct WaveGenerator {
     pub time: StateNumberSourceHandle,
     pub amplitude: NumberInputHandle,
     pub frequency: NumberInputHandle,
-    input: NoInputs,
+}
+
+pub struct WaveGeneratorNumberInputs {
+    frequency: NumberInputNode,
+    amplitude: NumberInputNode,
+}
+
+impl NumberInputNodeCollection for WaveGeneratorNumberInputs {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+        visitor.visit_node(&self.frequency);
+        visitor.visit_node(&self.amplitude);
+    }
+
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+        visitor.visit_node(&mut self.frequency);
+        visitor.visit_node(&mut self.amplitude);
+    }
 }
 
 pub struct WaveGeneratorState {
     phase: [f32; CHUNK_SIZE],
-    frequency: NumberInputNode,
-    amplitude: NumberInputNode,
 }
 
 impl State for WaveGeneratorState {
@@ -34,8 +51,8 @@ impl State for WaveGeneratorState {
 
 impl DynamicSoundProcessor for WaveGenerator {
     type StateType = WaveGeneratorState;
-
-    type InputType = NoInputs;
+    type SoundInputType = ();
+    type NumberInputType = WaveGeneratorNumberInputs;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
@@ -47,17 +64,21 @@ impl DynamicSoundProcessor for WaveGenerator {
             time: tools.add_processor_time(),
             amplitude: tools.add_number_input(0.0),
             frequency: tools.add_number_input(250.0),
-            input: NoInputs::default(),
         })
     }
 
-    fn get_input(&self) -> &Self::InputType {
-        &self.input
+    fn get_sound_input(&self) -> &Self::SoundInputType {
+        &()
     }
 
     fn make_state(&self) -> Self::StateType {
         WaveGeneratorState {
             phase: [0.0; CHUNK_SIZE],
+        }
+    }
+
+    fn make_number_inputs(&self) -> Self::NumberInputType {
+        WaveGeneratorNumberInputs {
             frequency: self.frequency.make_node(),
             amplitude: self.amplitude.make_node(),
         }
@@ -65,7 +86,8 @@ impl DynamicSoundProcessor for WaveGenerator {
 
     fn process_audio(
         state: &mut StateAndTiming<WaveGeneratorState>,
-        _inputs: &mut NoInputs,
+        _sound_inputs: &mut (),
+        number_inputs: &WaveGeneratorNumberInputs,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
@@ -73,7 +95,7 @@ impl DynamicSoundProcessor for WaveGenerator {
         // TODO: mark phase_arr as samplewise temporal
         {
             let mut tmp = context.get_scratch_space(state.phase.len());
-            state
+            number_inputs
                 .frequency
                 .eval(&mut tmp, &context.push_processor_state(state));
             numeric::copy(&tmp, &mut state.phase);
@@ -83,7 +105,7 @@ impl DynamicSoundProcessor for WaveGenerator {
         numeric::apply_unary_inplace(&mut state.phase, |x| x - x.floor());
         // TODO: mark dst.l as samplewise temporal
 
-        state
+        number_inputs
             .amplitude
             .eval(&mut dst.l, &context.push_processor_state(state));
         numeric::copy(&dst.l, &mut dst.r);

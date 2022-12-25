@@ -3,15 +3,18 @@ use std::{marker::PhantomData, sync::Arc};
 use parking_lot::RwLock;
 
 use super::{
+    anydata::AnyData,
     context::Context,
-    nodeallocator::NodeAllocator,
     numbersource::{KeyedInputNumberSource, StateNumberSourceHandle},
     soundchunk::SoundChunk,
-    soundinput::{step_sound_input, InputOptions, InputTiming, SoundInputId},
+    soundinput::{InputOptions, InputTiming, SoundInputId},
+    soundinputnode::{
+        SoundInputNode, SoundInputNodeVisitor, SoundInputNodeVisitorMut, SoundProcessorInput,
+    },
     soundprocessor::{ProcessorState, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
-    statetree::{AnyData, ProcessorNodeWrapper, SoundInputNode, SoundProcessorInput},
+    stategraphnode::NodeTarget,
 };
 
 pub struct SingleInput {
@@ -33,28 +36,30 @@ impl SingleInput {
 impl SoundProcessorInput for SingleInput {
     type NodeType = SingleInputNode;
 
-    fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
-        SingleInputNode::new(self.id, allocator.make_state_tree_for(self.id))
+    fn make_node(&self) -> Self::NodeType {
+        SingleInputNode::new(self.id)
     }
 }
 
 pub struct SingleInputNode {
     id: SoundInputId,
     timing: InputTiming,
-    target: Option<Box<dyn ProcessorNodeWrapper>>,
+    target: NodeTarget,
+    active: bool,
 }
 
 impl SingleInputNode {
-    pub fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>) -> SingleInputNode {
+    pub fn new(id: SoundInputId) -> SingleInputNode {
         SingleInputNode {
             id,
             timing: InputTiming::default(),
-            target,
+            target: NodeTarget::new(),
+            active: false,
         }
     }
 
     pub fn is_done(&self) -> bool {
-        self.target.is_none() || self.timing.is_done()
+        self.target.is_empty() || self.timing.is_done()
     }
 
     pub fn request_release(&mut self, sample_offset: usize) {
@@ -67,9 +72,8 @@ impl SingleInputNode {
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
-        step_sound_input(
+        self.target.step(
             &mut self.timing,
-            &mut self.target,
             processor_state,
             dst,
             ctx,
@@ -86,9 +90,7 @@ impl SingleInputNode {
     }
 
     pub fn reset(&mut self, sample_offset: usize) {
-        if let Some(t) = &mut self.target {
-            t.reset();
-        }
+        self.target.reset();
         self.timing.reset(sample_offset);
     }
 }
@@ -96,6 +98,30 @@ impl SingleInputNode {
 impl SoundInputNode for SingleInputNode {
     fn flag_for_reset(&mut self) {
         self.timing.require_reset();
+    }
+
+    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+        if self.active {
+            visitor.visit_input(self.id, 0, &self.target);
+        }
+    }
+
+    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+        if self.active {
+            visitor.visit_input(self.id, 0, &mut self.target);
+        }
+    }
+
+    fn add_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(input_id, self.id);
+        debug_assert!(!self.active);
+        self.active = true;
+    }
+
+    fn remove_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(input_id, self.id);
+        debug_assert!(self.active);
+        self.active = false;
     }
 }
 
@@ -135,11 +161,13 @@ impl<S: State + Default> KeyedInput<S> {
 impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
     type NodeType = KeyedInputNode<S>;
 
-    fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
+    fn make_node(&self) -> Self::NodeType {
         KeyedInputNode {
+            id: self.id,
             data: (0..self.num_keys)
-                .map(|_| KeyedInputData::new(self.id, allocator.make_state_tree_for(self.id)))
+                .map(|_| KeyedInputData::new(self.id))
                 .collect(),
+            active: false,
         }
     }
 }
@@ -147,22 +175,22 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
 pub struct KeyedInputData<S: State + Default> {
     id: SoundInputId,
     timing: InputTiming,
-    target: Option<Box<dyn ProcessorNodeWrapper>>,
+    target: NodeTarget,
     state: S,
 }
 
 impl<S: State + Default> KeyedInputData<S> {
-    fn new(id: SoundInputId, target: Option<Box<dyn ProcessorNodeWrapper>>) -> Self {
+    fn new(id: SoundInputId) -> Self {
         Self {
             id,
             timing: InputTiming::default(),
-            target,
+            target: NodeTarget::new(),
             state: S::default(),
         }
     }
 
     pub fn is_done(&self) -> bool {
-        self.target.is_none() || self.timing.is_done()
+        self.target.is_empty() || self.timing.is_done()
     }
 
     pub fn request_release(&mut self, sample_offset: usize) {
@@ -179,9 +207,8 @@ impl<S: State + Default> KeyedInputData<S> {
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
-        step_sound_input(
+        self.target.step(
             &mut self.timing,
-            &mut self.target,
             processor_state,
             dst,
             ctx,
@@ -206,15 +233,15 @@ impl<S: State + Default> KeyedInputData<S> {
     }
 
     pub fn reset(&mut self, sample_offset: usize) {
-        if let Some(t) = &mut self.target {
-            t.reset();
-        }
+        self.target.reset();
         self.timing.reset(sample_offset);
     }
 }
 
 pub struct KeyedInputNode<S: State + Default> {
+    id: SoundInputId,
     data: Vec<KeyedInputData<S>>,
+    active: bool,
 }
 
 impl<S: State + Default> KeyedInputNode<S> {
@@ -233,28 +260,51 @@ impl<S: State + Default> SoundInputNode for KeyedInputNode<S> {
             d.timing.require_reset();
         }
     }
-}
 
-#[derive(Default)]
-pub struct NoInputs {}
+    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+        if self.active {
+            for (i, d) in self.data.iter().enumerate() {
+                visitor.visit_input(d.id, i, &d.target);
+            }
+        }
+    }
 
-impl NoInputs {
-    pub fn new() -> NoInputs {
-        NoInputs {}
+    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+        if self.active {
+            for (i, d) in self.data.iter_mut().enumerate() {
+                visitor.visit_input(d.id, i, &mut d.target);
+            }
+        }
+    }
+
+    fn add_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(input_id, self.id);
+        debug_assert!(!self.active);
+        self.active = true;
+    }
+
+    fn remove_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(input_id, self.id);
+        debug_assert!(self.active);
+        self.active = true;
+    }
+
+    fn add_key(&mut self, input_id: SoundInputId, index: usize) {
+        debug_assert!(input_id == self.id);
+        self.data.insert(index, KeyedInputData::new(self.id));
+    }
+
+    fn remove_key(&mut self, input_id: SoundInputId, index: usize) {
+        debug_assert!(input_id == self.id);
+        self.data.remove(index);
     }
 }
 
-impl SoundProcessorInput for NoInputs {
-    type NodeType = NoInputs;
+impl SoundProcessorInput for () {
+    type NodeType = ();
 
-    fn make_node(&self, _allocator: &NodeAllocator) -> Self::NodeType {
-        NoInputs {}
-    }
-}
-
-impl SoundInputNode for NoInputs {
-    fn flag_for_reset(&mut self) {
-        // Nothing to do
+    fn make_node(&self) -> Self::NodeType {
+        ()
     }
 }
 
@@ -292,7 +342,7 @@ impl SingleInputList {
     pub fn remove_input(&self, id: SoundInputId, tools: &mut SoundProcessorTools) {
         let mut input_ids = self.input_ids.write();
         assert!(input_ids.iter().filter(|i| **i == id).count() == 1);
-        tools.remove_sound_input(id);
+        tools.remove_sound_input(id, tools.processor_id());
         input_ids.retain(|i| *i != id);
     }
 
@@ -308,13 +358,13 @@ impl SingleInputList {
 impl SoundProcessorInput for SingleInputList {
     type NodeType = SingleInputListNode;
 
-    fn make_node(&self, allocator: &NodeAllocator) -> Self::NodeType {
+    fn make_node(&self) -> Self::NodeType {
         SingleInputListNode {
             inputs: self
                 .input_ids
                 .read()
                 .iter()
-                .map(|id| SingleInputNode::new(*id, allocator.make_state_tree_for(*id)))
+                .map(|id| SingleInputNode::new(*id))
                 .collect(),
         }
     }
@@ -338,5 +388,25 @@ impl SoundInputNode for SingleInputListNode {
         for i in &mut self.inputs {
             i.flag_for_reset();
         }
+    }
+
+    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+        for i in &self.inputs {
+            visitor.visit_input(i.id, 0, &i.target);
+        }
+    }
+
+    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+        for i in &mut self.inputs {
+            visitor.visit_input(i.id, 0, &mut i.target);
+        }
+    }
+
+    fn add_input(&mut self, input_id: SoundInputId) {
+        self.inputs.push(SingleInputNode::new(input_id));
+    }
+
+    fn remove_input(&mut self, input_id: SoundInputId) {
+        self.inputs.retain(|i| i.id != input_id);
     }
 }

@@ -3,7 +3,7 @@ use super::{
     soundprocessor::SoundProcessorId,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SoundPath {
     pub connections: Vec<(SoundProcessorId, SoundInputId)>,
 }
@@ -48,7 +48,7 @@ impl SoundPath {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NumberPath {
     pub connections: Vec<(NumberSourceId, NumberInputId)>,
 }

@@ -1,24 +1,47 @@
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
+        mpsc::{channel, Receiver, Sender},
         Arc,
     },
+    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
-use parking_lot::RwLock;
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use crate::core::{context::Context, soundchunk::SoundChunk};
+use crate::core::stategraphvalidation::state_graph_matches_topology;
 
 use super::{
     samplefrequency::SAMPLE_FREQUENCY, scratcharena::ScratchArena, soundchunk::CHUNK_SIZE,
-    soundgraphtopology::SoundGraphTopology,
+    soundgraphedit::SoundGraphEdit, soundgraphtopology::SoundGraphTopology, stategraph::StateGraph,
 };
 
-pub(super) struct SoundEngine {
-    topology: Arc<RwLock<SoundGraphTopology>>,
+pub(super) struct SoundEngineInterface {
     keep_running: Arc<AtomicBool>,
+    edit_queue: Sender<SoundGraphEdit>,
+    join_handle: Option<JoinHandle<()>>,
+}
+
+impl SoundEngineInterface {
+    pub(super) fn make_edit(&self, edit: SoundGraphEdit) {
+        self.edit_queue.send(edit).unwrap();
+    }
+}
+
+impl Drop for SoundEngineInterface {
+    fn drop(&mut self) {
+        self.keep_running.store(false, Ordering::SeqCst);
+        self.join_handle.take().unwrap().join().unwrap();
+    }
+}
+
+pub(super) struct SoundEngine {
+    topology: SoundGraphTopology,
+    state_graph: StateGraph,
+    keep_running: Arc<AtomicBool>,
+    edit_queue: Receiver<SoundGraphEdit>,
+    deadline_warning_issued: bool,
 }
 
 impl SoundEngine {
@@ -26,22 +49,29 @@ impl SoundEngine {
         static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
     }
 
-    pub(super) fn new() -> (SoundEngine, Arc<AtomicBool>) {
-        let keep_running = Arc::new(AtomicBool::new(false));
-        (
-            SoundEngine {
-                topology: Arc::new(RwLock::new(SoundGraphTopology::new())),
-                keep_running: Arc::clone(&keep_running),
-            },
+    pub(super) fn spawn() -> SoundEngineInterface {
+        let keep_running = Arc::new(AtomicBool::new(true));
+        let keep_running_also = Arc::clone(&keep_running);
+        let (sender, receiver) = channel();
+        let join_handle = thread::spawn(move || {
+            // NOTE: state_graph is not Send, and so must be constructed on the audio thread
+            let mut se = SoundEngine {
+                topology: SoundGraphTopology::new(),
+                state_graph: StateGraph::new(),
+                keep_running: keep_running_also,
+                edit_queue: receiver,
+                deadline_warning_issued: false,
+            };
+            se.run();
+        });
+        SoundEngineInterface {
             keep_running,
-        )
+            edit_queue: sender,
+            join_handle: Some(join_handle),
+        }
     }
 
-    pub(super) fn topology(&self) -> Arc<RwLock<SoundGraphTopology>> {
-        Arc::clone(&self.topology)
-    }
-
-    pub(super) fn run(&mut self) {
+    fn run(&mut self) {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
         let chunk_duration = Duration::from_micros((1_000_000.0 / chunks_per_sec) as u64);
 
@@ -57,8 +87,12 @@ impl SoundEngine {
 
             let now = Instant::now();
             if now > deadline {
-                println!("WARNING: SoundEngine missed a deadline");
+                if !self.deadline_warning_issued {
+                    println!("WARNING: SoundEngine missed a deadline");
+                    self.deadline_warning_issued = true;
+                }
             } else {
+                self.deadline_warning_issued = false;
                 let delta = deadline.duration_since(now);
                 spin_sleep::sleep(delta);
             }
@@ -66,45 +100,24 @@ impl SoundEngine {
         }
     }
 
+    fn flush_updates(&mut self) {
+        while let Ok(edit) = self.edit_queue.try_recv() {
+            println!("SoundEngine: {}", edit.name());
+            self.topology.make_edit(edit.clone());
+            self.state_graph.make_edit(edit, &self.topology);
+            debug_assert!(state_graph_matches_topology(
+                &self.state_graph,
+                &self.topology
+            ));
+        }
+    }
+
     fn process_audio(&mut self) {
-        let topology = self.topology.read();
-        debug_assert!(
-            topology.static_processors().iter().all(|sp| topology
-                .sound_processors()
-                .get(&sp.processor_id())
-                .is_some()),
-            "The cached static processor ids should all exist"
-        );
-        debug_assert!(
-            topology
-                .sound_processors()
-                .iter()
-                .filter_map(|(pid, pdata)| if pdata.instance().is_static() {
-                    Some(*pid)
-                } else {
-                    None
-                })
-                .all(|pid| topology
-                    .static_processors()
-                    .iter()
-                    .find(|sp| pid == sp.processor_id())
-                    .is_some()),
-            "All static processors should be in the cache"
-        );
-
-        for cache in topology.static_processors() {
-            *cache.output().write() = None;
-        }
-
-        for cache in topology.static_processors() {
-            let mut ch = SoundChunk::new();
-            Self::SCRATCH_SPACE.with(|scratch_space| {
-                cache.tree().write().process_audio(
-                    &mut ch,
-                    Context::new(cache.processor_id(), &*topology, scratch_space),
-                );
-            });
-            *cache.output().write() = Some(ch);
-        }
+        self.flush_updates();
+        Self::SCRATCH_SPACE.with(|scratch_space| {
+            for entry_point in self.state_graph.entry_points() {
+                entry_point.invoke_externally(&self.topology, scratch_space);
+            }
+        });
     }
 }

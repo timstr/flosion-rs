@@ -14,12 +14,12 @@ use crate::{
 pub struct ResamplerUi {}
 
 impl ObjectUi for ResamplerUi {
-    type WrapperType = DynamicSoundProcessorHandle<Resampler>;
+    type HandleType = DynamicSoundProcessorHandle<Resampler>;
     type StateType = NoUIState;
     fn ui(
         &self,
         id: ObjectId,
-        object: &DynamicSoundProcessorHandle<Resampler>,
+        resampler: DynamicSoundProcessorHandle<Resampler>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,
@@ -28,12 +28,12 @@ impl ObjectUi for ResamplerUi {
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("Resampler");
             ui.add(SoundInputWidget::new(
-                object.input.id(),
+                resampler.input.id(),
                 "Input",
                 graph_tools,
             ));
             ui.add(NumberInputWidget::new(
-                object.speed_ratio.id(),
+                resampler.speed_ratio.id(),
                 "Speed Ratio",
                 graph_tools,
             ));

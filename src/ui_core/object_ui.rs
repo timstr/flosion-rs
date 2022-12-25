@@ -8,7 +8,7 @@ use eframe::egui::{self};
 
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
-    graphobject::{GraphId, GraphObject, ObjectId, ObjectInitialization, TypedGraphObject},
+    graphobject::{GraphId, GraphObjectHandle, ObjectHandle, ObjectId, ObjectInitialization},
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
     serialization::{Deserializer, Serializable, Serializer},
@@ -37,12 +37,12 @@ pub enum UiInitialization<'a> {
 }
 
 pub trait ObjectUi: 'static + Default {
-    type WrapperType: TypedGraphObject;
+    type HandleType: ObjectHandle;
     type StateType: Any + Default + Serializable;
     fn ui(
         &self,
         id: ObjectId,
-        wrapper: &Self::WrapperType,
+        handle: Self::HandleType,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
         state: &Self::StateType,
@@ -58,7 +58,7 @@ pub trait ObjectUi: 'static + Default {
 
     fn make_ui_state(
         &self,
-        _wrapper: &Self::WrapperType,
+        _handle: &Self::HandleType,
         _init: UiInitialization,
     ) -> Self::StateType {
         Self::StateType::default()
@@ -69,7 +69,7 @@ pub trait AnyObjectUi {
     fn apply(
         &self,
         id: ObjectId,
-        object: &dyn GraphObject,
+        object: &GraphObjectHandle,
         object_ui_state: &dyn ObjectUiState,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
@@ -81,32 +81,47 @@ pub trait AnyObjectUi {
 
     fn make_ui_state(
         &self,
-        object: &dyn GraphObject,
+        object: &GraphObjectHandle,
         init: ObjectInitialization,
     ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()>;
 }
 
-fn downcast_object<T: ObjectUi>(object: &dyn GraphObject) -> &T::WrapperType {
-    let any = object.as_any();
-    debug_assert!(
-        any.is::<T::WrapperType>(),
-        "AnyObjectUi expected to receive type {}, but got {} instead",
-        type_name::<T::WrapperType>(),
-        object.get_language_type_name()
-    );
-    any.downcast_ref::<T::WrapperType>().unwrap()
-}
+// fn downcast_object_arc<T: ObjectUi>(object: Arc<dyn GraphObject>) -> Arc<T::WrapperType> {
+//     let actual_type_name = object.get_language_type_name();
+//     let any = object.into_arc_any();
+//     debug_assert!(
+//         any.is::<Arc<T::WrapperType>>(),
+//         "AnyObjectUi expected to receive type {}, but got {} instead",
+//         type_name::<T::WrapperType>(),
+//         actual_type_name
+//     );
+//     any.downcast_ref::<Arc<T::WrapperType>>()
+//         .map(Arc::clone)
+//         .unwrap()
+// }
+
+// fn downcast_object_ref<T: ObjectUi>(object: &dyn GraphObject) -> &T::WrapperType {
+//     let any = object.as_any();
+//     debug_assert!(
+//         any.is::<T::WrapperType>(),
+//         "AnyObjectUi expected to receive type {}, but got {} instead",
+//         type_name::<T::WrapperType>(),
+//         object.get_language_type_name()
+//     );
+//     any.downcast_ref::<T::WrapperType>().unwrap()
+// }
 
 impl<T: ObjectUi> AnyObjectUi for T {
     fn apply(
         &self,
         id: ObjectId,
-        object: &dyn GraphObject,
+        object: &GraphObjectHandle,
         object_ui_state: &dyn ObjectUiState,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     ) {
-        let dc_object = downcast_object::<T>(object);
+        // let dc_object = downcast_object_arc::<T>(object.clone().instance_arc());
+        let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let state_any = object_ui_state.as_any();
         debug_assert!(
             state_any.is::<T::StateType>(),
@@ -115,7 +130,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
             object_ui_state.get_language_type_name()
         );
         let state = state_any.downcast_ref::<T::StateType>().unwrap();
-        self.ui(id, dc_object, graph_state, ui, state);
+        self.ui(id, handle, graph_state, ui, state);
     }
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -128,18 +143,15 @@ impl<T: ObjectUi> AnyObjectUi for T {
 
     fn make_ui_state(
         &self,
-        object: &dyn GraphObject,
+        object: &GraphObjectHandle,
         init: ObjectInitialization,
     ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
-        let dc_object = downcast_object::<T>(object);
+        // let dc_object = downcast_object_ref::<T>(object.instance());
+        let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let state: T::StateType = match init {
-            ObjectInitialization::Args(a) => {
-                self.make_ui_state(dc_object, UiInitialization::Args(a))
-            }
+            ObjectInitialization::Args(a) => self.make_ui_state(&handle, UiInitialization::Args(a)),
             ObjectInitialization::Archive(mut a) => T::StateType::deserialize(&mut a)?,
-            ObjectInitialization::Default => {
-                self.make_ui_state(dc_object, UiInitialization::Default)
-            }
+            ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
         };
         Ok(Rc::new(RefCell::new(state)))
     }

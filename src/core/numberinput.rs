@@ -1,8 +1,8 @@
 use std::slice;
 
 use super::{
-    context::Context, numbersource::NumberSourceId, soundprocessor::SoundProcessorId,
-    state::StateOwner, uniqueid::UniqueId,
+    context::Context, numberinputnode::NumberInputNode, numbersource::NumberSourceId,
+    soundprocessor::SoundProcessorId, state::StateOwner, uniqueid::UniqueId,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -47,15 +47,20 @@ impl NumberInputOwner {
 
 pub struct NumberInputHandle {
     id: NumberInputId,
+    owner: NumberInputOwner,
 }
 
 impl NumberInputHandle {
-    pub(super) fn new(id: NumberInputId) -> NumberInputHandle {
-        NumberInputHandle { id }
+    pub(super) fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
+        NumberInputHandle { id, owner }
     }
 
     pub fn id(&self) -> NumberInputId {
         self.id
+    }
+
+    pub(super) fn owner(&self) -> NumberInputOwner {
+        self.owner
     }
 
     pub fn make_node(&self) -> NumberInputNode {
@@ -70,26 +75,5 @@ impl NumberInputHandle {
         let mut x: f32 = 0.0;
         context.evaluate_number_input(self.id, slice::from_mut(&mut x));
         x
-    }
-}
-
-pub struct NumberInputNode {
-    id: NumberInputId,
-}
-
-impl NumberInputNode {
-    pub(super) fn new(id: NumberInputId) -> Self {
-        Self { id }
-    }
-
-    pub fn eval(&self, dst: &mut [f32], context: &Context) {
-        context.evaluate_number_input(self.id, dst);
-    }
-
-    pub fn eval_scalar(&self, context: &Context) -> f32 {
-        let mut dst: f32 = 0.0;
-        let s = slice::from_mut(&mut dst);
-        context.evaluate_number_input(self.id, s);
-        dst
     }
 }

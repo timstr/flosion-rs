@@ -11,7 +11,6 @@ use crate::{
         object_factory::ObjectFactory,
         serialization::Archive,
         soundgraph::SoundGraph,
-        soundgraphdescription::SoundGraphDescription,
         soundgraphtopology::SoundGraphTopology,
     },
     ui_objects::all_objects::all_objects,
@@ -46,15 +45,13 @@ pub struct FlosionApp {
 impl FlosionApp {
     pub fn new(_cc: &eframe::CreationContext) -> FlosionApp {
         // TODO: learn about what CreationContext offers
-        let mut graph = SoundGraph::new();
-        graph.start();
-        let topo = graph.topology();
+        let graph = SoundGraph::new();
         let (object_factory, ui_factory) = all_objects();
         let object_factory = Arc::new(RwLock::new(object_factory));
         let ui_factory = Arc::new(RwLock::new(ui_factory));
         FlosionApp {
             graph,
-            ui_state: GraphUIState::new(topo, Arc::clone(&ui_factory)),
+            ui_state: GraphUIState::new(Arc::clone(&ui_factory)),
             object_factory,
             ui_factory,
             summon_state: None,
@@ -68,8 +65,8 @@ impl FlosionApp {
         graph: &SoundGraph,
         ui_state: &mut GraphUIState,
     ) {
-        for object in graph.graph_objects() {
-            factory.ui(object.as_ref(), ui_state, ui);
+        for object in graph.topology().graph_objects() {
+            factory.ui(&object, ui_state, ui);
         }
     }
 
@@ -77,28 +74,29 @@ impl FlosionApp {
         key: egui::Key,
         modifiers: egui::Modifiers,
         ui_state: &mut GraphUIState,
-        desc: &SoundGraphDescription,
+        topo: &SoundGraphTopology,
     ) -> bool {
         if key == egui::Key::Escape {
-            return ui_state.cancel_hotkey(desc);
+            return ui_state.cancel_hotkey(topo);
         }
         if modifiers.any() {
             return false;
         }
-        ui_state.activate_hotkey(key, desc)
+        ui_state.activate_hotkey(key, topo)
     }
 
     fn handle_shortcuts_selection(
         key: egui::Key,
         modifiers: egui::Modifiers,
         ui_state: &mut GraphUIState,
+        topo: &SoundGraphTopology,
     ) -> bool {
         if !modifiers.command_only() {
             return false;
         }
         match key {
             egui::Key::A => {
-                ui_state.select_all();
+                ui_state.select_all(topo);
                 true
             }
             egui::Key::D => {
@@ -113,7 +111,7 @@ impl FlosionApp {
         key: egui::Key,
         modifiers: egui::Modifiers,
         ui_state: &mut GraphUIState,
-        graph: &SoundGraph,
+        graph: &mut SoundGraph,
         object_factory: &ObjectFactory,
         ui_factory: &UiFactory,
     ) -> bool {
@@ -138,7 +136,7 @@ impl FlosionApp {
                     }
                 };
                 // TODO: no need to base64 encode
-                let data = Self::serialize(ui_state, &graph.topology().read(), false).unwrap();
+                let data = Self::serialize(ui_state, &graph, false).unwrap();
                 let mut file = match File::create(&path) {
                     Ok(f) => f,
                     Err(e) => {
@@ -170,7 +168,7 @@ impl FlosionApp {
                 let mut file = match File::open(&path) {
                     Ok(f) => f,
                     Err(e) => {
-                        println!("Failed to create file: {}", e);
+                        println!("Failed to open file: {}", e);
                         return true;
                     }
                 };
@@ -179,13 +177,9 @@ impl FlosionApp {
                     println!("Failed to read file at {}: {}", path.to_str().unwrap(), e);
                     return true;
                 }
-                if let Err(_) = Self::deserialize(
-                    ui_state,
-                    &data,
-                    &mut graph.topology().write(),
-                    object_factory,
-                    ui_factory,
-                ) {
+                if let Err(_) =
+                    Self::deserialize(ui_state, &data, graph, object_factory, ui_factory)
+                {
                     println!("Error while deserializing objects");
                 }
                 true
@@ -232,8 +226,6 @@ impl FlosionApp {
         }
     }
 
-    // TODO: does graph need to be mutated here?
-    // can GraphUIState.make_change be used instead?
     fn handle_summon_widget(&mut self, ui: &mut Ui, bg_response: &Response) {
         let pointer_pos = bg_response.interact_pointer_pos();
         if bg_response.double_clicked() {
@@ -258,7 +250,7 @@ impl FlosionApp {
                     // See also note in Constant::new
                     let new_object = self.object_factory.read().create_from_args(
                         type_name,
-                        &mut self.graph.topology().write(),
+                        &mut self.graph,
                         &args,
                     );
                     let new_object = match new_object {
@@ -271,26 +263,25 @@ impl FlosionApp {
                     let new_state = self
                         .ui_factory
                         .read()
-                        .create_state_from_args(&*new_object, &args);
-                    self.ui_state
-                        .set_object_state(new_object.get_id(), new_state);
+                        .create_state_from_args(&new_object, &args);
+                    self.ui_state.set_object_state(new_object.id(), new_state);
                     self.ui_state.clear_selection();
-                    self.ui_state.select_object(new_object.get_id());
+                    self.ui_state.select_object(new_object.id());
                 }
                 self.summon_state = None;
             }
         }
     }
 
-    fn handle_dropped_pegs(ui: &mut Ui, ui_state: &mut GraphUIState, desc: &SoundGraphDescription) {
-        let (id_src, p) = match ui_state.peg_being_dropped() {
+    fn handle_dropped_pegs(ui: &mut Ui, ui_state: &mut GraphUIState, topo: &SoundGraphTopology) {
+        let (id_src, p) = match ui_state.take_peg_being_dropped() {
             Some(x) => x,
             None => return,
         };
         let id_dst = ui_state.layout_state().find_peg_near(p, ui);
         match id_src {
             GraphId::NumberInput(niid) => {
-                if desc.number_inputs().get(&niid).unwrap().target().is_some() {
+                if topo.number_input(niid).unwrap().target().is_some() {
                     ui_state.make_change(move |g| {
                         g.disconnect_number_input(niid)
                             .unwrap_or_else(|e| println!("Error: {:?}", e))
@@ -312,7 +303,7 @@ impl FlosionApp {
                 }
             }
             GraphId::SoundInput(siid) => {
-                if desc.sound_inputs().get(&siid).unwrap().target().is_some() {
+                if topo.sound_input(siid).unwrap().target().is_some() {
                     ui_state.make_change(move |g| g.disconnect_sound_input(siid).unwrap());
                 }
                 if let Some(GraphId::SoundProcessor(spid)) = id_dst {
@@ -356,7 +347,7 @@ impl FlosionApp {
         }
     }
 
-    fn draw_wires(ui: &mut Ui, ui_state: &GraphUIState, desc: &SoundGraphDescription) {
+    fn draw_wires(ui: &mut Ui, ui_state: &GraphUIState, topo: &SoundGraphTopology) {
         // TODO: consider choosing which layer to paint the wire on, rather
         // than always painting the wire on top. However, choosing the layer
         // won't always be correct (an object might be positioned on top of
@@ -370,7 +361,7 @@ impl FlosionApp {
             |ui| {
                 let painter = ui.painter();
                 let drag_peg = ui_state.peg_being_dragged();
-                for (siid, si) in desc.sound_inputs() {
+                for (siid, si) in topo.sound_inputs() {
                     if let Some(spid) = si.target() {
                         let layout = ui_state.layout_state();
                         let si_state = layout.sound_inputs().get(siid).unwrap();
@@ -390,7 +381,7 @@ impl FlosionApp {
                         );
                     }
                 }
-                for (niid, ni) in desc.number_inputs() {
+                for (niid, ni) in topo.number_inputs() {
                     if let Some(nsid) = ni.target() {
                         let layout = ui_state.layout_state();
                         let ni_state = layout.number_inputs().get(niid).unwrap();
@@ -420,7 +411,7 @@ impl FlosionApp {
                     let color;
                     match gid {
                         GraphId::NumberInput(niid) => {
-                            if let Some(nsid) = desc.number_inputs().get(&niid).unwrap().target() {
+                            if let Some(nsid) = topo.number_input(niid).unwrap().target() {
                                 other_pos = layout.number_outputs().get(&nsid).unwrap().center();
                             } else {
                                 other_pos = layout.number_inputs().get(&niid).unwrap().center();
@@ -432,7 +423,7 @@ impl FlosionApp {
                             color = egui::Color32::from_rgb(0, 0, 255);
                         }
                         GraphId::SoundInput(siid) => {
-                            if let Some(spid) = desc.sound_inputs().get(&siid).unwrap().target() {
+                            if let Some(spid) = topo.sound_input(siid).unwrap().target() {
                                 other_pos = layout.sound_outputs().get(&spid).unwrap().center();
                             } else {
                                 other_pos = layout.sound_inputs().get(&siid).unwrap().center();
@@ -450,18 +441,21 @@ impl FlosionApp {
         );
     }
 
-    // TODO: make this fail-proof
     fn delete_selection(ui_state: &mut GraphUIState) {
-        let selection = ui_state.selection();
-        ui_state.make_change(move |g| g.remove_objects(selection.into_iter()));
+        let selection: Vec<ObjectId> = ui_state.selection().iter().cloned().collect();
+        ui_state.make_change(move |g| {
+            if let Err(e) = g.remove_objects_batch(&selection) {
+                println!("Nope! Can't remove those:\n    {:?}", e);
+            }
+        });
     }
 
     fn serialize(
         ui_state: &GraphUIState,
-        topo: &SoundGraphTopology,
+        graph: &SoundGraph,
         use_selection: bool,
     ) -> Option<String> {
-        debug_assert!(ui_state.check_invariants());
+        debug_assert!(ui_state.check_invariants(graph.topology()));
         let selection = if use_selection {
             let s = ui_state.selection();
             if s.is_empty() {
@@ -472,7 +466,7 @@ impl FlosionApp {
             None
         };
         let archive = Archive::serialize_with(|mut serializer| {
-            let idmap = serialize_sound_graph(topo, selection.as_ref(), &mut serializer);
+            let idmap = serialize_sound_graph(graph, selection.as_ref(), &mut serializer);
             ui_state.serialize_ui_states(&mut serializer, selection.as_ref(), &idmap);
         });
         let bytes = archive.into_vec();
@@ -483,31 +477,27 @@ impl FlosionApp {
     fn deserialize(
         ui_state: &mut GraphUIState,
         data: &str,
-        topo: &mut SoundGraphTopology,
+        graph: &mut SoundGraph,
         object_factory: &ObjectFactory,
         ui_factory: &UiFactory,
     ) -> Result<Vec<ObjectId>, ()> {
         let bytes = base64::decode(data).map_err(|_| ())?;
         let archive = Archive::from_vec(bytes);
         let mut deserializer = archive.deserialize()?;
-        let (objects, idmap) = deserialize_sound_graph(topo, &mut deserializer, object_factory)?;
-        ui_state.deserialize_ui_states(&mut deserializer, &idmap, topo, ui_factory)?;
+        let (objects, idmap) = deserialize_sound_graph(graph, &mut deserializer, object_factory)?;
+        ui_state.deserialize_ui_states(&mut deserializer, &idmap, graph.topology(), ui_factory)?;
         Ok(objects)
     }
 
-    fn handle_event(&mut self, event: &egui::Event, ui: &egui::Ui, desc: &SoundGraphDescription) {
+    fn handle_event(&mut self, event: &egui::Event, ui: &egui::Ui) {
         match event {
             egui::Event::Copy => {
-                if let Some(s) =
-                    Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
-                {
+                if let Some(s) = Self::serialize(&self.ui_state, &self.graph, true) {
                     ui.output().copied_text = s;
                 }
             }
             egui::Event::Cut => {
-                if let Some(s) =
-                    Self::serialize(&self.ui_state, &self.graph.topology().read(), true)
-                {
+                if let Some(s) = Self::serialize(&self.ui_state, &self.graph, true) {
                     ui.output().copied_text = s;
                 }
                 Self::delete_selection(&mut self.ui_state);
@@ -516,7 +506,7 @@ impl FlosionApp {
                 let res = Self::deserialize(
                     &mut self.ui_state,
                     data,
-                    &mut self.graph.topology().write(),
+                    &mut self.graph,
                     &self.object_factory.read(),
                     &self.ui_factory.read(),
                 );
@@ -535,14 +525,19 @@ impl FlosionApp {
                 if !pressed {
                     return;
                 }
-                if Self::handle_shortcuts_selection(*key, *modifiers, &mut self.ui_state) {
+                if Self::handle_shortcuts_selection(
+                    *key,
+                    *modifiers,
+                    &mut self.ui_state,
+                    self.graph.topology(),
+                ) {
                     return;
                 }
                 if Self::handle_shortcuts_save_open(
                     *key,
                     *modifiers,
                     &mut self.ui_state,
-                    &self.graph,
+                    &mut self.graph,
                     &self.object_factory.read(),
                     &self.ui_factory.read(),
                 ) {
@@ -552,7 +547,8 @@ impl FlosionApp {
                     Self::delete_selection(&mut self.ui_state);
                     return;
                 }
-                if Self::handle_hotkey(*key, *modifiers, &mut self.ui_state, &desc) {
+                if Self::handle_hotkey(*key, *modifiers, &mut self.ui_state, self.graph.topology())
+                {
                     return;
                 }
             }
@@ -565,20 +561,11 @@ impl FlosionApp {
 impl eframe::App for FlosionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let running = self.graph.is_running();
-            if ui.button(if running { "Pause" } else { "Play" }).clicked() {
-                if running {
-                    self.graph.stop();
-                } else {
-                    self.graph.start();
-                }
-            }
             self.ui_state.reset_pegs();
             {
                 let factory = self.ui_factory.read();
                 Self::draw_all_objects(ui, &factory, &self.graph, &mut self.ui_state);
             }
-            let desc = self.graph.describe();
             let screen_rect = ui.input().screen_rect();
             let bg_response = ui.interact(
                 screen_rect,
@@ -592,24 +579,27 @@ impl eframe::App for FlosionApp {
                 &mut self.ui_state,
             );
             self.handle_summon_widget(ui, &bg_response);
-            Self::handle_dropped_pegs(ui, &mut self.ui_state, &desc);
 
-            Self::draw_selection_rect(ui, &self.selection_area);
-
-            Self::draw_wires(ui, &self.ui_state, &desc);
+            {
+                let topo = self.graph.topology();
+                Self::handle_dropped_pegs(ui, &mut self.ui_state, &topo);
+                Self::draw_selection_rect(ui, &self.selection_area);
+                Self::draw_wires(ui, &self.ui_state, &topo);
+            }
 
             if self.summon_state.is_none() {
                 let events = std::mem::take(&mut ctx.input_mut().events);
                 for event in &events {
-                    self.handle_event(event, ui, &desc);
+                    self.handle_event(event, ui);
                 }
             }
 
-            debug_assert!(self.ui_state.check_invariants());
+            debug_assert!(self.ui_state.check_invariants(self.graph.topology()));
             self.ui_state.apply_pending_changes(&mut self.graph);
-            self.ui_state.make_states_for_new_objects();
-            self.ui_state.cleanup();
-            debug_assert!(self.ui_state.check_invariants());
+            self.ui_state
+                .make_states_for_new_objects(self.graph.topology());
+            self.ui_state.cleanup(self.graph.topology());
+            debug_assert!(self.ui_state.check_invariants(self.graph.topology()));
         });
     }
 }

@@ -61,7 +61,8 @@ impl Recorder {
 }
 
 impl StaticSoundProcessor for Recorder {
-    type InputType = SingleInput;
+    type SoundInputType = SingleInput;
+    type NumberInputType = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let buf = match _init {
@@ -69,7 +70,7 @@ impl StaticSoundProcessor for Recorder {
             _ => SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP),
         };
         let r = Recorder {
-            input: SingleInput::new(InputOptions { realtime: true }, &mut tools),
+            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             recorded_chunk_groups: RwLock::new(vec![buf]),
             recording: AtomicBool::new(false),
         };
@@ -77,11 +78,25 @@ impl StaticSoundProcessor for Recorder {
         Ok(r)
     }
 
-    fn process_audio(&self, inputs: &mut SingleInputNode, dst: &mut SoundChunk, ctx: Context) {
-        if inputs.needs_reset() {
-            inputs.reset(0);
+    fn get_sound_input(&self) -> &Self::SoundInputType {
+        &self.input
+    }
+
+    fn make_number_inputs(&self) -> Self::NumberInputType {
+        ()
+    }
+
+    fn process_audio(
+        &self,
+        sound_inputs: &mut SingleInputNode,
+        _number_inputs: &Self::NumberInputType,
+        dst: &mut SoundChunk,
+        ctx: Context,
+    ) {
+        if sound_inputs.needs_reset() {
+            sound_inputs.reset(0);
         }
-        let s = inputs.step(self, dst, &ctx);
+        let s = sound_inputs.step(self, dst, &ctx);
         let recording = self.recording.load(Ordering::Relaxed);
         if !recording || s == StreamStatus::Done {
             return;

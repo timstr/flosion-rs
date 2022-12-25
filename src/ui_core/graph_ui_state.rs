@@ -17,8 +17,8 @@ use crate::core::{
     numbersource::{NumberSourceId, NumberSourceOwner},
     serialization::{Deserializer, Serializable, Serializer},
     soundgraph::SoundGraph,
-    soundgraphdescription::SoundGraphDescription,
     soundgraphtopology::SoundGraphTopology,
+    soundgraphvalidation::{validate_number_connection, validate_sound_connection},
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
     uniqueid::UniqueId,
@@ -346,21 +346,16 @@ pub struct GraphUIState {
     object_states: HashMap<ObjectId, Rc<RefCell<dyn ObjectUiState>>>,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph) -> ()>>,
     mode: UiMode,
-    graph_topology: Arc<RwLock<SoundGraphTopology>>,
     ui_factory: Arc<RwLock<UiFactory>>,
 }
 
 impl GraphUIState {
-    pub(super) fn new(
-        topology: Arc<RwLock<SoundGraphTopology>>,
-        object_factory: Arc<RwLock<UiFactory>>,
-    ) -> GraphUIState {
+    pub(super) fn new(object_factory: Arc<RwLock<UiFactory>>) -> GraphUIState {
         GraphUIState {
             layout_state: GraphLayout::new(),
             object_states: HashMap::new(),
             pending_changes: Vec::new(),
             mode: UiMode::Passive,
-            graph_topology: topology,
             ui_factory: object_factory,
         }
     }
@@ -409,9 +404,12 @@ impl GraphUIState {
         }
     }
 
-    pub(super) fn peg_being_dropped(&self) -> Option<(GraphId, egui::Pos2)> {
+    pub(super) fn take_peg_being_dropped(&mut self) -> Option<(GraphId, egui::Pos2)> {
         match self.mode {
-            UiMode::DroppingPeg(p) => Some(p),
+            UiMode::DroppingPeg(p) => {
+                self.mode = UiMode::Passive;
+                Some(p)
+            }
             _ => None,
         }
     }
@@ -483,11 +481,10 @@ impl GraphUIState {
         }
     }
 
-    pub fn cleanup(&mut self) {
+    pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         let remaining_ids;
         {
             let mut ids: HashSet<GraphId> = HashSet::new();
-            let topo = self.graph_topology.read();
             ids.extend(
                 topo.sound_processors()
                     .keys()
@@ -586,17 +583,16 @@ impl GraphUIState {
         // self.update_peg_hotkeys_from_keyboard_focus();
     }
 
-    fn update_peg_hotkeys_from_keyboard_focus(&mut self) {
+    fn update_peg_hotkeys_from_keyboard_focus(&mut self, topo: &SoundGraphTopology) {
         let (keyboard_focus_state, peg_hotkeys) = match &mut self.mode {
             UiMode::UsingKeyboardNav(x) => x,
             _ => return,
         };
 
         let mut available_pegs: Vec<(GraphId, HotKeyAction)> = Vec::new();
-        let topo = self.graph_topology.read();
         match *keyboard_focus_state {
             KeyboardFocusState::SoundProcessor(spid) => {
-                let sp = topo.sound_processors().get(&spid).unwrap();
+                let sp = topo.sound_processor(spid).unwrap();
                 available_pegs.push((spid.into(), HotKeyAction::Activate(spid.into())));
                 for si in sp.sound_inputs().iter().cloned() {
                     available_pegs.push((si.into(), HotKeyAction::Activate(si.into())));
@@ -609,7 +605,7 @@ impl GraphUIState {
                 }
             }
             KeyboardFocusState::NumberSource(nsid) => {
-                let ns = topo.number_sources().get(&nsid).unwrap();
+                let ns = topo.number_source(nsid).unwrap();
                 available_pegs.push((nsid.into(), HotKeyAction::Activate(nsid.into())));
                 for ni in ns.inputs().iter().cloned() {
                     available_pegs.push((ni.into(), HotKeyAction::Activate(ni.into())));
@@ -617,7 +613,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::SoundInput(siid) => {
                 for spid in topo.sound_processors().keys().cloned() {
-                    if topo.is_legal_sound_connection(siid, spid) {
+                    if validate_sound_connection(topo, siid, spid).is_ok() {
                         available_pegs
                             .push((spid.into(), HotKeyAction::Connect(siid.into(), spid.into())));
                     }
@@ -625,7 +621,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::SoundOutput(spid) => {
                 for siid in topo.sound_inputs().keys().cloned() {
-                    if topo.is_legal_sound_connection(siid, spid) {
+                    if validate_sound_connection(topo, siid, spid).is_ok() {
                         available_pegs
                             .push((siid.into(), HotKeyAction::Connect(spid.into(), siid.into())));
                     }
@@ -633,7 +629,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::NumberInput(niid) => {
                 for nsid in topo.number_sources().keys().cloned() {
-                    if topo.is_legal_number_connection(niid, nsid) {
+                    if validate_number_connection(topo, niid, nsid).is_ok() {
                         available_pegs
                             .push((nsid.into(), HotKeyAction::Connect(niid.into(), nsid.into())));
                     }
@@ -641,7 +637,7 @@ impl GraphUIState {
             }
             KeyboardFocusState::NumberOutput(nsid) => {
                 for niid in topo.number_inputs().keys().cloned() {
-                    if topo.is_legal_number_connection(niid, nsid) {
+                    if validate_number_connection(topo, niid, nsid).is_ok() {
                         available_pegs
                             .push((niid.into(), HotKeyAction::Connect(nsid.into(), niid.into())));
                     }
@@ -697,7 +693,7 @@ impl GraphUIState {
         mapping
     }
 
-    pub fn object_has_keyboard_focus(&self, object: ObjectId) -> bool {
+    pub(super) fn object_has_keyboard_focus(&self, object: ObjectId) -> bool {
         let keyboard_focus = match &self.mode {
             UiMode::UsingKeyboardNav(p) => &p.0,
             _ => return false,
@@ -709,7 +705,7 @@ impl GraphUIState {
         }
     }
 
-    pub fn peg_has_keyboard_focus(&self, id: GraphId) -> bool {
+    pub(super) fn peg_has_keyboard_focus(&self, id: GraphId) -> bool {
         let keyboard_focus = match &self.mode {
             UiMode::UsingKeyboardNav(p) => &p.0,
             _ => return false,
@@ -730,7 +726,7 @@ impl GraphUIState {
         }
     }
 
-    pub(super) fn activate_hotkey(&mut self, key: egui::Key, desc: &SoundGraphDescription) -> bool {
+    pub(super) fn activate_hotkey(&mut self, key: egui::Key, topo: &SoundGraphTopology) -> bool {
         let (keyboard_focus, peg_hotkeys) = match &mut self.mode {
             UiMode::UsingKeyboardNav(p) => p,
             _ => return false,
@@ -767,7 +763,7 @@ impl GraphUIState {
                             g.disconnect_number_input(niid).unwrap();
                             g.connect_number_input(niid, nsid).unwrap();
                         }));
-                        let owner = desc.number_inputs().get(&niid).unwrap().owner();
+                        let owner = topo.number_input(niid).unwrap().owner();
                         *keyboard_focus = match owner {
                             NumberInputOwner::SoundProcessor(i) => {
                                 KeyboardFocusState::SoundProcessor(i)
@@ -789,18 +785,18 @@ impl GraphUIState {
                             g.disconnect_sound_input(siid).unwrap();
                             g.connect_sound_input(siid, spid).unwrap();
                         }));
-                        let owner = desc.sound_inputs().get(&siid).unwrap().owner();
+                        let owner = topo.sound_input(siid).unwrap().owner();
                         *keyboard_focus = KeyboardFocusState::SoundProcessor(owner);
                     }
                     (_, _) => panic!(),
                 };
             }
         }
-        self.update_peg_hotkeys_from_keyboard_focus();
+        self.update_peg_hotkeys_from_keyboard_focus(topo);
         true
     }
 
-    pub(super) fn cancel_hotkey(&mut self, desc: &SoundGraphDescription) -> bool {
+    pub(super) fn cancel_hotkey(&mut self, topo: &SoundGraphTopology) -> bool {
         let keyboard_focus = match &mut self.mode {
             UiMode::UsingKeyboardNav(p) => &mut p.0,
             _ => return false,
@@ -808,27 +804,27 @@ impl GraphUIState {
 
         match keyboard_focus {
             KeyboardFocusState::SoundInput(siid) => {
-                let o = desc.sound_inputs().get(&siid).unwrap().owner();
+                let o = topo.sound_input(*siid).unwrap().owner();
                 *keyboard_focus = KeyboardFocusState::SoundProcessor(o);
             }
             KeyboardFocusState::SoundOutput(spid) => {
                 *keyboard_focus = KeyboardFocusState::SoundProcessor(*spid);
             }
             KeyboardFocusState::NumberInput(niid) => {
-                let o = desc.number_inputs().get(&niid).unwrap().owner();
+                let o = topo.number_input(*niid).unwrap().owner();
                 *keyboard_focus = match o {
                     NumberInputOwner::SoundProcessor(i) => KeyboardFocusState::SoundProcessor(i),
                     NumberInputOwner::NumberSource(i) => KeyboardFocusState::NumberSource(i),
                 };
             }
             KeyboardFocusState::NumberOutput(nsid) => {
-                let o = desc.number_sources().get(&nsid).unwrap().owner();
+                let o = topo.number_source(*nsid).unwrap().owner();
                 *keyboard_focus = match o {
                     NumberSourceOwner::Nothing => panic!(),
                     NumberSourceOwner::SoundProcessor(i) => KeyboardFocusState::SoundProcessor(i),
-                    NumberSourceOwner::SoundInput(i) => KeyboardFocusState::SoundProcessor(
-                        desc.sound_inputs().get(&i).unwrap().owner(),
-                    ),
+                    NumberSourceOwner::SoundInput(i) => {
+                        KeyboardFocusState::SoundProcessor(topo.sound_input(i).unwrap().owner())
+                    }
                 };
             }
             KeyboardFocusState::SoundProcessor(_) => {
@@ -838,7 +834,7 @@ impl GraphUIState {
                 self.mode = UiMode::Passive;
             }
         };
-        self.update_peg_hotkeys_from_keyboard_focus();
+        self.update_peg_hotkeys_from_keyboard_focus(topo);
         true
     }
 
@@ -850,8 +846,7 @@ impl GraphUIState {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self) -> bool {
-        let topo = self.graph_topology.read();
+    pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
         let mut good = true;
         for i in topo.sound_processors().keys() {
             if !self.object_states.contains_key(&i.into()) {
@@ -980,13 +975,13 @@ impl GraphUIState {
         while !d1.is_empty() {
             let id = deserialize_object_id(&mut d1, idmap)?;
             let obj = match id {
-                ObjectId::Sound(i) => match topology.sound_processors().get(&i) {
+                ObjectId::Sound(i) => match topology.sound_processor(i) {
                     Some(sp) => sp.instance_arc().as_graph_object(),
                     None => return Err(()),
                 },
-                ObjectId::Number(i) => match topology.number_sources().get(&i) {
+                ObjectId::Number(i) => match topology.number_source(i) {
                     Some(ns) => {
-                        if let Some(o) = ns.instance_arc().as_graph_object(i) {
+                        if let Some(o) = ns.instance_arc().as_graph_object() {
                             o
                         } else {
                             return Err(());
@@ -996,16 +991,15 @@ impl GraphUIState {
                 },
             };
             let d2 = d1.subarchive()?;
-            let state = ui_factory.create_state_from_archive(&*obj, d2)?;
+            let state = ui_factory.create_state_from_archive(&obj, d2)?;
             self.set_object_state(id, state);
         }
         Ok(())
     }
 
-    pub fn select_all(&mut self) {
+    pub(super) fn select_all(&mut self, topo: &SoundGraphTopology) {
         let mut ids: HashSet<ObjectId> = HashSet::new();
         {
-            let topo = self.graph_topology.read();
             for i in topo.sound_processors().keys() {
                 ids.insert(i.into());
             }
@@ -1018,18 +1012,17 @@ impl GraphUIState {
         self.set_selection(ids);
     }
 
-    pub fn select_none(&mut self) {
+    pub(super) fn select_none(&mut self) {
         if let UiMode::Selecting(_) = self.mode {
             self.mode = UiMode::Passive;
         }
     }
 
-    pub fn make_states_for_new_objects(&mut self) {
-        let topo = self.graph_topology.read();
+    pub(super) fn make_states_for_new_objects(&mut self, topo: &SoundGraphTopology) {
         for (i, spd) in topo.sound_processors() {
             self.object_states.entry(i.into()).or_insert_with(|| {
                 let o = spd.instance_arc().as_graph_object();
-                self.ui_factory.read().create_default_state(&*o)
+                self.ui_factory.read().create_default_state(&o)
             });
         }
         for (i, nsd) in topo.number_sources() {
@@ -1037,8 +1030,8 @@ impl GraphUIState {
                 continue;
             }
             self.object_states.entry(i.into()).or_insert_with(|| {
-                let o = nsd.instance_arc().as_graph_object(*i).unwrap();
-                self.ui_factory.read().create_default_state(&*o)
+                let o = nsd.instance_arc().as_graph_object().unwrap();
+                self.ui_factory.read().create_default_state(&o)
             });
         }
     }

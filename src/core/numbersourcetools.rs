@@ -1,34 +1,44 @@
 use super::{
-    numberinput::{NumberInputHandle, NumberInputOwner},
+    numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::NumberSourceId,
-    soundgraphtopology::SoundGraphTopology,
+    soundgraphdata::NumberInputData,
+    soundgraphedit::SoundGraphEdit,
+    uniqueid::IdGenerator,
 };
 
 pub struct NumberSourceTools<'a> {
     number_source_id: NumberSourceId,
-    topology: &'a mut SoundGraphTopology,
+    number_input_idgen: &'a mut IdGenerator<NumberInputId>,
+    edit_queue: &'a mut Vec<SoundGraphEdit>,
 }
 
 impl<'a> NumberSourceTools<'a> {
     pub(super) fn new(
         number_source_id: NumberSourceId,
-        topology: &'a mut SoundGraphTopology,
+        number_input_idgen: &'a mut IdGenerator<NumberInputId>,
+        edit_queue: &'a mut Vec<SoundGraphEdit>,
     ) -> NumberSourceTools<'a> {
         NumberSourceTools {
             number_source_id,
-            topology,
+            number_input_idgen,
+            edit_queue,
         }
     }
 
     pub fn add_number_input(&mut self) -> NumberInputHandle {
         let default_value: f32 = 0.0;
-        self.topology.add_number_input(
-            NumberInputOwner::NumberSource(self.number_source_id),
-            default_value,
-        )
+        let id = self.number_input_idgen.next_id();
+        let target = None;
+        let owner = NumberInputOwner::NumberSource(self.number_source_id);
+        let data = NumberInputData::new(id, target, owner, default_value);
+        self.edit_queue.push(SoundGraphEdit::AddNumberInput(data));
+        NumberInputHandle::new(id, owner)
     }
 
     pub fn remove_number_input(&mut self, handle: NumberInputHandle) {
-        self.topology.remove_number_input(handle.id());
+        self.edit_queue.push(SoundGraphEdit::RemoveNumberInput(
+            handle.id(),
+            handle.owner(),
+        ));
     }
 }

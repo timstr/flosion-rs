@@ -16,13 +16,13 @@ use crate::{
 pub struct ADSRUi;
 
 impl ObjectUi for ADSRUi {
-    type WrapperType = DynamicSoundProcessorHandle<ADSR>;
+    type HandleType = DynamicSoundProcessorHandle<ADSR>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         id: ObjectId,
-        object: &DynamicSoundProcessorHandle<ADSR>,
+        object: DynamicSoundProcessorHandle<ADSR>,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
         _state: &NoUIState,

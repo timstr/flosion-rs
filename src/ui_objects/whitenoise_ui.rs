@@ -11,13 +11,13 @@ use crate::{
 pub struct WhiteNoiseUi {}
 
 impl ObjectUi for WhiteNoiseUi {
-    type WrapperType = DynamicSoundProcessorHandle<WhiteNoise>;
+    type HandleType = DynamicSoundProcessorHandle<WhiteNoise>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         id: ObjectId,
-        _wrapper: &DynamicSoundProcessorHandle<WhiteNoise>,
+        _wrapper: DynamicSoundProcessorHandle<WhiteNoise>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,

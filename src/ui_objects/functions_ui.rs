@@ -55,12 +55,12 @@ impl Serializable for ConstantUiState {
 }
 
 impl ObjectUi for ConstantUi {
-    type WrapperType = PureNumberSourceHandle<Constant>;
+    type HandleType = PureNumberSourceHandle<Constant>;
     type StateType = ConstantUiState;
     fn ui(
         &self,
         id: ObjectId,
-        object: &PureNumberSourceHandle<Constant>,
+        object: PureNumberSourceHandle<Constant>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         state: &ConstantUiState,
@@ -72,7 +72,7 @@ impl ObjectUi for ConstantUi {
             ui.label(&state.name);
             ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
             if v != v_old {
-                object.instance().set_value(v);
+                object.set_value(v);
             }
             ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
         });
@@ -116,12 +116,12 @@ macro_rules! unary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type WrapperType = PureNumberSourceHandle<$object>;
+            type HandleType = PureNumberSourceHandle<$object>;
             type StateType = NoUIState;
             fn ui(
                 &self,
                 id: ObjectId,
-                object: &PureNumberSourceHandle<$object>,
+                object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
                 _state: &Self::StateType,
@@ -155,12 +155,12 @@ macro_rules! binary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type WrapperType = PureNumberSourceHandle<$object>;
+            type HandleType = PureNumberSourceHandle<$object>;
             type StateType = NoUIState;
             fn ui(
                 &self,
                 id: ObjectId,
-                object: &PureNumberSourceHandle<$object>,
+                object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
                 _state: &Self::StateType,

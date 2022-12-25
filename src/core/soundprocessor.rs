@@ -6,13 +6,14 @@ use std::{
 
 use super::{
     context::Context,
-    graphobject::{GraphObject, ObjectInitialization, ObjectType, WithObjectType},
-    nodeallocator::NodeAllocator,
+    graphobject::{GraphObjectHandle, ObjectInitialization, ObjectType, WithObjectType},
+    numberinputnode::NumberInputNodeCollection,
     serialization::Serializer,
     soundchunk::SoundChunk,
+    soundinputnode::SoundProcessorInput,
     soundprocessortools::SoundProcessorTools,
     state::State,
-    statetree::{DynamicProcessorNode, ProcessorNodeWrapper, SoundProcessorInput},
+    stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
     uniqueid::UniqueId,
 };
 
@@ -34,22 +35,27 @@ impl UniqueId for SoundProcessorId {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum StreamStatus {
     Playing,
     Done,
 }
 
-pub trait StaticSoundProcessor: 'static + Sync + Send + WithObjectType {
-    type InputType: SoundProcessorInput;
+pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
+    type SoundInputType: SoundProcessorInput;
 
-    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>
-    where
-        Self: Sized;
+    type NumberInputType: NumberInputNodeCollection;
+
+    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
+
+    fn get_sound_input(&self) -> &Self::SoundInputType;
+
+    fn make_number_inputs(&self) -> Self::NumberInputType;
 
     fn process_audio(
         &self,
-        input: &mut <Self::InputType as SoundProcessorInput>::NodeType,
+        sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType,
+        number_inputs: &Self::NumberInputType,
         dst: &mut SoundChunk,
         context: Context,
     );
@@ -57,24 +63,25 @@ pub trait StaticSoundProcessor: 'static + Sync + Send + WithObjectType {
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-pub trait DynamicSoundProcessor: 'static + Sync + Send + WithObjectType {
+pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
     type StateType: State;
 
-    type InputType: SoundProcessorInput;
+    type SoundInputType: SoundProcessorInput;
 
-    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>
-    where
-        Self: Sized;
+    type NumberInputType: NumberInputNodeCollection;
 
-    fn get_input(&self) -> &Self::InputType
-    where
-        Self: Sized;
+    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
+
+    fn get_sound_input(&self) -> &Self::SoundInputType;
 
     fn make_state(&self) -> Self::StateType;
 
+    fn make_number_inputs(&self) -> Self::NumberInputType;
+
     fn process_audio(
         state: &mut StateAndTiming<Self::StateType>,
-        inputs: &mut <Self::InputType as SoundProcessorInput>::NodeType,
+        sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType,
+        number_inputs: &Self::NumberInputType,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus;
@@ -97,6 +104,14 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
     }
 }
 
+impl<T: StaticSoundProcessor> Deref for StaticSoundProcessorWithId<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.processor
+    }
+}
+
 impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
@@ -116,21 +131,103 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
     }
 }
 
+impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorWithId<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.processor
+    }
+}
+
 impl<T: DynamicSoundProcessor> WithObjectType for DynamicSoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
 
+pub struct StaticSoundProcessorHandle<T: StaticSoundProcessor> {
+    instance: Arc<StaticSoundProcessorWithId<T>>,
+}
+
+impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
+    pub(super) fn new(instance: Arc<StaticSoundProcessorWithId<T>>) -> Self {
+        Self { instance }
+    }
+
+    pub fn id(&self) -> SoundProcessorId {
+        self.instance.id()
+    }
+
+    pub fn into_graph_object(self) -> GraphObjectHandle {
+        GraphObjectHandle::new(self.instance)
+    }
+}
+
+impl<T: StaticSoundProcessor> Deref for StaticSoundProcessorHandle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.instance
+    }
+}
+
+impl<T: StaticSoundProcessor> Clone for StaticSoundProcessorHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: Arc::clone(&self.instance),
+        }
+    }
+}
+
+pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
+    instance: Arc<DynamicSoundProcessorWithId<T>>,
+}
+
+impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
+    pub(super) fn new(instance: Arc<DynamicSoundProcessorWithId<T>>) -> Self {
+        Self { instance }
+    }
+
+    pub fn id(&self) -> SoundProcessorId {
+        self.instance.id()
+    }
+
+    pub fn into_graph_object(self) -> GraphObjectHandle {
+        GraphObjectHandle::new(self.instance)
+    }
+}
+
+impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorHandle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.instance
+    }
+}
+
+impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: Arc::clone(&self.instance),
+        }
+    }
+}
+
 pub(crate) trait SoundProcessor: 'static + Sync + Send {
+    fn id(&self) -> SoundProcessorId;
+
     fn serialize(&self, serializer: Serializer);
 
     fn is_static(&self) -> bool;
 
-    fn as_graph_object(self: Arc<Self>) -> Box<dyn GraphObject>;
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle;
 
-    fn make_node(&self, allocator: &NodeAllocator) -> Box<dyn ProcessorNodeWrapper>;
+    fn make_node(self: Arc<Self>) -> Box<dyn StateGraphNode>;
 }
 
 impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
+    fn id(&self) -> SoundProcessorId {
+        self.id
+    }
+
     fn serialize(&self, serializer: Serializer) {
         self.processor.serialize(serializer);
     }
@@ -139,18 +236,21 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
         true
     }
 
-    fn as_graph_object(self: Arc<Self>) -> Box<dyn GraphObject> {
-        let h = StaticSoundProcessorHandle::new(Arc::clone(&self));
-        Box::new(h)
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle {
+        GraphObjectHandle::new(self)
     }
 
-    fn make_node(&self, allocator: &NodeAllocator) -> Box<dyn ProcessorNodeWrapper> {
-        // TODO: grab cached output from sound graph topology's static processor cache
-        todo!()
+    fn make_node(self: Arc<Self>) -> Box<dyn StateGraphNode> {
+        let processor_node = StaticProcessorNode::<T>::new(Arc::clone(&self));
+        Box::new(processor_node)
     }
 }
 
 impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T> {
+    fn id(&self) -> SoundProcessorId {
+        self.id
+    }
+
     fn serialize(&self, serializer: Serializer) {
         self.processor.serialize(serializer);
     }
@@ -159,96 +259,13 @@ impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T>
         false
     }
 
-    fn as_graph_object(self: Arc<Self>) -> Box<dyn GraphObject> {
-        let h = DynamicSoundProcessorHandle::new(Arc::clone(&self));
-        Box::new(h)
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle {
+        GraphObjectHandle::new(self)
     }
 
-    fn make_node(&self, allocator: &NodeAllocator) -> Box<dyn ProcessorNodeWrapper> {
-        // TODO: make allocator aware of synchronous groups and track shared nodes
-        let input_node = self.processor.get_input().make_node(allocator);
-        let processor_node = DynamicProcessorNode::<T>::new(
-            allocator.processor_id(),
-            self.processor.make_state(),
-            input_node,
-        );
+    fn make_node(self: Arc<Self>) -> Box<dyn StateGraphNode> {
+        let processor_node = DynamicProcessorNode::<T>::new(&*self);
         Box::new(processor_node)
-    }
-}
-
-pub struct StaticSoundProcessorHandle<T: StaticSoundProcessor> {
-    processor: Arc<StaticSoundProcessorWithId<T>>,
-}
-
-impl<T: StaticSoundProcessor> Clone for StaticSoundProcessorHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            processor: Arc::clone(&self.processor),
-        }
-    }
-}
-
-impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
-    pub(crate) fn new(processor: Arc<StaticSoundProcessorWithId<T>>) -> Self {
-        Self { processor }
-    }
-
-    pub fn id(&self) -> SoundProcessorId {
-        self.processor.id()
-    }
-
-    pub fn instance(&self) -> &T {
-        &self.processor.processor
-    }
-
-    pub(crate) fn as_graph_object(&self) -> Box<dyn GraphObject> {
-        Box::new(self.clone())
-    }
-}
-
-impl<T: StaticSoundProcessor> Deref for StaticSoundProcessorHandle<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.processor.processor
-    }
-}
-
-pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
-    processor: Arc<DynamicSoundProcessorWithId<T>>,
-}
-
-impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            processor: Arc::clone(&self.processor),
-        }
-    }
-}
-
-impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorHandle<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.processor.processor
-    }
-}
-
-impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
-    pub(crate) fn new(processor: Arc<DynamicSoundProcessorWithId<T>>) -> Self {
-        Self { processor }
-    }
-
-    pub fn id(&self) -> SoundProcessorId {
-        self.processor.id()
-    }
-
-    pub fn instance(&self) -> &T {
-        &self.processor.processor
-    }
-
-    pub(crate) fn as_graph_object(&self) -> Box<dyn GraphObject> {
-        Box::new(self.clone())
     }
 }
 
@@ -285,6 +302,8 @@ pub trait ProcessorState: 'static + Sync + Send {
     fn is_static(&self) -> bool;
 
     fn timing(&self) -> Option<&ProcessorTiming>;
+
+    fn reset(&mut self);
 }
 
 impl<T: StaticSoundProcessor> ProcessorState for T {
@@ -298,6 +317,10 @@ impl<T: StaticSoundProcessor> ProcessorState for T {
 
     fn timing(&self) -> Option<&ProcessorTiming> {
         None
+    }
+
+    fn reset(&mut self) {
+        // A static processor can't be reset
     }
 }
 
@@ -313,6 +336,11 @@ impl<T: State> ProcessorState for StateAndTiming<T> {
     fn timing(&self) -> Option<&ProcessorTiming> {
         Some((self as &StateAndTiming<T>).timing())
     }
+
+    fn reset(&mut self) {
+        self.state.reset();
+        self.timing.reset();
+    }
 }
 
 impl<T: State> StateAndTiming<T> {
@@ -321,11 +349,6 @@ impl<T: State> StateAndTiming<T> {
             state,
             timing: ProcessorTiming::new(),
         }
-    }
-
-    fn reset(&mut self) {
-        self.state.reset();
-        self.timing.reset();
     }
 
     pub fn state(&self) -> &T {

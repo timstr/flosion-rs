@@ -1,3 +1,4 @@
 mod graphserializationtest;
 mod serializationtest;
-mod stategraphtest;
+mod soundgraphvalidationtest;
+mod testobjects;

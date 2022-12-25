@@ -1,7 +1,11 @@
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::{NumberInputHandle, NumberInputNode},
+    numberinput::NumberInputHandle,
+    numberinputnode::{
+        NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
+        NumberInputNodeVisitorMut,
+    },
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
     soundinputtypes::{SingleInput, SingleInputNode},
@@ -15,12 +19,25 @@ pub struct Resampler {
     pub speed_ratio: NumberInputHandle,
 }
 
+pub struct ResamplerNumberInputs {
+    speed_ratio: NumberInputNode,
+}
+
+impl NumberInputNodeCollection for ResamplerNumberInputs {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+        visitor.visit_node(&self.speed_ratio);
+    }
+
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+        visitor.visit_node(&mut self.speed_ratio);
+    }
+}
+
 pub struct ResamplerState {
     init: bool,
     input_chunk: SoundChunk,
     sample_index: usize,
     sample_offset: f32,
-    speed_ratio: NumberInputNode,
 }
 
 impl State for ResamplerState {
@@ -33,17 +50,17 @@ impl State for ResamplerState {
 
 impl DynamicSoundProcessor for Resampler {
     type StateType = ResamplerState;
-
-    type InputType = SingleInput;
+    type SoundInputType = SingleInput;
+    type NumberInputType = ResamplerNumberInputs;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Resampler {
-            input: SingleInput::new(InputOptions { realtime: false }, &mut tools),
+            input: SingleInput::new(InputOptions::NonSynchronous, &mut tools),
             speed_ratio: tools.add_number_input(1.0),
         })
     }
 
-    fn get_input(&self) -> &Self::InputType {
+    fn get_sound_input(&self) -> &Self::SoundInputType {
         &self.input
     }
 
@@ -53,21 +70,27 @@ impl DynamicSoundProcessor for Resampler {
             input_chunk: SoundChunk::new(),
             sample_index: 0,
             sample_offset: 0.0,
+        }
+    }
+
+    fn make_number_inputs(&self) -> Self::NumberInputType {
+        ResamplerNumberInputs {
             speed_ratio: self.speed_ratio.make_node(),
         }
     }
 
     fn process_audio(
         state: &mut StateAndTiming<ResamplerState>,
-        inputs: &mut SingleInputNode,
+        sound_inputs: &mut SingleInputNode,
+        number_inputs: &ResamplerNumberInputs,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
         // TODO: tell context about time speed
         if !state.init {
-            inputs.reset(0);
+            sound_inputs.reset(0);
             let mut ch = SoundChunk::new();
-            inputs.step(state, &mut ch, &context);
+            sound_inputs.step(state, &mut ch, &context);
             state.input_chunk = ch;
             state.init = true;
         }
@@ -75,7 +98,7 @@ impl DynamicSoundProcessor for Resampler {
             s.sample_index += 1;
             if s.sample_index >= CHUNK_SIZE {
                 let mut ch: SoundChunk = SoundChunk::new();
-                inputs.step(s, &mut ch, &context);
+                sound_inputs.step(s, &mut ch, &context);
                 s.input_chunk = ch;
                 s.sample_index = 0;
             }
@@ -87,7 +110,7 @@ impl DynamicSoundProcessor for Resampler {
         // TODO: linear interpolation instead of constant,
         // consider storing previous sample in state
         let mut speedratio = context.get_scratch_space(CHUNK_SIZE);
-        state.speed_ratio.eval(&mut speedratio, &context);
+        number_inputs.speed_ratio.eval(&mut speedratio, &context);
         for (dst_sample, delta) in dst
             .samples_mut()
             .zip(speedratio.iter().map(|r| r.clamp(0.0, 16.0)))
@@ -121,7 +144,7 @@ impl DynamicSoundProcessor for Resampler {
                 *dst_sample.1 = k_inv * acc.1;
             }
         }
-        if inputs.is_done() {
+        if sound_inputs.is_done() {
             StreamStatus::Done
         } else {
             StreamStatus::Playing

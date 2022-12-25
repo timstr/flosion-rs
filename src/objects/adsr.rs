@@ -1,7 +1,11 @@
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::{NumberInputHandle, NumberInputNode},
+    numberinput::NumberInputHandle,
+    numberinputnode::{
+        NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
+        NumberInputNodeVisitorMut,
+    },
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -21,16 +25,35 @@ enum Phase {
     Release,
 }
 
+pub struct ADSRNumberInputs {
+    attack_time: NumberInputNode,
+    decay_time: NumberInputNode,
+    sustain_level: NumberInputNode,
+    release_time: NumberInputNode,
+}
+
+impl NumberInputNodeCollection for ADSRNumberInputs {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+        visitor.visit_node(&self.attack_time);
+        visitor.visit_node(&self.decay_time);
+        visitor.visit_node(&self.sustain_level);
+        visitor.visit_node(&self.release_time);
+    }
+
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+        visitor.visit_node(&mut self.attack_time);
+        visitor.visit_node(&mut self.decay_time);
+        visitor.visit_node(&mut self.sustain_level);
+        visitor.visit_node(&mut self.release_time);
+    }
+}
+
 pub struct ADSRState {
     phase: Phase,
     phase_samples: usize,
     phase_samples_so_far: usize,
     prev_level: f32,
     next_level: f32,
-    attack_time: NumberInputNode,
-    decay_time: NumberInputNode,
-    sustain_level: NumberInputNode,
-    release_time: NumberInputNode,
 }
 
 impl State for ADSRState {
@@ -82,11 +105,13 @@ fn chunked_interp(
 impl DynamicSoundProcessor for ADSR {
     type StateType = ADSRState;
 
-    type InputType = SingleInput;
+    type SoundInputType = SingleInput;
+
+    type NumberInputType = ADSRNumberInputs;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ADSR {
-            input: SingleInput::new(InputOptions { realtime: true }, &mut tools),
+            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             attack_time: tools.add_number_input(0.01),
             decay_time: tools.add_number_input(0.2),
             sustain_level: tools.add_number_input(0.5),
@@ -94,7 +119,7 @@ impl DynamicSoundProcessor for ADSR {
         })
     }
 
-    fn get_input(&self) -> &Self::InputType {
+    fn get_sound_input(&self) -> &Self::SoundInputType {
         &self.input
     }
 
@@ -105,6 +130,11 @@ impl DynamicSoundProcessor for ADSR {
             phase_samples_so_far: 0,
             prev_level: 0.0,
             next_level: 0.0,
+        }
+    }
+
+    fn make_number_inputs(&self) -> Self::NumberInputType {
+        ADSRNumberInputs {
             attack_time: self.attack_time.make_node(),
             decay_time: self.decay_time.make_node(),
             sustain_level: self.sustain_level.make_node(),
@@ -114,7 +144,8 @@ impl DynamicSoundProcessor for ADSR {
 
     fn process_audio(
         state: &mut StateAndTiming<ADSRState>,
-        input: &mut SingleInputNode,
+        sound_input: &mut SingleInputNode,
+        number_input: &ADSRNumberInputs,
         dst: &mut SoundChunk,
         mut context: Context,
     ) -> StreamStatus {
@@ -123,7 +154,7 @@ impl DynamicSoundProcessor for ADSR {
             state.prev_level = 0.0;
             state.next_level = 1.0;
             state.phase_samples =
-                (state.attack_time.eval_scalar(&context) * SAMPLE_FREQUENCY as f32) as usize;
+                (number_input.attack_time.eval_scalar(&context) * SAMPLE_FREQUENCY as f32) as usize;
             state.phase_samples_so_far = 0;
         }
 
@@ -146,10 +177,13 @@ impl DynamicSoundProcessor for ADSR {
             if cursor < CHUNK_SIZE {
                 state.phase = Phase::Decay;
                 state.phase_samples_so_far = 0;
-                state.phase_samples =
-                    (state.decay_time.eval_scalar(&context) * SAMPLE_FREQUENCY as f32) as usize;
+                state.phase_samples = (number_input.decay_time.eval_scalar(&context)
+                    * SAMPLE_FREQUENCY as f32) as usize;
                 state.prev_level = 1.0;
-                state.next_level = state.sustain_level.eval_scalar(&context).clamp(0.0, 1.0);
+                state.next_level = number_input
+                    .sustain_level
+                    .eval_scalar(&context)
+                    .clamp(0.0, 1.0);
             }
         }
 
@@ -183,8 +217,8 @@ impl DynamicSoundProcessor for ADSR {
                     cursor = sample_offset;
                 }
                 state.phase = Phase::Release;
-                state.phase_samples =
-                    (state.release_time.eval_scalar(&context) * SAMPLE_FREQUENCY as f32) as usize;
+                state.phase_samples = (number_input.release_time.eval_scalar(&context)
+                    * SAMPLE_FREQUENCY as f32) as usize;
                 state.phase_samples_so_far = 0;
                 state.prev_level = state.next_level;
                 state.next_level = 0.0;
@@ -215,10 +249,10 @@ impl DynamicSoundProcessor for ADSR {
 
         debug_assert!(cursor == CHUNK_SIZE);
         // TODO: pass level through exponential
-        if input.needs_reset() {
-            input.reset(0);
+        if sound_input.needs_reset() {
+            sound_input.reset(0);
         }
-        input.step(state, dst, &context);
+        sound_input.step(state, dst, &context);
         numeric::mul_inplace(&mut dst.l, &level);
         numeric::mul_inplace(&mut dst.r, &level);
 
