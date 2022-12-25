@@ -455,7 +455,11 @@ impl FlosionApp {
         graph: &SoundGraph,
         use_selection: bool,
     ) -> Option<String> {
-        debug_assert!(ui_state.check_invariants(graph.topology()));
+        #[cfg(debug_assertions)]
+        {
+            assert!(ui_state.check_invariants(graph.topology()));
+        }
+
         let selection = if use_selection {
             let s = ui_state.selection();
             if s.is_empty() {
@@ -594,12 +598,20 @@ impl eframe::App for FlosionApp {
                 }
             }
 
-            debug_assert!(self.ui_state.check_invariants(self.graph.topology()));
+            #[cfg(debug_assertions)]
+            {
+                assert!(self.ui_state.check_invariants(self.graph.topology()));
+            }
+
             self.ui_state.apply_pending_changes(&mut self.graph);
             self.ui_state
                 .make_states_for_new_objects(self.graph.topology());
             self.ui_state.cleanup(self.graph.topology());
-            debug_assert!(self.ui_state.check_invariants(self.graph.topology()));
+
+            #[cfg(debug_assertions)]
+            {
+                assert!(self.ui_state.check_invariants(self.graph.topology()));
+            }
         });
     }
 }
