@@ -24,13 +24,13 @@ use super::{
     },
 };
 
-pub struct StaticProcessorNode<T: StaticSoundProcessor> {
+pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
     processor: Arc<StaticSoundProcessorWithId<T>>,
-    sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType,
-    number_input: T::NumberInputType,
+    sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
+    number_input: T::NumberInputType<'ctx>,
 }
 
-impl<T: StaticSoundProcessor> StaticProcessorNode<T> {
+impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
     pub(super) fn new(processor: Arc<StaticSoundProcessorWithId<T>>) -> Self {
         let sound_input = processor.get_sound_input().make_node();
         let number_input = processor.make_number_inputs();
@@ -42,20 +42,23 @@ impl<T: StaticSoundProcessor> StaticProcessorNode<T> {
     }
 }
 
-pub struct DynamicProcessorNode<T: DynamicSoundProcessor> {
+pub struct DynamicProcessorNode<'ctx, T: DynamicSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
-    sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType,
-    number_input: T::NumberInputType,
+    sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
+    number_input: T::NumberInputType<'ctx>,
 }
 
-impl<T: DynamicSoundProcessor> DynamicProcessorNode<T> {
-    pub(super) fn new(processor: &DynamicSoundProcessorWithId<T>) -> Self {
+impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
+    pub(super) fn new(
+        processor: &DynamicSoundProcessorWithId<T>,
+        context: &'ctx inkwell::context::Context,
+    ) -> Self {
         Self {
             id: processor.id(),
             state: StateAndTiming::new(processor.make_state()),
             sound_input: processor.get_sound_input().make_node(),
-            number_input: processor.make_number_inputs(),
+            number_input: processor.make_number_inputs(context),
         }
     }
 
@@ -78,21 +81,21 @@ impl<T: DynamicSoundProcessor> DynamicProcessorNode<T> {
 }
 
 // TODO: make this not pub
-pub trait StateGraphNode {
+pub trait StateGraphNode<'ctx> {
     fn id(&self) -> SoundProcessorId;
     fn reset(&mut self);
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
 
-    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode;
-    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor);
-    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut);
+    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx>;
+    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>);
+    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>);
 
-    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection;
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor);
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut);
+    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection<'ctx>;
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>);
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>);
 }
 
-impl<T: StaticSoundProcessor> StateGraphNode for StaticProcessorNode<T> {
+impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode<'ctx, T> {
     fn id(&self) -> SoundProcessorId {
         self.processor.id()
     }
@@ -107,32 +110,32 @@ impl<T: StaticSoundProcessor> StateGraphNode for StaticProcessorNode<T> {
         StreamStatus::Playing
     }
 
-    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode {
+    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
         &mut self.sound_input
     }
 
-    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
         self.sound_input.visit_inputs(visitor);
     }
 
-    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         self.sound_input.visit_inputs_mut(visitor);
     }
 
-    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection {
+    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection<'ctx> {
         &mut self.number_input
     }
 
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
         self.number_input.visit_number_inputs(visitor);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
         self.number_input.visit_number_inputs_mut(visitor);
     }
 }
 
-impl<T: DynamicSoundProcessor> StateGraphNode for DynamicProcessorNode<T> {
+impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNode<'ctx, T> {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
@@ -145,37 +148,37 @@ impl<T: DynamicSoundProcessor> StateGraphNode for DynamicProcessorNode<T> {
         (self as &mut DynamicProcessorNode<T>).process_audio(dst, ctx)
     }
 
-    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode {
+    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
         &mut self.sound_input
     }
 
-    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
         self.sound_input.visit_inputs(visitor);
     }
 
-    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         self.sound_input.visit_inputs_mut(visitor);
     }
 
-    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection {
+    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection<'ctx> {
         &mut self.number_input
     }
 
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
         self.number_input.visit_number_inputs(visitor);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
         self.number_input.visit_number_inputs_mut(visitor);
     }
 }
 
-pub(super) struct UniqueProcessorNode {
-    node: Box<dyn StateGraphNode>,
+pub(super) struct UniqueProcessorNode<'ctx> {
+    node: Box<dyn StateGraphNode<'ctx> + 'ctx>,
 }
 
-impl UniqueProcessorNode {
-    pub(super) fn new(node: Box<dyn StateGraphNode>) -> UniqueProcessorNode {
+impl<'ctx> UniqueProcessorNode<'ctx> {
+    pub(super) fn new(node: Box<dyn StateGraphNode<'ctx> + 'ctx>) -> UniqueProcessorNode {
         UniqueProcessorNode { node }
     }
 
@@ -183,11 +186,11 @@ impl UniqueProcessorNode {
         self.node.id()
     }
 
-    pub(super) fn node(&self) -> &dyn StateGraphNode {
+    pub(super) fn node(&self) -> &dyn StateGraphNode<'ctx> {
         &*self.node
     }
 
-    pub(super) fn node_mut(&mut self) -> &mut dyn StateGraphNode {
+    pub(super) fn node_mut(&mut self) -> &mut dyn StateGraphNode<'ctx> {
         &mut *self.node
     }
 
@@ -213,20 +216,20 @@ impl UniqueProcessorNode {
         self.node.reset();
     }
 
-    fn visit<F: FnMut(&mut dyn StateGraphNode)>(&mut self, mut f: F) {
+    fn visit<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(&mut self, mut f: F) {
         f(&mut *self.node);
     }
 }
 
-pub(super) struct SharedProcessorNodeData {
-    node: Box<dyn StateGraphNode>,
+pub(super) struct SharedProcessorNodeData<'ctx> {
+    node: Box<dyn StateGraphNode<'ctx> + 'ctx>,
     cached_output: SoundChunk, // TODO: generalize to >1 output
     target_inputs: Vec<(SoundInputId, bool)>,
     stream_status: StreamStatus,
 }
 
-impl SharedProcessorNodeData {
-    fn new(node: Box<dyn StateGraphNode>) -> SharedProcessorNodeData {
+impl<'ctx> SharedProcessorNodeData<'ctx> {
+    fn new(node: Box<dyn StateGraphNode<'ctx> + 'ctx>) -> SharedProcessorNodeData<'ctx> {
         SharedProcessorNodeData {
             node,
             cached_output: SoundChunk::new(),
@@ -235,11 +238,11 @@ impl SharedProcessorNodeData {
         }
     }
 
-    pub(super) fn node(&self) -> &dyn StateGraphNode {
+    pub(super) fn node(&self) -> &dyn StateGraphNode<'ctx> {
         &*self.node
     }
 
-    pub(super) fn node_mut(&mut self) -> &mut dyn StateGraphNode {
+    pub(super) fn node_mut(&mut self) -> &mut dyn StateGraphNode<'ctx> {
         &mut *self.node
     }
 
@@ -252,31 +255,33 @@ impl SharedProcessorNodeData {
         self.target_inputs.len()
     }
 
-    fn into_unique_node(self) -> UniqueProcessorNode {
+    fn into_unique_node(self) -> UniqueProcessorNode<'ctx> {
         UniqueProcessorNode::new(self.node)
     }
 }
 
-pub(super) struct SharedProcessorNode {
+pub(super) struct SharedProcessorNode<'ctx> {
     processor_id: SoundProcessorId,
-    data: Rc<RefCell<SharedProcessorNodeData>>,
+    data: Rc<RefCell<SharedProcessorNodeData<'ctx>>>,
 }
 
-impl SharedProcessorNode {
-    pub(super) fn new(node: Box<dyn StateGraphNode>) -> SharedProcessorNode {
+impl<'ctx> SharedProcessorNode<'ctx> {
+    pub(super) fn new(node: Box<dyn StateGraphNode<'ctx> + 'ctx>) -> SharedProcessorNode<'ctx> {
         SharedProcessorNode {
             processor_id: node.id(),
             data: Rc::new(RefCell::new(SharedProcessorNodeData::new(node))),
         }
     }
 
-    pub(super) fn borrow_data<'a>(&'a self) -> impl 'a + Deref<Target = SharedProcessorNodeData> {
+    pub(super) fn borrow_data<'a>(
+        &'a self,
+    ) -> impl 'a + Deref<Target = SharedProcessorNodeData<'ctx>> {
         self.data.borrow()
     }
 
     pub(super) fn borrow_data_mut<'a>(
         &'a mut self,
-    ) -> impl 'a + DerefMut<Target = SharedProcessorNodeData> {
+    ) -> impl 'a + DerefMut<Target = SharedProcessorNodeData<'ctx>> {
         self.data.borrow_mut()
     }
 
@@ -284,11 +289,11 @@ impl SharedProcessorNode {
         self.processor_id
     }
 
-    pub(super) fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+    pub(super) fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
         self.data.borrow().node.visit_sound_inputs(visitor);
     }
 
-    pub(super) fn visit_inputs_mut(&self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+    pub(super) fn visit_inputs_mut(&self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         self.data.borrow_mut().node.visit_sound_inputs_mut(visitor);
     }
 
@@ -313,7 +318,7 @@ impl SharedProcessorNode {
         self.data.borrow().num_target_inputs()
     }
 
-    pub(super) fn into_unique_node(self) -> Option<UniqueProcessorNode> {
+    pub(super) fn into_unique_node(self) -> Option<UniqueProcessorNode<'ctx>> {
         debug_assert!(Rc::strong_count(&self.data) == self.num_target_inputs());
         debug_assert!(Rc::weak_count(&self.data) == 0);
         match Rc::try_unwrap(self.data) {
@@ -371,12 +376,12 @@ impl SharedProcessorNode {
         }
     }
 
-    pub(super) fn visit<F: FnMut(&mut dyn StateGraphNode)>(&mut self, mut f: F) {
+    pub(super) fn visit<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(&mut self, mut f: F) {
         f(&mut *self.data.borrow_mut().node);
     }
 }
 
-impl Clone for SharedProcessorNode {
+impl<'ctx> Clone for SharedProcessorNode<'ctx> {
     fn clone(&self) -> Self {
         Self {
             processor_id: self.processor_id.clone(),
@@ -385,17 +390,17 @@ impl Clone for SharedProcessorNode {
     }
 }
 
-pub(super) enum NodeTargetValue {
-    Unique(UniqueProcessorNode),
-    Shared(SharedProcessorNode),
+pub(super) enum NodeTargetValue<'ctx> {
+    Unique(UniqueProcessorNode<'ctx>),
+    Shared(SharedProcessorNode<'ctx>),
     Empty,
 }
 
-pub struct NodeTarget {
-    target: NodeTargetValue,
+pub struct NodeTarget<'ctx> {
+    target: NodeTargetValue<'ctx>,
 }
 
-impl NodeTarget {
+impl<'ctx> NodeTarget<'ctx> {
     pub(super) fn new() -> Self {
         Self {
             target: NodeTargetValue::Empty,
@@ -410,11 +415,11 @@ impl NodeTarget {
         }
     }
 
-    pub(super) fn target(&self) -> &NodeTargetValue {
+    pub(super) fn target(&self) -> &NodeTargetValue<'ctx> {
         &self.target
     }
 
-    pub(super) fn target_mut(&mut self) -> &mut NodeTargetValue {
+    pub(super) fn target_mut(&mut self) -> &mut NodeTargetValue<'ctx> {
         &mut self.target
     }
 
@@ -425,7 +430,7 @@ impl NodeTarget {
         }
     }
 
-    pub(super) fn visit<F: FnMut(&mut dyn StateGraphNode)>(&mut self, f: F) {
+    pub(super) fn visit<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(&mut self, f: F) {
         match &mut self.target {
             NodeTargetValue::Unique(node) => node.visit(f),
             NodeTargetValue::Shared(node) => node.visit(f),
@@ -433,7 +438,7 @@ impl NodeTarget {
         }
     }
 
-    pub(super) fn set_target(&mut self, target: NodeTargetValue) {
+    pub(super) fn set_target(&mut self, target: NodeTargetValue<'ctx>) {
         self.target = target;
     }
 

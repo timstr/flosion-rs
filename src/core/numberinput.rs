@@ -63,7 +63,10 @@ impl NumberInputHandle {
         self.owner
     }
 
-    pub fn make_node(&self) -> NumberInputNode {
+    pub fn make_node<'ctx>(
+        &self,
+        _context: &'ctx inkwell::context::Context,
+    ) -> NumberInputNode<'ctx> {
         NumberInputNode::new(self.id)
     }
 

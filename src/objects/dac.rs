@@ -40,7 +40,7 @@ impl Dac {
 
 impl StaticSoundProcessor for Dac {
     type SoundInputType = SingleInput;
-    type NumberInputType = ();
+    type NumberInputType<'ctx> = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let host = cpal::default_host();
@@ -136,14 +136,14 @@ impl StaticSoundProcessor for Dac {
         &self.input
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(&self) -> Self::NumberInputType<'ctx> {
         ()
     }
 
     fn process_audio(
         &self,
         sound_input: &mut SingleInputNode,
-        _number_input: &Self::NumberInputType,
+        _number_input: &(),
         _dst: &mut SoundChunk,
         ctx: Context,
     ) {

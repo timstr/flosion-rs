@@ -13,7 +13,7 @@ pub struct WhiteNoise {}
 impl DynamicSoundProcessor for WhiteNoise {
     type StateType = ();
     type SoundInputType = ();
-    type NumberInputType = ();
+    type NumberInputType<'ctx> = ();
 
     fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WhiteNoise {})
@@ -27,7 +27,10 @@ impl DynamicSoundProcessor for WhiteNoise {
         ()
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(
+        &self,
+        _context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx> {
         ()
     }
 

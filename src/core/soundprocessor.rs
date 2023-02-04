@@ -44,18 +44,18 @@ pub enum StreamStatus {
 pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
     type SoundInputType: SoundProcessorInput;
 
-    type NumberInputType: NumberInputNodeCollection;
+    type NumberInputType<'ctx>: NumberInputNodeCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
-    fn make_number_inputs(&self) -> Self::NumberInputType;
+    fn make_number_inputs<'ctx>(&self) -> Self::NumberInputType<'ctx>;
 
-    fn process_audio(
+    fn process_audio<'ctx>(
         &self,
-        sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType,
-        number_inputs: &Self::NumberInputType,
+        sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
+        number_inputs: &Self::NumberInputType<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     );
@@ -68,7 +68,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     type SoundInputType: SoundProcessorInput;
 
-    type NumberInputType: NumberInputNodeCollection;
+    type NumberInputType<'ctx>: NumberInputNodeCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 
@@ -76,12 +76,15 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     fn make_state(&self) -> Self::StateType;
 
-    fn make_number_inputs(&self) -> Self::NumberInputType;
+    fn make_number_inputs<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx>;
 
-    fn process_audio(
+    fn process_audio<'ctx>(
         state: &mut StateAndTiming<Self::StateType>,
-        sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType,
-        number_inputs: &Self::NumberInputType,
+        sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
+        number_inputs: &Self::NumberInputType<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus;
@@ -220,7 +223,10 @@ pub(crate) trait SoundProcessor: 'static + Sync + Send {
 
     fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle;
 
-    fn make_node(self: Arc<Self>) -> Box<dyn StateGraphNode>;
+    fn make_node<'ctx>(
+        self: Arc<Self>,
+        context: &'ctx inkwell::context::Context,
+    ) -> Box<dyn StateGraphNode + 'ctx>;
 }
 
 impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
@@ -240,7 +246,10 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
         GraphObjectHandle::new(self)
     }
 
-    fn make_node(self: Arc<Self>) -> Box<dyn StateGraphNode> {
+    fn make_node<'ctx>(
+        self: Arc<Self>,
+        _context: &'ctx inkwell::context::Context,
+    ) -> Box<dyn StateGraphNode + 'ctx> {
         let processor_node = StaticProcessorNode::<T>::new(Arc::clone(&self));
         Box::new(processor_node)
     }
@@ -263,8 +272,11 @@ impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T>
         GraphObjectHandle::new(self)
     }
 
-    fn make_node(self: Arc<Self>) -> Box<dyn StateGraphNode> {
-        let processor_node = DynamicProcessorNode::<T>::new(&*self);
+    fn make_node<'ctx>(
+        self: Arc<Self>,
+        context: &'ctx inkwell::context::Context,
+    ) -> Box<dyn StateGraphNode + 'ctx> {
+        let processor_node = DynamicProcessorNode::<T>::new(&*self, context);
         Box::new(processor_node)
     }
 }

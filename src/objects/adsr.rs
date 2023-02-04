@@ -25,22 +25,22 @@ enum Phase {
     Release,
 }
 
-pub struct ADSRNumberInputs {
-    attack_time: NumberInputNode,
-    decay_time: NumberInputNode,
-    sustain_level: NumberInputNode,
-    release_time: NumberInputNode,
+pub struct ADSRNumberInputs<'ctx> {
+    attack_time: NumberInputNode<'ctx>,
+    decay_time: NumberInputNode<'ctx>,
+    sustain_level: NumberInputNode<'ctx>,
+    release_time: NumberInputNode<'ctx>,
 }
 
-impl NumberInputNodeCollection for ADSRNumberInputs {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+impl<'ctx> NumberInputNodeCollection<'ctx> for ADSRNumberInputs<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.attack_time);
         visitor.visit_node(&self.decay_time);
         visitor.visit_node(&self.sustain_level);
         visitor.visit_node(&self.release_time);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.attack_time);
         visitor.visit_node(&mut self.decay_time);
         visitor.visit_node(&mut self.sustain_level);
@@ -107,7 +107,7 @@ impl DynamicSoundProcessor for ADSR {
 
     type SoundInputType = SingleInput;
 
-    type NumberInputType = ADSRNumberInputs;
+    type NumberInputType<'ctx> = ADSRNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ADSR {
@@ -133,12 +133,15 @@ impl DynamicSoundProcessor for ADSR {
         }
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx> {
         ADSRNumberInputs {
-            attack_time: self.attack_time.make_node(),
-            decay_time: self.decay_time.make_node(),
-            sustain_level: self.sustain_level.make_node(),
-            release_time: self.release_time.make_node(),
+            attack_time: self.attack_time.make_node(context),
+            decay_time: self.decay_time.make_node(context),
+            sustain_level: self.sustain_level.make_node(context),
+            release_time: self.release_time.make_node(context),
         }
     }
 

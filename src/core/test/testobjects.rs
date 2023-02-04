@@ -17,7 +17,7 @@ impl TestStaticSoundProcessor {
 impl StaticSoundProcessor for TestStaticSoundProcessor {
     type SoundInputType = ();
 
-    type NumberInputType = ();
+    type NumberInputType<'ctx> = ();
 
     fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Self {})
@@ -27,7 +27,7 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
         &()
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(&self) -> Self::NumberInputType<'ctx> {
         ()
     }
 

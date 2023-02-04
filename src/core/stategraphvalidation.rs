@@ -16,14 +16,15 @@ use super::{
     },
 };
 
-struct Visitor<'a> {
+// TODO: should SharedProcessorNodeData use separate 'ctx lifetime?
+struct Visitor<'a, 'ctx> {
     topology: &'a SoundGraphTopology,
-    visited_shared_nodes: HashSet<*const SharedProcessorNodeData>,
+    visited_shared_nodes: HashSet<*const SharedProcessorNodeData<'ctx>>,
     visited_static_processors: HashSet<SoundProcessorId>,
 }
 
-impl<'a> Visitor<'a> {
-    fn visit_shared_processor_node(&mut self, node: &SharedProcessorNode) -> bool {
+impl<'a, 'ctx> Visitor<'a, 'ctx> {
+    fn visit_shared_processor_node(&mut self, node: &SharedProcessorNode<'ctx>) -> bool {
         let data = node.borrow_data();
         let data_ptr: *const SharedProcessorNodeData = &*data;
         if self.visited_shared_nodes.contains(&data_ptr) {
@@ -38,14 +39,14 @@ impl<'a> Visitor<'a> {
         self.visit_processor_sound_inputs(data.node())
     }
 
-    fn visit_unique_processor_node(&mut self, node: &UniqueProcessorNode) -> bool {
+    fn visit_unique_processor_node(&mut self, node: &UniqueProcessorNode<'ctx>) -> bool {
         if !self.check_processor(node.node()) {
             return false;
         }
         self.visit_processor_sound_inputs(node.node())
     }
 
-    fn check_processor(&mut self, node: &dyn StateGraphNode) -> bool {
+    fn check_processor(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
         let proc_data = match self.topology.sound_processors().get(&node.id()) {
             Some(p) => p,
             None => {
@@ -159,11 +160,11 @@ impl<'a> Visitor<'a> {
         true
     }
 
-    fn visit_processor_sound_inputs(&mut self, node: &dyn StateGraphNode) -> bool {
+    fn visit_processor_sound_inputs(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
         let mut all_good = true;
 
         node.visit_sound_inputs(
-            &mut |_siid: SoundInputId, _kidx: usize, target: &NodeTarget| {
+            &mut |_siid: SoundInputId, _kidx: usize, target: &NodeTarget<'ctx>| {
                 if !all_good {
                     return;
                 }

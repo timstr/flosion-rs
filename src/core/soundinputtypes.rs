@@ -34,22 +34,22 @@ impl SingleInput {
 }
 
 impl SoundProcessorInput for SingleInput {
-    type NodeType = SingleInputNode;
+    type NodeType<'ctx> = SingleInputNode<'ctx>;
 
-    fn make_node(&self) -> Self::NodeType {
+    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         SingleInputNode::new(self.id)
     }
 }
 
-pub struct SingleInputNode {
+pub struct SingleInputNode<'ctx> {
     id: SoundInputId,
     timing: InputTiming,
-    target: NodeTarget,
+    target: NodeTarget<'ctx>,
     active: bool,
 }
 
-impl SingleInputNode {
-    pub fn new(id: SoundInputId) -> SingleInputNode {
+impl<'ctx> SingleInputNode<'ctx> {
+    pub fn new(id: SoundInputId) -> SingleInputNode<'ctx> {
         SingleInputNode {
             id,
             timing: InputTiming::default(),
@@ -95,18 +95,18 @@ impl SingleInputNode {
     }
 }
 
-impl SoundInputNode for SingleInputNode {
+impl<'ctx> SoundInputNode<'ctx> for SingleInputNode<'ctx> {
     fn flag_for_reset(&mut self) {
         self.timing.require_reset();
     }
 
-    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
         if self.active {
             visitor.visit_input(self.id, 0, &self.target);
         }
     }
 
-    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         if self.active {
             visitor.visit_input(self.id, 0, &mut self.target);
         }
@@ -159,9 +159,9 @@ impl<S: State + Default> KeyedInput<S> {
 }
 
 impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
-    type NodeType = KeyedInputNode<S>;
+    type NodeType<'ctx> = KeyedInputNode<'ctx, S>;
 
-    fn make_node(&self) -> Self::NodeType {
+    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         KeyedInputNode {
             id: self.id,
             data: (0..self.num_keys)
@@ -172,14 +172,14 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
     }
 }
 
-pub struct KeyedInputData<S: State + Default> {
+pub struct KeyedInputData<'ctx, S: State + Default> {
     id: SoundInputId,
     timing: InputTiming,
-    target: NodeTarget,
+    target: NodeTarget<'ctx>,
     state: S,
 }
 
-impl<S: State + Default> KeyedInputData<S> {
+impl<'ctx, S: State + Default> KeyedInputData<'ctx, S> {
     fn new(id: SoundInputId) -> Self {
         Self {
             id,
@@ -238,30 +238,30 @@ impl<S: State + Default> KeyedInputData<S> {
     }
 }
 
-pub struct KeyedInputNode<S: State + Default> {
+pub struct KeyedInputNode<'ctx, S: State + Default> {
     id: SoundInputId,
-    data: Vec<KeyedInputData<S>>,
+    data: Vec<KeyedInputData<'ctx, S>>,
     active: bool,
 }
 
-impl<S: State + Default> KeyedInputNode<S> {
-    pub fn data(&self) -> &[KeyedInputData<S>] {
+impl<'ctx, S: State + Default> KeyedInputNode<'ctx, S> {
+    pub fn data(&self) -> &[KeyedInputData<'ctx, S>] {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut [KeyedInputData<S>] {
+    pub fn data_mut(&mut self) -> &mut [KeyedInputData<'ctx, S>] {
         &mut self.data
     }
 }
 
-impl<S: State + Default> SoundInputNode for KeyedInputNode<S> {
+impl<'ctx, S: State + Default> SoundInputNode<'ctx> for KeyedInputNode<'ctx, S> {
     fn flag_for_reset(&mut self) {
         for d in &mut self.data {
             d.timing.require_reset();
         }
     }
 
-    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
         if self.active {
             for (i, d) in self.data.iter().enumerate() {
                 visitor.visit_input(d.id, i, &d.target);
@@ -269,7 +269,7 @@ impl<S: State + Default> SoundInputNode for KeyedInputNode<S> {
         }
     }
 
-    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         if self.active {
             for (i, d) in self.data.iter_mut().enumerate() {
                 visitor.visit_input(d.id, i, &mut d.target);
@@ -301,9 +301,9 @@ impl<S: State + Default> SoundInputNode for KeyedInputNode<S> {
 }
 
 impl SoundProcessorInput for () {
-    type NodeType = ();
+    type NodeType<'ctx> = ();
 
-    fn make_node(&self) -> Self::NodeType {
+    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         ()
     }
 }
@@ -356,9 +356,9 @@ impl SingleInputList {
 }
 
 impl SoundProcessorInput for SingleInputList {
-    type NodeType = SingleInputListNode;
+    type NodeType<'ctx> = SingleInputListNode<'ctx>;
 
-    fn make_node(&self) -> Self::NodeType {
+    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         SingleInputListNode {
             inputs: self
                 .input_ids
@@ -370,33 +370,33 @@ impl SoundProcessorInput for SingleInputList {
     }
 }
 
-pub struct SingleInputListNode {
-    inputs: Vec<SingleInputNode>,
+pub struct SingleInputListNode<'ctx> {
+    inputs: Vec<SingleInputNode<'ctx>>,
 }
 
-impl SingleInputListNode {
-    pub fn get(&self) -> &[SingleInputNode] {
+impl<'ctx> SingleInputListNode<'ctx> {
+    pub fn get(&self) -> &[SingleInputNode<'ctx>] {
         &self.inputs
     }
-    pub fn get_mut(&mut self) -> &mut [SingleInputNode] {
+    pub fn get_mut(&mut self) -> &mut [SingleInputNode<'ctx>] {
         &mut self.inputs
     }
 }
 
-impl SoundInputNode for SingleInputListNode {
+impl<'ctx> SoundInputNode<'ctx> for SingleInputListNode<'ctx> {
     fn flag_for_reset(&mut self) {
         for i in &mut self.inputs {
             i.flag_for_reset();
         }
     }
 
-    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor) {
+    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
         for i in &self.inputs {
             visitor.visit_input(i.id, 0, &i.target);
         }
     }
 
-    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut) {
+    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         for i in &mut self.inputs {
             visitor.visit_input(i.id, 0, &mut i.target);
         }

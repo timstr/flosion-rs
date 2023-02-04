@@ -22,18 +22,18 @@ pub struct WaveGenerator {
     pub frequency: NumberInputHandle,
 }
 
-pub struct WaveGeneratorNumberInputs {
-    frequency: NumberInputNode,
-    amplitude: NumberInputNode,
+pub struct WaveGeneratorNumberInputs<'ctx> {
+    frequency: NumberInputNode<'ctx>,
+    amplitude: NumberInputNode<'ctx>,
 }
 
-impl NumberInputNodeCollection for WaveGeneratorNumberInputs {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+impl<'ctx> NumberInputNodeCollection<'ctx> for WaveGeneratorNumberInputs<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.frequency);
         visitor.visit_node(&self.amplitude);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.frequency);
         visitor.visit_node(&mut self.amplitude);
     }
@@ -52,7 +52,7 @@ impl State for WaveGeneratorState {
 impl DynamicSoundProcessor for WaveGenerator {
     type StateType = WaveGeneratorState;
     type SoundInputType = ();
-    type NumberInputType = WaveGeneratorNumberInputs;
+    type NumberInputType<'ctx> = WaveGeneratorNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
@@ -77,10 +77,13 @@ impl DynamicSoundProcessor for WaveGenerator {
         }
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx> {
         WaveGeneratorNumberInputs {
-            frequency: self.frequency.make_node(),
-            amplitude: self.amplitude.make_node(),
+            frequency: self.frequency.make_node(context),
+            amplitude: self.amplitude.make_node(context),
         }
     }
 

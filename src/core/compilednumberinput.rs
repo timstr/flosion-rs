@@ -156,15 +156,15 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 
 // NOTE: Compiled number input node stores everything directly for now
 // Caching and reuse among other similar/identical number nodes coming later maybe
-pub(super) struct CompiledNumberInputNode<'inkwell_ctx> {
+pub(super) struct CompiledNumberInputNode<'ctx> {
     // inkwell stuff, unsure if needed, probably useful for debugging.
     // also unsure if removing these is memory safe
     // context: &'inkwell_ctx inkwell::context::Context,
-    module: inkwell::module::Module<'inkwell_ctx>,
-    execution_engine: inkwell::execution_engine::ExecutionEngine<'inkwell_ctx>,
+    module: inkwell::module::Module<'ctx>,
+    execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
 
     // The function compiled by LLVM
-    function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalNumberInputFunc>,
+    function: inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>,
 }
 
 impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {

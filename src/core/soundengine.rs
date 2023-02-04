@@ -37,8 +37,6 @@ impl Drop for SoundEngineInterface {
 }
 
 pub(super) struct SoundEngine {
-    topology: SoundGraphTopology,
-    state_graph: StateGraph,
     keep_running: Arc<AtomicBool>,
     edit_queue: Receiver<SoundGraphEdit>,
     deadline_warning_issued: bool,
@@ -56,8 +54,6 @@ impl SoundEngine {
         let join_handle = thread::spawn(move || {
             // NOTE: state_graph is not Send, and so must be constructed on the audio thread
             let mut se = SoundEngine {
-                topology: SoundGraphTopology::new(),
-                state_graph: StateGraph::new(),
                 keep_running: keep_running_also,
                 edit_queue: receiver,
                 deadline_warning_issued: false,
@@ -77,10 +73,16 @@ impl SoundEngine {
 
         set_current_thread_priority(ThreadPriority::Max).unwrap();
 
+        let context = inkwell::context::Context::create();
+        let mut topology = SoundGraphTopology::new();
+        let mut state_graph = StateGraph::new();
+
         let mut deadline = Instant::now() + chunk_duration;
 
         loop {
-            self.process_audio();
+            self.flush_updates(&mut state_graph, &mut topology, &context);
+
+            self.process_audio(&state_graph, &topology);
             if !self.keep_running.load(Ordering::Relaxed) {
                 break;
             }
@@ -100,23 +102,24 @@ impl SoundEngine {
         }
     }
 
-    fn flush_updates(&mut self) {
+    fn flush_updates<'ctx>(
+        &mut self,
+        state_graph: &mut StateGraph<'ctx>,
+        topology: &mut SoundGraphTopology,
+        context: &'ctx inkwell::context::Context,
+    ) {
         while let Ok(edit) = self.edit_queue.try_recv() {
             println!("SoundEngine: {}", edit.name());
-            self.topology.make_edit(edit.clone());
-            self.state_graph.make_edit(edit, &self.topology);
-            debug_assert!(state_graph_matches_topology(
-                &self.state_graph,
-                &self.topology
-            ));
+            topology.make_edit(edit.clone());
+            state_graph.make_edit(edit, topology, context);
+            debug_assert!(state_graph_matches_topology(state_graph, topology));
         }
     }
 
-    fn process_audio(&mut self) {
-        self.flush_updates();
+    fn process_audio(&mut self, state_graph: &StateGraph, topology: &SoundGraphTopology) {
         Self::SCRATCH_SPACE.with(|scratch_space| {
-            for entry_point in self.state_graph.entry_points() {
-                entry_point.invoke_externally(&self.topology, scratch_space);
+            for entry_point in state_graph.entry_points() {
+                entry_point.invoke_externally(topology, scratch_space);
             }
         });
     }

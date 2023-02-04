@@ -1,21 +1,33 @@
 use super::{soundinput::SoundInputId, stategraphnode::NodeTarget};
 
-pub trait SoundInputNodeVisitor {
-    fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &NodeTarget);
+pub trait SoundInputNodeVisitor<'ctx> {
+    fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &NodeTarget<'ctx>);
 }
 
-impl<F: FnMut(SoundInputId, usize, &NodeTarget)> SoundInputNodeVisitor for F {
-    fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &NodeTarget) {
+impl<'ctx, F: FnMut(SoundInputId, usize, &NodeTarget<'ctx>)> SoundInputNodeVisitor<'ctx> for F {
+    fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &NodeTarget<'ctx>) {
         (*self)(input_id, key_index, target);
     }
 }
 
-pub trait SoundInputNodeVisitorMut {
-    fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &mut NodeTarget);
+pub trait SoundInputNodeVisitorMut<'ctx> {
+    fn visit_input(
+        &mut self,
+        input_id: SoundInputId,
+        key_index: usize,
+        target: &mut NodeTarget<'ctx>,
+    );
 }
 
-impl<F: FnMut(SoundInputId, usize, &mut NodeTarget)> SoundInputNodeVisitorMut for F {
-    fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &mut NodeTarget) {
+impl<'ctx, F: FnMut(SoundInputId, usize, &mut NodeTarget<'ctx>)> SoundInputNodeVisitorMut<'ctx>
+    for F
+{
+    fn visit_input(
+        &mut self,
+        input_id: SoundInputId,
+        key_index: usize,
+        target: &mut NodeTarget<'ctx>,
+    ) {
         (*self)(input_id, key_index, target);
     }
 }
@@ -23,11 +35,11 @@ impl<F: FnMut(SoundInputId, usize, &mut NodeTarget)> SoundInputNodeVisitorMut fo
 // Trait used for automating allocation and reallocation of node inputs
 // Not concerned with actual audio processing or providing access to
 // said inputs - concrete types will provide those.
-pub trait SoundInputNode {
+pub trait SoundInputNode<'ctx> {
     fn flag_for_reset(&mut self);
 
-    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor);
-    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut);
+    fn visit_inputs<'a>(&self, visitor: &'a mut dyn SoundInputNodeVisitor<'ctx>);
+    fn visit_inputs_mut<'a>(&mut self, visitor: &'a mut dyn SoundInputNodeVisitorMut<'ctx>);
 
     fn add_input(&mut self, _input_id: SoundInputId);
 
@@ -42,7 +54,7 @@ pub trait SoundInputNode {
     }
 }
 
-impl SoundInputNode for () {
+impl<'ctx> SoundInputNode<'ctx> for () {
     fn flag_for_reset(&mut self) {}
 
     fn visit_inputs(&self, _visitor: &mut dyn SoundInputNodeVisitor) {}
@@ -58,7 +70,8 @@ impl SoundInputNode for () {
 }
 
 pub trait SoundProcessorInput {
-    type NodeType: SoundInputNode;
+    type NodeType<'ctx>: SoundInputNode<'ctx>;
 
-    fn make_node(&self) -> Self::NodeType;
+    // TODO: is any parameter that actually uses the lifetime needed?
+    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx>;
 }

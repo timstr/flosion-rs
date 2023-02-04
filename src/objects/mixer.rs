@@ -37,7 +37,7 @@ impl Mixer {
 impl DynamicSoundProcessor for Mixer {
     type StateType = ();
     type SoundInputType = SingleInputList;
-    type NumberInputType = ();
+    type NumberInputType<'ctx> = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_inputs: usize = match _init {
@@ -61,14 +61,17 @@ impl DynamicSoundProcessor for Mixer {
         ()
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(
+        &self,
+        _context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx> {
         ()
     }
 
     fn process_audio(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut SingleInputListNode,
-        _number_inputs: &Self::NumberInputType,
+        _number_inputs: &(),
         dst: &mut SoundChunk,
         mut context: Context,
     ) -> StreamStatus {

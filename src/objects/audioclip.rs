@@ -40,7 +40,7 @@ impl State for AudioClipState {
 impl DynamicSoundProcessor for AudioClip {
     type StateType = AudioClipState;
     type SoundInputType = ();
-    type NumberInputType = ();
+    type NumberInputType<'ctx> = ();
 
     fn new(_tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
         let data = match init {
@@ -76,14 +76,17 @@ impl DynamicSoundProcessor for AudioClip {
         }
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(
+        &self,
+        _context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx> {
         ()
     }
 
     fn process_audio(
         state: &mut StateAndTiming<AudioClipState>,
         _sound_inputs: &mut Self::SoundInputType,
-        _number_inputs: &Self::NumberInputType,
+        _number_inputs: &(),
         dst: &mut SoundChunk,
         _context: crate::core::context::Context,
     ) -> StreamStatus {

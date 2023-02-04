@@ -26,7 +26,7 @@ impl<'ctx> NumberInputNode<'ctx> {
     pub(super) fn recompile(
         &mut self,
         topology: &SoundGraphTopology,
-        inkwell_context: &inkwell::context::Context,
+        inkwell_context: &'ctx inkwell::context::Context,
     ) {
         if self.artefact.is_some() {
             return;
@@ -53,9 +53,9 @@ impl<'ctx> NumberInputNode<'ctx> {
     }
 }
 
-pub trait NumberInputNodeCollection {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor);
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut);
+pub trait NumberInputNodeCollection<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>);
+    fn visit_number_inputs_mut(&mut self, visitor: &'_ mut dyn NumberInputNodeVisitorMut<'ctx>);
 
     fn add_input(&self, _input_id: NumberInputId) {
         panic!("This NumberInputNodeCollection type does not support adding inputs");
@@ -65,32 +65,32 @@ pub trait NumberInputNodeCollection {
     }
 }
 
-pub trait NumberInputNodeVisitor {
-    fn visit_node(&mut self, node: &NumberInputNode);
+pub trait NumberInputNodeVisitor<'ctx> {
+    fn visit_node(&mut self, node: &NumberInputNode<'ctx>);
 }
 
-pub trait NumberInputNodeVisitorMut {
-    fn visit_node(&mut self, node: &mut NumberInputNode);
+pub trait NumberInputNodeVisitorMut<'ctx> {
+    fn visit_node(&mut self, node: &mut NumberInputNode<'ctx>);
 }
 
-impl<F: FnMut(&NumberInputNode)> NumberInputNodeVisitor for F {
-    fn visit_node(&mut self, node: &NumberInputNode) {
+impl<'ctx, F: FnMut(&NumberInputNode<'ctx>)> NumberInputNodeVisitor<'ctx> for F {
+    fn visit_node(&mut self, node: &NumberInputNode<'ctx>) {
         (*self)(node);
     }
 }
 
-impl<F: FnMut(&mut NumberInputNode)> NumberInputNodeVisitorMut for F {
-    fn visit_node(&mut self, node: &mut NumberInputNode) {
+impl<'ctx, F: FnMut(&mut NumberInputNode<'ctx>)> NumberInputNodeVisitorMut<'ctx> for F {
+    fn visit_node(&mut self, node: &mut NumberInputNode<'ctx>) {
         (*self)(node);
     }
 }
 
-impl NumberInputNodeCollection for () {
+impl<'ctx> NumberInputNodeCollection<'ctx> for () {
     fn visit_number_inputs(&self, _visitor: &mut dyn NumberInputNodeVisitor) {
         // Nothing to do
     }
 
-    fn visit_number_inputs_mut(&mut self, _visitor: &mut dyn NumberInputNodeVisitorMut) {
+    fn visit_number_inputs_mut(&mut self, _visitor: &'_ mut dyn NumberInputNodeVisitorMut<'ctx>) {
         // Nothing to do
     }
 }

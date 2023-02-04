@@ -19,16 +19,16 @@ pub struct Resampler {
     pub speed_ratio: NumberInputHandle,
 }
 
-pub struct ResamplerNumberInputs {
-    speed_ratio: NumberInputNode,
+pub struct ResamplerNumberInputs<'ctx> {
+    speed_ratio: NumberInputNode<'ctx>,
 }
 
-impl NumberInputNodeCollection for ResamplerNumberInputs {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor) {
+impl<'ctx> NumberInputNodeCollection<'ctx> for ResamplerNumberInputs<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.speed_ratio);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.speed_ratio);
     }
 }
@@ -51,7 +51,7 @@ impl State for ResamplerState {
 impl DynamicSoundProcessor for Resampler {
     type StateType = ResamplerState;
     type SoundInputType = SingleInput;
-    type NumberInputType = ResamplerNumberInputs;
+    type NumberInputType<'ctx> = ResamplerNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Resampler {
@@ -73,9 +73,12 @@ impl DynamicSoundProcessor for Resampler {
         }
     }
 
-    fn make_number_inputs(&self) -> Self::NumberInputType {
+    fn make_number_inputs<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx> {
         ResamplerNumberInputs {
-            speed_ratio: self.speed_ratio.make_node(),
+            speed_ratio: self.speed_ratio.make_node(context),
         }
     }
 
