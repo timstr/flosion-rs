@@ -1,16 +1,16 @@
 use std::slice;
 
 use super::{
-    compilednumberinput::CompiledNumberInput, context::Context, numberinput::NumberInputId,
+    compilednumberinput::CompiledNumberInputNode, context::Context, numberinput::NumberInputId,
     soundgraphtopology::SoundGraphTopology,
 };
 
-pub struct NumberInputNode {
+pub struct NumberInputNode<'ctx> {
     id: NumberInputId,
-    artefact: Option<CompiledNumberInput>,
+    artefact: Option<CompiledNumberInputNode<'ctx>>,
 }
 
-impl NumberInputNode {
+impl<'ctx> NumberInputNode<'ctx> {
     pub(super) fn new(id: NumberInputId) -> Self {
         Self { id, artefact: None }
     }
@@ -23,11 +23,19 @@ impl NumberInputNode {
         self.artefact = None;
     }
 
-    pub(super) fn recompile(&mut self, topology: &SoundGraphTopology) {
+    pub(super) fn recompile(
+        &mut self,
+        topology: &SoundGraphTopology,
+        inkwell_context: &inkwell::context::Context,
+    ) {
         if self.artefact.is_some() {
             return;
         }
-        self.artefact = Some(CompiledNumberInput::compile(self.id, topology))
+        self.artefact = Some(CompiledNumberInputNode::compile(
+            self.id,
+            topology,
+            inkwell_context,
+        ))
     }
 
     pub fn eval(&self, dst: &mut [f32], context: &Context) {

@@ -1,6 +1,9 @@
 use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
+use inkwell::values::FloatValue;
+
 use super::{
+    compilednumberinput::CodeGen,
     context::Context,
     graphobject::{GraphObjectHandle, ObjectInitialization, WithObjectType},
     numbersourcetools::NumberSourceTools,
@@ -86,6 +89,15 @@ impl NumberConfig {
 
 pub(crate) trait NumberSource: 'static + Sync + Send {
     fn eval(&self, dst: &mut [f32], context: &Context);
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &CodeGen<'ctx>,
+        _inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        // HACK: everything returns zero by default
+        codegen.float_type().const_zero()
+    }
 
     fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
         None
