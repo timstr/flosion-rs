@@ -86,6 +86,10 @@ pub trait StateGraphNode<'ctx> {
     fn reset(&mut self);
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
 
+    // Used for book-keeping optimizations, e.g. to avoid visiting shared nodes twice
+    // and because comparing trait objects (fat pointers) for equality is fraught
+    fn address(&self) -> *const ();
+
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx>;
     fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>);
     fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>);
@@ -108,6 +112,11 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
         self.processor
             .process_audio(&mut self.sound_input, &self.number_input, dst, ctx);
         StreamStatus::Playing
+    }
+
+    fn address(&self) -> *const () {
+        let ptr: *const StaticProcessorNode<T> = self;
+        ptr as *const ()
     }
 
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
@@ -146,6 +155,11 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
         (self as &mut DynamicProcessorNode<T>).process_audio(dst, ctx)
+    }
+
+    fn address(&self) -> *const () {
+        let ptr: *const DynamicProcessorNode<T> = self;
+        ptr as *const ()
     }
 
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
