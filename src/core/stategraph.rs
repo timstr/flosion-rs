@@ -158,7 +158,7 @@ impl<'ctx> StateGraph<'ctx> {
                         context,
                     ));
                 },
-            )
+            );
         });
     }
 
@@ -220,7 +220,7 @@ impl<'ctx> StateGraph<'ctx> {
                         == NumberInputOwner::NumberSource(nsid)
                 );
                 let dependents = self.find_all_number_dependents(data.id(), topology);
-                self.recompile_number_input_nodes(&dependents, context);
+                self.recompile_number_input_nodes(&dependents, topology, context);
             }
         }
     }
@@ -252,7 +252,7 @@ impl<'ctx> StateGraph<'ctx> {
                 // HACK: recompiling everything
                 let dependents: HashSet<NumberInputId> =
                     topology.number_inputs().keys().cloned().collect();
-                self.recompile_number_input_nodes(&dependents, context);
+                self.recompile_number_input_nodes(&dependents, topology, context);
             }
         }
     }
@@ -277,8 +277,9 @@ impl<'ctx> StateGraph<'ctx> {
         //      - recursively visit all number sources that the input
         //        depends on
         //      - whenever an overload node is found, ?????
-        let dependents = self.find_all_number_dependents(input_id, topology);
-        self.recompile_number_input_nodes(&dependents, context);
+        // HACK: recompiling all number inputs for now
+        let dependents = topology.number_inputs().keys().cloned().collect();
+        self.recompile_number_input_nodes(&dependents, topology, context);
     }
 
     fn disconnect_number_input(
@@ -290,7 +291,7 @@ impl<'ctx> StateGraph<'ctx> {
         // TODO: recompile only those number inputs which actually changed
         // HACK: recompiling all number inputs for now
         let dependents = topology.number_inputs().keys().cloned().collect();
-        self.recompile_number_input_nodes(&dependents, context);
+        self.recompile_number_input_nodes(&dependents, topology, context);
     }
 
     fn modify_sound_input_node<F: FnMut(&mut dyn SoundInputNode<'ctx>)>(
@@ -345,6 +346,10 @@ impl<'ctx> StateGraph<'ctx> {
             NodeTargetValue::Shared(shared_node)
         } else {
             let mut node = proc_data.instance_arc().make_node(context);
+            node.number_input_node_mut()
+                .visit_number_inputs_mut(&mut |n: &mut NumberInputNode<'ctx>| {
+                    n.recompile(topology, context);
+                });
             node.visit_sound_inputs_mut(
                 &mut |input_id: SoundInputId, _key_index: usize, node: &mut NodeTarget<'ctx>| {
                     debug_assert!(node.is_empty());
@@ -409,15 +414,20 @@ impl<'ctx> StateGraph<'ctx> {
 
     fn recompile_number_input_nodes(
         &mut self,
-        nodes: &HashSet<NumberInputId>,
+        which_nodes: &HashSet<NumberInputId>,
+        topology: &SoundGraphTopology,
         context: &'ctx inkwell::context::Context,
     ) {
-        // TODO:
-        // - starting from entry points, visit all sound processor nodes
-        //   (without visiting shared nodes twice)
-        // - for each sound processor node, visit all its number input nodes
-        // - for each number input node, if it's contained in `nodes`, recompile it
-        // - can probably copy visitor-based approach from modify_processor_node and modify_sound_input_node
+        let f_input = |_: &mut dyn SoundInputNode<'ctx>| true;
+        let f_processor = |node: &mut dyn StateGraphNode<'ctx>| {
+            node.visit_number_inputs_mut(&mut |ni: &mut NumberInputNode<'ctx>| {
+                if which_nodes.contains(&ni.id()) {
+                    ni.recompile(topology, context);
+                }
+            });
+            true
+        };
+        visit_state_graph(f_input, f_processor, &mut self.entry_points);
     }
 }
 
@@ -448,8 +458,10 @@ where
             return;
         }
         self.visited_nodes.insert(ptr);
-        if (self.f_input)(node.sound_input_node_mut()) {
-            node.visit_sound_inputs_mut(self);
+        if (self.f_processor)(node) {
+            if (self.f_input)(node.sound_input_node_mut()) {
+                node.visit_sound_inputs_mut(self);
+            }
         }
     }
 }
@@ -467,9 +479,7 @@ where
         target: &mut NodeTarget<'ctx>,
     ) {
         target.visit(|n: &mut dyn StateGraphNode<'ctx>| {
-            if (self.f_processor)(n) {
-                self.visit_node(n);
-            }
+            self.visit_node(n);
         })
     }
 }

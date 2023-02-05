@@ -23,14 +23,16 @@ impl<'ctx> NumberInputNode<'ctx> {
         self.artefact = None;
     }
 
+    pub(super) fn is_initialized(&self) -> bool {
+        self.artefact.is_some()
+    }
+
     pub(super) fn recompile(
         &mut self,
         topology: &SoundGraphTopology,
         inkwell_context: &'ctx inkwell::context::Context,
     ) {
-        if self.artefact.is_some() {
-            return;
-        }
+        // TODO: skip recompilation if up to date
         self.artefact = Some(CompiledNumberInputNode::compile(
             self.id,
             topology,

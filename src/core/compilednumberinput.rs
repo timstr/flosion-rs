@@ -2,11 +2,11 @@ use std::{fs, path::Path, process::Command};
 
 use inkwell::{
     builder::Builder,
-    execution_engine::JitFunction,
     types::{FloatType, IntType},
     values::{FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
-    OptimizationLevel,
 };
+
+use crate::core::uniqueid::UniqueId;
 
 use super::{
     context::Context, numberinput::NumberInputId, numbersource::NumberSourceId,
@@ -37,7 +37,6 @@ impl<'ctx> CodeGen<'ctx> {
         array_read_wrapper: FunctionValue<'ctx>,
         builder: Builder<'ctx>,
     ) -> CodeGen<'ctx> {
-        builder.position_before(&end_of_bb_loop);
         CodeGen {
             end_of_bb_entry,
             end_of_bb_loop,
@@ -117,7 +116,8 @@ impl<'ctx> CodeGen<'ctx> {
         array_elem.into_float_value()
     }
 
-    fn run(&self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {
+    fn run(self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {
+        self.builder.position_before(&self.end_of_bb_loop);
         let final_value = self.visit_input(number_input_id, topology);
         let dst_elem_ptr = unsafe {
             self.builder
@@ -203,6 +203,8 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         let fn_array_read_wrapper =
             module.add_function("array_read_wrapper", fn_array_read_wrapper_type, None);
 
+        execution_engine.add_global_mapping(&fn_array_read_wrapper, array_read_wrapper as usize);
+
         let fn_eval_number_input_type = void_type.fn_type(
             &[
                 // *mut f32 : pointer to destination array
@@ -236,6 +238,10 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             .get_nth_param(2)
             .unwrap()
             .into_pointer_value();
+
+        arg_f32_dst_ptr.set_name("dst_ptr");
+        arg_dst_len.set_name("dst_len");
+        arg_actx_ptr.set_name("audio_ctx");
 
         let inst_end_of_entry;
         let inst_end_of_loop;
@@ -293,6 +299,20 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             builder.build_return(Some(&u8_type.const_zero()));
         }
 
+        let codegen = CodeGen::new(
+            inst_end_of_entry,
+            inst_end_of_loop,
+            v_loop_counter,
+            arg_f32_dst_ptr,
+            arg_actx_ptr,
+            f32_type,
+            usize_type,
+            fn_array_read_wrapper,
+            builder,
+        );
+
+        codegen.run(number_input_id, topology);
+
         // print out the IR if testing
         #[cfg(debug_assertions)]
         {
@@ -328,32 +348,21 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             for l in ll_contents.lines() {
                 println!("    {}", l);
             }
+
+            std::fs::remove_file(bc_path).unwrap();
+            std::fs::remove_file(ll_path).unwrap();
         }
 
-        let codegen = CodeGen::new(
-            inst_end_of_entry,
-            inst_end_of_loop,
-            v_loop_counter,
-            arg_f32_dst_ptr,
-            arg_actx_ptr,
-            f32_type,
-            usize_type,
-            fn_array_read_wrapper,
-            builder,
-        );
-
-        codegen.run(number_input_id, topology);
-
-        let execution_engine = module
-            .create_jit_execution_engine(OptimizationLevel::None)
-            .unwrap();
-        execution_engine.add_global_mapping(&fn_array_read_wrapper, array_read_wrapper as usize);
-
-        let compiled_fn: Option<JitFunction<EvalNumberInputFunc>> =
-            unsafe { execution_engine.get_function("foo").ok() };
-        let compiled_fn = compiled_fn
-            .ok_or("Unable to JIT compile number input node")
-            .unwrap();
+        let compiled_fn = match unsafe { execution_engine.get_function(&function_name) } {
+            Ok(f) => f,
+            Err(e) => {
+                panic!(
+                    "Unable to JIT compile number input node {}:\n    {:?}",
+                    number_input_id.value(),
+                    e
+                );
+            }
+        };
 
         CompiledNumberInputNode {
             // context: inkwell_context,

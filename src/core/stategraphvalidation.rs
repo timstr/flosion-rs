@@ -14,6 +14,7 @@ use super::{
         NodeTarget, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,
         UniqueProcessorNode,
     },
+    uniqueid::UniqueId,
 };
 
 // TODO: should SharedProcessorNodeData use separate 'ctx lifetime?
@@ -82,26 +83,44 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         // Verify that all expected sound inputs are present
         {
             let mut remaining_input_nodes: HashSet<(SoundInputId, usize)> = HashSet::new();
+            let mut unexpected_input_nodes: HashSet<(SoundInputId, usize)> = HashSet::new();
             for input_id in proc_data.sound_inputs() {
                 let input_data = self.topology.sound_input(*input_id).unwrap();
                 for k in 0..input_data.num_keys() {
                     remaining_input_nodes.insert((*input_id, k));
                 }
             }
-            let mut all_good = true;
 
             node.visit_sound_inputs(&mut |siid: SoundInputId, kidx: usize, _tgt: &NodeTarget| {
                 if !remaining_input_nodes.remove(&(siid, kidx)) {
-                    all_good = false;
+                    unexpected_input_nodes.insert((siid, kidx));
                 }
             });
 
-            if !all_good {
-                println!("state_graph_matches_topology: a sound processor node has a sound input which shouldn't exist");
+            if !unexpected_input_nodes.is_empty() {
+                println!(
+                    "state_graph_matches_topology: sound processor {} has the sound \
+                    inputs which shouldn't exist: {}",
+                    node.id().value(),
+                    comma_separated_list(remaining_input_nodes.iter().map(|x| format!(
+                        "input {} (key={})",
+                        x.0.value(),
+                        x.1
+                    )))
+                );
                 return false;
             }
             if !remaining_input_nodes.is_empty() {
-                println!("state_graph_matches_topology: a sound processor node is missing one or more sound inputs");
+                println!(
+                    "state_graph_matches_topology: sound processor {} is missing the \
+                    following sound input nodes: {}",
+                    node.id().value(),
+                    comma_separated_list(remaining_input_nodes.iter().map(|x| format!(
+                        "input {} (key={})",
+                        x.0.value(),
+                        x.1
+                    )))
+                );
                 return false;
             }
         }
@@ -137,27 +156,51 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     ) -> bool {
         let mut remaining_inputs: HashSet<NumberInputId> =
             proc_data.number_inputs().iter().cloned().collect();
-        let mut all_good = true;
+        let mut unexpected_inputs: HashSet<NumberInputId> = HashSet::new();
+        let mut uninitialized_inputs: HashSet<NumberInputId> = HashSet::new();
 
         node.visit_number_inputs(&mut |number_input_node: &NumberInputNode| {
             if !remaining_inputs.remove(&number_input_node.id()) {
-                all_good = false;
+                unexpected_inputs.insert(number_input_node.id());
+            }
+            if !number_input_node.is_initialized() {
+                uninitialized_inputs.insert(number_input_node.id());
             }
         });
 
-        if !all_good {
-            println!("state_graph_matches_topology: a sound processor has a number input which shouldn't exist");
-            return false;
+        let mut all_good = true;
+
+        if !unexpected_inputs.is_empty() {
+            println!(
+                "state_graph_matches_topology: sound processor {} has the \
+                following number inputs which shouldn't exist: {}",
+                node.id().value(),
+                comma_separated_list(unexpected_inputs.iter().map(|x| x.value().to_string()))
+            );
+            all_good = false;
         }
         if !remaining_inputs.is_empty() {
-            println!("state_graph_matches_topology: a sound processor is missing one or more number inputs");
-            return false;
+            println!(
+                "state_graph_matches_topology: sound processor {} is missing the \
+                following number inputs: {}",
+                node.id().value(),
+                comma_separated_list(remaining_inputs.iter().map(|x| x.value().to_string()))
+            );
+            all_good = false;
+        }
+        if !uninitialized_inputs.is_empty() {
+            println!(
+                "state_graph_matches_topology: warning: sound processor {} has \
+                the following uninitialized number inputs: {}",
+                node.id().value(),
+                comma_separated_list(uninitialized_inputs.iter().map(|x| x.value().to_string()))
+            );
         }
 
         // TODO: once number input nodes are more fleshed out, verify that
         // they are up to date.
 
-        true
+        all_good
     }
 
     fn visit_processor_sound_inputs(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
@@ -218,4 +261,8 @@ pub(super) fn state_graph_matches_topology(
     }
 
     true
+}
+
+fn comma_separated_list<I: Iterator<Item = String>>(iter: I) -> String {
+    iter.collect::<Vec<String>>().join(", ")
 }

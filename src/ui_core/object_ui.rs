@@ -313,10 +313,11 @@ fn peg_ui(
         popup_str = Some(label);
         size_diff = 0.0;
     } else {
-        // display_str = format!("{}", id.as_usize());
-        display_str = "-".to_string();
+        display_str = format!("{}", id.as_usize());
+        size_diff = 0.0;
         popup_str = None;
-        size_diff = -3.0;
+        // display_str = "-".to_string();
+        // size_diff = -3.0;
     }
     let painter = ui.painter();
     painter.rect(

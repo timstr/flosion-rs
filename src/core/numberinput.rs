@@ -5,6 +5,7 @@ use super::{
     soundprocessor::SoundProcessorId, state::StateOwner, uniqueid::UniqueId,
 };
 
+// TODO: consider making usize field private, prefer .value() over .0
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NumberInputId(pub usize);
 

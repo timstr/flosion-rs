@@ -2,6 +2,7 @@ use crate::core::soundchunk::CHUNK_SIZE;
 
 use super::uniqueid::UniqueId;
 
+// TODO: consider making usize field private, prefer .value() over .0
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundInputId(pub usize);
 
