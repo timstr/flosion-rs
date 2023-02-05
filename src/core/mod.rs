@@ -1,4 +1,4 @@
-mod anydata;
+pub mod anydata;
 pub mod arguments;
 pub(crate) mod compilednumberinput;
 pub mod context;

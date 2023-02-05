@@ -4,6 +4,7 @@ use parking_lot::RwLock;
 
 use super::{
     anydata::AnyData,
+    compilednumberinput::ArrayReadFunc,
     context::Context,
     numbersource::{KeyedInputNumberSource, StateNumberSourceHandle},
     soundchunk::SoundChunk,
@@ -77,7 +78,8 @@ impl<'ctx> SingleInputNode<'ctx> {
             processor_state,
             dst,
             ctx,
-            AnyData::new(self.id, &()),
+            self.id,
+            AnyData::new(&()),
         )
     }
 
@@ -145,15 +147,12 @@ impl<S: State + Default> KeyedInput<S> {
         self.id
     }
 
-    pub fn add_number_source<F: Fn(&mut [f32], &S)>(
+    pub fn add_number_source(
         &self,
         tools: &mut SoundProcessorTools,
-        f: F,
-    ) -> StateNumberSourceHandle
-    where
-        F: 'static + Sync + Send + Sized,
-    {
-        let source = Arc::new(KeyedInputNumberSource::<S, F>::new(self.id, f));
+        f: ArrayReadFunc,
+    ) -> StateNumberSourceHandle {
+        let source = Arc::new(KeyedInputNumberSource::new(self.id, f));
         tools.add_input_number_source(self.id, source)
     }
 }
@@ -212,7 +211,8 @@ impl<'ctx, S: State + Default> KeyedInputData<'ctx, S> {
             processor_state,
             dst,
             ctx,
-            AnyData::new(self.id, &self.state),
+            self.id,
+            AnyData::new(&self.state),
         )
     }
 

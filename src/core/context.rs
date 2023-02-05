@@ -24,12 +24,13 @@ impl<'a> ProcessorStackFrame<'a> {
 
 pub(super) struct InputStackFrame<'a> {
     parent: &'a StackFrame<'a>,
-    state: AnyData<'a, SoundInputId>,
+    input_id: SoundInputId,
+    state: AnyData<'a>,
     timing: &'a mut InputTiming,
 }
 
 impl<'a> InputStackFrame<'a> {
-    pub(super) fn state(&self) -> &AnyData<'a, SoundInputId> {
+    pub(super) fn state(&self) -> &AnyData<'a> {
         &self.state
     }
 
@@ -49,14 +50,11 @@ enum StackFrame<'a> {
 }
 
 impl<'a> StackFrame<'a> {
-    fn find_processor_state(
-        &self,
-        processor_id: SoundProcessorId,
-    ) -> AnyData<'a, SoundProcessorId> {
+    fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {
         match self {
             StackFrame::Processor(p) => {
                 if p.processor_id == processor_id {
-                    AnyData::new(p.processor_id, p.data().state())
+                    AnyData::new(p.data().state())
                 } else {
                     p.parent.find_processor_state(processor_id)
                 }
@@ -72,7 +70,7 @@ impl<'a> StackFrame<'a> {
         match self {
             StackFrame::Processor(p) => p.parent.find_input_frame(input_id),
             StackFrame::Input(i) => {
-                if i.state.owner_id() == input_id {
+                if i.input_id == input_id {
                     i
                 } else {
                     i.parent.find_input_frame(input_id)
@@ -116,7 +114,7 @@ impl<'a> StackFrame<'a> {
                 s + p.parent.find_input_sample_offset(input_id)
             }
             StackFrame::Input(i) => {
-                if i.state.owner_id() == input_id {
+                if i.input_id == input_id {
                     0
                 } else {
                     i.timing().sample_offset() + i.parent.find_input_sample_offset(input_id)
@@ -156,13 +154,15 @@ impl<'a> Context<'a> {
     pub(super) fn push_input(
         &'a self,
         target: Option<SoundProcessorId>,
-        state: AnyData<'a, SoundInputId>,
+        input_id: SoundInputId,
+        state: AnyData<'a>,
         timing: &'a mut InputTiming,
     ) -> Context<'a> {
         Context {
             target_processor_id: target,
             stack: StackFrame::Input(InputStackFrame {
                 parent: &self.stack,
+                input_id,
                 state,
                 timing,
             }),
@@ -184,10 +184,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub(super) fn find_processor_state(
-        &self,
-        processor_id: SoundProcessorId,
-    ) -> AnyData<'a, SoundProcessorId> {
+    pub(super) fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {
         self.stack.find_processor_state(processor_id)
     }
 

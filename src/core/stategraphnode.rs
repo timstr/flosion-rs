@@ -214,10 +214,11 @@ impl<'ctx> UniqueProcessorNode<'ctx> {
         state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
-        input_state: AnyData<SoundInputId>,
+        input_id: SoundInputId,
+        input_state: AnyData,
     ) -> StreamStatus {
         let ctx = ctx.push_processor_state(state);
-        let ctx = ctx.push_input(Some(self.node.id()), input_state, timing);
+        let ctx = ctx.push_input(Some(self.node.id()), input_id, input_state, timing);
         let status = self.node.process_audio(dst, ctx);
         if status == StreamStatus::Done {
             debug_assert!(!timing.is_done());
@@ -347,7 +348,8 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
-        input_state: AnyData<SoundInputId>,
+        input_id: SoundInputId,
+        input_state: AnyData,
     ) -> StreamStatus {
         let mut data = self.data.borrow_mut();
         let &mut SharedProcessorNodeData {
@@ -359,8 +361,9 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         let all_used = target_inputs.iter().all(|(_, used)| *used);
         if all_used {
             // TODO: this processor state likely can never be read. Skip it?
+            // See also note about combining processor and input frames in context.rs
             let ctx = ctx.push_processor_state(state);
-            let ctx = ctx.push_input(Some(self.processor_id), input_state, timing);
+            let ctx = ctx.push_input(Some(self.processor_id), input_id, input_state, timing);
             *stream_status = node.process_audio(dst, ctx);
             for (_target, used) in target_inputs.iter_mut() {
                 *used = false;
@@ -370,7 +373,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         let input_used = target_inputs
             .iter_mut()
             .find_map(|(target_id, used)| {
-                if *target_id == input_state.owner_id() {
+                if *target_id == input_id {
                     Some(used)
                 } else {
                     None
@@ -470,7 +473,8 @@ impl<'ctx> NodeTarget<'ctx> {
         state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
-        input_state: AnyData<SoundInputId>,
+        input_id: SoundInputId,
+        input_state: AnyData,
     ) -> StreamStatus {
         debug_assert!(!timing.needs_reset());
         if timing.is_done() {
@@ -478,8 +482,12 @@ impl<'ctx> NodeTarget<'ctx> {
             return StreamStatus::Done;
         }
         match &mut self.target {
-            NodeTargetValue::Unique(node) => node.step(timing, state, dst, ctx, input_state),
-            NodeTargetValue::Shared(node) => node.step(timing, state, dst, ctx, input_state),
+            NodeTargetValue::Unique(node) => {
+                node.step(timing, state, dst, ctx, input_id, input_state)
+            }
+            NodeTargetValue::Shared(node) => {
+                node.step(timing, state, dst, ctx, input_id, input_state)
+            }
             NodeTargetValue::Empty => {
                 dst.silence();
                 timing.mark_as_done();

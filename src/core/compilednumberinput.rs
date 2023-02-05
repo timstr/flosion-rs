@@ -9,8 +9,9 @@ use inkwell::{
 use crate::core::uniqueid::UniqueId;
 
 use super::{
-    context::Context, numberinput::NumberInputId, numbersource::NumberSourceId,
-    soundgraphtopology::SoundGraphTopology, soundprocessor::SoundProcessorId,
+    anydata::AnyData, context::Context, numberinput::NumberInputId, numbersource::NumberSourceId,
+    soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 pub struct CodeGen<'ctx> {
@@ -18,10 +19,12 @@ pub struct CodeGen<'ctx> {
     end_of_bb_loop: InstructionValue<'ctx>,
     loop_counter: IntValue<'ctx>,
     dst_ptr: PointerValue<'ctx>,
+    dst_len: IntValue<'ctx>,
     context_ptr: PointerValue<'ctx>,
     float_type: FloatType<'ctx>,
     usize_type: IntType<'ctx>,
-    array_read_wrapper: FunctionValue<'ctx>,
+    processor_array_read_wrapper: FunctionValue<'ctx>,
+    input_array_read_wrapper: FunctionValue<'ctx>,
     builder: Builder<'ctx>,
 }
 
@@ -31,10 +34,12 @@ impl<'ctx> CodeGen<'ctx> {
         end_of_bb_loop: InstructionValue<'ctx>,
         loop_counter: IntValue<'ctx>,
         dst_ptr: PointerValue<'ctx>,
+        dst_len: IntValue<'ctx>,
         context_ptr: PointerValue<'ctx>,
         float_type: FloatType<'ctx>,
         usize_type: IntType<'ctx>,
-        array_read_wrapper: FunctionValue<'ctx>,
+        processor_array_read_wrapper: FunctionValue<'ctx>,
+        input_array_read_wrapper: FunctionValue<'ctx>,
         builder: Builder<'ctx>,
     ) -> CodeGen<'ctx> {
         CodeGen {
@@ -42,10 +47,12 @@ impl<'ctx> CodeGen<'ctx> {
             end_of_bb_loop,
             loop_counter,
             dst_ptr,
+            dst_len,
             context_ptr,
             float_type,
             usize_type,
-            array_read_wrapper,
+            processor_array_read_wrapper,
+            input_array_read_wrapper,
             builder,
         }
     }
@@ -88,18 +95,58 @@ impl<'ctx> CodeGen<'ctx> {
         &self.float_type
     }
 
-    pub fn build_array_read(
+    pub fn build_input_array_read(
+        &self,
+        input_id: SoundInputId,
+        function: ArrayReadFunc,
+    ) -> FloatValue<'ctx> {
+        self.builder.position_before(&self.end_of_bb_entry);
+        let function_addr = self.usize_type.const_int(function as u64, false);
+        let siid = self.usize_type.const_int(input_id.value() as u64, false);
+        let call_site_value = self.builder.build_call(
+            self.input_array_read_wrapper,
+            &[
+                function_addr.into(),
+                self.context_ptr.into(),
+                siid.into(),
+                self.dst_len.into(),
+            ],
+            "si_arr_fn_retv",
+        );
+        let array_read_retv = call_site_value
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_pointer_value();
+
+        self.builder.position_before(&self.end_of_bb_loop);
+        let array_elem_ptr = unsafe {
+            self.builder
+                .build_gep(array_read_retv, &[self.loop_counter], "array_elem_ptr")
+        };
+        let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
+        array_elem.into_float_value()
+    }
+
+    pub fn build_processor_array_read(
         &self,
         processor_id: SoundProcessorId,
         function: ArrayReadFunc,
     ) -> FloatValue<'ctx> {
         self.builder.position_before(&self.end_of_bb_entry);
         let function_addr = self.usize_type.const_int(function as u64, false);
-        let spid = self.usize_type.const_int(processor_id.0 as u64, false);
+        let spid = self
+            .usize_type
+            .const_int(processor_id.value() as u64, false);
         let call_site_value = self.builder.build_call(
-            self.array_read_wrapper,
-            &[function_addr.into(), self.context_ptr.into(), spid.into()],
-            "array_read_fn_retv",
+            self.processor_array_read_wrapper,
+            &[
+                function_addr.into(),
+                self.context_ptr.into(),
+                spid.into(),
+                self.dst_len.into(),
+            ],
+            "sp_arr_fn_retv",
         );
         let array_read_retv = call_site_value
             .try_as_basic_value()
@@ -127,12 +174,13 @@ impl<'ctx> CodeGen<'ctx> {
     }
 }
 
-type ArrayReadFunc<'a> = fn(&'a Context, SoundProcessorId) -> &'a [f32];
+pub type ArrayReadFunc = for<'a> fn(&'a AnyData<'a>) -> &'a [f32];
 
-unsafe extern "C" fn array_read_wrapper(
+unsafe extern "C" fn input_array_read_wrapper(
     array_read_fn: *const (),
     context_ptr: *const (),
-    sound_processor_id: usize,
+    sound_input_id: usize,
+    expected_len: usize,
 ) -> *const f32 {
     assert_eq!(
         std::mem::size_of::<ArrayReadFunc>(),
@@ -140,9 +188,35 @@ unsafe extern "C" fn array_read_wrapper(
     );
     let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
     let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
+    let ctx: &Context = unsafe { &*ctx };
+    let siid = SoundInputId(sound_input_id);
+    let frame = ctx.find_input_frame(siid);
+    let s = f(&frame.state());
+    if s.len() != expected_len {
+        panic!("input_array_read_wrapper received a slice of incorrect length");
+    }
+    s.as_ptr()
+}
+
+unsafe extern "C" fn processor_array_read_wrapper(
+    array_read_fn: *const (),
+    context_ptr: *const (),
+    sound_processor_id: usize,
+    expected_len: usize,
+) -> *const f32 {
+    assert_eq!(
+        std::mem::size_of::<ArrayReadFunc>(),
+        std::mem::size_of::<*const ()>()
+    );
+    let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
+    let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
+    let ctx: &Context = unsafe { &*ctx };
     let spid = SoundProcessorId(sound_processor_id);
-    let s = f(&*ctx, spid);
-    // TODO: check length of slice
+    let frame = ctx.find_processor_state(spid);
+    let s = f(&frame);
+    if s.len() != expected_len {
+        panic!("processor_array_read_wrapper received a slice of incorrect length");
+    }
     s.as_ptr()
 }
 
@@ -200,10 +274,23 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             false,
         );
 
-        let fn_array_read_wrapper =
-            module.add_function("array_read_wrapper", fn_array_read_wrapper_type, None);
+        let fn_proc_array_read_wrapper = module.add_function(
+            "processor_array_read_wrapper",
+            fn_array_read_wrapper_type,
+            None,
+        );
 
-        execution_engine.add_global_mapping(&fn_array_read_wrapper, array_read_wrapper as usize);
+        let fn_input_array_read_wrapper =
+            module.add_function("input_array_read_wrapper", fn_array_read_wrapper_type, None);
+
+        execution_engine.add_global_mapping(
+            &fn_proc_array_read_wrapper,
+            processor_array_read_wrapper as usize,
+        );
+        execution_engine.add_global_mapping(
+            &fn_input_array_read_wrapper,
+            input_array_read_wrapper as usize,
+        );
 
         let fn_eval_number_input_type = void_type.fn_type(
             &[
@@ -304,10 +391,12 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             inst_end_of_loop,
             v_loop_counter,
             arg_f32_dst_ptr,
+            arg_dst_len,
             arg_actx_ptr,
             f32_type,
             usize_type,
-            fn_array_read_wrapper,
+            fn_proc_array_read_wrapper,
+            fn_input_array_read_wrapper,
             builder,
         );
 

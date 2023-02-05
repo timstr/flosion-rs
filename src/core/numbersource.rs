@@ -1,16 +1,17 @@
-use std::{marker::PhantomData, ops::Deref, sync::Arc};
+use std::{ops::Deref, sync::Arc};
 
 use inkwell::values::FloatValue;
 
 use super::{
-    compilednumberinput::CodeGen,
+    compilednumberinput::{ArrayReadFunc, CodeGen},
     context::Context,
     graphobject::{GraphObjectHandle, ObjectInitialization, WithObjectType},
     numbersourcetools::NumberSourceTools,
+    numeric,
     serialization::Serializer,
     soundinput::SoundInputId,
-    soundprocessor::{ProcessorState, SoundProcessorId},
-    state::{State, StateOwner},
+    soundprocessor::SoundProcessorId,
+    state::StateOwner,
     uniqueid::UniqueId,
 };
 
@@ -96,8 +97,8 @@ pub(crate) trait NumberSource: 'static + Sync + Send {
         codegen: &CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
-        // HACK: everything returns zero by default
-        codegen.float_type().const_zero()
+        // HACK
+        todo!()
     }
 
     fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
@@ -111,6 +112,15 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
         Self: Sized;
 
     fn eval(&self, dst: &mut [f32], context: &Context);
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &CodeGen<'ctx>,
+        _inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        // HACK
+        todo!()
+    }
 
     fn serialize(&self, _serializer: Serializer) {}
 }
@@ -145,6 +155,14 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
 
     fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
         Some(GraphObjectHandle::new(self))
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        self.source.compile(codegen, inputs)
     }
 }
 
@@ -182,40 +200,37 @@ impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
     }
 }
 
-pub trait StateFunction<S>: 'static + Sized + Sync + Send {
-    fn apply(&self, dst: &mut [f32], state: &S);
-}
-
-impl<S, F: 'static + Sized + Sync + Send> StateFunction<S> for F
-where
-    F: Fn(&mut [f32], &S),
-{
-    fn apply(&self, dst: &mut [f32], state: &S) {
-        (*self)(dst, state);
-    }
-}
-
-pub struct ProcessorNumberSource<S: ProcessorState, F: StateFunction<S>> {
-    function: F,
+pub struct ProcessorNumberSource {
+    function: ArrayReadFunc,
     processor_id: SoundProcessorId,
-    data: PhantomData<S>,
 }
 
-impl<S: ProcessorState, F: StateFunction<S>> ProcessorNumberSource<S, F> {
-    pub(super) fn new(processor_id: SoundProcessorId, function: F) -> ProcessorNumberSource<S, F> {
+impl ProcessorNumberSource {
+    pub(super) fn new(
+        processor_id: SoundProcessorId,
+        function: ArrayReadFunc,
+    ) -> ProcessorNumberSource {
         ProcessorNumberSource {
             function,
             processor_id,
-            data: PhantomData::default(),
         }
     }
 }
 
-impl<S: ProcessorState, F: StateFunction<S>> NumberSource for ProcessorNumberSource<S, F> {
+impl NumberSource for ProcessorNumberSource {
     fn eval(&self, dst: &mut [f32], context: &Context) {
         let state = context.find_processor_state(self.processor_id);
-        let state = state.downcast_if::<S>(self.processor_id).unwrap();
-        self.function.apply(dst, state);
+        let s = (self.function)(&state);
+        numeric::copy(s, dst);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert!(inputs.is_empty());
+        codegen.build_processor_array_read(self.processor_id, self.function)
     }
 }
 
@@ -265,26 +280,30 @@ impl StateNumberSourceHandle {
     }
 }
 
-pub struct KeyedInputNumberSource<S: State, F: StateFunction<S>> {
+pub struct KeyedInputNumberSource {
     input_id: SoundInputId,
-    function: F,
-    dummy_data: PhantomData<S>,
+    function: ArrayReadFunc,
 }
 
-impl<S: State, F: StateFunction<S>> KeyedInputNumberSource<S, F> {
-    pub(super) fn new(input_id: SoundInputId, function: F) -> KeyedInputNumberSource<S, F> {
-        KeyedInputNumberSource {
-            input_id,
-            function,
-            dummy_data: PhantomData::default(),
-        }
+impl KeyedInputNumberSource {
+    pub(super) fn new(input_id: SoundInputId, function: ArrayReadFunc) -> KeyedInputNumberSource {
+        KeyedInputNumberSource { input_id, function }
     }
 }
 
-impl<S: State, F: StateFunction<S>> NumberSource for KeyedInputNumberSource<S, F> {
+impl NumberSource for KeyedInputNumberSource {
     fn eval(&self, dst: &mut [f32], context: &Context) {
         let frame = context.find_input_frame(self.input_id);
-        self.function
-            .apply(dst, frame.state().downcast_if::<S>(self.input_id).unwrap());
+        let s = (self.function)(frame.state());
+        numeric::copy(s, dst);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert!(inputs.is_empty());
+        codegen.build_input_array_read(self.input_id, self.function)
     }
 }

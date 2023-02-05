@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
 use super::{
+    compilednumberinput::ArrayReadFunc,
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
         NumberSource, NumberSourceId, NumberSourceOwner, ProcessorNumberSource,
-        ProcessorTimeNumberSource, StateFunction, StateNumberSourceHandle,
+        ProcessorTimeNumberSource, StateNumberSourceHandle,
     },
     soundgraphdata::{NumberInputData, NumberSourceData, SoundInputData},
     soundgraphedit::SoundGraphEdit,
     soundinput::{InputOptions, SoundInputId},
-    soundprocessor::{
-        DynamicSoundProcessor, SoundProcessorId, StateAndTiming, StaticSoundProcessor,
-    },
+    soundprocessor::SoundProcessorId,
     uniqueid::IdGenerator,
 };
 
@@ -57,24 +56,9 @@ impl<'a> SoundProcessorTools<'a> {
             .push(SoundGraphEdit::RemoveSoundInput(input_id, owner));
     }
 
-    pub fn add_dynamic_processor_number_source<
-        T: DynamicSoundProcessor,
-        F: StateFunction<StateAndTiming<T::StateType>>,
-    >(
+    pub fn add_processor_number_source(
         &mut self,
-        function: F,
-    ) -> StateNumberSourceHandle {
-        let id = self.number_source_idgen.next_id();
-        let instance = Arc::new(ProcessorNumberSource::new(self.processor_id, function));
-        let owner = NumberSourceOwner::SoundProcessor(self.processor_id);
-        let data = NumberSourceData::new(id, instance, owner);
-        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
-        StateNumberSourceHandle::new(id)
-    }
-
-    pub fn add_static_processor_number_source<T: StaticSoundProcessor, F: StateFunction<T>>(
-        &mut self,
-        function: F,
+        function: ArrayReadFunc,
     ) -> StateNumberSourceHandle {
         let id = self.number_source_idgen.next_id();
         let instance = Arc::new(ProcessorNumberSource::new(self.processor_id, function));
