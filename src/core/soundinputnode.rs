@@ -1,4 +1,7 @@
-use super::{soundinput::SoundInputId, stategraphnode::NodeTarget};
+use super::{
+    soundinput::{InputTiming, SoundInputId},
+    stategraphnode::NodeTarget,
+};
 
 pub trait SoundInputNodeVisitor<'ctx> {
     fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &NodeTarget<'ctx>);
@@ -16,19 +19,21 @@ pub trait SoundInputNodeVisitorMut<'ctx> {
         input_id: SoundInputId,
         key_index: usize,
         target: &mut NodeTarget<'ctx>,
+        timing: &mut InputTiming,
     );
 }
 
-impl<'ctx, F: FnMut(SoundInputId, usize, &mut NodeTarget<'ctx>)> SoundInputNodeVisitorMut<'ctx>
-    for F
+impl<'ctx, F: FnMut(SoundInputId, usize, &mut NodeTarget<'ctx>, &mut InputTiming)>
+    SoundInputNodeVisitorMut<'ctx> for F
 {
     fn visit_input(
         &mut self,
         input_id: SoundInputId,
         key_index: usize,
         target: &mut NodeTarget<'ctx>,
+        timing: &mut InputTiming,
     ) {
-        (*self)(input_id, key_index, target);
+        (*self)(input_id, key_index, target, timing);
     }
 }
 

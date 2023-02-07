@@ -96,10 +96,7 @@ pub(crate) trait NumberSource: 'static + Sync + Send {
         &self,
         codegen: &CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx> {
-        // HACK
-        todo!()
-    }
+    ) -> FloatValue<'ctx>;
 
     fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
         None
@@ -117,10 +114,7 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
         &self,
         codegen: &CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx> {
-        // HACK
-        todo!()
-    }
+    ) -> FloatValue<'ctx>;
 
     fn serialize(&self, _serializer: Serializer) {}
 }
@@ -248,6 +242,14 @@ impl NumberSource for ProcessorTimeNumberSource {
     fn eval(&self, dst: &mut [f32], context: &Context) {
         context.current_time_at_sound_processor(self.processor_id, dst);
     }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &CodeGen<'ctx>,
+        _inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        todo!()
+    }
 }
 
 pub struct InputTimeNumberSource {
@@ -263,6 +265,14 @@ impl InputTimeNumberSource {
 impl NumberSource for InputTimeNumberSource {
     fn eval(&self, dst: &mut [f32], context: &Context) {
         context.current_time_at_sound_input(self.input_id, dst);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &CodeGen<'ctx>,
+        _inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        todo!()
     }
 }
 

@@ -110,8 +110,29 @@ impl SoundEngine {
     ) {
         while let Ok(edit) = self.edit_queue.try_recv() {
             println!("SoundEngine: {}", edit.name());
-            topology.make_edit(edit.clone());
-            state_graph.make_edit(edit, topology, context);
+            let stategraph_first = match edit {
+                SoundGraphEdit::AddSoundProcessor(_) => false,
+                SoundGraphEdit::RemoveSoundProcessor(_) => true,
+                SoundGraphEdit::AddSoundInput(_) => false,
+                SoundGraphEdit::RemoveSoundInput(_, _) => true,
+                SoundGraphEdit::AddSoundInputKey(_, _) => false,
+                SoundGraphEdit::RemoveSoundInputKey(_, _) => true,
+                SoundGraphEdit::ConnectSoundInput(_, _) => false,
+                SoundGraphEdit::DisconnectSoundInput(_) => false,
+                SoundGraphEdit::AddNumberSource(_) => false,
+                SoundGraphEdit::RemoveNumberSource(_, _) => true,
+                SoundGraphEdit::AddNumberInput(_) => false,
+                SoundGraphEdit::RemoveNumberInput(_, _) => true,
+                SoundGraphEdit::ConnectNumberInput(_, _) => false,
+                SoundGraphEdit::DisconnectNumberInput(_) => false,
+            };
+            if stategraph_first {
+                state_graph.make_edit(edit.clone(), topology, context);
+                topology.make_edit(edit);
+            } else {
+                topology.make_edit(edit.clone());
+                state_graph.make_edit(edit, topology, context);
+            }
             debug_assert!(state_graph_matches_topology(state_graph, topology));
         }
     }

@@ -2,8 +2,10 @@ use std::{fs, path::Path, process::Command};
 
 use inkwell::{
     builder::Builder,
-    types::{FloatType, IntType},
+    module::Module,
+    types::{FloatType, IntType, PointerType},
     values::{FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
+    AddressSpace,
 };
 
 use crate::core::uniqueid::UniqueId;
@@ -21,11 +23,13 @@ pub struct CodeGen<'ctx> {
     dst_ptr: PointerValue<'ctx>,
     dst_len: IntValue<'ctx>,
     context_ptr: PointerValue<'ctx>,
+    pointer_type: PointerType<'ctx>,
     float_type: FloatType<'ctx>,
     usize_type: IntType<'ctx>,
     processor_array_read_wrapper: FunctionValue<'ctx>,
     input_array_read_wrapper: FunctionValue<'ctx>,
     builder: Builder<'ctx>,
+    module: Module<'ctx>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -36,11 +40,13 @@ impl<'ctx> CodeGen<'ctx> {
         dst_ptr: PointerValue<'ctx>,
         dst_len: IntValue<'ctx>,
         context_ptr: PointerValue<'ctx>,
+        pointer_type: PointerType<'ctx>,
         float_type: FloatType<'ctx>,
         usize_type: IntType<'ctx>,
         processor_array_read_wrapper: FunctionValue<'ctx>,
         input_array_read_wrapper: FunctionValue<'ctx>,
         builder: Builder<'ctx>,
+        module: Module<'ctx>,
     ) -> CodeGen<'ctx> {
         CodeGen {
             end_of_bb_entry,
@@ -49,11 +55,13 @@ impl<'ctx> CodeGen<'ctx> {
             dst_ptr,
             dst_len,
             context_ptr,
+            pointer_type,
             float_type,
             usize_type,
             processor_array_read_wrapper,
             input_array_read_wrapper,
             builder,
+            module,
         }
     }
 
@@ -87,12 +95,16 @@ impl<'ctx> CodeGen<'ctx> {
         source_data.instance().compile(self, &input_values)
     }
 
+    pub fn module(&self) -> &Module<'ctx> {
+        &self.module
+    }
+
     pub fn builder(&self) -> &Builder<'ctx> {
         &self.builder
     }
 
-    pub fn float_type(&self) -> &FloatType<'ctx> {
-        &self.float_type
+    pub fn float_type(&self) -> FloatType<'ctx> {
+        self.float_type
     }
 
     pub fn build_input_array_read(
@@ -135,6 +147,9 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> FloatValue<'ctx> {
         self.builder.position_before(&self.end_of_bb_entry);
         let function_addr = self.usize_type.const_int(function as u64, false);
+        let function_addr =
+            self.builder
+                .build_int_to_ptr(function_addr, self.pointer_type, "function_addr");
         let spid = self
             .usize_type
             .const_int(processor_id.value() as u64, false);
@@ -163,7 +178,7 @@ impl<'ctx> CodeGen<'ctx> {
         array_elem.into_float_value()
     }
 
-    fn run(self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {
+    fn run(&self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {
         self.builder.position_before(&self.end_of_bb_loop);
         let final_value = self.visit_input(number_input_id, topology);
         let dst_elem_ptr = unsafe {
@@ -234,7 +249,7 @@ pub(super) struct CompiledNumberInputNode<'ctx> {
     // inkwell stuff, unsure if needed, probably useful for debugging.
     // also unsure if removing these is memory safe
     // context: &'inkwell_ctx inkwell::context::Context,
-    module: inkwell::module::Module<'ctx>,
+    // module: inkwell::module::Module<'ctx>,
     execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
 
     // The function compiled by LLVM
@@ -255,7 +270,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             .create_jit_execution_engine(inkwell::OptimizationLevel::None)
             .unwrap();
 
-        let address_space = inkwell::AddressSpace::default();
+        let address_space = AddressSpace::default();
         let target_data = execution_engine.get_target_data();
         let void_type = inkwell_context.void_type();
         let u8_type = inkwell_context.i8_type();
@@ -264,7 +279,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         let f32ptr_type = f32_type.ptr_type(address_space);
         let usize_type = inkwell_context.ptr_sized_int_type(target_data, Some(address_space));
 
-        let fn_array_read_wrapper_type = ptr_type.fn_type(
+        let fn_array_read_wrapper_type = f32ptr_type.fn_type(
             &[
                 ptr_type.into(),
                 ptr_type.into(),
@@ -383,7 +398,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
 
         builder.position_at_end(bb_exit);
         {
-            builder.build_return(Some(&u8_type.const_zero()));
+            builder.build_return(None);
         }
 
         let codegen = CodeGen::new(
@@ -393,21 +408,35 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             arg_f32_dst_ptr,
             arg_dst_len,
             arg_actx_ptr,
+            ptr_type,
             f32_type,
             usize_type,
             fn_proc_array_read_wrapper,
             fn_input_array_read_wrapper,
             builder,
+            module,
         );
 
         codegen.run(number_input_id, topology);
+
+        if let Err(s) = codegen.module().verify() {
+            let s = s.to_string();
+            println!(
+                "LLVM failed to verify IR for number input node {}:",
+                number_input_id.value()
+            );
+            for line in s.lines() {
+                println!("    {}", line);
+            }
+            panic!();
+        }
 
         // print out the IR if testing
         #[cfg(debug_assertions)]
         {
             let bc_path = Path::new("module.bc");
             let ll_path = Path::new("module.ll");
-            module.write_bitcode_to_path(&bc_path);
+            codegen.module().write_bitcode_to_path(&bc_path);
 
             let llvm_dis_output = Command::new("llvm-dis-14")
                 .arg(&bc_path)
@@ -433,7 +462,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             }
 
             let ll_contents = fs::read_to_string(ll_path).expect("Failed to open ll file");
-            println!("LLVM IR");
+            println!("LLVM IR for number input node {}", number_input_id.value());
             for l in ll_contents.lines() {
                 println!("    {}", l);
             }
@@ -454,14 +483,15 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         };
 
         CompiledNumberInputNode {
-            // context: inkwell_context,
-            module,
             execution_engine,
             function: compiled_fn,
         }
     }
 
-    pub(super) fn eval(&self, _dst: &mut [f32], _context: &Context) {
-        todo!()
+    pub(super) fn eval(&self, dst: &mut [f32], context: &Context) {
+        unsafe {
+            let context_ptr: *const () = std::mem::transmute_copy(&context);
+            self.function.call(dst.as_mut_ptr(), dst.len(), context_ptr);
+        }
     }
 }

@@ -110,7 +110,7 @@ impl<'ctx> SoundInputNode<'ctx> for SingleInputNode<'ctx> {
 
     fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         if self.active {
-            visitor.visit_input(self.id, 0, &mut self.target);
+            visitor.visit_input(self.id, 0, &mut self.target, &mut self.timing);
         }
     }
 
@@ -272,7 +272,7 @@ impl<'ctx, S: State + Default> SoundInputNode<'ctx> for KeyedInputNode<'ctx, S> 
     fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         if self.active {
             for (i, d) in self.data.iter_mut().enumerate() {
-                visitor.visit_input(d.id, i, &mut d.target);
+                visitor.visit_input(d.id, i, &mut d.target, &mut d.timing);
             }
         }
     }
@@ -398,7 +398,7 @@ impl<'ctx> SoundInputNode<'ctx> for SingleInputListNode<'ctx> {
 
     fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
         for i in &mut self.inputs {
-            visitor.visit_input(i.id, 0, &mut i.target);
+            visitor.visit_input(i.id, 0, &mut i.target, &mut i.timing);
         }
     }
 

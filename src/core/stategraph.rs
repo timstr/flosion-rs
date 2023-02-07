@@ -2,6 +2,8 @@ use std::{collections::HashSet, marker::PhantomData};
 
 use inkwell::context::Context;
 
+use crate::core::soundinput::InputTiming;
+
 use super::{
     numberinput::{NumberInputId, NumberInputOwner},
     numberinputnode::NumberInputNode,
@@ -146,7 +148,10 @@ impl<'ctx> StateGraph<'ctx> {
         let input_data = topology.sound_input(input_id).unwrap();
         Self::modify_sound_input_node(&mut self.entry_points, input_data.owner(), |node| {
             node.visit_inputs_mut(
-                &mut |_siid: SoundInputId, _kidx: usize, tgt: &mut NodeTarget<'ctx>| {
+                &mut |_siid: SoundInputId,
+                      _kidx: usize,
+                      tgt: &mut NodeTarget<'ctx>,
+                      timing: &mut InputTiming| {
                     debug_assert!(tgt.is_empty());
                     // TODO: make this context-aware so that it detects reused nodes in a synchronous
                     // group and caches them.
@@ -157,6 +162,7 @@ impl<'ctx> StateGraph<'ctx> {
                         topology,
                         context,
                     ));
+                    timing.require_reset();
                 },
             );
         });
@@ -166,9 +172,13 @@ impl<'ctx> StateGraph<'ctx> {
         let input_data = topology.sound_input(input_id).unwrap();
         Self::modify_sound_input_node(&mut self.entry_points, input_data.owner(), |node| {
             node.visit_inputs_mut(
-                &mut |_siid: SoundInputId, _kidx: usize, tgt: &mut NodeTarget| {
+                &mut |_siid: SoundInputId,
+                      _kidx: usize,
+                      tgt: &mut NodeTarget,
+                      timing: &mut InputTiming| {
                     debug_assert!(!tgt.is_empty());
                     tgt.set_target(NodeTargetValue::Empty);
+                    timing.mark_as_done();
                 },
             )
         });
@@ -351,7 +361,10 @@ impl<'ctx> StateGraph<'ctx> {
                     n.recompile(topology, context);
                 });
             node.visit_sound_inputs_mut(
-                &mut |input_id: SoundInputId, _key_index: usize, node: &mut NodeTarget<'ctx>| {
+                &mut |input_id: SoundInputId,
+                      _key_index: usize,
+                      node: &mut NodeTarget<'ctx>,
+                      timing: &mut InputTiming| {
                     debug_assert!(node.is_empty());
                     let input_data = topology.sound_input(input_id).unwrap();
                     let target = match input_data.target() {
@@ -361,6 +374,7 @@ impl<'ctx> StateGraph<'ctx> {
                         None => NodeTargetValue::Empty,
                     };
                     node.set_target(target);
+                    timing.require_reset();
                 },
             );
             let unique_node = UniqueProcessorNode::new(node);
@@ -477,6 +491,7 @@ where
         _input_id: SoundInputId,
         _key_index: usize,
         target: &mut NodeTarget<'ctx>,
+        timing: &mut InputTiming,
     ) {
         target.visit(|n: &mut dyn StateGraphNode<'ctx>| {
             self.visit_node(n);

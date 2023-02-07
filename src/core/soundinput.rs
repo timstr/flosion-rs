@@ -46,6 +46,7 @@ pub struct InputTiming {
 impl InputTiming {
     pub fn require_reset(&mut self) {
         self.needs_reset = true;
+        self.is_done = false;
     }
 
     pub fn needs_reset(&self) -> bool {
