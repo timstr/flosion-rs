@@ -2,6 +2,7 @@ use std::{fs, path::Path, process::Command};
 
 use inkwell::{
     builder::Builder,
+    intrinsics::Intrinsic,
     module::Module,
     types::{FloatType, IntType, PointerType},
     values::{FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
@@ -176,6 +177,31 @@ impl<'ctx> CodeGen<'ctx> {
         };
         let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
         array_elem.into_float_value()
+    }
+
+    pub fn build_unary_intrinsic_call(
+        &self,
+        name: &str,
+        input: FloatValue<'ctx>,
+    ) -> FloatValue<'ctx> {
+        // TODO: error handling
+        let intrinsic = Intrinsic::find(name).unwrap();
+
+        let decl = intrinsic.get_declaration(&self.module, &[self.float_type().into()]);
+
+        // TODO: error handling
+        let decl = decl.unwrap();
+
+        let callsiteval = self
+            .builder
+            .build_call(decl, &[input.into()], &format!("{}_call", name));
+
+        // TODO: error handling
+        callsiteval
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_float_value()
     }
 
     fn run(&self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {

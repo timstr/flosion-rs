@@ -9,7 +9,7 @@ use crate::core::{
     serialization::Serializer,
 };
 use atomic_float::AtomicF32;
-use inkwell::{intrinsics::Intrinsic, values::FloatValue};
+use inkwell::values::FloatValue;
 use std::sync::atomic::Ordering;
 
 pub struct Constant {
@@ -67,6 +67,9 @@ impl WithObjectType for Constant {
 enum LlvmImplementation {
     IntrinsicUnary(&'static str),
     ExpressionUnary(for<'a, 'b> fn(&'a CodeGen<'b>, FloatValue<'b>) -> FloatValue<'b>),
+    ExpressionBinary(
+        for<'a, 'b> fn(&'a CodeGen<'b>, FloatValue<'b>, FloatValue<'b>) -> FloatValue<'b>,
+    ),
 }
 
 impl LlvmImplementation {
@@ -79,31 +82,18 @@ impl LlvmImplementation {
             LlvmImplementation::IntrinsicUnary(name) => {
                 debug_assert_eq!(inputs.len(), 1);
                 let input = inputs[0];
-                // TODO: error handling
-                let intrinsic = Intrinsic::find(name).unwrap();
-
-                let decl =
-                    intrinsic.get_declaration(codegen.module(), &[codegen.float_type().into()]);
-
-                // TODO: error handling
-                let decl = decl.unwrap();
-
-                let callsiteval =
-                    codegen
-                        .builder()
-                        .build_call(decl, &[input.into()], &format!("{}_call", name));
-
-                // TODO: error handling
-                callsiteval
-                    .try_as_basic_value()
-                    .left()
-                    .unwrap()
-                    .into_float_value()
+                codegen.build_unary_intrinsic_call(name, input)
             }
             LlvmImplementation::ExpressionUnary(f) => {
                 debug_assert_eq!(inputs.len(), 1);
                 let input = inputs[0];
                 f(codegen, input)
+            }
+            LlvmImplementation::ExpressionBinary(f) => {
+                debug_assert_eq!(inputs.len(), 2);
+                let a = inputs[0];
+                let b = inputs[1];
+                f(codegen, a, b)
             }
         }
     }
@@ -203,21 +193,87 @@ unary_number_source!(
     |x| x.floor(),
     LlvmImplementation::IntrinsicUnary("llvm.floor")
 );
-// unary_number_source!(Ceil, "ceil", |x| x.ceil());
-// unary_number_source!(Round, "round", |x| x.round());
-// unary_number_source!(Trunc, "trunc", |x| x.trunc());
-// unary_number_source!(Fract, "fract", |x| x.fract());
-// unary_number_source!(Abs, "abs", |x| x.abs());
+unary_number_source!(
+    Ceil,
+    "ceil",
+    |x| x.ceil(),
+    LlvmImplementation::IntrinsicUnary("llvm.ceil")
+);
+unary_number_source!(
+    Round,
+    "round",
+    |x| x.round(),
+    LlvmImplementation::IntrinsicUnary("llvm.round")
+);
+unary_number_source!(
+    Trunc,
+    "trunc",
+    |x| x.trunc(),
+    LlvmImplementation::IntrinsicUnary("llvm.trunc")
+);
+unary_number_source!(
+    Fract,
+    "fract",
+    |x| x.fract(),
+    LlvmImplementation::IntrinsicUnary("llvm.trunc")
+);
+unary_number_source!(
+    Abs,
+    "abs",
+    |x| x.abs(),
+    LlvmImplementation::IntrinsicUnary("llvm.abs")
+);
 // unary_number_source!(Signum, "signum", |x| x.signum());
-// unary_number_source!(Exp, "exp", |x| x.exp());
-// unary_number_source!(Exp2, "exp2", |x| x.exp2());
+unary_number_source!(
+    Exp,
+    "exp",
+    |x| x.exp(),
+    LlvmImplementation::IntrinsicUnary("llvm.exp")
+);
+unary_number_source!(
+    Exp2,
+    "exp2",
+    |x| x.exp2(),
+    LlvmImplementation::IntrinsicUnary("llvm.exp2")
+);
 // unary_number_source!(Exp10, "exp10", |x| (x * std::f32::consts::LN_10).exp());
-// unary_number_source!(Log, "log", |x| x.ln());
-// unary_number_source!(Log2, "log2", |x| x.log2());
-// unary_number_source!(Log10, "log10", |x| x.log10());
-// unary_number_source!(Cbrt, "cbrt", |x| x.cbrt());
-// unary_number_source!(Sin, "sin", |x| x.sin());
-// unary_number_source!(Cos, "cos", |x| x.cos());
+unary_number_source!(
+    Log,
+    "log",
+    |x| x.ln(),
+    LlvmImplementation::IntrinsicUnary("llvm.log")
+);
+unary_number_source!(
+    Log2,
+    "log2",
+    |x| x.log2(),
+    LlvmImplementation::IntrinsicUnary("llvm.log2")
+);
+unary_number_source!(
+    Log10,
+    "log10",
+    |x| x.log10(),
+    LlvmImplementation::IntrinsicUnary("llvm.log10")
+);
+unary_number_source!(
+    Sqrt,
+    "sqrt",
+    |x| x.sqrt(),
+    LlvmImplementation::IntrinsicUnary("llvm.sqrt")
+); // TODO: add a ui for sqrt
+   // unary_number_source!(Cbrt, "cbrt", |x| x.cbrt());
+unary_number_source!(
+    Sin,
+    "sin",
+    |x| x.sin(),
+    LlvmImplementation::IntrinsicUnary("llvm.sin")
+);
+unary_number_source!(
+    Cos,
+    "cos",
+    |x| x.cos(),
+    LlvmImplementation::IntrinsicUnary("llvm.cos")
+);
 // unary_number_source!(Tan, "tan", |x| x.tan());
 // unary_number_source!(Asin, "asin", |x| x.asin());
 // unary_number_source!(Acos, "acos", |x| x.acos());
@@ -229,7 +285,17 @@ unary_number_source!(
 // unary_number_source!(Acosh, "acosh", |x| x.acosh());
 // unary_number_source!(Atanh, "atanh", |x| x.atanh());
 
-// unary_number_source!(SineWave, "sinewave", |x| (x * std::f32::consts::TAU).sin());
+unary_number_source!(
+    SineWave,
+    "sinewave",
+    |x| (x * std::f32::consts::TAU).sin(),
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let tau = codegen.float_type().const_float(std::f64::consts::TAU);
+        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x");
+        let sin_tau_x = codegen.build_unary_intrinsic_call("llvm.sin", tau_x);
+        sin_tau_x
+    })
+);
 // unary_number_source!(CosineWave, "cosinewave", |x| (x * std::f32::consts::TAU)
 //     .cos());
 // unary_number_source!(SquareWave, "squarewave", |x| {
@@ -244,10 +310,38 @@ unary_number_source!(
 //     * (x - (x + 0.5).floor()).abs()
 //     - 1.0);
 
-// binary_number_source!(Add, "add", |a, b| a + b);
-// binary_number_source!(Subtract, "subtract", |a, b| a - b);
-// binary_number_source!(Multiply, "multiply", |a, b| a * b);
-// binary_number_source!(Divide, "divide", |a, b| a / b);
+binary_number_source!(
+    Add,
+    "add",
+    |a, b| a + b,
+    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
+        codegen.builder().build_float_add(a, b, "sum")
+    })
+);
+binary_number_source!(
+    Subtract,
+    "subtract",
+    |a, b| a - b,
+    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
+        codegen.builder().build_float_sub(a, b, "difference")
+    })
+);
+binary_number_source!(
+    Multiply,
+    "multiply",
+    |a, b| a * b,
+    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
+        codegen.builder().build_float_mul(a, b, "product")
+    })
+);
+binary_number_source!(
+    Divide,
+    "divide",
+    |a, b| a / b,
+    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
+        codegen.builder().build_float_div(a, b, "quotient")
+    })
+);
 // binary_number_source!(Hypot, "hypot", |a, b| a.hypot(b));
 // binary_number_source!(Copysign, "copysign", |a, b| a.copysign(b));
 // binary_number_source!(Pow, "pow", |a, b| a.powf(b));
