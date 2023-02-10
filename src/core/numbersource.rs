@@ -94,7 +94,7 @@ pub(crate) trait NumberSource: 'static + Sync + Send {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
@@ -112,7 +112,7 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
@@ -153,7 +153,7 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
         self.source.compile(codegen, inputs)
@@ -220,7 +220,7 @@ impl NumberSource for ProcessorNumberSource {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());
@@ -245,7 +245,7 @@ impl NumberSource for ProcessorTimeNumberSource {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
         todo!()
@@ -269,7 +269,7 @@ impl NumberSource for InputTimeNumberSource {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
         todo!()
@@ -310,7 +310,7 @@ impl NumberSource for KeyedInputNumberSource {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());

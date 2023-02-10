@@ -1,12 +1,13 @@
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path, process::Command, sync::Arc};
 
+use atomic_float::AtomicF32;
 use inkwell::{
     builder::Builder,
     intrinsics::Intrinsic,
     module::Module,
     types::{FloatType, IntType, PointerType},
-    values::{FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
-    AddressSpace,
+    values::{BasicValue, FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
+    AddressSpace, AtomicOrdering,
 };
 
 use crate::core::uniqueid::UniqueId;
@@ -17,57 +18,62 @@ use super::{
     soundprocessor::SoundProcessorId,
 };
 
-pub struct CodeGen<'ctx> {
+struct InstructionLocations<'ctx> {
     end_of_bb_entry: InstructionValue<'ctx>,
     end_of_bb_loop: InstructionValue<'ctx>,
+}
+
+struct LocalVariables<'ctx> {
     loop_counter: IntValue<'ctx>,
     dst_ptr: PointerValue<'ctx>,
     dst_len: IntValue<'ctx>,
     context_ptr: PointerValue<'ctx>,
+}
+
+struct Types<'ctx> {
     pointer_type: PointerType<'ctx>,
     float_type: FloatType<'ctx>,
+    float_pointer_type: PointerType<'ctx>,
     usize_type: IntType<'ctx>,
+}
+
+struct WrapperFunctions<'ctx> {
     processor_array_read_wrapper: FunctionValue<'ctx>,
     input_array_read_wrapper: FunctionValue<'ctx>,
+}
+
+pub struct CodeGen<'ctx> {
+    instruction_locations: InstructionLocations<'ctx>,
+    local_variables: LocalVariables<'ctx>,
+    types: Types<'ctx>,
+    wrapper_functions: WrapperFunctions<'ctx>,
     builder: Builder<'ctx>,
     module: Module<'ctx>,
+    atomic_captures: Vec<Arc<AtomicF32>>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
     fn new(
-        end_of_bb_entry: InstructionValue<'ctx>,
-        end_of_bb_loop: InstructionValue<'ctx>,
-        loop_counter: IntValue<'ctx>,
-        dst_ptr: PointerValue<'ctx>,
-        dst_len: IntValue<'ctx>,
-        context_ptr: PointerValue<'ctx>,
-        pointer_type: PointerType<'ctx>,
-        float_type: FloatType<'ctx>,
-        usize_type: IntType<'ctx>,
-        processor_array_read_wrapper: FunctionValue<'ctx>,
-        input_array_read_wrapper: FunctionValue<'ctx>,
+        basic_blocks: InstructionLocations<'ctx>,
+        local_variables: LocalVariables<'ctx>,
+        types: Types<'ctx>,
+        wrapper_functions: WrapperFunctions<'ctx>,
         builder: Builder<'ctx>,
         module: Module<'ctx>,
     ) -> CodeGen<'ctx> {
         CodeGen {
-            end_of_bb_entry,
-            end_of_bb_loop,
-            loop_counter,
-            dst_ptr,
-            dst_len,
-            context_ptr,
-            pointer_type,
-            float_type,
-            usize_type,
-            processor_array_read_wrapper,
-            input_array_read_wrapper,
+            instruction_locations: basic_blocks,
+            local_variables,
+            types,
+            wrapper_functions,
             builder,
             module,
+            atomic_captures: Vec::new(),
         }
     }
 
     fn visit_input(
-        &self,
+        &mut self,
         number_input_id: NumberInputId,
         topology: &SoundGraphTopology,
     ) -> FloatValue<'ctx> {
@@ -75,13 +81,14 @@ impl<'ctx> CodeGen<'ctx> {
         match input_data.target() {
             Some(nsid) => self.visit_source(nsid, topology),
             None => self
+                .types
                 .float_type
                 .const_float(input_data.default_value().into()),
         }
     }
 
     fn visit_source(
-        &self,
+        &mut self,
         number_source_id: NumberSourceId,
         topology: &SoundGraphTopology,
     ) -> FloatValue<'ctx> {
@@ -105,24 +112,28 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn float_type(&self) -> FloatType<'ctx> {
-        self.float_type
+        self.types.float_type
     }
 
     pub fn build_input_array_read(
-        &self,
+        &mut self,
         input_id: SoundInputId,
         function: ArrayReadFunc,
     ) -> FloatValue<'ctx> {
-        self.builder.position_before(&self.end_of_bb_entry);
-        let function_addr = self.usize_type.const_int(function as u64, false);
-        let siid = self.usize_type.const_int(input_id.value() as u64, false);
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_entry);
+        let function_addr = self.types.usize_type.const_int(function as u64, false);
+        let siid = self
+            .types
+            .usize_type
+            .const_int(input_id.value() as u64, false);
         let call_site_value = self.builder.build_call(
-            self.input_array_read_wrapper,
+            self.wrapper_functions.input_array_read_wrapper,
             &[
                 function_addr.into(),
-                self.context_ptr.into(),
+                self.local_variables.context_ptr.into(),
                 siid.into(),
-                self.dst_len.into(),
+                self.local_variables.dst_len.into(),
             ],
             "si_arr_fn_retv",
         );
@@ -132,35 +143,41 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap()
             .into_pointer_value();
 
-        self.builder.position_before(&self.end_of_bb_loop);
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
         let array_elem_ptr = unsafe {
-            self.builder
-                .build_gep(array_read_retv, &[self.loop_counter], "array_elem_ptr")
+            self.builder.build_gep(
+                array_read_retv,
+                &[self.local_variables.loop_counter],
+                "array_elem_ptr",
+            )
         };
         let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
         array_elem.into_float_value()
     }
 
     pub fn build_processor_array_read(
-        &self,
+        &mut self,
         processor_id: SoundProcessorId,
         function: ArrayReadFunc,
     ) -> FloatValue<'ctx> {
-        self.builder.position_before(&self.end_of_bb_entry);
-        let function_addr = self.usize_type.const_int(function as u64, false);
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_entry);
+        let function_addr = self.types.usize_type.const_int(function as u64, false);
         let function_addr =
             self.builder
-                .build_int_to_ptr(function_addr, self.pointer_type, "function_addr");
+                .build_int_to_ptr(function_addr, self.types.pointer_type, "function_addr");
         let spid = self
+            .types
             .usize_type
             .const_int(processor_id.value() as u64, false);
         let call_site_value = self.builder.build_call(
-            self.processor_array_read_wrapper,
+            self.wrapper_functions.processor_array_read_wrapper,
             &[
                 function_addr.into(),
-                self.context_ptr.into(),
+                self.local_variables.context_ptr.into(),
                 spid.into(),
-                self.dst_len.into(),
+                self.local_variables.dst_len.into(),
             ],
             "sp_arr_fn_retv",
         );
@@ -170,17 +187,21 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap()
             .into_pointer_value();
 
-        self.builder.position_before(&self.end_of_bb_loop);
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
         let array_elem_ptr = unsafe {
-            self.builder
-                .build_gep(array_read_retv, &[self.loop_counter], "array_elem_ptr")
+            self.builder.build_gep(
+                array_read_retv,
+                &[self.local_variables.loop_counter],
+                "array_elem_ptr",
+            )
         };
         let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
         array_elem.into_float_value()
     }
 
     pub fn build_unary_intrinsic_call(
-        &self,
+        &mut self,
         name: &str,
         input: FloatValue<'ctx>,
     ) -> FloatValue<'ctx> {
@@ -204,12 +225,44 @@ impl<'ctx> CodeGen<'ctx> {
             .into_float_value()
     }
 
-    fn run(&self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {
-        self.builder.position_before(&self.end_of_bb_loop);
+    pub fn build_atomicf32_load(&mut self, value: Arc<AtomicF32>) -> FloatValue<'ctx> {
+        let ptr: *const AtomicF32 = &*value;
+        let addr_val = self.types.usize_type.const_int(ptr as u64, false);
+
+        // Read the atomic only once before the loop, since it's not
+        // expected to change during the loop execution and repeated
+        // atomic reads would be wasteful
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_entry);
+
+        let ptr_val =
+            self.builder
+                .build_int_to_ptr(addr_val, self.types.float_pointer_type, "p_atomicf32");
+        let load = self.builder.build_load(ptr_val, "atomic32_val");
+        let load_inst = load.as_instruction_value().unwrap();
+        load_inst
+            .set_atomic_ordering(AtomicOrdering::SequentiallyConsistent)
+            .unwrap();
+
+        // Store an Arc to the value to ensure it stays alive
+        self.atomic_captures.push(value);
+
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
+
+        load.into_float_value()
+    }
+
+    fn run(&mut self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
         let final_value = self.visit_input(number_input_id, topology);
         let dst_elem_ptr = unsafe {
-            self.builder
-                .build_gep(self.dst_ptr, &[self.loop_counter], "dst_elem_ptr")
+            self.builder.build_gep(
+                self.local_variables.dst_ptr,
+                &[self.local_variables.loop_counter],
+                "dst_elem_ptr",
+            )
         };
         self.builder.build_store(dst_elem_ptr, final_value);
     }
@@ -272,6 +325,8 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 // NOTE: Compiled number input node stores everything directly for now
 // Caching and reuse among other similar/identical number nodes coming later maybe
 pub(super) struct CompiledNumberInputNode<'ctx> {
+    // TODO: can stateful number source state be stored here???????
+
     // inkwell stuff, unsure if needed, probably useful for debugging.
     // also unsure if removing these is memory safe
     // context: &'inkwell_ctx inkwell::context::Context,
@@ -280,6 +335,17 @@ pub(super) struct CompiledNumberInputNode<'ctx> {
 
     // The function compiled by LLVM
     function: inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>,
+
+    atomic_captures: Vec<Arc<AtomicF32>>,
+}
+
+impl<'ctx> Drop for CompiledNumberInputNode<'ctx> {
+    fn drop(&mut self) {
+        // Mainly to silence a warning that atomic_captures is unused.
+        // It is indeed used to guarantee that pointers to the atomics
+        // it may read from stay alive.
+        self.atomic_captures.clear();
+    }
 }
 
 impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
@@ -427,18 +493,27 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             builder.build_return(None);
         }
 
-        let codegen = CodeGen::new(
-            inst_end_of_entry,
-            inst_end_of_loop,
-            v_loop_counter,
-            arg_f32_dst_ptr,
-            arg_dst_len,
-            arg_actx_ptr,
-            ptr_type,
-            f32_type,
-            usize_type,
-            fn_proc_array_read_wrapper,
-            fn_input_array_read_wrapper,
+        let mut codegen = CodeGen::new(
+            InstructionLocations {
+                end_of_bb_entry: inst_end_of_entry,
+                end_of_bb_loop: inst_end_of_loop,
+            },
+            LocalVariables {
+                loop_counter: v_loop_counter,
+                dst_ptr: arg_f32_dst_ptr,
+                dst_len: arg_dst_len,
+                context_ptr: arg_actx_ptr,
+            },
+            Types {
+                pointer_type: ptr_type,
+                float_type: f32_type,
+                float_pointer_type: f32ptr_type,
+                usize_type: usize_type,
+            },
+            WrapperFunctions {
+                processor_array_read_wrapper: fn_proc_array_read_wrapper,
+                input_array_read_wrapper: fn_input_array_read_wrapper,
+            },
             builder,
             module,
         );
@@ -511,6 +586,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         CompiledNumberInputNode {
             execution_engine,
             function: compiled_fn,
+            atomic_captures: codegen.atomic_captures,
         }
     }
 

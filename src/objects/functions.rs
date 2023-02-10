@@ -10,10 +10,10 @@ use crate::core::{
 };
 use atomic_float::AtomicF32;
 use inkwell::values::FloatValue;
-use std::sync::atomic::Ordering;
+use std::sync::{atomic::Ordering, Arc};
 
 pub struct Constant {
-    value: AtomicF32,
+    value: Arc<AtomicF32>,
 }
 
 impl Constant {
@@ -26,6 +26,8 @@ impl Constant {
     }
 }
 
+// TODO: consider renaming this to Variable
+// TODO: consider adding a different Constant struct which compiles to a float constant instead of an atomic read
 impl PureNumberSource for Constant {
     fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
@@ -36,7 +38,7 @@ impl PureNumberSource for Constant {
             ObjectInitialization::Default => 0.0,
         };
         Ok(Constant {
-            value: AtomicF32::new(value),
+            value: Arc::new(AtomicF32::new(value)),
         })
     }
 
@@ -50,13 +52,11 @@ impl PureNumberSource for Constant {
 
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());
-        codegen
-            .float_type()
-            .const_float(self.value.load(Ordering::SeqCst) as f64)
+        codegen.build_atomicf32_load(Arc::clone(&self.value))
     }
 }
 
@@ -66,16 +66,16 @@ impl WithObjectType for Constant {
 
 enum LlvmImplementation {
     IntrinsicUnary(&'static str),
-    ExpressionUnary(for<'a, 'b> fn(&'a CodeGen<'b>, FloatValue<'b>) -> FloatValue<'b>),
+    ExpressionUnary(for<'a, 'b> fn(&'a mut CodeGen<'b>, FloatValue<'b>) -> FloatValue<'b>),
     ExpressionBinary(
-        for<'a, 'b> fn(&'a CodeGen<'b>, FloatValue<'b>, FloatValue<'b>) -> FloatValue<'b>,
+        for<'a, 'b> fn(&'a mut CodeGen<'b>, FloatValue<'b>, FloatValue<'b>) -> FloatValue<'b>,
     ),
 }
 
 impl LlvmImplementation {
     fn compile<'ctx>(
         &self,
-        codegen: &CodeGen<'ctx>,
+        codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
         match self {
@@ -122,7 +122,7 @@ macro_rules! unary_number_source {
 
             fn compile<'ctx>(
                 &self,
-                codegen: &CodeGen<'ctx>,
+                codegen: &mut CodeGen<'ctx>,
                 inputs: &[FloatValue<'ctx>],
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
@@ -163,7 +163,7 @@ macro_rules! binary_number_source {
 
             fn compile<'ctx>(
                 &self,
-                codegen: &CodeGen<'ctx>,
+                codegen: &mut CodeGen<'ctx>,
                 inputs: &[FloatValue<'ctx>],
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
@@ -260,8 +260,8 @@ unary_number_source!(
     "sqrt",
     |x| x.sqrt(),
     LlvmImplementation::IntrinsicUnary("llvm.sqrt")
-); // TODO: add a ui for sqrt
-   // unary_number_source!(Cbrt, "cbrt", |x| x.cbrt());
+);
+// unary_number_source!(Cbrt, "cbrt", |x| x.cbrt());
 unary_number_source!(
     Sin,
     "sin",
