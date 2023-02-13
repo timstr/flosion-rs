@@ -57,7 +57,7 @@ impl DynamicSoundProcessor for WaveGenerator {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
-            phase: tools.add_processor_number_source(|state: &AnyData| -> &[f32] {
+            phase: tools.add_processor_array_number_source(|state: &AnyData| -> &[f32] {
                 &state.downcast_if::<WaveGeneratorState>().unwrap().phase
             }),
             time: tools.add_processor_time(),
