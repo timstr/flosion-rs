@@ -53,7 +53,7 @@ impl<'ctx> SingleInputNode<'ctx> {
         SingleInputNode {
             id,
             timing: InputTiming::default(),
-            target: NodeTarget::new(),
+            target: NodeTarget::new(id),
             active: false,
         }
     }
@@ -175,7 +175,7 @@ impl<'ctx, S: State + Default> KeyedInputData<'ctx, S> {
         Self {
             id,
             timing: InputTiming::default(),
-            target: NodeTarget::new(),
+            target: NodeTarget::new(id),
             state: S::default(),
         }
     }
@@ -499,7 +499,7 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
             data: (0..num_keys)
                 .map(|_| KeyedInputQueueData {
                     timing: InputTiming::default(),
-                    target: NodeTarget::new(),
+                    target: NodeTarget::new(id),
                     state: QueuedKeyState::NotPlaying(),
                 })
                 .collect(),

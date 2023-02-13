@@ -326,7 +326,6 @@ impl SoundGraph {
     fn try_make_edits(&mut self, edit_queue: Vec<SoundGraphEdit>) -> Result<(), SoundGraphError> {
         let prev_topology = self.local_topology.clone();
         for edit in edit_queue {
-            println!("SoundGraph: {}", edit.name());
             debug_assert!(edit.check_preconditions(&self.local_topology));
             self.local_topology.make_edit(edit.clone());
             if let Some(err) = find_error(&self.local_topology) {

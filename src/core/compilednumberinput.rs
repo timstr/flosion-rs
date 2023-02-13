@@ -674,44 +674,43 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         }
 
         // print out the IR if testing
-        #[cfg(debug_assertions)]
-        {
-            let bc_path = Path::new("module.bc");
-            let ll_path = Path::new("module.ll");
-            codegen.module().write_bitcode_to_path(&bc_path);
+        // {
+        //     let bc_path = Path::new("module.bc");
+        //     let ll_path = Path::new("module.ll");
+        //     codegen.module().write_bitcode_to_path(&bc_path);
 
-            let llvm_dis_output = Command::new("llvm-dis-14")
-                .arg(&bc_path)
-                .arg("-o")
-                .arg(&ll_path)
-                .output()
-                .expect("Failed to call llvm-dis");
+        //     let llvm_dis_output = Command::new("llvm-dis-14")
+        //         .arg(&bc_path)
+        //         .arg("-o")
+        //         .arg(&ll_path)
+        //         .output()
+        //         .expect("Failed to call llvm-dis");
 
-            if !llvm_dis_output.status.success() {
-                println!(
-                    "llvm-dis returned {}",
-                    llvm_dis_output.status.code().unwrap()
-                );
-                let stdout = String::from_utf8(llvm_dis_output.stdout).unwrap();
-                let stderr = String::from_utf8(llvm_dis_output.stderr).unwrap();
-                for l in stdout.lines() {
-                    println!("stdout | {}", l);
-                }
-                for l in stderr.lines() {
-                    println!("stderr | {}", l);
-                }
-                panic!("llvm-dis is unhappy");
-            }
+        //     if !llvm_dis_output.status.success() {
+        //         println!(
+        //             "llvm-dis returned {}",
+        //             llvm_dis_output.status.code().unwrap()
+        //         );
+        //         let stdout = String::from_utf8(llvm_dis_output.stdout).unwrap();
+        //         let stderr = String::from_utf8(llvm_dis_output.stderr).unwrap();
+        //         for l in stdout.lines() {
+        //             println!("stdout | {}", l);
+        //         }
+        //         for l in stderr.lines() {
+        //             println!("stderr | {}", l);
+        //         }
+        //         panic!("llvm-dis is unhappy");
+        //     }
 
-            let ll_contents = fs::read_to_string(ll_path).expect("Failed to open ll file");
-            println!("LLVM IR for number input node {}", number_input_id.value());
-            for l in ll_contents.lines() {
-                println!("    {}", l);
-            }
+        //     let ll_contents = fs::read_to_string(ll_path).expect("Failed to open ll file");
+        //     println!("LLVM IR for number input node {}", number_input_id.value());
+        //     for l in ll_contents.lines() {
+        //         println!("    {}", l);
+        //     }
 
-            std::fs::remove_file(bc_path).unwrap();
-            std::fs::remove_file(ll_path).unwrap();
-        }
+        //     std::fs::remove_file(bc_path).unwrap();
+        //     std::fs::remove_file(ll_path).unwrap();
+        // }
 
         let compiled_fn = match unsafe { execution_engine.get_function(&function_name) } {
             Ok(f) => f,

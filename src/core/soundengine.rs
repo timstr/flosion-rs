@@ -109,7 +109,6 @@ impl SoundEngine {
         context: &'ctx inkwell::context::Context,
     ) {
         while let Ok(edit) = self.edit_queue.try_recv() {
-            println!("SoundEngine: {}", edit.name());
             // TODO: consider removing connections from state graph first
             // too if that makes diffing and editing easier
             let stategraph_first = match edit {
@@ -141,8 +140,10 @@ impl SoundEngine {
 
     fn process_audio(&mut self, state_graph: &StateGraph, topology: &SoundGraphTopology) {
         Self::SCRATCH_SPACE.with(|scratch_space| {
-            for entry_point in state_graph.entry_points() {
-                entry_point.invoke_externally(topology, scratch_space);
+            for node in state_graph.static_nodes() {
+                if node.is_entry_point() {
+                    node.invoke_externally(topology, scratch_space);
+                }
             }
         });
     }

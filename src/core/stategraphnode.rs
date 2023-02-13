@@ -261,9 +261,17 @@ impl<'ctx> SharedProcessorNodeData<'ctx> {
         &mut *self.node
     }
 
-    pub(super) fn add_target_input(&mut self, input: SoundInputId) {
+    fn add_target_input(&mut self, input: SoundInputId) {
         debug_assert!(self.target_inputs.iter().find(|x| x.0 == input).is_none());
         self.target_inputs.push((input, true));
+    }
+
+    fn remove_target_input(&mut self, input: SoundInputId) {
+        debug_assert_eq!(
+            self.target_inputs.iter().filter(|x| x.0 == input).count(),
+            1
+        );
+        self.target_inputs.retain(|(siid, _)| *siid != input);
     }
 
     fn num_target_inputs(&self) -> usize {
@@ -331,6 +339,10 @@ impl<'ctx> SharedProcessorNode<'ctx> {
 
     fn num_target_inputs(&self) -> usize {
         self.data.borrow().num_target_inputs()
+    }
+
+    pub(super) fn is_entry_point(&self) -> bool {
+        self.num_target_inputs() == 0
     }
 
     pub(super) fn into_unique_node(self) -> Option<UniqueProcessorNode<'ctx>> {
@@ -414,17 +426,19 @@ pub(super) enum NodeTargetValue<'ctx> {
 }
 
 pub struct NodeTarget<'ctx> {
+    input_id: SoundInputId,
     target: NodeTargetValue<'ctx>,
 }
 
 impl<'ctx> NodeTarget<'ctx> {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(input_id: SoundInputId) -> Self {
         Self {
+            input_id,
             target: NodeTargetValue::Empty,
         }
     }
 
-    pub(super) fn id(&self) -> Option<SoundProcessorId> {
+    pub(super) fn processor_id(&self) -> Option<SoundProcessorId> {
         match &self.target {
             NodeTargetValue::Unique(n) => Some(n.id()),
             NodeTargetValue::Shared(n) => Some(n.id()),
@@ -434,10 +448,6 @@ impl<'ctx> NodeTarget<'ctx> {
 
     pub(super) fn target(&self) -> &NodeTargetValue<'ctx> {
         &self.target
-    }
-
-    pub(super) fn target_mut(&mut self) -> &mut NodeTargetValue<'ctx> {
-        &mut self.target
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -456,7 +466,13 @@ impl<'ctx> NodeTarget<'ctx> {
     }
 
     pub(super) fn set_target(&mut self, target: NodeTargetValue<'ctx>) {
+        if let NodeTargetValue::Shared(node) = &mut self.target {
+            node.borrow_data_mut().remove_target_input(self.input_id);
+        }
         self.target = target;
+        if let NodeTargetValue::Shared(node) = &mut self.target {
+            node.borrow_data_mut().add_target_input(self.input_id);
+        }
     }
 
     pub(super) fn reset(&mut self) {
@@ -501,5 +517,12 @@ impl<'ctx> NodeTarget<'ctx> {
             return StreamStatus::Done;
         }
         status
+    }
+}
+
+impl<'ctx> Drop for NodeTarget<'ctx> {
+    fn drop(&mut self) {
+        // Remove input id from shared node target if needed
+        self.set_target(NodeTargetValue::Empty);
     }
 }

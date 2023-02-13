@@ -133,7 +133,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             node.visit_sound_inputs(
                 &mut |siid: SoundInputId, _kidx: usize, target: &NodeTarget| {
                     let input_data = self.topology.sound_input(siid).unwrap();
-                    if target.id() != input_data.target() {
+                    if target.processor_id() != input_data.target() {
                         all_good = false;
                     }
                 },
@@ -241,8 +241,8 @@ pub(super) fn state_graph_matches_topology(
         visited_static_processors: HashSet::new(),
     };
 
-    for ep in state_graph.entry_points() {
-        if !visitor.visit_shared_processor_node(ep) {
+    for node in state_graph.static_nodes() {
+        if !visitor.visit_shared_processor_node(node) {
             return false;
         }
     }
