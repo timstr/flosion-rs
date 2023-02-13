@@ -110,6 +110,8 @@ impl SoundEngine {
     ) {
         while let Ok(edit) = self.edit_queue.try_recv() {
             println!("SoundEngine: {}", edit.name());
+            // TODO: consider removing connections from state graph first
+            // too if that makes diffing and editing easier
             let stategraph_first = match edit {
                 SoundGraphEdit::AddSoundProcessor(_) => false,
                 SoundGraphEdit::RemoveSoundProcessor(_) => true,

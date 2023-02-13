@@ -9,16 +9,9 @@ use crate::{
 };
 
 use super::{
-    adsr_ui::ADSRUi,
-    audioclip_ui::AudioClipUi,
-    dac_ui::DacUi,
-    functions_ui::*,
-    // keyboard_ui::KeyboardUi,
-    mixer_ui::MixerUi,
-    recorder_ui::RecorderUi,
-    resampler_ui::ResamplerUi,
-    wavegenerator_ui::WaveGeneratorUi,
-    whitenoise_ui::WhiteNoiseUi,
+    adsr_ui::ADSRUi, audioclip_ui::AudioClipUi, dac_ui::DacUi, functions_ui::*,
+    keyboard_ui::KeyboardUi, mixer_ui::MixerUi, recorder_ui::RecorderUi, resampler_ui::ResamplerUi,
+    wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
 };
 
 struct RegistrationHelper<'a> {
@@ -75,7 +68,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     // Static sound processors
     helper.register_static_sound_processor::<DacUi>();
     helper.register_static_sound_processor::<RecorderUi>();
-    // helper.register_sound_processor::<KeyboardUi>();
+    helper.register_static_sound_processor::<KeyboardUi>();
 
     // Dynamicic sound processors
     helper.register_dynamic_sound_processor::<ADSRUi>();
