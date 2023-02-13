@@ -147,14 +147,7 @@ impl<S: State + Default> KeyedInput<S> {
         self.id
     }
 
-    pub fn add_number_source(
-        &self,
-        tools: &mut SoundProcessorTools,
-        f: ArrayReadFunc,
-    ) -> StateNumberSourceHandle {
-        let source = Arc::new(KeyedInputNumberSource::new(self.id, f));
-        tools.add_input_number_source(self.id, source)
-    }
+    // TODO: add/remove keys with SoundProcessorTools
 }
 
 impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {

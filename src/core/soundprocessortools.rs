@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use super::{
-    compilednumberinput::ArrayReadFunc,
+    compilednumberinput::{ArrayReadFunc, ScalarReadFunc},
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
-        NumberSource, NumberSourceId, NumberSourceOwner, ProcessorNumberSource,
-        ProcessorTimeNumberSource, StateNumberSourceHandle,
+        ArrayInputNumberSource, ArrayProcessorNumberSource, NumberSourceId, NumberSourceOwner,
+        ProcessorTimeNumberSource, ScalarInputNumberSource, ScalarProcessorNumberSource,
+        StateNumberSourceHandle,
     },
     soundgraphdata::{NumberInputData, NumberSourceData, SoundInputData},
     soundgraphedit::SoundGraphEdit,
@@ -56,26 +57,55 @@ impl<'a> SoundProcessorTools<'a> {
             .push(SoundGraphEdit::RemoveSoundInput(input_id, owner));
     }
 
-    pub fn add_processor_number_source(
+    pub fn add_input_scalar_number_source(
         &mut self,
+        input_id: SoundInputId,
+        function: ScalarReadFunc,
+    ) -> StateNumberSourceHandle {
+        let id = self.number_source_idgen.next_id();
+        let instance = Arc::new(ScalarInputNumberSource::new(input_id, function));
+        let owner = NumberSourceOwner::SoundInput(input_id);
+        let data = NumberSourceData::new(id, instance, owner);
+        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        StateNumberSourceHandle::new(id)
+    }
+
+    pub fn add_input_array_number_source(
+        &mut self,
+        input_id: SoundInputId,
         function: ArrayReadFunc,
     ) -> StateNumberSourceHandle {
         let id = self.number_source_idgen.next_id();
-        let instance = Arc::new(ProcessorNumberSource::new(self.processor_id, function));
+        let instance = Arc::new(ArrayInputNumberSource::new(input_id, function));
+        let owner = NumberSourceOwner::SoundInput(input_id);
+        let data = NumberSourceData::new(id, instance, owner);
+        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        StateNumberSourceHandle::new(id)
+    }
+
+    pub fn add_processor_scalar_number_source(
+        &mut self,
+        function: ScalarReadFunc,
+    ) -> StateNumberSourceHandle {
+        let id = self.number_source_idgen.next_id();
+        let instance = Arc::new(ScalarProcessorNumberSource::new(
+            self.processor_id,
+            function,
+        ));
         let owner = NumberSourceOwner::SoundProcessor(self.processor_id);
         let data = NumberSourceData::new(id, instance, owner);
         self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
         StateNumberSourceHandle::new(id)
     }
 
-    pub(super) fn add_input_number_source(
+    pub fn add_processor_array_number_source(
         &mut self,
-        input_id: SoundInputId,
-        source: Arc<dyn NumberSource>,
+        function: ArrayReadFunc,
     ) -> StateNumberSourceHandle {
         let id = self.number_source_idgen.next_id();
-        let owner = NumberSourceOwner::SoundInput(input_id);
-        let data = NumberSourceData::new(id, source, owner);
+        let instance = Arc::new(ArrayProcessorNumberSource::new(self.processor_id, function));
+        let owner = NumberSourceOwner::SoundProcessor(self.processor_id);
+        let data = NumberSourceData::new(id, instance, owner);
         self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
         StateNumberSourceHandle::new(id)
     }

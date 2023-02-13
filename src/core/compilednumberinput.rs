@@ -38,6 +38,8 @@ struct Types<'ctx> {
 }
 
 struct WrapperFunctions<'ctx> {
+    processor_scalar_read_wrapper: FunctionValue<'ctx>,
+    input_scalar_read_wrapper: FunctionValue<'ctx>,
     processor_array_read_wrapper: FunctionValue<'ctx>,
     input_array_read_wrapper: FunctionValue<'ctx>,
 }
@@ -113,6 +115,72 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn float_type(&self) -> FloatType<'ctx> {
         self.types.float_type
+    }
+
+    pub fn build_input_scalar_read(
+        &mut self,
+        input_id: SoundInputId,
+        function: ScalarReadFunc,
+    ) -> FloatValue<'ctx> {
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_entry);
+        let function_addr = self.types.usize_type.const_int(function as u64, false);
+        let siid = self
+            .types
+            .usize_type
+            .const_int(input_id.value() as u64, false);
+        let call_site_value = self.builder.build_call(
+            self.wrapper_functions.input_scalar_read_wrapper,
+            &[
+                function_addr.into(),
+                self.local_variables.context_ptr.into(),
+                siid.into(),
+            ],
+            "si_scalar_fn_retv",
+        );
+        let scalar_read_retv = call_site_value
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_float_value();
+
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
+
+        scalar_read_retv
+    }
+
+    pub fn build_processor_scalar_read(
+        &mut self,
+        processor_id: SoundProcessorId,
+        function: ScalarReadFunc,
+    ) -> FloatValue<'ctx> {
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_entry);
+        let function_addr = self.types.usize_type.const_int(function as u64, false);
+        let spid = self
+            .types
+            .usize_type
+            .const_int(processor_id.value() as u64, false);
+        let call_site_value = self.builder.build_call(
+            self.wrapper_functions.processor_scalar_read_wrapper,
+            &[
+                function_addr.into(),
+                self.local_variables.context_ptr.into(),
+                spid.into(),
+            ],
+            "sp_scalar_fn_retv",
+        );
+        let scalar_read_retv = call_site_value
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_float_value();
+
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
+
+        scalar_read_retv
     }
 
     pub fn build_input_array_read(
@@ -268,7 +336,42 @@ impl<'ctx> CodeGen<'ctx> {
     }
 }
 
+pub type ScalarReadFunc = fn(&AnyData) -> f32;
 pub type ArrayReadFunc = for<'a> fn(&'a AnyData<'a>) -> &'a [f32];
+
+unsafe extern "C" fn input_scalar_read_wrapper(
+    array_read_fn: *const (),
+    context_ptr: *const (),
+    sound_input_id: usize,
+) -> f32 {
+    assert_eq!(
+        std::mem::size_of::<ScalarReadFunc>(),
+        std::mem::size_of::<*const ()>()
+    );
+    let f: ScalarReadFunc = std::mem::transmute_copy(&array_read_fn);
+    let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
+    let ctx: &Context = unsafe { &*ctx };
+    let siid = SoundInputId(sound_input_id);
+    let frame = ctx.find_input_frame(siid);
+    f(&frame.state())
+}
+
+unsafe extern "C" fn processor_scalar_read_wrapper(
+    array_read_fn: *const (),
+    context_ptr: *const (),
+    sound_processor_id: usize,
+) -> f32 {
+    assert_eq!(
+        std::mem::size_of::<ScalarReadFunc>(),
+        std::mem::size_of::<*const ()>()
+    );
+    let f: ScalarReadFunc = std::mem::transmute_copy(&array_read_fn);
+    let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
+    let ctx: &Context = unsafe { &*ctx };
+    let spid = SoundProcessorId(sound_processor_id);
+    let frame = ctx.find_processor_state(spid);
+    f(&frame)
+}
 
 unsafe extern "C" fn input_array_read_wrapper(
     array_read_fn: *const (),
@@ -371,14 +474,42 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         let f32ptr_type = f32_type.ptr_type(address_space);
         let usize_type = inkwell_context.ptr_sized_int_type(target_data, Some(address_space));
 
-        let fn_array_read_wrapper_type = f32ptr_type.fn_type(
+        let fn_scalar_read_wrapper_type = f32_type.fn_type(
             &[
+                // array_read_fn
                 ptr_type.into(),
+                // context_ptr
                 ptr_type.into(),
-                usize_type.into(),
+                // sound_input_id/sound_processor_id
                 usize_type.into(),
             ],
             false,
+        );
+
+        let fn_array_read_wrapper_type = f32ptr_type.fn_type(
+            &[
+                // array_read_fn
+                ptr_type.into(),
+                // context_ptr
+                ptr_type.into(),
+                // sound_input_id/sound_processor_id
+                usize_type.into(),
+                // expected_len
+                usize_type.into(),
+            ],
+            false,
+        );
+
+        let fn_input_scalar_read_wrapper = module.add_function(
+            "input_scalar_read_wrapper",
+            fn_scalar_read_wrapper_type,
+            None,
+        );
+
+        let fn_proc_scalar_read_wrapper = module.add_function(
+            "processor_scalar_read_wrapper",
+            fn_scalar_read_wrapper_type,
+            None,
         );
 
         let fn_proc_array_read_wrapper = module.add_function(
@@ -390,6 +521,14 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         let fn_input_array_read_wrapper =
             module.add_function("input_array_read_wrapper", fn_array_read_wrapper_type, None);
 
+        execution_engine.add_global_mapping(
+            &fn_input_scalar_read_wrapper,
+            input_scalar_read_wrapper as usize,
+        );
+        execution_engine.add_global_mapping(
+            &fn_proc_scalar_read_wrapper,
+            processor_scalar_read_wrapper as usize,
+        );
         execution_engine.add_global_mapping(
             &fn_proc_array_read_wrapper,
             processor_array_read_wrapper as usize,
@@ -511,6 +650,8 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
                 usize_type: usize_type,
             },
             WrapperFunctions {
+                processor_scalar_read_wrapper: fn_proc_scalar_read_wrapper,
+                input_scalar_read_wrapper: fn_input_scalar_read_wrapper,
                 processor_array_read_wrapper: fn_proc_array_read_wrapper,
                 input_array_read_wrapper: fn_input_array_read_wrapper,
             },

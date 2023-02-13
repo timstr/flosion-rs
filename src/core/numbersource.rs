@@ -3,7 +3,7 @@ use std::{ops::Deref, sync::Arc};
 use inkwell::values::FloatValue;
 
 use super::{
-    compilednumberinput::{ArrayReadFunc, CodeGen},
+    compilednumberinput::{ArrayReadFunc, CodeGen, ScalarReadFunc},
     context::Context,
     graphobject::{GraphObjectHandle, ObjectInitialization, WithObjectType},
     numbersourcetools::NumberSourceTools,
@@ -194,24 +194,114 @@ impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
     }
 }
 
-pub struct ProcessorNumberSource {
+pub struct ScalarInputNumberSource {
+    function: ScalarReadFunc,
+    input_id: SoundInputId,
+}
+
+impl ScalarInputNumberSource {
+    pub(super) fn new(input_id: SoundInputId, function: ScalarReadFunc) -> ScalarInputNumberSource {
+        ScalarInputNumberSource { function, input_id }
+    }
+}
+
+impl NumberSource for ScalarInputNumberSource {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
+        let frame = context.find_input_frame(self.input_id);
+        let s = (self.function)(frame.state());
+        numeric::fill(dst, s);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert!(inputs.is_empty());
+        codegen.build_input_scalar_read(self.input_id, self.function)
+    }
+}
+
+pub struct ArrayInputNumberSource {
     function: ArrayReadFunc,
+    input_id: SoundInputId,
+}
+
+impl ArrayInputNumberSource {
+    pub(super) fn new(input_id: SoundInputId, function: ArrayReadFunc) -> ArrayInputNumberSource {
+        ArrayInputNumberSource { function, input_id }
+    }
+}
+
+impl NumberSource for ArrayInputNumberSource {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
+        let frame = context.find_input_frame(self.input_id);
+        let s = (self.function)(frame.state());
+        numeric::copy(s, dst);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert!(inputs.is_empty());
+        codegen.build_input_array_read(self.input_id, self.function)
+    }
+}
+
+pub struct ScalarProcessorNumberSource {
+    function: ScalarReadFunc,
     processor_id: SoundProcessorId,
 }
 
-impl ProcessorNumberSource {
+impl ScalarProcessorNumberSource {
     pub(super) fn new(
         processor_id: SoundProcessorId,
-        function: ArrayReadFunc,
-    ) -> ProcessorNumberSource {
-        ProcessorNumberSource {
+        function: ScalarReadFunc,
+    ) -> ScalarProcessorNumberSource {
+        ScalarProcessorNumberSource {
             function,
             processor_id,
         }
     }
 }
 
-impl NumberSource for ProcessorNumberSource {
+impl NumberSource for ScalarProcessorNumberSource {
+    fn eval(&self, dst: &mut [f32], context: &Context) {
+        let state = context.find_processor_state(self.processor_id);
+        let s = (self.function)(&state);
+        numeric::fill(dst, s);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert!(inputs.is_empty());
+        codegen.build_processor_scalar_read(self.processor_id, self.function)
+    }
+}
+
+pub struct ArrayProcessorNumberSource {
+    function: ArrayReadFunc,
+    processor_id: SoundProcessorId,
+}
+
+impl ArrayProcessorNumberSource {
+    pub(super) fn new(
+        processor_id: SoundProcessorId,
+        function: ArrayReadFunc,
+    ) -> ArrayProcessorNumberSource {
+        ArrayProcessorNumberSource {
+            function,
+            processor_id,
+        }
+    }
+}
+
+impl NumberSource for ArrayProcessorNumberSource {
     fn eval(&self, dst: &mut [f32], context: &Context) {
         let state = context.find_processor_state(self.processor_id);
         let s = (self.function)(&state);
@@ -287,33 +377,5 @@ impl StateNumberSourceHandle {
 
     pub fn id(&self) -> NumberSourceId {
         self.id
-    }
-}
-
-pub struct KeyedInputNumberSource {
-    input_id: SoundInputId,
-    function: ArrayReadFunc,
-}
-
-impl KeyedInputNumberSource {
-    pub(super) fn new(input_id: SoundInputId, function: ArrayReadFunc) -> KeyedInputNumberSource {
-        KeyedInputNumberSource { input_id, function }
-    }
-}
-
-impl NumberSource for KeyedInputNumberSource {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
-        let frame = context.find_input_frame(self.input_id);
-        let s = (self.function)(frame.state());
-        numeric::copy(s, dst);
-    }
-
-    fn compile<'ctx>(
-        &self,
-        codegen: &mut CodeGen<'ctx>,
-        inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx> {
-        debug_assert!(inputs.is_empty());
-        codegen.build_input_array_read(self.input_id, self.function)
     }
 }
