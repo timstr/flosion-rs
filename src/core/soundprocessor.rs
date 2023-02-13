@@ -286,6 +286,9 @@ pub struct ProcessorTiming {
     elapsed_chunks: usize,
 }
 
+// TODO: delete this and StateAndTiming
+// - it currently only is used by dynamic processors whose timing is already
+//   tracked by the sound input they are connected to
 impl ProcessorTiming {
     fn new() -> ProcessorTiming {
         ProcessorTiming { elapsed_chunks: 0 }

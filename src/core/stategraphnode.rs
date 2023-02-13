@@ -481,7 +481,8 @@ impl<'ctx> NodeTarget<'ctx> {
             dst.silence();
             return StreamStatus::Done;
         }
-        match &mut self.target {
+        let release_requested = timing.pending_release().is_some();
+        let status = match &mut self.target {
             NodeTargetValue::Unique(node) => {
                 node.step(timing, state, dst, ctx, input_id, input_state)
             }
@@ -493,6 +494,12 @@ impl<'ctx> NodeTarget<'ctx> {
                 timing.mark_as_done();
                 StreamStatus::Done
             }
+        };
+        timing.advance_one_chunk();
+        let release_was_taken = timing.pending_release().is_some();
+        if release_requested && !release_was_taken {
+            return StreamStatus::Done;
         }
+        status
     }
 }
