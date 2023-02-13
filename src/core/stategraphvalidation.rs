@@ -99,10 +99,11 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
             if !unexpected_input_nodes.is_empty() {
                 println!(
-                    "state_graph_matches_topology: sound processor {} has the sound \
-                    inputs which shouldn't exist: {}",
+                    "state_graph_matches_topology: sound processor {} \"{}\" has the following \
+                    sound input nodes which shouldn't exist: {}",
                     node.id().value(),
-                    comma_separated_list(remaining_input_nodes.iter().map(|x| format!(
+                    proc_data.instance_arc().as_graph_object().get_type().name(),
+                    comma_separated_list(unexpected_input_nodes.iter().map(|x| format!(
                         "input {} (key={})",
                         x.0.value(),
                         x.1
@@ -112,9 +113,10 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             }
             if !remaining_input_nodes.is_empty() {
                 println!(
-                    "state_graph_matches_topology: sound processor {} is missing the \
+                    "state_graph_matches_topology: sound processor {} \"{}\" is missing the \
                     following sound input nodes: {}",
                     node.id().value(),
+                    proc_data.instance_arc().as_graph_object().get_type().name(),
                     comma_separated_list(remaining_input_nodes.iter().map(|x| format!(
                         "input {} (key={})",
                         x.0.value(),
@@ -172,27 +174,30 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
         if !unexpected_inputs.is_empty() {
             println!(
-                "state_graph_matches_topology: sound processor {} has the \
-                following number inputs which shouldn't exist: {}",
+                "state_graph_matches_topology: sound processor {} \"{}\" has the \
+                following number input nodes which shouldn't exist: {}",
                 node.id().value(),
+                proc_data.instance_arc().as_graph_object().get_type().name(),
                 comma_separated_list(unexpected_inputs.iter().map(|x| x.value().to_string()))
             );
             all_good = false;
         }
         if !remaining_inputs.is_empty() {
             println!(
-                "state_graph_matches_topology: sound processor {} is missing the \
-                following number inputs: {}",
+                "state_graph_matches_topology: sound processor {} \"{}\" is missing the \
+                following number input nodes: {}",
                 node.id().value(),
+                proc_data.instance_arc().as_graph_object().get_type().name(),
                 comma_separated_list(remaining_inputs.iter().map(|x| x.value().to_string()))
             );
             all_good = false;
         }
         if !uninitialized_inputs.is_empty() {
             println!(
-                "state_graph_matches_topology: warning: sound processor {} has \
-                the following uninitialized number inputs: {}",
+                "state_graph_matches_topology: warning: sound processor {} \"{}\" has \
+                the following uninitialized number input nodes: {}",
                 node.id().value(),
+                proc_data.instance_arc().as_graph_object().get_type().name(),
                 comma_separated_list(uninitialized_inputs.iter().map(|x| x.value().to_string()))
             );
         }
@@ -264,5 +269,7 @@ pub(super) fn state_graph_matches_topology(
 }
 
 fn comma_separated_list<I: Iterator<Item = String>>(iter: I) -> String {
-    iter.collect::<Vec<String>>().join(", ")
+    let mut v = iter.collect::<Vec<String>>();
+    v.sort();
+    v.join(", ")
 }
