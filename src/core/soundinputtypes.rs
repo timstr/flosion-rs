@@ -1,13 +1,12 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{any::Any, marker::PhantomData};
 
 use parking_lot::RwLock;
 
 use super::{
     anydata::AnyData,
-    compilednumberinput::ArrayReadFunc,
     context::Context,
-    numbersource::{KeyedInputNumberSource, StateNumberSourceHandle},
-    soundchunk::SoundChunk,
+    numeric,
+    soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::{InputOptions, InputTiming, SoundInputId},
     soundinputnode::{
         SoundInputNode, SoundInputNodeVisitor, SoundInputNodeVisitorMut, SoundProcessorInput,
@@ -401,5 +400,258 @@ impl<'ctx> SoundInputNode<'ctx> for SingleInputListNode<'ctx> {
 
     fn remove_input(&mut self, input_id: SoundInputId) {
         self.inputs.retain(|i| i.id != input_id);
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum KeyReuse {
+    FinishOldCancelNew,
+    StopOldStartNew,
+}
+
+pub enum QueuedKeyState<I: Copy + Eq, S: State> {
+    NotPlaying(),
+    PlayingForever(I, S),
+    PlayingSamplesRemaining(I, S, usize),
+}
+
+impl<I: Copy + Eq, S: State> QueuedKeyState<I, S> {
+    fn key_id(&self) -> Option<I> {
+        match self {
+            QueuedKeyState::NotPlaying() => None,
+            QueuedKeyState::PlayingForever(i, _) => Some(*i),
+            QueuedKeyState::PlayingSamplesRemaining(i, _, _) => Some(*i),
+        }
+    }
+
+    fn release(&mut self) {
+        // elaborate workaround because std::mem::replace is not a thing yet
+        let mut temp_state = QueuedKeyState::NotPlaying();
+        std::mem::swap(self, &mut temp_state);
+        temp_state = match temp_state {
+            QueuedKeyState::PlayingForever(id, st) => {
+                QueuedKeyState::PlayingSamplesRemaining(id, st, 0)
+            }
+            QueuedKeyState::PlayingSamplesRemaining(id, st, _) => {
+                QueuedKeyState::PlayingSamplesRemaining(id, st, 0)
+            }
+            QueuedKeyState::NotPlaying() => QueuedKeyState::NotPlaying(),
+        };
+        std::mem::swap(self, &mut temp_state);
+    }
+
+    fn is_playing(&self) -> bool {
+        match self {
+            QueuedKeyState::NotPlaying() => false,
+            QueuedKeyState::PlayingForever(_, _) => true,
+            QueuedKeyState::PlayingSamplesRemaining(_, _, _) => true,
+        }
+    }
+}
+
+pub struct KeyedInputQueue<I: Copy + Eq, S: State> {
+    id: SoundInputId,
+    num_keys: usize,
+    phantom_data_i: PhantomData<I>,
+    phantom_data_s: PhantomData<S>,
+}
+
+impl<I: Copy + Eq, S: State> KeyedInputQueue<I, S> {
+    pub fn new(options: InputOptions, queue_size: usize, tools: &mut SoundProcessorTools) -> Self {
+        let id = tools.add_sound_input(options, queue_size);
+        Self {
+            id,
+            num_keys: queue_size,
+            phantom_data_i: PhantomData,
+            phantom_data_s: PhantomData,
+        }
+    }
+
+    pub fn id(&self) -> SoundInputId {
+        self.id
+    }
+}
+
+impl<I: Copy + Eq, S: State> SoundProcessorInput for KeyedInputQueue<I, S> {
+    type NodeType<'ctx> = KeyedInputQueueNode<'ctx, I, S>;
+
+    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
+        KeyedInputQueueNode::new(self.id, self.num_keys)
+    }
+}
+
+pub struct KeyedInputQueueData<'ctx, I: Copy + Eq, S: State> {
+    timing: InputTiming,
+    target: NodeTarget<'ctx>,
+    state: QueuedKeyState<I, S>,
+}
+
+pub struct KeyedInputQueueNode<'ctx, I: Copy + Eq, S: State> {
+    id: SoundInputId,
+    data: Vec<KeyedInputQueueData<'ctx, I, S>>,
+    active: bool,
+}
+
+impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
+    fn new(id: SoundInputId, num_keys: usize) -> Self {
+        Self {
+            id,
+            data: (0..num_keys)
+                .map(|_| KeyedInputQueueData {
+                    timing: InputTiming::default(),
+                    target: NodeTarget::new(),
+                    state: QueuedKeyState::NotPlaying(),
+                })
+                .collect(),
+            active: false,
+        }
+    }
+
+    // TODO: add sample_offset in [0, chunk_size)
+    pub fn start_key(&mut self, duration_samples: Option<usize>, id: I, state: S, reuse: KeyReuse) {
+        let mut oldest_key_index_and_age = None;
+        let mut available_index = None;
+        for (i, d) in self.data.iter_mut().enumerate() {
+            if d.state.is_playing() {
+                let c = d.timing.elapsed_chunks();
+                oldest_key_index_and_age = match oldest_key_index_and_age {
+                    Some((j, s)) => {
+                        if c > s {
+                            Some((i, c))
+                        } else {
+                            Some((j, s))
+                        }
+                    }
+                    None => Some((i, c)),
+                };
+            } else {
+                if available_index.is_none() {
+                    available_index = Some(i);
+                }
+            }
+        }
+
+        let index = match available_index {
+            Some(i) => i,
+            None => {
+                if reuse == KeyReuse::FinishOldCancelNew {
+                    return;
+                }
+                oldest_key_index_and_age.unwrap().0
+            }
+        };
+
+        let data = &mut self.data[index];
+
+        data.timing.reset(0); // TODO: sample offset
+        data.target.reset();
+        if let Some(samples) = duration_samples {
+            data.state = QueuedKeyState::PlayingSamplesRemaining(id, state, samples);
+        } else {
+            data.state = QueuedKeyState::PlayingForever(id, state);
+        }
+    }
+
+    // TODO: add sample_offset in [0, chunk_size)
+    pub fn release_key(&mut self, id: I) {
+        for d in &mut self.data {
+            if d.state.key_id() == Some(id) {
+                d.state.release();
+            }
+        }
+    }
+
+    pub fn release_all_keys(&mut self) {
+        for d in &mut self.data {
+            d.state.release();
+        }
+    }
+
+    pub fn step<T: ProcessorState>(
+        &mut self,
+        processor_state: &T,
+        dst: &mut SoundChunk,
+        ctx: &Context,
+    ) -> StreamStatus {
+        // first pass: assume all input chunks align with output chunk, write directly
+        // second pass: allow per-key chunk sample offsets, store remaining chunk in state
+
+        let mut temp_chunk = SoundChunk::new();
+        for d in &mut self.data {
+            match &mut d.state {
+                QueuedKeyState::NotPlaying() => continue,
+                QueuedKeyState::PlayingForever(_key_id, key_state) => {
+                    let a: &dyn Any = key_state;
+                    d.target.step(
+                        &mut d.timing,
+                        processor_state,
+                        &mut temp_chunk,
+                        ctx,
+                        self.id,
+                        AnyData::new(a),
+                    );
+                }
+                QueuedKeyState::PlayingSamplesRemaining(_key_id, key_state, samples) => {
+                    let a: &dyn Any = key_state;
+                    if *samples < CHUNK_SIZE {
+                        d.timing.request_release(*samples);
+                        *samples = 0;
+                    } else {
+                        *samples -= CHUNK_SIZE;
+                    }
+                    d.target.step(
+                        &mut d.timing,
+                        processor_state,
+                        &mut temp_chunk,
+                        ctx,
+                        self.id,
+                        AnyData::new(a),
+                    );
+                    if d.timing.is_done() {
+                        d.state = QueuedKeyState::NotPlaying();
+                    }
+                }
+            }
+            // TODO: attenuate before adding?
+            numeric::add_inplace(&mut dst.l, &temp_chunk.l);
+            numeric::add_inplace(&mut dst.r, &temp_chunk.r);
+        }
+        StreamStatus::Playing
+    }
+}
+
+impl<'ctx, I: Copy + Eq, S: State> SoundInputNode<'ctx> for KeyedInputQueueNode<'ctx, I, S> {
+    fn flag_for_reset(&mut self) {
+        for d in &mut self.data {
+            d.timing.require_reset();
+        }
+    }
+
+    fn visit_inputs<'a>(&self, visitor: &'a mut dyn SoundInputNodeVisitor<'ctx>) {
+        if self.active {
+            for (i, d) in self.data.iter().enumerate() {
+                visitor.visit_input(self.id, i, &d.target);
+            }
+        }
+    }
+
+    fn visit_inputs_mut<'a>(&mut self, visitor: &'a mut dyn SoundInputNodeVisitorMut<'ctx>) {
+        if self.active {
+            for (i, d) in self.data.iter_mut().enumerate() {
+                visitor.visit_input(self.id, i, &mut d.target, &mut d.timing);
+            }
+        }
+    }
+
+    fn add_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(input_id, self.id);
+        debug_assert!(!self.active);
+        self.active = true;
+    }
+
+    fn remove_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(input_id, self.id);
+        debug_assert!(self.active);
+        self.active = false;
     }
 }

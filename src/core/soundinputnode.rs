@@ -77,6 +77,5 @@ impl<'ctx> SoundInputNode<'ctx> for () {
 pub trait SoundProcessorInput {
     type NodeType<'ctx>: SoundInputNode<'ctx>;
 
-    // TODO: is any parameter that actually uses the lifetime needed?
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx>;
 }
