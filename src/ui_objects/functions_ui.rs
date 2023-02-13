@@ -234,5 +234,5 @@ binary_number_source_ui!(MultiplyUi, Multiply, "Multiply", ["*", "times"]);
 binary_number_source_ui!(DivideUi, Divide, "Divide", ["/"]);
 // binary_number_source_ui!(HypotUi, Hypot, "Hypot", []);
 // binary_number_source_ui!(CopysignUi, Copysign, "Copysign", []);
-// binary_number_source_ui!(PowUi, Pow, "Pow", []);
+binary_number_source_ui!(PowUi, Pow, "Pow", []);
 // binary_number_source_ui!(Atan2Ui, Atan2, "Atan2", []);

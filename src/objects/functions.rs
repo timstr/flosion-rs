@@ -344,5 +344,17 @@ binary_number_source!(
 );
 // binary_number_source!(Hypot, "hypot", |a, b| a.hypot(b));
 // binary_number_source!(Copysign, "copysign", |a, b| a.copysign(b));
-// binary_number_source!(Pow, "pow", |a, b| a.powf(b));
+binary_number_source!(
+    Pow,
+    "pow",
+    |a, b| a.powf(b),
+    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
+        // x = a^b
+        // x = e^(ln(a^b))
+        // x = e^(b * ln(a))
+        let ln_a = codegen.build_unary_intrinsic_call("llvm.log", a);
+        let b_ln_a = codegen.builder().build_float_mul(b, ln_a, "b_ln_a");
+        codegen.build_unary_intrinsic_call("llvm.exp", b_ln_a)
+    })
+);
 // binary_number_source!(Atan2, "atan2", |a, b| a.atan2(b));
