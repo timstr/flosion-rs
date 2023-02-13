@@ -253,16 +253,20 @@ impl SoundGraph {
         let mut edit_queue = Vec::new();
 
         // find all number connections involving these objects and disconnect them
-        for niid in self.local_topology.number_inputs().keys() {
-            if closure.includes_number_connection(*niid, &self.local_topology) {
-                edit_queue.push(SoundGraphEdit::DisconnectNumberInput(*niid));
+        for ni in self.local_topology.number_inputs().values() {
+            if ni.target().is_some() {
+                if closure.includes_number_connection(ni.id(), &self.local_topology) {
+                    edit_queue.push(SoundGraphEdit::DisconnectNumberInput(ni.id()));
+                }
             }
         }
 
         // find all sound connections involving these objects and disconnect them
         for si in self.local_topology.sound_inputs().values() {
-            if closure.includes_sound_connection(si.id(), &self.local_topology) {
-                edit_queue.push(SoundGraphEdit::DisconnectSoundInput(si.id()));
+            if si.target().is_some() {
+                if closure.includes_sound_connection(si.id(), &self.local_topology) {
+                    edit_queue.push(SoundGraphEdit::DisconnectSoundInput(si.id()));
+                }
             }
         }
 
