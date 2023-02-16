@@ -125,6 +125,31 @@ impl<'a> StackFrame<'a> {
             }
         }
     }
+
+    fn find_processor_sample_offset_and_time_speed(
+        &self,
+        processor_id: SoundProcessorId,
+    ) -> (usize, f32) {
+        match self {
+            StackFrame::Processor(p) => {
+                if p.processor_id == processor_id {
+                    (0, 1.0)
+                } else {
+                    p.parent
+                        .find_processor_sample_offset_and_time_speed(processor_id)
+                }
+            }
+            StackFrame::Input(i) => {
+                let (o, s) = i
+                    .parent
+                    .find_processor_sample_offset_and_time_speed(processor_id);
+                (o + i.timing.elapsed_samples(), s * i.timing.time_speed())
+            }
+            StackFrame::Root => {
+                panic!("Attempted to find a processor frame which is not in the context call stack")
+            }
+        }
+    }
 }
 
 pub struct Context<'a> {
@@ -229,6 +254,16 @@ impl<'a> Context<'a> {
     pub(super) fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
         let s = self.stack.find_input_sample_offset(input_id);
         Self::current_time_impl(s, dst);
+    }
+
+    pub(super) fn time_offset_and_speed_at_processor(
+        &self,
+        processor_id: SoundProcessorId,
+    ) -> (f32, f32) {
+        let (samples, speed) = self
+            .stack
+            .find_processor_sample_offset_and_time_speed(processor_id);
+        (samples as f32 / SAMPLE_FREQUENCY as f32, speed)
     }
 
     pub fn pending_release(&self) -> Option<usize> {

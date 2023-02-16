@@ -338,7 +338,7 @@ impl NumberSource for ProcessorTimeNumberSource {
         codegen: &mut CodeGen<'ctx>,
         _inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
-        todo!()
+        codegen.build_processor_time(self.processor_id)
     }
 }
 
