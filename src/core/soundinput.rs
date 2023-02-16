@@ -37,7 +37,6 @@ enum ReleaseStatus {
 #[derive(Clone, Copy)]
 pub struct InputTiming {
     sample_offset: usize,
-    elapsed_chunks: usize,
     time_speed: f32,
     // TODO: add pending sample offset for resetting
     needs_reset: bool,
@@ -97,7 +96,6 @@ impl InputTiming {
     pub fn reset(&mut self, sample_offset: usize) {
         debug_assert!(sample_offset < CHUNK_SIZE);
         self.sample_offset = sample_offset;
-        self.elapsed_chunks = 0;
         self.needs_reset = false;
         self.is_done = false;
         self.release = ReleaseStatus::NotYet;
@@ -105,18 +103,6 @@ impl InputTiming {
 
     pub fn sample_offset(&self) -> usize {
         self.sample_offset
-    }
-
-    pub(super) fn elapsed_chunks(&self) -> usize {
-        self.elapsed_chunks
-    }
-
-    pub fn advance_one_chunk(&mut self) {
-        self.elapsed_chunks += 1;
-    }
-
-    pub(super) fn elapsed_samples(&self) -> usize {
-        self.elapsed_chunks * CHUNK_SIZE + self.sample_offset
     }
 
     pub fn time_speed(&self) -> f32 {
@@ -133,7 +119,6 @@ impl Default for InputTiming {
     fn default() -> InputTiming {
         InputTiming {
             sample_offset: 0,
-            elapsed_chunks: 0,
             time_speed: 1.0,
             needs_reset: true,
             is_done: false,

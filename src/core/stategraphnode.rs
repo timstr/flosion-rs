@@ -511,7 +511,6 @@ impl<'ctx> NodeTarget<'ctx> {
                 StreamStatus::Done
             }
         };
-        timing.advance_one_chunk();
         let release_was_taken = timing.pending_release().is_some();
         if release_requested && !release_was_taken {
             return StreamStatus::Done;

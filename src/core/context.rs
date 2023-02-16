@@ -133,7 +133,7 @@ impl<'a> StackFrame<'a> {
         match self {
             StackFrame::Processor(p) => {
                 if p.processor_id == processor_id {
-                    (0, 1.0)
+                    (p.data.timing().unwrap().elapsed_chunks() * CHUNK_SIZE, 1.0)
                 } else {
                     p.parent
                         .find_processor_sample_offset_and_time_speed(processor_id)
@@ -143,7 +143,7 @@ impl<'a> StackFrame<'a> {
                 let (o, s) = i
                     .parent
                     .find_processor_sample_offset_and_time_speed(processor_id);
-                (o + i.timing.elapsed_samples(), s * i.timing.time_speed())
+                (o + i.timing.sample_offset(), s * i.timing.time_speed())
             }
             StackFrame::Root => {
                 panic!("Attempted to find a processor frame which is not in the context call stack")

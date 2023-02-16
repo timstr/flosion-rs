@@ -409,44 +409,21 @@ pub enum KeyReuse {
     StopOldStartNew,
 }
 
-pub enum QueuedKeyState<I: Copy + Eq, S: State> {
-    NotPlaying(),
-    PlayingForever(I, S),
-    PlayingSamplesRemaining(I, S, usize),
+enum KeyDuration {
+    Forever,
+    Samples(usize),
 }
 
-impl<I: Copy + Eq, S: State> QueuedKeyState<I, S> {
-    fn key_id(&self) -> Option<I> {
-        match self {
-            QueuedKeyState::NotPlaying() => None,
-            QueuedKeyState::PlayingForever(i, _) => Some(*i),
-            QueuedKeyState::PlayingSamplesRemaining(i, _, _) => Some(*i),
-        }
-    }
+struct KeyPlayingData<I: Copy + Eq, S: State> {
+    id: I,
+    state: S,
+    age: usize,
+    duration: KeyDuration,
+}
 
-    fn release(&mut self) {
-        // elaborate workaround because std::mem::replace is not a thing yet
-        let mut temp_state = QueuedKeyState::NotPlaying();
-        std::mem::swap(self, &mut temp_state);
-        temp_state = match temp_state {
-            QueuedKeyState::PlayingForever(id, st) => {
-                QueuedKeyState::PlayingSamplesRemaining(id, st, 0)
-            }
-            QueuedKeyState::PlayingSamplesRemaining(id, st, _) => {
-                QueuedKeyState::PlayingSamplesRemaining(id, st, 0)
-            }
-            QueuedKeyState::NotPlaying() => QueuedKeyState::NotPlaying(),
-        };
-        std::mem::swap(self, &mut temp_state);
-    }
-
-    fn is_playing(&self) -> bool {
-        match self {
-            QueuedKeyState::NotPlaying() => false,
-            QueuedKeyState::PlayingForever(_, _) => true,
-            QueuedKeyState::PlayingSamplesRemaining(_, _, _) => true,
-        }
-    }
+enum QueuedKeyState<I: Copy + Eq, S: State> {
+    NotPlaying(),
+    Playing(KeyPlayingData<I, S>),
 }
 
 pub struct KeyedInputQueue<I: Copy + Eq, S: State> {
@@ -509,20 +486,20 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
 
     // TODO: add sample_offset in [0, chunk_size)
     pub fn start_key(&mut self, duration_samples: Option<usize>, id: I, state: S, reuse: KeyReuse) {
+        // TODO: what to do if a key with the same id is alread playing?
         let mut oldest_key_index_and_age = None;
         let mut available_index = None;
         for (i, d) in self.data.iter_mut().enumerate() {
-            if d.state.is_playing() {
-                let c = d.timing.elapsed_chunks();
+            if let QueuedKeyState::Playing(key_data) = &mut d.state {
                 oldest_key_index_and_age = match oldest_key_index_and_age {
                     Some((j, s)) => {
-                        if c > s {
-                            Some((i, c))
+                        if key_data.age > s {
+                            Some((i, key_data.age))
                         } else {
                             Some((j, s))
                         }
                     }
-                    None => Some((i, c)),
+                    None => Some((i, key_data.age)),
                 };
             } else {
                 if available_index.is_none() {
@@ -545,25 +522,34 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
 
         data.timing.reset(0); // TODO: sample offset
         data.target.reset();
-        if let Some(samples) = duration_samples {
-            data.state = QueuedKeyState::PlayingSamplesRemaining(id, state, samples);
-        } else {
-            data.state = QueuedKeyState::PlayingForever(id, state);
-        }
+        let key_data = KeyPlayingData {
+            id,
+            state,
+            age: 0,
+            duration: match duration_samples {
+                Some(s) => KeyDuration::Samples(s),
+                None => KeyDuration::Forever,
+            },
+        };
+        data.state = QueuedKeyState::Playing(key_data);
     }
 
     // TODO: add sample_offset in [0, chunk_size)
     pub fn release_key(&mut self, id: I) {
         for d in &mut self.data {
-            if d.state.key_id() == Some(id) {
-                d.state.release();
+            if let QueuedKeyState::Playing(key_data) = &mut d.state {
+                if key_data.id == id {
+                    key_data.duration = KeyDuration::Samples(0);
+                }
             }
         }
     }
 
     pub fn release_all_keys(&mut self) {
         for d in &mut self.data {
-            d.state.release();
+            if let QueuedKeyState::Playing(key_data) = &mut d.state {
+                key_data.duration = KeyDuration::Samples(0);
+            }
         }
     }
 
@@ -576,45 +562,38 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
         // first pass: assume all input chunks align with output chunk, write directly
         // second pass: allow per-key chunk sample offsets, store remaining chunk in state
 
+        dst.silence();
         let mut temp_chunk = SoundChunk::new();
         for d in &mut self.data {
-            match &mut d.state {
-                QueuedKeyState::NotPlaying() => continue,
-                QueuedKeyState::PlayingForever(_key_id, key_state) => {
-                    let a: &dyn Any = key_state;
-                    d.target.step(
-                        &mut d.timing,
-                        processor_state,
-                        &mut temp_chunk,
-                        ctx,
-                        self.id,
-                        AnyData::new(a),
-                    );
-                }
-                QueuedKeyState::PlayingSamplesRemaining(_key_id, key_state, samples) => {
-                    let a: &dyn Any = key_state;
-                    if *samples < CHUNK_SIZE {
-                        d.timing.request_release(*samples);
-                        *samples = 0;
+            if let QueuedKeyState::Playing(key_data) = &mut d.state {
+                if let KeyDuration::Samples(s) = &mut key_data.duration {
+                    if *s < CHUNK_SIZE {
+                        d.timing.request_release(*s);
+                        *s = 0;
                     } else {
-                        *samples -= CHUNK_SIZE;
-                    }
-                    d.target.step(
-                        &mut d.timing,
-                        processor_state,
-                        &mut temp_chunk,
-                        ctx,
-                        self.id,
-                        AnyData::new(a),
-                    );
-                    if d.timing.is_done() {
-                        d.state = QueuedKeyState::NotPlaying();
+                        *s -= CHUNK_SIZE;
                     }
                 }
+
+                let a: &dyn Any = &key_data.state;
+                d.target.step(
+                    &mut d.timing,
+                    processor_state,
+                    &mut temp_chunk,
+                    ctx,
+                    self.id,
+                    AnyData::new(a),
+                );
+
+                key_data.age += 1;
+                if d.timing.is_done() {
+                    d.state = QueuedKeyState::NotPlaying();
+                }
+
+                // TODO: attenuate before adding?
+                numeric::add_inplace(&mut dst.l, &temp_chunk.l);
+                numeric::add_inplace(&mut dst.r, &temp_chunk.r);
             }
-            // TODO: attenuate before adding?
-            numeric::add_inplace(&mut dst.l, &temp_chunk.l);
-            numeric::add_inplace(&mut dst.r, &temp_chunk.r);
         }
         StreamStatus::Playing
     }

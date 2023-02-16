@@ -47,6 +47,10 @@ impl<'ctx> StateGraph<'ctx> {
         topology: &SoundGraphTopology,
         context: &'ctx Context,
     ) {
+        // TODO: consider adding a special edit type which marks that a batch of updates
+        // is over, in order to avoid keeping all invariants in check unecessarily (e.g.
+        // recompiling number inputs over and over). This would go nicely with marking
+        // number inputs as "dirty" until updated
         match edit {
             SoundGraphEdit::AddSoundProcessor(data) => self.add_sound_processor(data, context),
             SoundGraphEdit::RemoveSoundProcessor(spid) => self.remove_sound_processor(spid),
@@ -146,8 +150,10 @@ impl<'ctx> StateGraph<'ctx> {
         // TODO: make this context-aware so that it detects reused nodes in a synchronous
         // group and caches them.
         // For now, no caching...
+
+        let num_input_nodes = self.count_input_nodes(input_data.id());
         let mut targets = Vec::new();
-        for _ in 0..input_data.num_keys() {
+        for _ in 0..num_input_nodes {
             targets.push(Self::allocate_subgraph(
                 &self.static_nodes,
                 processor_id,
@@ -216,6 +222,7 @@ impl<'ctx> StateGraph<'ctx> {
                         node.number_input_node_mut().add_input(data.id());
                         node.visit_number_inputs_mut(&mut |input: &mut NumberInputNode<'ctx>| {
                             if input.id() == data.id() {
+                                // TODO: do this not on the audio thread
                                 input.recompile(topology, context);
                             }
                         });
@@ -255,6 +262,7 @@ impl<'ctx> StateGraph<'ctx> {
                         node.number_input_node_mut().remove_input(input_id);
                         node.visit_number_inputs_mut(&mut |input: &mut NumberInputNode<'ctx>| {
                             if input.id() == input_id {
+                                // TODO: do this not on the audio thread
                                 input.recompile(topology, context);
                             }
                         });
@@ -342,6 +350,25 @@ impl<'ctx> StateGraph<'ctx> {
         visit_state_graph(f_input, f_processor, static_nodes);
     }
 
+    fn count_input_nodes(&mut self, input_id: SoundInputId) -> usize {
+        // NOTE: this should ideally take &self, but I'm too lazy
+        // to duplicate all of StateGraphVisitor to be non-mut
+        let mut count = 0;
+
+        let f_input = |node: &mut dyn SoundInputNode<'ctx>| {
+            node.visit_inputs(&mut |id, _key, _target: &NodeTarget<'ctx>| {
+                if id == input_id {
+                    count += 1;
+                }
+            });
+            true
+        };
+        let f_processor = |_: &mut dyn StateGraphNode<'ctx>| true;
+        visit_state_graph(f_input, f_processor, &mut self.static_nodes);
+
+        count
+    }
+
     fn allocate_subgraph(
         static_nodes: &[SharedProcessorNode<'ctx>],
         processor_id: SoundProcessorId,
@@ -360,6 +387,11 @@ impl<'ctx> StateGraph<'ctx> {
             NodeTargetValue::Shared(shared_node)
         } else {
             let mut node = proc_data.instance_arc().make_node(context);
+            // TODO: do the equivalent of adding all soundinputs to the node right here.
+            // Otherwise, they will be missing or inactive
+            for input_id in proc_data.sound_inputs() {
+                node.sound_input_node_mut().add_input(*input_id);
+            }
             node.number_input_node_mut()
                 .visit_number_inputs_mut(&mut |n: &mut NumberInputNode<'ctx>| {
                     n.recompile(topology, context);
@@ -440,6 +472,7 @@ impl<'ctx> StateGraph<'ctx> {
         let f_processor = |node: &mut dyn StateGraphNode<'ctx>| {
             node.visit_number_inputs_mut(&mut |ni: &mut NumberInputNode<'ctx>| {
                 if which_nodes.contains(&ni.id()) {
+                    // TODO: do this not on the audio thread
                     ni.recompile(topology, context);
                 }
             });
@@ -449,11 +482,6 @@ impl<'ctx> StateGraph<'ctx> {
     }
 }
 
-// TODO:
-// - keep implementing
-// - add separate functions for visiting sound input nodes and state graph nodes
-// - reuse above
-// - add method for visiting entry points
 struct StateGraphVisitor<'ctx, FInput, FProcessor>
 where
     FInput: FnMut(&mut dyn SoundInputNode<'ctx>) -> bool,
