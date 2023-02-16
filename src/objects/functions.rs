@@ -215,7 +215,10 @@ unary_number_source!(
     Fract,
     "fract",
     |x| x.fract(),
-    LlvmImplementation::IntrinsicUnary("llvm.trunc")
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let x_trunc = codegen.build_unary_intrinsic_call("llvm.trunc", x);
+        codegen.builder().build_float_sub(x, x_trunc, "fract")
+    })
 );
 unary_number_source!(
     Abs,
