@@ -376,7 +376,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
             // See also note about combining processor and input frames in context.rs
             let ctx = ctx.push_processor_state(state);
             let ctx = ctx.push_input(Some(self.processor_id), input_id, input_state, timing);
-            *stream_status = node.process_audio(dst, ctx);
+            *stream_status = node.process_audio(cached_output, ctx);
             for (_target, used) in target_inputs.iter_mut() {
                 *used = false;
             }
