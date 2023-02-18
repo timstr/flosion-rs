@@ -500,7 +500,11 @@ impl<'ctx> NodeTarget<'ctx> {
             dst.silence();
             return StreamStatus::Done;
         }
-        let release_requested = timing.pending_release().is_some();
+        let release_pending = timing.pending_release().is_some();
+
+        // If the input was released, there should be no pending release
+        debug_assert!(!timing.was_released() || release_pending);
+
         let status = match &mut self.target {
             NodeTargetValue::Unique(node) => {
                 node.step(timing, state, dst, ctx, input_id, input_state)
@@ -514,8 +518,9 @@ impl<'ctx> NodeTarget<'ctx> {
                 StreamStatus::Done
             }
         };
-        let release_was_taken = timing.pending_release().is_some();
-        if release_requested && !release_was_taken {
+        let was_released = timing.was_released();
+        if release_pending && !was_released {
+            timing.mark_as_done();
             return StreamStatus::Done;
         }
         status
