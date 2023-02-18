@@ -52,7 +52,7 @@ pub struct NumberInputHandle {
 }
 
 impl NumberInputHandle {
-    pub(super) fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
+    pub(crate) fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
         NumberInputHandle { id, owner }
     }
 

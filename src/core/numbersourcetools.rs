@@ -13,7 +13,7 @@ pub struct NumberSourceTools<'a> {
 }
 
 impl<'a> NumberSourceTools<'a> {
-    pub(super) fn new(
+    pub(crate) fn new(
         number_source_id: NumberSourceId,
         number_input_idgen: &'a mut IdGenerator<NumberInputId>,
         edit_queue: &'a mut Vec<SoundGraphEdit>,

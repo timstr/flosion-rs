@@ -160,7 +160,7 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    pub(super) fn new(
+    pub(crate) fn new(
         target_processor_id: SoundProcessorId,
         topology: &'a SoundGraphTopology,
         scratch_space: &'a ScratchArena,
@@ -209,7 +209,7 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub(super) fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {
+    pub(crate) fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {
         self.stack.find_processor_state(processor_id)
     }
 

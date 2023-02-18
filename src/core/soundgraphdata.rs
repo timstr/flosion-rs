@@ -81,7 +81,7 @@ pub(crate) struct SoundProcessorData {
 }
 
 impl SoundProcessorData {
-    pub(super) fn new(processor: Arc<dyn SoundProcessor>) -> SoundProcessorData {
+    pub(crate) fn new(processor: Arc<dyn SoundProcessor>) -> SoundProcessorData {
         SoundProcessorData {
             id: processor.id(),
             processor,
@@ -137,7 +137,7 @@ pub(crate) struct NumberInputData {
 }
 
 impl NumberInputData {
-    pub(super) fn new(
+    pub(crate) fn new(
         id: NumberInputId,
         target: Option<NumberSourceId>,
         owner: NumberInputOwner,
@@ -181,7 +181,7 @@ pub(crate) struct NumberSourceData {
 }
 
 impl NumberSourceData {
-    pub(super) fn new(
+    pub(crate) fn new(
         id: NumberSourceId,
         instance: Arc<dyn NumberSource>,
         owner: NumberSourceOwner,
@@ -198,7 +198,7 @@ impl NumberSourceData {
         self.id
     }
 
-    pub(super) fn instance(&self) -> &dyn NumberSource {
+    pub(crate) fn instance(&self) -> &dyn NumberSource {
         &*self.instance
     }
 

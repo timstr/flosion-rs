@@ -21,7 +21,7 @@ pub(crate) struct SoundGraphTopology {
 }
 
 impl SoundGraphTopology {
-    pub(super) fn new() -> SoundGraphTopology {
+    pub(crate) fn new() -> SoundGraphTopology {
         SoundGraphTopology {
             sound_processors: HashMap::new(),
             sound_inputs: HashMap::new(),
@@ -74,7 +74,7 @@ impl SoundGraphTopology {
         sound_objects.chain(number_objects)
     }
 
-    pub(super) fn make_edit(&mut self, edit: SoundGraphEdit) {
+    pub(crate) fn make_edit(&mut self, edit: SoundGraphEdit) {
         debug_assert!(find_error(self).is_none());
         match edit {
             SoundGraphEdit::AddSoundProcessor(data) => self.add_sound_processor(data),

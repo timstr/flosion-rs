@@ -9,6 +9,9 @@ pub mod resampler;
 pub mod wavegenerator;
 pub mod whitenoise;
 
+#[cfg(test)]
+mod test;
+
 // TODO
 // - sequencer
 // - melody

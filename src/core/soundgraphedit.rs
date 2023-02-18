@@ -11,7 +11,7 @@ use super::{
 };
 
 #[derive(Clone)]
-pub(super) enum SoundGraphEdit {
+pub(crate) enum SoundGraphEdit {
     AddSoundProcessor(SoundProcessorData),
     RemoveSoundProcessor(SoundProcessorId),
     AddSoundInput(SoundInputData),

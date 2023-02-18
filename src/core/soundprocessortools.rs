@@ -24,7 +24,7 @@ pub struct SoundProcessorTools<'a> {
 }
 
 impl<'a> SoundProcessorTools<'a> {
-    pub(super) fn new(
+    pub(crate) fn new(
         id: SoundProcessorId,
         sound_input_idgen: &'a mut IdGenerator<SoundInputId>,
         number_input_idgen: &'a mut IdGenerator<NumberInputId>,

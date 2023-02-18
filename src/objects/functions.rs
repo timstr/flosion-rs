@@ -224,7 +224,7 @@ unary_number_source!(
     Abs,
     "abs",
     |x| x.abs(),
-    LlvmImplementation::IntrinsicUnary("llvm.abs")
+    LlvmImplementation::IntrinsicUnary("llvm.fabs")
 );
 // unary_number_source!(Signum, "signum", |x| x.signum());
 unary_number_source!(

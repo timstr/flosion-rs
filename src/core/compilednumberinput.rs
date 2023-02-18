@@ -484,7 +484,7 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 
 // NOTE: Compiled number input node stores everything directly for now
 // Caching and reuse among other similar/identical number nodes coming later maybe
-pub(super) struct CompiledNumberInputNode<'ctx> {
+pub(crate) struct CompiledNumberInputNode<'ctx> {
     // TODO: can stateful number source state be stored here???????
 
     // inkwell stuff, unsure if needed, probably useful for debugging.
@@ -509,7 +509,7 @@ impl<'ctx> Drop for CompiledNumberInputNode<'ctx> {
 }
 
 impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
-    pub(super) fn compile(
+    pub(crate) fn compile(
         number_input_id: NumberInputId,
         topology: &SoundGraphTopology,
         inkwell_context: &'inkwell_ctx inkwell::context::Context,
@@ -807,7 +807,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         }
     }
 
-    pub(super) fn eval(&self, dst: &mut [f32], context: &Context) {
+    pub(crate) fn eval(&self, dst: &mut [f32], context: &Context) {
         unsafe {
             let context_ptr: *const () = std::mem::transmute_copy(&context);
             self.function.call(dst.as_mut_ptr(), dst.len(), context_ptr);

@@ -63,18 +63,18 @@ impl SliceQueue {
     }
 }
 
-pub(super) struct ScratchArena {
+pub(crate) struct ScratchArena {
     queues: RefCell<HashMap<u8, Rc<RefCell<SliceQueue>>>>,
 }
 
 impl ScratchArena {
-    pub fn new() -> ScratchArena {
+    pub(crate) fn new() -> ScratchArena {
         ScratchArena {
             queues: RefCell::new(HashMap::new()),
         }
     }
 
-    pub(super) fn borrow_slice(&self, size: usize) -> BorrowedSlice {
+    pub(crate) fn borrow_slice(&self, size: usize) -> BorrowedSlice {
         let k = ilog2(size);
         let s = 1_usize << k;
         let mut qs = self.queues.borrow_mut();

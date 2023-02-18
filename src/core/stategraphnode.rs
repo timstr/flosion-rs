@@ -31,9 +31,12 @@ pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
 }
 
 impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
-    pub(super) fn new(processor: Arc<StaticSoundProcessorWithId<T>>) -> Self {
+    pub(super) fn new(
+        processor: Arc<StaticSoundProcessorWithId<T>>,
+        context: &'ctx inkwell::context::Context,
+    ) -> Self {
         let sound_input = processor.get_sound_input().make_node();
-        let number_input = processor.make_number_inputs();
+        let number_input = processor.make_number_inputs(context);
         Self {
             processor,
             sound_input,

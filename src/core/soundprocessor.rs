@@ -51,7 +51,10 @@ pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
-    fn make_number_inputs<'ctx>(&self) -> Self::NumberInputType<'ctx>;
+    fn make_number_inputs<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx>;
 
     fn process_audio<'ctx>(
         &self,
@@ -249,9 +252,9 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
 
     fn make_node<'ctx>(
         self: Arc<Self>,
-        _context: &'ctx inkwell::context::Context,
+        context: &'ctx inkwell::context::Context,
     ) -> Box<dyn StateGraphNode + 'ctx> {
-        let processor_node = StaticProcessorNode::<T>::new(Arc::clone(&self));
+        let processor_node = StaticProcessorNode::<T>::new(Arc::clone(&self), context);
         Box::new(processor_node)
     }
 }
@@ -358,7 +361,7 @@ impl<T: State> ProcessorState for StateAndTiming<T> {
 }
 
 impl<T: State> StateAndTiming<T> {
-    pub(super) fn new(state: T) -> StateAndTiming<T> {
+    pub(crate) fn new(state: T) -> StateAndTiming<T> {
         StateAndTiming {
             state,
             timing: ProcessorTiming::new(),

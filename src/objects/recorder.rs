@@ -82,7 +82,10 @@ impl StaticSoundProcessor for Recorder {
         &self.input
     }
 
-    fn make_number_inputs<'ctx>(&self) -> Self::NumberInputType<'ctx> {
+    fn make_number_inputs<'ctx>(
+        &self,
+        _context: &'ctx inkwell::context::Context,
+    ) -> Self::NumberInputType<'ctx> {
         ()
     }
 
