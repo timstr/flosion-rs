@@ -491,6 +491,13 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
         let mut available_index = None;
         for (i, d) in self.data.iter_mut().enumerate() {
             if let QueuedKeyState::Playing(key_data) = &mut d.state {
+                if key_data.id == id {
+                    key_data.duration = match duration_samples {
+                        Some(s) => KeyDuration::Samples(s),
+                        None => KeyDuration::Forever,
+                    };
+                    return;
+                }
                 oldest_key_index_and_age = match oldest_key_index_and_age {
                     Some((j, s)) => {
                         if key_data.age > s {
@@ -590,7 +597,9 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
                     d.state = QueuedKeyState::NotPlaying();
                 }
 
-                // TODO: attenuate before adding?
+                // TODO: how to make this adjustable?
+                numeric::mul_scalar_inplace(&mut dst.l, 0.1);
+                numeric::mul_scalar_inplace(&mut dst.r, 0.1);
                 numeric::add_inplace(&mut dst.l, &temp_chunk.l);
                 numeric::add_inplace(&mut dst.r, &temp_chunk.r);
             }
