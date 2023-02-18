@@ -598,8 +598,8 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
                 }
 
                 // TODO: how to make this adjustable?
-                numeric::mul_scalar_inplace(&mut dst.l, 0.1);
-                numeric::mul_scalar_inplace(&mut dst.r, 0.1);
+                numeric::mul_scalar_inplace(&mut temp_chunk.l, 0.1);
+                numeric::mul_scalar_inplace(&mut temp_chunk.r, 0.1);
                 numeric::add_inplace(&mut dst.l, &temp_chunk.l);
                 numeric::add_inplace(&mut dst.r, &temp_chunk.r);
             }
