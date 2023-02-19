@@ -1,3 +1,5 @@
+use eframe::egui;
+
 use rand::prelude::*;
 
 use crate::{
@@ -17,6 +19,48 @@ use crate::{
 
 #[derive(Default)]
 pub struct MelodyUi {}
+
+impl MelodyUi {
+    fn ui_content(
+        &self,
+        ui: &mut egui::Ui,
+        melody: &DynamicSoundProcessorHandle<Melody>,
+    ) -> egui::Response {
+        let (response, painter) =
+            ui.allocate_painter(egui::Vec2::new(200.0, 300.0), egui::Sense::hover());
+
+        let melody_duration = melody.length_samples();
+
+        let note_shapes: Vec<egui::Shape> = melody
+            .notes()
+            .iter()
+            .map(|note| {
+                let x = (note.start_time_samples as f32 / melody_duration as f32)
+                    * response.rect.width()
+                    + response.rect.left();
+
+                let w =
+                    (note.duration_samples as f32 / melody_duration as f32) * response.rect.width();
+
+                let y =
+                    (1.0 - note.frequency / 500.0) * response.rect.height() + response.rect.top();
+
+                let height = 5.0;
+
+                let rect = egui::Rect::from_min_max(
+                    egui::pos2(x, y - 0.5 * height),
+                    egui::pos2(x + w, y + 0.5 * height),
+                );
+
+                egui::Shape::rect_stroke(rect, 0.0, (1.0, egui::Color32::WHITE))
+            })
+            .collect();
+
+        painter.add(note_shapes);
+
+        response
+    }
+}
 
 impl ObjectUi for MelodyUi {
     type HandleType = DynamicSoundProcessorHandle<Melody>;
@@ -50,10 +94,12 @@ impl ObjectUi for MelodyUi {
                 for _ in 0..16 {
                     let start_time_samples = thread_rng().gen::<usize>() % (4 * SAMPLE_FREQUENCY);
                     let duration_samples = thread_rng().gen::<usize>() % SAMPLE_FREQUENCY;
-                    let frequency = 250.0 * thread_rng().gen::<f32>();
+                    let frequency = 25.0 * (thread_rng().gen::<usize>() % 20) as f32;
                     melody.add_note(start_time_samples, duration_samples, frequency);
                 }
             }
+
+            egui::Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui, &melody));
         });
     }
 }

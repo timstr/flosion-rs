@@ -47,10 +47,10 @@ impl State for NoteState {
 
 #[derive(Clone)]
 pub struct Note {
-    id: NoteId,
-    start_time_samples: usize,
-    duration_samples: usize,
-    frequency: f32,
+    pub id: NoteId,
+    pub start_time_samples: usize,
+    pub duration_samples: usize,
+    pub frequency: f32,
 }
 
 // Stuff that is needed during audio processing but can be changed live
@@ -78,6 +78,10 @@ impl State for MelodyState {
 }
 
 impl Melody {
+    pub fn length_samples(&self) -> usize {
+        self.shared_data.read().length_samples
+    }
+
     pub fn add_note(
         &self,
         start_time_samples: usize,
