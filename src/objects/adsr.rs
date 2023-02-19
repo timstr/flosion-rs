@@ -54,11 +54,13 @@ pub struct ADSRState {
     phase_samples_so_far: usize,
     prev_level: f32,
     next_level: f32,
+    was_released: bool,
 }
 
 impl State for ADSRState {
     fn reset(&mut self) {
         self.phase = Phase::Init;
+        self.was_released = false;
     }
 }
 
@@ -130,6 +132,7 @@ impl DynamicSoundProcessor for ADSR {
             phase_samples_so_far: 0,
             prev_level: 0.0,
             next_level: 0.0,
+            was_released: false,
         }
     }
 
@@ -152,6 +155,8 @@ impl DynamicSoundProcessor for ADSR {
         dst: &mut SoundChunk,
         mut context: Context,
     ) -> StreamStatus {
+        let pending_release = context.take_pending_release();
+
         if let Phase::Init = state.phase {
             state.phase = Phase::Attack;
             state.prev_level = 0.0;
@@ -212,7 +217,13 @@ impl DynamicSoundProcessor for ADSR {
         }
 
         if let Phase::Sustain = state.phase {
-            if let Some(sample_offset) = context.take_pending_release() {
+            let sample_offset = if state.was_released {
+                Some(0)
+            } else {
+                pending_release
+            };
+
+            if let Some(sample_offset) = sample_offset {
                 // TODO: consider optionally propagating, e.g.
                 // inputs.request_release(sample_offset);
                 if sample_offset > cursor {
@@ -248,6 +259,10 @@ impl DynamicSoundProcessor for ADSR {
                 cursor = CHUNK_SIZE;
                 status = StreamStatus::Done;
             }
+        }
+
+        if pending_release.is_some() {
+            state.was_released = true;
         }
 
         debug_assert!(cursor == CHUNK_SIZE);
