@@ -612,6 +612,7 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
 impl<'ctx, I: Copy + Eq, S: State> SoundInputNode<'ctx> for KeyedInputQueueNode<'ctx, I, S> {
     fn flag_for_reset(&mut self) {
         for d in &mut self.data {
+            d.state = QueuedKeyState::NotPlaying();
             d.timing.require_reset();
         }
     }
