@@ -7,7 +7,6 @@ use crate::core::{
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numbersource::StateNumberSourceHandle,
     soundchunk::SoundChunk,
-    soundinput::InputOptions,
     soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
     soundprocessor::StaticSoundProcessor,
     soundprocessortools::SoundProcessorTools,
@@ -68,7 +67,7 @@ impl StaticSoundProcessor for Keyboard {
         let message_queue_size = 16; // idk
         let input_queue_size = 8; // idk
         let (command_sender, command_receiver) = sync_channel(message_queue_size);
-        let input = KeyedInputQueue::new(InputOptions::Synchronous, input_queue_size, &mut tools);
+        let input = KeyedInputQueue::new(input_queue_size, &mut tools);
         let key_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
             state.downcast_if::<KeyboardKeyState>().unwrap().frequency
         });

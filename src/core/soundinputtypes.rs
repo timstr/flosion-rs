@@ -434,8 +434,8 @@ pub struct KeyedInputQueue<I: Copy + Eq, S: State> {
 }
 
 impl<I: Copy + Eq, S: State> KeyedInputQueue<I, S> {
-    pub fn new(options: InputOptions, queue_size: usize, tools: &mut SoundProcessorTools) -> Self {
-        let id = tools.add_sound_input(options, queue_size);
+    pub fn new(queue_size: usize, tools: &mut SoundProcessorTools) -> Self {
+        let id = tools.add_sound_input(InputOptions::NonSynchronous, queue_size);
         Self {
             id,
             num_keys: queue_size,

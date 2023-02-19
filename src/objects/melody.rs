@@ -8,7 +8,6 @@ use crate::core::{
     numbersource::StateNumberSourceHandle,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundinput::InputOptions,
     soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
     soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
@@ -120,7 +119,7 @@ impl DynamicSoundProcessor for Melody {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let queue_size = 8; // idk
-        let input = KeyedInputQueue::new(InputOptions::Synchronous, queue_size, &mut tools);
+        let input = KeyedInputQueue::new(queue_size, &mut tools);
         let note_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
             state.downcast_if::<NoteState>().unwrap().frequency
         });
