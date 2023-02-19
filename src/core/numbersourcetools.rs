@@ -25,8 +25,7 @@ impl<'a> NumberSourceTools<'a> {
         }
     }
 
-    pub fn add_number_input(&mut self) -> NumberInputHandle {
-        let default_value: f32 = 0.0;
+    pub fn add_number_input(&mut self, default_value: f32) -> NumberInputHandle {
         let id = self.number_input_idgen.next_id();
         let target = None;
         let owner = NumberInputOwner::NumberSource(self.number_source_id);

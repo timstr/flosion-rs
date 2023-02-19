@@ -100,7 +100,7 @@ impl LlvmImplementation {
 }
 
 macro_rules! unary_number_source {
-    ($name: ident, $namestr: literal, $f: expr, $llvm_impl: expr) => {
+    ($name: ident, $namestr: literal, $default_input: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
             pub input: NumberInputHandle,
         }
@@ -110,8 +110,9 @@ macro_rules! unary_number_source {
                 mut tools: NumberSourceTools<'_>,
                 _init: ObjectInitialization,
             ) -> Result<$name, ()> {
+                let default_value: f32 = $default_input;
                 Ok($name {
-                    input: tools.add_number_input(),
+                    input: tools.add_number_input(default_value),
                 })
             }
 
@@ -137,7 +138,7 @@ macro_rules! unary_number_source {
 }
 
 macro_rules! binary_number_source {
-    ($name: ident, $namestr: literal, $f: expr, $llvm_impl: expr) => {
+    ($name: ident, $namestr: literal, $default_inputs: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
             pub input_1: NumberInputHandle,
             pub input_2: NumberInputHandle,
@@ -148,9 +149,10 @@ macro_rules! binary_number_source {
                 mut tools: NumberSourceTools<'_>,
                 _init: ObjectInitialization,
             ) -> Result<$name, ()> {
+                let default_values: (f32, f32) = $default_inputs;
                 Ok($name {
-                    input_1: tools.add_number_input(),
-                    input_2: tools.add_number_input(),
+                    input_1: tools.add_number_input(default_values.0),
+                    input_2: tools.add_number_input(default_values.0),
                 })
             }
 
@@ -184,36 +186,42 @@ macro_rules! binary_number_source {
 unary_number_source!(
     Negate,
     "negate",
+    0.0,
     |x| -x,
     LlvmImplementation::ExpressionUnary(|codegen, x| { codegen.builder().build_float_neg(x, "x") })
 );
 unary_number_source!(
     Floor,
     "floor",
+    0.0,
     |x| x.floor(),
     LlvmImplementation::IntrinsicUnary("llvm.floor")
 );
 unary_number_source!(
     Ceil,
     "ceil",
+    0.0,
     |x| x.ceil(),
     LlvmImplementation::IntrinsicUnary("llvm.ceil")
 );
 unary_number_source!(
     Round,
     "round",
+    0.0,
     |x| x.round(),
     LlvmImplementation::IntrinsicUnary("llvm.round")
 );
 unary_number_source!(
     Trunc,
     "trunc",
+    0.0,
     |x| x.trunc(),
     LlvmImplementation::IntrinsicUnary("llvm.trunc")
 );
 unary_number_source!(
     Fract,
     "fract",
+    0.0,
     |x| x.fract(),
     LlvmImplementation::ExpressionUnary(|codegen, x| {
         let x_trunc = codegen.build_unary_intrinsic_call("llvm.trunc", x);
@@ -223,6 +231,7 @@ unary_number_source!(
 unary_number_source!(
     Abs,
     "abs",
+    0.0,
     |x| x.abs(),
     LlvmImplementation::IntrinsicUnary("llvm.fabs")
 );
@@ -230,12 +239,14 @@ unary_number_source!(
 unary_number_source!(
     Exp,
     "exp",
+    0.0,
     |x| x.exp(),
     LlvmImplementation::IntrinsicUnary("llvm.exp")
 );
 unary_number_source!(
     Exp2,
     "exp2",
+    0.0,
     |x| x.exp2(),
     LlvmImplementation::IntrinsicUnary("llvm.exp2")
 );
@@ -243,24 +254,28 @@ unary_number_source!(
 unary_number_source!(
     Log,
     "log",
+    1.0,
     |x| x.ln(),
     LlvmImplementation::IntrinsicUnary("llvm.log")
 );
 unary_number_source!(
     Log2,
     "log2",
+    1.0,
     |x| x.log2(),
     LlvmImplementation::IntrinsicUnary("llvm.log2")
 );
 unary_number_source!(
     Log10,
     "log10",
+    1.0,
     |x| x.log10(),
     LlvmImplementation::IntrinsicUnary("llvm.log10")
 );
 unary_number_source!(
     Sqrt,
     "sqrt",
+    0.0,
     |x| x.sqrt(),
     LlvmImplementation::IntrinsicUnary("llvm.sqrt")
 );
@@ -268,12 +283,14 @@ unary_number_source!(
 unary_number_source!(
     Sin,
     "sin",
+    0.0,
     |x| x.sin(),
     LlvmImplementation::IntrinsicUnary("llvm.sin")
 );
 unary_number_source!(
     Cos,
     "cos",
+    0.0,
     |x| x.cos(),
     LlvmImplementation::IntrinsicUnary("llvm.cos")
 );
@@ -291,6 +308,7 @@ unary_number_source!(
 unary_number_source!(
     SineWave,
     "sinewave",
+    0.0,
     |x| (x * std::f32::consts::TAU).sin(),
     LlvmImplementation::ExpressionUnary(|codegen, x| {
         let tau = codegen.float_type().const_float(std::f64::consts::TAU);
@@ -316,6 +334,7 @@ unary_number_source!(
 binary_number_source!(
     Add,
     "add",
+    (0.0, 0.0),
     |a, b| a + b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
         codegen.builder().build_float_add(a, b, "sum")
@@ -324,6 +343,7 @@ binary_number_source!(
 binary_number_source!(
     Subtract,
     "subtract",
+    (0.0, 0.0),
     |a, b| a - b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
         codegen.builder().build_float_sub(a, b, "difference")
@@ -332,6 +352,7 @@ binary_number_source!(
 binary_number_source!(
     Multiply,
     "multiply",
+    (1.0, 1.0),
     |a, b| a * b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
         codegen.builder().build_float_mul(a, b, "product")
@@ -340,6 +361,7 @@ binary_number_source!(
 binary_number_source!(
     Divide,
     "divide",
+    (1.0, 1.0),
     |a, b| a / b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
         codegen.builder().build_float_div(a, b, "quotient")
@@ -350,6 +372,7 @@ binary_number_source!(
 binary_number_source!(
     Pow,
     "pow",
+    (0.0, 1.0),
     |a, b| a.powf(b),
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
         // x = a^b
