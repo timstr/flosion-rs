@@ -573,6 +573,7 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
         let mut temp_chunk = SoundChunk::new();
         for d in &mut self.data {
             if let QueuedKeyState::Playing(key_data) = &mut d.state {
+                // TODO: allow keys to stack (after ignoring key repeats in keyboard_ui)
                 if let KeyDuration::Samples(s) = &mut key_data.duration {
                     if *s < CHUNK_SIZE {
                         d.timing.request_release(*s);

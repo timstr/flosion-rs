@@ -10,8 +10,8 @@ use crate::{
 
 use super::{
     adsr_ui::ADSRUi, audioclip_ui::AudioClipUi, dac_ui::DacUi, functions_ui::*,
-    keyboard_ui::KeyboardUi, mixer_ui::MixerUi, recorder_ui::RecorderUi, resampler_ui::ResamplerUi,
-    wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
+    keyboard_ui::KeyboardUi, melody_ui::MelodyUi, mixer_ui::MixerUi, recorder_ui::RecorderUi,
+    resampler_ui::ResamplerUi, wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
 };
 
 struct RegistrationHelper<'a> {
@@ -67,16 +67,17 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
 
     // Static sound processors
     helper.register_static_sound_processor::<DacUi>();
-    helper.register_static_sound_processor::<RecorderUi>();
     helper.register_static_sound_processor::<KeyboardUi>();
+    helper.register_static_sound_processor::<RecorderUi>();
 
     // Dynamicic sound processors
     helper.register_dynamic_sound_processor::<ADSRUi>();
     helper.register_dynamic_sound_processor::<AudioClipUi>();
+    helper.register_dynamic_sound_processor::<MelodyUi>();
+    helper.register_dynamic_sound_processor::<MixerUi>();
     helper.register_dynamic_sound_processor::<ResamplerUi>();
     helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
     helper.register_dynamic_sound_processor::<WhiteNoiseUi>();
-    helper.register_dynamic_sound_processor::<MixerUi>();
 
     // Pure number sources
     helper.register_number_source::<ConstantUi>();

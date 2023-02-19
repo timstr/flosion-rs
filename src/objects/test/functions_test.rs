@@ -144,14 +144,22 @@ impl WithObjectType for TestSoundProcessor {
 
 macro_rules! assert_near {
     ($expected: expr, $actual: expr) => {
-        let diff = (($expected) - ($actual)).abs();
-        let mag = ($expected).abs().max(($actual).abs()).max(1e-3);
-        assert!(
-            diff < 1e-3 * mag,
-            "Expected something near {} but instead got {}",
-            $expected,
-            $actual,
-        )
+        if ($expected).is_nan() {
+            assert!(
+                ($actual).is_nan(),
+                "Expected NaN, but instead got {}",
+                $actual
+            );
+        } else {
+            let diff = (($expected) - ($actual)).abs();
+            let mag = ($expected).abs().max(($actual).abs()).max(1e-3);
+            assert!(
+                diff < 1e-3 * mag,
+                "Expected something near {} but instead got {}",
+                $expected,
+                $actual,
+            )
+        }
     };
 }
 
@@ -443,5 +451,5 @@ fn test_divide() {
 
 #[test]
 fn test_pow() {
-    do_number_source_test_binary::<Pow>((0.0, 10.0), (-10.0, 10.0), |a, b| a.powf(b));
+    do_number_source_test_binary::<Pow>((-10.0, 10.0), (-10.0, 10.0), |a, b| a.powf(b));
 }

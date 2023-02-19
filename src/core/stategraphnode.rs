@@ -502,9 +502,6 @@ impl<'ctx> NodeTarget<'ctx> {
         }
         let release_pending = timing.pending_release().is_some();
 
-        // If the input was released, there should be no pending release
-        debug_assert!(!timing.was_released() || release_pending);
-
         let status = match &mut self.target {
             NodeTargetValue::Unique(node) => {
                 node.step(timing, state, dst, ctx, input_id, input_state)
