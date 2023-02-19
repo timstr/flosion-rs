@@ -1,13 +1,14 @@
-use std::{fs, path::Path, process::Command, sync::Arc};
+use std::sync::Arc;
 
 use atomic_float::AtomicF32;
 use inkwell::{
     builder::Builder,
     intrinsics::Intrinsic,
     module::Module,
+    passes::{PassManager, PassManagerBuilder},
     types::{FloatType, IntType, PointerType},
     values::{BasicValue, FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
-    AddressSpace, AtomicOrdering,
+    AddressSpace, AtomicOrdering, OptimizationLevel,
 };
 
 use crate::core::uniqueid::UniqueId;
@@ -748,6 +749,21 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
                 println!("    {}", line);
             }
             panic!();
+        }
+
+        // Apply optimizations in release mode
+        #[cfg(not(debug_assertions))]
+        {
+            let pass_manager_builder = PassManagerBuilder::create();
+
+            pass_manager_builder.set_optimization_level(OptimizationLevel::Aggressive);
+            // TODO: other optimization options?
+
+            let pass_manager = PassManager::create(());
+
+            pass_manager_builder.populate_lto_pass_manager(&pass_manager, false, false);
+
+            pass_manager.run_on(codegen.module());
         }
 
         // print out the IR if testing
