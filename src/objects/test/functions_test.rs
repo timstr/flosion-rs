@@ -244,7 +244,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     }
     if ns_inputs.len() >= 3 {
         topo.make_edit(SoundGraphEdit::ConnectNumberInput(
-            ns_inputs[1],
+            ns_inputs[2],
             sp_instance.number_source_2.id(),
         ));
     }
@@ -346,6 +346,17 @@ fn do_number_source_test_binary<T: PureNumberSource>(
 ) {
     do_number_source_test::<T, _>(&[input0_range, input1_range], |inputs| {
         test_function(inputs[0], inputs[1])
+    })
+}
+
+fn do_number_source_test_ternary<T: PureNumberSource>(
+    input0_range: (f32, f32),
+    input1_range: (f32, f32),
+    input2_range: (f32, f32),
+    test_function: fn(f32, f32, f32) -> f32,
+) {
+    do_number_source_test::<T, _>(&[input0_range, input1_range, input2_range], |inputs| {
+        test_function(inputs[0], inputs[1], inputs[2])
     })
 }
 
@@ -495,4 +506,14 @@ fn test_copysign() {
 #[test]
 fn test_pow() {
     do_number_source_test_binary::<Pow>((-10.0, 10.0), (-10.0, 10.0), |a, b| a.powf(b));
+}
+
+#[test]
+fn test_lerp() {
+    do_number_source_test_ternary::<Lerp>(
+        (-10.0, 10.0),
+        (-10.0, 10.0),
+        (-10.0, 10.0),
+        |a, b, c| a + c * (b - a),
+    );
 }

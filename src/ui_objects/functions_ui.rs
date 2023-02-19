@@ -193,6 +193,56 @@ macro_rules! binary_number_source_ui {
     };
 }
 
+// TODO: display names
+macro_rules! ternary_number_source_ui {
+    ($name: ident, $object: ident, $display_name: literal, $aliases: expr) => {
+        #[derive(Default)]
+        pub struct $name {}
+
+        impl ObjectUi for $name {
+            type HandleType = PureNumberSourceHandle<$object>;
+            type StateType = NoUIState;
+            fn ui(
+                &self,
+                id: ObjectId,
+                object: PureNumberSourceHandle<$object>,
+                graph_tools: &mut GraphUIState,
+                ui: &mut eframe::egui::Ui,
+                _state: &Self::StateType,
+            ) {
+                let id = id.as_number_source_id().unwrap();
+                ObjectWindow::new_number_source(id).show(
+                    ui.ctx(),
+                    graph_tools,
+                    |ui, graph_tools| {
+                        ui.label($display_name);
+                        ui.add(NumberInputWidget::new(
+                            object.input_1.id(),
+                            "Input 1",
+                            graph_tools,
+                        ));
+                        ui.add(NumberInputWidget::new(
+                            object.input_2.id(),
+                            "Input 2",
+                            graph_tools,
+                        ));
+                        ui.add(NumberInputWidget::new(
+                            object.input_3.id(),
+                            "Input 3",
+                            graph_tools,
+                        ));
+                        ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
+                    },
+                );
+            }
+
+            fn aliases(&self) -> &'static [&'static str] {
+                &$aliases
+            }
+        }
+    };
+}
+
 unary_number_source_ui!(NegateUi, Negate, "Negate", []);
 unary_number_source_ui!(FloorUi, Floor, "Floor", []);
 unary_number_source_ui!(CeilUi, Ceil, "Ceil", []);
@@ -236,3 +286,5 @@ binary_number_source_ui!(DivideUi, Divide, "Divide", ["/"]);
 binary_number_source_ui!(CopysignUi, Copysign, "Copysign", []);
 binary_number_source_ui!(PowUi, Pow, "Pow", []);
 // binary_number_source_ui!(Atan2Ui, Atan2, "Atan2", []);
+
+ternary_number_source_ui!(LerpUi, Lerp, "Lerp", []);

@@ -71,6 +71,14 @@ enum LlvmImplementation {
     ExpressionBinary(
         for<'a, 'b> fn(&'a mut CodeGen<'b>, FloatValue<'b>, FloatValue<'b>) -> FloatValue<'b>,
     ),
+    ExpressionTernary(
+        for<'a, 'b> fn(
+            &'a mut CodeGen<'b>,
+            FloatValue<'b>,
+            FloatValue<'b>,
+            FloatValue<'b>,
+        ) -> FloatValue<'b>,
+    ),
 }
 
 impl LlvmImplementation {
@@ -101,6 +109,13 @@ impl LlvmImplementation {
                 let a = inputs[0];
                 let b = inputs[1];
                 f(codegen, a, b)
+            }
+            LlvmImplementation::ExpressionTernary(f) => {
+                debug_assert_eq!(inputs.len(), 3);
+                let a = inputs[0];
+                let b = inputs[1];
+                let c = inputs[2];
+                f(codegen, a, b, c)
             }
         }
     }
@@ -159,7 +174,7 @@ macro_rules! binary_number_source {
                 let default_values: (f32, f32) = $default_inputs;
                 Ok($name {
                     input_1: tools.add_number_input(default_values.0),
-                    input_2: tools.add_number_input(default_values.0),
+                    input_2: tools.add_number_input(default_values.1),
                 })
             }
 
@@ -186,9 +201,54 @@ macro_rules! binary_number_source {
     };
 }
 
-// TODO: ternary functions:
+macro_rules! ternary_number_source {
+    ($name: ident, $namestr: literal, $default_inputs: expr, $f: expr, $llvm_impl: expr) => {
+        pub struct $name {
+            pub input_1: NumberInputHandle,
+            pub input_2: NumberInputHandle,
+            pub input_3: NumberInputHandle,
+        }
+
+        impl PureNumberSource for $name {
+            fn new(
+                mut tools: NumberSourceTools<'_>,
+                _init: ObjectInitialization,
+            ) -> Result<$name, ()> {
+                let default_values: (f32, f32, f32) = $default_inputs;
+                Ok($name {
+                    input_1: tools.add_number_input(default_values.0),
+                    input_2: tools.add_number_input(default_values.1),
+                    input_3: tools.add_number_input(default_values.2),
+                })
+            }
+
+            fn eval(&self, dst: &mut [f32], context: &Context) {
+                self.input_1.eval(dst, context);
+                let mut scratch_space_1 = context.get_scratch_space(dst.len());
+                let mut scratch_space_2 = context.get_scratch_space(dst.len());
+                self.input_2.eval(&mut scratch_space_1, context);
+                self.input_3.eval(&mut scratch_space_2, context);
+                numeric::apply_ternary_inplace(dst, &scratch_space_1, &scratch_space_2, $f);
+            }
+
+            fn compile<'ctx>(
+                &self,
+                codegen: &mut CodeGen<'ctx>,
+                inputs: &[FloatValue<'ctx>],
+            ) -> FloatValue<'ctx> {
+                let imp: LlvmImplementation = $llvm_impl;
+                imp.compile(codegen, inputs)
+            }
+        }
+
+        impl WithObjectType for $name {
+            const TYPE: ObjectType = ObjectType::new($namestr);
+        }
+    };
+}
+
+// TODO
 // fma
-// linear map / lerp
 
 unary_number_source!(
     Negate,
@@ -485,3 +545,15 @@ binary_number_source!(
     })
 );
 // binary_number_source!(Atan2, "atan2", |a, b| a.atan2(b));
+
+ternary_number_source!(
+    Lerp,
+    "lerp",
+    (0.0, 1.0, 0.0),
+    |a, b, c| { a + c * (b - a) },
+    LlvmImplementation::ExpressionTernary(|codegen, a, b, c| {
+        let diff = codegen.builder().build_float_sub(b, a, "diff");
+        let scaled_diff = codegen.builder().build_float_mul(c, diff, "scaled_diff");
+        codegen.builder().build_float_add(a, scaled_diff, "lerp")
+    })
+);

@@ -81,6 +81,56 @@ pub fn apply_binary_inplace<F: Fn(f32, f32) -> f32>(src1_dst: &mut [f32], src2: 
     }
 }
 
+pub fn apply_ternary<F: Fn(f32, f32, f32) -> f32>(
+    src1: &[f32],
+    src2: &[f32],
+    src3: &[f32],
+    f: F,
+    dst: &mut [f32],
+) {
+    let n = src1.len();
+    if src2.len() != n || src3.len() != n || dst.len() != n {
+        panic!("Attempted to call apply_binary() on slices of different length");
+    }
+    unsafe {
+        // SAFETY: unsafe is used here to index into all slices without
+        // bounds checking. This code is safe because the slices are
+        // only indexed into over the range 0..n, and all have been
+        // guaranteed by the above check to have exactly this length
+        for i in 0..n {
+            let s1 = src1.get_unchecked(i);
+            let s2 = src2.get_unchecked(i);
+            let s3 = src3.get_unchecked(i);
+            let d = dst.get_unchecked_mut(i);
+            *d = f(*s1, *s2, *s3);
+        }
+    }
+}
+
+pub fn apply_ternary_inplace<F: Fn(f32, f32, f32) -> f32>(
+    src1_dst: &mut [f32],
+    src2: &[f32],
+    src3: &[f32],
+    f: F,
+) {
+    let n = src1_dst.len();
+    if src2.len() != n || src3.len() != n {
+        panic!("Attempted to call apply_binary() on slices of different length");
+    }
+    unsafe {
+        // SAFETY: unsafe is used here to index into all slices without
+        // bounds checking. This code is safe because the slices are
+        // only indexed into over the range 0..n, and all have been
+        // guaranteed by the above check to have exactly this length
+        for i in 0..n {
+            let s1d = src1_dst.get_unchecked_mut(i);
+            let s2 = src2.get_unchecked(i);
+            let s3 = src3.get_unchecked(i);
+            *s1d = f(*s1d, *s2, *s3);
+        }
+    }
+}
+
 pub fn inclusive_scan<F: Fn(f32, f32) -> f32>(src: &[f32], f: F, dst: &mut [f32]) {
     let n = src.len();
     if dst.len() != n {

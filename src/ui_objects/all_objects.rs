@@ -127,5 +127,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     helper.register_number_source::<PowUi>();
     // helper.register_number_source::<Atan2Ui>();
 
+    helper.register_number_source::<LerpUi>();
+
     (object_factory, ui_factory)
 }
