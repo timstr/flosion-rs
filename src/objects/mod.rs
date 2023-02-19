@@ -1,6 +1,7 @@
 pub mod adsr;
 pub mod audioclip;
 pub mod dac;
+pub mod ensemble;
 pub mod functions;
 pub mod keyboard;
 pub mod melody;

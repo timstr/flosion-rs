@@ -303,8 +303,12 @@ impl ProcessorTiming {
         self.elapsed_chunks += 1;
     }
 
-    pub fn elapsed_chunks(&self) -> usize {
+    pub(super) fn elapsed_chunks(&self) -> usize {
         self.elapsed_chunks
+    }
+
+    fn just_started(&self) -> bool {
+        self.elapsed_chunks == 0
     }
 }
 
@@ -378,6 +382,10 @@ impl<T: State> StateAndTiming<T> {
 
     pub(super) fn timing(&self) -> &ProcessorTiming {
         &self.timing
+    }
+
+    pub fn just_started(&self) -> bool {
+        self.timing.just_started()
     }
 }
 
