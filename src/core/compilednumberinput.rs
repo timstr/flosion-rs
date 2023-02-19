@@ -337,6 +337,34 @@ impl<'ctx> CodeGen<'ctx> {
             .into_float_value()
     }
 
+    pub fn build_binary_intrinsic_call(
+        &mut self,
+        name: &str,
+        input1: FloatValue<'ctx>,
+        input2: FloatValue<'ctx>,
+    ) -> FloatValue<'ctx> {
+        // TODO: error handling
+        let intrinsic = Intrinsic::find(name).unwrap();
+
+        let decl = intrinsic.get_declaration(&self.module, &[self.float_type().into()]);
+
+        // TODO: error handling
+        let decl = decl.unwrap();
+
+        let callsiteval = self.builder.build_call(
+            decl,
+            &[input1.into(), input2.into()],
+            &format!("{}_call", name),
+        );
+
+        // TODO: error handling
+        callsiteval
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_float_value()
+    }
+
     pub fn build_atomicf32_load(&mut self, value: Arc<AtomicF32>) -> FloatValue<'ctx> {
         let ptr: *const AtomicF32 = &*value;
         let addr_val = self.types.usize_type.const_int(ptr as u64, false);

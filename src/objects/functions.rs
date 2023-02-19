@@ -66,6 +66,7 @@ impl WithObjectType for Constant {
 
 enum LlvmImplementation {
     IntrinsicUnary(&'static str),
+    IntrinsicBinary(&'static str),
     ExpressionUnary(for<'a, 'b> fn(&'a mut CodeGen<'b>, FloatValue<'b>) -> FloatValue<'b>),
     ExpressionBinary(
         for<'a, 'b> fn(&'a mut CodeGen<'b>, FloatValue<'b>, FloatValue<'b>) -> FloatValue<'b>,
@@ -83,6 +84,12 @@ impl LlvmImplementation {
                 debug_assert_eq!(inputs.len(), 1);
                 let input = inputs[0];
                 codegen.build_unary_intrinsic_call(name, input)
+            }
+            LlvmImplementation::IntrinsicBinary(name) => {
+                debug_assert_eq!(inputs.len(), 2);
+                let input1 = inputs[0];
+                let input2 = inputs[1];
+                codegen.build_binary_intrinsic_call(name, input1, input2)
             }
             LlvmImplementation::ExpressionUnary(f) => {
                 debug_assert_eq!(inputs.len(), 1);
@@ -235,7 +242,16 @@ unary_number_source!(
     |x| x.abs(),
     LlvmImplementation::IntrinsicUnary("llvm.fabs")
 );
-// unary_number_source!(Signum, "signum", |x| x.signum());
+unary_number_source!(
+    Signum,
+    "signum",
+    0.0,
+    |x| x.signum(),
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let one = codegen.float_type().const_float(1.0);
+        codegen.build_binary_intrinsic_call("llvm.copysign", one, x)
+    })
+);
 unary_number_source!(
     Exp,
     "exp",
@@ -250,7 +266,19 @@ unary_number_source!(
     |x| x.exp2(),
     LlvmImplementation::IntrinsicUnary("llvm.exp2")
 );
-// unary_number_source!(Exp10, "exp10", |x| (x * std::f32::consts::LN_10).exp());
+unary_number_source!(
+    Exp10,
+    "exp10",
+    0.0,
+    |x| (x * std::f32::consts::LN_10).exp(),
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let ln_10 = codegen
+            .float_type()
+            .const_float(std::f32::consts::LN_10 as f64);
+        let x_times_ln_10 = codegen.builder().build_float_mul(x, ln_10, "x_times_ln_10");
+        codegen.build_unary_intrinsic_call("llvm.exp", x_times_ln_10)
+    })
+);
 unary_number_source!(
     Log,
     "log",
@@ -279,7 +307,7 @@ unary_number_source!(
     |x| x.sqrt(),
     LlvmImplementation::IntrinsicUnary("llvm.sqrt")
 );
-// unary_number_source!(Cbrt, "cbrt", |x| x.cbrt());
+// unary_number_source!(Cbrt, "cbrt", 0.0, |x| x.cbrt());
 unary_number_source!(
     Sin,
     "sin",
@@ -435,7 +463,13 @@ binary_number_source!(
     })
 );
 // binary_number_source!(Hypot, "hypot", |a, b| a.hypot(b));
-// binary_number_source!(Copysign, "copysign", |a, b| a.copysign(b));
+binary_number_source!(
+    Copysign,
+    "copysign",
+    (0.0, 0.0),
+    |a, b| a.copysign(b),
+    LlvmImplementation::IntrinsicBinary("llvm.copysign")
+);
 binary_number_source!(
     Pow,
     "pow",

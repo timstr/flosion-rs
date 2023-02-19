@@ -91,10 +91,10 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     helper.register_number_source::<TruncUi>();
     helper.register_number_source::<FractUi>();
     helper.register_number_source::<AbsUi>();
-    // helper.register_number_source::<SignumUi>();
+    helper.register_number_source::<SignumUi>();
     helper.register_number_source::<ExpUi>();
     helper.register_number_source::<Exp2Ui>();
-    // helper.register_number_source::<Exp10Ui>();
+    helper.register_number_source::<Exp10Ui>();
     helper.register_number_source::<LogUi>();
     helper.register_number_source::<Log2Ui>();
     helper.register_number_source::<Log10Ui>();
@@ -123,7 +123,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     helper.register_number_source::<MultiplyUi>();
     helper.register_number_source::<DivideUi>();
     // helper.register_number_source::<HypotUi>();
-    // helper.register_number_source::<CopysignUi>();
+    helper.register_number_source::<CopysignUi>();
     helper.register_number_source::<PowUi>();
     // helper.register_number_source::<Atan2Ui>();
 

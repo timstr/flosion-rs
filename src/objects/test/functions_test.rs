@@ -385,6 +385,11 @@ fn test_abs() {
 }
 
 #[test]
+fn test_signum() {
+    do_number_source_test_unary::<Signum>((-10.0, 10.0), |x| x.signum());
+}
+
+#[test]
 fn test_exp() {
     do_number_source_test_unary::<Exp>((-10.0, 10.0), |x| x.exp());
 }
@@ -392,6 +397,11 @@ fn test_exp() {
 #[test]
 fn test_exp2() {
     do_number_source_test_unary::<Exp2>((-10.0, 10.0), |x| x.exp2());
+}
+
+#[test]
+fn test_exp10() {
+    do_number_source_test_unary::<Exp10>((-10.0, 10.0), |x| (x * std::f32::consts::LN_10).exp());
 }
 
 #[test]
@@ -475,6 +485,11 @@ fn test_multiply() {
 #[test]
 fn test_divide() {
     do_number_source_test_binary::<Divide>((-10.0, 10.0), (-10.0, 10.0), |a, b| a / b);
+}
+
+#[test]
+fn test_copysign() {
+    do_number_source_test_binary::<Copysign>((-10.0, 10.0), (-10.0, 10.0), |a, b| a.copysign(b));
 }
 
 #[test]
