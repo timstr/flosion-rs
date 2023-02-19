@@ -430,6 +430,34 @@ fn test_sinewave() {
 }
 
 #[test]
+fn test_cosinewave() {
+    do_number_source_test_unary::<CosineWave>((-10.0, 10.0), |x| (x * std::f32::consts::TAU).cos());
+}
+
+#[test]
+fn test_squarewave() {
+    do_number_source_test_unary::<SquareWave>((-10.0, 10.0), |x| {
+        if (x - x.floor()) >= 0.5 {
+            1.0
+        } else {
+            -1.0
+        }
+    });
+}
+
+#[test]
+fn test_sawwave() {
+    do_number_source_test_unary::<SawWave>((-10.0, 10.0), |x| 2.0 * (x - x.floor()) - 1.0);
+}
+
+#[test]
+fn test_trianglewave() {
+    do_number_source_test_unary::<TriangleWave>((-10.0, 10.0), |x| {
+        4.0 * (x - (x + 0.5).floor()).abs() - 1.0
+    });
+}
+
+#[test]
 fn test_add() {
     do_number_source_test_binary::<Add>((-10.0, 10.0), (-10.0, 10.0), |a, b| a + b);
 }

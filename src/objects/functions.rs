@@ -9,7 +9,7 @@ use crate::core::{
     serialization::Serializer,
 };
 use atomic_float::AtomicF32;
-use inkwell::values::FloatValue;
+use inkwell::{values::FloatValue, FloatPredicate};
 use std::sync::{atomic::Ordering, Arc};
 
 pub struct Constant {
@@ -317,19 +317,86 @@ unary_number_source!(
         sin_tau_x
     })
 );
-// unary_number_source!(CosineWave, "cosinewave", |x| (x * std::f32::consts::TAU)
-//     .cos());
-// unary_number_source!(SquareWave, "squarewave", |x| {
-//     if (x - x.floor()) >= 0.5 {
-//         1.0
-//     } else {
-//         -1.0
-//     }
-// });
-// unary_number_source!(SawWave, "sawwave", |x| 2.0 * (x - x.floor()) - 1.0);
-// unary_number_source!(TriangleWave, "trianglewave", |x| 4.0
-//     * (x - (x + 0.5).floor()).abs()
-//     - 1.0);
+unary_number_source!(
+    CosineWave,
+    "cosinewave",
+    0.0,
+    |x| (x * std::f32::consts::TAU).cos(),
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let tau = codegen.float_type().const_float(std::f64::consts::TAU);
+        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x");
+        let sin_tau_x = codegen.build_unary_intrinsic_call("llvm.cos", tau_x);
+        sin_tau_x
+    })
+);
+unary_number_source!(
+    SquareWave,
+    "squarewave",
+    0.0,
+    |x| {
+        if (x - x.floor()) >= 0.5 {
+            1.0
+        } else {
+            -1.0
+        }
+    },
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let plus_one = codegen.float_type().const_float(1.0);
+        let minus_one = codegen.float_type().const_float(-1.0);
+        let a_half = codegen.float_type().const_float(0.5);
+        let x_floor = codegen.build_unary_intrinsic_call("llvm.floor", x);
+        let x_fract = codegen.builder().build_float_sub(x, x_floor, "x_fract");
+        let x_fract_ge_half = codegen.builder().build_float_compare(
+            FloatPredicate::UGE,
+            x_fract,
+            a_half,
+            "x_fract_ge_half",
+        );
+        codegen
+            .builder()
+            .build_select(x_fract_ge_half, plus_one, minus_one, "square_wave")
+            .into_float_value()
+    })
+);
+unary_number_source!(
+    SawWave,
+    "sawwave",
+    0.0,
+    |x| 2.0 * (x - x.floor()) - 1.0,
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let one = codegen.float_type().const_float(1.0);
+        let two = codegen.float_type().const_float(2.0);
+        let x_floor = codegen.build_unary_intrinsic_call("llvm.floor", x);
+        let x_fract = codegen.builder().build_float_sub(x, x_floor, "x_fract");
+        let two_x_fract = codegen.builder().build_float_mul(x_fract, two, "2x_fract");
+        codegen
+            .builder()
+            .build_float_sub(two_x_fract, one, "saw_wave")
+    })
+);
+unary_number_source!(
+    TriangleWave,
+    "trianglewave",
+    0.0,
+    |x| 4.0 * (x - (x + 0.5).floor()).abs() - 1.0,
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        let one = codegen.float_type().const_float(1.0);
+        let four = codegen.float_type().const_float(4.0);
+        let a_half = codegen.float_type().const_float(0.5);
+
+        let x_plus_half = codegen.builder().build_float_add(x, a_half, "x_plus_half");
+        let floored = codegen.build_unary_intrinsic_call("llvm.floor", x_plus_half);
+        let x_minus_floored = codegen
+            .builder()
+            .build_float_sub(x, floored, "x_minus_floored");
+        let abs = codegen.build_unary_intrinsic_call("llvm.fabs", x_minus_floored);
+
+        let four_abs = codegen.builder().build_float_mul(abs, four, "four_abs");
+        codegen
+            .builder()
+            .build_float_sub(four_abs, one, "triangle_wave")
+    })
+);
 
 binary_number_source!(
     Add,

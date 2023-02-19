@@ -223,10 +223,10 @@ unary_number_source_ui!(CosUi, Cos, "Cos", []);
 // unary_number_source_ui!(AtanhUi, Atanh, "Atanh", []);
 
 unary_number_source_ui!(SineWaveUi, SineWave, "SineWave", []);
-// unary_number_source_ui!(CosineWaveUi, CosineWave, "CosineWave", []);
-// unary_number_source_ui!(SquareWaveUi, SquareWave, "SquareWave", []);
-// unary_number_source_ui!(SawWaveUi, SawWave, "SawWave", []);
-// unary_number_source_ui!(TriangleWaveUi, TriangleWave, "TriangleWave", []);
+unary_number_source_ui!(CosineWaveUi, CosineWave, "CosineWave", []);
+unary_number_source_ui!(SquareWaveUi, SquareWave, "SquareWave", []);
+unary_number_source_ui!(SawWaveUi, SawWave, "SawWave", []);
+unary_number_source_ui!(TriangleWaveUi, TriangleWave, "TriangleWave", []);
 
 binary_number_source_ui!(AddUi, Add, "Add", ["+", "plus"]);
 binary_number_source_ui!(SubtractUi, Subtract, "Subtract", ["-", "minus"]);
