@@ -5,10 +5,15 @@ use inkwell::{
     builder::Builder,
     intrinsics::Intrinsic,
     module::Module,
-    passes::{PassManager, PassManagerBuilder},
     types::{FloatType, IntType, PointerType},
     values::{BasicValue, FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
-    AddressSpace, AtomicOrdering, OptimizationLevel,
+    AddressSpace, AtomicOrdering,
+};
+
+#[cfg(not(debug_assertions))]
+use inkwell::{
+    passes::{PassManager, PassManagerBuilder},
+    OptimizationLevel,
 };
 
 use crate::core::uniqueid::UniqueId;

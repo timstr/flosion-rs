@@ -311,7 +311,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     // test interpreted evaluation
     let mut actual_values_interpreted = [0.0_f32; TEST_ARRAY_SIZE];
     let the_number_source = topo.number_source(ns_instance.id()).unwrap().instance();
-    the_number_source.eval(&mut actual_values_interpreted, &context);
+    the_number_source.interpret(&mut actual_values_interpreted, &context);
 
     for (expected, actual) in expected_values
         .into_iter()

@@ -19,10 +19,6 @@ impl<'ctx> NumberInputNode<'ctx> {
         self.id
     }
 
-    pub(super) fn clear(&mut self) {
-        self.artefact = None;
-    }
-
     pub(super) fn is_initialized(&self) -> bool {
         self.artefact.is_some()
     }

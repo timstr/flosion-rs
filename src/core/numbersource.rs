@@ -90,7 +90,7 @@ impl NumberConfig {
 }
 
 pub(crate) trait NumberSource: 'static + Sync + Send {
-    fn eval(&self, dst: &mut [f32], context: &Context);
+    fn interpret(&self, dst: &mut [f32], context: &Context);
 
     fn compile<'ctx>(
         &self,
@@ -108,7 +108,7 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     where
         Self: Sized;
 
-    fn eval(&self, dst: &mut [f32], context: &Context);
+    fn interpret(&self, dst: &mut [f32], context: &Context);
 
     fn compile<'ctx>(
         &self,
@@ -143,8 +143,8 @@ impl<T: PureNumberSource> Deref for PureNumberSourceWithId<T> {
 }
 
 impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
-        T::eval(&*self, dst, context)
+    fn interpret(&self, dst: &mut [f32], context: &Context) {
+        T::interpret(&*self, dst, context)
     }
 
     fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
@@ -206,7 +206,7 @@ impl ScalarInputNumberSource {
 }
 
 impl NumberSource for ScalarInputNumberSource {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
+    fn interpret(&self, dst: &mut [f32], context: &Context) {
         let frame = context.find_input_frame(self.input_id);
         let s = (self.function)(frame.state());
         numeric::fill(dst, s);
@@ -234,7 +234,7 @@ impl ArrayInputNumberSource {
 }
 
 impl NumberSource for ArrayInputNumberSource {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
+    fn interpret(&self, dst: &mut [f32], context: &Context) {
         let frame = context.find_input_frame(self.input_id);
         let s = (self.function)(frame.state());
         numeric::copy(s, dst);
@@ -268,7 +268,7 @@ impl ScalarProcessorNumberSource {
 }
 
 impl NumberSource for ScalarProcessorNumberSource {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
+    fn interpret(&self, dst: &mut [f32], context: &Context) {
         let state = context.find_processor_state(self.processor_id);
         let s = (self.function)(&state);
         numeric::fill(dst, s);
@@ -302,7 +302,7 @@ impl ArrayProcessorNumberSource {
 }
 
 impl NumberSource for ArrayProcessorNumberSource {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
+    fn interpret(&self, dst: &mut [f32], context: &Context) {
         let state = context.find_processor_state(self.processor_id);
         let s = (self.function)(&state);
         numeric::copy(s, dst);
@@ -329,7 +329,7 @@ impl ProcessorTimeNumberSource {
 }
 
 impl NumberSource for ProcessorTimeNumberSource {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
+    fn interpret(&self, dst: &mut [f32], context: &Context) {
         context.current_time_at_sound_processor(self.processor_id, dst);
     }
 
@@ -353,7 +353,7 @@ impl InputTimeNumberSource {
 }
 
 impl NumberSource for InputTimeNumberSource {
-    fn eval(&self, dst: &mut [f32], context: &Context) {
+    fn interpret(&self, dst: &mut [f32], context: &Context) {
         context.current_time_at_sound_input(self.input_id, dst);
     }
 

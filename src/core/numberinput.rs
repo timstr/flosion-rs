@@ -71,13 +71,13 @@ impl NumberInputHandle {
         NumberInputNode::new(self.id)
     }
 
-    pub fn eval(&self, dst: &mut [f32], context: &Context) {
-        context.evaluate_number_input(self.id, dst);
+    pub fn interpret(&self, dst: &mut [f32], context: &Context) {
+        context.interpret_number_input(self.id, dst);
     }
 
-    pub fn eval_scalar(&self, context: &Context) -> f32 {
+    pub fn interpret_scalar(&self, context: &Context) -> f32 {
         let mut x: f32 = 0.0;
-        context.evaluate_number_input(self.id, slice::from_mut(&mut x));
+        context.interpret_number_input(self.id, slice::from_mut(&mut x));
         x
     }
 }

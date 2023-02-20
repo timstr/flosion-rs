@@ -42,7 +42,7 @@ impl PureNumberSource for Constant {
         })
     }
 
-    fn eval(&self, dst: &mut [f32], _context: &Context) {
+    fn interpret(&self, dst: &mut [f32], _context: &Context) {
         numeric::fill(dst, self.value.load(Ordering::SeqCst));
     }
 
@@ -138,8 +138,8 @@ macro_rules! unary_number_source {
                 })
             }
 
-            fn eval(&self, dst: &mut [f32], context: &Context) {
-                self.input.eval(dst, context);
+            fn interpret(&self, dst: &mut [f32], context: &Context) {
+                self.input.interpret(dst, context);
                 numeric::apply_unary_inplace(dst, $f);
             }
 
@@ -178,10 +178,10 @@ macro_rules! binary_number_source {
                 })
             }
 
-            fn eval(&self, dst: &mut [f32], context: &Context) {
-                self.input_1.eval(dst, context);
+            fn interpret(&self, dst: &mut [f32], context: &Context) {
                 let mut scratch_space = context.get_scratch_space(dst.len());
-                self.input_2.eval(&mut scratch_space, context);
+                self.input_1.interpret(dst, context);
+                self.input_2.interpret(&mut scratch_space, context);
                 numeric::apply_binary_inplace(dst, &scratch_space, $f);
             }
 
@@ -222,12 +222,12 @@ macro_rules! ternary_number_source {
                 })
             }
 
-            fn eval(&self, dst: &mut [f32], context: &Context) {
-                self.input_1.eval(dst, context);
+            fn interpret(&self, dst: &mut [f32], context: &Context) {
                 let mut scratch_space_1 = context.get_scratch_space(dst.len());
                 let mut scratch_space_2 = context.get_scratch_space(dst.len());
-                self.input_2.eval(&mut scratch_space_1, context);
-                self.input_3.eval(&mut scratch_space_2, context);
+                self.input_1.interpret(dst, context);
+                self.input_2.interpret(&mut scratch_space_1, context);
+                self.input_3.interpret(&mut scratch_space_2, context);
                 numeric::apply_ternary_inplace(dst, &scratch_space_1, &scratch_space_2, $f);
             }
 
