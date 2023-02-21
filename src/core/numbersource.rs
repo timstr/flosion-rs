@@ -336,8 +336,9 @@ impl NumberSource for ProcessorTimeNumberSource {
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
-        _inputs: &[FloatValue<'ctx>],
+        inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
+        debug_assert_eq!(inputs.len(), 0);
         codegen.build_processor_time(self.processor_id)
     }
 }
@@ -360,9 +361,10 @@ impl NumberSource for InputTimeNumberSource {
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
-        _inputs: &[FloatValue<'ctx>],
+        inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx> {
-        todo!()
+        debug_assert_eq!(inputs.len(), 0);
+        codegen.build_input_time(self.input_id)
     }
 }
 

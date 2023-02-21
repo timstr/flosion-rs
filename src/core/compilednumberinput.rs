@@ -49,6 +49,7 @@ struct WrapperFunctions<'ctx> {
     processor_array_read_wrapper: FunctionValue<'ctx>,
     input_array_read_wrapper: FunctionValue<'ctx>,
     processor_time_wrapper: FunctionValue<'ctx>,
+    input_time_wrapper: FunctionValue<'ctx>,
 }
 
 pub struct CodeGen<'ctx> {
@@ -317,6 +318,48 @@ impl<'ctx> CodeGen<'ctx> {
         curr_time
     }
 
+    pub fn build_input_time(&mut self, input_id: SoundInputId) -> FloatValue<'ctx> {
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_entry);
+        let siid = self
+            .types
+            .usize_type
+            .const_int(input_id.value() as u64, false);
+        let ptr_time = self.builder.build_alloca(self.types.float_type, "time");
+        let ptr_speed = self.builder.build_alloca(self.types.float_type, "speed");
+        self.builder.build_call(
+            self.wrapper_functions.input_time_wrapper,
+            &[
+                self.local_variables.context_ptr.into(),
+                siid.into(),
+                ptr_time.into(),
+                ptr_speed.into(),
+            ],
+            "si_time_retv",
+        );
+        let time = self.builder.build_load(ptr_time, "time").into_float_value();
+        let speed = self
+            .builder
+            .build_load(ptr_speed, "speed")
+            .into_float_value();
+
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
+
+        let index_float = self.builder.build_unsigned_int_to_float(
+            self.local_variables.loop_counter,
+            self.types.float_type,
+            "index_f",
+        );
+
+        let time_offset = self
+            .builder
+            .build_float_mul(index_float, speed, "time_offset");
+        let curr_time = self.builder.build_float_add(time, time_offset, "curr_time");
+
+        curr_time
+    }
+
     pub fn build_unary_intrinsic_call(
         &mut self,
         name: &str,
@@ -508,6 +551,20 @@ unsafe extern "C" fn processor_time_wrapper(
     *ptr_speed = speed / SAMPLE_FREQUENCY as f32;
 }
 
+unsafe extern "C" fn input_time_wrapper(
+    context_ptr: *const (),
+    sound_input_id: usize,
+    ptr_time: *mut f32,
+    ptr_speed: *mut f32,
+) {
+    let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
+    let ctx: &Context = unsafe { &*ctx };
+    let siid = SoundInputId(sound_input_id);
+    let (time, speed) = ctx.time_offset_and_speed_at_input(siid);
+    *ptr_time = time;
+    *ptr_speed = speed / SAMPLE_FREQUENCY as f32;
+}
+
 // NOTE: could use va_args for external sources, maybe worth testing since
 // that would mean less indirection
 type EvalNumberInputFunc = unsafe extern "C" fn(
@@ -629,6 +686,9 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         let fn_processor_time_wrapper =
             module.add_function("processor_time_wrapper", fn_time_wrapper_type, None);
 
+        let fn_input_time_wrapper =
+            module.add_function("input_time_wrapper", fn_time_wrapper_type, None);
+
         execution_engine.add_global_mapping(
             &fn_input_scalar_read_wrapper,
             input_scalar_read_wrapper as usize,
@@ -647,6 +707,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         );
         execution_engine
             .add_global_mapping(&fn_processor_time_wrapper, processor_time_wrapper as usize);
+        execution_engine.add_global_mapping(&fn_input_time_wrapper, input_time_wrapper as usize);
 
         let fn_eval_number_input_type = void_type.fn_type(
             &[
@@ -765,6 +826,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
                 processor_array_read_wrapper: fn_proc_array_read_wrapper,
                 input_array_read_wrapper: fn_input_array_read_wrapper,
                 processor_time_wrapper: fn_processor_time_wrapper,
+                input_time_wrapper: fn_input_time_wrapper,
             },
             builder,
             module,

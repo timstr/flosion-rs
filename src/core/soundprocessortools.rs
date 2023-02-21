@@ -4,9 +4,9 @@ use super::{
     compilednumberinput::{ArrayReadFunc, ScalarReadFunc},
     numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
     numbersource::{
-        ArrayInputNumberSource, ArrayProcessorNumberSource, NumberSourceId, NumberSourceOwner,
-        ProcessorTimeNumberSource, ScalarInputNumberSource, ScalarProcessorNumberSource,
-        StateNumberSourceHandle,
+        ArrayInputNumberSource, ArrayProcessorNumberSource, InputTimeNumberSource, NumberSourceId,
+        NumberSourceOwner, ProcessorTimeNumberSource, ScalarInputNumberSource,
+        ScalarProcessorNumberSource, StateNumberSourceHandle,
     },
     soundgraphdata::{NumberInputData, NumberSourceData, SoundInputData},
     soundgraphedit::SoundGraphEdit,
@@ -123,6 +123,15 @@ impl<'a> SoundProcessorTools<'a> {
         let id = self.number_source_idgen.next_id();
         let instance = Arc::new(ProcessorTimeNumberSource::new(self.processor_id));
         let owner = NumberSourceOwner::SoundProcessor(self.processor_id);
+        let data = NumberSourceData::new(id, instance, owner);
+        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        StateNumberSourceHandle::new(id)
+    }
+
+    pub fn add_input_time(&mut self, input_id: SoundInputId) -> StateNumberSourceHandle {
+        let id = self.number_source_idgen.next_id();
+        let instance = Arc::new(InputTimeNumberSource::new(input_id));
+        let owner = NumberSourceOwner::SoundInput(input_id);
         let data = NumberSourceData::new(id, instance, owner);
         self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
         StateNumberSourceHandle::new(id)

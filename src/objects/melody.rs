@@ -46,7 +46,6 @@ impl State for NoteState {
 
 #[derive(Clone)]
 pub struct Note {
-    pub id: NoteId,
     pub start_time_samples: usize,
     pub duration_samples: usize,
     pub frequency: f32,
@@ -55,14 +54,16 @@ pub struct Note {
 // Stuff that is needed during audio processing but can be changed live
 struct MelodyData {
     length_samples: usize,
-    notes: Vec<Note>,
+    notes: Vec<(NoteId, Note)>,
     note_idgen: IdGenerator<NoteId>,
 }
 
 pub struct Melody {
     shared_data: Arc<RwLock<MelodyData>>,
     pub input: KeyedInputQueue<NoteId, NoteState>,
+    pub melody_time: StateNumberSourceHandle,
     pub note_frequency: StateNumberSourceHandle,
+    pub note_time: StateNumberSourceHandle,
 }
 
 pub struct MelodyState {
@@ -81,27 +82,32 @@ impl Melody {
         self.shared_data.read().length_samples
     }
 
-    pub fn add_note(
-        &self,
-        start_time_samples: usize,
-        duration_samples: usize,
-        frequency: f32,
-    ) -> NoteId {
+    pub fn add_note(&self, note: Note) -> NoteId {
         let id;
         {
             let mut data = self.shared_data.write();
             id = data.note_idgen.next_id();
-            data.notes.push(Note {
-                id,
-                start_time_samples,
-                duration_samples,
-                frequency,
-            })
+            data.notes.push((id, note));
         };
         id
     }
 
-    pub fn notes(&self) -> Vec<Note> {
+    pub fn remove_note(&self, note_id: NoteId) {
+        let mut data = self.shared_data.write();
+        data.notes.retain(|(id, _n)| *id != note_id);
+    }
+
+    pub fn edit_note(&self, id: NoteId, updated_note: Note) {
+        let mut data = self.shared_data.write();
+        for (note_id, note) in &mut data.notes {
+            if *note_id == id {
+                *note = updated_note;
+                break;
+            }
+        }
+    }
+
+    pub fn notes(&self) -> Vec<(NoteId, Note)> {
         self.shared_data.read().notes.clone()
     }
 
@@ -123,6 +129,7 @@ impl DynamicSoundProcessor for Melody {
         let note_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
             state.downcast_if::<NoteState>().unwrap().frequency
         });
+        let note_time = tools.add_input_time(input.id());
         Ok(Melody {
             shared_data: Arc::new(RwLock::new(MelodyData {
                 length_samples: SAMPLE_FREQUENCY * 4,
@@ -130,7 +137,9 @@ impl DynamicSoundProcessor for Melody {
                 note_idgen: IdGenerator::new(),
             })),
             input,
+            melody_time: tools.add_processor_time(),
             note_frequency,
+            note_time,
         })
     }
 
@@ -165,7 +174,7 @@ impl DynamicSoundProcessor for Melody {
 
             length_samples = data.length_samples;
 
-            for note in &data.notes {
+            for (note_id, note) in &data.notes {
                 let start_of_chunk = state.current_position;
                 let end_of_chunk = state.current_position + CHUNK_SIZE;
 
@@ -186,7 +195,7 @@ impl DynamicSoundProcessor for Melody {
                     // TODO: use offset when queueing note
                     sound_input.start_key(
                         Some(note.duration_samples),
-                        note.id,
+                        *note_id,
                         NoteState {
                             frequency: note.frequency,
                         },

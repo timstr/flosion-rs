@@ -150,6 +150,29 @@ impl<'a> StackFrame<'a> {
             }
         }
     }
+
+    fn find_input_sample_offset_and_time_speed(&self, input_id: SoundInputId) -> (usize, f32) {
+        match self {
+            StackFrame::Processor(p) => {
+                let (o, s) = p.parent.find_input_sample_offset_and_time_speed(input_id);
+                (
+                    o + p.data.timing().unwrap().elapsed_chunks() * CHUNK_SIZE,
+                    s,
+                )
+            }
+            StackFrame::Input(i) => {
+                if i.input_id == input_id {
+                    (0, 1.0)
+                } else {
+                    let (o, s) = i.parent.find_input_sample_offset_and_time_speed(input_id);
+                    (o + i.timing.sample_offset(), s * i.timing.time_speed())
+                }
+            }
+            StackFrame::Root => {
+                panic!("Attempted to find an input frame which is not in the context call stack")
+            }
+        }
+    }
 }
 
 pub struct Context<'a> {
@@ -263,6 +286,11 @@ impl<'a> Context<'a> {
         let (samples, speed) = self
             .stack
             .find_processor_sample_offset_and_time_speed(processor_id);
+        (samples as f32 / SAMPLE_FREQUENCY as f32, speed)
+    }
+
+    pub(super) fn time_offset_and_speed_at_input(&self, input_id: SoundInputId) -> (f32, f32) {
+        let (samples, speed) = self.stack.find_input_sample_offset_and_time_speed(input_id);
         (samples as f32 / SAMPLE_FREQUENCY as f32, speed)
     }
 
