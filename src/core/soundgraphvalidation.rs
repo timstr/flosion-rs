@@ -222,16 +222,6 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
             },
             NumberSourceOwner::Nothing => (),
         }
-
-        if ns.owner() != NumberSourceOwner::Nothing {
-            if !ns.inputs().is_empty() {
-                panic!(
-                    "The number source {:?} has number inputs even though it isn't a pure \
-                    number source",
-                    ns.id()
-                );
-            }
-        }
     }
 
     for ni in topology.number_inputs().values() {

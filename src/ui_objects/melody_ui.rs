@@ -122,18 +122,23 @@ impl ObjectUi for MelodyUi {
                 graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
-                melody.melody_time.id(),
+                &melody.melody_time,
                 "Melody Time",
                 graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
-                melody.note_frequency.id(),
+                &melody.note_frequency,
                 "Note Frequency",
                 graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
-                melody.note_time.id(),
+                &melody.note_time,
                 "Note Time",
+                graph_tools,
+            ));
+            ui.add(NumberOutputWidget::new(
+                &melody.note_progress,
+                "Note Progress",
                 graph_tools,
             ));
             ui.add(SoundOutputWidget::new(id, "Output", graph_tools));

@@ -74,7 +74,11 @@ impl ObjectUi for ConstantUi {
             if v != v_old {
                 object.set_value(v);
             }
-            ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
+            ui.add(NumberOutputWidget::new(
+                &object.into(),
+                "Output",
+                graph_tools,
+            ));
         });
     }
 
@@ -132,12 +136,12 @@ macro_rules! unary_number_source_ui {
                     graph_tools,
                     |ui, graph_tools| {
                         ui.label($display_name);
-                        ui.add(NumberInputWidget::new(
-                            object.input.id(),
-                            "Input",
+                        ui.add(NumberInputWidget::new(&object.input, "Input", graph_tools));
+                        ui.add(NumberOutputWidget::new(
+                            &object.into(),
+                            "Output",
                             graph_tools,
                         ));
-                        ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
                     },
                 );
             }
@@ -172,16 +176,20 @@ macro_rules! binary_number_source_ui {
                     |ui, graph_tools| {
                         ui.label($display_name);
                         ui.add(NumberInputWidget::new(
-                            object.input_1.id(),
+                            &object.input_1,
                             "Input 1",
                             graph_tools,
                         ));
                         ui.add(NumberInputWidget::new(
-                            object.input_2.id(),
+                            &object.input_2,
                             "Input 2",
                             graph_tools,
                         ));
-                        ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
+                        ui.add(NumberOutputWidget::new(
+                            &object.into(),
+                            "Output",
+                            graph_tools,
+                        ));
                     },
                 );
             }
@@ -217,21 +225,25 @@ macro_rules! ternary_number_source_ui {
                     |ui, graph_tools| {
                         ui.label($display_name);
                         ui.add(NumberInputWidget::new(
-                            object.input_1.id(),
+                            &object.input_1,
                             "Input 1",
                             graph_tools,
                         ));
                         ui.add(NumberInputWidget::new(
-                            object.input_2.id(),
+                            &object.input_2,
                             "Input 2",
                             graph_tools,
                         ));
                         ui.add(NumberInputWidget::new(
-                            object.input_3.id(),
+                            &object.input_3,
                             "Input 3",
                             graph_tools,
                         ));
-                        ui.add(NumberOutputWidget::new(id, "Output", graph_tools));
+                        ui.add(NumberOutputWidget::new(
+                            &object.into(),
+                            "Output",
+                            graph_tools,
+                        ));
                     },
                 );
             }

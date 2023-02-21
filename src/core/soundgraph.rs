@@ -4,8 +4,8 @@ use super::{
     graphobject::{ObjectId, ObjectInitialization},
     numberinput::NumberInputId,
     numbersource::{
-        NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceHandle,
-        PureNumberSourceWithId,
+        NumberSourceId, NumberSourceOwner, NumberVisibility, PureNumberSource,
+        PureNumberSourceHandle, PureNumberSourceWithId,
     },
     numbersourcetools::NumberSourceTools,
     soundengine::{SoundEngine, SoundEngineInterface},
@@ -181,15 +181,21 @@ impl SoundGraph {
     ) -> Result<PureNumberSourceHandle<T>, ()> {
         let id = self.number_source_idgen.next_id();
         let owner = NumberSourceOwner::Nothing;
+        let visibility = NumberVisibility::Public;
         let mut edit_queue = Vec::new();
         let instance;
         {
-            let tools = NumberSourceTools::new(id, &mut self.number_input_idgen, &mut edit_queue);
+            let tools = NumberSourceTools::new(
+                id,
+                &mut self.number_input_idgen,
+                &mut edit_queue,
+                visibility,
+            );
             let s = T::new(tools, init)?;
-            instance = Arc::new(PureNumberSourceWithId::new(s, id));
+            instance = Arc::new(PureNumberSourceWithId::new(s, id, owner, visibility));
         }
         let instance2 = Arc::clone(&instance);
-        let data = NumberSourceData::new(id, instance, owner);
+        let data = NumberSourceData::new(id, instance, owner, visibility);
         edit_queue.insert(0, SoundGraphEdit::AddNumberSource(data));
         self.try_make_edits(edit_queue).unwrap();
         Ok(PureNumberSourceHandle::new(instance2))

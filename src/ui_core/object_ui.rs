@@ -9,8 +9,8 @@ use eframe::egui::{self};
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
     graphobject::{GraphId, GraphObjectHandle, ObjectHandle, ObjectId, ObjectInitialization},
-    numberinput::NumberInputId,
-    numbersource::NumberSourceId,
+    numberinput::{NumberInputHandle, NumberInputId},
+    numbersource::{NumberSourceHandle, NumberSourceId, NumberVisibility},
     serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
@@ -433,12 +433,16 @@ pub struct NumberInputWidget<'a> {
 
 impl<'a> NumberInputWidget<'a> {
     pub fn new(
-        number_input_id: NumberInputId,
+        handle: &NumberInputHandle,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
     ) -> NumberInputWidget<'a> {
+        debug_assert!(
+            handle.visibility() == NumberVisibility::Public,
+            "Attempted to make a NumberInputWidget for a number input which is private"
+        );
         NumberInputWidget {
-            number_input_id,
+            number_input_id: handle.id(),
             label,
             graph_state,
         }
@@ -465,12 +469,16 @@ pub struct NumberOutputWidget<'a> {
 
 impl<'a> NumberOutputWidget<'a> {
     pub fn new(
-        number_source_id: NumberSourceId,
+        handle: &NumberSourceHandle,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
     ) -> NumberOutputWidget<'a> {
+        debug_assert!(
+            handle.visibility() == NumberVisibility::Public,
+            "Attempted to make a NumberOutputWidget for a number input which is private"
+        );
         NumberOutputWidget {
-            number_source_id,
+            number_source_id: handle.id(),
             label,
             graph_state,
         }

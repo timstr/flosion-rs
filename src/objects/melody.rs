@@ -5,7 +5,7 @@ use parking_lot::RwLock;
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numbersource::StateNumberSourceHandle,
+    numbersource::{NumberSourceHandle, NumberVisibility},
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
@@ -14,6 +14,8 @@ use crate::core::{
     state::State,
     uniqueid::{IdGenerator, UniqueId},
 };
+
+use super::functions::Divide;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NoteId(usize);
@@ -36,11 +38,13 @@ impl Default for NoteId {
 
 pub struct NoteState {
     frequency: f32,
+    length_seconds: f32,
 }
 
 impl State for NoteState {
     fn reset(&mut self) {
         self.frequency = 0.0;
+        self.length_seconds = 0.0;
     }
 }
 
@@ -61,9 +65,11 @@ struct MelodyData {
 pub struct Melody {
     shared_data: Arc<RwLock<MelodyData>>,
     pub input: KeyedInputQueue<NoteId, NoteState>,
-    pub melody_time: StateNumberSourceHandle,
-    pub note_frequency: StateNumberSourceHandle,
-    pub note_time: StateNumberSourceHandle,
+    pub melody_time: NumberSourceHandle,
+    pub note_frequency: NumberSourceHandle,
+    pub note_time: NumberSourceHandle,
+    _note_length: NumberSourceHandle,
+    pub note_progress: NumberSourceHandle,
 }
 
 pub struct MelodyState {
@@ -126,10 +132,24 @@ impl DynamicSoundProcessor for Melody {
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let queue_size = 8; // idk
         let input = KeyedInputQueue::new(queue_size, &mut tools);
-        let note_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
-            state.downcast_if::<NoteState>().unwrap().frequency
-        });
-        let note_time = tools.add_input_time(input.id());
+        let note_frequency = tools.add_input_scalar_number_source(
+            input.id(),
+            |state| state.downcast_if::<NoteState>().unwrap().frequency,
+            NumberVisibility::Public,
+        );
+        let note_time = tools.add_input_time(input.id(), NumberVisibility::Public);
+        let note_length = tools.add_input_scalar_number_source(
+            input.id(),
+            |state| state.downcast_if::<NoteState>().unwrap().length_seconds,
+            NumberVisibility::Private,
+        );
+        let note_progress = tools
+            .add_derived_input_number_source::<Divide>(input.id(), NumberVisibility::Public)
+            .unwrap();
+
+        tools.connect_number_input(note_progress.input_1.id(), note_time.id());
+        tools.connect_number_input(note_progress.input_2.id(), note_length.id());
+
         Ok(Melody {
             shared_data: Arc::new(RwLock::new(MelodyData {
                 length_samples: SAMPLE_FREQUENCY * 4,
@@ -137,9 +157,11 @@ impl DynamicSoundProcessor for Melody {
                 note_idgen: IdGenerator::new(),
             })),
             input,
-            melody_time: tools.add_processor_time(),
+            melody_time: tools.add_processor_time(NumberVisibility::Public),
             note_frequency,
             note_time,
+            _note_length: note_length,
+            note_progress: note_progress.into(),
         })
     }
 
@@ -198,6 +220,7 @@ impl DynamicSoundProcessor for Melody {
                         *note_id,
                         NoteState {
                             frequency: note.frequency,
+                            length_seconds: note.duration_samples as f32 / SAMPLE_FREQUENCY as f32,
                         },
                         KeyReuse::StopOldStartNew,
                     );

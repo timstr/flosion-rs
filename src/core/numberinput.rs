@@ -1,8 +1,12 @@
 use std::slice;
 
 use super::{
-    context::Context, numberinputnode::NumberInputNode, numbersource::NumberSourceId,
-    soundprocessor::SoundProcessorId, state::StateOwner, uniqueid::UniqueId,
+    context::Context,
+    numberinputnode::NumberInputNode,
+    numbersource::{NumberSourceId, NumberVisibility},
+    soundprocessor::SoundProcessorId,
+    state::StateOwner,
+    uniqueid::UniqueId,
 };
 
 // TODO: consider making usize field private, prefer .value() over .0
@@ -49,11 +53,20 @@ impl NumberInputOwner {
 pub struct NumberInputHandle {
     id: NumberInputId,
     owner: NumberInputOwner,
+    visibility: NumberVisibility,
 }
 
 impl NumberInputHandle {
-    pub(crate) fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
-        NumberInputHandle { id, owner }
+    pub(crate) fn new(
+        id: NumberInputId,
+        owner: NumberInputOwner,
+        visibility: NumberVisibility,
+    ) -> NumberInputHandle {
+        NumberInputHandle {
+            id,
+            owner,
+            visibility,
+        }
     }
 
     pub fn id(&self) -> NumberInputId {
@@ -62,6 +75,10 @@ impl NumberInputHandle {
 
     pub(super) fn owner(&self) -> NumberInputOwner {
         self.owner
+    }
+
+    pub(crate) fn visibility(&self) -> NumberVisibility {
+        self.visibility
     }
 
     pub fn make_node<'ctx>(

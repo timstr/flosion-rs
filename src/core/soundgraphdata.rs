@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::{
     numberinput::{NumberInputId, NumberInputOwner},
-    numbersource::{NumberSource, NumberSourceId, NumberSourceOwner},
+    numbersource::{NumberSource, NumberSourceId, NumberSourceOwner, NumberVisibility},
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
@@ -134,6 +134,7 @@ pub(crate) struct NumberInputData {
     target: Option<NumberSourceId>,
     owner: NumberInputOwner,
     default_value: f32,
+    visibility: NumberVisibility,
 }
 
 impl NumberInputData {
@@ -142,12 +143,14 @@ impl NumberInputData {
         target: Option<NumberSourceId>,
         owner: NumberInputOwner,
         default_value: f32,
+        visibility: NumberVisibility,
     ) -> Self {
         Self {
             id,
             target,
             owner,
             default_value,
+            visibility,
         }
     }
 
@@ -170,6 +173,10 @@ impl NumberInputData {
     pub(super) fn default_value(&self) -> f32 {
         self.default_value
     }
+
+    pub(crate) fn visibility(&self) -> NumberVisibility {
+        self.visibility
+    }
 }
 
 #[derive(Clone)]
@@ -178,6 +185,7 @@ pub(crate) struct NumberSourceData {
     instance: Arc<dyn NumberSource>,
     owner: NumberSourceOwner,
     inputs: Vec<NumberInputId>,
+    visibility: NumberVisibility,
 }
 
 impl NumberSourceData {
@@ -185,12 +193,14 @@ impl NumberSourceData {
         id: NumberSourceId,
         instance: Arc<dyn NumberSource>,
         owner: NumberSourceOwner,
+        visibility: NumberVisibility,
     ) -> Self {
         Self {
             id,
             instance,
             owner,
             inputs: Vec::new(),
+            visibility,
         }
     }
 
@@ -216,5 +226,9 @@ impl NumberSourceData {
 
     pub(super) fn inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
         &mut self.inputs
+    }
+
+    pub(super) fn visibility(&self) -> NumberVisibility {
+        self.visibility
     }
 }

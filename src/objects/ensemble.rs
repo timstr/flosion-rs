@@ -8,7 +8,7 @@ use crate::core::{
         NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
         NumberInputNodeVisitorMut,
     },
-    numbersource::StateNumberSourceHandle,
+    numbersource::{NumberSourceHandle, NumberVisibility},
     numeric,
     soundchunk::SoundChunk,
     soundinput::InputOptions,
@@ -43,7 +43,7 @@ pub struct Ensemble {
     pub input: KeyedInput<VoiceState>,
     pub frequency_in: NumberInputHandle,
     pub frequency_spread: NumberInputHandle,
-    pub voice_frequency: StateNumberSourceHandle,
+    pub voice_frequency: NumberSourceHandle,
 }
 
 pub struct EnsembleNumberInputs<'ctx> {
@@ -73,9 +73,11 @@ impl DynamicSoundProcessor for Ensemble {
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_keys = 8; // idk
         let input = KeyedInput::new(InputOptions::Synchronous, &mut tools, num_keys);
-        let voice_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
-            state.downcast_if::<VoiceState>().unwrap().frequency
-        });
+        let voice_frequency = tools.add_input_scalar_number_source(
+            input.id(),
+            |state| state.downcast_if::<VoiceState>().unwrap().frequency,
+            NumberVisibility::Public,
+        );
         Ok(Ensemble {
             input,
             frequency_in: tools.add_number_input(250.0),

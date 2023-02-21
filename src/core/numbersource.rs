@@ -119,18 +119,44 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     fn serialize(&self, _serializer: Serializer) {}
 }
 
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub enum NumberVisibility {
+    Public,
+    Private,
+}
+
 pub struct PureNumberSourceWithId<T: PureNumberSource> {
     source: T,
     id: NumberSourceId,
+    owner: NumberSourceOwner,
+    visibility: NumberVisibility,
 }
 
 impl<T: PureNumberSource> PureNumberSourceWithId<T> {
-    pub(crate) fn new(source: T, id: NumberSourceId) -> PureNumberSourceWithId<T> {
-        PureNumberSourceWithId { source, id }
+    pub(crate) fn new(
+        source: T,
+        id: NumberSourceId,
+        owner: NumberSourceOwner,
+        visibility: NumberVisibility,
+    ) -> PureNumberSourceWithId<T> {
+        PureNumberSourceWithId {
+            source,
+            id,
+            owner,
+            visibility,
+        }
     }
 
     pub(crate) fn id(&self) -> NumberSourceId {
         self.id
+    }
+
+    pub(crate) fn visibility(&self) -> NumberVisibility {
+        self.visibility
+    }
+
+    pub(crate) fn owner(&self) -> NumberSourceOwner {
+        self.owner
     }
 }
 
@@ -148,7 +174,11 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
     }
 
     fn as_graph_object(self: Arc<Self>) -> Option<GraphObjectHandle> {
-        Some(GraphObjectHandle::new(self))
+        if self.owner == NumberSourceOwner::Nothing {
+            Some(GraphObjectHandle::new(self))
+        } else {
+            None
+        }
     }
 
     fn compile<'ctx>(
@@ -173,8 +203,12 @@ impl<T: PureNumberSource> PureNumberSourceHandle<T> {
         self.instance.id()
     }
 
-    pub fn into_graph_object(self) -> GraphObjectHandle {
-        GraphObjectHandle::new(self.instance)
+    pub(crate) fn visibility(&self) -> NumberVisibility {
+        self.instance.visibility()
+    }
+
+    pub fn into_graph_object(self) -> Option<GraphObjectHandle> {
+        self.instance.as_graph_object()
     }
 }
 
@@ -368,16 +402,30 @@ impl NumberSource for InputTimeNumberSource {
     }
 }
 
-pub struct StateNumberSourceHandle {
+pub struct NumberSourceHandle {
     id: NumberSourceId,
+    visibility: NumberVisibility,
 }
 
-impl StateNumberSourceHandle {
-    pub(super) fn new(id: NumberSourceId) -> StateNumberSourceHandle {
-        StateNumberSourceHandle { id }
+impl NumberSourceHandle {
+    pub(super) fn new(id: NumberSourceId, visibility: NumberVisibility) -> NumberSourceHandle {
+        NumberSourceHandle { id, visibility }
     }
 
     pub fn id(&self) -> NumberSourceId {
         self.id
+    }
+
+    pub(crate) fn visibility(&self) -> NumberVisibility {
+        self.visibility
+    }
+}
+
+impl<T: PureNumberSource> From<PureNumberSourceHandle<T>> for NumberSourceHandle {
+    fn from(value: PureNumberSourceHandle<T>) -> Self {
+        NumberSourceHandle {
+            id: value.id(),
+            visibility: value.visibility(),
+        }
     }
 }

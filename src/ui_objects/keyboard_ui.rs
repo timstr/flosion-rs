@@ -36,7 +36,7 @@ impl ObjectUi for KeyboardUi {
                 graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
-                keyboard.key_frequency.id(),
+                &keyboard.key_frequency,
                 "Note Frequency",
                 graph_tools,
             ));

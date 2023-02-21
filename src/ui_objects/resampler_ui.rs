@@ -33,7 +33,7 @@ impl ObjectUi for ResamplerUi {
                 graph_tools,
             ));
             ui.add(NumberInputWidget::new(
-                resampler.speed_ratio.id(),
+                &resampler.speed_ratio,
                 "Speed Ratio",
                 graph_tools,
             ));

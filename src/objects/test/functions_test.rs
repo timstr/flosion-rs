@@ -15,8 +15,8 @@ use crate::{
             NumberInputNodeVisitorMut,
         },
         numbersource::{
-            NumberSourceId, NumberSourceOwner, PureNumberSource, PureNumberSourceWithId,
-            StateNumberSourceHandle,
+            NumberSourceHandle, NumberSourceId, NumberSourceOwner, NumberVisibility,
+            PureNumberSource, PureNumberSourceWithId,
         },
         numbersourcetools::NumberSourceTools,
         scratcharena::ScratchArena,
@@ -43,9 +43,9 @@ const MAX_NUM_INPUTS: usize = 3;
 struct TestSoundProcessor {
     number_input: NumberInputHandle,
     input_values: Mutex<[[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]>,
-    number_source_0: StateNumberSourceHandle,
-    number_source_1: StateNumberSourceHandle,
-    number_source_2: StateNumberSourceHandle,
+    number_source_0: NumberSourceHandle,
+    number_source_1: NumberSourceHandle,
+    number_source_2: NumberSourceHandle,
 }
 
 struct TestNumberInput<'ctx> {
@@ -87,24 +87,33 @@ impl DynamicSoundProcessor for TestSoundProcessor {
         Ok(TestSoundProcessor {
             number_input: tools.add_number_input(0.0),
             input_values: Mutex::new([[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]),
-            number_source_0: tools.add_processor_array_number_source(|data| {
-                &data
-                    .downcast_if::<TestSoundProcessorState>()
-                    .unwrap()
-                    .values[0]
-            }),
-            number_source_1: tools.add_processor_array_number_source(|data| {
-                &data
-                    .downcast_if::<TestSoundProcessorState>()
-                    .unwrap()
-                    .values[1]
-            }),
-            number_source_2: tools.add_processor_array_number_source(|data| {
-                &data
-                    .downcast_if::<TestSoundProcessorState>()
-                    .unwrap()
-                    .values[2]
-            }),
+            number_source_0: tools.add_processor_array_number_source(
+                |data| {
+                    &data
+                        .downcast_if::<TestSoundProcessorState>()
+                        .unwrap()
+                        .values[0]
+                },
+                NumberVisibility::Public,
+            ),
+            number_source_1: tools.add_processor_array_number_source(
+                |data| {
+                    &data
+                        .downcast_if::<TestSoundProcessorState>()
+                        .unwrap()
+                        .values[1]
+                },
+                NumberVisibility::Public,
+            ),
+            number_source_2: tools.add_processor_array_number_source(
+                |data| {
+                    &data
+                        .downcast_if::<TestSoundProcessorState>()
+                        .unwrap()
+                        .values[2]
+                },
+                NumberVisibility::Public,
+            ),
         })
     }
 
@@ -205,11 +214,18 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     )));
 
     // create source being tested
-    let tools = NumberSourceTools::new(test_nsid, &mut niidgen, &mut edit_queue);
+    let tools = NumberSourceTools::new(
+        test_nsid,
+        &mut niidgen,
+        &mut edit_queue,
+        NumberVisibility::Public,
+    );
     let init = ObjectInitialization::Default;
     let ns_instance = Arc::new(PureNumberSourceWithId::new(
         T::new(tools, init).unwrap(),
         test_nsid,
+        NumberSourceOwner::Nothing,
+        NumberVisibility::Public,
     ));
     let ns_instance_2 = Arc::clone(&ns_instance);
 
@@ -218,6 +234,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
         NumberSourceId(1),
         ns_instance_2,
         NumberSourceOwner::Nothing,
+        NumberVisibility::Public,
     )));
 
     // flush other edits to topology

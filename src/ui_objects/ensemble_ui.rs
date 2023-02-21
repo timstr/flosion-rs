@@ -34,17 +34,17 @@ impl ObjectUi for EnsembleUi {
                 graph_tools,
             ));
             ui.add(NumberInputWidget::new(
-                ensemble.frequency_in.id(),
+                &ensemble.frequency_in,
                 "Frequency In",
                 graph_tools,
             ));
             ui.add(NumberInputWidget::new(
-                ensemble.frequency_spread.id(),
+                &ensemble.frequency_spread,
                 "Frequency Spread",
                 graph_tools,
             ));
             ui.add(NumberOutputWidget::new(
-                ensemble.voice_frequency.id(),
+                &ensemble.voice_frequency,
                 "Voice Frequency",
                 graph_tools,
             ));

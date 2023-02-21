@@ -36,22 +36,22 @@ impl ObjectUi for ADSRUi {
                 graph_state,
             ));
             ui.add(NumberInputWidget::new(
-                object.attack_time.id(),
+                &object.attack_time,
                 "Attack Time",
                 graph_state,
             ));
             ui.add(NumberInputWidget::new(
-                object.decay_time.id(),
+                &object.decay_time,
                 "Decay Time",
                 graph_state,
             ));
             ui.add(NumberInputWidget::new(
-                object.sustain_level.id(),
+                &object.sustain_level,
                 "Sustain Level",
                 graph_state,
             ));
             ui.add(NumberInputWidget::new(
-                object.release_time.id(),
+                &object.release_time,
                 "Release Time",
                 graph_state,
             ));

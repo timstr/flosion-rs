@@ -8,6 +8,7 @@ use crate::{
     core::{
         graphobject::{GraphId, ObjectId},
         graphserialization::{deserialize_sound_graph, serialize_sound_graph},
+        numbersource::NumberVisibility,
         object_factory::ObjectFactory,
         serialization::Archive,
         soundgraph::SoundGraph,
@@ -382,6 +383,9 @@ impl FlosionApp {
                     }
                 }
                 for (niid, ni) in topo.number_inputs() {
+                    if ni.visibility() == NumberVisibility::Private {
+                        continue;
+                    }
                     if let Some(nsid) = ni.target() {
                         let layout = ui_state.layout_state();
                         let ni_state = layout.number_inputs().get(niid).unwrap();

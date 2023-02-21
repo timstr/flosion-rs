@@ -29,25 +29,17 @@ impl ObjectUi for WaveGeneratorUi {
         ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
             ui.label("WaveGenerator");
             ui.add(NumberInputWidget::new(
-                wavgen.amplitude.id(),
+                &wavgen.amplitude,
                 "Amplitude",
                 graph_tools,
             ));
-            ui.add(NumberOutputWidget::new(
-                wavgen.time.id(),
-                "Time",
-                graph_tools,
-            ));
             ui.add(NumberInputWidget::new(
-                wavgen.frequency.id(),
+                &wavgen.frequency,
                 "Frequency",
                 graph_tools,
             ));
-            ui.add(NumberOutputWidget::new(
-                wavgen.phase.id(),
-                "Phase",
-                graph_tools,
-            ));
+            ui.add(NumberOutputWidget::new(&wavgen.time, "Time", graph_tools));
+            ui.add(NumberOutputWidget::new(&wavgen.phase, "Phase", graph_tools));
             ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
         });
     }

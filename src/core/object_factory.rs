@@ -58,7 +58,7 @@ impl ObjectFactory {
         let create =
             |g: &mut SoundGraph, init: ObjectInitialization| -> Result<GraphObjectHandle, ()> {
                 let h = g.add_pure_number_source::<T>(init)?;
-                Ok(h.into_graph_object())
+                Ok(h.into_graph_object().unwrap())
             };
         self.mapping.insert(
             T::TYPE.name(),
