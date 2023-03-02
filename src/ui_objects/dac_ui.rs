@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::StaticSoundProcessorHandle},
+    core::soundprocessor::StaticSoundProcessorHandle,
     objects::dac::Dac,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -15,13 +15,12 @@ impl ObjectUi for DacUi {
     type StateType = NoUIState;
     fn ui(
         &self,
-        id: ObjectId,
         dac: StaticSoundProcessorHandle<Dac>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,
     ) {
-        ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap())
+        ObjectWindow::new_sound_processor(dac.id())
             .add_left_peg(dac.input.id(), "Input")
             .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 ui.label("Dac");

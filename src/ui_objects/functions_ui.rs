@@ -3,7 +3,6 @@ use eframe::egui;
 use crate::{
     core::{
         arguments::{ArgumentList, ArgumentValue},
-        graphobject::ObjectId,
         numbersource::PureNumberSourceHandle,
         serialization::{Deserializer, Serializable, Serializer},
     },
@@ -56,22 +55,20 @@ impl ObjectUi for ConstantUi {
     type StateType = ConstantUiState;
     fn ui(
         &self,
-        id: ObjectId,
-        object: PureNumberSourceHandle<Constant>,
+        constant: PureNumberSourceHandle<Constant>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         state: &ConstantUiState,
     ) {
-        let id = id.as_number_source_id().unwrap();
-        ObjectWindow::new_number_source(id)
-            .add_right_peg(&object, "Output")
+        ObjectWindow::new_number_source(constant.id())
+            .add_right_peg(&constant, "Output")
             .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                let mut v = object.get_value();
+                let mut v = constant.get_value();
                 let v_old = v;
                 ui.label(&state.name);
                 ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
                 if v != v_old {
-                    object.set_value(v);
+                    constant.set_value(v);
                 }
             });
     }
@@ -118,14 +115,12 @@ macro_rules! unary_number_source_ui {
             type StateType = NoUIState;
             fn ui(
                 &self,
-                id: ObjectId,
                 object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
                 _state: &Self::StateType,
             ) {
-                let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id)
+                ObjectWindow::new_number_source(object.id())
                     .add_left_peg(&object.input, "Input")
                     .add_right_peg(&object, "Output")
                     .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
@@ -150,14 +145,12 @@ macro_rules! binary_number_source_ui {
             type StateType = NoUIState;
             fn ui(
                 &self,
-                id: ObjectId,
                 object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
                 _state: &Self::StateType,
             ) {
-                let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id)
+                ObjectWindow::new_number_source(object.id())
                     .add_left_peg(&object.input_1, "Input 1")
                     .add_left_peg(&object.input_2, "Input 2")
                     .add_right_peg(&object, "Output")
@@ -184,14 +177,12 @@ macro_rules! ternary_number_source_ui {
             type StateType = NoUIState;
             fn ui(
                 &self,
-                id: ObjectId,
                 object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
                 _state: &Self::StateType,
             ) {
-                let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id)
+                ObjectWindow::new_number_source(object.id())
                     .add_left_peg(&object.input_1, "Input 1")
                     .add_left_peg(&object.input_2, "Input 2")
                     .add_left_peg(&object.input_3, "Input 3")

@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::StaticSoundProcessorHandle},
+    core::soundprocessor::StaticSoundProcessorHandle,
     objects::keyboard::Keyboard,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -18,14 +18,12 @@ impl ObjectUi for KeyboardUi {
 
     fn ui(
         &self,
-        id: ObjectId,
         keyboard: StaticSoundProcessorHandle<Keyboard>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,
     ) {
-        let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id)
+        ObjectWindow::new_sound_processor(keyboard.id())
             .add_left_peg(keyboard.input.id(), "Input")
             .add_left_peg(&keyboard.key_frequency, "Note Frequency")
             .add_right_peg(keyboard.id(), "Output")

@@ -86,7 +86,7 @@ impl UiFactory {
             Some(data) => {
                 let state_rc = graph_state.get_object_state(id);
                 let state_ref = state_rc.borrow();
-                data.ui.apply(id, object, &*state_ref, graph_state, ui);
+                data.ui.apply(object, &*state_ref, graph_state, ui);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",

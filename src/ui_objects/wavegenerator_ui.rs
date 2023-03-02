@@ -1,5 +1,5 @@
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::DynamicSoundProcessorHandle},
+    core::soundprocessor::DynamicSoundProcessorHandle,
     objects::wavegenerator::WaveGenerator,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -16,14 +16,12 @@ impl ObjectUi for WaveGeneratorUi {
 
     fn ui(
         &self,
-        id: ObjectId,
         wavgen: DynamicSoundProcessorHandle<WaveGenerator>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,
     ) {
-        let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id)
+        ObjectWindow::new_sound_processor(wavgen.id())
             .add_left_peg(&wavgen.amplitude, "Amplitude")
             .add_left_peg(&wavgen.frequency, "Frequency")
             .add_top_peg(&wavgen.time, "Time")

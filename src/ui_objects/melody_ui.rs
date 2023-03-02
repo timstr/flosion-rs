@@ -4,8 +4,8 @@ use rand::prelude::*;
 
 use crate::{
     core::{
-        graphobject::ObjectId, samplefrequency::SAMPLE_FREQUENCY,
-        soundprocessor::DynamicSoundProcessorHandle, uniqueid::UniqueId,
+        samplefrequency::SAMPLE_FREQUENCY, soundprocessor::DynamicSoundProcessorHandle,
+        uniqueid::UniqueId,
     },
     objects::melody::{Melody, Note},
     ui_core::{
@@ -104,14 +104,12 @@ impl ObjectUi for MelodyUi {
 
     fn ui(
         &self,
-        id: ObjectId,
         melody: DynamicSoundProcessorHandle<Melody>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,
     ) {
-        let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id)
+        ObjectWindow::new_sound_processor(melody.id())
             .add_left_peg(melody.input.id(), "Input")
             .add_left_peg(&melody.melody_time, "Melody Time")
             .add_left_peg(&melody.note_frequency, "Note Frequency")

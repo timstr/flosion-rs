@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{graphobject::ObjectId, soundprocessor::DynamicSoundProcessorHandle},
+    core::soundprocessor::DynamicSoundProcessorHandle,
     objects::adsr::ADSR,
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -18,20 +18,18 @@ impl ObjectUi for ADSRUi {
 
     fn ui(
         &self,
-        id: ObjectId,
-        object: DynamicSoundProcessorHandle<ADSR>,
+        adsr: DynamicSoundProcessorHandle<ADSR>,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
         _state: &NoUIState,
     ) {
-        let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id)
-            .add_top_peg(&object.attack_time, "Attack Time")
-            .add_top_peg(&object.decay_time, "Decay Time")
-            .add_top_peg(&object.sustain_level, "Sustain Level")
-            .add_top_peg(&object.release_time, "Release Time")
-            .add_left_peg(object.input.id(), "Input")
-            .add_right_peg(object.id(), "Output")
+        ObjectWindow::new_sound_processor(adsr.id())
+            .add_top_peg(&adsr.attack_time, "Attack Time")
+            .add_top_peg(&adsr.decay_time, "Decay Time")
+            .add_top_peg(&adsr.sustain_level, "Sustain Level")
+            .add_top_peg(&adsr.release_time, "Release Time")
+            .add_left_peg(adsr.input.id(), "Input")
+            .add_right_peg(adsr.id(), "Output")
             .show(ui.ctx(), graph_state, |ui, _graph_state| {
                 ui.label("ADSR");
             });

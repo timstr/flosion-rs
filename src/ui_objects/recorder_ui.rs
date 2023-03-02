@@ -1,10 +1,7 @@
 use eframe::egui::{self, Button};
 
 use crate::{
-    core::{
-        graphobject::{ObjectId, ObjectInitialization},
-        soundprocessor::StaticSoundProcessorHandle,
-    },
+    core::{graphobject::ObjectInitialization, soundprocessor::StaticSoundProcessorHandle},
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
         graph_ui_state::GraphUIState,
@@ -21,14 +18,12 @@ impl ObjectUi for RecorderUi {
 
     fn ui(
         &self,
-        id: ObjectId,
         recorder: StaticSoundProcessorHandle<Recorder>,
         graph_tools: &mut GraphUIState,
         ui: &mut egui::Ui,
         _state: &NoUIState,
     ) {
-        let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id)
+        ObjectWindow::new_sound_processor(recorder.id())
             .add_left_peg(recorder.input.id(), "Input")
             .add_right_peg(recorder.id(), "Output")
             .show(ui.ctx(), graph_tools, |ui, graph_tools| {

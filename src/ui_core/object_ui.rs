@@ -44,7 +44,6 @@ pub trait ObjectUi: 'static + Default {
     type StateType: Any + Default + Serializable;
     fn ui(
         &self,
-        id: ObjectId, // TODO: remove, handles can provide thsi
         handle: Self::HandleType,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
@@ -71,7 +70,6 @@ pub trait ObjectUi: 'static + Default {
 pub trait AnyObjectUi {
     fn apply(
         &self,
-        id: ObjectId,
         object: &GraphObjectHandle,
         object_ui_state: &dyn ObjectUiState,
         graph_state: &mut GraphUIState,
@@ -117,7 +115,6 @@ pub trait AnyObjectUi {
 impl<T: ObjectUi> AnyObjectUi for T {
     fn apply(
         &self,
-        id: ObjectId,
         object: &GraphObjectHandle,
         object_ui_state: &dyn ObjectUiState,
         graph_state: &mut GraphUIState,
@@ -133,7 +130,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
             object_ui_state.get_language_type_name()
         );
         let state = state_any.downcast_ref::<T::StateType>().unwrap();
-        self.ui(id, handle, graph_state, ui, state);
+        self.ui(handle, graph_state, ui, state);
     }
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -508,15 +505,14 @@ fn peg_ui(
     r
 }
 
-// TODO: consider making this and other widges not pub
-pub struct SoundInputWidget<'a> {
+struct SoundInputWidget<'a> {
     sound_input_id: SoundInputId,
     label: &'a str,
     graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> SoundInputWidget<'a> {
-    pub fn new(
+    fn new(
         sound_input_id: SoundInputId,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
@@ -541,14 +537,14 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
     }
 }
 
-pub struct SoundOutputWidget<'a> {
+struct SoundOutputWidget<'a> {
     sound_processor_id: SoundProcessorId,
     label: &'a str,
     graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> SoundOutputWidget<'a> {
-    pub fn new(
+    fn new(
         sound_processor_id: SoundProcessorId,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
@@ -573,14 +569,14 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
     }
 }
 
-pub struct NumberInputWidget<'a> {
+struct NumberInputWidget<'a> {
     number_input_id: NumberInputId,
     label: &'a str,
     graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> NumberInputWidget<'a> {
-    pub fn new(
+    fn new(
         number_input_id: NumberInputId,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
@@ -605,14 +601,14 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
     }
 }
 
-pub struct NumberOutputWidget<'a> {
+struct NumberOutputWidget<'a> {
     number_source_id: NumberSourceId,
     label: &'a str,
     graph_state: &'a mut GraphUIState,
 }
 
 impl<'a> NumberOutputWidget<'a> {
-    pub fn new(
+    fn new(
         number_source_id: NumberSourceId,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
