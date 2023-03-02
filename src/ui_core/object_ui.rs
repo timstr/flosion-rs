@@ -243,28 +243,33 @@ impl ObjectWindow {
     fn show_pegs(
         ui: &mut egui::Ui,
         pegs: &[(GraphId, &'static str)],
+        direction: PegLabelDirection,
         graph_state: &mut GraphUIState,
     ) {
         // TODO: gather Responses from pegs?
         for (graph_id, label) in pegs {
             match graph_id {
                 GraphId::SoundInput(siid) => {
-                    ui.add(SoundInputWidget::new(*siid, label, graph_state));
+                    ui.add(SoundInputWidget::new(*siid, label, direction, graph_state));
                 }
                 GraphId::SoundProcessor(spid) => {
-                    ui.add(SoundOutputWidget::new(*spid, label, graph_state));
+                    ui.add(SoundOutputWidget::new(*spid, label, direction, graph_state));
                 }
                 GraphId::NumberInput(niid) => {
-                    ui.add(NumberInputWidget::new(*niid, label, graph_state));
+                    ui.add(NumberInputWidget::new(*niid, label, direction, graph_state));
                 }
                 GraphId::NumberSource(nsid) => {
-                    ui.add(NumberOutputWidget::new(*nsid, label, graph_state));
+                    ui.add(NumberOutputWidget::new(
+                        *nsid,
+                        label,
+                        direction,
+                        graph_state,
+                    ));
                 }
             }
         }
     }
 
-    // TODO: remove GraphUIState parameter
     pub fn show<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
         self,
         ctx: &egui::Context,
@@ -322,6 +327,9 @@ impl ObjectWindow {
 
         area = area.movable(true);
         let r = area.show(ctx, |ui| {
+            // Clip to the entire screen, not just outside the area
+            ui.set_clip_rect(ctx.input().screen_rect());
+
             egui::Grid::new(id.with("grid"))
                 .min_col_width(0.0)
                 .min_row_height(0.0)
@@ -334,7 +342,14 @@ impl ObjectWindow {
                             ui.label(""); // TODO: better way to make empty cell?
                         }
                         let ir = top_frame.show(ui, |ui| {
-                            ui.horizontal(|ui| Self::show_pegs(ui, &self.top_pegs, graph_tools));
+                            ui.horizontal(|ui| {
+                                Self::show_pegs(
+                                    ui,
+                                    &self.top_pegs,
+                                    PegLabelDirection::Top,
+                                    graph_tools,
+                                )
+                            });
                         });
                         min_content_width = ir.response.rect.width();
                         ui.end_row();
@@ -342,8 +357,14 @@ impl ObjectWindow {
 
                     if left_col {
                         ui.vertical(|ui| {
-                            left_frame
-                                .show(ui, |ui| Self::show_pegs(ui, &self.left_pegs, graph_tools))
+                            left_frame.show(ui, |ui| {
+                                Self::show_pegs(
+                                    ui,
+                                    &self.left_pegs,
+                                    PegLabelDirection::Left,
+                                    graph_tools,
+                                )
+                            })
                         });
                     }
                     center_frame.show(ui, |ui| {
@@ -352,8 +373,14 @@ impl ObjectWindow {
                     });
                     if right_col {
                         ui.vertical(|ui| {
-                            right_frame
-                                .show(ui, |ui| Self::show_pegs(ui, &self.right_pegs, graph_tools))
+                            right_frame.show(ui, |ui| {
+                                Self::show_pegs(
+                                    ui,
+                                    &self.right_pegs,
+                                    PegLabelDirection::Right,
+                                    graph_tools,
+                                )
+                            })
                         });
                     }
                     ui.end_row();
@@ -434,17 +461,26 @@ fn key_to_string(key: egui::Key) -> String {
     }
 }
 
+#[derive(Copy, Clone)]
+enum PegLabelDirection {
+    Left,
+    Top,
+    Right,
+}
+
 fn peg_ui(
     id: GraphId,
     color: egui::Color32,
     label: &str,
+    direction: PegLabelDirection,
     ui_state: &mut GraphUIState,
     ui: &mut egui::Ui,
 ) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
+    let (peg_rect, response) =
+        ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
     ui_state
         .layout_state_mut()
-        .track_peg(id, rect, response.layer_id);
+        .track_peg(id, peg_rect, response.layer_id);
     let display_str;
     let popup_str;
     let size_diff;
@@ -459,19 +495,23 @@ fn peg_ui(
     } else {
         display_str = format!("{}", id.as_usize());
         size_diff = 0.0;
-        popup_str = None;
+        popup_str = if response.hovered() {
+            Some(label)
+        } else {
+            None
+        };
         // display_str = "-".to_string();
         // size_diff = -3.0;
     }
     let painter = ui.painter();
     painter.rect(
-        rect.expand(size_diff),
+        peg_rect.expand(size_diff),
         5.0,
         color,
         egui::Stroke::new(2.0, egui::Color32::WHITE),
     );
     painter.text(
-        rect.center(),
+        peg_rect.center(),
         egui::Align2::CENTER_CENTER,
         display_str,
         egui::FontId::monospace(16.0),
@@ -483,7 +523,19 @@ fn peg_ui(
             egui::FontId::monospace(16.0),
             egui::Color32::WHITE,
         );
-        let pos = rect.right_center() + egui::vec2(5.0, -0.5 * galley.rect.height());
+        let pos = match direction {
+            PegLabelDirection::Left => {
+                peg_rect.left_center()
+                    + egui::vec2(-5.0 - galley.rect.width(), -0.5 * galley.rect.height())
+            }
+            PegLabelDirection::Top => {
+                peg_rect.center_top()
+                    + egui::vec2(-0.5 * galley.rect.width(), -5.0 - galley.rect.height())
+            }
+            PegLabelDirection::Right => {
+                peg_rect.right_center() + egui::vec2(5.0, -0.5 * galley.rect.height())
+            }
+        };
         painter.rect(
             galley.rect.expand(3.0).translate(pos.to_vec2()),
             3.0,
@@ -498,16 +550,18 @@ fn peg_ui(
     if response.drag_released() {
         ui_state.stop_dragging(Some(response.interact_pointer_pos().unwrap()));
     }
-    let r = response.clone();
-    response.on_hover_ui_at_pointer(|ui| {
-        ui.label(label);
-    });
-    r
+    // let r = response.clone();
+    // response.on_hover_ui_at_pointer(|ui| {
+    //     ui.label(label);
+    // });
+    // r
+    response
 }
 
 struct SoundInputWidget<'a> {
     sound_input_id: SoundInputId,
     label: &'a str,
+    direction: PegLabelDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -515,11 +569,13 @@ impl<'a> SoundInputWidget<'a> {
     fn new(
         sound_input_id: SoundInputId,
         label: &'a str,
+        direction: PegLabelDirection,
         graph_state: &'a mut GraphUIState,
     ) -> SoundInputWidget<'a> {
         SoundInputWidget {
             sound_input_id,
             label,
+            direction,
             graph_state,
         }
     }
@@ -531,6 +587,7 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
             self.sound_input_id.into(),
             egui::Color32::from_rgb(0, 255, 0),
             self.label,
+            self.direction,
             self.graph_state,
             ui,
         )
@@ -540,6 +597,7 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
 struct SoundOutputWidget<'a> {
     sound_processor_id: SoundProcessorId,
     label: &'a str,
+    direction: PegLabelDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -547,11 +605,13 @@ impl<'a> SoundOutputWidget<'a> {
     fn new(
         sound_processor_id: SoundProcessorId,
         label: &'a str,
+        direction: PegLabelDirection,
         graph_state: &'a mut GraphUIState,
     ) -> SoundOutputWidget<'a> {
         SoundOutputWidget {
             sound_processor_id,
             label,
+            direction,
             graph_state,
         }
     }
@@ -563,6 +623,7 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
             self.sound_processor_id.into(),
             egui::Color32::from_rgb(0, 128, 0),
             self.label,
+            self.direction,
             self.graph_state,
             ui,
         )
@@ -572,6 +633,7 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
 struct NumberInputWidget<'a> {
     number_input_id: NumberInputId,
     label: &'a str,
+    direction: PegLabelDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -579,11 +641,13 @@ impl<'a> NumberInputWidget<'a> {
     fn new(
         number_input_id: NumberInputId,
         label: &'a str,
+        direction: PegLabelDirection,
         graph_state: &'a mut GraphUIState,
     ) -> NumberInputWidget<'a> {
         NumberInputWidget {
             number_input_id,
             label,
+            direction,
             graph_state,
         }
     }
@@ -595,6 +659,7 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
             self.number_input_id.into(),
             egui::Color32::from_rgb(0, 0, 255),
             self.label,
+            self.direction,
             self.graph_state,
             ui,
         )
@@ -604,6 +669,7 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
 struct NumberOutputWidget<'a> {
     number_source_id: NumberSourceId,
     label: &'a str,
+    direction: PegLabelDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -611,11 +677,13 @@ impl<'a> NumberOutputWidget<'a> {
     fn new(
         number_source_id: NumberSourceId,
         label: &'a str,
+        direction: PegLabelDirection,
         graph_state: &'a mut GraphUIState,
     ) -> NumberOutputWidget<'a> {
         NumberOutputWidget {
             number_source_id,
             label,
+            direction,
             graph_state,
         }
     }
@@ -627,6 +695,7 @@ impl<'a> egui::Widget for NumberOutputWidget<'a> {
             self.number_source_id.into(),
             egui::Color32::from_rgb(0, 0, 128),
             self.label,
+            self.direction,
             self.graph_state,
             ui,
         )
