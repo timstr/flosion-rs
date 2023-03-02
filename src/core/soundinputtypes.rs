@@ -39,6 +39,10 @@ impl SoundProcessorInput for SingleInput {
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         SingleInputNode::new(self.id)
     }
+
+    fn list_ids(&self) -> Vec<SoundInputId> {
+        vec![self.id]
+    }
 }
 
 pub struct SingleInputNode<'ctx> {
@@ -160,6 +164,10 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
                 .collect(),
             active: false,
         }
+    }
+
+    fn list_ids(&self) -> Vec<SoundInputId> {
+        vec![self.id]
     }
 }
 
@@ -298,6 +306,10 @@ impl SoundProcessorInput for () {
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         ()
     }
+
+    fn list_ids(&self) -> Vec<SoundInputId> {
+        Vec::new()
+    }
 }
 
 pub struct SingleInputList {
@@ -359,6 +371,10 @@ impl SoundProcessorInput for SingleInputList {
                 .map(|id| SingleInputNode::new(*id))
                 .collect(),
         }
+    }
+
+    fn list_ids(&self) -> Vec<SoundInputId> {
+        self.input_ids.read().clone()
     }
 }
 
@@ -454,6 +470,10 @@ impl<I: Copy + Eq, S: State> SoundProcessorInput for KeyedInputQueue<I, S> {
 
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         KeyedInputQueueNode::new(self.id, self.num_keys)
+    }
+
+    fn list_ids(&self) -> Vec<SoundInputId> {
+        vec![self.id]
     }
 }
 

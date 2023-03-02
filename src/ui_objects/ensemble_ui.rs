@@ -3,10 +3,7 @@ use crate::{
     objects::ensemble::Ensemble,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{
-            NoUIState, NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow,
-            SoundInputWidget, SoundOutputWidget,
-        },
+        object_ui::{NoUIState, ObjectUi, ObjectWindow},
     },
 };
 
@@ -26,29 +23,14 @@ impl ObjectUi for EnsembleUi {
         _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            ui.label("Ensemble");
-            ui.add(SoundInputWidget::new(
-                ensemble.input.id(),
-                "Input",
-                graph_tools,
-            ));
-            ui.add(NumberInputWidget::new(
-                &ensemble.frequency_in,
-                "Frequency In",
-                graph_tools,
-            ));
-            ui.add(NumberInputWidget::new(
-                &ensemble.frequency_spread,
-                "Frequency Spread",
-                graph_tools,
-            ));
-            ui.add(NumberOutputWidget::new(
-                &ensemble.voice_frequency,
-                "Voice Frequency",
-                graph_tools,
-            ));
-            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
-        });
+        ObjectWindow::new_sound_processor(id)
+            .add_left_peg(ensemble.input.id(), "Input")
+            .add_left_peg(&ensemble.voice_frequency, "Voice Frequency")
+            .add_top_peg(&ensemble.frequency_in, "Frequency In")
+            .add_top_peg(&ensemble.frequency_spread, "Frequency Spread")
+            .add_right_peg(ensemble.id(), "Output")
+            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
+                ui.label("Ensemble");
+            });
     }
 }

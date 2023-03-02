@@ -26,7 +26,7 @@ pub mod soundgrapherror;
 pub(crate) mod soundgraphtopology;
 pub(crate) mod soundgraphvalidation;
 pub mod soundinput;
-mod soundinputnode;
+pub mod soundinputnode;
 pub mod soundinputtypes;
 pub mod soundprocessor;
 pub mod soundprocessortools;

@@ -5,7 +5,7 @@ use crate::{
     objects::audioclip::AudioClip,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow, SoundOutputWidget},
+        object_ui::{NoUIState, ObjectUi, ObjectWindow},
     },
 };
 
@@ -24,9 +24,10 @@ impl ObjectUi for AudioClipUi {
         _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            ui.label("AudioClip");
-            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
-        })
+        ObjectWindow::new_sound_processor(id)
+            .add_right_peg(id, "Output")
+            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
+                ui.label("AudioClip");
+            })
     }
 }

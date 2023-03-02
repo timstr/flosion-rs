@@ -3,10 +3,7 @@ use crate::{
     objects::wavegenerator::WaveGenerator,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{
-            NoUIState, NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow,
-            SoundOutputWidget,
-        },
+        object_ui::{NoUIState, ObjectUi, ObjectWindow},
     },
 };
 
@@ -26,21 +23,14 @@ impl ObjectUi for WaveGeneratorUi {
         _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            ui.label("WaveGenerator");
-            ui.add(NumberInputWidget::new(
-                &wavgen.amplitude,
-                "Amplitude",
-                graph_tools,
-            ));
-            ui.add(NumberInputWidget::new(
-                &wavgen.frequency,
-                "Frequency",
-                graph_tools,
-            ));
-            ui.add(NumberOutputWidget::new(&wavgen.time, "Time", graph_tools));
-            ui.add(NumberOutputWidget::new(&wavgen.phase, "Phase", graph_tools));
-            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
-        });
+        ObjectWindow::new_sound_processor(id)
+            .add_left_peg(&wavgen.amplitude, "Amplitude")
+            .add_left_peg(&wavgen.frequency, "Frequency")
+            .add_top_peg(&wavgen.time, "Time")
+            .add_top_peg(&wavgen.phase, "Phase")
+            .add_right_peg(wavgen.id(), "Output")
+            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
+                ui.label("WaveGenerator");
+            });
     }
 }

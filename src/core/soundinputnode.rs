@@ -78,4 +78,6 @@ pub trait SoundProcessorInput {
     type NodeType<'ctx>: SoundInputNode<'ctx>;
 
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx>;
+
+    fn list_ids(&self) -> Vec<SoundInputId>;
 }

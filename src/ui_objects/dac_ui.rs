@@ -3,7 +3,7 @@ use crate::{
     objects::dac::Dac,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow, SoundInputWidget},
+        object_ui::{NoUIState, ObjectUi, ObjectWindow},
     },
 };
 
@@ -21,17 +21,13 @@ impl ObjectUi for DacUi {
         ui: &mut eframe::egui::Ui,
         _state: &NoUIState,
     ) {
-        ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap()).show(
-            ui.ctx(),
-            graph_tools,
-            |ui, graph_tools| {
+        ObjectWindow::new_sound_processor(id.as_sound_processor_id().unwrap())
+            .add_left_peg(dac.input.id(), "Input")
+            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 ui.label("Dac");
-                // ui.separator();
-                ui.add(SoundInputWidget::new(dac.input.id(), "Output", graph_tools));
                 if ui.button("Reset").clicked() {
                     dac.reset();
                 }
-            },
-        );
+            });
     }
 }

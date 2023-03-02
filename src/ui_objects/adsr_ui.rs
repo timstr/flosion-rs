@@ -5,10 +5,7 @@ use crate::{
     objects::adsr::ADSR,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{
-            NoUIState, NumberInputWidget, ObjectUi, ObjectWindow, SoundInputWidget,
-            SoundOutputWidget,
-        },
+        object_ui::{NoUIState, ObjectUi, ObjectWindow},
     },
 };
 
@@ -28,34 +25,15 @@ impl ObjectUi for ADSRUi {
         _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_state, |ui, graph_state| {
-            ui.label("ADSR");
-            ui.add(SoundInputWidget::new(
-                object.input.id(),
-                "Input",
-                graph_state,
-            ));
-            ui.add(NumberInputWidget::new(
-                &object.attack_time,
-                "Attack Time",
-                graph_state,
-            ));
-            ui.add(NumberInputWidget::new(
-                &object.decay_time,
-                "Decay Time",
-                graph_state,
-            ));
-            ui.add(NumberInputWidget::new(
-                &object.sustain_level,
-                "Sustain Level",
-                graph_state,
-            ));
-            ui.add(NumberInputWidget::new(
-                &object.release_time,
-                "Release Time",
-                graph_state,
-            ));
-            ui.add(SoundOutputWidget::new(id, "Output", graph_state));
-        });
+        ObjectWindow::new_sound_processor(id)
+            .add_top_peg(&object.attack_time, "Attack Time")
+            .add_top_peg(&object.decay_time, "Decay Time")
+            .add_top_peg(&object.sustain_level, "Sustain Level")
+            .add_top_peg(&object.release_time, "Release Time")
+            .add_left_peg(object.input.id(), "Input")
+            .add_right_peg(object.id(), "Output")
+            .show(ui.ctx(), graph_state, |ui, _graph_state| {
+                ui.label("ADSR");
+            });
     }
 }

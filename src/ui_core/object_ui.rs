@@ -10,7 +10,10 @@ use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
     graphobject::{GraphId, GraphObjectHandle, ObjectHandle, ObjectId, ObjectInitialization},
     numberinput::{NumberInputHandle, NumberInputId},
-    numbersource::{NumberSourceHandle, NumberSourceId, NumberVisibility},
+    numbersource::{
+        NumberSourceHandle, NumberSourceId, NumberVisibility, PureNumberSource,
+        PureNumberSourceHandle,
+    },
     serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
@@ -41,7 +44,7 @@ pub trait ObjectUi: 'static + Default {
     type StateType: Any + Default + Serializable;
     fn ui(
         &self,
-        id: ObjectId,
+        id: ObjectId, // TODO: remove, handles can provide thsi
         handle: Self::HandleType,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
@@ -157,23 +160,114 @@ impl<T: ObjectUi> AnyObjectUi for T {
     }
 }
 
+pub trait PegCreator {
+    fn get_id(&self) -> GraphId;
+}
+
+impl PegCreator for &NumberInputHandle {
+    fn get_id(&self) -> GraphId {
+        debug_assert!(
+            self.visibility() == NumberVisibility::Public,
+            "Attempted to make a peg for a number input which is private"
+        );
+        self.id().into()
+    }
+}
+
+impl PegCreator for &NumberSourceHandle {
+    fn get_id(&self) -> GraphId {
+        debug_assert!(
+            self.visibility() == NumberVisibility::Public,
+            "Attempted to make a peg for a number source which is private"
+        );
+        self.id().into()
+    }
+}
+
+impl<T: PureNumberSource> PegCreator for &PureNumberSourceHandle<T> {
+    fn get_id(&self) -> GraphId {
+        self.id().into()
+    }
+}
+
+impl PegCreator for SoundInputId {
+    fn get_id(&self) -> GraphId {
+        (*self).into()
+    }
+}
+
+impl PegCreator for SoundProcessorId {
+    fn get_id(&self) -> GraphId {
+        (*self).into()
+    }
+}
+
 pub struct ObjectWindow {
     object_id: ObjectId,
+    left_pegs: Vec<(GraphId, &'static str)>,
+    top_pegs: Vec<(GraphId, &'static str)>,
+    right_pegs: Vec<(GraphId, &'static str)>,
 }
 
 impl ObjectWindow {
     pub fn new_sound_processor(id: SoundProcessorId) -> ObjectWindow {
         ObjectWindow {
             object_id: ObjectId::Sound(id),
+            left_pegs: Vec::new(),
+            top_pegs: Vec::new(),
+            right_pegs: Vec::new(),
         }
     }
 
     pub fn new_number_source(id: NumberSourceId) -> ObjectWindow {
         ObjectWindow {
             object_id: ObjectId::Number(id),
+            left_pegs: Vec::new(),
+            top_pegs: Vec::new(),
+            right_pegs: Vec::new(),
         }
     }
 
+    pub fn add_left_peg<T: PegCreator>(mut self, peg: T, label: &'static str) -> Self {
+        self.left_pegs.push((peg.get_id(), label));
+        self
+    }
+
+    pub fn add_right_peg<T: PegCreator>(mut self, peg: T, label: &'static str) -> Self {
+        self.right_pegs.push((peg.get_id(), label));
+        self
+    }
+
+    pub fn add_top_peg<T: PegCreator>(mut self, peg: T, label: &'static str) -> Self {
+        self.top_pegs.push((peg.get_id(), label));
+        self
+    }
+
+    fn show_pegs(
+        ui: &mut egui::Ui,
+        pegs: &[(GraphId, &'static str)],
+        graph_state: &mut GraphUIState,
+    ) {
+        // TODO: gather Responses from pegs?
+        for (graph_id, label) in pegs {
+            match graph_id {
+                GraphId::SoundInput(siid) => {
+                    ui.add(SoundInputWidget::new(*siid, label, graph_state));
+                }
+                GraphId::SoundProcessor(spid) => {
+                    ui.add(SoundOutputWidget::new(*spid, label, graph_state));
+                }
+                GraphId::NumberInput(niid) => {
+                    ui.add(NumberInputWidget::new(*niid, label, graph_state));
+                }
+                GraphId::NumberSource(nsid) => {
+                    ui.add(NumberOutputWidget::new(*nsid, label, graph_state));
+                }
+            }
+        }
+    }
+
+    // TODO: remove GraphUIState parameter
     pub fn show<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
         self,
         ctx: &egui::Context,
@@ -186,25 +280,15 @@ impl ObjectWindow {
         };
         let id = egui::Id::new(s);
         let fill;
-        let stroke;
         if graph_tools.object_has_keyboard_focus(self.object_id) {
             fill = egui::Color32::GREEN;
-            stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
         } else if graph_tools.is_object_selected(self.object_id) {
             fill = egui::Color32::LIGHT_BLUE;
-            stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
         } else {
             fill = egui::Color32::DARK_BLUE;
-            stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
         }
 
-        let frame = egui::Frame::default()
-            .fill(fill)
-            .stroke(stroke)
-            .inner_margin(egui::Vec2::splat(10.0));
-
         let mut area = egui::Area::new(id);
-        // let layer_id = area.layer();
         if let Some(state) = graph_tools
             .layout_state()
             .get_object_location(self.object_id)
@@ -213,8 +297,71 @@ impl ObjectWindow {
         } else if let Some(pos) = ctx.input().pointer.interact_pos() {
             area = area.current_pos(pos);
         }
+
+        let center_frame = egui::Frame::default()
+            .fill(fill)
+            .inner_margin(egui::Vec2::splat(10.0));
+
+        let side_frame_template = egui::Frame::default()
+            .fill(fill)
+            .inner_margin(egui::Vec2::splat(5.0));
+
+        let outer_corner_rounding = 10.0;
+
+        let mut top_frame = side_frame_template;
+        let mut left_frame = side_frame_template;
+        let mut right_frame = side_frame_template;
+
+        top_frame.rounding.nw = outer_corner_rounding;
+        top_frame.rounding.ne = outer_corner_rounding;
+        left_frame.rounding.nw = outer_corner_rounding;
+        left_frame.rounding.sw = outer_corner_rounding;
+        right_frame.rounding.ne = outer_corner_rounding;
+        right_frame.rounding.se = outer_corner_rounding;
+
+        let top_row = !self.top_pegs.is_empty();
+        let left_col = !self.left_pegs.is_empty();
+        let right_col = !self.right_pegs.is_empty();
+
         area = area.movable(true);
-        let r = area.show(ctx, |ui| frame.show(ui, |ui| add_contents(ui, graph_tools)));
+        let r = area.show(ctx, |ui| {
+            egui::Grid::new(id.with("grid"))
+                .min_col_width(0.0)
+                .min_row_height(0.0)
+                .spacing(egui::vec2(0.0, 0.0))
+                .show(ui, |ui| {
+                    let mut min_content_width = 0.0;
+
+                    if top_row {
+                        if left_col {
+                            ui.label(""); // TODO: better way to make empty cell?
+                        }
+                        let ir = top_frame.show(ui, |ui| {
+                            ui.horizontal(|ui| Self::show_pegs(ui, &self.top_pegs, graph_tools));
+                        });
+                        min_content_width = ir.response.rect.width();
+                        ui.end_row();
+                    }
+
+                    if left_col {
+                        ui.vertical(|ui| {
+                            left_frame
+                                .show(ui, |ui| Self::show_pegs(ui, &self.left_pegs, graph_tools))
+                        });
+                    }
+                    center_frame.show(ui, |ui| {
+                        ui.set_min_width(min_content_width);
+                        add_contents(ui, graph_tools);
+                    });
+                    if right_col {
+                        ui.vertical(|ui| {
+                            right_frame
+                                .show(ui, |ui| Self::show_pegs(ui, &self.right_pegs, graph_tools))
+                        });
+                    }
+                    ui.end_row();
+                });
+        });
         graph_tools.layout_state_mut().track_object_location(
             self.object_id,
             r.response.rect,
@@ -361,6 +508,7 @@ fn peg_ui(
     r
 }
 
+// TODO: consider making this and other widges not pub
 pub struct SoundInputWidget<'a> {
     sound_input_id: SoundInputId,
     label: &'a str,
@@ -433,16 +581,12 @@ pub struct NumberInputWidget<'a> {
 
 impl<'a> NumberInputWidget<'a> {
     pub fn new(
-        handle: &NumberInputHandle,
+        number_input_id: NumberInputId,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
     ) -> NumberInputWidget<'a> {
-        debug_assert!(
-            handle.visibility() == NumberVisibility::Public,
-            "Attempted to make a NumberInputWidget for a number input which is private"
-        );
         NumberInputWidget {
-            number_input_id: handle.id(),
+            number_input_id,
             label,
             graph_state,
         }
@@ -469,16 +613,12 @@ pub struct NumberOutputWidget<'a> {
 
 impl<'a> NumberOutputWidget<'a> {
     pub fn new(
-        handle: &NumberSourceHandle,
+        number_source_id: NumberSourceId,
         label: &'a str,
         graph_state: &'a mut GraphUIState,
     ) -> NumberOutputWidget<'a> {
-        debug_assert!(
-            handle.visibility() == NumberVisibility::Public,
-            "Attempted to make a NumberOutputWidget for a number input which is private"
-        );
         NumberOutputWidget {
-            number_source_id: handle.id(),
+            number_source_id,
             label,
             graph_state,
         }

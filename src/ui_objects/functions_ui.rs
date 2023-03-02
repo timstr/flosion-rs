@@ -10,10 +10,7 @@ use crate::{
     objects::functions::*,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{
-            NoUIState, NumberInputWidget, NumberOutputWidget, ObjectUi, ObjectWindow,
-            UiInitialization,
-        },
+        object_ui::{NoUIState, ObjectUi, ObjectWindow, UiInitialization},
     },
 };
 
@@ -66,20 +63,17 @@ impl ObjectUi for ConstantUi {
         state: &ConstantUiState,
     ) {
         let id = id.as_number_source_id().unwrap();
-        ObjectWindow::new_number_source(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            let mut v = object.get_value();
-            let v_old = v;
-            ui.label(&state.name);
-            ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
-            if v != v_old {
-                object.set_value(v);
-            }
-            ui.add(NumberOutputWidget::new(
-                &object.into(),
-                "Output",
-                graph_tools,
-            ));
-        });
+        ObjectWindow::new_number_source(id)
+            .add_right_peg(&object, "Output")
+            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
+                let mut v = object.get_value();
+                let v_old = v;
+                ui.label(&state.name);
+                ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
+                if v != v_old {
+                    object.set_value(v);
+                }
+            });
     }
 
     fn arguments(&self) -> ArgumentList {
@@ -131,19 +125,12 @@ macro_rules! unary_number_source_ui {
                 _state: &Self::StateType,
             ) {
                 let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id).show(
-                    ui.ctx(),
-                    graph_tools,
-                    |ui, graph_tools| {
+                ObjectWindow::new_number_source(id)
+                    .add_left_peg(&object.input, "Input")
+                    .add_right_peg(&object, "Output")
+                    .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
                         ui.label($display_name);
-                        ui.add(NumberInputWidget::new(&object.input, "Input", graph_tools));
-                        ui.add(NumberOutputWidget::new(
-                            &object.into(),
-                            "Output",
-                            graph_tools,
-                        ));
-                    },
-                );
+                    });
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -170,28 +157,13 @@ macro_rules! binary_number_source_ui {
                 _state: &Self::StateType,
             ) {
                 let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id).show(
-                    ui.ctx(),
-                    graph_tools,
-                    |ui, graph_tools| {
+                ObjectWindow::new_number_source(id)
+                    .add_left_peg(&object.input_1, "Input 1")
+                    .add_left_peg(&object.input_2, "Input 2")
+                    .add_right_peg(&object, "Output")
+                    .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
                         ui.label($display_name);
-                        ui.add(NumberInputWidget::new(
-                            &object.input_1,
-                            "Input 1",
-                            graph_tools,
-                        ));
-                        ui.add(NumberInputWidget::new(
-                            &object.input_2,
-                            "Input 2",
-                            graph_tools,
-                        ));
-                        ui.add(NumberOutputWidget::new(
-                            &object.into(),
-                            "Output",
-                            graph_tools,
-                        ));
-                    },
-                );
+                    });
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -219,33 +191,14 @@ macro_rules! ternary_number_source_ui {
                 _state: &Self::StateType,
             ) {
                 let id = id.as_number_source_id().unwrap();
-                ObjectWindow::new_number_source(id).show(
-                    ui.ctx(),
-                    graph_tools,
-                    |ui, graph_tools| {
+                ObjectWindow::new_number_source(id)
+                    .add_left_peg(&object.input_1, "Input 1")
+                    .add_left_peg(&object.input_2, "Input 2")
+                    .add_left_peg(&object.input_3, "Input 3")
+                    .add_right_peg(&object, "Output")
+                    .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
                         ui.label($display_name);
-                        ui.add(NumberInputWidget::new(
-                            &object.input_1,
-                            "Input 1",
-                            graph_tools,
-                        ));
-                        ui.add(NumberInputWidget::new(
-                            &object.input_2,
-                            "Input 2",
-                            graph_tools,
-                        ));
-                        ui.add(NumberInputWidget::new(
-                            &object.input_3,
-                            "Input 3",
-                            graph_tools,
-                        ));
-                        ui.add(NumberOutputWidget::new(
-                            &object.into(),
-                            "Output",
-                            graph_tools,
-                        ));
-                    },
-                );
+                    });
             }
 
             fn aliases(&self) -> &'static [&'static str] {

@@ -10,10 +10,7 @@ use crate::{
     objects::melody::{Melody, Note},
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{
-            NoUIState, NumberOutputWidget, ObjectUi, ObjectWindow, SoundInputWidget,
-            SoundOutputWidget,
-        },
+        object_ui::{NoUIState, ObjectUi, ObjectWindow},
     },
 };
 
@@ -114,51 +111,32 @@ impl ObjectUi for MelodyUi {
         _state: &NoUIState,
     ) {
         let id = id.as_sound_processor_id().unwrap();
-        ObjectWindow::new_sound_processor(id).show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            ui.label("Melody");
-            ui.add(SoundInputWidget::new(
-                melody.input.id(),
-                "Input",
-                graph_tools,
-            ));
-            ui.add(NumberOutputWidget::new(
-                &melody.melody_time,
-                "Melody Time",
-                graph_tools,
-            ));
-            ui.add(NumberOutputWidget::new(
-                &melody.note_frequency,
-                "Note Frequency",
-                graph_tools,
-            ));
-            ui.add(NumberOutputWidget::new(
-                &melody.note_time,
-                "Note Time",
-                graph_tools,
-            ));
-            ui.add(NumberOutputWidget::new(
-                &melody.note_progress,
-                "Note Progress",
-                graph_tools,
-            ));
-            ui.add(SoundOutputWidget::new(id, "Output", graph_tools));
-
-            if ui.button("Randomize").clicked() {
-                melody.clear();
-                for _ in 0..16 {
-                    let start_time_samples = thread_rng().gen::<usize>() % (4 * SAMPLE_FREQUENCY);
-                    let duration_samples = thread_rng().gen::<usize>() % SAMPLE_FREQUENCY;
-                    let frequency = 25.0 * (thread_rng().gen::<usize>() % 20) as f32;
-                    let note = Note {
-                        start_time_samples,
-                        duration_samples,
-                        frequency,
-                    };
-                    melody.add_note(note);
+        ObjectWindow::new_sound_processor(id)
+            .add_left_peg(melody.input.id(), "Input")
+            .add_left_peg(&melody.melody_time, "Melody Time")
+            .add_left_peg(&melody.note_frequency, "Note Frequency")
+            .add_left_peg(&melody.note_time, "Note Time")
+            .add_left_peg(&melody.note_progress, "Note Progress")
+            .add_right_peg(melody.id(), "Output")
+            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
+                ui.label("Melody");
+                if ui.button("Randomize").clicked() {
+                    melody.clear();
+                    for _ in 0..16 {
+                        let start_time_samples =
+                            thread_rng().gen::<usize>() % (4 * SAMPLE_FREQUENCY);
+                        let duration_samples = thread_rng().gen::<usize>() % SAMPLE_FREQUENCY;
+                        let frequency = 25.0 * (thread_rng().gen::<usize>() % 20) as f32;
+                        let note = Note {
+                            start_time_samples,
+                            duration_samples,
+                            frequency,
+                        };
+                        melody.add_note(note);
+                    }
                 }
-            }
 
-            egui::Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui, &melody));
-        });
+                egui::Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui, &melody));
+            });
     }
 }
