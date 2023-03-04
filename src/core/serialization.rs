@@ -96,7 +96,7 @@ impl ValueType {
     }
 }
 
-trait PrimitiveReadWrite: Sized {
+trait PrimitiveReadWrite: Sized + 'static {
     const SIZE: usize;
     const TYPE: PrimitiveType;
     fn write_to(&self, data: &mut Vec<u8>);
@@ -430,50 +430,68 @@ impl<'a> Deserializer<'a> {
         }
     }
 
+    fn reset_on_error<T: 'a, F: FnOnce(&mut Deserializer<'a>) -> Result<T, ()>>(
+        &mut self,
+        f: F,
+    ) -> Result<T, ()> {
+        let original_position = self.position;
+        let result = f(self);
+        if result.is_err() {
+            self.position = original_position;
+        }
+        result
+    }
+
     fn read_primitive<T: PrimitiveReadWrite>(&mut self) -> Result<T, ()> {
-        if self.remaining_len() < (u8::SIZE + T::SIZE) {
-            return Err(());
-        }
-        let the_type = ValueType::from_byte(self.read_byte()?)?;
-        if the_type != ValueType::Primitive(T::TYPE) {
-            return Err(());
-        }
-        Ok(T::read_from(self))
+        self.reset_on_error(|d| {
+            if d.remaining_len() < (u8::SIZE + T::SIZE) {
+                return Err(());
+            }
+            let the_type = ValueType::from_byte(d.read_byte()?)?;
+            if the_type != ValueType::Primitive(T::TYPE) {
+                return Err(());
+            }
+            Ok(T::read_from(d))
+        })
     }
 
     fn read_primitive_array_slice<T: PrimitiveReadWrite>(&mut self) -> Result<Vec<T>, ()> {
-        if self.remaining_len() < (u8::SIZE + u32::SIZE) {
-            return Err(());
-        }
-        let the_type = ValueType::from_byte(self.read_byte()?)?;
-        if the_type != ValueType::Array(T::TYPE) {
-            return Err(());
-        }
-        let len = u32::read_from(self) as usize;
-        if self.remaining_len() < (len * T::SIZE) {
-            return Err(());
-        }
-        Ok((0..len).map(|_| T::read_from(self)).collect())
+        self.reset_on_error(|d| {
+            if d.remaining_len() < (u8::SIZE + u32::SIZE) {
+                return Err(());
+            }
+            let the_type = ValueType::from_byte(d.read_byte()?)?;
+            if the_type != ValueType::Array(T::TYPE) {
+                return Err(());
+            }
+            let len = u32::read_from(d) as usize;
+            if d.remaining_len() < (len * T::SIZE) {
+                return Err(());
+            }
+            Ok((0..len).map(|_| T::read_from(d)).collect())
+        })
     }
 
     fn read_primitive_array_iter<'b, T: PrimitiveReadWrite>(
         &'b mut self,
     ) -> Result<DeserializerIterator<'b, T>, ()> {
-        if self.remaining_len() < (u8::SIZE + u32::SIZE) {
-            return Err(());
-        }
-        let the_type = ValueType::from_byte(self.read_byte()?)?;
-        if the_type != ValueType::Array(T::TYPE) {
-            return Err(());
-        }
-        let len = u32::read_from(self) as usize;
-        let byte_len = len * T::SIZE;
-        if self.remaining_len() < byte_len {
-            return Err(());
-        }
-        let d = Deserializer::new(&self.data[self.position..self.position + byte_len]);
-        self.position += byte_len;
-        Ok(DeserializerIterator::new(d))
+        self.reset_on_error(|d| {
+            if d.remaining_len() < (u8::SIZE + u32::SIZE) {
+                return Err(());
+            }
+            let the_type = ValueType::from_byte(d.read_byte()?)?;
+            if the_type != ValueType::Array(T::TYPE) {
+                return Err(());
+            }
+            let len = u32::read_from(d) as usize;
+            let byte_len = len * T::SIZE;
+            if d.remaining_len() < byte_len {
+                return Err(());
+            }
+            let d2 = Deserializer::new(&d.data[d.position..d.position + byte_len]);
+            d.position += byte_len;
+            Ok(DeserializerIterator::new(d2))
+        })
     }
 
     pub fn u8(&mut self) -> Result<u8, ()> {
