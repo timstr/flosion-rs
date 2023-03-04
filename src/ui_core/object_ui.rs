@@ -243,7 +243,7 @@ impl ObjectWindow {
     fn show_pegs(
         ui: &mut egui::Ui,
         pegs: &[(GraphId, &'static str)],
-        direction: PegLabelDirection,
+        direction: PegDirection,
         graph_state: &mut GraphUIState,
     ) {
         // TODO: gather Responses from pegs?
@@ -343,12 +343,7 @@ impl ObjectWindow {
                         }
                         let ir = top_frame.show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                Self::show_pegs(
-                                    ui,
-                                    &self.top_pegs,
-                                    PegLabelDirection::Top,
-                                    graph_tools,
-                                )
+                                Self::show_pegs(ui, &self.top_pegs, PegDirection::Top, graph_tools)
                             });
                         });
                         min_content_width = ir.response.rect.width();
@@ -361,7 +356,7 @@ impl ObjectWindow {
                                 Self::show_pegs(
                                     ui,
                                     &self.left_pegs,
-                                    PegLabelDirection::Left,
+                                    PegDirection::Left,
                                     graph_tools,
                                 )
                             })
@@ -377,7 +372,7 @@ impl ObjectWindow {
                                 Self::show_pegs(
                                     ui,
                                     &self.right_pegs,
-                                    PegLabelDirection::Right,
+                                    PegDirection::Right,
                                     graph_tools,
                                 )
                             })
@@ -462,7 +457,7 @@ fn key_to_string(key: egui::Key) -> String {
 }
 
 #[derive(Copy, Clone)]
-enum PegLabelDirection {
+pub enum PegDirection {
     Left,
     Top,
     Right,
@@ -472,7 +467,7 @@ fn peg_ui(
     id: GraphId,
     color: egui::Color32,
     label: &str,
-    direction: PegLabelDirection,
+    direction: PegDirection,
     ui_state: &mut GraphUIState,
     ui: &mut egui::Ui,
 ) -> egui::Response {
@@ -480,7 +475,7 @@ fn peg_ui(
         ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
     ui_state
         .layout_state_mut()
-        .track_peg(id, peg_rect, response.layer_id);
+        .track_peg(id, peg_rect, response.layer_id, direction);
     let display_str;
     let popup_str;
     let size_diff;
@@ -524,15 +519,15 @@ fn peg_ui(
             egui::Color32::WHITE,
         );
         let pos = match direction {
-            PegLabelDirection::Left => {
+            PegDirection::Left => {
                 peg_rect.left_center()
                     + egui::vec2(-5.0 - galley.rect.width(), -0.5 * galley.rect.height())
             }
-            PegLabelDirection::Top => {
+            PegDirection::Top => {
                 peg_rect.center_top()
                     + egui::vec2(-0.5 * galley.rect.width(), -5.0 - galley.rect.height())
             }
-            PegLabelDirection::Right => {
+            PegDirection::Right => {
                 peg_rect.right_center() + egui::vec2(5.0, -0.5 * galley.rect.height())
             }
         };
@@ -561,7 +556,7 @@ fn peg_ui(
 struct SoundInputWidget<'a> {
     sound_input_id: SoundInputId,
     label: &'a str,
-    direction: PegLabelDirection,
+    direction: PegDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -569,7 +564,7 @@ impl<'a> SoundInputWidget<'a> {
     fn new(
         sound_input_id: SoundInputId,
         label: &'a str,
-        direction: PegLabelDirection,
+        direction: PegDirection,
         graph_state: &'a mut GraphUIState,
     ) -> SoundInputWidget<'a> {
         SoundInputWidget {
@@ -597,7 +592,7 @@ impl<'a> egui::Widget for SoundInputWidget<'a> {
 struct SoundOutputWidget<'a> {
     sound_processor_id: SoundProcessorId,
     label: &'a str,
-    direction: PegLabelDirection,
+    direction: PegDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -605,7 +600,7 @@ impl<'a> SoundOutputWidget<'a> {
     fn new(
         sound_processor_id: SoundProcessorId,
         label: &'a str,
-        direction: PegLabelDirection,
+        direction: PegDirection,
         graph_state: &'a mut GraphUIState,
     ) -> SoundOutputWidget<'a> {
         SoundOutputWidget {
@@ -633,7 +628,7 @@ impl<'a> egui::Widget for SoundOutputWidget<'a> {
 struct NumberInputWidget<'a> {
     number_input_id: NumberInputId,
     label: &'a str,
-    direction: PegLabelDirection,
+    direction: PegDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -641,7 +636,7 @@ impl<'a> NumberInputWidget<'a> {
     fn new(
         number_input_id: NumberInputId,
         label: &'a str,
-        direction: PegLabelDirection,
+        direction: PegDirection,
         graph_state: &'a mut GraphUIState,
     ) -> NumberInputWidget<'a> {
         NumberInputWidget {
@@ -669,7 +664,7 @@ impl<'a> egui::Widget for NumberInputWidget<'a> {
 struct NumberOutputWidget<'a> {
     number_source_id: NumberSourceId,
     label: &'a str,
-    direction: PegLabelDirection,
+    direction: PegDirection,
     graph_state: &'a mut GraphUIState,
 }
 
@@ -677,7 +672,7 @@ impl<'a> NumberOutputWidget<'a> {
     fn new(
         number_source_id: NumberSourceId,
         label: &'a str,
-        direction: PegLabelDirection,
+        direction: PegDirection,
         graph_state: &'a mut GraphUIState,
     ) -> NumberOutputWidget<'a> {
         NumberOutputWidget {

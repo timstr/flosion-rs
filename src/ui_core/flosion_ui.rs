@@ -25,6 +25,7 @@ use rfd::FileDialog;
 
 use super::{
     graph_ui_state::{GraphUIState, SelectionChange},
+    object_ui::PegDirection,
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
 };
@@ -348,6 +349,50 @@ impl FlosionApp {
         }
     }
 
+    fn paint_wire(
+        painter: &egui::Painter,
+        start: egui::Pos2,
+        start_direction: egui::Vec2,
+        end: egui::Pos2,
+        end_direction: egui::Vec2,
+        stroke: egui::Stroke,
+    ) {
+        let dist = (end - start).length();
+        let p0 = start.to_vec2();
+        let p1 = start.to_vec2() + 0.5 * dist * start_direction;
+        let p2 = end.to_vec2() + 0.5 * dist * end_direction;
+        let p3 = end.to_vec2();
+
+        let subdivs = (dist / 8.0).max(1.0) as usize;
+        let k_inv_subdivs = 1.0 / subdivs as f32;
+        let mut p_prev = start;
+        for i in 0..subdivs {
+            let t = (i + 1) as f32 * k_inv_subdivs;
+            let t2 = t * t;
+            let t3 = t * t2;
+            let omt = 1.0 - t;
+            let omt2 = omt * omt;
+            let omt3 = omt * omt2;
+
+            let p = (omt3 * p0) + (3.0 * omt2 * t * p1) + (3.0 * omt * t2 * p2) + (t3 * p3);
+            let p = p.to_pos2();
+
+            painter.line_segment([p_prev, p], stroke);
+
+            p_prev = p;
+        }
+
+        // painter.line_segment([start, end], stroke);
+    }
+
+    fn peg_direction_to_vec(direction: PegDirection) -> egui::Vec2 {
+        match direction {
+            PegDirection::Left => egui::vec2(-1.0, 0.0),
+            PegDirection::Top => egui::vec2(0.0, -1.0),
+            PegDirection::Right => egui::vec2(1.0, 0.0),
+        }
+    }
+
     fn draw_wires(ui: &mut Ui, ui_state: &GraphUIState, topo: &SoundGraphTopology) {
         // TODO: consider choosing which layer to paint the wire on, rather
         // than always painting the wire on top. However, choosing the layer
@@ -356,7 +401,6 @@ impl FlosionApp {
         // (e.g. memory().areas) which aren't yet exposed.
         // On the other hand, is there any correct way to paint wires between
         // two connected objects that are directly on top of one another?
-        // TODO: curvy wires
         ui.with_layer_id(
             egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
             |ui| {
@@ -368,17 +412,22 @@ impl FlosionApp {
                         let si_state = layout.sound_inputs().get(siid).unwrap();
                         let sp_state = layout.sound_outputs().get(&spid).unwrap();
                         let faint = drag_peg == Some(GraphId::SoundInput(*siid));
-                        painter.line_segment(
-                            [si_state.center(), sp_state.center()],
-                            egui::Stroke::new(
-                                2.0,
-                                egui::Color32::from_rgba_unmultiplied(
-                                    0,
-                                    255,
-                                    0,
-                                    if faint { 64 } else { 255 },
-                                ),
+                        let stroke = egui::Stroke::new(
+                            2.0,
+                            egui::Color32::from_rgba_unmultiplied(
+                                0,
+                                255,
+                                0,
+                                if faint { 64 } else { 255 },
                             ),
+                        );
+                        Self::paint_wire(
+                            painter,
+                            si_state.layout.center(),
+                            Self::peg_direction_to_vec(si_state.direction),
+                            sp_state.layout.center(),
+                            Self::peg_direction_to_vec(sp_state.direction),
+                            stroke,
                         );
                     }
                 }
@@ -391,17 +440,22 @@ impl FlosionApp {
                         let ni_state = layout.number_inputs().get(niid).unwrap();
                         let ns_state = layout.number_outputs().get(&nsid).unwrap();
                         let faint = drag_peg == Some(GraphId::NumberInput(*niid));
-                        painter.line_segment(
-                            [ni_state.center(), ns_state.center()],
-                            egui::Stroke::new(
-                                2.0,
-                                egui::Color32::from_rgba_unmultiplied(
-                                    0,
-                                    0,
-                                    255,
-                                    if faint { 64 } else { 255 },
-                                ),
+                        let stroke = egui::Stroke::new(
+                            2.0,
+                            egui::Color32::from_rgba_unmultiplied(
+                                0,
+                                0,
+                                255,
+                                if faint { 64 } else { 255 },
                             ),
+                        );
+                        Self::paint_wire(
+                            painter,
+                            ni_state.layout.center(),
+                            Self::peg_direction_to_vec(ni_state.direction),
+                            ns_state.layout.center(),
+                            Self::peg_direction_to_vec(ns_state.direction),
+                            stroke,
                         );
                     }
                 }
@@ -410,36 +464,46 @@ impl FlosionApp {
                         Some(p) => p,
                         None => return,
                     };
+                    let cursor_direction = egui::vec2(0.0, 0.0);
                     let layout = ui_state.layout_state();
-                    let other_pos;
+                    let peg_state;
+
                     let color;
                     match gid {
                         GraphId::NumberInput(niid) => {
                             if let Some(nsid) = topo.number_input(niid).unwrap().target() {
-                                other_pos = layout.number_outputs().get(&nsid).unwrap().center();
+                                peg_state = layout.number_outputs().get(&nsid).unwrap();
                             } else {
-                                other_pos = layout.number_inputs().get(&niid).unwrap().center();
+                                peg_state = layout.number_inputs().get(&niid).unwrap();
                             }
                             color = egui::Color32::from_rgb(0, 0, 255);
                         }
                         GraphId::NumberSource(nsid) => {
-                            other_pos = layout.number_outputs().get(&nsid).unwrap().center();
+                            peg_state = layout.number_outputs().get(&nsid).unwrap();
                             color = egui::Color32::from_rgb(0, 0, 255);
                         }
                         GraphId::SoundInput(siid) => {
                             if let Some(spid) = topo.sound_input(siid).unwrap().target() {
-                                other_pos = layout.sound_outputs().get(&spid).unwrap().center();
+                                peg_state = layout.sound_outputs().get(&spid).unwrap();
                             } else {
-                                other_pos = layout.sound_inputs().get(&siid).unwrap().center();
+                                peg_state = layout.sound_inputs().get(&siid).unwrap();
                             }
                             color = egui::Color32::from_rgb(0, 255, 0);
                         }
                         GraphId::SoundProcessor(spid) => {
-                            other_pos = layout.sound_outputs().get(&spid).unwrap().center();
+                            peg_state = layout.sound_outputs().get(&spid).unwrap();
                             color = egui::Color32::from_rgb(0, 255, 0);
                         }
                     }
-                    painter.line_segment([cursor_pos, other_pos], egui::Stroke::new(2.0, color));
+                    let stroke = egui::Stroke::new(2.0, color);
+                    Self::paint_wire(
+                        painter,
+                        peg_state.layout.center(),
+                        Self::peg_direction_to_vec(peg_state.direction),
+                        cursor_pos,
+                        cursor_direction,
+                        stroke,
+                    );
                 }
             },
         );

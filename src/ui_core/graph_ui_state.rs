@@ -2,7 +2,6 @@ use std::{
     any::{type_name, Any},
     cell::RefCell,
     collections::{HashMap, HashSet},
-    hash::Hash,
     rc::Rc,
     sync::Arc,
 };
@@ -24,7 +23,7 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::ui_factory::UiFactory;
+use super::{object_ui::PegDirection, ui_factory::UiFactory};
 
 fn serialize_object_id(id: ObjectId, serializer: &mut Serializer, idmap: &ForwardGraphIdMap) {
     match id {
@@ -61,51 +60,27 @@ impl LayoutState {
     }
 }
 
-pub struct LayoutStateMap<T: Hash + Eq> {
-    states: HashMap<T, LayoutState>,
-}
-
-impl<T: Hash + Eq> LayoutStateMap<T> {
-    pub fn new() -> LayoutStateMap<T> {
-        LayoutStateMap {
-            states: HashMap::new(),
-        }
-    }
-
-    fn clear(&mut self) {
-        self.states.clear();
-    }
-
-    fn states(&self) -> &HashMap<T, LayoutState> {
-        &self.states
-    }
-
-    fn states_mut(&mut self) -> &mut HashMap<T, LayoutState> {
-        &mut self.states
-    }
-
-    pub fn add(&mut self, id: T, rect: egui::Rect, layer: egui::LayerId) {
-        let state = LayoutState { rect, layer };
-        self.states.insert(id, state);
-    }
+pub struct PegLayoutState {
+    pub direction: PegDirection,
+    pub layout: LayoutState,
 }
 
 pub struct GraphLayout {
-    sound_inputs: LayoutStateMap<SoundInputId>,
-    sound_outputs: LayoutStateMap<SoundProcessorId>,
-    number_inputs: LayoutStateMap<NumberInputId>,
-    number_outputs: LayoutStateMap<NumberSourceId>,
-    objects: LayoutStateMap<ObjectId>,
+    sound_inputs: HashMap<SoundInputId, PegLayoutState>,
+    sound_outputs: HashMap<SoundProcessorId, PegLayoutState>,
+    number_inputs: HashMap<NumberInputId, PegLayoutState>,
+    number_outputs: HashMap<NumberSourceId, PegLayoutState>,
+    objects: HashMap<ObjectId, LayoutState>,
 }
 
 impl GraphLayout {
     pub(super) fn new() -> GraphLayout {
         GraphLayout {
-            sound_inputs: LayoutStateMap::new(),
-            sound_outputs: LayoutStateMap::new(),
-            number_inputs: LayoutStateMap::new(),
-            number_outputs: LayoutStateMap::new(),
-            objects: LayoutStateMap::new(),
+            sound_inputs: HashMap::new(),
+            sound_outputs: HashMap::new(),
+            number_inputs: HashMap::new(),
+            number_outputs: HashMap::new(),
+            objects: HashMap::new(),
         }
     }
 
@@ -117,62 +92,63 @@ impl GraphLayout {
     }
 
     fn retain(&mut self, ids: &HashSet<GraphId>) {
-        self.objects
-            .states_mut()
-            .retain(|i, _| ids.contains(&(*i).into()));
-        self.sound_inputs
-            .states_mut()
-            .retain(|i, _| ids.contains(&(*i).into()));
-        self.sound_outputs
-            .states_mut()
-            .retain(|i, _| ids.contains(&(*i).into()));
-        self.number_inputs
-            .states_mut()
-            .retain(|i, _| ids.contains(&(*i).into()));
+        self.objects.retain(|i, _| ids.contains(&(*i).into()));
+        self.sound_inputs.retain(|i, _| ids.contains(&(*i).into()));
+        self.sound_outputs.retain(|i, _| ids.contains(&(*i).into()));
+        self.number_inputs.retain(|i, _| ids.contains(&(*i).into()));
         self.number_outputs
-            .states_mut()
             .retain(|i, _| ids.contains(&(*i).into()));
     }
 
-    pub fn track_peg(&mut self, id: GraphId, rect: egui::Rect, layer: egui::LayerId) {
+    pub fn track_peg(
+        &mut self,
+        id: GraphId,
+        rect: egui::Rect,
+        layer: egui::LayerId,
+        direction: PegDirection,
+    ) {
+        let state = PegLayoutState {
+            direction,
+            layout: LayoutState { rect, layer },
+        };
         match id {
-            GraphId::NumberInput(id) => self.number_inputs.add(id, rect, layer),
-            GraphId::NumberSource(id) => self.number_outputs.add(id, rect, layer),
-            GraphId::SoundInput(id) => self.sound_inputs.add(id, rect, layer),
-            GraphId::SoundProcessor(id) => self.sound_outputs.add(id, rect, layer),
-        }
+            GraphId::NumberInput(id) => self.number_inputs.insert(id, state),
+            GraphId::NumberSource(id) => self.number_outputs.insert(id, state),
+            GraphId::SoundInput(id) => self.sound_inputs.insert(id, state),
+            GraphId::SoundProcessor(id) => self.sound_outputs.insert(id, state),
+        };
     }
 
-    fn objects(&self) -> &LayoutStateMap<ObjectId> {
+    fn objects(&self) -> &HashMap<ObjectId, LayoutState> {
         &self.objects
     }
 
-    fn objects_mut(&mut self) -> &mut LayoutStateMap<ObjectId> {
+    fn objects_mut(&mut self) -> &mut HashMap<ObjectId, LayoutState> {
         &mut self.objects
     }
 
     pub fn track_object_location(&mut self, id: ObjectId, rect: egui::Rect, layer: egui::LayerId) {
-        self.objects.add(id, rect, layer);
+        self.objects.insert(id, LayoutState { rect, layer });
     }
 
     pub fn get_object_location(&self, id: ObjectId) -> Option<&LayoutState> {
-        self.objects.states().get(&id)
+        self.objects.get(&id)
     }
 
-    pub(super) fn sound_inputs(&self) -> &HashMap<SoundInputId, LayoutState> {
-        &self.sound_inputs.states
+    pub(super) fn sound_inputs(&self) -> &HashMap<SoundInputId, PegLayoutState> {
+        &self.sound_inputs
     }
 
-    pub(super) fn sound_outputs(&self) -> &HashMap<SoundProcessorId, LayoutState> {
-        &self.sound_outputs.states
+    pub(super) fn sound_outputs(&self) -> &HashMap<SoundProcessorId, PegLayoutState> {
+        &self.sound_outputs
     }
 
-    pub(super) fn number_inputs(&self) -> &HashMap<NumberInputId, LayoutState> {
-        &self.number_inputs.states
+    pub(super) fn number_inputs(&self) -> &HashMap<NumberInputId, PegLayoutState> {
+        &self.number_inputs
     }
 
-    pub(super) fn number_outputs(&self) -> &HashMap<NumberSourceId, LayoutState> {
-        &self.number_outputs.states
+    pub(super) fn number_outputs(&self) -> &HashMap<NumberSourceId, PegLayoutState> {
+        &self.number_outputs
     }
 
     pub(super) fn find_peg_near(&self, position: egui::Pos2, ui: &egui::Ui) -> Option<GraphId> {
@@ -182,15 +158,15 @@ impl GraphLayout {
             None => return None,
         };
         fn find<T: UniqueId>(
-            peg_states: &LayoutStateMap<T>,
+            peg_states: &HashMap<T, PegLayoutState>,
             layer: egui::LayerId,
             position: egui::Pos2,
         ) -> Option<T> {
-            for (id, st) in peg_states.states() {
-                if st.layer != layer {
+            for (id, st) in peg_states {
+                if st.layout.layer != layer {
                     continue;
                 }
-                if st.rect.contains(position) {
+                if st.layout.rect.contains(position) {
                     return Some(*id);
                 }
             }
@@ -223,7 +199,7 @@ impl GraphLayout {
             None => true,
         };
         let mut s1 = serializer.subarchive();
-        for (id, layout) in &self.objects.states {
+        for (id, layout) in &self.objects {
             if !is_selected(*id) {
                 continue;
             }
@@ -243,7 +219,7 @@ impl GraphLayout {
             let id: ObjectId = deserialize_object_id(&mut d1, idmap)?;
             let left = d1.f32()?;
             let top = d1.f32()?;
-            let layout = self.objects.states.entry(id).or_insert(LayoutState {
+            let layout = self.objects.entry(id).or_insert(LayoutState {
                 rect: egui::Rect::NAN,
                 layer: egui::LayerId::debug(),
             });
@@ -464,7 +440,7 @@ impl GraphUIState {
         if let SelectionChange::Replace = change {
             selection.clear();
         }
-        for (object_id, object_state) in self.layout_state.objects().states() {
+        for (object_id, object_state) in self.layout_state.objects() {
             if rect.intersects(object_state.rect) {
                 if let SelectionChange::Subtract = change {
                     selection.remove(object_id);
@@ -559,7 +535,7 @@ impl GraphUIState {
         match &self.mode {
             UiMode::Selecting(selection) => {
                 for s in selection {
-                    let state = objects.states_mut().get_mut(s).unwrap();
+                    let state = objects.get_mut(s).unwrap();
                     state.rect = state.rect.translate(delta);
                 }
             }
@@ -878,7 +854,7 @@ impl GraphUIState {
                 }
             }
         }
-        for i in self.layout_state.objects().states().keys() {
+        for i in self.layout_state.objects().keys() {
             match i {
                 ObjectId::Sound(i) => {
                     if !topo.sound_processors().contains_key(i) {
