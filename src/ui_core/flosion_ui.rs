@@ -1,7 +1,6 @@
 use std::{
     fs::File,
     io::{Read, Write},
-    sync::Arc,
 };
 
 use crate::{
@@ -20,7 +19,6 @@ use eframe::{
     self,
     egui::{self, Response, Ui},
 };
-use parking_lot::RwLock;
 use rfd::FileDialog;
 
 use super::{
@@ -37,8 +35,8 @@ struct SelectionState {
 
 pub struct FlosionApp {
     graph: SoundGraph,
-    object_factory: Arc<RwLock<ObjectFactory>>,
-    ui_factory: Arc<RwLock<UiFactory>>,
+    object_factory: ObjectFactory,
+    ui_factory: UiFactory,
     ui_state: GraphUIState,
     object_states: ObjectUiStates,
     summon_state: Option<SummonWidgetState>,
@@ -50,8 +48,6 @@ impl FlosionApp {
         // TODO: learn about what CreationContext offers
         let graph = SoundGraph::new();
         let (object_factory, ui_factory) = all_objects();
-        let object_factory = Arc::new(RwLock::new(object_factory));
-        let ui_factory = Arc::new(RwLock::new(ui_factory)); // TODO: no arc rwlock
         FlosionApp {
             graph,
             ui_state: GraphUIState::new(),
@@ -244,7 +240,7 @@ impl FlosionApp {
                 Some(_) => None,
                 None => Some(SummonWidgetState::new(
                     pointer_pos.unwrap(),
-                    &self.ui_factory.read(),
+                    &self.ui_factory,
                 )),
             };
         } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
@@ -259,11 +255,9 @@ impl FlosionApp {
                     let (type_name, args) = s.parse_selected();
                     // TODO: how to distinguish args for ui from args for object, if ever needed?
                     // See also note in Constant::new
-                    let new_object = self.object_factory.read().create_from_args(
-                        type_name,
-                        &mut self.graph,
-                        &args,
-                    );
+                    let new_object =
+                        self.object_factory
+                            .create_from_args(type_name, &mut self.graph, &args);
                     let new_object = match new_object {
                         Ok(o) => o,
                         Err(_) => {
@@ -271,10 +265,7 @@ impl FlosionApp {
                             return;
                         }
                     };
-                    let new_state = self
-                        .ui_factory
-                        .read()
-                        .create_state_from_args(&new_object, &args);
+                    let new_state = self.ui_factory.create_state_from_args(&new_object, &args);
                     self.object_states.set_object_data(
                         new_object.id(),
                         new_state,
@@ -605,8 +596,8 @@ impl FlosionApp {
                     &mut self.object_states,
                     data,
                     &mut self.graph,
-                    &self.object_factory.read(),
-                    &self.ui_factory.read(),
+                    &self.object_factory,
+                    &self.ui_factory,
                 );
                 match res {
                     Ok(object_ids) => self
@@ -637,8 +628,8 @@ impl FlosionApp {
                     &mut self.ui_state,
                     &mut self.object_states,
                     &mut self.graph,
-                    &self.object_factory.read(),
-                    &self.ui_factory.read(),
+                    &self.object_factory,
+                    &self.ui_factory,
                 ) {
                     return;
                 }
@@ -662,10 +653,9 @@ impl eframe::App for FlosionApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.ui_state.reset_pegs();
             {
-                let factory = self.ui_factory.read();
                 Self::draw_all_objects(
                     ui,
-                    &factory,
+                    &self.ui_factory,
                     &self.graph,
                     &mut self.ui_state,
                     &mut self.object_states,
@@ -707,7 +697,7 @@ impl eframe::App for FlosionApp {
 
             self.ui_state.apply_pending_changes(&mut self.graph);
             self.object_states
-                .make_states_for_new_objects(self.graph.topology(), &*self.ui_factory.read());
+                .make_states_for_new_objects(self.graph.topology(), &self.ui_factory);
             let remaining_ids = self.graph.topology().all_ids();
             self.ui_state.cleanup(&remaining_ids);
             self.object_states.cleanup(&remaining_ids);
