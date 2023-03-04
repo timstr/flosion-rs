@@ -1,10 +1,10 @@
-use std::{
-    any::{type_name, Any},
-    cell::RefCell,
-    rc::Rc,
-};
+use std::any::{type_name, Any};
 
-use eframe::egui::{self};
+use eframe::{
+    egui::{self},
+    epaint::ecolor::{self},
+};
+use rand::{thread_rng, Rng};
 
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
@@ -19,7 +19,7 @@ use crate::core::{
     soundprocessor::SoundProcessorId,
 };
 
-use super::graph_ui_state::{GraphUIState, ObjectUiState};
+use super::graph_ui_state::{AnyObjectUiData, AnyObjectUiState, GraphUIState};
 
 #[derive(Default)]
 pub struct NoUIState;
@@ -34,9 +34,20 @@ impl Serializable for NoUIState {
     }
 }
 
+pub fn random_object_color() -> egui::Color32 {
+    let hue: f32 = thread_rng().gen();
+    let color = ecolor::Hsva::new(hue, 1.0, 0.5, 1.0);
+    color.into()
+}
+
 pub enum UiInitialization<'a> {
     Args(&'a ParsedArguments),
     Default,
+}
+
+pub struct ObjectUiData<'a, T: Any + Default + Serializable> {
+    pub state: &'a T,
+    pub color: egui::Color32,
 }
 
 pub trait ObjectUi: 'static + Default {
@@ -47,7 +58,7 @@ pub trait ObjectUi: 'static + Default {
         handle: Self::HandleType,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
-        state: &Self::StateType,
+        data: ObjectUiData<Self::StateType>,
     );
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -71,7 +82,7 @@ pub trait AnyObjectUi {
     fn apply(
         &self,
         object: &GraphObjectHandle,
-        object_ui_state: &dyn ObjectUiState,
+        object_ui_state: &AnyObjectUiData,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     );
@@ -84,53 +95,32 @@ pub trait AnyObjectUi {
         &self,
         object: &GraphObjectHandle,
         init: ObjectInitialization,
-    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()>;
+    ) -> Result<Box<dyn AnyObjectUiState>, ()>;
 }
-
-// fn downcast_object_arc<T: ObjectUi>(object: Arc<dyn GraphObject>) -> Arc<T::WrapperType> {
-//     let actual_type_name = object.get_language_type_name();
-//     let any = object.into_arc_any();
-//     debug_assert!(
-//         any.is::<Arc<T::WrapperType>>(),
-//         "AnyObjectUi expected to receive type {}, but got {} instead",
-//         type_name::<T::WrapperType>(),
-//         actual_type_name
-//     );
-//     any.downcast_ref::<Arc<T::WrapperType>>()
-//         .map(Arc::clone)
-//         .unwrap()
-// }
-
-// fn downcast_object_ref<T: ObjectUi>(object: &dyn GraphObject) -> &T::WrapperType {
-//     let any = object.as_any();
-//     debug_assert!(
-//         any.is::<T::WrapperType>(),
-//         "AnyObjectUi expected to receive type {}, but got {} instead",
-//         type_name::<T::WrapperType>(),
-//         object.get_language_type_name()
-//     );
-//     any.downcast_ref::<T::WrapperType>().unwrap()
-// }
 
 impl<T: ObjectUi> AnyObjectUi for T {
     fn apply(
         &self,
         object: &GraphObjectHandle,
-        object_ui_state: &dyn ObjectUiState,
+        object_ui_state: &AnyObjectUiData,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     ) {
         // let dc_object = downcast_object_arc::<T>(object.clone().instance_arc());
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let state_any = object_ui_state.as_any();
+        let state_any = object_ui_state.state().as_any();
         debug_assert!(
             state_any.is::<T::StateType>(),
             "AnyObjectUi expected to receive state type {}, but got {:?} instead",
             type_name::<T::StateType>(),
-            object_ui_state.get_language_type_name()
+            object_ui_state.state().get_language_type_name()
         );
         let state = state_any.downcast_ref::<T::StateType>().unwrap();
-        self.ui(handle, graph_state, ui, state);
+        let data = ObjectUiData {
+            state,
+            color: object_ui_state.color(),
+        };
+        self.ui(handle, graph_state, ui, data);
     }
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -145,7 +135,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
         &self,
         object: &GraphObjectHandle,
         init: ObjectInitialization,
-    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
+    ) -> Result<Box<dyn AnyObjectUiState>, ()> {
         // let dc_object = downcast_object_ref::<T>(object.instance());
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let state: T::StateType = match init {
@@ -153,7 +143,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
             ObjectInitialization::Archive(mut a) => T::StateType::deserialize(&mut a)?,
             ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
         };
-        Ok(Rc::new(RefCell::new(state)))
+        Ok(Box::new(state))
     }
 }
 
@@ -201,24 +191,38 @@ impl PegCreator for SoundProcessorId {
 
 pub struct ObjectWindow {
     object_id: ObjectId,
+    label: &'static str,
+    color: egui::Color32,
     left_pegs: Vec<(GraphId, &'static str)>,
     top_pegs: Vec<(GraphId, &'static str)>,
     right_pegs: Vec<(GraphId, &'static str)>,
 }
 
 impl ObjectWindow {
-    pub fn new_sound_processor(id: SoundProcessorId) -> ObjectWindow {
+    pub fn new_sound_processor(
+        id: SoundProcessorId,
+        label: &'static str,
+        color: egui::Color32,
+    ) -> ObjectWindow {
         ObjectWindow {
             object_id: ObjectId::Sound(id),
+            label,
+            color,
             left_pegs: Vec::new(),
             top_pegs: Vec::new(),
             right_pegs: Vec::new(),
         }
     }
 
-    pub fn new_number_source(id: NumberSourceId) -> ObjectWindow {
+    pub fn new_number_source(
+        id: NumberSourceId,
+        label: &'static str,
+        color: egui::Color32,
+    ) -> ObjectWindow {
         ObjectWindow {
             object_id: ObjectId::Number(id),
+            label,
+            color,
             left_pegs: Vec::new(),
             top_pegs: Vec::new(),
             right_pegs: Vec::new(),
@@ -270,7 +274,11 @@ impl ObjectWindow {
         }
     }
 
-    pub fn show<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
+    pub fn show(self, ctx: &egui::Context, graph_tools: &mut GraphUIState) {
+        self.show_with(ctx, graph_tools, |_ui, _tools| {});
+    }
+
+    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
         self,
         ctx: &egui::Context,
         graph_tools: &mut GraphUIState,
@@ -281,16 +289,10 @@ impl ObjectWindow {
             ObjectId::Number(id) => format!("NumberObjectWindow {:?}", id),
         };
         let id = egui::Id::new(s);
-        let fill;
-        if graph_tools.object_has_keyboard_focus(self.object_id) {
-            fill = egui::Color32::GREEN;
-        } else if graph_tools.is_object_selected(self.object_id) {
-            fill = egui::Color32::LIGHT_BLUE;
-        } else {
-            fill = egui::Color32::DARK_BLUE;
-        }
 
         let mut area = egui::Area::new(id);
+        let mut fill = self.color;
+
         if let Some(state) = graph_tools
             .layout_state()
             .get_object_location(self.object_id)
@@ -298,6 +300,14 @@ impl ObjectWindow {
             area = area.current_pos(state.rect.left_top());
         } else if let Some(pos) = ctx.input().pointer.interact_pos() {
             area = area.current_pos(pos);
+        }
+
+        if graph_tools.object_has_keyboard_focus(self.object_id) {
+            // TODO: how to highlight?
+        } else if graph_tools.is_object_selected(self.object_id) {
+            let mut hsva = ecolor::Hsva::from(fill);
+            hsva.v = 0.5 * (1.0 + hsva.a);
+            fill = hsva.into();
         }
 
         let center_frame = egui::Frame::default()
@@ -364,6 +374,7 @@ impl ObjectWindow {
                     }
                     center_frame.show(ui, |ui| {
                         ui.set_min_width(min_content_width);
+                        ui.label(egui::RichText::new(self.label).color(egui::Color32::BLACK));
                         add_contents(ui, graph_tools);
                     });
                     if right_col {

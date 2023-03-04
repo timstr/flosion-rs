@@ -3,7 +3,7 @@ use crate::{
     objects::whitenoise::WhiteNoise,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -19,12 +19,10 @@ impl ObjectUi for WhiteNoiseUi {
         whitenoise: DynamicSoundProcessorHandle<WhiteNoise>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &NoUIState,
+        data: ObjectUiData<NoUIState>,
     ) {
-        ObjectWindow::new_sound_processor(whitenoise.id())
+        ObjectWindow::new_sound_processor(whitenoise.id(), "WhiteNoise", data.color)
             .add_right_peg(whitenoise.id(), "Output")
-            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                ui.label("WhiteNoise");
-            });
+            .show(ui.ctx(), graph_tools);
     }
 }

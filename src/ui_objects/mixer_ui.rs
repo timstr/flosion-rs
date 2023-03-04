@@ -3,7 +3,7 @@ use crate::{
     objects::mixer::Mixer,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -19,17 +19,16 @@ impl ObjectUi for MixerUi {
         mixer: DynamicSoundProcessorHandle<Mixer>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &NoUIState,
+        data: ObjectUiData<NoUIState>,
     ) {
-        let mut objwin =
-            ObjectWindow::new_sound_processor(mixer.id()).add_right_peg(mixer.id(), "Output");
+        let mut objwin = ObjectWindow::new_sound_processor(mixer.id(), "Mixer", data.color)
+            .add_right_peg(mixer.id(), "Output");
 
         for (i, siid) in mixer.get_input_ids().into_iter().enumerate() {
             objwin = objwin.add_left_peg(siid, "Input ???"); // TODO: allow String, then use format!("Input {}", i + 1));
         }
 
-        objwin.show(ui.ctx(), graph_tools, |ui, graph_tools| {
-            ui.label("Mixer");
+        objwin.show_with(ui.ctx(), graph_tools, |ui, graph_tools| {
             let last_input = mixer.get_input_ids().into_iter().last();
 
             if ui.button("+").clicked() {

@@ -3,7 +3,7 @@ use crate::{
     objects::dac::Dac,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -18,12 +18,11 @@ impl ObjectUi for DacUi {
         dac: StaticSoundProcessorHandle<Dac>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &NoUIState,
+        data: ObjectUiData<NoUIState>,
     ) {
-        ObjectWindow::new_sound_processor(dac.id())
+        ObjectWindow::new_sound_processor(dac.id(), "Dac", data.color)
             .add_left_peg(dac.input.id(), "Input")
-            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                ui.label("Dac");
+            .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 if ui.button("Reset").clicked() {
                     dac.reset();
                 }

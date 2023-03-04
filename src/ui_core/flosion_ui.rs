@@ -24,8 +24,8 @@ use parking_lot::RwLock;
 use rfd::FileDialog;
 
 use super::{
-    graph_ui_state::{GraphUIState, SelectionChange},
-    object_ui::PegDirection,
+    graph_ui_state::{GraphUIState, ObjectUiStates, SelectionChange},
+    object_ui::{random_object_color, PegDirection},
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
 };
@@ -40,6 +40,7 @@ pub struct FlosionApp {
     object_factory: Arc<RwLock<ObjectFactory>>,
     ui_factory: Arc<RwLock<UiFactory>>,
     ui_state: GraphUIState,
+    object_states: ObjectUiStates,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
 }
@@ -50,10 +51,11 @@ impl FlosionApp {
         let graph = SoundGraph::new();
         let (object_factory, ui_factory) = all_objects();
         let object_factory = Arc::new(RwLock::new(object_factory));
-        let ui_factory = Arc::new(RwLock::new(ui_factory));
+        let ui_factory = Arc::new(RwLock::new(ui_factory)); // TODO: no arc rwlock
         FlosionApp {
             graph,
-            ui_state: GraphUIState::new(Arc::clone(&ui_factory)),
+            ui_state: GraphUIState::new(),
+            object_states: ObjectUiStates::new(),
             object_factory,
             ui_factory,
             summon_state: None,
@@ -66,9 +68,10 @@ impl FlosionApp {
         factory: &UiFactory,
         graph: &SoundGraph,
         ui_state: &mut GraphUIState,
+        object_states: &mut ObjectUiStates,
     ) {
         for object in graph.topology().graph_objects() {
-            factory.ui(&object, ui_state, ui);
+            factory.ui(&object, ui_state, object_states, ui);
         }
     }
 
@@ -113,6 +116,7 @@ impl FlosionApp {
         key: egui::Key,
         modifiers: egui::Modifiers,
         ui_state: &mut GraphUIState,
+        object_states: &mut ObjectUiStates,
         graph: &mut SoundGraph,
         object_factory: &ObjectFactory,
         ui_factory: &UiFactory,
@@ -138,7 +142,7 @@ impl FlosionApp {
                     }
                 };
                 // TODO: no need to base64 encode
-                let data = Self::serialize(ui_state, &graph, false).unwrap();
+                let data = Self::serialize(ui_state, object_states, &graph, false).unwrap();
                 let mut file = match File::create(&path) {
                     Ok(f) => f,
                     Err(e) => {
@@ -179,9 +183,14 @@ impl FlosionApp {
                     println!("Failed to read file at {}: {}", path.to_str().unwrap(), e);
                     return true;
                 }
-                if let Err(_) =
-                    Self::deserialize(ui_state, &data, graph, object_factory, ui_factory)
-                {
+                if let Err(_) = Self::deserialize(
+                    ui_state,
+                    object_states,
+                    &data,
+                    graph,
+                    object_factory,
+                    ui_factory,
+                ) {
                     println!("Error while deserializing objects");
                 }
                 true
@@ -266,7 +275,11 @@ impl FlosionApp {
                         .ui_factory
                         .read()
                         .create_state_from_args(&new_object, &args);
-                    self.ui_state.set_object_state(new_object.id(), new_state);
+                    self.object_states.set_object_data(
+                        new_object.id(),
+                        new_state,
+                        random_object_color(),
+                    );
                     self.ui_state.clear_selection();
                     self.ui_state.select_object(new_object.id());
                 }
@@ -520,6 +533,7 @@ impl FlosionApp {
 
     fn serialize(
         ui_state: &GraphUIState,
+        object_states: &ObjectUiStates,
         graph: &SoundGraph,
         use_selection: bool,
     ) -> Option<String> {
@@ -539,7 +553,10 @@ impl FlosionApp {
         };
         let archive = Archive::serialize_with(|mut serializer| {
             let idmap = serialize_sound_graph(graph, selection.as_ref(), &mut serializer);
-            ui_state.serialize_ui_states(&mut serializer, selection.as_ref(), &idmap);
+            ui_state
+                .layout_state()
+                .serialize(&mut serializer, selection.as_ref(), &idmap);
+            object_states.serialize(&mut serializer, selection.as_ref(), &idmap);
         });
         let bytes = archive.into_vec();
         let b64_str = base64::encode(&bytes);
@@ -548,6 +565,7 @@ impl FlosionApp {
 
     fn deserialize(
         ui_state: &mut GraphUIState,
+        object_states: &mut ObjectUiStates,
         data: &str,
         graph: &mut SoundGraph,
         object_factory: &ObjectFactory,
@@ -557,19 +575,26 @@ impl FlosionApp {
         let archive = Archive::from_vec(bytes);
         let mut deserializer = archive.deserialize()?;
         let (objects, idmap) = deserialize_sound_graph(graph, &mut deserializer, object_factory)?;
-        ui_state.deserialize_ui_states(&mut deserializer, &idmap, graph.topology(), ui_factory)?;
+        ui_state
+            .layout_state_mut()
+            .deserialize(&mut deserializer, &idmap)?;
+        object_states.deserialize(&mut deserializer, &idmap, graph.topology(), ui_factory)?;
         Ok(objects)
     }
 
     fn handle_event(&mut self, event: &egui::Event, ui: &egui::Ui) {
         match event {
             egui::Event::Copy => {
-                if let Some(s) = Self::serialize(&self.ui_state, &self.graph, true) {
+                if let Some(s) =
+                    Self::serialize(&self.ui_state, &self.object_states, &self.graph, true)
+                {
                     ui.output().copied_text = s;
                 }
             }
             egui::Event::Cut => {
-                if let Some(s) = Self::serialize(&self.ui_state, &self.graph, true) {
+                if let Some(s) =
+                    Self::serialize(&self.ui_state, &self.object_states, &self.graph, true)
+                {
                     ui.output().copied_text = s;
                 }
                 Self::delete_selection(&mut self.ui_state);
@@ -577,6 +602,7 @@ impl FlosionApp {
             egui::Event::Paste(data) => {
                 let res = Self::deserialize(
                     &mut self.ui_state,
+                    &mut self.object_states,
                     data,
                     &mut self.graph,
                     &self.object_factory.read(),
@@ -609,6 +635,7 @@ impl FlosionApp {
                     *key,
                     *modifiers,
                     &mut self.ui_state,
+                    &mut self.object_states,
                     &mut self.graph,
                     &self.object_factory.read(),
                     &self.ui_factory.read(),
@@ -636,7 +663,13 @@ impl eframe::App for FlosionApp {
             self.ui_state.reset_pegs();
             {
                 let factory = self.ui_factory.read();
-                Self::draw_all_objects(ui, &factory, &self.graph, &mut self.ui_state);
+                Self::draw_all_objects(
+                    ui,
+                    &factory,
+                    &self.graph,
+                    &mut self.ui_state,
+                    &mut self.object_states,
+                );
             }
             let screen_rect = ui.input().screen_rect();
             let bg_response = ui.interact(
@@ -669,12 +702,15 @@ impl eframe::App for FlosionApp {
             #[cfg(debug_assertions)]
             {
                 assert!(self.ui_state.check_invariants(self.graph.topology()));
+                assert!(self.object_states.check_invariants(self.graph.topology()));
             }
 
             self.ui_state.apply_pending_changes(&mut self.graph);
-            self.ui_state
-                .make_states_for_new_objects(self.graph.topology());
-            self.ui_state.cleanup(self.graph.topology());
+            self.object_states
+                .make_states_for_new_objects(self.graph.topology(), &*self.ui_factory.read());
+            let remaining_ids = self.graph.topology().all_ids();
+            self.ui_state.cleanup(&remaining_ids);
+            self.object_states.cleanup(&remaining_ids);
 
             #[cfg(debug_assertions)]
             {

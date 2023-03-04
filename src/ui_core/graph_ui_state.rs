@@ -1,16 +1,12 @@
 use std::{
     any::{type_name, Any},
-    cell::RefCell,
     collections::{HashMap, HashSet},
-    rc::Rc,
-    sync::Arc,
 };
 
 use eframe::egui;
-use parking_lot::RwLock;
 
 use crate::core::{
-    graphobject::{GraphId, ObjectId},
+    graphobject::{GraphId, GraphObjectHandle, ObjectId},
     graphserialization::{ForwardGraphIdMap, ReverseGraphIdMap},
     numberinput::{NumberInputId, NumberInputOwner},
     numbersource::{NumberSourceId, NumberSourceOwner},
@@ -23,7 +19,10 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{object_ui::PegDirection, ui_factory::UiFactory};
+use super::{
+    object_ui::{random_object_color, PegDirection},
+    ui_factory::UiFactory,
+};
 
 fn serialize_object_id(id: ObjectId, serializer: &mut Serializer, idmap: &ForwardGraphIdMap) {
     match id {
@@ -188,7 +187,7 @@ impl GraphLayout {
         None
     }
 
-    fn serialize_positions(
+    pub(super) fn serialize(
         &self,
         serializer: &mut Serializer,
         subset: Option<&HashSet<ObjectId>>,
@@ -209,7 +208,7 @@ impl GraphLayout {
         }
     }
 
-    fn deserialize_positions(
+    pub(super) fn deserialize(
         &mut self,
         deserializer: &mut Deserializer,
         idmap: &ReverseGraphIdMap,
@@ -230,13 +229,13 @@ impl GraphLayout {
     }
 }
 
-pub trait ObjectUiState: 'static {
+pub trait AnyObjectUiState: 'static {
     fn as_any(&self) -> &dyn Any;
     fn get_language_type_name(&self) -> &'static str;
     fn serialize(&self, serializer: &mut Serializer);
 }
 
-impl<T: 'static + Serializable> ObjectUiState for T {
+impl<T: 'static + Serializable> AnyObjectUiState for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -317,22 +316,197 @@ enum UiMode {
     Selecting(HashSet<ObjectId>),
 }
 
+pub struct AnyObjectUiData {
+    state: Box<dyn AnyObjectUiState>,
+    color: egui::Color32,
+}
+
+impl AnyObjectUiData {
+    pub(crate) fn state(&self) -> &dyn AnyObjectUiState {
+        &*self.state
+    }
+
+    pub(crate) fn color(&self) -> egui::Color32 {
+        self.color
+    }
+}
+
+pub struct ObjectUiStates {
+    data: HashMap<ObjectId, AnyObjectUiData>,
+}
+
+impl ObjectUiStates {
+    pub(super) fn new() -> ObjectUiStates {
+        ObjectUiStates {
+            data: HashMap::new(),
+        }
+    }
+
+    pub(super) fn set_object_data(
+        &mut self,
+        id: ObjectId,
+        state: Box<dyn AnyObjectUiState>,
+        color: egui::Color32,
+    ) {
+        self.data.insert(id, AnyObjectUiData { state, color });
+    }
+
+    pub(super) fn get_object_data(&mut self, id: ObjectId) -> &AnyObjectUiData {
+        &*self.data.get(&id).unwrap()
+    }
+
+    pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>) {
+        self.data
+            .retain(|i, _| remaining_ids.contains(&(*i).into()));
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
+        let mut good = true;
+        for i in topo.sound_processors().keys() {
+            if !self.data.contains_key(&i.into()) {
+                println!("Sound processor {} does not have a ui state", i.0);
+                good = false;
+            }
+        }
+        for (i, ns) in topo.number_sources() {
+            if ns.owner() == NumberSourceOwner::Nothing {
+                if !self.data.contains_key(&i.into()) {
+                    println!("Pure number source {} does not have a ui state", i.0);
+                    good = false;
+                }
+            }
+        }
+        for i in self.data.keys() {
+            match i {
+                ObjectId::Sound(i) => {
+                    if !topo.sound_processors().contains_key(i) {
+                        println!("A ui state exists for non-existent sound processor {}", i.0);
+                        good = false;
+                    }
+                }
+                ObjectId::Number(i) => {
+                    if !topo.number_sources().contains_key(i) {
+                        println!("A ui state exists for non-existent number source {}", i.0);
+                        good = false;
+                    }
+                }
+            }
+        }
+        good
+    }
+
+    pub(super) fn serialize(
+        &self,
+        serializer: &mut Serializer,
+        subset: Option<&HashSet<ObjectId>>,
+        idmap: &ForwardGraphIdMap,
+    ) {
+        let is_selected = |id: ObjectId| match subset {
+            Some(s) => s.get(&id).is_some(),
+            None => true,
+        };
+        let mut s1 = serializer.subarchive();
+        for (id, state) in &self.data {
+            if !is_selected(*id) {
+                continue;
+            }
+            serialize_object_id(*id, &mut s1, idmap);
+            let color = u32::from_be_bytes([
+                state.color.r(),
+                state.color.g(),
+                state.color.b(),
+                state.color.a(),
+            ]);
+            s1.u32(color);
+            let mut s2 = s1.subarchive();
+            state.state.serialize(&mut s2);
+        }
+    }
+
+    pub(super) fn deserialize(
+        &mut self,
+        deserializer: &mut Deserializer,
+        idmap: &ReverseGraphIdMap,
+        topology: &SoundGraphTopology,
+        ui_factory: &UiFactory,
+    ) -> Result<(), ()> {
+        let mut d1 = deserializer.subarchive()?;
+        while !d1.is_empty() {
+            let id = deserialize_object_id(&mut d1, idmap)?;
+            let obj = match id {
+                ObjectId::Sound(i) => match topology.sound_processor(i) {
+                    Some(sp) => sp.instance_arc().as_graph_object(),
+                    None => return Err(()),
+                },
+                ObjectId::Number(i) => match topology.number_source(i) {
+                    Some(ns) => {
+                        if let Some(o) = ns.instance_arc().as_graph_object() {
+                            o
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    None => return Err(()),
+                },
+            };
+
+            let color = match d1.u32() {
+                Ok(i) => {
+                    let [r, g, b, a] = i.to_be_bytes();
+                    egui::Color32::from_rgba_premultiplied(r, g, b, a)
+                }
+                Err(_) => random_object_color(),
+            };
+
+            let d2 = d1.subarchive()?;
+            let state = ui_factory.create_state_from_archive(&obj, d2)?;
+            self.set_object_data(id, state, color);
+        }
+        Ok(())
+    }
+
+    pub(super) fn make_states_for_new_objects(
+        &mut self,
+        topo: &SoundGraphTopology,
+        ui_factory: &UiFactory,
+    ) {
+        let state_from_graph_object = |o: GraphObjectHandle| -> AnyObjectUiData {
+            let state = ui_factory.create_default_state(&o);
+            AnyObjectUiData {
+                state,
+                color: random_object_color(),
+            }
+        };
+
+        for (i, spd) in topo.sound_processors() {
+            self.data
+                .entry(i.into())
+                .or_insert_with(|| state_from_graph_object(spd.instance_arc().as_graph_object()));
+        }
+        for (i, nsd) in topo.number_sources() {
+            if nsd.owner() != NumberSourceOwner::Nothing {
+                continue;
+            }
+            self.data.entry(i.into()).or_insert_with(|| {
+                state_from_graph_object(nsd.instance_arc().as_graph_object().unwrap())
+            });
+        }
+    }
+}
+
 pub struct GraphUIState {
     layout_state: GraphLayout,
-    object_states: HashMap<ObjectId, Rc<RefCell<dyn ObjectUiState>>>,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph) -> ()>>,
     mode: UiMode,
-    ui_factory: Arc<RwLock<UiFactory>>,
 }
 
 impl GraphUIState {
-    pub(super) fn new(object_factory: Arc<RwLock<UiFactory>>) -> GraphUIState {
+    pub(super) fn new() -> GraphUIState {
         GraphUIState {
             layout_state: GraphLayout::new(),
-            object_states: HashMap::new(),
             pending_changes: Vec::new(),
             mode: UiMode::Passive,
-            ui_factory: object_factory,
         }
     }
 
@@ -346,14 +520,6 @@ impl GraphUIState {
 
     pub(super) fn layout_state_mut(&mut self) -> &mut GraphLayout {
         &mut self.layout_state
-    }
-
-    pub fn set_object_state(&mut self, id: ObjectId, state: Rc<RefCell<dyn ObjectUiState>>) {
-        self.object_states.insert(id, state);
-    }
-
-    pub fn get_object_state(&mut self, id: ObjectId) -> Rc<RefCell<dyn ObjectUiState>> {
-        Rc::clone(self.object_states.get(&id).unwrap())
     }
 
     pub fn make_change<F: FnOnce(&mut SoundGraph) -> () + 'static>(&mut self, f: F) {
@@ -457,36 +623,8 @@ impl GraphUIState {
         }
     }
 
-    pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {
-        let remaining_ids;
-        {
-            let mut ids: HashSet<GraphId> = HashSet::new();
-            ids.extend(
-                topo.sound_processors()
-                    .keys()
-                    .map(|i| -> GraphId { (*i).into() }),
-            );
-            ids.extend(
-                topo.sound_inputs()
-                    .keys()
-                    .map(|i| -> GraphId { (*i).into() }),
-            );
-            ids.extend(
-                topo.number_sources()
-                    .keys()
-                    .map(|i| -> GraphId { (*i).into() }),
-            );
-            ids.extend(
-                topo.number_inputs()
-                    .keys()
-                    .map(|i| -> GraphId { (*i).into() }),
-            );
-            remaining_ids = ids;
-        }
-
-        self.layout_state.retain(&remaining_ids);
-        self.object_states
-            .retain(|i, _| remaining_ids.contains(&(*i).into()));
+    pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>) {
+        self.layout_state.retain(remaining_ids);
 
         match &mut self.mode {
             UiMode::Selecting(s) => {
@@ -824,36 +962,6 @@ impl GraphUIState {
     #[cfg(debug_assertions)]
     pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
         let mut good = true;
-        for i in topo.sound_processors().keys() {
-            if !self.object_states.contains_key(&i.into()) {
-                println!("Sound processor {} does not have a ui state", i.0);
-                good = false;
-            }
-        }
-        for (i, ns) in topo.number_sources() {
-            if ns.owner() == NumberSourceOwner::Nothing {
-                if !self.object_states.contains_key(&i.into()) {
-                    println!("Pure number source {} does not have a ui state", i.0);
-                    good = false;
-                }
-            }
-        }
-        for i in self.object_states.keys() {
-            match i {
-                ObjectId::Sound(i) => {
-                    if !topo.sound_processors().contains_key(i) {
-                        println!("A ui state exists for non-existent sound processor {}", i.0);
-                        good = false;
-                    }
-                }
-                ObjectId::Number(i) => {
-                    if !topo.number_sources().contains_key(i) {
-                        println!("A ui state exists for non-existent number source {}", i.0);
-                        good = false;
-                    }
-                }
-            }
-        }
         for i in self.layout_state.objects().keys() {
             match i {
                 ObjectId::Sound(i) => {
@@ -915,64 +1023,6 @@ impl GraphUIState {
         good
     }
 
-    pub(super) fn serialize_ui_states(
-        &self,
-        serializer: &mut Serializer,
-        subset: Option<&HashSet<ObjectId>>,
-        idmap: &ForwardGraphIdMap,
-    ) {
-        let is_selected = |id: ObjectId| match subset {
-            Some(s) => s.get(&id).is_some(),
-            None => true,
-        };
-        self.layout_state
-            .serialize_positions(serializer, subset, idmap);
-        let mut s1 = serializer.subarchive();
-        for (id, state) in &self.object_states {
-            if !is_selected(*id) {
-                continue;
-            }
-            serialize_object_id(*id, &mut s1, idmap);
-            let mut s2 = s1.subarchive();
-            state.borrow().serialize(&mut s2);
-        }
-    }
-
-    pub(super) fn deserialize_ui_states(
-        &mut self,
-        deserializer: &mut Deserializer,
-        idmap: &ReverseGraphIdMap,
-        topology: &SoundGraphTopology,
-        ui_factory: &UiFactory,
-    ) -> Result<(), ()> {
-        self.layout_state
-            .deserialize_positions(deserializer, idmap)?;
-        let mut d1 = deserializer.subarchive()?;
-        while !d1.is_empty() {
-            let id = deserialize_object_id(&mut d1, idmap)?;
-            let obj = match id {
-                ObjectId::Sound(i) => match topology.sound_processor(i) {
-                    Some(sp) => sp.instance_arc().as_graph_object(),
-                    None => return Err(()),
-                },
-                ObjectId::Number(i) => match topology.number_source(i) {
-                    Some(ns) => {
-                        if let Some(o) = ns.instance_arc().as_graph_object() {
-                            o
-                        } else {
-                            return Err(());
-                        }
-                    }
-                    None => return Err(()),
-                },
-            };
-            let d2 = d1.subarchive()?;
-            let state = ui_factory.create_state_from_archive(&obj, d2)?;
-            self.set_object_state(id, state);
-        }
-        Ok(())
-    }
-
     pub(super) fn select_all(&mut self, topo: &SoundGraphTopology) {
         let mut ids: HashSet<ObjectId> = HashSet::new();
         {
@@ -991,24 +1041,6 @@ impl GraphUIState {
     pub(super) fn select_none(&mut self) {
         if let UiMode::Selecting(_) = self.mode {
             self.mode = UiMode::Passive;
-        }
-    }
-
-    pub(super) fn make_states_for_new_objects(&mut self, topo: &SoundGraphTopology) {
-        for (i, spd) in topo.sound_processors() {
-            self.object_states.entry(i.into()).or_insert_with(|| {
-                let o = spd.instance_arc().as_graph_object();
-                self.ui_factory.read().create_default_state(&o)
-            });
-        }
-        for (i, nsd) in topo.number_sources() {
-            if nsd.owner() != NumberSourceOwner::Nothing {
-                continue;
-            }
-            self.object_states.entry(i.into()).or_insert_with(|| {
-                let o = nsd.instance_arc().as_graph_object().unwrap();
-                self.ui_factory.read().create_default_state(&o)
-            });
         }
     }
 }

@@ -5,7 +5,7 @@ use crate::{
     objects::keyboard::Keyboard,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -21,14 +21,13 @@ impl ObjectUi for KeyboardUi {
         keyboard: StaticSoundProcessorHandle<Keyboard>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &NoUIState,
+        data: ObjectUiData<NoUIState>,
     ) {
-        ObjectWindow::new_sound_processor(keyboard.id())
+        ObjectWindow::new_sound_processor(keyboard.id(), "Keyboard", data.color)
             .add_left_peg(keyboard.input.id(), "Input")
             .add_left_peg(&keyboard.key_frequency, "Note Frequency")
             .add_right_peg(keyboard.id(), "Output")
-            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                ui.label("Keyboard");
+            .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 for (i, k) in [
                     egui::Key::A, // C
                     egui::Key::W, // C#

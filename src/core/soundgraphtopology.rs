@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::core::soundgraphvalidation::find_error;
 
 use super::{
-    graphobject::GraphObjectHandle,
+    graphobject::{GraphId, GraphObjectHandle},
     numberinput::{NumberInputId, NumberInputOwner},
     numbersource::{NumberSourceId, NumberSourceOwner},
     soundgraphdata::{NumberInputData, NumberSourceData, SoundInputData, SoundProcessorData},
@@ -60,6 +60,27 @@ impl SoundGraphTopology {
 
     pub(crate) fn number_input(&self, id: NumberInputId) -> Option<&NumberInputData> {
         self.number_inputs.get(&id)
+    }
+
+    pub(crate) fn all_ids(&self) -> HashSet<GraphId> {
+        let mut ids: HashSet<GraphId> = HashSet::new();
+        ids.extend(
+            self.sound_processors
+                .keys()
+                .map(|i| -> GraphId { (*i).into() }),
+        );
+        ids.extend(self.sound_inputs.keys().map(|i| -> GraphId { (*i).into() }));
+        ids.extend(
+            self.number_sources
+                .keys()
+                .map(|i| -> GraphId { (*i).into() }),
+        );
+        ids.extend(
+            self.number_inputs
+                .keys()
+                .map(|i| -> GraphId { (*i).into() }),
+        );
+        ids
     }
 
     pub(crate) fn graph_objects<'a>(&'a self) -> impl 'a + Iterator<Item = GraphObjectHandle> {

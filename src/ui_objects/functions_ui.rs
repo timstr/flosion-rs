@@ -9,7 +9,7 @@ use crate::{
     objects::functions::*,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow, UiInitialization},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow, UiInitialization},
     },
 };
 
@@ -58,15 +58,18 @@ impl ObjectUi for ConstantUi {
         constant: PureNumberSourceHandle<Constant>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        state: &ConstantUiState,
+        data: ObjectUiData<ConstantUiState>,
     ) {
-        ObjectWindow::new_number_source(constant.id())
+        // TODO: use data.state.name instead of always "Constant"
+        ObjectWindow::new_number_source(constant.id(), "Constant", data.color)
             .add_right_peg(&constant, "Output")
-            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
+            .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 let mut v = constant.get_value();
                 let v_old = v;
-                ui.label(&state.name);
-                ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
+                ui.add(egui::Slider::new(
+                    &mut v,
+                    data.state.min_value..=data.state.max_value,
+                ));
                 if v != v_old {
                     constant.set_value(v);
                 }
@@ -118,14 +121,12 @@ macro_rules! unary_number_source_ui {
                 object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
-                _state: &Self::StateType,
+                data: ObjectUiData<Self::StateType>,
             ) {
-                ObjectWindow::new_number_source(object.id())
+                ObjectWindow::new_number_source(object.id(), $display_name, data.color)
                     .add_left_peg(&object.input, "Input")
                     .add_right_peg(&object, "Output")
-                    .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                        ui.label($display_name);
-                    });
+                    .show(ui.ctx(), graph_tools);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -148,15 +149,13 @@ macro_rules! binary_number_source_ui {
                 object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
-                _state: &Self::StateType,
+                data: ObjectUiData<Self::StateType>,
             ) {
-                ObjectWindow::new_number_source(object.id())
+                ObjectWindow::new_number_source(object.id(), $display_name, data.color)
                     .add_left_peg(&object.input_1, "Input 1")
                     .add_left_peg(&object.input_2, "Input 2")
                     .add_right_peg(&object, "Output")
-                    .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                        ui.label($display_name);
-                    });
+                    .show(ui.ctx(), graph_tools);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -180,16 +179,14 @@ macro_rules! ternary_number_source_ui {
                 object: PureNumberSourceHandle<$object>,
                 graph_tools: &mut GraphUIState,
                 ui: &mut eframe::egui::Ui,
-                _state: &Self::StateType,
+                data: ObjectUiData<Self::StateType>,
             ) {
-                ObjectWindow::new_number_source(object.id())
+                ObjectWindow::new_number_source(object.id(), $display_name, data.color)
                     .add_left_peg(&object.input_1, "Input 1")
                     .add_left_peg(&object.input_2, "Input 2")
                     .add_left_peg(&object.input_3, "Input 3")
                     .add_right_peg(&object, "Output")
-                    .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                        ui.label($display_name);
-                    });
+                    .show(ui.ctx(), graph_tools);
             }
 
             fn aliases(&self) -> &'static [&'static str] {

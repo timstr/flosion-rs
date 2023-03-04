@@ -10,7 +10,7 @@ use crate::{
     objects::melody::{Melody, Note},
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -107,17 +107,16 @@ impl ObjectUi for MelodyUi {
         melody: DynamicSoundProcessorHandle<Melody>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &NoUIState,
+        data: ObjectUiData<NoUIState>,
     ) {
-        ObjectWindow::new_sound_processor(melody.id())
+        ObjectWindow::new_sound_processor(melody.id(), "Melody", data.color)
             .add_left_peg(melody.input.id(), "Input")
             .add_left_peg(&melody.melody_time, "Melody Time")
             .add_left_peg(&melody.note_frequency, "Note Frequency")
             .add_left_peg(&melody.note_time, "Note Time")
             .add_left_peg(&melody.note_progress, "Note Progress")
             .add_right_peg(melody.id(), "Output")
-            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                ui.label("Melody");
+            .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 if ui.button("Randomize").clicked() {
                     melody.clear();
                     for _ in 0..16 {

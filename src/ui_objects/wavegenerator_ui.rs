@@ -3,7 +3,7 @@ use crate::{
     objects::wavegenerator::WaveGenerator,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -19,16 +19,14 @@ impl ObjectUi for WaveGeneratorUi {
         wavgen: DynamicSoundProcessorHandle<WaveGenerator>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        _state: &NoUIState,
+        data: ObjectUiData<NoUIState>,
     ) {
-        ObjectWindow::new_sound_processor(wavgen.id())
+        ObjectWindow::new_sound_processor(wavgen.id(), "WaveGenerator", data.color)
             .add_left_peg(&wavgen.amplitude, "Amplitude")
             .add_left_peg(&wavgen.frequency, "Frequency")
             .add_top_peg(&wavgen.time, "Time")
             .add_top_peg(&wavgen.phase, "Phase")
             .add_right_peg(wavgen.id(), "Output")
-            .show(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                ui.label("WaveGenerator");
-            });
+            .show(ui.ctx(), graph_tools);
     }
 }

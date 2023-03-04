@@ -5,7 +5,7 @@ use crate::{
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -21,13 +21,12 @@ impl ObjectUi for RecorderUi {
         recorder: StaticSoundProcessorHandle<Recorder>,
         graph_tools: &mut GraphUIState,
         ui: &mut egui::Ui,
-        _state: &NoUIState,
+        data: ObjectUiData<NoUIState>,
     ) {
-        ObjectWindow::new_sound_processor(recorder.id())
+        ObjectWindow::new_sound_processor(recorder.id(), "Recorder", data.color)
             .add_left_peg(recorder.input.id(), "Input")
             .add_right_peg(recorder.id(), "Output")
-            .show(ui.ctx(), graph_tools, |ui, graph_tools| {
-                ui.label("Recorder");
+            .show_with(ui.ctx(), graph_tools, |ui, graph_tools| {
                 let r = recorder.is_recording();
                 let n = recorder.recording_length();
                 let btn_str = if r {
