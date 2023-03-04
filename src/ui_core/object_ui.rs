@@ -335,7 +335,10 @@ impl ObjectWindow {
         let left_col = !self.left_pegs.is_empty();
         let right_col = !self.right_pegs.is_empty();
 
-        area = area.movable(true);
+        area = area
+            .movable(true)
+            .constrain(false)
+            .drag_bounds(egui::Rect::EVERYTHING);
         let r = area.show(ctx, |ui| {
             // Clip to the entire screen, not just outside the area
             ui.set_clip_rect(ctx.input().screen_rect());
