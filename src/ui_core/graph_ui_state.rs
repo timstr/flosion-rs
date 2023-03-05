@@ -7,6 +7,7 @@ use crate::core::{
     numberinput::NumberInputOwner,
     numbersource::NumberSourceOwner,
     soundgraph::SoundGraph,
+    soundgrapherror::SoundGraphError,
     soundgraphtopology::SoundGraphTopology,
     uniqueid::UniqueId,
 };
@@ -194,7 +195,7 @@ impl GraphUIState {
             }
         }
 
-        self.diagnostics.age_out(Duration::from_secs(1));
+        self.diagnostics.age_out(Duration::from_millis(500));
     }
 
     pub fn selection(&self) -> HashSet<ObjectId> {
@@ -247,6 +248,10 @@ impl GraphUIState {
 
     pub fn issue_diagnostic(&mut self, diagnostic: Diagnostic) {
         self.diagnostics.push_diagnostic(diagnostic);
+    }
+
+    pub fn issue_interpreted_error(&mut self, error: SoundGraphError) {
+        self.diagnostics.push_interpreted_error(error);
     }
 
     pub fn graph_item_has_warning(&self, graph_id: GraphId) -> Option<DiagnosticRelevance> {

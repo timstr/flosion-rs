@@ -1,6 +1,9 @@
 use std::time::{Duration, Instant};
 
-use crate::core::graphobject::GraphId;
+use crate::core::{
+    graphobject::GraphId,
+    soundgrapherror::{NumberError, SoundError, SoundGraphError},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticRelevance {
@@ -9,13 +12,13 @@ pub enum DiagnosticRelevance {
 }
 
 pub enum DiagnosticMessage {
-    GenericWarning((GraphId, DiagnosticRelevance)),
+    GraphItemWarning((GraphId, DiagnosticRelevance)),
 }
 
 impl DiagnosticMessage {
     pub fn involves(&self, graph_id: GraphId) -> Option<DiagnosticRelevance> {
         match self {
-            DiagnosticMessage::GenericWarning((id, r)) => {
+            DiagnosticMessage::GraphItemWarning((id, r)) => {
                 if *id == graph_id {
                     Some(*r)
                 } else {
@@ -57,6 +60,75 @@ impl AllDiagnostics {
 
     pub fn push_diagnostic(&mut self, diagnostic: Diagnostic) {
         self.diagnostics.push(diagnostic);
+    }
+
+    pub fn push_interpreted_error(&mut self, error: SoundGraphError) {
+        match error {
+            SoundGraphError::Number(e) => self.push_interpreted_number_error(e),
+            SoundGraphError::Sound(e) => self.push_interpreted_sound_error(e),
+        }
+    }
+
+    fn push_interpreted_number_error(&mut self, error: NumberError) {
+        match error {
+            NumberError::CircularDependency { cycle } => {
+                for (nsid, niid) in cycle.connections {
+                    self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                        nsid.into(),
+                        DiagnosticRelevance::Secondary,
+                    ))));
+                    self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                        niid.into(),
+                        DiagnosticRelevance::Secondary,
+                    ))));
+                }
+            }
+            NumberError::StateNotInScope { bad_dependencies } => {
+                for (nsid, niid) in bad_dependencies {
+                    self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                        nsid.into(),
+                        DiagnosticRelevance::Secondary,
+                    ))));
+                    self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                        niid.into(),
+                        DiagnosticRelevance::Secondary,
+                    ))));
+                }
+            }
+            // Other errors are assumed to be internal and never caused by the user
+            _ => (),
+        }
+    }
+
+    fn push_interpreted_sound_error(&mut self, error: SoundError) {
+        match error {
+            SoundError::CircularDependency { cycle } => {
+                for (spid, siid) in cycle.connections {
+                    self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                        spid.into(),
+                        DiagnosticRelevance::Secondary,
+                    ))));
+                    self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                        siid.into(),
+                        DiagnosticRelevance::Secondary,
+                    ))));
+                }
+            }
+            SoundError::StaticTooManyStates(spid) => {
+                self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                    spid.into(),
+                    DiagnosticRelevance::Primary,
+                ))));
+            }
+            SoundError::StaticNotSynchronous(spid) => {
+                self.push_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
+                    spid.into(),
+                    DiagnosticRelevance::Primary,
+                ))));
+            }
+            // Other errors are assumed to be internal and never caused by the user
+            _ => (),
+        }
     }
 
     pub fn get_diagnostics(&self) -> &[Diagnostic] {

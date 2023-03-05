@@ -34,4 +34,4 @@ fn main() {
 // - overlap-add helpers
 // - fft helpers
 // - interactive display (spectrogram, waveform, oscilloscope)
-// -
+// - undo/redo (consider using StateGraphEdit for this rather than serialization)

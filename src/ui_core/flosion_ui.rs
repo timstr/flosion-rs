@@ -294,20 +294,20 @@ impl FlosionApp {
                     ui_state.make_change(move |g, s| {
                         // Disconnect the input
                         g.disconnect_number_input(niid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                     });
                     if let Some(GraphId::NumberInput(niid2)) = id_dst {
                         // If dropped onto a different number input, connect the number output to it
                         ui_state.make_change(move |g, s| {
                             g.connect_number_input(niid2, nsid)
-                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                                .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                         });
                     }
                 } else if let Some(GraphId::NumberSource(nsid)) = id_dst {
                     // Dragging from a disconnected number input to a number output
                     ui_state.make_change(move |g, s| {
                         g.connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                     });
                 }
             }
@@ -316,7 +316,7 @@ impl FlosionApp {
                     // Dragging from a number output to a number input
                     ui_state.make_change(move |g, s| {
                         g.connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                     });
                 }
             }
@@ -326,20 +326,20 @@ impl FlosionApp {
                     ui_state.make_change(move |g, s| {
                         // Disconnect the input
                         g.disconnect_sound_input(siid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                     });
                     if let Some(GraphId::SoundInput(siid2)) = id_dst {
                         // if dropped onto a different sound output, connect the sound input to it
                         ui_state.make_change(move |g, s| {
                             g.connect_sound_input(siid2, spid)
-                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                                .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                         });
                     }
                 } else if let Some(GraphId::SoundProcessor(spid)) = id_dst {
                     // Dragging from a disconnected sound input to a sound output
                     ui_state.make_change(move |g, s| {
                         g.connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                     });
                 }
             }
@@ -348,7 +348,7 @@ impl FlosionApp {
                     // Dragging from a sound output to a sound input
                     ui_state.make_change(move |g, s| {
                         g.connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
                     });
                 }
             }
@@ -428,6 +428,10 @@ impl FlosionApp {
         // (e.g. memory().areas) which aren't yet exposed.
         // On the other hand, is there any correct way to paint wires between
         // two connected objects that are directly on top of one another?
+
+        let t = ui.input().time * 5.0;
+        let pulse = (t - t.floor()) > 0.5;
+
         ui.with_layer_id(
             egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
             |ui| {
@@ -439,7 +443,8 @@ impl FlosionApp {
                         let si_state = layout.sound_inputs().get(siid).unwrap();
                         let sp_state = layout.sound_outputs().get(&spid).unwrap();
                         let faint = drag_peg == Some(GraphId::SoundInput(*siid));
-                        let stroke = egui::Stroke::new(
+
+                        let mut stroke = egui::Stroke::new(
                             2.0,
                             egui::Color32::from_rgba_unmultiplied(
                                 0,
@@ -448,6 +453,21 @@ impl FlosionApp {
                                 if faint { 64 } else { 255 },
                             ),
                         );
+
+                        if let Some(r) = ui_state.graph_item_has_warning((*siid).into()) {
+                            if pulse {
+                                stroke = match r {
+                                    DiagnosticRelevance::Primary => {
+                                        egui::Stroke::new(5.0, egui::Color32::RED)
+                                    }
+                                    DiagnosticRelevance::Secondary => {
+                                        egui::Stroke::new(5.0, egui::Color32::RED)
+                                    }
+                                };
+                            }
+                            ui.ctx().request_repaint();
+                        }
+
                         Self::paint_wire(
                             painter,
                             si_state.layout.center(),
@@ -467,7 +487,8 @@ impl FlosionApp {
                         let ni_state = layout.number_inputs().get(niid).unwrap();
                         let ns_state = layout.number_outputs().get(&nsid).unwrap();
                         let faint = drag_peg == Some(GraphId::NumberInput(*niid));
-                        let stroke = egui::Stroke::new(
+
+                        let mut stroke = egui::Stroke::new(
                             2.0,
                             egui::Color32::from_rgba_unmultiplied(
                                 0,
@@ -476,6 +497,21 @@ impl FlosionApp {
                                 if faint { 64 } else { 255 },
                             ),
                         );
+
+                        if let Some(r) = ui_state.graph_item_has_warning((*niid).into()) {
+                            if pulse {
+                                stroke = match r {
+                                    DiagnosticRelevance::Primary => {
+                                        egui::Stroke::new(5.0, egui::Color32::RED)
+                                    }
+                                    DiagnosticRelevance::Secondary => {
+                                        egui::Stroke::new(5.0, egui::Color32::RED)
+                                    }
+                                };
+                            }
+                            ui.ctx().request_repaint();
+                        }
+
                         Self::paint_wire(
                             painter,
                             ni_state.layout.center(),
@@ -541,13 +577,13 @@ impl FlosionApp {
         ui_state.make_change(move |g, s| {
             g.remove_objects_batch(&selection).unwrap_or_else(|e| {
                 println!("Nope! Can't remove that:\n    {:?}", e);
-                // TODO: convert error into diagnostics
                 for id in selection {
-                    s.issue_diagnostic(Diagnostic::new(DiagnosticMessage::GenericWarning((
+                    s.issue_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
                         id.into(),
                         DiagnosticRelevance::Primary,
                     ))));
                 }
+                s.issue_interpreted_error(e);
             });
         });
     }

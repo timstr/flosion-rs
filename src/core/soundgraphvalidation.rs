@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::{
     numberinput::{NumberInputId, NumberInputOwner},
     numbersource::{NumberSourceId, NumberSourceOwner},
@@ -490,7 +492,7 @@ pub(super) fn find_all_stateful_dependencies_of(
 pub(super) fn find_invalid_number_connections(
     topology: &SoundGraphTopology,
 ) -> Vec<(NumberSourceId, NumberInputId)> {
-    let mut bad_dependencies: Vec<(NumberSourceId, NumberInputId)> = Vec::new();
+    let mut bad_indirect_dependencies: Vec<(NumberSourceId, NumberInputId)> = Vec::new();
 
     for input_desc in topology
         .number_inputs()
@@ -508,12 +510,71 @@ pub(super) fn find_invalid_number_connections(
                 .as_state_owner()
                 .unwrap();
             if !state_owner_has_dependency(topology, source_owner, input_owner) {
-                bad_dependencies.push((ss, input_desc.id()));
+                bad_indirect_dependencies.push((ss, input_desc.id()));
             }
         }
     }
 
-    return bad_dependencies;
+    let mut bad_inputs: HashSet<NumberInputId> = HashSet::new();
+    let mut bad_connections: Vec<(NumberSourceId, NumberInputId)> = Vec::new();
+
+    fn visit_input(
+        niid: NumberInputId,
+        bad_source: NumberSourceId,
+        bad_inputs: &mut HashSet<NumberInputId>,
+        bad_connections: &mut Vec<(NumberSourceId, NumberInputId)>,
+        topology: &SoundGraphTopology,
+    ) -> bool {
+        if bad_inputs.contains(&niid) {
+            return true;
+        }
+
+        let target_nsid = match topology.number_input(niid).unwrap().target() {
+            Some(nsid) => nsid,
+            None => return false,
+        };
+
+        let mut target_is_bad = false;
+
+        if target_nsid == bad_source {
+            target_is_bad = true;
+        } else {
+            let target_data = topology.number_source(target_nsid).unwrap();
+
+            for target_input in target_data.inputs() {
+                if !visit_input(
+                    *target_input,
+                    bad_source,
+                    bad_inputs,
+                    bad_connections,
+                    topology,
+                ) {
+                    target_is_bad = true;
+                    break;
+                }
+            }
+        }
+
+        if target_is_bad {
+            bad_inputs.insert(niid);
+            bad_connections.push((target_nsid, niid));
+            return false;
+        }
+
+        return true;
+    }
+
+    for (final_nsid, final_niid) in bad_indirect_dependencies {
+        visit_input(
+            final_niid,
+            final_nsid,
+            &mut bad_inputs,
+            &mut bad_connections,
+            topology,
+        );
+    }
+
+    return bad_connections;
 }
 
 pub(crate) fn validate_sound_connection(

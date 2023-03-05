@@ -303,7 +303,7 @@ impl ObjectWindow {
             match relevance {
                 DiagnosticRelevance::Primary => {
                     displacement = Some(egui::vec2(
-                        5.0 * (ctx.input().time * TAU * 6.0).sin() as f32,
+                        5.0 * (ctx.input().time * TAU * 10.0).sin() as f32,
                         0.0,
                     ));
                     fill = egui::Color32::RED
