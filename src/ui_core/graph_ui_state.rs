@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use eframe::egui;
 
@@ -12,6 +12,7 @@ use crate::core::{
 };
 
 use super::{
+    diagnostics::{AllDiagnostics, Diagnostic, DiagnosticRelevance},
     hotkeys::{HotKeyAction, KeyboardFocusState, PegHotKeys},
     layout_state::GraphLayout,
 };
@@ -32,8 +33,9 @@ enum UiMode {
 
 pub struct GraphUIState {
     layout_state: GraphLayout,
-    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph) -> ()>>,
+    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut GraphUIState) -> ()>>,
     mode: UiMode,
+    diagnostics: AllDiagnostics,
 }
 
 impl GraphUIState {
@@ -42,6 +44,7 @@ impl GraphUIState {
             layout_state: GraphLayout::new(),
             pending_changes: Vec::new(),
             mode: UiMode::Passive,
+            diagnostics: AllDiagnostics::new(),
         }
     }
 
@@ -57,7 +60,10 @@ impl GraphUIState {
         &mut self.layout_state
     }
 
-    pub fn make_change<F: FnOnce(&mut SoundGraph) -> () + 'static>(&mut self, f: F) {
+    pub fn make_change<F: FnOnce(&mut SoundGraph, &mut GraphUIState) -> () + 'static>(
+        &mut self,
+        f: F,
+    ) {
         self.pending_changes.push(Box::new(f));
     }
 
@@ -187,6 +193,8 @@ impl GraphUIState {
                 }
             }
         }
+
+        self.diagnostics.age_out(Duration::from_secs(1));
     }
 
     pub fn selection(&self) -> HashSet<ObjectId> {
@@ -237,6 +245,14 @@ impl GraphUIState {
         }
     }
 
+    pub fn issue_diagnostic(&mut self, diagnostic: Diagnostic) {
+        self.diagnostics.push_diagnostic(diagnostic);
+    }
+
+    pub fn graph_item_has_warning(&self, graph_id: GraphId) -> Option<DiagnosticRelevance> {
+        self.diagnostics.graph_item_has_warning(graph_id)
+    }
+
     fn update_keyboard_focus_from_selection(&mut self) {
         // TODO: press key when one object is selected to enter focus
         // and give this mode a better name
@@ -279,14 +295,14 @@ impl GraphUIState {
             HotKeyAction::Connect(gid1, gid2) => {
                 match (gid1, gid2) {
                     (GraphId::NumberInput(niid), GraphId::NumberSource(nsid)) => {
-                        self.pending_changes.push(Box::new(move |g| {
+                        self.pending_changes.push(Box::new(move |g, _| {
                             g.disconnect_number_input(niid).unwrap();
                             g.connect_number_input(niid, nsid).unwrap();
                         }));
                         *keyboard_focus = KeyboardFocusState::NumberSource(nsid);
                     }
                     (GraphId::NumberSource(nsid), GraphId::NumberInput(niid)) => {
-                        self.pending_changes.push(Box::new(move |g| {
+                        self.pending_changes.push(Box::new(move |g, _| {
                             g.disconnect_number_input(niid).unwrap();
                             g.connect_number_input(niid, nsid).unwrap();
                         }));
@@ -301,14 +317,14 @@ impl GraphUIState {
                         };
                     }
                     (GraphId::SoundInput(siid), GraphId::SoundProcessor(spid)) => {
-                        self.pending_changes.push(Box::new(move |g| {
+                        self.pending_changes.push(Box::new(move |g, _| {
                             g.disconnect_sound_input(siid).unwrap();
                             g.connect_sound_input(siid, spid).unwrap();
                         }));
                         *keyboard_focus = KeyboardFocusState::SoundProcessor(spid);
                     }
                     (GraphId::SoundProcessor(spid), GraphId::SoundInput(siid)) => {
-                        self.pending_changes.push(Box::new(move |g| {
+                        self.pending_changes.push(Box::new(move |g, _| {
                             g.disconnect_sound_input(siid).unwrap();
                             g.connect_sound_input(siid, spid).unwrap();
                         }));
@@ -368,8 +384,10 @@ impl GraphUIState {
     }
 
     pub(super) fn apply_pending_changes(&mut self, graph: &mut SoundGraph) {
-        for f in self.pending_changes.drain(..) {
-            f(graph);
+        let mut pending_changes = Vec::new();
+        std::mem::swap(&mut self.pending_changes, &mut pending_changes);
+        for f in pending_changes {
+            f(graph, self);
         }
         debug_assert!(self.pending_changes.is_empty());
     }

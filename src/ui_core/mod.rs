@@ -1,3 +1,4 @@
+pub mod diagnostics;
 pub mod flosion_ui;
 pub mod graph_ui_state;
 pub mod hotkeys;

@@ -1,4 +1,7 @@
-use std::any::{type_name, Any};
+use std::{
+    any::{type_name, Any},
+    f64::consts::TAU,
+};
 
 use eframe::{
     egui::{self},
@@ -20,6 +23,7 @@ use crate::core::{
 };
 
 use super::{
+    diagnostics::DiagnosticRelevance,
     graph_ui_state::GraphUIState,
     object_ui_states::{AnyObjectUiData, AnyObjectUiState},
 };
@@ -292,13 +296,32 @@ impl ObjectWindow {
         let id = egui::Id::new(s);
 
         let mut area = egui::Area::new(id);
+        let mut displacement: Option<egui::Vec2> = None;
         let mut fill = self.color;
+
+        if let Some(relevance) = graph_tools.graph_item_has_warning(self.object_id.into()) {
+            match relevance {
+                DiagnosticRelevance::Primary => {
+                    displacement = Some(egui::vec2(
+                        5.0 * (ctx.input().time * TAU * 6.0).sin() as f32,
+                        0.0,
+                    ));
+                    fill = egui::Color32::RED
+                }
+                DiagnosticRelevance::Secondary => fill = egui::Color32::YELLOW,
+            };
+            ctx.request_repaint();
+        }
 
         if let Some(state) = graph_tools
             .layout_state()
             .get_object_location(self.object_id)
         {
-            area = area.current_pos(state.rect.left_top());
+            let mut pos = state.rect.left_top();
+            if let Some(d) = displacement {
+                pos += d;
+            }
+            area = area.current_pos(pos);
         } else if let Some(pos) = ctx.input().pointer.interact_pos() {
             area = area.current_pos(pos);
         }
@@ -402,20 +425,28 @@ impl ObjectWindow {
                     ui.end_row();
                 });
         });
+
+        // Track the un-displaced object location so that displacement
+        // does not accumulate between frames
         graph_tools.layout_state_mut().track_object_location(
             self.object_id,
-            r.response.rect,
+            r.response
+                .rect
+                .translate(-displacement.unwrap_or(egui::Vec2::ZERO)),
             r.response.layer_id,
         );
+
         if r.response.drag_started() {
             if !graph_tools.is_object_selected(self.object_id) {
                 graph_tools.clear_selection();
                 graph_tools.select_object(self.object_id);
             }
         }
+
         if r.response.dragged() {
             graph_tools.move_selection(r.response.drag_delta());
         }
+
         if r.response.clicked() {
             if !graph_tools.is_object_selected(self.object_id) {
                 graph_tools.clear_selection();

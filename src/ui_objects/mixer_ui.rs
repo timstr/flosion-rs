@@ -33,7 +33,7 @@ impl ObjectUi for MixerUi {
 
             if ui.button("+").clicked() {
                 let w = mixer.clone();
-                graph_tools.make_change(move |sg| {
+                graph_tools.make_change(move |sg, _| {
                     sg.apply_processor_tools(w.id(), |mut tools| {
                         w.add_input(&mut tools);
                     })
@@ -44,7 +44,7 @@ impl ObjectUi for MixerUi {
             if let Some(siid) = last_input {
                 if ui.button("-").clicked() {
                     let w = mixer.clone();
-                    graph_tools.make_change(move |sg| {
+                    graph_tools.make_change(move |sg, _| {
                         sg.apply_processor_tools(w.id(), |mut tools| {
                             w.remove_input(siid, &mut tools);
                         })

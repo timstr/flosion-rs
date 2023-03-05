@@ -49,7 +49,7 @@ impl ObjectUi for RecorderUi {
                     }
                     if ui.add(Button::new("Create AudioClip")).clicked() {
                         let a = recorder.copy_audio();
-                        graph_tools.make_change(move |graph| {
+                        graph_tools.make_change(move |graph, _| {
                             let ac = graph.add_dynamic_sound_processor::<AudioClip>(
                                 ObjectInitialization::Default,
                             );
