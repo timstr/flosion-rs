@@ -312,7 +312,7 @@ impl ObjectWindow {
 
         let center_frame = egui::Frame::default()
             .fill(fill)
-            .inner_margin(egui::Vec2::splat(10.0));
+            .inner_margin(egui::Vec2::splat(5.0));
 
         let side_frame_template = egui::Frame::default()
             .fill(fill)
@@ -348,18 +348,15 @@ impl ObjectWindow {
                 .min_row_height(0.0)
                 .spacing(egui::vec2(0.0, 0.0))
                 .show(ui, |ui| {
-                    let mut min_content_width = 0.0;
-
                     if top_row {
                         if left_col {
                             ui.label(""); // TODO: better way to make empty cell?
                         }
-                        let ir = top_frame.show(ui, |ui| {
+                        top_frame.show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 Self::show_pegs(ui, &self.top_pegs, PegDirection::Top, graph_tools)
                             });
                         });
-                        min_content_width = ir.response.rect.width();
                         ui.end_row();
                     }
 
@@ -376,9 +373,18 @@ impl ObjectWindow {
                         });
                     }
                     center_frame.show(ui, |ui| {
-                        ui.set_min_width(min_content_width);
-                        ui.label(egui::RichText::new(self.label).color(egui::Color32::BLACK));
-                        add_contents(ui, graph_tools);
+                        ui.vertical(|ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(self.label)
+                                        .color(egui::Color32::BLACK)
+                                        .strong(),
+                                )
+                                .wrap(false),
+                            );
+                            add_contents(ui, graph_tools);
+                            ui.allocate_space(ui.available_size());
+                        });
                     });
                     if right_col {
                         ui.vertical(|ui| {

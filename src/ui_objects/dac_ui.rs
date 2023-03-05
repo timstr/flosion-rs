@@ -1,3 +1,5 @@
+use eframe::egui;
+
 use crate::{
     core::soundprocessor::StaticSoundProcessorHandle,
     objects::dac::Dac,
@@ -23,7 +25,7 @@ impl ObjectUi for DacUi {
         ObjectWindow::new_sound_processor(dac.id(), "Dac", data.color)
             .add_left_peg(dac.input.id(), "Input")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                if ui.button("Reset").clicked() {
+                if ui.add(egui::Button::new("Reset").wrap(false)).clicked() {
                     dac.reset();
                 }
             });
