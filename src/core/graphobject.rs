@@ -9,7 +9,7 @@ use super::{
     numbersource::{
         NumberSourceId, PureNumberSource, PureNumberSourceHandle, PureNumberSourceWithId,
     },
-    serialization::{Deserializer, Serializer},
+    serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
     soundprocessor::{
         DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,

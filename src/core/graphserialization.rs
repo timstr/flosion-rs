@@ -490,3 +490,31 @@ pub(crate) fn deserialize_sound_graph(
 
     Ok((new_objects, idmap))
 }
+
+pub(crate) fn serialize_object_id(
+    id: ObjectId,
+    serializer: &mut Serializer,
+    idmap: &ForwardGraphIdMap,
+) {
+    match id {
+        ObjectId::Sound(i) => {
+            serializer.u8(1);
+            serializer.u16(idmap.sound_processors().map_id(i).unwrap());
+        }
+        ObjectId::Number(i) => {
+            serializer.u8(2);
+            serializer.u16(idmap.number_sources().map_id(i).unwrap());
+        }
+    }
+}
+
+pub(crate) fn deserialize_object_id(
+    deserializer: &mut Deserializer,
+    idmap: &ReverseGraphIdMap,
+) -> Result<ObjectId, ()> {
+    Ok(match deserializer.u8()? {
+        1 => ObjectId::Sound(idmap.sound_processors().map_id(deserializer.u16()?)),
+        2 => ObjectId::Number(idmap.number_sources().map_id(deserializer.u16()?).into()),
+        _ => return Err(()),
+    })
+}

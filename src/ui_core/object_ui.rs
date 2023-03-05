@@ -19,7 +19,10 @@ use crate::core::{
     soundprocessor::SoundProcessorId,
 };
 
-use super::graph_ui_state::{AnyObjectUiData, AnyObjectUiState, GraphUIState};
+use super::{
+    graph_ui_state::GraphUIState,
+    object_ui_states::{AnyObjectUiData, AnyObjectUiState},
+};
 
 #[derive(Default)]
 pub struct NoUIState;

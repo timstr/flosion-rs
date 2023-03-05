@@ -11,8 +11,9 @@ use crate::core::{
 };
 
 use super::{
-    graph_ui_state::{AnyObjectUiState, GraphUIState, ObjectUiStates},
+    graph_ui_state::GraphUIState,
     object_ui::{AnyObjectUi, ObjectUi},
+    object_ui_states::{AnyObjectUiState, ObjectUiStates},
 };
 
 struct ObjectData {

@@ -1,311 +1,25 @@
-use std::{
-    any::{type_name, Any},
-    collections::{HashMap, HashSet},
-};
+use std::collections::HashSet;
 
 use eframe::egui;
 
 use crate::core::{
-    graphobject::{GraphId, GraphObjectHandle, ObjectId},
-    graphserialization::{ForwardGraphIdMap, ReverseGraphIdMap},
-    numberinput::{NumberInputId, NumberInputOwner},
-    numbersource::{NumberSourceId, NumberSourceOwner},
-    serialization::{Deserializer, Serializable, Serializer},
+    graphobject::{GraphId, ObjectId},
+    numberinput::NumberInputOwner,
+    numbersource::NumberSourceOwner,
     soundgraph::SoundGraph,
     soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::{validate_number_connection, validate_sound_connection},
-    soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
     uniqueid::UniqueId,
 };
 
 use super::{
-    object_ui::{random_object_color, PegDirection},
-    ui_factory::UiFactory,
+    hotkeys::{HotKeyAction, KeyboardFocusState, PegHotKeys},
+    layout_state::GraphLayout,
 };
-
-fn serialize_object_id(id: ObjectId, serializer: &mut Serializer, idmap: &ForwardGraphIdMap) {
-    match id {
-        ObjectId::Sound(i) => {
-            serializer.u8(1);
-            serializer.u16(idmap.sound_processors().map_id(i).unwrap());
-        }
-        ObjectId::Number(i) => {
-            serializer.u8(2);
-            serializer.u16(idmap.number_sources().map_id(i).unwrap());
-        }
-    }
-}
-
-fn deserialize_object_id(
-    deserializer: &mut Deserializer,
-    idmap: &ReverseGraphIdMap,
-) -> Result<ObjectId, ()> {
-    Ok(match deserializer.u8()? {
-        1 => ObjectId::Sound(idmap.sound_processors().map_id(deserializer.u16()?)),
-        2 => ObjectId::Number(idmap.number_sources().map_id(deserializer.u16()?).into()),
-        _ => return Err(()),
-    })
-}
-
-pub struct LayoutState {
-    pub rect: egui::Rect,
-    pub layer: egui::LayerId,
-}
-
-impl LayoutState {
-    pub fn center(&self) -> egui::Pos2 {
-        self.rect.center()
-    }
-}
-
-pub struct PegLayoutState {
-    pub direction: PegDirection,
-    pub layout: LayoutState,
-}
-
-pub struct GraphLayout {
-    sound_inputs: HashMap<SoundInputId, PegLayoutState>,
-    sound_outputs: HashMap<SoundProcessorId, PegLayoutState>,
-    number_inputs: HashMap<NumberInputId, PegLayoutState>,
-    number_outputs: HashMap<NumberSourceId, PegLayoutState>,
-    objects: HashMap<ObjectId, LayoutState>,
-}
-
-impl GraphLayout {
-    pub(super) fn new() -> GraphLayout {
-        GraphLayout {
-            sound_inputs: HashMap::new(),
-            sound_outputs: HashMap::new(),
-            number_inputs: HashMap::new(),
-            number_outputs: HashMap::new(),
-            objects: HashMap::new(),
-        }
-    }
-
-    fn reset_pegs(&mut self) {
-        self.sound_inputs.clear();
-        self.sound_outputs.clear();
-        self.number_inputs.clear();
-        self.number_outputs.clear();
-    }
-
-    fn retain(&mut self, ids: &HashSet<GraphId>) {
-        self.objects.retain(|i, _| ids.contains(&(*i).into()));
-        self.sound_inputs.retain(|i, _| ids.contains(&(*i).into()));
-        self.sound_outputs.retain(|i, _| ids.contains(&(*i).into()));
-        self.number_inputs.retain(|i, _| ids.contains(&(*i).into()));
-        self.number_outputs
-            .retain(|i, _| ids.contains(&(*i).into()));
-    }
-
-    pub fn track_peg(
-        &mut self,
-        id: GraphId,
-        rect: egui::Rect,
-        layer: egui::LayerId,
-        direction: PegDirection,
-    ) {
-        let state = PegLayoutState {
-            direction,
-            layout: LayoutState { rect, layer },
-        };
-        match id {
-            GraphId::NumberInput(id) => self.number_inputs.insert(id, state),
-            GraphId::NumberSource(id) => self.number_outputs.insert(id, state),
-            GraphId::SoundInput(id) => self.sound_inputs.insert(id, state),
-            GraphId::SoundProcessor(id) => self.sound_outputs.insert(id, state),
-        };
-    }
-
-    fn objects(&self) -> &HashMap<ObjectId, LayoutState> {
-        &self.objects
-    }
-
-    fn objects_mut(&mut self) -> &mut HashMap<ObjectId, LayoutState> {
-        &mut self.objects
-    }
-
-    pub fn track_object_location(&mut self, id: ObjectId, rect: egui::Rect, layer: egui::LayerId) {
-        self.objects.insert(id, LayoutState { rect, layer });
-    }
-
-    pub fn get_object_location(&self, id: ObjectId) -> Option<&LayoutState> {
-        self.objects.get(&id)
-    }
-
-    pub(super) fn sound_inputs(&self) -> &HashMap<SoundInputId, PegLayoutState> {
-        &self.sound_inputs
-    }
-
-    pub(super) fn sound_outputs(&self) -> &HashMap<SoundProcessorId, PegLayoutState> {
-        &self.sound_outputs
-    }
-
-    pub(super) fn number_inputs(&self) -> &HashMap<NumberInputId, PegLayoutState> {
-        &self.number_inputs
-    }
-
-    pub(super) fn number_outputs(&self) -> &HashMap<NumberSourceId, PegLayoutState> {
-        &self.number_outputs
-    }
-
-    pub(super) fn find_peg_near(&self, position: egui::Pos2, ui: &egui::Ui) -> Option<GraphId> {
-        let rad = ui.input().aim_radius();
-        let top_layer = match ui.memory().layer_id_at(position, rad) {
-            Some(a) => a,
-            None => return None,
-        };
-        fn find<T: UniqueId>(
-            peg_states: &HashMap<T, PegLayoutState>,
-            layer: egui::LayerId,
-            position: egui::Pos2,
-        ) -> Option<T> {
-            for (id, st) in peg_states {
-                if st.layout.layer != layer {
-                    continue;
-                }
-                if st.layout.rect.contains(position) {
-                    return Some(*id);
-                }
-            }
-            None
-        }
-
-        if let Some(id) = find(&self.number_inputs, top_layer, position) {
-            return Some(id.into());
-        }
-        if let Some(id) = find(&self.number_outputs, top_layer, position) {
-            return Some(id.into());
-        }
-        if let Some(id) = find(&self.sound_inputs, top_layer, position) {
-            return Some(id.into());
-        }
-        if let Some(id) = find(&self.sound_outputs, top_layer, position) {
-            return Some(id.into());
-        }
-        None
-    }
-
-    pub(super) fn serialize(
-        &self,
-        serializer: &mut Serializer,
-        subset: Option<&HashSet<ObjectId>>,
-        idmap: &ForwardGraphIdMap,
-    ) {
-        let is_selected = |id: ObjectId| match subset {
-            Some(s) => s.get(&id).is_some(),
-            None => true,
-        };
-        let mut s1 = serializer.subarchive();
-        for (id, layout) in &self.objects {
-            if !is_selected(*id) {
-                continue;
-            }
-            serialize_object_id(*id, &mut s1, idmap);
-            s1.f32(layout.rect.left());
-            s1.f32(layout.rect.top());
-        }
-    }
-
-    pub(super) fn deserialize(
-        &mut self,
-        deserializer: &mut Deserializer,
-        idmap: &ReverseGraphIdMap,
-    ) -> Result<(), ()> {
-        let mut d1 = deserializer.subarchive()?;
-        while !d1.is_empty() {
-            let id: ObjectId = deserialize_object_id(&mut d1, idmap)?;
-            let left = d1.f32()?;
-            let top = d1.f32()?;
-            let layout = self.objects.entry(id).or_insert(LayoutState {
-                rect: egui::Rect::NAN,
-                layer: egui::LayerId::debug(),
-            });
-            layout.rect.set_left(left);
-            layout.rect.set_top(top);
-        }
-        Ok(())
-    }
-}
-
-pub trait AnyObjectUiState: 'static {
-    fn as_any(&self) -> &dyn Any;
-    fn get_language_type_name(&self) -> &'static str;
-    fn serialize(&self, serializer: &mut Serializer);
-}
-
-impl<T: 'static + Serializable> AnyObjectUiState for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn get_language_type_name(&self) -> &'static str {
-        type_name::<T>()
-    }
-
-    fn serialize(&self, serializer: &mut Serializer) {
-        serializer.object(self);
-    }
-}
 
 pub enum SelectionChange {
     Replace,
     Add,
     Subtract,
-}
-
-#[derive(Copy, Clone)]
-enum HotKeyAction {
-    Activate(GraphId),
-    Connect(GraphId, GraphId),
-}
-
-struct PegHotKeys {
-    mapping: HashMap<GraphId, (egui::Key, HotKeyAction)>,
-}
-
-impl PegHotKeys {
-    fn new() -> PegHotKeys {
-        PegHotKeys {
-            mapping: HashMap::new(),
-        }
-    }
-
-    fn replace(&mut self, mapping: HashMap<GraphId, (egui::Key, HotKeyAction)>) {
-        self.mapping = mapping;
-    }
-
-    fn retain(&mut self, ids: &HashSet<GraphId>) {
-        self.mapping.retain(|i, _| ids.contains(i));
-    }
-
-    fn clear(&mut self) {
-        self.mapping.clear();
-    }
-}
-
-#[derive(Copy, Clone)]
-enum KeyboardFocusState {
-    SoundProcessor(SoundProcessorId),
-    NumberSource(NumberSourceId),
-    SoundInput(SoundInputId),
-    SoundOutput(SoundProcessorId),
-    NumberInput(NumberInputId),
-    NumberOutput(NumberSourceId),
-}
-
-impl KeyboardFocusState {
-    fn as_graph_id(&self) -> GraphId {
-        match self {
-            KeyboardFocusState::SoundProcessor(i) => (*i).into(),
-            KeyboardFocusState::NumberSource(i) => (*i).into(),
-            KeyboardFocusState::SoundInput(i) => (*i).into(),
-            KeyboardFocusState::SoundOutput(i) => (*i).into(),
-            KeyboardFocusState::NumberInput(i) => (*i).into(),
-            KeyboardFocusState::NumberOutput(i) => (*i).into(),
-        }
-    }
 }
 
 enum UiMode {
@@ -314,191 +28,6 @@ enum UiMode {
     DroppingPeg((GraphId, egui::Pos2)),
     UsingKeyboardNav((KeyboardFocusState, PegHotKeys)),
     Selecting(HashSet<ObjectId>),
-}
-
-pub struct AnyObjectUiData {
-    state: Box<dyn AnyObjectUiState>,
-    color: egui::Color32,
-}
-
-impl AnyObjectUiData {
-    pub(crate) fn state(&self) -> &dyn AnyObjectUiState {
-        &*self.state
-    }
-
-    pub(crate) fn color(&self) -> egui::Color32 {
-        self.color
-    }
-}
-
-pub struct ObjectUiStates {
-    data: HashMap<ObjectId, AnyObjectUiData>,
-}
-
-impl ObjectUiStates {
-    pub(super) fn new() -> ObjectUiStates {
-        ObjectUiStates {
-            data: HashMap::new(),
-        }
-    }
-
-    pub(super) fn set_object_data(
-        &mut self,
-        id: ObjectId,
-        state: Box<dyn AnyObjectUiState>,
-        color: egui::Color32,
-    ) {
-        self.data.insert(id, AnyObjectUiData { state, color });
-    }
-
-    pub(super) fn get_object_data(&mut self, id: ObjectId) -> &AnyObjectUiData {
-        &*self.data.get(&id).unwrap()
-    }
-
-    pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>) {
-        self.data
-            .retain(|i, _| remaining_ids.contains(&(*i).into()));
-    }
-
-    #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
-        let mut good = true;
-        for i in topo.sound_processors().keys() {
-            if !self.data.contains_key(&i.into()) {
-                println!("Sound processor {} does not have a ui state", i.value());
-                good = false;
-            }
-        }
-        for (i, ns) in topo.number_sources() {
-            if ns.owner() == NumberSourceOwner::Nothing {
-                if !self.data.contains_key(&i.into()) {
-                    println!("Pure number source {} does not have a ui state", i.value());
-                    good = false;
-                }
-            }
-        }
-        for i in self.data.keys() {
-            match i {
-                ObjectId::Sound(i) => {
-                    if !topo.sound_processors().contains_key(i) {
-                        println!(
-                            "A ui state exists for non-existent sound processor {}",
-                            i.value()
-                        );
-                        good = false;
-                    }
-                }
-                ObjectId::Number(i) => {
-                    if !topo.number_sources().contains_key(i) {
-                        println!(
-                            "A ui state exists for non-existent number source {}",
-                            i.value()
-                        );
-                        good = false;
-                    }
-                }
-            }
-        }
-        good
-    }
-
-    pub(super) fn serialize(
-        &self,
-        serializer: &mut Serializer,
-        subset: Option<&HashSet<ObjectId>>,
-        idmap: &ForwardGraphIdMap,
-    ) {
-        let is_selected = |id: ObjectId| match subset {
-            Some(s) => s.get(&id).is_some(),
-            None => true,
-        };
-        let mut s1 = serializer.subarchive();
-        for (id, state) in &self.data {
-            if !is_selected(*id) {
-                continue;
-            }
-            serialize_object_id(*id, &mut s1, idmap);
-            let color = u32::from_be_bytes([
-                state.color.r(),
-                state.color.g(),
-                state.color.b(),
-                state.color.a(),
-            ]);
-            s1.u32(color);
-            let mut s2 = s1.subarchive();
-            state.state.serialize(&mut s2);
-        }
-    }
-
-    pub(super) fn deserialize(
-        &mut self,
-        deserializer: &mut Deserializer,
-        idmap: &ReverseGraphIdMap,
-        topology: &SoundGraphTopology,
-        ui_factory: &UiFactory,
-    ) -> Result<(), ()> {
-        let mut d1 = deserializer.subarchive()?;
-        while !d1.is_empty() {
-            let id = deserialize_object_id(&mut d1, idmap)?;
-            let obj = match id {
-                ObjectId::Sound(i) => match topology.sound_processor(i) {
-                    Some(sp) => sp.instance_arc().as_graph_object(),
-                    None => return Err(()),
-                },
-                ObjectId::Number(i) => match topology.number_source(i) {
-                    Some(ns) => {
-                        if let Some(o) = ns.instance_arc().as_graph_object() {
-                            o
-                        } else {
-                            return Err(());
-                        }
-                    }
-                    None => return Err(()),
-                },
-            };
-
-            let color = match d1.u32() {
-                Ok(i) => {
-                    let [r, g, b, a] = i.to_be_bytes();
-                    egui::Color32::from_rgba_premultiplied(r, g, b, a)
-                }
-                Err(_) => random_object_color(),
-            };
-
-            let d2 = d1.subarchive()?;
-            let state = ui_factory.create_state_from_archive(&obj, d2)?;
-            self.set_object_data(id, state, color);
-        }
-        Ok(())
-    }
-
-    pub(super) fn make_states_for_new_objects(
-        &mut self,
-        topo: &SoundGraphTopology,
-        ui_factory: &UiFactory,
-    ) {
-        let state_from_graph_object = |o: GraphObjectHandle| -> AnyObjectUiData {
-            let state = ui_factory.create_default_state(&o);
-            AnyObjectUiData {
-                state,
-                color: random_object_color(),
-            }
-        };
-
-        for (i, spd) in topo.sound_processors() {
-            self.data
-                .entry(i.into())
-                .or_insert_with(|| state_from_graph_object(spd.instance_arc().as_graph_object()));
-        }
-        for (i, nsd) in topo.number_sources() {
-            if nsd.owner() != NumberSourceOwner::Nothing {
-                continue;
-            }
-            self.data.entry(i.into()).or_insert_with(|| {
-                state_from_graph_object(nsd.instance_arc().as_graph_object().unwrap())
-            });
-        }
-    }
 }
 
 pub struct GraphUIState {
@@ -687,6 +216,27 @@ impl GraphUIState {
         }
     }
 
+    pub fn object_has_keyboard_focus(&self, object_id: ObjectId) -> bool {
+        match &self.mode {
+            UiMode::UsingKeyboardNav(k) => k.0.object_has_keyboard_focus(object_id),
+            _ => false,
+        }
+    }
+
+    pub fn peg_has_keyboard_focus(&self, graph_id: GraphId) -> bool {
+        match &self.mode {
+            UiMode::UsingKeyboardNav(k) => k.0.peg_has_keyboard_focus(graph_id),
+            _ => false,
+        }
+    }
+
+    pub fn peg_has_hotkey(&self, graph_id: GraphId) -> Option<egui::Key> {
+        match &self.mode {
+            UiMode::UsingKeyboardNav(k) => k.1.peg_has_hotkey(graph_id),
+            _ => None,
+        }
+    }
+
     fn update_keyboard_focus_from_selection(&mut self) {
         // TODO: press key when one object is selected to enter focus
         // and give this mode a better name
@@ -703,149 +253,6 @@ impl GraphUIState {
         // self.update_peg_hotkeys_from_keyboard_focus();
     }
 
-    fn update_peg_hotkeys_from_keyboard_focus(&mut self, topo: &SoundGraphTopology) {
-        let (keyboard_focus_state, peg_hotkeys) = match &mut self.mode {
-            UiMode::UsingKeyboardNav(x) => x,
-            _ => return,
-        };
-
-        let mut available_pegs: Vec<(GraphId, HotKeyAction)> = Vec::new();
-        match *keyboard_focus_state {
-            KeyboardFocusState::SoundProcessor(spid) => {
-                let sp = topo.sound_processor(spid).unwrap();
-                available_pegs.push((spid.into(), HotKeyAction::Activate(spid.into())));
-                for si in sp.sound_inputs().iter().cloned() {
-                    available_pegs.push((si.into(), HotKeyAction::Activate(si.into())));
-                }
-                for ni in sp.number_inputs().iter().cloned() {
-                    available_pegs.push((ni.into(), HotKeyAction::Activate(ni.into())));
-                }
-                for ns in sp.number_sources().iter().cloned() {
-                    available_pegs.push((ns.into(), HotKeyAction::Activate(ns.into())));
-                }
-            }
-            KeyboardFocusState::NumberSource(nsid) => {
-                let ns = topo.number_source(nsid).unwrap();
-                available_pegs.push((nsid.into(), HotKeyAction::Activate(nsid.into())));
-                for ni in ns.inputs().iter().cloned() {
-                    available_pegs.push((ni.into(), HotKeyAction::Activate(ni.into())));
-                }
-            }
-            KeyboardFocusState::SoundInput(siid) => {
-                for spid in topo.sound_processors().keys().cloned() {
-                    if validate_sound_connection(topo, siid, spid).is_ok() {
-                        available_pegs
-                            .push((spid.into(), HotKeyAction::Connect(siid.into(), spid.into())));
-                    }
-                }
-            }
-            KeyboardFocusState::SoundOutput(spid) => {
-                for siid in topo.sound_inputs().keys().cloned() {
-                    if validate_sound_connection(topo, siid, spid).is_ok() {
-                        available_pegs
-                            .push((siid.into(), HotKeyAction::Connect(spid.into(), siid.into())));
-                    }
-                }
-            }
-            KeyboardFocusState::NumberInput(niid) => {
-                for nsid in topo.number_sources().keys().cloned() {
-                    if validate_number_connection(topo, niid, nsid).is_ok() {
-                        available_pegs
-                            .push((nsid.into(), HotKeyAction::Connect(niid.into(), nsid.into())));
-                    }
-                }
-            }
-            KeyboardFocusState::NumberOutput(nsid) => {
-                for niid in topo.number_inputs().keys().cloned() {
-                    if validate_number_connection(topo, niid, nsid).is_ok() {
-                        available_pegs
-                            .push((niid.into(), HotKeyAction::Connect(nsid.into(), niid.into())));
-                    }
-                }
-            }
-        }
-        // TODO: try to persist hotkeys of pegs that remain available
-        peg_hotkeys.clear();
-        peg_hotkeys.replace(Self::assign_hotkeys_to_pegs(&available_pegs));
-    }
-
-    fn assign_hotkeys_to_pegs(
-        pegs_actions: &[(GraphId, HotKeyAction)],
-    ) -> HashMap<GraphId, (egui::Key, HotKeyAction)> {
-        // TODO: arrange hotkeys such that their onscreen layout corresponds reasonably well to the keyboard layout
-        let avail_keys: Vec<egui::Key> = vec![
-            egui::Key::A,
-            egui::Key::B,
-            egui::Key::C,
-            egui::Key::D,
-            egui::Key::E,
-            egui::Key::F,
-            egui::Key::G,
-            egui::Key::H,
-            egui::Key::I,
-            egui::Key::J,
-            egui::Key::K,
-            egui::Key::L,
-            egui::Key::M,
-            egui::Key::N,
-            egui::Key::O,
-            egui::Key::P,
-            egui::Key::Q,
-            egui::Key::R,
-            egui::Key::S,
-            egui::Key::T,
-            egui::Key::U,
-            egui::Key::V,
-            egui::Key::W,
-            egui::Key::X,
-            egui::Key::Y,
-            egui::Key::Z,
-        ];
-        let mut next_avail_key = avail_keys.iter();
-        let mut mapping = HashMap::<GraphId, (egui::Key, HotKeyAction)>::new();
-        for (p, a) in pegs_actions {
-            if let Some(k) = next_avail_key.next() {
-                mapping.insert(*p, (*k, *a));
-            } else {
-                break;
-            }
-        }
-        mapping
-    }
-
-    pub(super) fn object_has_keyboard_focus(&self, object: ObjectId) -> bool {
-        let keyboard_focus = match &self.mode {
-            UiMode::UsingKeyboardNav(p) => &p.0,
-            _ => return false,
-        };
-        match (object, keyboard_focus) {
-            (ObjectId::Sound(spid1), KeyboardFocusState::SoundProcessor(spid2)) => spid1 == *spid2,
-            (ObjectId::Number(nsid1), KeyboardFocusState::NumberSource(nsid2)) => nsid1 == *nsid2,
-            _ => false,
-        }
-    }
-
-    pub(super) fn peg_has_keyboard_focus(&self, id: GraphId) -> bool {
-        let keyboard_focus = match &self.mode {
-            UiMode::UsingKeyboardNav(p) => &p.0,
-            _ => return false,
-        };
-        match (id, keyboard_focus) {
-            (GraphId::NumberInput(i1), KeyboardFocusState::NumberInput(i2)) => i1 == *i2,
-            (GraphId::NumberSource(i1), KeyboardFocusState::NumberOutput(i2)) => i1 == *i2,
-            (GraphId::SoundInput(i1), KeyboardFocusState::SoundInput(i2)) => i1 == *i2,
-            (GraphId::SoundProcessor(i1), KeyboardFocusState::SoundOutput(i2)) => i1 == *i2,
-            (_, _) => false,
-        }
-    }
-
-    pub fn peg_has_hotkey(&self, id: GraphId) -> Option<egui::Key> {
-        match &self.mode {
-            UiMode::UsingKeyboardNav(x) => x.1.mapping.get(&id).map(|x| x.0),
-            _ => None,
-        }
-    }
-
     pub(super) fn activate_hotkey(&mut self, key: egui::Key, topo: &SoundGraphTopology) -> bool {
         let (keyboard_focus, peg_hotkeys) = match &mut self.mode {
             UiMode::UsingKeyboardNav(p) => p,
@@ -853,7 +260,7 @@ impl GraphUIState {
         };
 
         let action = peg_hotkeys
-            .mapping
+            .mapping()
             .iter()
             .find_map(|(_, (k, a))| if *k == key { Some(*a) } else { None });
         let action = match action {
@@ -912,13 +319,13 @@ impl GraphUIState {
                 };
             }
         }
-        self.update_peg_hotkeys_from_keyboard_focus(topo);
+        peg_hotkeys.update_peg_hotkeys_from_keyboard_focus(topo, &keyboard_focus);
         true
     }
 
     pub(super) fn cancel_hotkey(&mut self, topo: &SoundGraphTopology) -> bool {
-        let keyboard_focus = match &mut self.mode {
-            UiMode::UsingKeyboardNav(p) => &mut p.0,
+        let (keyboard_focus, peg_hotkeys) = match &mut self.mode {
+            UiMode::UsingKeyboardNav(p) => p,
             _ => return false,
         };
 
@@ -949,12 +356,14 @@ impl GraphUIState {
             }
             KeyboardFocusState::SoundProcessor(_) => {
                 self.mode = UiMode::Passive;
+                return true;
             }
             KeyboardFocusState::NumberSource(_) => {
                 self.mode = UiMode::Passive;
+                return true;
             }
         };
-        self.update_peg_hotkeys_from_keyboard_focus(topo);
+        peg_hotkeys.update_peg_hotkeys_from_keyboard_focus(topo, keyboard_focus);
         true
     }
 

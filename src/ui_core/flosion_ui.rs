@@ -22,8 +22,9 @@ use eframe::{
 use rfd::FileDialog;
 
 use super::{
-    graph_ui_state::{GraphUIState, ObjectUiStates, SelectionChange},
+    graph_ui_state::{GraphUIState, SelectionChange},
     object_ui::{random_object_color, PegDirection},
+    object_ui_states::ObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
 };
