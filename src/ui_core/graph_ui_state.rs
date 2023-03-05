@@ -365,14 +365,14 @@ impl ObjectUiStates {
         let mut good = true;
         for i in topo.sound_processors().keys() {
             if !self.data.contains_key(&i.into()) {
-                println!("Sound processor {} does not have a ui state", i.0);
+                println!("Sound processor {} does not have a ui state", i.value());
                 good = false;
             }
         }
         for (i, ns) in topo.number_sources() {
             if ns.owner() == NumberSourceOwner::Nothing {
                 if !self.data.contains_key(&i.into()) {
-                    println!("Pure number source {} does not have a ui state", i.0);
+                    println!("Pure number source {} does not have a ui state", i.value());
                     good = false;
                 }
             }
@@ -381,13 +381,19 @@ impl ObjectUiStates {
             match i {
                 ObjectId::Sound(i) => {
                     if !topo.sound_processors().contains_key(i) {
-                        println!("A ui state exists for non-existent sound processor {}", i.0);
+                        println!(
+                            "A ui state exists for non-existent sound processor {}",
+                            i.value()
+                        );
                         good = false;
                     }
                 }
                 ObjectId::Number(i) => {
                     if !topo.number_sources().contains_key(i) {
-                        println!("A ui state exists for non-existent number source {}", i.0);
+                        println!(
+                            "A ui state exists for non-existent number source {}",
+                            i.value()
+                        );
                         good = false;
                     }
                 }
@@ -968,7 +974,7 @@ impl GraphUIState {
                     if !topo.sound_processors().contains_key(i) {
                         println!(
                             "An object position exists for a non-existent sound processor {}",
-                            i.0
+                            i.value()
                         );
                         good = false;
                     }
@@ -977,7 +983,7 @@ impl GraphUIState {
                     if !topo.number_sources().contains_key(i) {
                         println!(
                             "An object position exists for a non-existent number source {}",
-                            i.0
+                            i.value()
                         );
                         good = false;
                     }
@@ -988,7 +994,7 @@ impl GraphUIState {
             if !topo.sound_processors().contains_key(i) {
                 println!(
                     "A screen position exists for a non-existent sound output {}",
-                    i.0
+                    i.value()
                 );
                 good = false;
             }
@@ -997,7 +1003,7 @@ impl GraphUIState {
             if !topo.sound_inputs().contains_key(i) {
                 println!(
                     "A screen position exists for a non-existent sound input {}",
-                    i.0
+                    i.value()
                 );
                 good = false;
             }
@@ -1006,7 +1012,7 @@ impl GraphUIState {
             if !topo.number_sources().contains_key(i) {
                 println!(
                     "A screen position exists for a non-existent number output {}",
-                    i.0
+                    i.value()
                 );
                 good = false;
             }
@@ -1015,7 +1021,7 @@ impl GraphUIState {
             if !topo.number_inputs().contains_key(i) {
                 println!(
                     "A screen position exists for a non-existent number output {}",
-                    i.0
+                    i.value()
                 );
                 good = false;
             }

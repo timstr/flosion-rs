@@ -106,7 +106,6 @@ impl<T: ObjectUi> AnyObjectUi for T {
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     ) {
-        // let dc_object = downcast_object_arc::<T>(object.clone().instance_arc());
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let state_any = object_ui_state.state().as_any();
         debug_assert!(
@@ -250,7 +249,6 @@ impl ObjectWindow {
         direction: PegDirection,
         graph_state: &mut GraphUIState,
     ) {
-        // TODO: gather Responses from pegs?
         for (graph_id, label) in pegs {
             match graph_id {
                 GraphId::SoundInput(siid) => {
@@ -415,32 +413,12 @@ impl ObjectWindow {
         if r.response.dragged() {
             graph_tools.move_selection(r.response.drag_delta());
         }
-        if r.response.drag_released() {
-            // println!("drag released");
-        }
         if r.response.clicked() {
             if !graph_tools.is_object_selected(self.object_id) {
                 graph_tools.clear_selection();
                 graph_tools.select_object(self.object_id);
             }
         }
-
-        // let r = egui::Window::new("")
-        //     .id(id)
-        //     .title_bar(false)
-        //     .resizable(false)
-        //     .frame(
-        //         egui::Frame::none()
-        //             .fill(fill)
-        //             .stroke(stroke)
-        //             .margin(egui::Vec2::splat(10.0)),
-        //     )
-        //     .show(ctx, |ui| add_contents(ui, graph_tools))
-        //     .unwrap();
-        // if r.response.clicked() {
-        //     println!("Yup");
-        //     graph_tools.select_object(self.object_id);
-        // }
     }
 }
 
@@ -532,6 +510,7 @@ fn peg_ui(
         egui::FontId::monospace(16.0),
         egui::Color32::WHITE,
     );
+    // TODO: also show label when wires are being dragged
     if let Some(s) = popup_str {
         let galley = painter.layout_no_wrap(
             s.to_string(),
@@ -565,11 +544,6 @@ fn peg_ui(
     if response.drag_released() {
         ui_state.stop_dragging(Some(response.interact_pointer_pos().unwrap()));
     }
-    // let r = response.clone();
-    // response.on_hover_ui_at_pointer(|ui| {
-    //     ui.label(label);
-    // });
-    // r
     response
 }
 

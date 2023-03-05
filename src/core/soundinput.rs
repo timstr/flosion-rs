@@ -2,9 +2,14 @@ use crate::core::soundchunk::CHUNK_SIZE;
 
 use super::uniqueid::UniqueId;
 
-// TODO: consider making usize field private, prefer .value() over .0
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundInputId(pub usize);
+pub struct SoundInputId(usize);
+
+impl SoundInputId {
+    pub(crate) fn new(id: usize) -> SoundInputId {
+        SoundInputId(id)
+    }
+}
 
 impl Default for SoundInputId {
     fn default() -> SoundInputId {

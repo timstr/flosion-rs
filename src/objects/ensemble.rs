@@ -111,17 +111,6 @@ impl DynamicSoundProcessor for Ensemble {
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
-        // TODO: conceptually, the voice frequency is just a simple function
-        // of the input frequency, frequency spread, and per-voice state.
-        // It should be possible to evaluate the voice frequency as such
-        // for each sample without having to store additional buffers
-        // full of all temporary frequency values.
-        // This could be implemented by having the Ensemble object add intermediate
-        // number sources which do the interesting math after drawing upon the relevant
-        // inputs. This would also be a useful pattern for splines in the Melody object.
-        // This *might* be possible with zero or minimal changes just by storing
-        // handles to the relevant number sources in the processor itself and connecting
-        // them together via SoundProcessorTools
         let freq_in = number_inputs.frequency_in.eval_scalar(&context);
         let freq_spread = number_inputs.frequency_spread.eval_scalar(&context);
         for voice_data in sound_inputs.data_mut() {

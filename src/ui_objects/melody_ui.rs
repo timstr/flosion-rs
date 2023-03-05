@@ -123,7 +123,7 @@ impl ObjectUi for MelodyUi {
                         let start_time_samples =
                             thread_rng().gen::<usize>() % (4 * SAMPLE_FREQUENCY);
                         let duration_samples = thread_rng().gen::<usize>() % SAMPLE_FREQUENCY;
-                        let frequency = 25.0 * (thread_rng().gen::<usize>() % 20) as f32;
+                        let frequency = 50.0 * (thread_rng().gen::<usize>() % 10) as f32;
                         let note = Note {
                             start_time_samples,
                             duration_samples,

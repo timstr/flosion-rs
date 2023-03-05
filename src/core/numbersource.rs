@@ -15,9 +15,14 @@ use super::{
     uniqueid::UniqueId,
 };
 
-// TODO: consider making usize field private, prefer .value() over .0
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct NumberSourceId(pub usize);
+pub struct NumberSourceId(usize);
+
+impl NumberSourceId {
+    pub(crate) fn new(id: usize) -> NumberSourceId {
+        NumberSourceId(id)
+    }
+}
 
 impl Default for NumberSourceId {
     fn default() -> NumberSourceId {

@@ -71,7 +71,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     helper.register_static_sound_processor::<KeyboardUi>();
     helper.register_static_sound_processor::<RecorderUi>();
 
-    // Dynamicic sound processors
+    // Dynamic sound processors
     helper.register_dynamic_sound_processor::<ADSRUi>();
     helper.register_dynamic_sound_processor::<AudioClipUi>();
     helper.register_dynamic_sound_processor::<EnsembleUi>();

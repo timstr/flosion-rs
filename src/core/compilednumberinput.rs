@@ -471,7 +471,7 @@ unsafe extern "C" fn input_scalar_read_wrapper(
     let f: ScalarReadFunc = std::mem::transmute_copy(&array_read_fn);
     let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
     let ctx: &Context = unsafe { &*ctx };
-    let siid = SoundInputId(sound_input_id);
+    let siid = SoundInputId::new(sound_input_id);
     let frame = ctx.find_input_frame(siid);
     f(&frame.state())
 }
@@ -488,7 +488,7 @@ unsafe extern "C" fn processor_scalar_read_wrapper(
     let f: ScalarReadFunc = std::mem::transmute_copy(&array_read_fn);
     let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
     let ctx: &Context = unsafe { &*ctx };
-    let spid = SoundProcessorId(sound_processor_id);
+    let spid = SoundProcessorId::new(sound_processor_id);
     let frame = ctx.find_processor_state(spid);
     f(&frame)
 }
@@ -506,7 +506,7 @@ unsafe extern "C" fn input_array_read_wrapper(
     let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
     let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
     let ctx: &Context = unsafe { &*ctx };
-    let siid = SoundInputId(sound_input_id);
+    let siid = SoundInputId::new(sound_input_id);
     let frame = ctx.find_input_frame(siid);
     let s = f(&frame.state());
     if s.len() != expected_len {
@@ -528,7 +528,7 @@ unsafe extern "C" fn processor_array_read_wrapper(
     let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
     let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
     let ctx: &Context = unsafe { &*ctx };
-    let spid = SoundProcessorId(sound_processor_id);
+    let spid = SoundProcessorId::new(sound_processor_id);
     let frame = ctx.find_processor_state(spid);
     let s = f(&frame);
     if s.len() != expected_len {
@@ -545,7 +545,7 @@ unsafe extern "C" fn processor_time_wrapper(
 ) {
     let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
     let ctx: &Context = unsafe { &*ctx };
-    let spid = SoundProcessorId(sound_processor_id);
+    let spid = SoundProcessorId::new(sound_processor_id);
     let (time, speed) = ctx.time_offset_and_speed_at_processor(spid);
     *ptr_time = time;
     *ptr_speed = speed / SAMPLE_FREQUENCY as f32;
@@ -559,14 +559,12 @@ unsafe extern "C" fn input_time_wrapper(
 ) {
     let ctx: *const Context = std::mem::transmute_copy(&context_ptr);
     let ctx: &Context = unsafe { &*ctx };
-    let siid = SoundInputId(sound_input_id);
+    let siid = SoundInputId::new(sound_input_id);
     let (time, speed) = ctx.time_offset_and_speed_at_input(siid);
     *ptr_time = time;
     *ptr_speed = speed / SAMPLE_FREQUENCY as f32;
 }
 
-// NOTE: could use va_args for external sources, maybe worth testing since
-// that would mean less indirection
 type EvalNumberInputFunc = unsafe extern "C" fn(
     *mut f32,  // pointer to destination array
     usize,     // length of destination array
@@ -605,7 +603,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         topology: &SoundGraphTopology,
         inkwell_context: &'inkwell_ctx inkwell::context::Context,
     ) -> CompiledNumberInputNode<'inkwell_ctx> {
-        let module_name = format!("node_id{}", number_input_id.0);
+        let module_name = format!("node_id{}", number_input_id.value());
         let module = inkwell_context.create_module(&module_name);
 
         let builder = inkwell_context.create_builder();
@@ -721,7 +719,7 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             false, // is_var_args
         );
 
-        let function_name = format!("compiled_node_id{}", number_input_id.0);
+        let function_name = format!("compiled_node_id{}", number_input_id.value());
         let fn_eval_number_input =
             module.add_function(&function_name, fn_eval_number_input_type, None);
 
@@ -860,45 +858,6 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
 
             pass_manager.run_on(codegen.module());
         }
-
-        // print out the IR if testing
-        // {
-        //     let bc_path = Path::new("module.bc");
-        //     let ll_path = Path::new("module.ll");
-        //     codegen.module().write_bitcode_to_path(&bc_path);
-
-        //     let llvm_dis_output = Command::new("llvm-dis-14")
-        //         .arg(&bc_path)
-        //         .arg("-o")
-        //         .arg(&ll_path)
-        //         .output()
-        //         .expect("Failed to call llvm-dis");
-
-        //     if !llvm_dis_output.status.success() {
-        //         println!(
-        //             "llvm-dis returned {}",
-        //             llvm_dis_output.status.code().unwrap()
-        //         );
-        //         let stdout = String::from_utf8(llvm_dis_output.stdout).unwrap();
-        //         let stderr = String::from_utf8(llvm_dis_output.stderr).unwrap();
-        //         for l in stdout.lines() {
-        //             println!("stdout | {}", l);
-        //         }
-        //         for l in stderr.lines() {
-        //             println!("stderr | {}", l);
-        //         }
-        //         panic!("llvm-dis is unhappy");
-        //     }
-
-        //     let ll_contents = fs::read_to_string(ll_path).expect("Failed to open ll file");
-        //     println!("LLVM IR for number input node {}", number_input_id.value());
-        //     for l in ll_contents.lines() {
-        //         println!("    {}", l);
-        //     }
-
-        //     std::fs::remove_file(bc_path).unwrap();
-        //     std::fs::remove_file(ll_path).unwrap();
-        // }
 
         let compiled_fn = match unsafe { execution_engine.get_function(&function_name) } {
             Ok(f) => f,

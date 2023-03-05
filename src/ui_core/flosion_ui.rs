@@ -408,8 +408,6 @@ impl FlosionApp {
 
             p_prev = p;
         }
-
-        // painter.line_segment([start, end], stroke);
     }
 
     fn peg_direction_to_vec(direction: PegDirection) -> egui::Vec2 {

@@ -16,7 +16,6 @@ pub fn resample_interleave<F: FnMut() -> (f32, f32)>(
             s = get_next_input_sample();
             remainder -= 1.0;
         }
-        // let s = get_next_input_sample(); // HACK
         p[0] = s.0;
         p[1] = s.1;
         remainder += ratio;

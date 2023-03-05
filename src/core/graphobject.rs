@@ -16,6 +16,7 @@ use super::{
         SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
         StaticSoundProcessorWithId,
     },
+    uniqueid::UniqueId,
 };
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash)]
@@ -88,10 +89,10 @@ pub enum GraphId {
 impl GraphId {
     pub fn as_usize(&self) -> usize {
         match self {
-            GraphId::SoundInput(id) => id.0,
-            GraphId::SoundProcessor(id) => id.0,
-            GraphId::NumberInput(id) => id.0,
-            GraphId::NumberSource(id) => id.0,
+            GraphId::SoundInput(id) => id.value(),
+            GraphId::SoundProcessor(id) => id.value(),
+            GraphId::NumberInput(id) => id.value(),
+            GraphId::NumberSource(id) => id.value(),
         }
     }
 }
@@ -225,10 +226,6 @@ impl<T: StaticSoundProcessor> GraphObject for StaticSoundProcessorWithId<T> {
         T::TYPE
     }
 
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-
     fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
         self
     }
@@ -250,10 +247,6 @@ impl<T: DynamicSoundProcessor> GraphObject for DynamicSoundProcessorWithId<T> {
     fn get_type(&self) -> ObjectType {
         T::TYPE
     }
-
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
 
     fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
         self
@@ -277,10 +270,6 @@ impl<T: PureNumberSource> GraphObject for PureNumberSourceWithId<T> {
     fn get_type(&self) -> ObjectType {
         T::TYPE
     }
-
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
 
     fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
         self

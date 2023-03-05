@@ -506,7 +506,6 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
 
     // TODO: add sample_offset in [0, chunk_size)
     pub fn start_key(&mut self, duration_samples: Option<usize>, id: I, state: S, reuse: KeyReuse) {
-        // TODO: what to do if a key with the same id is alread playing?
         let mut oldest_key_index_and_age = None;
         let mut available_index = None;
         for (i, d) in self.data.iter_mut().enumerate() {
@@ -586,8 +585,7 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
-        // first pass: assume all input chunks align with output chunk, write directly
-        // second pass: allow per-key chunk sample offsets, store remaining chunk in state
+        // TODO: allow per-key chunk sample offsets, store remaining chunk in state
 
         dst.silence();
         let mut temp_chunk = SoundChunk::new();

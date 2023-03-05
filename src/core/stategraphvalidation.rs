@@ -17,7 +17,6 @@ use super::{
     uniqueid::UniqueId,
 };
 
-// TODO: should SharedProcessorNodeData use separate 'ctx lifetime?
 struct Visitor<'a, 'ctx> {
     topology: &'a SoundGraphTopology,
     visited_shared_nodes: HashSet<*const SharedProcessorNodeData<'ctx>>,

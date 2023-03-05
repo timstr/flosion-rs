@@ -15,3 +15,23 @@ fn main() {
         Box::new(|cc| Box::new(FlosionApp::new(cc))),
     );
 }
+
+// TODO
+// - sequencer
+// - microphone
+// - lowpass
+// - highpass
+// - bandpass
+// - stateful number sources
+// - FFT filter
+// - convolver
+// - granular synth
+// - feedback
+// - phase vocoder
+// - scatter
+// - ensemble
+// - compressor
+// - overlap-add helpers
+// - fft helpers
+// - interactive display (spectrogram, waveform, oscilloscope)
+// -

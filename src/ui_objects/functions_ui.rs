@@ -14,6 +14,7 @@ use crate::{
 };
 
 // TODO: distinguish constant from slider
+// See also note about Constant vs Variable in functions.rs
 
 #[derive(Default)]
 pub struct ConstantUi {}
@@ -61,6 +62,7 @@ impl ObjectUi for ConstantUi {
         data: ObjectUiData<ConstantUiState>,
     ) {
         // TODO: use data.state.name instead of always "Constant"
+        // Will need to accept something other than &'static str in ObjectWindow
         ObjectWindow::new_number_source(constant.id(), "Constant", data.color)
             .add_right_peg(&constant, "Output")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
@@ -165,7 +167,6 @@ macro_rules! binary_number_source_ui {
     };
 }
 
-// TODO: display names
 macro_rules! ternary_number_source_ui {
     ($name: ident, $object: ident, $display_name: literal, $aliases: expr) => {
         #[derive(Default)]

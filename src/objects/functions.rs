@@ -26,7 +26,7 @@ impl Constant {
     }
 }
 
-// TODO: consider renaming this to Variable
+// TODO: consider renaming this to Variable (Warning! renaming object type will break old files)
 // TODO: consider adding a different Constant struct which compiles to a float constant instead of an atomic read
 impl PureNumberSource for Constant {
     fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {

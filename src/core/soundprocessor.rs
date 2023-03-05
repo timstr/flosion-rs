@@ -17,9 +17,14 @@ use super::{
     uniqueid::UniqueId,
 };
 
-// TODO: consider making usize field private, prefer .value() over .0
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundProcessorId(pub usize);
+pub struct SoundProcessorId(usize);
+
+impl SoundProcessorId {
+    pub(crate) fn new(id: usize) -> SoundProcessorId {
+        SoundProcessorId(id)
+    }
+}
 
 impl Default for SoundProcessorId {
     fn default() -> SoundProcessorId {

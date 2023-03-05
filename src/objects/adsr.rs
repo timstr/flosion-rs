@@ -274,7 +274,6 @@ impl DynamicSoundProcessor for ADSR {
         numeric::mul_inplace(&mut dst.l, &level);
         numeric::mul_inplace(&mut dst.r, &level);
 
-        // TODO: consider stopping early if input is done
         status
     }
 }

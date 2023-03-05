@@ -9,9 +9,8 @@ use super::{
     uniqueid::UniqueId,
 };
 
-// TODO: consider making usize field private, prefer .value() over .0
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct NumberInputId(pub usize);
+pub struct NumberInputId(usize);
 
 impl Default for NumberInputId {
     fn default() -> NumberInputId {

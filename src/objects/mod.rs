@@ -13,22 +13,3 @@ pub mod whitenoise;
 
 #[cfg(test)]
 mod test;
-
-// TODO
-// - sequencer
-// - microphone
-// - lowpass
-// - highpass
-// - bandpass
-// - stateful number sources
-// - FFT filter
-// - convolver
-// - granular synth
-// - feedback
-// - phase vocoder
-// - scatter
-// - ensemble
-// - compressor
-// - overlap-add helpers
-// - fft helpers
-// - interactive display (spectrogram, waveform, oscilloscope)

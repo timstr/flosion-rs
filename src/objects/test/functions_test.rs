@@ -176,10 +176,6 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     input_ranges: &[(f32, f32)],
     test_function: F,
 ) {
-    // TODO: also pass in a function that generates the expected values,
-    // to catch any issues common to both number inputs
-    // TODO: also test binary number sources
-
     let mut topo = SoundGraphTopology::new();
 
     let mut spidgen = IdGenerator::<SoundProcessorId>::new();
@@ -231,7 +227,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
 
     // add number source to topology
     topo.make_edit(SoundGraphEdit::AddNumberSource(NumberSourceData::new(
-        NumberSourceId(1),
+        NumberSourceId::new(1),
         ns_instance_2,
         NumberSourceOwner::Nothing,
         NumberVisibility::Public,
@@ -280,7 +276,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
         CompiledNumberInputNode::compile(sp_instance.number_input.id(), &topo, &inkwell_context);
 
     let scratch_space = ScratchArena::new();
-    let context = Context::new(SoundProcessorId(1), &topo, &scratch_space);
+    let context = Context::new(SoundProcessorId::new(1), &topo, &scratch_space);
 
     //------------------------
 

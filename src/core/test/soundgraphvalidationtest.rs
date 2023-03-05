@@ -23,7 +23,7 @@ fn find_error_one_proc() {
     topo.make_edit(SoundGraphEdit::AddSoundProcessor(SoundProcessorData::new(
         Arc::new(StaticSoundProcessorWithId::new(
             TestStaticSoundProcessor::new(),
-            SoundProcessorId(1),
+            SoundProcessorId::new(1),
         )),
     )));
     let e = find_error(&topo);
