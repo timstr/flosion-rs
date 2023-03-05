@@ -287,43 +287,66 @@ impl FlosionApp {
         let id_dst = ui_state.layout_state().find_peg_near(p, ui);
         match id_src {
             GraphId::NumberInput(niid) => {
-                if topo.number_input(niid).unwrap().target().is_some() {
+                if let Some(nsid) = topo.number_input(niid).unwrap().target() {
+                    // Dragging from a number input that already was connected
                     ui_state.make_change(move |g| {
+                        // Disconnect the input
                         g.disconnect_number_input(niid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
                     });
-                }
-                if let Some(GraphId::NumberSource(nsid)) = id_dst {
+                    if let Some(GraphId::NumberInput(niid2)) = id_dst {
+                        // If dropped onto a different number input, connect the number output to it
+                        ui_state.make_change(move |g| {
+                            g.connect_number_input(niid2, nsid)
+                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                        });
+                    }
+                } else if let Some(GraphId::NumberSource(nsid)) = id_dst {
+                    // Dragging from a disconnected number input to a number output
                     ui_state.make_change(move |g| {
                         g.connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
                     });
                 }
             }
             GraphId::NumberSource(nsid) => {
                 if let Some(GraphId::NumberInput(niid)) = id_dst {
+                    // Dragging from a number output to a number input
                     ui_state.make_change(move |g| {
                         g.connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
                     });
                 }
             }
             GraphId::SoundInput(siid) => {
-                if topo.sound_input(siid).unwrap().target().is_some() {
-                    ui_state.make_change(move |g| g.disconnect_sound_input(siid).unwrap());
-                }
-                if let Some(GraphId::SoundProcessor(spid)) = id_dst {
+                if let Some(spid) = topo.sound_input(siid).unwrap().target() {
+                    // Dragging from a sound input that was already connected
+                    ui_state.make_change(move |g| {
+                        // Disconnect the input
+                        g.disconnect_sound_input(siid)
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
+                    });
+                    if let Some(GraphId::SoundInput(siid2)) = id_dst {
+                        // if dropped onto a different sound output, connect the sound input to it
+                        ui_state.make_change(move |g| {
+                            g.connect_sound_input(siid2, spid)
+                                .unwrap_or_else(|e| println!("Error: {:?}", e));
+                        });
+                    }
+                } else if let Some(GraphId::SoundProcessor(spid)) = id_dst {
+                    // Dragging from a disconnected sound input to a sound output
                     ui_state.make_change(move |g| {
                         g.connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
                     });
                 }
             }
             GraphId::SoundProcessor(spid) => {
                 if let Some(GraphId::SoundInput(siid)) = id_dst {
+                    // Dragging from a sound output to a sound input
                     ui_state.make_change(move |g| {
                         g.connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| println!("Error: {:?}", e))
+                            .unwrap_or_else(|e| println!("Error: {:?}", e));
                     });
                 }
             }
@@ -516,9 +539,9 @@ impl FlosionApp {
     fn delete_selection(ui_state: &mut GraphUIState) {
         let selection: Vec<ObjectId> = ui_state.selection().iter().cloned().collect();
         ui_state.make_change(move |g| {
-            if let Err(e) = g.remove_objects_batch(&selection) {
-                println!("Nope! Can't remove those:\n    {:?}", e);
-            }
+            g.remove_objects_batch(&selection).unwrap_or_else(|e| {
+                println!("Nope! Can't remove that:\n    {:?}", e);
+            });
         });
     }
 

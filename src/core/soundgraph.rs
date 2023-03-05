@@ -329,18 +329,35 @@ impl SoundGraph {
         )
     }
 
-    fn try_make_edits(&mut self, edit_queue: Vec<SoundGraphEdit>) -> Result<(), SoundGraphError> {
-        let prev_topology = self.local_topology.clone();
+    fn try_make_edits_locally(
+        &mut self,
+        edit_queue: &[SoundGraphEdit],
+    ) -> Result<(), SoundGraphError> {
         for edit in edit_queue {
-            debug_assert!(edit.check_preconditions(&self.local_topology));
-            self.local_topology.make_edit(edit.clone());
-            if let Some(err) = find_error(&self.local_topology) {
-                self.local_topology = prev_topology;
+            if let Some(err) = edit.check_preconditions(&self.local_topology) {
                 return Err(err);
             }
-            self.engine_interface.make_edit(edit);
+            self.local_topology.make_edit(edit.clone());
+            if let Some(err) = find_error(&self.local_topology) {
+                return Err(err);
+            }
         }
         Ok(())
+    }
+
+    fn try_make_edits(&mut self, edit_queue: Vec<SoundGraphEdit>) -> Result<(), SoundGraphError> {
+        debug_assert!(find_error(&self.local_topology).is_none());
+        let prev_topology = self.local_topology.clone();
+        let res = self.try_make_edits_locally(&edit_queue);
+        if res.is_err() {
+            self.local_topology = prev_topology;
+        } else {
+            debug_assert!(find_error(&self.local_topology).is_none());
+            for edit in edit_queue {
+                self.engine_interface.make_edit(edit);
+            }
+        }
+        res
     }
 
     pub(crate) fn topology(&self) -> &SoundGraphTopology {

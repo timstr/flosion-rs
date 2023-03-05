@@ -10,7 +10,9 @@ use std::{
 
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use crate::core::stategraphvalidation::state_graph_matches_topology;
+use crate::core::{
+    soundgraphvalidation::find_error, stategraphvalidation::state_graph_matches_topology,
+};
 
 use super::{
     samplefrequency::SAMPLE_FREQUENCY, scratcharena::ScratchArena, soundchunk::CHUNK_SIZE,
@@ -134,6 +136,7 @@ impl SoundEngine {
                 topology.make_edit(edit.clone());
                 state_graph.make_edit(edit, topology, context);
             }
+            debug_assert!(find_error(topology).is_none());
             debug_assert!(state_graph_matches_topology(state_graph, topology));
         }
     }

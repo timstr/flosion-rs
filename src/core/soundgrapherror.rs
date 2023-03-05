@@ -9,30 +9,44 @@ use super::{
 #[derive(Debug, Eq, PartialEq)]
 pub enum SoundError {
     ProcessorIdTaken(SoundProcessorId),
+    ProcessorNotFound(SoundProcessorId),
+    BadProcessorInit(SoundProcessorId),
+    BadProcessorCleanup(SoundProcessorId),
     InputIdTaken(SoundInputId),
+    InputNotFound(SoundInputId),
+    BadInputInit(SoundInputId),
+    BadInputCleanup(SoundInputId),
+    BadInputKeyIndex(SoundInputId, usize),
+    InputOccupied {
+        input_id: SoundInputId,
+        current_target: SoundProcessorId,
+    },
+    InputUnoccupied(SoundInputId),
     CircularDependency {
         cycle: SoundPath,
     },
     StaticTooManyStates(SoundProcessorId),
     StaticNotSynchronous(SoundProcessorId),
-    ProcessorNotFound(SoundProcessorId),
-    InputNotFound(SoundInputId),
-    InputOccupied {
-        input_id: SoundInputId,
-        current_target: SoundProcessorId,
-    },
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum NumberError {
     SourceIdTaken(NumberSourceId),
+    SourceNotFound(NumberSourceId),
+    BadSourceInit(NumberSourceId),
+    BadSourceCleanup(NumberSourceId),
     InputIdTaken(NumberInputId),
+    InputNotFound(NumberInputId),
+    BadInputInit(NumberInputId),
+    BadInputCleanup(NumberInputId),
+    InputOccupied {
+        input_id: NumberInputId,
+        current_target: NumberSourceId,
+    },
+    InputUnoccupied(NumberInputId),
     CircularDependency {
         cycle: NumberPath,
     },
-    InputNotFound(NumberInputId),
-    InputOccupied(NumberInputId, NumberSourceId),
-    SourceNotFound(NumberSourceId),
     StateNotInScope {
         bad_dependencies: Vec<(NumberSourceId, NumberInputId)>,
     },

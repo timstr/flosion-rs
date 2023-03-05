@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::core::soundgraphvalidation::find_error;
-
 use super::{
     graphobject::{GraphId, GraphObjectHandle},
     numberinput::{NumberInputId, NumberInputOwner},
@@ -96,7 +94,6 @@ impl SoundGraphTopology {
     }
 
     pub(crate) fn make_edit(&mut self, edit: SoundGraphEdit) {
-        debug_assert!(find_error(self).is_none());
         match edit {
             SoundGraphEdit::AddSoundProcessor(data) => self.add_sound_processor(data),
             SoundGraphEdit::RemoveSoundProcessor(id) => self.remove_sound_processor(id),
@@ -113,7 +110,6 @@ impl SoundGraphTopology {
             SoundGraphEdit::ConnectNumberInput(niid, nsid) => self.connect_number_input(niid, nsid),
             SoundGraphEdit::DisconnectNumberInput(niid) => self.disconnect_number_input(niid),
         }
-        debug_assert!(find_error(self).is_none());
     }
 
     fn add_sound_processor(&mut self, data: SoundProcessorData) {
