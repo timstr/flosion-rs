@@ -34,6 +34,7 @@ enum KeyboardCommand {
 pub struct Keyboard {
     pub input: KeyedInputQueue<KeyId, KeyboardKeyState>,
     pub key_frequency: NumberSourceHandle,
+    pub key_time: NumberSourceHandle,
     command_sender: SyncSender<KeyboardCommand>,
     command_receiver: Mutex<Receiver<KeyboardCommand>>,
 }
@@ -73,9 +74,11 @@ impl StaticSoundProcessor for Keyboard {
             |state| state.downcast_if::<KeyboardKeyState>().unwrap().frequency,
             NumberVisibility::Public,
         );
+        let key_time = tools.add_input_time(input.id(), NumberVisibility::Public);
         Ok(Keyboard {
             input,
             key_frequency,
+            key_time,
             command_sender,
             command_receiver: Mutex::new(command_receiver),
         })

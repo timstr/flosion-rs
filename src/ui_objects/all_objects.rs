@@ -83,6 +83,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
 
     // Pure number sources
     helper.register_number_source::<ConstantUi>();
+    helper.register_number_source::<VariableUi>();
 
     helper.register_number_source::<NegateUi>();
     helper.register_number_source::<FloorUi>();

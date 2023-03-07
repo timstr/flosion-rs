@@ -13,19 +13,44 @@ use crate::{
     },
 };
 
-// TODO: distinguish constant from slider
-// See also note about Constant vs Variable in functions.rs
-
 #[derive(Default)]
 pub struct ConstantUi {}
 
-pub struct ConstantUiState {
+impl ObjectUi for ConstantUi {
+    type HandleType = PureNumberSourceHandle<Constant>;
+
+    type StateType = NoUIState;
+
+    fn ui(
+        &self,
+        handle: Self::HandleType,
+        graph_state: &mut GraphUIState,
+        ui: &mut egui::Ui,
+        data: ObjectUiData<Self::StateType>,
+    ) {
+        // TODO: add ui state for custom name
+        ObjectWindow::new_number_source(handle.id(), "Constant", data.color)
+            .add_right_peg(&handle, "Output")
+            .show(ui.ctx(), graph_state);
+    }
+
+    fn arguments(&self) -> ArgumentList {
+        let mut args = ArgumentList::new();
+        args.add("value", ArgumentValue::Float(0.0));
+        args
+    }
+}
+
+#[derive(Default)]
+pub struct VariableUi {}
+
+pub struct VariableUiState {
     min_value: f32,
     max_value: f32,
     name: String,
 }
 
-impl Default for ConstantUiState {
+impl Default for VariableUiState {
     fn default() -> Self {
         Self {
             min_value: 0.0,
@@ -35,7 +60,7 @@ impl Default for ConstantUiState {
     }
 }
 
-impl Serializable for ConstantUiState {
+impl Serializable for VariableUiState {
     fn serialize(&self, serializer: &mut Serializer) {
         serializer.f32(self.min_value);
         serializer.f32(self.max_value);
@@ -43,7 +68,7 @@ impl Serializable for ConstantUiState {
     }
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
-        Ok(ConstantUiState {
+        Ok(VariableUiState {
             min_value: deserializer.f32()?,
             max_value: deserializer.f32()?,
             name: deserializer.string()?,
@@ -51,19 +76,19 @@ impl Serializable for ConstantUiState {
     }
 }
 
-impl ObjectUi for ConstantUi {
-    type HandleType = PureNumberSourceHandle<Constant>;
-    type StateType = ConstantUiState;
+impl ObjectUi for VariableUi {
+    type HandleType = PureNumberSourceHandle<Variable>;
+    type StateType = VariableUiState;
     fn ui(
         &self,
-        constant: PureNumberSourceHandle<Constant>,
+        constant: PureNumberSourceHandle<Variable>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        data: ObjectUiData<ConstantUiState>,
+        data: ObjectUiData<VariableUiState>,
     ) {
-        // TODO: use data.state.name instead of always "Constant"
+        // TODO: use data.state.name instead of always "Variable"
         // Will need to accept something other than &'static str in ObjectWindow
-        ObjectWindow::new_number_source(constant.id(), "Constant", data.color)
+        ObjectWindow::new_number_source(constant.id(), "Variable", data.color)
             .add_right_peg(&constant, "Output")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 let mut v = constant.get_value();
@@ -89,21 +114,21 @@ impl ObjectUi for ConstantUi {
 
     fn make_ui_state(
         &self,
-        object: &PureNumberSourceHandle<Constant>,
+        object: &PureNumberSourceHandle<Variable>,
         init: UiInitialization,
     ) -> Self::StateType {
         match init {
-            UiInitialization::Args(args) => ConstantUiState {
+            UiInitialization::Args(args) => VariableUiState {
                 min_value: args.get("min").as_float().unwrap(),
                 max_value: args.get("max").as_float().unwrap(),
                 name: args.get("name").as_string().unwrap().to_string(),
             },
             UiInitialization::Default => {
                 let v = object.get_value();
-                ConstantUiState {
+                VariableUiState {
                     min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
                     max_value: 2.0 * v.abs(),
-                    name: "Constant".to_string(),
+                    name: "Variable".to_string(),
                 }
             }
         }

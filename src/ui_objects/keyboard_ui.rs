@@ -26,6 +26,7 @@ impl ObjectUi for KeyboardUi {
         ObjectWindow::new_sound_processor(keyboard.id(), "Keyboard", data.color)
             .add_left_peg(keyboard.input.id(), "Input")
             .add_left_peg(&keyboard.key_frequency, "Note Frequency")
+            .add_left_peg(&keyboard.key_time, "Note Time")
             .add_right_peg(keyboard.id(), "Output")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 for (i, k) in [

@@ -13,10 +13,46 @@ use inkwell::{values::FloatValue, FloatPredicate};
 use std::sync::{atomic::Ordering, Arc};
 
 pub struct Constant {
+    value: f32,
+}
+
+impl PureNumberSource for Constant {
+    fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
+        let value = match init {
+            ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
+            ObjectInitialization::Archive(mut d) => d.f32()?,
+            ObjectInitialization::Default => 0.0,
+        };
+        Ok(Constant { value })
+    }
+
+    fn interpret(&self, dst: &mut [f32], _context: &Context) {
+        numeric::fill(dst, self.value);
+    }
+
+    fn serialize(&self, mut serializer: Serializer) {
+        serializer.f32(self.value);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert!(inputs.is_empty());
+        codegen.float_type().const_float(self.value as f64)
+    }
+}
+
+impl WithObjectType for Constant {
+    const TYPE: ObjectType = ObjectType::new("constant");
+}
+
+pub struct Variable {
     value: Arc<AtomicF32>,
 }
 
-impl Constant {
+impl Variable {
     pub fn get_value(&self) -> f32 {
         self.value.load(Ordering::SeqCst)
     }
@@ -26,9 +62,7 @@ impl Constant {
     }
 }
 
-// TODO: consider renaming this to Variable (Warning! renaming object type will break old files)
-// TODO: consider adding a different Constant struct which compiles to a float constant instead of an atomic read
-impl PureNumberSource for Constant {
+impl PureNumberSource for Variable {
     fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
             // TODO: I don't like the hidden dependency on ConstantUi right here
@@ -37,7 +71,7 @@ impl PureNumberSource for Constant {
             ObjectInitialization::Archive(mut d) => d.f32()?,
             ObjectInitialization::Default => 0.0,
         };
-        Ok(Constant {
+        Ok(Variable {
             value: Arc::new(AtomicF32::new(value)),
         })
     }
@@ -60,8 +94,8 @@ impl PureNumberSource for Constant {
     }
 }
 
-impl WithObjectType for Constant {
-    const TYPE: ObjectType = ObjectType::new("constant");
+impl WithObjectType for Variable {
+    const TYPE: ObjectType = ObjectType::new("variable");
 }
 
 enum LlvmImplementation {
