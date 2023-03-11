@@ -4,15 +4,45 @@ use rand::prelude::*;
 
 use crate::{
     core::{
-        samplefrequency::SAMPLE_FREQUENCY, soundprocessor::DynamicSoundProcessorHandle,
+        samplefrequency::SAMPLE_FREQUENCY,
+        serialization::{Deserializer, Serializable, Serializer},
+        soundprocessor::DynamicSoundProcessorHandle,
         uniqueid::UniqueId,
     },
     objects::melody::{Melody, Note},
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
+        object_ui::{ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
+
+pub struct MelodyUiState {
+    width: f32,
+    height: f32,
+}
+
+impl Default for MelodyUiState {
+    fn default() -> Self {
+        MelodyUiState {
+            width: 400.0,
+            height: 200.0,
+        }
+    }
+}
+
+impl Serializable for MelodyUiState {
+    fn serialize(&self, serializer: &mut Serializer) {
+        serializer.f32(self.width);
+        serializer.f32(self.height);
+    }
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+        Ok(MelodyUiState {
+            width: deserializer.f32()?,
+            height: deserializer.f32()?,
+        })
+    }
+}
 
 #[derive(Default)]
 pub struct MelodyUi {}
@@ -22,9 +52,12 @@ impl MelodyUi {
         &self,
         ui: &mut egui::Ui,
         melody: &DynamicSoundProcessorHandle<Melody>,
+        state: &MelodyUiState,
     ) -> egui::Response {
-        let (response, painter) =
-            ui.allocate_painter(egui::Vec2::new(200.0, 300.0), egui::Sense::hover());
+        let (response, painter) = ui.allocate_painter(
+            egui::Vec2::new(state.width, state.height),
+            egui::Sense::hover(),
+        );
 
         let melody_duration = melody.length_samples();
         let melody_duration_seconds = melody_duration as f32 / SAMPLE_FREQUENCY as f32;
@@ -42,7 +75,7 @@ impl MelodyUi {
 
         let screen_to_time_frequency = time_frequency_to_screen.inverse();
 
-        let note_shapes: Vec<egui::Shape> = melody
+        let note_rects: Vec<egui::Rect> = melody
             .notes()
             .iter()
             .map(|(note_id, note)| {
@@ -88,7 +121,17 @@ impl MelodyUi {
                     );
                 }
 
-                egui::Shape::rect_stroke(note_ui_rect, 0.0, (1.0, egui::Color32::WHITE))
+                note_ui_rect
+            })
+            .collect();
+
+        let note_shapes: Vec<egui::Shape> = note_rects
+            .into_iter()
+            .flat_map(|note_ui_rect| {
+                [
+                    egui::Shape::rect_filled(note_ui_rect, 0.0, egui::Color32::BLUE),
+                    egui::Shape::rect_stroke(note_ui_rect, 0.0, (1.0, egui::Color32::WHITE)),
+                ]
             })
             .collect();
 
@@ -100,14 +143,14 @@ impl MelodyUi {
 
 impl ObjectUi for MelodyUi {
     type HandleType = DynamicSoundProcessorHandle<Melody>;
-    type StateType = NoUIState;
+    type StateType = MelodyUiState;
 
     fn ui(
         &self,
         melody: DynamicSoundProcessorHandle<Melody>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
-        data: ObjectUiData<NoUIState>,
+        data: ObjectUiData<MelodyUiState>,
     ) {
         ObjectWindow::new_sound_processor(melody.id(), "Melody", data.color)
             .add_left_peg(melody.input.id(), "Input")
@@ -133,7 +176,15 @@ impl ObjectUi for MelodyUi {
                     }
                 }
 
-                egui::Frame::canvas(ui.style()).show(ui, |ui| self.ui_content(ui, &melody));
+                ui.horizontal(|ui| {
+                    ui.label("Width");
+                    ui.add(egui::Slider::new(&mut data.state.width, 0.0..=1000.0));
+                    ui.label("Height");
+                    ui.add(egui::Slider::new(&mut data.state.height, 0.0..=1000.0));
+                });
+
+                egui::Frame::canvas(ui.style())
+                    .show(ui, |ui| self.ui_content(ui, &melody, data.state));
             });
     }
 }

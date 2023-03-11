@@ -19,12 +19,17 @@ use super::{object_ui::random_object_color, ui_factory::UiFactory};
 
 pub trait AnyObjectUiState: 'static {
     fn as_any(&self) -> &dyn Any;
+    fn as_mut_any(&mut self) -> &mut dyn Any;
     fn get_language_type_name(&self) -> &'static str;
     fn serialize(&self, serializer: &mut Serializer);
 }
 
 impl<T: 'static + Serializable> AnyObjectUiState for T {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn Any {
         self
     }
 
@@ -45,6 +50,10 @@ pub struct AnyObjectUiData {
 impl AnyObjectUiData {
     pub(crate) fn state(&self) -> &dyn AnyObjectUiState {
         &*self.state
+    }
+
+    pub(crate) fn state_mut(&mut self) -> &mut dyn AnyObjectUiState {
+        &mut *self.state
     }
 
     pub(crate) fn color(&self) -> egui::Color32 {
@@ -72,8 +81,8 @@ impl ObjectUiStates {
         self.data.insert(id, AnyObjectUiData { state, color });
     }
 
-    pub(super) fn get_object_data(&mut self, id: ObjectId) -> &AnyObjectUiData {
-        &*self.data.get(&id).unwrap()
+    pub(super) fn get_object_data(&mut self, id: ObjectId) -> &mut AnyObjectUiData {
+        &mut *self.data.get_mut(&id).unwrap()
     }
 
     pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>) {

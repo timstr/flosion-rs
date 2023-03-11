@@ -53,7 +53,7 @@ pub enum UiInitialization<'a> {
 }
 
 pub struct ObjectUiData<'a, T: Any + Default + Serializable> {
-    pub state: &'a T,
+    pub state: &'a mut T,
     pub color: egui::Color32,
 }
 
@@ -89,7 +89,7 @@ pub trait AnyObjectUi {
     fn apply(
         &self,
         object: &GraphObjectHandle,
-        object_ui_state: &AnyObjectUiData,
+        object_ui_state: &mut AnyObjectUiData,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     );
@@ -109,23 +109,21 @@ impl<T: ObjectUi> AnyObjectUi for T {
     fn apply(
         &self,
         object: &GraphObjectHandle,
-        object_ui_state: &AnyObjectUiData,
+        object_ui_state: &mut AnyObjectUiData,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let state_any = object_ui_state.state().as_any();
+        let color = object_ui_state.color();
+        let state_any = object_ui_state.state_mut().as_mut_any();
         debug_assert!(
             state_any.is::<T::StateType>(),
             "AnyObjectUi expected to receive state type {}, but got {:?} instead",
             type_name::<T::StateType>(),
             object_ui_state.state().get_language_type_name()
         );
-        let state = state_any.downcast_ref::<T::StateType>().unwrap();
-        let data = ObjectUiData {
-            state,
-            color: object_ui_state.color(),
-        };
+        let state = state_any.downcast_mut::<T::StateType>().unwrap();
+        let data = ObjectUiData { state, color };
         self.ui(handle, graph_state, ui, data);
     }
 
@@ -372,20 +370,24 @@ impl ObjectWindow {
                 .min_row_height(0.0)
                 .spacing(egui::vec2(0.0, 0.0))
                 .show(ui, |ui| {
+                    let mut min_content_width = 0.0;
+                    let mut min_content_height = 0.0;
+
                     if top_row {
                         if left_col {
-                            ui.label(""); // TODO: better way to make empty cell?
+                            ui.label(""); // TODO: better way to make empty cell? Maybe ui.allocate_*?
                         }
                         top_frame.show(ui, |ui| {
-                            ui.horizontal(|ui| {
+                            let ir = ui.horizontal(|ui| {
                                 Self::show_pegs(ui, &self.top_pegs, PegDirection::Top, graph_tools)
                             });
+                            min_content_width = ir.response.rect.width();
                         });
                         ui.end_row();
                     }
 
                     if left_col {
-                        ui.vertical(|ui| {
+                        let ir = ui.vertical(|ui| {
                             left_frame.show(ui, |ui| {
                                 Self::show_pegs(
                                     ui,
@@ -395,9 +397,10 @@ impl ObjectWindow {
                                 )
                             })
                         });
+                        min_content_height = ir.response.rect.height();
                     }
                     center_frame.show(ui, |ui| {
-                        ui.vertical(|ui| {
+                        let ir = ui.vertical(|ui| {
                             ui.add(
                                 egui::Label::new(
                                     egui::RichText::new(self.label)
@@ -407,8 +410,16 @@ impl ObjectWindow {
                                 .wrap(false),
                             );
                             add_contents(ui, graph_tools);
-                            ui.allocate_space(ui.available_size());
                         });
+                        let content_size = ir.response.rect.size();
+                        if (min_content_width > content_size.x)
+                            || (min_content_height > content_size.y)
+                        {
+                            ui.allocate_space(egui::vec2(
+                                (min_content_width - content_size.x).max(0.0),
+                                (min_content_height - content_size.y).max(0.0),
+                            ));
+                        }
                     });
                     if right_col {
                         ui.vertical(|ui| {
