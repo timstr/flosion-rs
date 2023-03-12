@@ -176,15 +176,32 @@ impl ObjectUi for MelodyUi {
                     }
                 }
 
-                ui.horizontal(|ui| {
-                    ui.label("Width");
-                    ui.add(egui::Slider::new(&mut data.state.width, 0.0..=1000.0));
-                    ui.label("Height");
-                    ui.add(egui::Slider::new(&mut data.state.height, 0.0..=1000.0));
-                });
-
-                egui::Frame::canvas(ui.style())
+                let canvas_response = egui::Frame::canvas(ui.style())
                     .show(ui, |ui| self.ui_content(ui, &melody, data.state));
+
+                let canvas_bottom_right = canvas_response.response.rect.right_bottom();
+                ui.put(
+                    egui::Rect::from_min_max(
+                        canvas_bottom_right,
+                        canvas_bottom_right + egui::Vec2::splat(10.0),
+                    ),
+                    |ui: &mut egui::Ui| -> egui::Response {
+                        let dragger_frame = egui::Frame::default()
+                            .fill(egui::Color32::DARK_BLUE)
+                            .stroke(egui::Stroke::new(1.0, egui::Color32::WHITE));
+
+                        let r = dragger_frame.show(ui, |ui| {
+                            ui.allocate_response(ui.available_size(), egui::Sense::drag())
+                        });
+
+                        if r.inner.dragged() {
+                            let delta = r.inner.drag_delta();
+                            data.state.width = (data.state.width + delta.x).max(0.0);
+                            data.state.height = (data.state.height + delta.y).max(0.0);
+                        }
+                        r.response
+                    },
+                );
             });
     }
 }
