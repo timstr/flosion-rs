@@ -198,7 +198,15 @@ impl ObjectUiStates {
             };
 
             let d2 = d1.subarchive()?;
-            let state = ui_factory.create_state_from_archive(&obj, d2)?;
+            let state = if let Ok(s) = ui_factory.create_state_from_archive(&obj, d2) {
+                s
+            } else {
+                println!(
+                    "Warning: could not deserialize state for object of type \"{}\"",
+                    obj.get_type().name()
+                );
+                ui_factory.create_default_state(&obj)
+            };
             self.set_object_data(id, state, color);
         }
         Ok(())
