@@ -99,24 +99,40 @@ impl MelodyUi {
                 let note_response =
                     ui.interact(note_ui_rect, note_ui_id, egui::Sense::click_and_drag());
 
+                let cursor_offset_id = egui::Id::new("note_drag_cursor_offset");
+
+                if note_response.drag_started() {
+                    let offset: egui::Vec2 =
+                        ui.ctx().pointer_interact_pos().unwrap() - note_ui_rect.left_top();
+                    ui.memory().data.insert_temp(cursor_offset_id, offset);
+                }
+
                 if note_response.dragged() {
-                    let deltas = note_response.drag_delta();
+                    let cursor_offset = ui
+                        .memory()
+                        .data
+                        .get_temp::<egui::Vec2>(cursor_offset_id)
+                        .unwrap();
+
+                    // let deltas = note_response.drag_delta();
+                    let cursor_pos = ui.ctx().pointer_interact_pos().unwrap() - cursor_offset;
 
                     // workaround because Rect::transform_vec is not a thing yet
-                    let p0 = screen_to_time_frequency.transform_pos(egui::pos2(0.0, 0.0));
-                    let p1 = screen_to_time_frequency.transform_pos(deltas.to_pos2());
+                    let time_and_freq = screen_to_time_frequency.transform_pos(cursor_pos);
 
-                    let delta_time = p1.x - p0.x;
-                    let delta_freq = p0.y - p1.y;
+                    let new_time = time_and_freq.x;
+                    let new_freq = max_freq - time_and_freq.y;
+
+                    let freq_snap = 25.0;
+                    let new_freq = (new_freq / freq_snap).round() * freq_snap;
 
                     melody.edit_note(
                         *note_id,
                         Note {
-                            start_time_samples: ((note_start_seconds + delta_time)
-                                * SAMPLE_FREQUENCY as f32)
-                                .max(0.0) as usize,
+                            start_time_samples: ((new_time) * SAMPLE_FREQUENCY as f32).max(0.0)
+                                as usize,
                             duration_samples: note.duration_samples,
-                            frequency: note.frequency + delta_freq,
+                            frequency: new_freq,
                         },
                     );
                 }

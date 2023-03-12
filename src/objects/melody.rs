@@ -48,7 +48,7 @@ impl State for NoteState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Note {
     pub start_time_samples: usize,
     pub duration_samples: usize,
