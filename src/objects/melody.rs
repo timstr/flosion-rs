@@ -117,6 +117,10 @@ impl Melody {
         self.shared_data.read().notes.clone()
     }
 
+    pub fn set_notes(&self, notes: Vec<(NoteId, Note)>) {
+        self.shared_data.write().notes = notes;
+    }
+
     pub fn clear(&self) {
         self.shared_data.write().notes.clear();
     }
