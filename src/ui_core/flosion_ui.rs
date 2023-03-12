@@ -235,19 +235,29 @@ impl FlosionApp {
         }
     }
 
-    fn handle_summon_widget(&mut self, ui: &mut Ui, bg_response: &Response) {
-        let pointer_pos = bg_response.interact_pointer_pos();
+    fn handle_summon_widget(&mut self, ui: &mut Ui, bg_response: &Response, bg_id: egui::LayerId) {
+        let pointer_pos = bg_response.hover_pos();
+        let mut open_summon_widget = false;
+        if let Some(p) = pointer_pos {
+            if ui.input().key_pressed(egui::Key::Tab) {
+                if ui.ctx().layer_id_at(p) == Some(bg_id) {
+                    open_summon_widget = true;
+                }
+            }
+        }
         if bg_response.double_clicked() {
-            self.summon_state = match self.summon_state {
-                Some(_) => None,
-                None => Some(SummonWidgetState::new(
-                    pointer_pos.unwrap(),
-                    &self.ui_factory,
-                )),
-            };
+            open_summon_widget = true;
         } else if bg_response.clicked() || bg_response.clicked_elsewhere() {
             self.summon_state = None;
         }
+
+        if open_summon_widget && self.summon_state.is_none() {
+            self.summon_state = Some(SummonWidgetState::new(
+                pointer_pos.unwrap(),
+                &self.ui_factory,
+            ));
+        }
+
         if let Some(summon_state) = self.summon_state.as_mut() {
             ui.add(SummonWidget::new(summon_state));
         }
@@ -739,7 +749,8 @@ impl eframe::App for FlosionApp {
                 &mut self.selection_area,
                 &mut self.ui_state,
             );
-            self.handle_summon_widget(ui, &bg_response);
+            let layer_id = ui.layer_id();
+            self.handle_summon_widget(ui, &bg_response, layer_id);
 
             {
                 let topo = self.graph.topology();
