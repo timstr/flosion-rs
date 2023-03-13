@@ -4,7 +4,6 @@ pub(crate) mod compilednumberinput;
 pub mod context;
 pub mod graphobject;
 pub mod graphserialization;
-pub mod inputqueue;
 pub mod numberinput;
 pub mod numberinputnode;
 pub mod numbersource;
