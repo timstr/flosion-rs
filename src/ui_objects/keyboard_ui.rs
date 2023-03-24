@@ -29,7 +29,30 @@ impl ObjectUi for KeyboardUi {
             .add_left_peg(&keyboard.key_time, "Note Time")
             .add_right_peg(keyboard.id(), "Output")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
-                for (i, k) in [
+                let has_focus_id = egui::Id::new("keyboard_has_focus").with(keyboard.id());
+
+                let had_focus = ui.memory_mut(|m| m.data.get_temp(has_focus_id).unwrap_or(false));
+
+                let mut has_focus = had_focus;
+
+                let label = if has_focus { "Stop" } else { "Play" };
+                // TODO: fix the colour here
+                let r = ui.toggle_value(&mut has_focus, label);
+
+                if r.clicked_elsewhere() {
+                    has_focus = false;
+                }
+
+                ui.memory_mut(|m| m.data.insert_temp(has_focus_id, has_focus));
+
+                if !has_focus {
+                    if had_focus {
+                        keyboard.release_all_keys();
+                    }
+                    return;
+                }
+
+                let all_keys = [
                     egui::Key::A, // C
                     egui::Key::W, // C#
                     egui::Key::S, // D
@@ -46,18 +69,30 @@ impl ObjectUi for KeyboardUi {
                     egui::Key::O, // C#
                     egui::Key::L, // D
                     egui::Key::P, // D#
-                ]
-                .iter()
-                .enumerate()
-                {
-                    // TODO: ignore key repeat events
-                    if ui.input().key_down(*k) {
-                        let f = 256.0_f32 * (2.0_f32).powf((i as f32) / 12.0_f32);
-                        // let f = 128.0_f32 * ((i + 1) as f32); // heh
-                        keyboard.start_key(i as u8, f);
-                    }
-                    if ui.input().key_released(*k) {
-                        keyboard.release_key(i as u8);
+                ];
+
+                for e in ui.input(|i| i.events.clone()) {
+                    if let egui::Event::Key {
+                        key,
+                        pressed,
+                        repeat,
+                        modifiers,
+                    } = e
+                    {
+                        if repeat || modifiers.any() {
+                            continue;
+                        }
+                        let i = match all_keys.iter().position(|k| *k == key) {
+                            Some(i) => i,
+                            None => continue,
+                        };
+                        if pressed {
+                            let f = 256.0_f32 * (2.0_f32).powf((i as f32) / 12.0_f32);
+                            // let f = 128.0_f32 * ((i + 1) as f32); // heh
+                            keyboard.start_key(i as u8, f);
+                        } else {
+                            keyboard.release_key(i as u8)
+                        }
                     }
                 }
             });

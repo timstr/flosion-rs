@@ -505,18 +505,19 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
     }
 
     // TODO: add sample_offset in [0, chunk_size)
+    // TODO: make stacking optional
     pub fn start_key(&mut self, duration_samples: Option<usize>, id: I, state: S, reuse: KeyReuse) {
         let mut oldest_key_index_and_age = None;
         let mut available_index = None;
         for (i, d) in self.data.iter_mut().enumerate() {
             if let QueuedKeyState::Playing(key_data) = &mut d.state {
-                if key_data.id == id {
-                    key_data.duration = match duration_samples {
-                        Some(s) => KeyDuration::Samples(s),
-                        None => KeyDuration::Forever,
-                    };
-                    return;
-                }
+                // if key_data.id == id {
+                //     key_data.duration = match duration_samples {
+                //         Some(s) => KeyDuration::Samples(s),
+                //         None => KeyDuration::Forever,
+                //     };
+                //     return;
+                // }
                 oldest_key_index_and_age = match oldest_key_index_and_age {
                     Some((j, s)) => {
                         if key_data.age > s {

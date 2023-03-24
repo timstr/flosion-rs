@@ -135,15 +135,12 @@ impl MelodyUi {
                 if note_response.drag_started() {
                     let offset: egui::Vec2 =
                         ui.ctx().pointer_interact_pos().unwrap() - note_ui_rect.left_top();
-                    ui.memory().data.insert_temp(cursor_offset_id, offset);
+                    ui.memory_mut(|m| m.data.insert_temp(cursor_offset_id, offset));
                 }
 
                 if note_response.dragged() {
-                    let cursor_offset = ui
-                        .memory()
-                        .data
-                        .get_temp::<egui::Vec2>(cursor_offset_id)
-                        .unwrap();
+                    let cursor_offset =
+                        ui.memory_mut(|m| m.data.get_temp::<egui::Vec2>(cursor_offset_id).unwrap());
 
                     // let deltas = note_response.drag_delta();
                     let cursor_pos = ui.ctx().pointer_interact_pos().unwrap() - cursor_offset;

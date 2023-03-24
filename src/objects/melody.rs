@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 
 use crate::core::{
     context::Context,
@@ -55,15 +55,17 @@ pub struct Note {
     pub frequency: f32,
 }
 
+// TODO: custom per-note variables
+
 // Stuff that is needed during audio processing but can be changed live
 struct MelodyData {
     length_samples: usize,
     notes: Vec<(NoteId, Note)>,
-    note_idgen: IdGenerator<NoteId>,
 }
 
 pub struct Melody {
     shared_data: Arc<RwLock<MelodyData>>,
+    note_idgen: Mutex<IdGenerator<NoteId>>,
     pub input: KeyedInputQueue<NoteId, NoteState>,
     pub melody_time: NumberSourceHandle,
     pub note_frequency: NumberSourceHandle,
@@ -89,10 +91,9 @@ impl Melody {
     }
 
     pub fn add_note(&self, note: Note) -> NoteId {
-        let id;
+        let id = self.note_idgen.lock().next_id();
         {
             let mut data = self.shared_data.write();
-            id = data.note_idgen.next_id();
             data.notes.push((id, note));
         };
         id
@@ -158,8 +159,8 @@ impl DynamicSoundProcessor for Melody {
             shared_data: Arc::new(RwLock::new(MelodyData {
                 length_samples: SAMPLE_FREQUENCY * 4,
                 notes: Vec::new(),
-                note_idgen: IdGenerator::new(),
             })),
+            note_idgen: Mutex::new(IdGenerator::new()),
             input,
             melody_time: tools.add_processor_time(NumberVisibility::Public),
             note_frequency,
@@ -194,6 +195,8 @@ impl DynamicSoundProcessor for Melody {
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
+        // TODO: stop looping if released
+
         let length_samples;
         {
             let data = state.shared_data.read();
@@ -238,7 +241,8 @@ impl DynamicSoundProcessor for Melody {
             state.current_position -= length_samples;
         }
 
-        sound_input.step(state, dst, &context)
+        sound_input.step(state, dst, &context);
+        StreamStatus::Playing
     }
 }
 

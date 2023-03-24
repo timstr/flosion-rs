@@ -120,8 +120,8 @@ impl GraphLayout {
     }
 
     pub(super) fn find_peg_near(&self, position: egui::Pos2, ui: &egui::Ui) -> Option<GraphId> {
-        let rad = ui.input().aim_radius();
-        let top_layer = match ui.memory().layer_id_at(position, rad) {
+        let rad = ui.input(|i| i.aim_radius());
+        let top_layer = match ui.memory(|m| m.layer_id_at(position, rad)) {
             Some(a) => a,
             None => return None,
         };

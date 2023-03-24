@@ -217,9 +217,10 @@ impl FlosionApp {
         }
         if bg_response.drag_released() {
             if let Some(selection_area) = selection_area.take() {
-                let change = if ui.input().modifiers.alt {
+                let mods = ui.input(|i| i.modifiers);
+                let change = if mods.alt {
                     SelectionChange::Subtract
-                } else if ui.input().modifiers.shift {
+                } else if mods.shift {
                     SelectionChange::Add
                 } else {
                     SelectionChange::Replace
@@ -239,7 +240,7 @@ impl FlosionApp {
         let pointer_pos = bg_response.hover_pos();
         let mut open_summon_widget = false;
         if let Some(p) = pointer_pos {
-            if ui.input().key_pressed(egui::Key::Tab) {
+            if ui.input(|i| i.key_pressed(egui::Key::Tab)) {
                 if ui.ctx().layer_id_at(p) == Some(bg_id) {
                     open_summon_widget = true;
                 }
@@ -439,7 +440,7 @@ impl FlosionApp {
         // On the other hand, is there any correct way to paint wires between
         // two connected objects that are directly on top of one another?
 
-        let t = ui.input().time * 5.0;
+        let t = ui.input(|i| i.time) * 5.0;
         let pulse = (t - t.floor()) > 0.5;
 
         ui.with_layer_id(
@@ -533,7 +534,7 @@ impl FlosionApp {
                     }
                 }
                 if let Some(gid) = ui_state.peg_being_dragged() {
-                    let cursor_pos = match ui.input().pointer.interact_pos() {
+                    let cursor_pos = match ui.input(|i| i.pointer.interact_pos()) {
                         Some(p) => p,
                         None => return,
                     };
@@ -655,14 +656,14 @@ impl FlosionApp {
                 if let Some(s) =
                     Self::serialize(&self.ui_state, &self.object_states, &self.graph, true)
                 {
-                    ui.output().copied_text = s;
+                    ui.output_mut(|o| o.copied_text = s);
                 }
             }
             egui::Event::Cut => {
                 if let Some(s) =
                     Self::serialize(&self.ui_state, &self.object_states, &self.graph, true)
                 {
-                    ui.output().copied_text = s;
+                    ui.output_mut(|o| o.copied_text = s);
                 }
                 Self::delete_selection(&mut self.ui_state);
             }
@@ -685,6 +686,7 @@ impl FlosionApp {
             egui::Event::Key {
                 key,
                 pressed,
+                repeat,
                 modifiers,
             } => {
                 if !pressed {
@@ -737,7 +739,7 @@ impl eframe::App for FlosionApp {
                     &mut self.object_states,
                 );
             }
-            let screen_rect = ui.input().screen_rect();
+            let screen_rect = ui.input(|i| i.screen_rect());
             let bg_response = ui.interact(
                 screen_rect,
                 egui::Id::new("background"),
@@ -760,7 +762,7 @@ impl eframe::App for FlosionApp {
             }
 
             if self.summon_state.is_none() {
-                let events = std::mem::take(&mut ctx.input_mut().events);
+                let events = ctx.input_mut(|i| std::mem::take(&mut i.events));
                 for event in &events {
                     self.handle_event(event, ui);
                 }

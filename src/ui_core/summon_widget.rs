@@ -146,13 +146,13 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                     if num_objects == 0 {
                         new_focus_object_index = None;
                     } else {
-                        if ui.input().key_pressed(egui::Key::ArrowDown) {
+                        if ui.input(|i| i.key_pressed(egui::Key::ArrowDown)) {
                             new_focus_object_index = match self.state.focus_object_index {
                                 None => Some(0),
                                 Some(i) => Some((i + 1).min(self.state.object_scores.len() - 1)),
                             };
                         }
-                        if ui.input().key_pressed(egui::Key::ArrowUp) {
+                        if ui.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
                             new_focus_object_index = match self.state.focus_object_index {
                                 None => None,
                                 Some(i) => {
@@ -177,7 +177,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                 if t.changed() {
                     self.state.update_matches();
                 }
-                if ui.input().key_pressed(egui::Key::Enter) {
+                if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     self.state.ready = true;
                     self.state.selected_type = self
                         .state
@@ -185,7 +185,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                         .get(0)
                         .map(|x| x.0.object_type_str.clone());
                 }
-                if ui.input().key_pressed(egui::Key::Escape) {
+                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                     self.state.ready = true;
                 }
                 if t.gained_focus() {
@@ -243,7 +243,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                             self.state.ready = true;
                         }
                         if r.hovered() {
-                            ui.output().cursor_icon = egui::CursorIcon::PointingHand;
+                            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
                         }
                         if r.gained_focus() {
                             self.state.focus_object_index = Some(index);

@@ -301,7 +301,7 @@ impl ObjectWindow {
             match relevance {
                 DiagnosticRelevance::Primary => {
                     displacement = Some(egui::vec2(
-                        5.0 * (ctx.input().time * TAU * 10.0).sin() as f32,
+                        5.0 * (ctx.input(|i| i.time) * TAU * 10.0).sin() as f32,
                         0.0,
                     ));
                     fill = egui::Color32::RED
@@ -320,7 +320,7 @@ impl ObjectWindow {
                 pos += d;
             }
             area = area.current_pos(pos);
-        } else if let Some(pos) = ctx.input().pointer.interact_pos() {
+        } else if let Some(pos) = ctx.input(|i| i.pointer.interact_pos()) {
             area = area.current_pos(pos);
         }
 
@@ -363,7 +363,7 @@ impl ObjectWindow {
             .drag_bounds(egui::Rect::EVERYTHING);
         let r = area.show(ctx, |ui| {
             // Clip to the entire screen, not just outside the area
-            ui.set_clip_rect(ctx.input().screen_rect());
+            ui.set_clip_rect(ctx.input(|i| i.screen_rect()));
 
             egui::Grid::new(id.with("grid"))
                 .min_col_width(0.0)
