@@ -363,14 +363,9 @@ impl SoundProcessorInput for SingleInputList {
     type NodeType<'ctx> = SingleInputListNode<'ctx>;
 
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
-        SingleInputListNode {
-            inputs: self
-                .input_ids
-                .read()
-                .iter()
-                .map(|id| SingleInputNode::new(*id))
-                .collect(),
-        }
+        // NOTE: individual inputs will be added via SoundGraphEdits
+        // by add_input
+        SingleInputListNode { inputs: Vec::new() }
     }
 
     fn list_ids(&self) -> Vec<SoundInputId> {
@@ -411,10 +406,12 @@ impl<'ctx> SoundInputNode<'ctx> for SingleInputListNode<'ctx> {
     }
 
     fn add_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(self.inputs.iter().filter(|i| i.id == input_id).count(), 0);
         self.inputs.push(SingleInputNode::new(input_id));
     }
 
     fn remove_input(&mut self, input_id: SoundInputId) {
+        debug_assert_eq!(self.inputs.iter().filter(|i| i.id == input_id).count(), 1);
         self.inputs.retain(|i| i.id != input_id);
     }
 }
