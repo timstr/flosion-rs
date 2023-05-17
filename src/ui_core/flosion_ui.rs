@@ -1,19 +1,19 @@
 use std::{
+    collections::HashSet,
     fs::File,
     io::{Read, Write},
 };
 
 use crate::{
     core::{
-        graphobject::{GraphId, ObjectId},
+        graphobject::{ObjectId, ObjectInitialization},
         graphserialization::{deserialize_sound_graph, serialize_sound_graph},
-        numbersource::NumberVisibility,
         object_factory::ObjectFactory,
         serialization::Archive,
         soundgraph::SoundGraph,
         soundgraphtopology::SoundGraphTopology,
     },
-    ui_core::diagnostics::{Diagnostic, DiagnosticMessage, DiagnosticRelevance},
+    objects::{dac::Dac, mixer::Mixer, whitenoise::WhiteNoise},
     ui_objects::all_objects::all_objects,
 };
 use eframe::{
@@ -24,9 +24,10 @@ use rfd::FileDialog;
 
 use super::{
     graph_ui_state::{GraphUIState, SelectionChange},
-    object_ui::{random_object_color, PegDirection},
+    object_ui::random_object_color,
     object_ui_states::ObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState},
+    ui_context::UiContext,
     ui_factory::UiFactory,
 };
 
@@ -43,14 +44,35 @@ pub struct FlosionApp {
     object_states: ObjectUiStates,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
+    known_object_ids: HashSet<ObjectId>,
 }
 
 impl FlosionApp {
     pub fn new(_cc: &eframe::CreationContext) -> FlosionApp {
         // TODO: learn about what CreationContext offers
-        let graph = SoundGraph::new();
+        let mut graph = SoundGraph::new();
+
+        // TEST while I figure out how to connect inputs in the ui
+        {
+            let dac = graph
+                .add_static_sound_processor::<Dac>(ObjectInitialization::Default)
+                .unwrap();
+            let mixer = graph
+                .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
+                .unwrap();
+            let whitenoise = graph
+                .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
+                .unwrap();
+            graph
+                .connect_sound_input(dac.input.id(), mixer.id())
+                .unwrap();
+            graph
+                .connect_sound_input(mixer.get_input_ids()[0], whitenoise.id())
+                .unwrap();
+        }
+
         let (object_factory, ui_factory) = all_objects();
-        FlosionApp {
+        let mut app = FlosionApp {
             graph,
             ui_state: GraphUIState::new(),
             object_states: ObjectUiStates::new(),
@@ -58,7 +80,19 @@ impl FlosionApp {
             ui_factory,
             summon_state: None,
             selection_area: None,
+            known_object_ids: HashSet::new(),
+        };
+
+        // Initialize all necessary ui state
+        app.cleanup();
+
+        #[cfg(debug_assertions)]
+        {
+            assert!(app.ui_state.check_invariants(app.graph.topology()));
+            assert!(app.object_states.check_invariants(app.graph.topology()));
         }
+
+        app
     }
 
     fn draw_all_objects(
@@ -68,24 +102,29 @@ impl FlosionApp {
         ui_state: &mut GraphUIState,
         object_states: &mut ObjectUiStates,
     ) {
-        for object in graph.topology().graph_objects() {
-            factory.ui(&object, ui_state, object_states, ui);
-        }
-    }
+        // NOTE: ObjectUiStates doesn't technically need to be borrowed mutably
+        // here, but it uses interior mutability with individual object states
+        // and borrowing mutably here increases safety.
 
-    fn handle_hotkey(
-        key: egui::Key,
-        modifiers: egui::Modifiers,
-        ui_state: &mut GraphUIState,
-        topo: &SoundGraphTopology,
-    ) -> bool {
-        if key == egui::Key::Escape {
-            return ui_state.cancel_hotkey(topo);
+        for object in graph.topology().graph_objects() {
+            if let Some(layout) = ui_state
+                .temporal_layout()
+                .find_top_level_layout(object.id())
+            {
+                // TODO: store this width somewhere
+                let width = 300;
+                let is_top_level = true;
+                let ctx = UiContext::new(
+                    factory,
+                    &object_states,
+                    graph.topology(),
+                    is_top_level,
+                    layout.time_axis,
+                    width,
+                );
+                factory.ui(&object, ui_state, ui, &ctx);
+            }
         }
-        if modifiers.any() {
-            return false;
-        }
-        ui_state.activate_hotkey(key, topo)
     }
 
     fn handle_shortcuts_selection(
@@ -292,80 +331,6 @@ impl FlosionApp {
         }
     }
 
-    fn handle_dropped_pegs(ui: &mut Ui, ui_state: &mut GraphUIState, topo: &SoundGraphTopology) {
-        let (id_src, p) = match ui_state.take_peg_being_dropped() {
-            Some(x) => x,
-            None => return,
-        };
-        let id_dst = ui_state.layout_state().find_peg_near(p, ui);
-        match id_src {
-            GraphId::NumberInput(niid) => {
-                if let Some(nsid) = topo.number_input(niid).unwrap().target() {
-                    // Dragging from a number input that already was connected
-                    ui_state.make_change(move |g, s| {
-                        // Disconnect the input
-                        g.disconnect_number_input(niid)
-                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                    });
-                    if let Some(GraphId::NumberInput(niid2)) = id_dst {
-                        // If dropped onto a different number input, connect the number output to it
-                        ui_state.make_change(move |g, s| {
-                            g.connect_number_input(niid2, nsid)
-                                .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                        });
-                    }
-                } else if let Some(GraphId::NumberSource(nsid)) = id_dst {
-                    // Dragging from a disconnected number input to a number output
-                    ui_state.make_change(move |g, s| {
-                        g.connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                    });
-                }
-            }
-            GraphId::NumberSource(nsid) => {
-                if let Some(GraphId::NumberInput(niid)) = id_dst {
-                    // Dragging from a number output to a number input
-                    ui_state.make_change(move |g, s| {
-                        g.connect_number_input(niid, nsid)
-                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                    });
-                }
-            }
-            GraphId::SoundInput(siid) => {
-                if let Some(spid) = topo.sound_input(siid).unwrap().target() {
-                    // Dragging from a sound input that was already connected
-                    ui_state.make_change(move |g, s| {
-                        // Disconnect the input
-                        g.disconnect_sound_input(siid)
-                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                    });
-                    if let Some(GraphId::SoundInput(siid2)) = id_dst {
-                        // if dropped onto a different sound output, connect the sound input to it
-                        ui_state.make_change(move |g, s| {
-                            g.connect_sound_input(siid2, spid)
-                                .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                        });
-                    }
-                } else if let Some(GraphId::SoundProcessor(spid)) = id_dst {
-                    // Dragging from a disconnected sound input to a sound output
-                    ui_state.make_change(move |g, s| {
-                        g.connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                    });
-                }
-            }
-            GraphId::SoundProcessor(spid) => {
-                if let Some(GraphId::SoundInput(siid)) = id_dst {
-                    // Dragging from a sound output to a sound input
-                    ui_state.make_change(move |g, s| {
-                        g.connect_sound_input(siid, spid)
-                            .unwrap_or_else(|e| s.issue_interpreted_error(e.into()));
-                    });
-                }
-            }
-        }
-    }
-
     fn draw_selection_rect(ui: &mut Ui, selection_area: &Option<SelectionState>) {
         if let Some(selection_area) = selection_area {
             ui.with_layer_id(
@@ -389,212 +354,11 @@ impl FlosionApp {
         }
     }
 
-    fn paint_wire(
-        painter: &egui::Painter,
-        start: egui::Pos2,
-        start_direction: egui::Vec2,
-        end: egui::Pos2,
-        end_direction: egui::Vec2,
-        stroke: egui::Stroke,
-    ) {
-        let dist = (end - start).length();
-        let p0 = start.to_vec2();
-        let p1 = start.to_vec2() + 0.5 * dist * start_direction;
-        let p2 = end.to_vec2() + 0.5 * dist * end_direction;
-        let p3 = end.to_vec2();
-
-        let subdivs = (dist / 8.0).max(1.0) as usize;
-        let k_inv_subdivs = 1.0 / subdivs as f32;
-        let mut p_prev = start;
-        for i in 0..subdivs {
-            let t = (i + 1) as f32 * k_inv_subdivs;
-            let t2 = t * t;
-            let t3 = t * t2;
-            let omt = 1.0 - t;
-            let omt2 = omt * omt;
-            let omt3 = omt * omt2;
-
-            let p = (omt3 * p0) + (3.0 * omt2 * t * p1) + (3.0 * omt * t2 * p2) + (t3 * p3);
-            let p = p.to_pos2();
-
-            painter.line_segment([p_prev, p], stroke);
-
-            p_prev = p;
-        }
-    }
-
-    fn peg_direction_to_vec(direction: PegDirection) -> egui::Vec2 {
-        match direction {
-            PegDirection::Left => egui::vec2(-1.0, 0.0),
-            PegDirection::Top => egui::vec2(0.0, -1.0),
-            PegDirection::Right => egui::vec2(1.0, 0.0),
-        }
-    }
-
-    fn draw_wires(ui: &mut Ui, ui_state: &GraphUIState, topo: &SoundGraphTopology) {
-        // TODO: consider choosing which layer to paint the wire on, rather
-        // than always painting the wire on top. However, choosing the layer
-        // won't always be correct (an object might be positioned on top of
-        // the peg it's connected to) and requires access to egui things
-        // (e.g. memory().areas) which aren't yet exposed.
-        // On the other hand, is there any correct way to paint wires between
-        // two connected objects that are directly on top of one another?
-
-        let t = ui.input(|i| i.time) * 5.0;
-        let pulse = (t - t.floor()) > 0.5;
-
-        ui.with_layer_id(
-            egui::LayerId::new(egui::Order::Foreground, egui::Id::new("wires")),
-            |ui| {
-                let painter = ui.painter();
-                let drag_peg = ui_state.peg_being_dragged();
-                for (siid, si) in topo.sound_inputs() {
-                    if let Some(spid) = si.target() {
-                        let layout = ui_state.layout_state();
-                        let si_state = layout.sound_inputs().get(siid).unwrap();
-                        let sp_state = layout.sound_outputs().get(&spid).unwrap();
-                        let faint = drag_peg == Some(GraphId::SoundInput(*siid));
-
-                        let mut stroke = egui::Stroke::new(
-                            2.0,
-                            egui::Color32::from_rgba_unmultiplied(
-                                0,
-                                255,
-                                0,
-                                if faint { 64 } else { 255 },
-                            ),
-                        );
-
-                        if let Some(r) = ui_state.graph_item_has_warning((*siid).into()) {
-                            if pulse {
-                                stroke = match r {
-                                    DiagnosticRelevance::Primary => {
-                                        egui::Stroke::new(5.0, egui::Color32::RED)
-                                    }
-                                    DiagnosticRelevance::Secondary => {
-                                        egui::Stroke::new(5.0, egui::Color32::RED)
-                                    }
-                                };
-                            }
-                            ui.ctx().request_repaint();
-                        }
-
-                        Self::paint_wire(
-                            painter,
-                            si_state.layout.center(),
-                            Self::peg_direction_to_vec(si_state.direction),
-                            sp_state.layout.center(),
-                            Self::peg_direction_to_vec(sp_state.direction),
-                            stroke,
-                        );
-                    }
-                }
-                for (niid, ni) in topo.number_inputs() {
-                    if ni.visibility() == NumberVisibility::Private {
-                        continue;
-                    }
-                    if let Some(nsid) = ni.target() {
-                        let layout = ui_state.layout_state();
-                        let ni_state = layout.number_inputs().get(niid).unwrap();
-                        let ns_state = layout.number_outputs().get(&nsid).unwrap();
-                        let faint = drag_peg == Some(GraphId::NumberInput(*niid));
-
-                        let mut stroke = egui::Stroke::new(
-                            2.0,
-                            egui::Color32::from_rgba_unmultiplied(
-                                0,
-                                0,
-                                255,
-                                if faint { 64 } else { 255 },
-                            ),
-                        );
-
-                        if let Some(r) = ui_state.graph_item_has_warning((*niid).into()) {
-                            if pulse {
-                                stroke = match r {
-                                    DiagnosticRelevance::Primary => {
-                                        egui::Stroke::new(5.0, egui::Color32::RED)
-                                    }
-                                    DiagnosticRelevance::Secondary => {
-                                        egui::Stroke::new(5.0, egui::Color32::RED)
-                                    }
-                                };
-                            }
-                            ui.ctx().request_repaint();
-                        }
-
-                        Self::paint_wire(
-                            painter,
-                            ni_state.layout.center(),
-                            Self::peg_direction_to_vec(ni_state.direction),
-                            ns_state.layout.center(),
-                            Self::peg_direction_to_vec(ns_state.direction),
-                            stroke,
-                        );
-                    }
-                }
-                if let Some(gid) = ui_state.peg_being_dragged() {
-                    let cursor_pos = match ui.input(|i| i.pointer.interact_pos()) {
-                        Some(p) => p,
-                        None => return,
-                    };
-                    let cursor_direction = egui::vec2(0.0, 0.0);
-                    let layout = ui_state.layout_state();
-                    let peg_state;
-
-                    let color;
-                    match gid {
-                        GraphId::NumberInput(niid) => {
-                            if let Some(nsid) = topo.number_input(niid).unwrap().target() {
-                                peg_state = layout.number_outputs().get(&nsid).unwrap();
-                            } else {
-                                peg_state = layout.number_inputs().get(&niid).unwrap();
-                            }
-                            color = egui::Color32::from_rgb(0, 0, 255);
-                        }
-                        GraphId::NumberSource(nsid) => {
-                            peg_state = layout.number_outputs().get(&nsid).unwrap();
-                            color = egui::Color32::from_rgb(0, 0, 255);
-                        }
-                        GraphId::SoundInput(siid) => {
-                            if let Some(spid) = topo.sound_input(siid).unwrap().target() {
-                                peg_state = layout.sound_outputs().get(&spid).unwrap();
-                            } else {
-                                peg_state = layout.sound_inputs().get(&siid).unwrap();
-                            }
-                            color = egui::Color32::from_rgb(0, 255, 0);
-                        }
-                        GraphId::SoundProcessor(spid) => {
-                            peg_state = layout.sound_outputs().get(&spid).unwrap();
-                            color = egui::Color32::from_rgb(0, 255, 0);
-                        }
-                    }
-                    let stroke = egui::Stroke::new(2.0, color);
-                    Self::paint_wire(
-                        painter,
-                        peg_state.layout.center(),
-                        Self::peg_direction_to_vec(peg_state.direction),
-                        cursor_pos,
-                        cursor_direction,
-                        stroke,
-                    );
-                }
-            },
-        );
-    }
-
     fn delete_selection(ui_state: &mut GraphUIState) {
         let selection: Vec<ObjectId> = ui_state.selection().iter().cloned().collect();
         ui_state.make_change(move |g, s| {
             g.remove_objects_batch(&selection).unwrap_or_else(|e| {
                 println!("Nope! Can't remove that:\n    {:?}", e);
-                for id in selection {
-                    s.issue_diagnostic(Diagnostic::new(DiagnosticMessage::GraphItemWarning((
-                        id.into(),
-                        DiagnosticRelevance::Primary,
-                    ))));
-                }
-                s.issue_interpreted_error(e);
             });
         });
     }
@@ -622,7 +386,7 @@ impl FlosionApp {
         let archive = Archive::serialize_with(|mut serializer| {
             let idmap = serialize_sound_graph(graph, selection.as_ref(), &mut serializer);
             ui_state
-                .layout_state()
+                .object_positions()
                 .serialize(&mut serializer, selection.as_ref(), &idmap);
             object_states.serialize(&mut serializer, selection.as_ref(), &idmap);
         });
@@ -644,7 +408,7 @@ impl FlosionApp {
         let mut deserializer = archive.deserialize()?;
         let (objects, idmap) = deserialize_sound_graph(graph, &mut deserializer, object_factory)?;
         ui_state
-            .layout_state_mut()
+            .object_positions_mut()
             .deserialize(&mut deserializer, &idmap)?;
         object_states.deserialize(&mut deserializer, &idmap, graph.topology(), ui_factory)?;
         Ok(objects)
@@ -686,7 +450,7 @@ impl FlosionApp {
             egui::Event::Key {
                 key,
                 pressed,
-                repeat,
+                repeat: _,
                 modifiers,
             } => {
                 if !pressed {
@@ -715,21 +479,38 @@ impl FlosionApp {
                     Self::delete_selection(&mut self.ui_state);
                     return;
                 }
-                if Self::handle_hotkey(*key, *modifiers, &mut self.ui_state, self.graph.topology())
-                {
-                    return;
-                }
             }
-            egui::Event::PointerGone => self.ui_state.stop_dragging(None),
             _ => (),
         }
+    }
+
+    fn cleanup(&mut self) {
+        let current_object_ids: HashSet<ObjectId> =
+            self.graph.topology().graph_object_ids().collect();
+
+        for object_id in &current_object_ids {
+            if !self.known_object_ids.contains(object_id) {
+                self.ui_state
+                    .create_state_for(*object_id, self.graph.topology());
+                self.object_states.create_state_for(
+                    *object_id,
+                    self.graph.topology(),
+                    &self.ui_factory,
+                );
+            }
+        }
+
+        let remaining_graph_ids = self.graph.topology().all_ids();
+        self.ui_state.cleanup(&remaining_graph_ids);
+        self.object_states.cleanup(&remaining_graph_ids);
+
+        self.known_object_ids = current_object_ids;
     }
 }
 
 impl eframe::App for FlosionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.ui_state.reset_pegs();
             {
                 Self::draw_all_objects(
                     ui,
@@ -754,12 +535,7 @@ impl eframe::App for FlosionApp {
             let layer_id = ui.layer_id();
             self.handle_summon_widget(ui, &bg_response, layer_id);
 
-            {
-                let topo = self.graph.topology();
-                Self::handle_dropped_pegs(ui, &mut self.ui_state, &topo);
-                Self::draw_selection_rect(ui, &self.selection_area);
-                Self::draw_wires(ui, &self.ui_state, &topo);
-            }
+            Self::draw_selection_rect(ui, &self.selection_area);
 
             if self.summon_state.is_none() {
                 let events = ctx.input_mut(|i| std::mem::take(&mut i.events));
@@ -775,15 +551,13 @@ impl eframe::App for FlosionApp {
             }
 
             self.ui_state.apply_pending_changes(&mut self.graph);
-            self.object_states
-                .make_states_for_new_objects(self.graph.topology(), &self.ui_factory);
-            let remaining_ids = self.graph.topology().all_ids();
-            self.ui_state.cleanup(&remaining_ids);
-            self.object_states.cleanup(&remaining_ids);
+
+            self.cleanup();
 
             #[cfg(debug_assertions)]
             {
                 assert!(self.ui_state.check_invariants(self.graph.topology()));
+                assert!(self.object_states.check_invariants(self.graph.topology()));
             }
         });
     }

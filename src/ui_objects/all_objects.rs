@@ -8,12 +8,7 @@ use crate::{
     ui_core::{object_ui::ObjectUi, ui_factory::UiFactory},
 };
 
-use super::{
-    adsr_ui::ADSRUi, audioclip_ui::AudioClipUi, dac_ui::DacUi, ensemble_ui::EnsembleUi,
-    functions_ui::*, keyboard_ui::KeyboardUi, melody_ui::MelodyUi, mixer_ui::MixerUi,
-    recorder_ui::RecorderUi, resampler_ui::ResamplerUi, wavegenerator_ui::WaveGeneratorUi,
-    whitenoise_ui::WhiteNoiseUi,
-};
+use super::{dac_ui::DacUi, mixer_ui::MixerUi, whitenoise_ui::WhiteNoiseUi};
 
 struct RegistrationHelper<'a> {
     object_factory: &'a mut ObjectFactory,
@@ -68,67 +63,67 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
 
     // Static sound processors
     helper.register_static_sound_processor::<DacUi>();
-    helper.register_static_sound_processor::<KeyboardUi>();
-    helper.register_static_sound_processor::<RecorderUi>();
+    // helper.register_static_sound_processor::<KeyboardUi>();
+    // helper.register_static_sound_processor::<RecorderUi>();
 
     // Dynamic sound processors
-    helper.register_dynamic_sound_processor::<ADSRUi>();
-    helper.register_dynamic_sound_processor::<AudioClipUi>();
-    helper.register_dynamic_sound_processor::<EnsembleUi>();
-    helper.register_dynamic_sound_processor::<MelodyUi>();
+    // helper.register_dynamic_sound_processor::<ADSRUi>();
+    // helper.register_dynamic_sound_processor::<AudioClipUi>();
+    // helper.register_dynamic_sound_processor::<EnsembleUi>();
+    // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register_dynamic_sound_processor::<MixerUi>();
-    helper.register_dynamic_sound_processor::<ResamplerUi>();
-    helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
+    // helper.register_dynamic_sound_processor::<ResamplerUi>();
+    // helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
     helper.register_dynamic_sound_processor::<WhiteNoiseUi>();
 
     // Pure number sources
-    helper.register_number_source::<ConstantUi>();
-    helper.register_number_source::<VariableUi>();
+    // helper.register_number_source::<ConstantUi>();
+    // helper.register_number_source::<VariableUi>();
 
-    helper.register_number_source::<NegateUi>();
-    helper.register_number_source::<FloorUi>();
-    helper.register_number_source::<CeilUi>();
-    helper.register_number_source::<RoundUi>();
-    helper.register_number_source::<TruncUi>();
-    helper.register_number_source::<FractUi>();
-    helper.register_number_source::<AbsUi>();
-    helper.register_number_source::<SignumUi>();
-    helper.register_number_source::<ExpUi>();
-    helper.register_number_source::<Exp2Ui>();
-    helper.register_number_source::<Exp10Ui>();
-    helper.register_number_source::<LogUi>();
-    helper.register_number_source::<Log2Ui>();
-    helper.register_number_source::<Log10Ui>();
-    // helper.register_number_source::<CbrtUi>();
-    helper.register_number_source::<SinUi>();
-    helper.register_number_source::<CosUi>();
-    // helper.register_number_source::<TanUi>();
-    // helper.register_number_source::<AsinUi>();
-    // helper.register_number_source::<AcosUi>();
-    // helper.register_number_source::<AtanUi>();
-    // helper.register_number_source::<SinhUi>();
-    // helper.register_number_source::<CoshUi>();
-    // helper.register_number_source::<TanhUi>();
-    // helper.register_number_source::<AsinhUi>();
-    // helper.register_number_source::<AcoshUi>();
-    // helper.register_number_source::<AtanhUi>();
+    // helper.register_number_source::<NegateUi>();
+    // helper.register_number_source::<FloorUi>();
+    // helper.register_number_source::<CeilUi>();
+    // helper.register_number_source::<RoundUi>();
+    // helper.register_number_source::<TruncUi>();
+    // helper.register_number_source::<FractUi>();
+    // helper.register_number_source::<AbsUi>();
+    // helper.register_number_source::<SignumUi>();
+    // helper.register_number_source::<ExpUi>();
+    // helper.register_number_source::<Exp2Ui>();
+    // helper.register_number_source::<Exp10Ui>();
+    // helper.register_number_source::<LogUi>();
+    // helper.register_number_source::<Log2Ui>();
+    // helper.register_number_source::<Log10Ui>();
+    // // helper.register_number_source::<CbrtUi>();
+    // helper.register_number_source::<SinUi>();
+    // helper.register_number_source::<CosUi>();
+    // // helper.register_number_source::<TanUi>();
+    // // helper.register_number_source::<AsinUi>();
+    // // helper.register_number_source::<AcosUi>();
+    // // helper.register_number_source::<AtanUi>();
+    // // helper.register_number_source::<SinhUi>();
+    // // helper.register_number_source::<CoshUi>();
+    // // helper.register_number_source::<TanhUi>();
+    // // helper.register_number_source::<AsinhUi>();
+    // // helper.register_number_source::<AcoshUi>();
+    // // helper.register_number_source::<AtanhUi>();
 
-    helper.register_number_source::<SineWaveUi>();
-    helper.register_number_source::<CosineWaveUi>();
-    helper.register_number_source::<SquareWaveUi>();
-    helper.register_number_source::<SawWaveUi>();
-    helper.register_number_source::<TriangleWaveUi>();
+    // helper.register_number_source::<SineWaveUi>();
+    // helper.register_number_source::<CosineWaveUi>();
+    // helper.register_number_source::<SquareWaveUi>();
+    // helper.register_number_source::<SawWaveUi>();
+    // helper.register_number_source::<TriangleWaveUi>();
 
-    helper.register_number_source::<AddUi>();
-    helper.register_number_source::<SubtractUi>();
-    helper.register_number_source::<MultiplyUi>();
-    helper.register_number_source::<DivideUi>();
-    // helper.register_number_source::<HypotUi>();
-    helper.register_number_source::<CopysignUi>();
-    helper.register_number_source::<PowUi>();
-    // helper.register_number_source::<Atan2Ui>();
+    // helper.register_number_source::<AddUi>();
+    // helper.register_number_source::<SubtractUi>();
+    // helper.register_number_source::<MultiplyUi>();
+    // helper.register_number_source::<DivideUi>();
+    // // helper.register_number_source::<HypotUi>();
+    // helper.register_number_source::<CopysignUi>();
+    // helper.register_number_source::<PowUi>();
+    // // helper.register_number_source::<Atan2Ui>();
 
-    helper.register_number_source::<LerpUi>();
+    // helper.register_number_source::<LerpUi>();
 
     (object_factory, ui_factory)
 }

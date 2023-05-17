@@ -21,9 +21,9 @@ impl ObjectUi for ResamplerUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ObjectWindow::new_sound_processor(resampler.id(), "Resampler", data.color)
-            .add_left_peg(resampler.input.id(), "Input")
-            .add_top_peg(&resampler.speed_ratio, "Speed Ratio")
-            .add_right_peg(resampler.id(), "Output")
+            // .add_left_peg(resampler.input.id(), "Input")
+            // .add_top_peg(&resampler.speed_ratio, "Speed Ratio")
+            // .add_right_peg(resampler.id(), "Output")
             .show(ui.ctx(), graph_tools);
     }
 }

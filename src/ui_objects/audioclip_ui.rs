@@ -23,7 +23,7 @@ impl ObjectUi for AudioClipUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ObjectWindow::new_sound_processor(audioclip.id(), "AudioClip", data.color)
-            .add_right_peg(audioclip.id(), "Output")
+            // .add_right_peg(audioclip.id(), "Output")
             .show(ui.ctx(), graph_tools)
     }
 }

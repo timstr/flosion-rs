@@ -24,10 +24,10 @@ impl ObjectUi for KeyboardUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ObjectWindow::new_sound_processor(keyboard.id(), "Keyboard", data.color)
-            .add_left_peg(keyboard.input.id(), "Input")
-            .add_left_peg(&keyboard.key_frequency, "Note Frequency")
-            .add_left_peg(&keyboard.key_time, "Note Time")
-            .add_right_peg(keyboard.id(), "Output")
+            // .add_left_peg(keyboard.input.id(), "Input")
+            // .add_left_peg(&keyboard.key_frequency, "Note Frequency")
+            // .add_left_peg(&keyboard.key_time, "Note Time")
+            // .add_right_peg(keyboard.id(), "Output")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 let has_focus_id = egui::Id::new("keyboard_has_focus").with(keyboard.id());
 

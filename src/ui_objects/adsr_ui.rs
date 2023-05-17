@@ -24,12 +24,12 @@ impl ObjectUi for ADSRUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ObjectWindow::new_sound_processor(adsr.id(), "ADSR", data.color)
-            .add_top_peg(&adsr.attack_time, "Attack Time")
-            .add_top_peg(&adsr.decay_time, "Decay Time")
-            .add_top_peg(&adsr.sustain_level, "Sustain Level")
-            .add_top_peg(&adsr.release_time, "Release Time")
-            .add_left_peg(adsr.input.id(), "Input")
-            .add_right_peg(adsr.id(), "Output")
+            // .add_top_peg(&adsr.attack_time, "Attack Time")
+            // .add_top_peg(&adsr.decay_time, "Decay Time")
+            // .add_top_peg(&adsr.sustain_level, "Sustain Level")
+            // .add_top_peg(&adsr.release_time, "Release Time")
+            // .add_left_peg(adsr.input.id(), "Input")
+            // .add_right_peg(adsr.id(), "Output")
             .show(ui.ctx(), graph_state);
     }
 }

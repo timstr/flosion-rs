@@ -1,12 +1,14 @@
 use std::{
     any::{type_name, Any},
+    cell::RefCell,
     collections::{HashMap, HashSet},
+    ops::{Deref, DerefMut},
 };
 
 use eframe::egui;
 
 use crate::core::{
-    graphobject::{GraphId, GraphObjectHandle, ObjectId},
+    graphobject::{GraphId, ObjectId},
     graphserialization::{
         deserialize_object_id, serialize_object_id, ForwardGraphIdMap, ReverseGraphIdMap,
     },
@@ -43,17 +45,17 @@ impl<T: 'static + Serializable> AnyObjectUiState for T {
 }
 
 pub struct AnyObjectUiData {
-    state: Box<dyn AnyObjectUiState>,
+    state: Box<RefCell<dyn AnyObjectUiState>>,
     color: egui::Color32,
 }
 
 impl AnyObjectUiData {
-    pub(crate) fn state(&self) -> &dyn AnyObjectUiState {
-        &*self.state
+    pub(crate) fn state<'a>(&'a self) -> impl 'a + Deref<Target = dyn AnyObjectUiState> {
+        self.state.borrow()
     }
 
-    pub(crate) fn state_mut(&mut self) -> &mut dyn AnyObjectUiState {
-        &mut *self.state
+    pub(crate) fn state_mut<'a>(&'a self) -> impl 'a + DerefMut<Target = dyn AnyObjectUiState> {
+        self.state.borrow_mut()
     }
 
     pub(crate) fn color(&self) -> egui::Color32 {
@@ -75,14 +77,14 @@ impl ObjectUiStates {
     pub(super) fn set_object_data(
         &mut self,
         id: ObjectId,
-        state: Box<dyn AnyObjectUiState>,
+        state: Box<RefCell<dyn AnyObjectUiState>>,
         color: egui::Color32,
     ) {
         self.data.insert(id, AnyObjectUiData { state, color });
     }
 
-    pub(super) fn get_object_data(&mut self, id: ObjectId) -> &mut AnyObjectUiData {
-        &mut *self.data.get_mut(&id).unwrap()
+    pub(super) fn get_object_data(&self, id: ObjectId) -> &AnyObjectUiData {
+        &*self.data.get(&id).unwrap()
     }
 
     pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>) {
@@ -158,7 +160,7 @@ impl ObjectUiStates {
             ]);
             s1.u32(color);
             let mut s2 = s1.subarchive();
-            state.state.serialize(&mut s2);
+            state.state.borrow().serialize(&mut s2);
         }
     }
 
@@ -212,31 +214,19 @@ impl ObjectUiStates {
         Ok(())
     }
 
-    pub(super) fn make_states_for_new_objects(
+    pub(super) fn create_state_for(
         &mut self,
+        object_id: ObjectId,
         topo: &SoundGraphTopology,
         ui_factory: &UiFactory,
     ) {
-        let state_from_graph_object = |o: GraphObjectHandle| -> AnyObjectUiData {
-            let state = ui_factory.create_default_state(&o);
+        self.data.entry(object_id).or_insert_with(|| {
+            let graph_object = topo.graph_object(object_id).unwrap();
+            let state = ui_factory.create_default_state(&graph_object);
             AnyObjectUiData {
                 state,
                 color: random_object_color(),
             }
-        };
-
-        for (i, spd) in topo.sound_processors() {
-            self.data
-                .entry(i.into())
-                .or_insert_with(|| state_from_graph_object(spd.instance_arc().as_graph_object()));
-        }
-        for (i, nsd) in topo.number_sources() {
-            if nsd.owner() != NumberSourceOwner::Nothing {
-                continue;
-            }
-            self.data.entry(i.into()).or_insert_with(|| {
-                state_from_graph_object(nsd.instance_arc().as_graph_object().unwrap())
-            });
-        }
+        });
     }
 }

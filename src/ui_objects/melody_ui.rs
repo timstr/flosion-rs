@@ -197,12 +197,12 @@ impl ObjectUi for MelodyUi {
         data: ObjectUiData<MelodyUiState>,
     ) {
         ObjectWindow::new_sound_processor(melody.id(), "Melody", data.color)
-            .add_left_peg(melody.input.id(), "Input")
-            .add_left_peg(&melody.melody_time, "Melody Time")
-            .add_left_peg(&melody.note_frequency, "Note Frequency")
-            .add_left_peg(&melody.note_time, "Note Time")
-            .add_left_peg(&melody.note_progress, "Note Progress")
-            .add_right_peg(melody.id(), "Output")
+            // .add_left_peg(melody.input.id(), "Input")
+            // .add_left_peg(&melody.melody_time, "Melody Time")
+            // .add_left_peg(&melody.note_frequency, "Note Frequency")
+            // .add_left_peg(&melody.note_time, "Note Time")
+            // .add_left_peg(&melody.note_progress, "Note Progress")
+            // .add_right_peg(melody.id(), "Output")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 ui.horizontal(|ui| {
                     if ui.button("Randomize").clicked() {

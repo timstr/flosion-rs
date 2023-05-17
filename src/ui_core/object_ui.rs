@@ -1,6 +1,6 @@
 use std::{
     any::{type_name, Any},
-    f64::consts::TAU,
+    cell::RefCell,
 };
 
 use eframe::{
@@ -11,21 +11,18 @@ use rand::{thread_rng, Rng};
 
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
-    graphobject::{GraphId, GraphObjectHandle, ObjectHandle, ObjectId, ObjectInitialization},
-    numberinput::{NumberInputHandle, NumberInputId},
-    numbersource::{
-        NumberSourceHandle, NumberSourceId, NumberVisibility, PureNumberSource,
-        PureNumberSourceHandle,
-    },
+    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
+    numberinput::NumberInputId,
     serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
+    uniqueid::UniqueId,
 };
 
 use super::{
-    diagnostics::DiagnosticRelevance,
     graph_ui_state::GraphUIState,
     object_ui_states::{AnyObjectUiData, AnyObjectUiState},
+    ui_context::UiContext,
 };
 
 #[derive(Default)]
@@ -65,6 +62,7 @@ pub trait ObjectUi: 'static + Default {
         handle: Self::HandleType,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
+        ctx: &UiContext,
         data: ObjectUiData<Self::StateType>,
     );
 
@@ -89,9 +87,10 @@ pub trait AnyObjectUi {
     fn apply(
         &self,
         object: &GraphObjectHandle,
-        object_ui_state: &mut AnyObjectUiData,
+        object_ui_state: &AnyObjectUiData,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
+        ctx: &UiContext,
     );
 
     fn aliases(&self) -> &'static [&'static str];
@@ -102,29 +101,31 @@ pub trait AnyObjectUi {
         &self,
         object: &GraphObjectHandle,
         init: ObjectInitialization,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()>;
+    ) -> Result<Box<RefCell<dyn AnyObjectUiState>>, ()>;
 }
 
 impl<T: ObjectUi> AnyObjectUi for T {
     fn apply(
         &self,
         object: &GraphObjectHandle,
-        object_ui_state: &mut AnyObjectUiData,
+        object_ui_state: &AnyObjectUiData,
         graph_state: &mut GraphUIState,
         ui: &mut egui::Ui,
+        ctx: &UiContext,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let color = object_ui_state.color();
-        let state_any = object_ui_state.state_mut().as_mut_any();
+        let mut state_mut = object_ui_state.state_mut();
+        let state_any = state_mut.as_mut_any();
         debug_assert!(
             state_any.is::<T::StateType>(),
             "AnyObjectUi expected to receive state type {}, but got {:?} instead",
             type_name::<T::StateType>(),
-            object_ui_state.state().get_language_type_name()
+            state_mut.get_language_type_name()
         );
         let state = state_any.downcast_mut::<T::StateType>().unwrap();
         let data = ObjectUiData { state, color };
-        self.ui(handle, graph_state, ui, data);
+        self.ui(handle, graph_state, ui, ctx, data);
     }
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -139,7 +140,7 @@ impl<T: ObjectUi> AnyObjectUi for T {
         &self,
         object: &GraphObjectHandle,
         init: ObjectInitialization,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()> {
+    ) -> Result<Box<RefCell<dyn AnyObjectUiState>>, ()> {
         // let dc_object = downcast_object_ref::<T>(object.instance());
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let state: T::StateType = match init {
@@ -147,591 +148,228 @@ impl<T: ObjectUi> AnyObjectUi for T {
             ObjectInitialization::Archive(mut a) => T::StateType::deserialize(&mut a)?,
             ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
         };
-        Ok(Box::new(state))
+        Ok(Box::new(RefCell::new(state)))
     }
 }
 
-pub trait PegCreator {
-    fn get_id(&self) -> GraphId;
-}
+// TODO
+pub struct NumberSourceUi {}
 
-impl PegCreator for &NumberInputHandle {
-    fn get_id(&self) -> GraphId {
-        debug_assert!(
-            self.visibility() == NumberVisibility::Public,
-            "Attempted to make a peg for a number input which is private"
-        );
-        self.id().into()
-    }
-}
+// TODO
+struct ProcessorNumberInputUi {}
 
-impl PegCreator for &NumberSourceHandle {
-    fn get_id(&self) -> GraphId {
-        debug_assert!(
-            self.visibility() == NumberVisibility::Public,
-            "Attempted to make a peg for a number source which is private"
-        );
-        self.id().into()
-    }
-}
+// TODO: split into synchronous and non-synchronous
+struct SoundInputUi {}
 
-impl<T: PureNumberSource> PegCreator for &PureNumberSourceHandle<T> {
-    fn get_id(&self) -> GraphId {
-        self.id().into()
-    }
-}
-
-impl PegCreator for SoundInputId {
-    fn get_id(&self) -> GraphId {
-        (*self).into()
-    }
-}
-
-impl PegCreator for SoundProcessorId {
-    fn get_id(&self) -> GraphId {
-        (*self).into()
-    }
-}
-
-pub struct ObjectWindow {
-    object_id: ObjectId,
+pub struct ProcessorUi {
+    processor_id: SoundProcessorId,
     label: &'static str,
     color: egui::Color32,
-    left_pegs: Vec<(GraphId, &'static str)>,
-    top_pegs: Vec<(GraphId, &'static str)>,
-    right_pegs: Vec<(GraphId, &'static str)>,
+    number_inputs: Vec<NumberInputId>,
+    sound_inputs: Vec<SoundInputId>,
 }
 
-impl ObjectWindow {
-    pub fn new_sound_processor(
-        id: SoundProcessorId,
-        label: &'static str,
-        color: egui::Color32,
-    ) -> ObjectWindow {
-        ObjectWindow {
-            object_id: ObjectId::Sound(id),
+impl ProcessorUi {
+    pub fn new(id: SoundProcessorId, label: &'static str, color: egui::Color32) -> ProcessorUi {
+        ProcessorUi {
+            processor_id: id,
             label,
             color,
-            left_pegs: Vec::new(),
-            top_pegs: Vec::new(),
-            right_pegs: Vec::new(),
+            number_inputs: Vec::new(),
+            sound_inputs: Vec::new(),
         }
     }
 
-    pub fn new_number_source(
-        id: NumberSourceId,
-        label: &'static str,
-        color: egui::Color32,
-    ) -> ObjectWindow {
-        ObjectWindow {
-            object_id: ObjectId::Number(id),
-            label,
-            color,
-            left_pegs: Vec::new(),
-            top_pegs: Vec::new(),
-            right_pegs: Vec::new(),
-        }
-    }
-
-    pub fn add_left_peg<T: PegCreator>(mut self, peg: T, label: &'static str) -> Self {
-        self.left_pegs.push((peg.get_id(), label));
+    pub fn add_synchronous_sound_input(mut self, input_id: SoundInputId) -> Self {
+        self.sound_inputs.push(input_id);
         self
     }
 
-    pub fn add_right_peg<T: PegCreator>(mut self, peg: T, label: &'static str) -> Self {
-        self.right_pegs.push((peg.get_id(), label));
-        self
-    }
-
-    pub fn add_top_peg<T: PegCreator>(mut self, peg: T, label: &'static str) -> Self {
-        self.top_pegs.push((peg.get_id(), label));
-        self
-    }
-
-    fn show_pegs(
-        ui: &mut egui::Ui,
-        pegs: &[(GraphId, &'static str)],
-        direction: PegDirection,
-        graph_state: &mut GraphUIState,
-    ) {
-        for (graph_id, label) in pegs {
-            match graph_id {
-                GraphId::SoundInput(siid) => {
-                    ui.add(SoundInputWidget::new(*siid, label, direction, graph_state));
-                }
-                GraphId::SoundProcessor(spid) => {
-                    ui.add(SoundOutputWidget::new(*spid, label, direction, graph_state));
-                }
-                GraphId::NumberInput(niid) => {
-                    ui.add(NumberInputWidget::new(*niid, label, direction, graph_state));
-                }
-                GraphId::NumberSource(nsid) => {
-                    ui.add(NumberOutputWidget::new(
-                        *nsid,
-                        label,
-                        direction,
-                        graph_state,
-                    ));
-                }
-            }
-        }
-    }
-
-    pub fn show(self, ctx: &egui::Context, graph_tools: &mut GraphUIState) {
-        self.show_with(ctx, graph_tools, |_ui, _tools| {});
+    pub fn show(self, ui: &mut egui::Ui, ctx: &UiContext, graph_tools: &mut GraphUIState) {
+        self.show_with(ui, ctx, graph_tools, |_ui, _tools| {});
     }
 
     pub fn show_with<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
         self,
-        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        ctx: &UiContext,
         graph_tools: &mut GraphUIState,
         add_contents: F,
     ) {
-        let s = match self.object_id {
-            ObjectId::Sound(id) => format!("SoundObjectWindow {:?}", id),
-            ObjectId::Number(id) => format!("NumberObjectWindow {:?}", id),
-        };
+        let s = format!("SoundProcessorUi {:?}", self.processor_id);
         let id = egui::Id::new(s);
 
-        let mut area = egui::Area::new(id);
-        let mut displacement: Option<egui::Vec2> = None;
+        let mut area = egui::Area::new(id)
+            .movable(true)
+            .constrain(false)
+            .drag_bounds(egui::Rect::EVERYTHING);
+
+        if ctx.is_top_level() {
+            // If the object is top-level, draw it in a new egui::Area,
+            // which can be independently clicked and dragged and moved
+            // in front of other objects
+            if let Some(state) = graph_tools
+                .object_positions()
+                .get_object_location(self.processor_id.into())
+            {
+                let pos = state.rect.left_top();
+                area = area.current_pos(pos);
+            }
+
+            let r = area.show(ui.ctx(), |ui| {
+                self.show_with_impl(ui, ctx, graph_tools, add_contents);
+            });
+
+            if r.response.drag_started() {
+                if !graph_tools.is_object_selected(self.processor_id.into()) {
+                    graph_tools.clear_selection();
+                    graph_tools.select_object(self.processor_id.into());
+                }
+            }
+
+            if r.response.dragged() {
+                graph_tools.move_selection(r.response.drag_delta(), Some(self.processor_id.into()));
+                // Correct for the current object being moved twice
+                // graph_tools
+                //     .object_positions_mut()
+                //     .track_object_location(self.processor_id.into(), r.response.rect);
+            }
+
+            if r.response.clicked() {
+                if !graph_tools.is_object_selected(self.processor_id.into()) {
+                    graph_tools.clear_selection();
+                    graph_tools.select_object(self.processor_id.into());
+                }
+            }
+        } else {
+            // Otherwise, if the object isn't top-level, nest it within the
+            // current egui::Ui
+            self.show_with_impl(ui, ctx, graph_tools, add_contents);
+        }
+
+        // TODO:
+        // if the processor is free-floating (not nested):
+        //  - it should be easily draggable
+        //  - its temporal axis should be freely adjustable
+        // otherwise, if the processor is nested inside the input of another sound processor:
+        //  - it should be possible to drag the processor out of the input, thereby detaching
+        //    it and turning it into a free-floating processor
+        //     -> also, for processors with a single (synchronous?) input, it should be possible
+        //        to extract the processor only and have its input take its place
+        // in both cases, the processor UI is predominantly a rectangle, whose width is
+        // given by the temporal axis. Synchronous sound inputs appear stacked at the top and
+        // span the full temporal width. Ignore non-synchronous sound inputs for now.
+        // Number inputs are also stacked vertically and (may) span the full width so that later
+        // they can be graphed against time if they draw upon a time-dependant input.
+        // Once that has been implemented, add rails/nest guards to the left side of each sound
+        // processor that precisely reaches around the full vertical extent of its inputs.
+    }
+
+    fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut GraphUIState)>(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &UiContext,
+        graph_tools: &mut GraphUIState,
+        add_contents: F,
+    ) {
         let mut fill = self.color;
 
-        if let Some(relevance) = graph_tools.graph_item_has_warning(self.object_id.into()) {
-            match relevance {
-                DiagnosticRelevance::Primary => {
-                    displacement = Some(egui::vec2(
-                        5.0 * (ctx.input(|i| i.time) * TAU * 10.0).sin() as f32,
-                        0.0,
-                    ));
-                    fill = egui::Color32::RED
-                }
-                DiagnosticRelevance::Secondary => fill = egui::Color32::YELLOW,
-            };
-            ctx.request_repaint();
-        }
-
-        if let Some(state) = graph_tools
-            .layout_state()
-            .get_object_location(self.object_id)
-        {
-            let mut pos = state.rect.left_top();
-            if let Some(d) = displacement {
-                pos += d;
-            }
-            area = area.current_pos(pos);
-        } else if let Some(pos) = ctx.input(|i| i.pointer.interact_pos()) {
-            area = area.current_pos(pos);
-        }
-
-        if graph_tools.object_has_keyboard_focus(self.object_id) {
-            // TODO: how to highlight?
-        } else if graph_tools.is_object_selected(self.object_id) {
+        if graph_tools.is_object_selected(self.processor_id.into()) {
             let mut hsva = ecolor::Hsva::from(fill);
             hsva.v = 0.5 * (1.0 + hsva.a);
             fill = hsva.into();
         }
 
-        let center_frame = egui::Frame::default()
+        let outer_frame = egui::Frame::default()
+            .fill(egui::Color32::from_rgb(
+                (fill.r() as u16 * 3 / 4) as u8,
+                (fill.g() as u16 * 3 / 4) as u8,
+                (fill.b() as u16 * 3 / 4) as u8,
+            ))
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
+
+        let input_frame = egui::Frame::default()
             .fill(fill)
-            .inner_margin(egui::Vec2::splat(5.0));
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
-        let side_frame_template = egui::Frame::default()
+        let content_frame = egui::Frame::default()
             .fill(fill)
-            .inner_margin(egui::Vec2::splat(5.0));
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
-        let outer_corner_rounding = 10.0;
-
-        let mut top_frame = side_frame_template;
-        let mut left_frame = side_frame_template;
-        let mut right_frame = side_frame_template;
-
-        top_frame.rounding.nw = outer_corner_rounding;
-        top_frame.rounding.ne = outer_corner_rounding;
-        left_frame.rounding.nw = outer_corner_rounding;
-        left_frame.rounding.sw = outer_corner_rounding;
-        right_frame.rounding.ne = outer_corner_rounding;
-        right_frame.rounding.se = outer_corner_rounding;
-
-        let top_row = !self.top_pegs.is_empty();
-        let left_col = !self.left_pegs.is_empty();
-        let right_col = !self.right_pegs.is_empty();
-
-        area = area
-            .movable(true)
-            .constrain(false)
-            .drag_bounds(egui::Rect::EVERYTHING);
-        let r = area.show(ctx, |ui| {
+        let r = outer_frame.show(ui, |ui| {
             // Clip to the entire screen, not just outside the area
-            ui.set_clip_rect(ctx.input(|i| i.screen_rect()));
+            // ui.set_clip_rect(ctx.egui_context().input(|i| i.screen_rect()));
 
-            egui::Grid::new(id.with("grid"))
-                .min_col_width(0.0)
-                .min_row_height(0.0)
-                .spacing(egui::vec2(0.0, 0.0))
-                .show(ui, |ui| {
-                    let mut min_content_width = 0.0;
-                    let mut min_content_height = 0.0;
+            let desired_width = ctx.width() as f32;
+            ui.set_width(desired_width);
 
-                    if top_row {
-                        if left_col {
-                            ui.label(""); // TODO: better way to make empty cell? Maybe ui.allocate_*?
-                        }
-                        top_frame.show(ui, |ui| {
-                            let ir = ui.horizontal(|ui| {
-                                Self::show_pegs(ui, &self.top_pegs, PegDirection::Top, graph_tools)
-                            });
-                            min_content_width = ir.response.rect.width();
-                        });
-                        ui.end_row();
-                    }
+            if !self.sound_inputs.is_empty() {
+                input_frame.show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(desired_width);
+                        for input_id in &self.sound_inputs {
+                            let input_data = ctx.topology().sound_input(*input_id).unwrap();
 
-                    if left_col {
-                        let ir = ui.vertical(|ui| {
-                            left_frame.show(ui, |ui| {
-                                Self::show_pegs(
-                                    ui,
-                                    &self.left_pegs,
-                                    PegDirection::Left,
-                                    graph_tools,
-                                )
-                            })
-                        });
-                        min_content_height = ir.response.rect.height();
-                    }
-                    center_frame.show(ui, |ui| {
-                        let ir = ui.vertical(|ui| {
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(self.label)
-                                        .color(egui::Color32::BLACK)
-                                        .strong(),
-                                )
-                                .wrap(false),
-                            );
-                            add_contents(ui, graph_tools);
-                        });
-                        let content_size = ir.response.rect.size();
-                        if (min_content_width > content_size.x)
-                            || (min_content_height > content_size.y)
-                        {
-                            ui.allocate_space(egui::vec2(
-                                (min_content_width - content_size.x).max(0.0),
-                                (min_content_height - content_size.y).max(0.0),
-                            ));
+                            // TODO: check sychronous vs non-synchronous
+
+                            let target = input_data.target();
+
+                            match target {
+                                Some(spid) => {
+                                    // TODO: draw the processor right above
+                                    let target_processor =
+                                        ctx.topology().sound_processor(spid).unwrap();
+                                    let target_graph_object =
+                                        target_processor.instance_arc().as_graph_object();
+
+                                    graph_tools
+                                        .object_positions_mut()
+                                        .track_object_location(spid.into(), ui.cursor());
+
+                                    let inner_ctx = ctx.nest();
+
+                                    ctx.ui_factory().ui(
+                                        &target_graph_object,
+                                        graph_tools,
+                                        ui,
+                                        &inner_ctx,
+                                    );
+                                }
+                                None => {
+                                    // TODO: draw an empty field onto which things can be dragged
+                                    ui.label(format!("Sound Input {} (empty)", input_id.value()));
+                                }
+                            }
                         }
                     });
-                    if right_col {
-                        ui.vertical(|ui| {
-                            right_frame.show(ui, |ui| {
-                                Self::show_pegs(
-                                    ui,
-                                    &self.right_pegs,
-                                    PegDirection::Right,
-                                    graph_tools,
-                                )
-                            })
-                        });
-                    }
-                    ui.end_row();
                 });
+            }
+
+            content_frame.show(ui, |ui| {
+                let ir = ui.vertical(|ui| {
+                    ui.set_width(desired_width);
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(self.label)
+                                .color(egui::Color32::BLACK)
+                                .strong(),
+                        )
+                        .wrap(false),
+                    );
+                    add_contents(ui, graph_tools);
+                });
+                let content_width = ir.response.rect.width();
+                if content_width < desired_width {
+                    ui.allocate_space(egui::vec2(desired_width - content_width, 0.0));
+                }
+            });
         });
 
-        // Track the un-displaced object location so that displacement
-        // does not accumulate between frames
-        graph_tools.layout_state_mut().track_object_location(
-            self.object_id,
-            r.response
-                .rect
-                .translate(-displacement.unwrap_or(egui::Vec2::ZERO)),
-            r.response.layer_id,
-        );
-
-        if r.response.drag_started() {
-            if !graph_tools.is_object_selected(self.object_id) {
-                graph_tools.clear_selection();
-                graph_tools.select_object(self.object_id);
-            }
-        }
-
-        if r.response.dragged() {
-            graph_tools.move_selection(r.response.drag_delta());
-        }
-
-        if r.response.clicked() {
-            if !graph_tools.is_object_selected(self.object_id) {
-                graph_tools.clear_selection();
-                graph_tools.select_object(self.object_id);
-            }
-        }
-    }
-}
-
-fn key_to_string(key: egui::Key) -> String {
-    match key {
-        egui::Key::A => "A".to_string(),
-        egui::Key::B => "B".to_string(),
-        egui::Key::C => "C".to_string(),
-        egui::Key::D => "D".to_string(),
-        egui::Key::E => "E".to_string(),
-        egui::Key::F => "F".to_string(),
-        egui::Key::G => "G".to_string(),
-        egui::Key::H => "H".to_string(),
-        egui::Key::I => "I".to_string(),
-        egui::Key::J => "J".to_string(),
-        egui::Key::K => "K".to_string(),
-        egui::Key::L => "L".to_string(),
-        egui::Key::M => "M".to_string(),
-        egui::Key::N => "N".to_string(),
-        egui::Key::O => "O".to_string(),
-        egui::Key::P => "P".to_string(),
-        egui::Key::Q => "Q".to_string(),
-        egui::Key::R => "R".to_string(),
-        egui::Key::S => "S".to_string(),
-        egui::Key::T => "T".to_string(),
-        egui::Key::U => "U".to_string(),
-        egui::Key::V => "V".to_string(),
-        egui::Key::W => "W".to_string(),
-        egui::Key::X => "X".to_string(),
-        egui::Key::Y => "Y".to_string(),
-        egui::Key::Z => "Z".to_string(),
-        _ => "???".to_string(),
-    }
-}
-
-#[derive(Copy, Clone)]
-pub enum PegDirection {
-    Left,
-    Top,
-    Right,
-}
-
-fn peg_ui(
-    id: GraphId,
-    color: egui::Color32,
-    label: &str,
-    direction: PegDirection,
-    ui_state: &mut GraphUIState,
-    ui: &mut egui::Ui,
-) -> egui::Response {
-    let (peg_rect, response) =
-        ui.allocate_exact_size(egui::Vec2::new(20.0, 20.0), egui::Sense::drag());
-    ui_state
-        .layout_state_mut()
-        .track_peg(id, peg_rect, response.layer_id, direction);
-    let display_str;
-    let popup_str;
-    let size_diff;
-    if ui_state.peg_has_keyboard_focus(id) {
-        display_str = "*".to_string();
-        popup_str = None;
-        size_diff = 5.0;
-    } else if let Some(key) = ui_state.peg_has_hotkey(id) {
-        display_str = key_to_string(key);
-        popup_str = Some(label);
-        size_diff = 0.0;
-    } else {
-        display_str = format!("{}", id.as_usize());
-        size_diff = 0.0;
-        popup_str = if response.hovered() {
-            Some(label)
-        } else {
-            None
-        };
-        // display_str = "-".to_string();
-        // size_diff = -3.0;
-    }
-    let painter = ui.painter();
-    painter.rect(
-        peg_rect.expand(size_diff),
-        5.0,
-        color,
-        egui::Stroke::new(2.0, egui::Color32::WHITE),
-    );
-    painter.text(
-        peg_rect.center(),
-        egui::Align2::CENTER_CENTER,
-        display_str,
-        egui::FontId::monospace(16.0),
-        egui::Color32::WHITE,
-    );
-    // TODO: also show label when wires are being dragged
-    if let Some(s) = popup_str {
-        let galley = painter.layout_no_wrap(
-            s.to_string(),
-            egui::FontId::monospace(16.0),
-            egui::Color32::WHITE,
-        );
-        let pos = match direction {
-            PegDirection::Left => {
-                peg_rect.left_center()
-                    + egui::vec2(-5.0 - galley.rect.width(), -0.5 * galley.rect.height())
-            }
-            PegDirection::Top => {
-                peg_rect.center_top()
-                    + egui::vec2(-0.5 * galley.rect.width(), -5.0 - galley.rect.height())
-            }
-            PegDirection::Right => {
-                peg_rect.right_center() + egui::vec2(5.0, -0.5 * galley.rect.height())
-            }
-        };
-        painter.rect(
-            galley.rect.expand(3.0).translate(pos.to_vec2()),
-            3.0,
-            egui::Color32::BLACK,
-            egui::Stroke::new(2.0, egui::Color32::WHITE),
-        );
-        painter.galley(pos, galley);
-    }
-    if response.drag_started() {
-        ui_state.start_dragging(id);
-    }
-    if response.drag_released() {
-        ui_state.stop_dragging(Some(response.interact_pointer_pos().unwrap()));
-    }
-    response
-}
-
-struct SoundInputWidget<'a> {
-    sound_input_id: SoundInputId,
-    label: &'a str,
-    direction: PegDirection,
-    graph_state: &'a mut GraphUIState,
-}
-
-impl<'a> SoundInputWidget<'a> {
-    fn new(
-        sound_input_id: SoundInputId,
-        label: &'a str,
-        direction: PegDirection,
-        graph_state: &'a mut GraphUIState,
-    ) -> SoundInputWidget<'a> {
-        SoundInputWidget {
-            sound_input_id,
-            label,
-            direction,
-            graph_state,
-        }
-    }
-}
-
-impl<'a> egui::Widget for SoundInputWidget<'a> {
-    fn ui(self, ui: &mut egui::Ui) -> eframe::egui::Response {
-        peg_ui(
-            self.sound_input_id.into(),
-            egui::Color32::from_rgb(0, 255, 0),
-            self.label,
-            self.direction,
-            self.graph_state,
-            ui,
-        )
-    }
-}
-
-struct SoundOutputWidget<'a> {
-    sound_processor_id: SoundProcessorId,
-    label: &'a str,
-    direction: PegDirection,
-    graph_state: &'a mut GraphUIState,
-}
-
-impl<'a> SoundOutputWidget<'a> {
-    fn new(
-        sound_processor_id: SoundProcessorId,
-        label: &'a str,
-        direction: PegDirection,
-        graph_state: &'a mut GraphUIState,
-    ) -> SoundOutputWidget<'a> {
-        SoundOutputWidget {
-            sound_processor_id,
-            label,
-            direction,
-            graph_state,
-        }
-    }
-}
-
-impl<'a> egui::Widget for SoundOutputWidget<'a> {
-    fn ui(self, ui: &mut egui::Ui) -> eframe::egui::Response {
-        peg_ui(
-            self.sound_processor_id.into(),
-            egui::Color32::from_rgb(0, 128, 0),
-            self.label,
-            self.direction,
-            self.graph_state,
-            ui,
-        )
-    }
-}
-
-struct NumberInputWidget<'a> {
-    number_input_id: NumberInputId,
-    label: &'a str,
-    direction: PegDirection,
-    graph_state: &'a mut GraphUIState,
-}
-
-impl<'a> NumberInputWidget<'a> {
-    fn new(
-        number_input_id: NumberInputId,
-        label: &'a str,
-        direction: PegDirection,
-        graph_state: &'a mut GraphUIState,
-    ) -> NumberInputWidget<'a> {
-        NumberInputWidget {
-            number_input_id,
-            label,
-            direction,
-            graph_state,
-        }
-    }
-}
-
-impl<'a> egui::Widget for NumberInputWidget<'a> {
-    fn ui(self, ui: &mut egui::Ui) -> eframe::egui::Response {
-        peg_ui(
-            self.number_input_id.into(),
-            egui::Color32::from_rgb(0, 0, 255),
-            self.label,
-            self.direction,
-            self.graph_state,
-            ui,
-        )
-    }
-}
-
-struct NumberOutputWidget<'a> {
-    number_source_id: NumberSourceId,
-    label: &'a str,
-    direction: PegDirection,
-    graph_state: &'a mut GraphUIState,
-}
-
-impl<'a> NumberOutputWidget<'a> {
-    fn new(
-        number_source_id: NumberSourceId,
-        label: &'a str,
-        direction: PegDirection,
-        graph_state: &'a mut GraphUIState,
-    ) -> NumberOutputWidget<'a> {
-        NumberOutputWidget {
-            number_source_id,
-            label,
-            direction,
-            graph_state,
-        }
-    }
-}
-
-impl<'a> egui::Widget for NumberOutputWidget<'a> {
-    fn ui(self, ui: &mut egui::Ui) -> eframe::egui::Response {
-        peg_ui(
-            self.number_source_id.into(),
-            egui::Color32::from_rgb(0, 0, 128),
-            self.label,
-            self.direction,
-            self.graph_state,
-            ui,
-        )
+        graph_tools
+            .object_positions_mut()
+            .track_object_location(self.processor_id.into(), r.response.rect);
     }
 }

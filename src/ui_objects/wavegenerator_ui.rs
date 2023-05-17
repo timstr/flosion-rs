@@ -22,11 +22,11 @@ impl ObjectUi for WaveGeneratorUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ObjectWindow::new_sound_processor(wavgen.id(), "WaveGenerator", data.color)
-            .add_left_peg(&wavgen.amplitude, "Amplitude")
-            .add_left_peg(&wavgen.frequency, "Frequency")
-            .add_top_peg(&wavgen.time, "Time")
-            .add_top_peg(&wavgen.phase, "Phase")
-            .add_right_peg(wavgen.id(), "Output")
+            // .add_left_peg(&wavgen.amplitude, "Amplitude")
+            // .add_left_peg(&wavgen.frequency, "Frequency")
+            // .add_top_peg(&wavgen.time, "Time")
+            // .add_top_peg(&wavgen.phase, "Phase")
+            // .add_right_peg(wavgen.id(), "Output")
             .show(ui.ctx(), graph_tools);
     }
 }

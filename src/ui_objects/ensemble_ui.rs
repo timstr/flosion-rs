@@ -22,11 +22,11 @@ impl ObjectUi for EnsembleUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ObjectWindow::new_sound_processor(ensemble.id(), "Ensemble", data.color)
-            .add_left_peg(ensemble.input.id(), "Input")
-            .add_left_peg(&ensemble.voice_frequency, "Voice Frequency")
-            .add_top_peg(&ensemble.frequency_in, "Frequency In")
-            .add_top_peg(&ensemble.frequency_spread, "Frequency Spread")
-            .add_right_peg(ensemble.id(), "Output")
+            // .add_left_peg(ensemble.input.id(), "Input")
+            // .add_left_peg(&ensemble.voice_frequency, "Voice Frequency")
+            // .add_top_peg(&ensemble.frequency_in, "Frequency In")
+            // .add_top_peg(&ensemble.frequency_spread, "Frequency Spread")
+            // .add_right_peg(ensemble.id(), "Output")
             .show(ui.ctx(), graph_tools);
     }
 }

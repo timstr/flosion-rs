@@ -1,9 +1,12 @@
+use eframe::egui;
+
 use crate::{
     core::soundprocessor::DynamicSoundProcessorHandle,
     objects::mixer::Mixer,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ProcessorUi},
+        ui_context::UiContext,
     },
 };
 
@@ -18,40 +21,42 @@ impl ObjectUi for MixerUi {
         &self,
         mixer: DynamicSoundProcessorHandle<Mixer>,
         graph_tools: &mut GraphUIState,
-        ui: &mut eframe::egui::Ui,
+        ui: &mut egui::Ui,
+        ctx: &UiContext,
         data: ObjectUiData<NoUIState>,
     ) {
-        let mut objwin = ObjectWindow::new_sound_processor(mixer.id(), "Mixer", data.color)
-            .add_right_peg(mixer.id(), "Output");
+        let mut objwin = ProcessorUi::new(mixer.id(), "Mixer", data.color);
 
-        for (i, siid) in mixer.get_input_ids().into_iter().enumerate() {
-            objwin = objwin.add_left_peg(siid, "Input ???"); // TODO: allow String, then use format!("Input {}", i + 1));
+        for siid in mixer.get_input_ids().into_iter() {
+            objwin = objwin.add_synchronous_sound_input(siid);
         }
 
-        objwin.show_with(ui.ctx(), graph_tools, |ui, graph_tools| {
-            let last_input = mixer.get_input_ids().into_iter().last();
+        objwin.show_with(ui, ctx, graph_tools, |ui, graph_tools| {
+            ui.horizontal(|ui| {
+                let last_input = mixer.get_input_ids().into_iter().last();
 
-            if ui.button("+").clicked() {
-                let w = mixer.clone();
-                graph_tools.make_change(move |sg, _| {
-                    sg.apply_processor_tools(w.id(), |mut tools| {
-                        w.add_input(&mut tools);
-                    })
-                    .unwrap();
-                });
-            }
-
-            if let Some(siid) = last_input {
-                if ui.button("-").clicked() {
+                if ui.button("+").clicked() {
                     let w = mixer.clone();
                     graph_tools.make_change(move |sg, _| {
                         sg.apply_processor_tools(w.id(), |mut tools| {
-                            w.remove_input(siid, &mut tools);
+                            w.add_input(&mut tools);
                         })
                         .unwrap();
                     });
                 }
-            }
+
+                if let Some(siid) = last_input {
+                    if ui.button("-").clicked() {
+                        let w = mixer.clone();
+                        graph_tools.make_change(move |sg, _| {
+                            sg.apply_processor_tools(w.id(), |mut tools| {
+                                w.remove_input(siid, &mut tools);
+                            })
+                            .unwrap();
+                        });
+                    }
+                }
+            });
         });
     }
 }

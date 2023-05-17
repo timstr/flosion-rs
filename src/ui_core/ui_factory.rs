@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
-use eframe::egui::Ui;
+use eframe::egui;
 
 use crate::core::{
     arguments::ParsedArguments,
@@ -13,7 +13,8 @@ use crate::core::{
 use super::{
     graph_ui_state::GraphUIState,
     object_ui::{AnyObjectUi, ObjectUi},
-    object_ui_states::{AnyObjectUiState, ObjectUiStates},
+    object_ui_states::AnyObjectUiState,
+    ui_context::UiContext,
 };
 
 struct ObjectData {
@@ -82,15 +83,15 @@ impl UiFactory {
         &self,
         object: &GraphObjectHandle,
         graph_state: &mut GraphUIState,
-        object_states: &mut ObjectUiStates,
-        ui: &mut Ui,
+        ui: &mut egui::Ui,
+        ctx: &UiContext,
     ) {
         let name = object.get_type().name();
         let id = object.id();
         match self.mapping.get(name) {
             Some(data) => {
-                let state = object_states.get_object_data(id);
-                data.ui.apply(object, state, graph_state, ui);
+                let state = ctx.object_states().get_object_data(id);
+                data.ui.apply(object, state, graph_state, ui, ctx);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",
@@ -103,7 +104,7 @@ impl UiFactory {
         &self,
         object: &GraphObjectHandle,
         init: ObjectInitialization,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()> {
+    ) -> Result<Box<RefCell<dyn AnyObjectUiState>>, ()> {
         let name = object.get_type().name();
         match self.mapping.get(name) {
             Some(data) => data.ui.make_ui_state(object, init),
@@ -114,7 +115,10 @@ impl UiFactory {
         }
     }
 
-    pub fn create_default_state(&self, object: &GraphObjectHandle) -> Box<dyn AnyObjectUiState> {
+    pub fn create_default_state(
+        &self,
+        object: &GraphObjectHandle,
+    ) -> Box<RefCell<dyn AnyObjectUiState>> {
         self.create_state_impl(object, ObjectInitialization::Default)
             .unwrap()
     }
@@ -123,7 +127,7 @@ impl UiFactory {
         &self,
         object: &GraphObjectHandle,
         args: &ParsedArguments,
-    ) -> Box<dyn AnyObjectUiState> {
+    ) -> Box<RefCell<dyn AnyObjectUiState>> {
         self.create_state_impl(object, ObjectInitialization::Args(args))
             .unwrap()
     }
@@ -132,7 +136,7 @@ impl UiFactory {
         &self,
         object: &GraphObjectHandle,
         deserializer: Deserializer,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()> {
+    ) -> Result<Box<RefCell<dyn AnyObjectUiState>>, ()> {
         self.create_state_impl(object, ObjectInitialization::Archive(deserializer))
     }
 }

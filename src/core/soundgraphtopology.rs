@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::{
-    graphobject::{GraphId, GraphObjectHandle},
+    graphobject::{GraphId, GraphObjectHandle, ObjectId},
     numberinput::{NumberInputId, NumberInputOwner},
     numbersource::{NumberSourceId, NumberSourceOwner},
     soundgraphdata::{NumberInputData, NumberSourceData, SoundInputData, SoundProcessorData},
@@ -79,6 +79,31 @@ impl SoundGraphTopology {
                 .map(|i| -> GraphId { (*i).into() }),
         );
         ids
+    }
+
+    pub(crate) fn graph_object(&self, object_id: ObjectId) -> Option<GraphObjectHandle> {
+        match object_id {
+            ObjectId::Sound(spid) => self
+                .sound_processors
+                .get(&spid)
+                .map(|p| p.instance_arc().as_graph_object()),
+            ObjectId::Number(nsid) => self
+                .number_sources
+                .get(&nsid)
+                .and_then(|n| n.instance_arc().as_graph_object()),
+        }
+    }
+
+    pub(crate) fn graph_object_ids<'a>(&'a self) -> impl 'a + Iterator<Item = ObjectId> {
+        let sound_objects = self.sound_processors.values().map(|x| x.id().into());
+        let number_objects = self.number_sources.values().filter_map(|x| {
+            if x.owner() == NumberSourceOwner::Nothing {
+                Some(x.id().into())
+            } else {
+                None
+            }
+        });
+        sound_objects.chain(number_objects)
     }
 
     pub(crate) fn graph_objects<'a>(&'a self) -> impl 'a + Iterator<Item = GraphObjectHandle> {

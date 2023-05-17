@@ -30,7 +30,7 @@ impl ObjectUi for ConstantUi {
     ) {
         // TODO: add ui state for custom name
         ObjectWindow::new_number_source(handle.id(), "Constant", data.color)
-            .add_right_peg(&handle, "Output")
+            // .add_right_peg(&handle, "Output")
             .show(ui.ctx(), graph_state);
     }
 
@@ -89,7 +89,7 @@ impl ObjectUi for VariableUi {
         // TODO: use data.state.name instead of always "Variable"
         // Will need to accept something other than &'static str in ObjectWindow
         ObjectWindow::new_number_source(constant.id(), "Variable", data.color)
-            .add_right_peg(&constant, "Output")
+            // .add_right_peg(&constant, "Output")
             .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
                 let mut v = constant.get_value();
                 let v_old = v;
@@ -151,8 +151,8 @@ macro_rules! unary_number_source_ui {
                 data: ObjectUiData<Self::StateType>,
             ) {
                 ObjectWindow::new_number_source(object.id(), $display_name, data.color)
-                    .add_left_peg(&object.input, "Input")
-                    .add_right_peg(&object, "Output")
+                    // .add_left_peg(&object.input, "Input")
+                    // .add_right_peg(&object, "Output")
                     .show(ui.ctx(), graph_tools);
             }
 
@@ -179,9 +179,9 @@ macro_rules! binary_number_source_ui {
                 data: ObjectUiData<Self::StateType>,
             ) {
                 ObjectWindow::new_number_source(object.id(), $display_name, data.color)
-                    .add_left_peg(&object.input_1, "Input 1")
-                    .add_left_peg(&object.input_2, "Input 2")
-                    .add_right_peg(&object, "Output")
+                    // .add_left_peg(&object.input_1, "Input 1")
+                    // .add_left_peg(&object.input_2, "Input 2")
+                    // .add_right_peg(&object, "Output")
                     .show(ui.ctx(), graph_tools);
             }
 
@@ -208,10 +208,10 @@ macro_rules! ternary_number_source_ui {
                 data: ObjectUiData<Self::StateType>,
             ) {
                 ObjectWindow::new_number_source(object.id(), $display_name, data.color)
-                    .add_left_peg(&object.input_1, "Input 1")
-                    .add_left_peg(&object.input_2, "Input 2")
-                    .add_left_peg(&object.input_3, "Input 3")
-                    .add_right_peg(&object, "Output")
+                    // .add_left_peg(&object.input_1, "Input 1")
+                    // .add_left_peg(&object.input_2, "Input 2")
+                    // .add_left_peg(&object.input_3, "Input 3")
+                    // .add_right_peg(&object, "Output")
                     .show(ui.ctx(), graph_tools);
             }
 

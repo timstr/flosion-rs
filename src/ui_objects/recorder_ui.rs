@@ -24,8 +24,8 @@ impl ObjectUi for RecorderUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ObjectWindow::new_sound_processor(recorder.id(), "Recorder", data.color)
-            .add_left_peg(recorder.input.id(), "Input")
-            .add_right_peg(recorder.id(), "Output")
+            // .add_left_peg(recorder.input.id(), "Input")
+            // .add_right_peg(recorder.id(), "Output")
             .show_with(ui.ctx(), graph_tools, |ui, graph_tools| {
                 let r = recorder.is_recording();
                 let n = recorder.recording_length();
