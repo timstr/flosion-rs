@@ -164,13 +164,15 @@ impl<'ctx> StateGraph<'ctx> {
 
         Self::modify_sound_input_node(&mut self.static_nodes, input_data.owner(), |node| {
             node.visit_inputs_mut(
-                &mut |_siid: SoundInputId,
+                &mut |siid: SoundInputId,
                       _kidx: usize,
                       tgt: &mut NodeTarget<'ctx>,
                       timing: &mut InputTiming| {
-                    debug_assert!(tgt.is_empty());
-                    tgt.set_target(targets.pop().unwrap());
-                    timing.require_reset();
+                    if siid == input_id {
+                        debug_assert!(tgt.is_empty());
+                        tgt.set_target(targets.pop().unwrap());
+                        timing.require_reset();
+                    }
                 },
             );
         });
