@@ -1,8 +1,14 @@
-use std::collections::HashMap;
+use std::{
+    cell::{Ref, RefCell},
+    collections::{HashMap, HashSet},
+};
 
 use crate::core::{
-    graphobject::ObjectId, samplefrequency::SAMPLE_FREQUENCY,
+    graphobject::{GraphId, ObjectId},
+    samplefrequency::SAMPLE_FREQUENCY,
     soundgraphtopology::SoundGraphTopology,
+    soundprocessor::SoundProcessorId,
+    uniqueid::UniqueId,
 };
 
 use super::{object_ui_states::ObjectUiStates, ui_factory::UiFactory};
@@ -16,6 +22,7 @@ pub struct TimeAxis {
 pub struct TopLevelLayout {
     pub width_pixels: usize,
     pub time_axis: TimeAxis,
+    pub nesting_depth: usize,
 }
 
 pub struct TemporalLayout {
@@ -32,35 +39,68 @@ impl TemporalLayout {
         self.top_level_objects.get(&object_id)
     }
 
-    pub(crate) fn create_state_for(&mut self, object_id: ObjectId, topo: &SoundGraphTopology) {
-        // don't add a top-level layout if the object has exactly one dependant
-        let num_dependents = match object_id {
-            ObjectId::Sound(spid) => topo
-                .sound_inputs()
-                .values()
-                .filter(|d| d.target() == Some(spid))
-                .count(),
-            ObjectId::Number(nsid) => topo
-                .number_inputs()
-                .values()
-                .filter(|d| d.target() == Some(nsid))
-                .count(),
-        };
-        if num_dependents == 1 {
-            return;
+    pub(crate) fn regenerate(&mut self, topo: &SoundGraphTopology) {
+        // TODO:
+        // - compute all dependent counts for all processors
+        // - create new top-level layouts for those processors with zero or multiple dependents
+        // - recompute the nesting depths of all top-level layouts recursively, increasing for
+        //   each transitive input until one calls upon a processor with zero or multiple dependents
+
+        let mut dependent_counts: HashMap<SoundProcessorId, usize> =
+            topo.sound_processors().keys().map(|k| (*k, 0)).collect();
+
+        for si in topo.sound_inputs().values() {
+            if let Some(spid) = si.target() {
+                *dependent_counts.entry(spid).or_insert(0) += 1;
+            }
         }
 
         const DEFAULT_WIDTH: usize = 300;
 
-        self.top_level_objects.insert(
-            object_id,
-            TopLevelLayout {
-                width_pixels: DEFAULT_WIDTH,
-                time_axis: TimeAxis {
-                    samples_per_x_pixel: SAMPLE_FREQUENCY as f32 / DEFAULT_WIDTH as f32,
-                },
-            },
-        );
+        for (spid, n_deps) in &dependent_counts {
+            if *n_deps == 1 {
+                continue;
+            }
+            self.top_level_objects
+                .entry((*spid).into())
+                .or_insert_with(|| TopLevelLayout {
+                    width_pixels: DEFAULT_WIDTH,
+                    time_axis: TimeAxis {
+                        samples_per_x_pixel: SAMPLE_FREQUENCY as f32 / DEFAULT_WIDTH as f32,
+                    },
+                    nesting_depth: 0,
+                });
+        }
+
+        fn count_nesting_depth(
+            spid: SoundProcessorId,
+            dependent_counts: &HashMap<SoundProcessorId, usize>,
+            topo: &SoundGraphTopology,
+        ) -> usize {
+            let inputs = topo.sound_processor(spid).unwrap().sound_inputs();
+            let mut max_depth = 0;
+            for siid in inputs {
+                if let Some(t_sp) = topo.sound_input(*siid).unwrap().target() {
+                    let d = 1 + count_nesting_depth(t_sp, dependent_counts, topo);
+                    max_depth = max_depth.max(d);
+                }
+            }
+            max_depth
+        }
+
+        for (oid, layout) in &mut self.top_level_objects {
+            match *oid {
+                ObjectId::Sound(spid) => {
+                    layout.nesting_depth = count_nesting_depth(spid, &dependent_counts, topo);
+                }
+                ObjectId::Number(_) => todo!(),
+            }
+        }
+    }
+
+    pub(crate) fn retain(&mut self, remaining_ids: &HashSet<GraphId>) {
+        self.top_level_objects
+            .retain(|k, _v| remaining_ids.contains(&(*k).into()));
     }
 }
 
@@ -71,6 +111,7 @@ pub struct UiContext<'a> {
     is_top_level: bool,
     time_axis: TimeAxis,
     width: usize,
+    nesting_depth: usize,
 }
 
 impl<'a> UiContext<'a> {
@@ -81,6 +122,7 @@ impl<'a> UiContext<'a> {
         is_top_level: bool,
         time_axis: TimeAxis,
         width: usize,
+        nesting_depth: usize,
     ) -> UiContext<'a> {
         UiContext {
             ui_factory,
@@ -89,6 +131,7 @@ impl<'a> UiContext<'a> {
             is_top_level,
             time_axis,
             width,
+            nesting_depth,
         }
     }
 
@@ -116,7 +159,7 @@ impl<'a> UiContext<'a> {
         self.is_top_level
     }
 
-    pub fn nest(&self) -> UiContext {
+    pub(crate) fn nest(&self) -> UiContext {
         UiContext {
             ui_factory: self.ui_factory,
             object_states: self.object_states,
@@ -124,6 +167,11 @@ impl<'a> UiContext<'a> {
             is_top_level: false,
             time_axis: self.time_axis,
             width: self.width,
+            nesting_depth: self.nesting_depth - 1,
         }
+    }
+
+    pub(crate) fn nesting_depth(&self) -> usize {
+        self.nesting_depth
     }
 }

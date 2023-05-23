@@ -133,8 +133,9 @@ impl GraphUIState {
         }
     }
 
-    pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>) {
+    pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>, topo: &SoundGraphTopology) {
         self.object_positions.retain(remaining_ids);
+        self.temporal_layout.retain(remaining_ids);
 
         match &mut self.mode {
             UiMode::Selecting(s) => {
@@ -150,6 +151,9 @@ impl GraphUIState {
                 }
             }
         }
+
+        // TODO: do this conservatively, e.g. when the topology changes
+        self.temporal_layout.regenerate(topo);
     }
 
     pub fn selection(&self) -> HashSet<ObjectId> {
@@ -249,6 +253,5 @@ impl GraphUIState {
 
     pub(super) fn create_state_for(&mut self, object_id: ObjectId, topo: &SoundGraphTopology) {
         self.object_positions.create_state_for(object_id);
-        self.temporal_layout.create_state_for(object_id, topo);
     }
 }

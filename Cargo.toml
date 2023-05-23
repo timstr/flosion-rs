@@ -14,6 +14,7 @@ atomic_float = "0.1.0"
 base64 = "0.13.0"
 cpal = "0.13.3"
 eframe = "0.21.3"
+# eframe = { path = "/home/tim/dev/rust/egui/crates/eframe" }
 futures = "0.3"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm14-0"] }
 # inkwell = { path = "/home/tim/dev/rust/inkwell_fork", features = ["llvm14-0"] }

@@ -60,7 +60,16 @@ impl FlosionApp {
             let mixer = graph
                 .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
                 .unwrap();
+            let mixer2 = graph
+                .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
+                .unwrap();
+            let mixer3 = graph
+                .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
+                .unwrap();
             let whitenoise = graph
+                .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
+                .unwrap();
+            let whitenoise2 = graph
                 .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
                 .unwrap();
             graph
@@ -68,6 +77,15 @@ impl FlosionApp {
                 .unwrap();
             graph
                 .connect_sound_input(mixer.get_input_ids()[0], whitenoise.id())
+                .unwrap();
+            graph
+                .connect_sound_input(mixer.get_input_ids()[1], mixer2.id())
+                .unwrap();
+            graph
+                .connect_sound_input(mixer2.get_input_ids()[1], mixer3.id())
+                .unwrap();
+            graph
+                .connect_sound_input(mixer3.get_input_ids()[0], whitenoise2.id())
                 .unwrap();
         }
 
@@ -121,6 +139,7 @@ impl FlosionApp {
                     is_top_level,
                     layout.time_axis,
                     width,
+                    layout.nesting_depth,
                 );
                 factory.ui(&object, ui_state, ui, &ctx);
             }
@@ -501,7 +520,8 @@ impl FlosionApp {
         }
 
         let remaining_graph_ids = self.graph.topology().all_ids();
-        self.ui_state.cleanup(&remaining_graph_ids);
+        self.ui_state
+            .cleanup(&remaining_graph_ids, self.graph.topology());
         self.object_states.cleanup(&remaining_graph_ids);
 
         self.known_object_ids = current_object_ids;
@@ -511,15 +531,14 @@ impl FlosionApp {
 impl eframe::App for FlosionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            {
-                Self::draw_all_objects(
-                    ui,
-                    &self.ui_factory,
-                    &self.graph,
-                    &mut self.ui_state,
-                    &mut self.object_states,
-                );
-            }
+            Self::draw_all_objects(
+                ui,
+                &self.ui_factory,
+                &self.graph,
+                &mut self.ui_state,
+                &mut self.object_states,
+            );
+
             let screen_rect = ui.input(|i| i.screen_rect());
             let bg_response = ui.interact(
                 screen_rect,
