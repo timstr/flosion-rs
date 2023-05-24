@@ -80,15 +80,16 @@ impl DynamicSoundProcessor for Mixer {
             dst.silence();
             return StreamStatus::Done;
         }
+        let mut all_done;
         {
             let first_input = ipts.first_mut().unwrap();
             if first_input.needs_reset() {
                 first_input.reset(0);
             }
             first_input.step(state, dst, &mut context);
+            all_done = first_input.is_done();
         }
         let mut ch = SoundChunk::new();
-        let mut all_done = true;
         for i in &mut ipts[1..] {
             if i.needs_reset() {
                 i.reset(0);
