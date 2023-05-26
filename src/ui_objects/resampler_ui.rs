@@ -3,7 +3,8 @@ use crate::{
     objects::resampler::Resampler,
     ui_core::{
         graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
+        object_ui::{NoUIState, ObjectUi, ObjectUiData, ProcessorUi},
+        ui_context::UiContext,
     },
 };
 
@@ -18,12 +19,11 @@ impl ObjectUi for ResamplerUi {
         resampler: DynamicSoundProcessorHandle<Resampler>,
         graph_tools: &mut GraphUIState,
         ui: &mut eframe::egui::Ui,
+        ctx: &UiContext,
         data: ObjectUiData<NoUIState>,
     ) {
-        ObjectWindow::new_sound_processor(resampler.id(), "Resampler", data.color)
-            // .add_left_peg(resampler.input.id(), "Input")
-            // .add_top_peg(&resampler.speed_ratio, "Speed Ratio")
-            // .add_right_peg(resampler.id(), "Output")
-            .show(ui.ctx(), graph_tools);
+        ProcessorUi::new(resampler.id(), "Resampler", data.color)
+            .add_sound_input(resampler.input.id())
+            .show(ui, ctx, graph_tools);
     }
 }

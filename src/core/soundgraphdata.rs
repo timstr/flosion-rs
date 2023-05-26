@@ -34,15 +34,15 @@ impl SoundInputData {
         }
     }
 
-    pub(super) fn id(&self) -> SoundInputId {
+    pub(crate) fn id(&self) -> SoundInputId {
         self.id
     }
 
-    pub(super) fn options(&self) -> InputOptions {
+    pub(crate) fn options(&self) -> InputOptions {
         self.options
     }
 
-    pub(super) fn num_keys(&self) -> usize {
+    pub(crate) fn num_keys(&self) -> usize {
         self.num_keys
     }
 
@@ -62,11 +62,11 @@ impl SoundInputData {
         self.owner
     }
 
-    pub(super) fn number_sources(&self) -> &Vec<NumberSourceId> {
+    pub(crate) fn number_sources(&self) -> &Vec<NumberSourceId> {
         &self.number_sources
     }
 
-    pub(super) fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
+    pub(crate) fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
         &mut self.number_sources
     }
 }

@@ -8,7 +8,9 @@ use crate::{
     ui_core::{object_ui::ObjectUi, ui_factory::UiFactory},
 };
 
-use super::{dac_ui::DacUi, mixer_ui::MixerUi, whitenoise_ui::WhiteNoiseUi};
+use super::{
+    dac_ui::DacUi, mixer_ui::MixerUi, resampler_ui::ResamplerUi, whitenoise_ui::WhiteNoiseUi,
+};
 
 struct RegistrationHelper<'a> {
     object_factory: &'a mut ObjectFactory,
@@ -72,7 +74,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     // helper.register_dynamic_sound_processor::<EnsembleUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register_dynamic_sound_processor::<MixerUi>();
-    // helper.register_dynamic_sound_processor::<ResamplerUi>();
+    helper.register_dynamic_sound_processor::<ResamplerUi>();
     // helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
     helper.register_dynamic_sound_processor::<WhiteNoiseUi>();
 

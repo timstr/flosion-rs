@@ -14,7 +14,7 @@ use crate::core::{
     graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
     numberinput::NumberInputId,
     serialization::{Deserializer, Serializable, Serializer},
-    soundinput::SoundInputId,
+    soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
     uniqueid::UniqueId,
 };
@@ -169,6 +169,13 @@ pub struct ProcessorUi {
     sound_inputs: Vec<SoundInputId>,
 }
 
+#[derive(Clone, Copy)]
+struct ProcessorUiProps {
+    origin: egui::Pos2,
+    indentation: f32,
+    fill: egui::Color32,
+}
+
 impl ProcessorUi {
     pub fn new(id: SoundProcessorId, label: &'static str, color: egui::Color32) -> ProcessorUi {
         ProcessorUi {
@@ -180,7 +187,7 @@ impl ProcessorUi {
         }
     }
 
-    pub fn add_synchronous_sound_input(mut self, input_id: SoundInputId) -> Self {
+    pub fn add_sound_input(mut self, input_id: SoundInputId) -> Self {
         self.sound_inputs.push(input_id);
         self
     }
@@ -213,13 +220,13 @@ impl ProcessorUi {
 
             // TODO: offset position according to cumulative rail thickness
 
-            // if let Some(state) = graph_tools
-            //     .object_positions()
-            //     .get_object_location(self.processor_id.into())
-            // {
-            //     let pos = state.rect.left_top();
-            //     area = area.current_pos(pos);
-            // }
+            if let Some(state) = graph_tools
+                .object_positions()
+                .get_object_location(self.processor_id.into())
+            {
+                let pos = state.rect.left_top();
+                area = area.current_pos(pos);
+            }
 
             let r = area.show(ui.ctx(), |ui| {
                 self.show_with_impl(ui, ctx, graph_tools, add_contents)
@@ -263,13 +270,16 @@ impl ProcessorUi {
 
         let mut fill = self.color;
 
-        if graph_tools.is_object_selected(self.processor_id.into()) {
+        let selected = graph_tools.is_object_selected(self.processor_id.into());
+
+        if selected {
             let mut hsva = ecolor::Hsva::from(fill);
             hsva.v = 0.5 * (1.0 + hsva.a);
             fill = hsva.into();
         }
 
         let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
+        let bright_yellow_stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
 
         let outer_frame = egui::Frame::default()
             .fill(egui::Color32::from_rgb(
@@ -280,21 +290,22 @@ impl ProcessorUi {
             .inner_margin(egui::vec2(0.0, 5.0))
             .stroke(darkish_stroke);
 
-        let input_frame = egui::Frame::default()
-            .fill(fill)
-            .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(darkish_stroke);
-
         let content_frame = egui::Frame::default()
             .fill(fill)
             .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(darkish_stroke);
+            .stroke(if selected {
+                bright_yellow_stroke
+            } else {
+                darkish_stroke
+            });
 
-        let origin = ui.cursor();
+        let props = ProcessorUiProps {
+            origin: ui.cursor().left_top(),
+            indentation: (ctx.nesting_depth() + 1) as f32 * Self::RAIL_WIDTH,
+            fill,
+        };
 
-        let indentation = (ctx.nesting_depth() + 1) as f32 * Self::RAIL_WIDTH;
-
-        let left_of_body = origin.left() + indentation;
+        let left_of_body = props.origin.x + props.indentation;
 
         let desired_width = ctx.width() as f32;
 
@@ -302,66 +313,7 @@ impl ProcessorUi {
             if !self.sound_inputs.is_empty() {
                 ui.set_width(desired_width);
                 for input_id in &self.sound_inputs {
-                    let input_data = ctx.topology().sound_input(*input_id).unwrap();
-
-                    // TODO: check sychronous vs non-synchronous
-
-                    let target = input_data.target();
-
-                    match target {
-                        Some(spid) => {
-                            // draw the processor right above
-                            let target_processor = ctx.topology().sound_processor(spid).unwrap();
-                            let target_graph_object =
-                                target_processor.instance_arc().as_graph_object();
-
-                            let inner_ctx = ctx.nest();
-
-                            // move the inner UI one rail's width to the right to account for
-                            // the lesser nesting level and to let the nested object ui find
-                            // the correct horizontal extent again
-                            let inner_objectui_rect = egui::Rect::from_x_y_ranges(
-                                (origin.left() + Self::RAIL_WIDTH)..=f32::INFINITY,
-                                ui.cursor().top()..=f32::INFINITY,
-                            );
-
-                            ui.allocate_ui_at_rect(inner_objectui_rect, |ui| {
-                                ctx.ui_factory().ui(
-                                    &target_graph_object,
-                                    graph_tools,
-                                    ui,
-                                    &inner_ctx,
-                                );
-                            });
-                        }
-                        None => {
-                            // move the inner UI exactly to the desired horizontal extent,
-                            // past all rails, where it actually needs to get drawn
-                            let input_rect = egui::Rect::from_x_y_ranges(
-                                left_of_body..=(left_of_body + desired_width),
-                                ui.cursor().top()..=f32::INFINITY,
-                            );
-
-                            ui.allocate_ui_at_rect(input_rect, |ui| {
-                                // TODO: draw an empty field onto which things can be dragged
-
-                                input_frame.show(ui, |ui| {
-                                    ui.set_width(desired_width);
-                                    ui.add(
-                                        egui::Label::new(
-                                            egui::RichText::new(format!(
-                                                "Sound Input {} (empty)",
-                                                input_id.value()
-                                            ))
-                                            .color(egui::Color32::BLACK)
-                                            .strong(),
-                                        )
-                                        .wrap(false),
-                                    );
-                                });
-                            });
-                        }
-                    }
+                    self.show_input(ui, ctx, *input_id, graph_tools, props);
                 }
             }
 
@@ -390,8 +342,8 @@ impl ProcessorUi {
             let bottom_of_body = ui.cursor().top();
 
             let top_rail_rect = egui::Rect::from_x_y_ranges(
-                origin.left()..=(origin.left() + Self::RAIL_WIDTH - 2.0),
-                origin.top()..=bottom_of_body,
+                props.origin.x..=(props.origin.x + Self::RAIL_WIDTH - 2.0),
+                props.origin.y..=bottom_of_body,
             );
 
             let rounding = egui::Rounding::same(3.0);
@@ -407,5 +359,83 @@ impl ProcessorUi {
 
         // r.response.union(r.inner)
         r.response
+    }
+
+    fn show_input(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &UiContext,
+        input_id: SoundInputId,
+        graph_tools: &mut GraphUIState,
+        props: ProcessorUiProps,
+    ) {
+        let input_data = ctx.topology().sound_input(input_id).unwrap();
+
+        let opts = input_data.options();
+
+        let left_of_body = props.origin.x + props.indentation;
+
+        let desired_width = ctx.width() as f32;
+
+        // TODO: check sychronous vs non-synchronous
+        // TODO: synchronous sound inputs:
+        // - exact layout of horizontal axis must be preserved
+        // TODO: non-synchronous sound inputs:
+        // - horizontal layout can visually be disrupted
+        // - nesting of rails should be preserved
+
+        let input_frame = egui::Frame::default()
+            .fill(props.fill)
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
+
+        let target = input_data.target();
+        match target {
+            Some(spid) => {
+                // draw the processor right above
+                let target_processor = ctx.topology().sound_processor(spid).unwrap();
+                let target_graph_object = target_processor.instance_arc().as_graph_object();
+
+                let inner_ctx = ctx.nest();
+
+                // move the inner UI one rail's width to the right to account for
+                // the lesser nesting level and to let the nested object ui find
+                // the correct horizontal extent again
+                let inner_objectui_rect = egui::Rect::from_x_y_ranges(
+                    (props.origin.x + Self::RAIL_WIDTH)..=f32::INFINITY,
+                    ui.cursor().top()..=f32::INFINITY,
+                );
+
+                ui.allocate_ui_at_rect(inner_objectui_rect, |ui| {
+                    ctx.ui_factory()
+                        .ui(&target_graph_object, graph_tools, ui, &inner_ctx);
+                });
+            }
+            None => {
+                // move the inner UI exactly to the desired horizontal extent,
+                // past all rails, where it actually needs to get drawn
+                let input_rect = egui::Rect::from_x_y_ranges(
+                    left_of_body..=(left_of_body + desired_width),
+                    ui.cursor().top()..=f32::INFINITY,
+                );
+
+                ui.allocate_ui_at_rect(input_rect, |ui| {
+                    // TODO: draw an empty field onto which things can be dragged
+
+                    input_frame.show(ui, |ui| {
+                        ui.set_width(desired_width);
+                        let label_str = format!("Sound Input {} (empty)", input_id.value());
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(label_str)
+                                    .color(egui::Color32::BLACK)
+                                    .strong(),
+                            )
+                            .wrap(false),
+                        );
+                    });
+                });
+            }
+        }
     }
 }

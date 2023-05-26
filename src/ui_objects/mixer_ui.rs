@@ -28,7 +28,7 @@ impl ObjectUi for MixerUi {
         let mut objwin = ProcessorUi::new(mixer.id(), "Mixer", data.color);
 
         for siid in mixer.get_input_ids().into_iter() {
-            objwin = objwin.add_synchronous_sound_input(siid);
+            objwin = objwin.add_sound_input(siid);
         }
 
         objwin.show_with(ui, ctx, graph_tools, |ui, graph_tools| {
