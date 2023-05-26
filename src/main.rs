@@ -13,7 +13,8 @@ fn main() {
         "Flosion",
         native_options,
         Box::new(|cc| Box::new(FlosionApp::new(cc))),
-    );
+    )
+    .unwrap();
 }
 
 // TODO

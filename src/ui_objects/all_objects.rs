@@ -9,7 +9,8 @@ use crate::{
 };
 
 use super::{
-    dac_ui::DacUi, mixer_ui::MixerUi, resampler_ui::ResamplerUi, whitenoise_ui::WhiteNoiseUi,
+    dac_ui::DacUi, mixer_ui::MixerUi, resampler_ui::ResamplerUi, wavegenerator_ui::WaveGeneratorUi,
+    whitenoise_ui::WhiteNoiseUi,
 };
 
 struct RegistrationHelper<'a> {
@@ -75,7 +76,7 @@ pub fn all_objects() -> (ObjectFactory, UiFactory) {
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register_dynamic_sound_processor::<MixerUi>();
     helper.register_dynamic_sound_processor::<ResamplerUi>();
-    // helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
+    helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
     helper.register_dynamic_sound_processor::<WhiteNoiseUi>();
 
     // Pure number sources

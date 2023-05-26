@@ -10,5 +10,5 @@ pub mod mixer_ui;
 // pub mod recorder_ui;
 pub mod resampler_ui;
 // pub mod sequencer_ui;
-// pub mod wavegenerator_ui;
+pub mod wavegenerator_ui;
 pub mod whitenoise_ui;

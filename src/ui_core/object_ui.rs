@@ -189,6 +189,11 @@ impl ProcessorUi {
         self
     }
 
+    pub fn add_number_input(mut self, input_id: NumberInputId) -> Self {
+        self.number_inputs.push(input_id);
+        self
+    }
+
     const RAIL_WIDTH: f32 = 15.0;
 
     pub fn show(self, ui: &mut egui::Ui, ctx: &UiContext, graph_tools: &mut GraphUIState) {
@@ -310,7 +315,7 @@ impl ProcessorUi {
             if !self.sound_inputs.is_empty() {
                 ui.set_width(desired_width);
                 for input_id in &self.sound_inputs {
-                    self.show_input(ui, ctx, *input_id, graph_tools, props);
+                    self.show_sound_input(ui, ctx, *input_id, graph_tools, props);
                 }
             }
 
@@ -322,6 +327,9 @@ impl ProcessorUi {
             ui.allocate_ui_at_rect(body_rect, |ui| {
                 content_frame.show(ui, |ui| {
                     ui.vertical(|ui| {
+                        for input_id in &self.number_inputs {
+                            self.show_number_input(ui, ctx, *input_id, graph_tools, props);
+                        }
                         ui.set_width(desired_width);
                         ui.add(
                             egui::Label::new(
@@ -358,7 +366,7 @@ impl ProcessorUi {
         r.response
     }
 
-    fn show_input(
+    fn show_sound_input(
         &self,
         ui: &mut egui::Ui,
         ctx: &UiContext,
@@ -387,7 +395,7 @@ impl ProcessorUi {
         let top_of_input = ui.cursor().top();
 
         let input_frame = egui::Frame::default()
-            .fill(props.fill)
+            .fill(egui::Color32::from_black_alpha(64))
             .inner_margin(egui::vec2(0.0, 5.0))
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
@@ -453,5 +461,34 @@ impl ProcessorUi {
                 egui::Color32::from_black_alpha(64),
             );
         }
+    }
+
+    fn show_number_input(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &UiContext,
+        input_id: NumberInputId,
+        graph_tools: &mut GraphUIState,
+        props: ProcessorUiProps,
+    ) {
+        let fill = egui::Color32::from_black_alpha(64);
+
+        let input_frame = egui::Frame::default()
+            .fill(fill)
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
+
+        input_frame.show(ui, |ui| {
+            ui.set_width(ctx.width());
+            let label_str = format!("Number Input {}", input_id.value());
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(label_str)
+                        .color(egui::Color32::BLACK)
+                        .strong(),
+                )
+                .wrap(false),
+            );
+        });
     }
 }

@@ -13,7 +13,10 @@ use crate::{
         soundgraph::SoundGraph,
         soundgraphtopology::SoundGraphTopology,
     },
-    objects::{dac::Dac, mixer::Mixer, resampler::Resampler, whitenoise::WhiteNoise},
+    objects::{
+        dac::Dac, mixer::Mixer, resampler::Resampler, wavegenerator::WaveGenerator,
+        whitenoise::WhiteNoise,
+    },
     ui_objects::all_objects::all_objects,
 };
 use eframe::{
@@ -75,6 +78,9 @@ impl FlosionApp {
             let resampler = graph
                 .add_dynamic_sound_processor::<Resampler>(ObjectInitialization::Default)
                 .unwrap();
+            let wavgen = graph
+                .add_dynamic_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
+                .unwrap();
             graph
                 .connect_sound_input(dac.input.id(), mixer.id())
                 .unwrap();
@@ -92,6 +98,9 @@ impl FlosionApp {
                 .unwrap();
             graph
                 .connect_sound_input(mixer3.get_input_ids()[0], whitenoise2.id())
+                .unwrap();
+            graph
+                .connect_sound_input(mixer3.get_input_ids()[1], wavgen.id())
                 .unwrap();
         }
 
