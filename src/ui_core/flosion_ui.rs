@@ -13,7 +13,7 @@ use crate::{
         soundgraph::SoundGraph,
         soundgraphtopology::SoundGraphTopology,
     },
-    objects::{dac::Dac, mixer::Mixer, whitenoise::WhiteNoise},
+    objects::{dac::Dac, mixer::Mixer, resampler::Resampler, whitenoise::WhiteNoise},
     ui_objects::all_objects::all_objects,
 };
 use eframe::{
@@ -72,6 +72,9 @@ impl FlosionApp {
             let whitenoise2 = graph
                 .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
                 .unwrap();
+            let resampler = graph
+                .add_dynamic_sound_processor::<Resampler>(ObjectInitialization::Default)
+                .unwrap();
             graph
                 .connect_sound_input(dac.input.id(), mixer.id())
                 .unwrap();
@@ -82,7 +85,10 @@ impl FlosionApp {
                 .connect_sound_input(mixer.get_input_ids()[1], mixer2.id())
                 .unwrap();
             graph
-                .connect_sound_input(mixer2.get_input_ids()[1], mixer3.id())
+                .connect_sound_input(mixer2.get_input_ids()[1], resampler.id())
+                .unwrap();
+            graph
+                .connect_sound_input(resampler.input.id(), mixer3.id())
                 .unwrap();
             graph
                 .connect_sound_input(mixer3.get_input_ids()[0], whitenoise2.id())
@@ -130,7 +136,7 @@ impl FlosionApp {
                 .find_top_level_layout(object.id())
             {
                 // TODO: store this width somewhere
-                let width = 300;
+                let width = 300.0;
                 let is_top_level = true;
                 let ctx = UiContext::new(
                     factory,
@@ -375,7 +381,7 @@ impl FlosionApp {
 
     fn delete_selection(ui_state: &mut GraphUIState) {
         let selection: Vec<ObjectId> = ui_state.selection().iter().cloned().collect();
-        ui_state.make_change(move |g, s| {
+        ui_state.make_change(move |g, _s| {
             g.remove_objects_batch(&selection).unwrap_or_else(|e| {
                 println!("Nope! Can't remove that:\n    {:?}", e);
             });

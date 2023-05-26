@@ -110,7 +110,7 @@ pub struct UiContext<'a> {
     topology: &'a SoundGraphTopology,
     is_top_level: bool,
     time_axis: TimeAxis,
-    width: usize,
+    width: f32,
     nesting_depth: usize,
 }
 
@@ -121,7 +121,7 @@ impl<'a> UiContext<'a> {
         topology: &'a SoundGraphTopology,
         is_top_level: bool,
         time_axis: TimeAxis,
-        width: usize,
+        width: f32,
         nesting_depth: usize,
     ) -> UiContext<'a> {
         UiContext {
@@ -151,7 +151,7 @@ impl<'a> UiContext<'a> {
         &self.time_axis
     }
 
-    pub fn width(&self) -> usize {
+    pub fn width(&self) -> f32 {
         self.width
     }
 
@@ -159,14 +159,14 @@ impl<'a> UiContext<'a> {
         self.is_top_level
     }
 
-    pub(crate) fn nest(&self) -> UiContext {
+    pub(crate) fn nest(&self, new_width: f32) -> UiContext {
         UiContext {
             ui_factory: self.ui_factory,
             object_states: self.object_states,
             topology: self.topology,
             is_top_level: false,
             time_axis: self.time_axis,
-            width: self.width,
+            width: new_width,
             nesting_depth: self.nesting_depth - 1,
         }
     }

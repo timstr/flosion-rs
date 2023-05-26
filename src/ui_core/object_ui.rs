@@ -158,9 +158,6 @@ pub struct NumberSourceUi {}
 // TODO
 struct ProcessorNumberInputUi {}
 
-// TODO: split into synchronous and non-synchronous
-struct SoundInputUi {}
-
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
@@ -307,7 +304,7 @@ impl ProcessorUi {
 
         let left_of_body = props.origin.x + props.indentation;
 
-        let desired_width = ctx.width() as f32;
+        let desired_width = ctx.width();
 
         let r = outer_frame.show(ui, |ui| {
             if !self.sound_inputs.is_empty() {
@@ -367,22 +364,27 @@ impl ProcessorUi {
         ctx: &UiContext,
         input_id: SoundInputId,
         graph_tools: &mut GraphUIState,
-        props: ProcessorUiProps,
+        mut props: ProcessorUiProps,
     ) {
         let input_data = ctx.topology().sound_input(input_id).unwrap();
 
         let opts = input_data.options();
 
+        let nonsync_shim_width = Self::RAIL_WIDTH * 0.5;
+
+        let original_origin = props.origin;
+        let mut desired_width = ctx.width();
+
+        if let InputOptions::NonSynchronous = opts {
+            props.origin.x += nonsync_shim_width;
+            desired_width -= nonsync_shim_width;
+        }
+
         let left_of_body = props.origin.x + props.indentation;
 
-        let desired_width = ctx.width() as f32;
+        let desired_width = desired_width;
 
-        // TODO: check sychronous vs non-synchronous
-        // TODO: synchronous sound inputs:
-        // - exact layout of horizontal axis must be preserved
-        // TODO: non-synchronous sound inputs:
-        // - horizontal layout can visually be disrupted
-        // - nesting of rails should be preserved
+        let top_of_input = ui.cursor().top();
 
         let input_frame = egui::Frame::default()
             .fill(props.fill)
@@ -396,7 +398,7 @@ impl ProcessorUi {
                 let target_processor = ctx.topology().sound_processor(spid).unwrap();
                 let target_graph_object = target_processor.instance_arc().as_graph_object();
 
-                let inner_ctx = ctx.nest();
+                let inner_ctx = ctx.nest(desired_width);
 
                 // move the inner UI one rail's width to the right to account for
                 // the lesser nesting level and to let the nested object ui find
@@ -421,7 +423,6 @@ impl ProcessorUi {
 
                 ui.allocate_ui_at_rect(input_rect, |ui| {
                     // TODO: draw an empty field onto which things can be dragged
-
                     input_frame.show(ui, |ui| {
                         ui.set_width(desired_width);
                         let label_str = format!("Sound Input {} (empty)", input_id.value());
@@ -436,6 +437,21 @@ impl ProcessorUi {
                     });
                 });
             }
+        }
+
+        let bottom_of_input = ui.cursor().top();
+
+        if let InputOptions::NonSynchronous = opts {
+            let left_of_shim = original_origin.x + Self::RAIL_WIDTH;
+            let nonsync_shim_rect = egui::Rect::from_x_y_ranges(
+                left_of_shim..=(left_of_shim + nonsync_shim_width),
+                top_of_input..=bottom_of_input,
+            );
+            ui.painter().rect_filled(
+                nonsync_shim_rect,
+                egui::Rounding::none(),
+                egui::Color32::from_black_alpha(64),
+            );
         }
     }
 }
