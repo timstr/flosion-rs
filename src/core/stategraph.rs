@@ -5,14 +5,16 @@ use inkwell::context::Context;
 use crate::core::soundinput::InputTiming;
 
 use super::{
-    numberinput::{NumberInputId, NumberInputOwner},
-    numberinputnode::NumberInputNode,
-    numbersource::NumberSourceId,
-    soundgraphdata::{NumberInputData, NumberSourceData, SoundInputData, SoundProcessorData},
+    numberinputnode::SoundNumberInputNode,
+    soundgraphdata::{
+        SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
+    },
     soundgraphedit::SoundGraphEdit,
     soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundinputnode::{SoundInputNode, SoundInputNodeVisitorMut},
+    soundnumberinput::SoundNumberInputId,
+    soundnumbersource::SoundNumberSourceId,
     soundprocessor::SoundProcessorId,
     stategraphnode::StateGraphNode,
     stategraphnode::{NodeTarget, NodeTargetValue},
@@ -77,8 +79,8 @@ impl<'ctx> StateGraph<'ctx> {
             SoundGraphEdit::ConnectNumberInput(niid, nsid) => {
                 self.connect_number_input(niid, nsid, topology, context)
             }
-            SoundGraphEdit::DisconnectNumberInput(niid) => {
-                self.disconnect_number_input(niid, topology, context)
+            SoundGraphEdit::DisconnectNumberInput(niid, nsid) => {
+                self.disconnect_number_input(niid, nsid, topology, context)
             }
         }
     }
@@ -196,111 +198,69 @@ impl<'ctx> StateGraph<'ctx> {
         });
     }
 
-    fn add_number_source(&mut self, _data: NumberSourceData) {
+    fn add_number_source(&mut self, _data: SoundNumberSourceData) {
         // The number source is not connected to anything,
         // and so can't be evaluated and can't trigger a re-compile
     }
 
-    fn remove_number_source(&mut self, _source_id: NumberSourceId) {
+    fn remove_number_source(&mut self, _source_id: SoundNumberSourceId) {
         // similar to add_number_source
     }
 
     fn add_number_input(
         &mut self,
-        data: NumberInputData,
+        data: SoundNumberInputData,
         topology: &SoundGraphTopology,
         context: &'ctx Context,
     ) {
-        match data.owner() {
-            NumberInputOwner::SoundProcessor(spid) => {
-                // if the number input belongs to a sound processor,
-                // add a number input node to the processor's nodes
-                // but leave them empty - the new number input can't
-                // be connected to anything yet.
-                Self::modify_processor_node(
-                    &mut self.static_nodes,
-                    spid,
-                    |node: &mut dyn StateGraphNode<'ctx>| {
-                        node.number_input_node_mut().add_input(data.id());
-                        node.visit_number_inputs_mut(&mut |input: &mut NumberInputNode<'ctx>| {
-                            if input.id() == data.id() {
-                                // TODO: do this not on the audio thread
-                                input.recompile(topology, context);
-                            }
-                        });
-                    },
-                );
-            }
-            NumberInputOwner::NumberSource(nsid) => {
-                // if the number input belongs to a number source,
-                // find all number input nodes which indirectly draw
-                // from that number source and recompile them, since
-                // merely adding the input may lead to different
-                // behaviour from a number source
-                debug_assert!(topology.number_input(data.id()).is_some());
-                debug_assert!(
-                    topology.number_input(data.id()).unwrap().owner()
-                        == NumberInputOwner::NumberSource(nsid)
-                );
-                let dependents = self.find_all_number_dependents(data.id(), topology);
-                self.recompile_number_input_nodes(&dependents, topology, context);
-            }
-        }
+        // add a number input node to the owner processor's nodes
+        // but leave them empty - the new number input can't
+        // be connected to anything yet.
+        Self::modify_processor_node(
+            &mut self.static_nodes,
+            data.owner(),
+            |node: &mut dyn StateGraphNode<'ctx>| {
+                node.number_input_node_mut().add_input(data.id());
+                node.visit_number_inputs_mut(&mut |input: &mut SoundNumberInputNode<'ctx>| {
+                    if input.id() == data.id() {
+                        // TODO: do this not on the audio thread
+                        input.recompile(topology, context);
+                    }
+                });
+            },
+        );
     }
 
     fn remove_number_input(
         &mut self,
-        input_id: NumberInputId,
+        input_id: SoundNumberInputId,
         topology: &SoundGraphTopology,
         context: &'ctx Context,
     ) {
         let data = topology.number_input(input_id).unwrap();
-        match data.owner() {
-            NumberInputOwner::SoundProcessor(spid) => {
-                Self::modify_processor_node(
-                    &mut self.static_nodes,
-                    spid,
-                    |node: &'_ mut dyn StateGraphNode<'ctx>| {
-                        node.number_input_node_mut().remove_input(input_id);
-                        node.visit_number_inputs_mut(&mut |input: &mut NumberInputNode<'ctx>| {
-                            if input.id() == input_id {
-                                // TODO: do this not on the audio thread
-                                input.recompile(topology, context);
-                            }
-                        });
-                    },
-                );
-            }
-            NumberInputOwner::NumberSource(nsid) => {
-                // TODO: ??????????????
-                // HACK: recompiling everything
-                let dependents: HashSet<NumberInputId> =
-                    topology.number_inputs().keys().cloned().collect();
-                self.recompile_number_input_nodes(&dependents, topology, context);
-            }
-        }
+
+        Self::modify_processor_node(
+            &mut self.static_nodes,
+            data.owner(),
+            |node: &'_ mut dyn StateGraphNode<'ctx>| {
+                node.number_input_node_mut().remove_input(input_id);
+                node.visit_number_inputs_mut(&mut |input: &mut SoundNumberInputNode<'ctx>| {
+                    if input.id() == input_id {
+                        // TODO: do this not on the audio thread
+                        input.recompile(topology, context);
+                    }
+                });
+            },
+        );
     }
 
     fn connect_number_input(
         &mut self,
-        input_id: NumberInputId,
-        source_id: NumberSourceId,
+        input_id: SoundNumberInputId,
+        source_id: SoundNumberSourceId,
         topology: &SoundGraphTopology,
         context: &'ctx inkwell::context::Context,
     ) {
-        // TODO:
-        // - For keeping number inputs up to date, knowledge about dependencies
-        //   before AND AFTER a connection is made or broken is needed.
-        // - For proper caching, knowledge about whether two sound processors
-        //   in the same synchronous group are parameterized by different state
-        //   sources is also needed
-        // - conceptually, a sound processor can be cached for a pair of inputs
-        //   whenever it is guaranteed to produce the same output for both inputs
-        // - to determine whether two processors are parameterized identically,
-        //   - for each number input of the processor (in the topology):
-        //      - recursively visit all number sources that the input
-        //        depends on
-        //      - whenever an overload node is found, ?????
         // HACK: recompiling all number inputs for now
         let dependents = topology.number_inputs().keys().cloned().collect();
         self.recompile_number_input_nodes(&dependents, topology, context);
@@ -308,11 +268,11 @@ impl<'ctx> StateGraph<'ctx> {
 
     fn disconnect_number_input(
         &mut self,
-        _input_id: NumberInputId,
+        _input_id: SoundNumberInputId,
+        _source_id: SoundNumberSourceId,
         topology: &SoundGraphTopology,
         context: &'ctx inkwell::context::Context,
     ) {
-        // TODO: recompile only those number inputs which actually changed
         // HACK: recompiling all number inputs for now
         let dependents = topology.number_inputs().keys().cloned().collect();
         self.recompile_number_input_nodes(&dependents, topology, context);
@@ -394,10 +354,11 @@ impl<'ctx> StateGraph<'ctx> {
             for input_id in proc_data.sound_inputs() {
                 node.sound_input_node_mut().add_input(*input_id);
             }
-            node.number_input_node_mut()
-                .visit_number_inputs_mut(&mut |n: &mut NumberInputNode<'ctx>| {
+            node.number_input_node_mut().visit_number_inputs_mut(
+                &mut |n: &mut SoundNumberInputNode<'ctx>| {
                     n.recompile(topology, context);
-                });
+                },
+            );
             node.visit_sound_inputs_mut(
                 &mut |input_id: SoundInputId,
                       _key_index: usize,
@@ -420,59 +381,15 @@ impl<'ctx> StateGraph<'ctx> {
         }
     }
 
-    fn find_all_number_dependents(
-        &self,
-        input_id: NumberInputId,
-        topology: &SoundGraphTopology,
-    ) -> HashSet<NumberInputId> {
-        // TODO: consider caching this between edits
-
-        fn visitor(
-            niid: NumberInputId,
-            target_niid: NumberInputId,
-            topology: &SoundGraphTopology,
-            dependents: &mut HashSet<NumberInputId>,
-        ) -> bool {
-            if niid == target_niid {
-                return true;
-            }
-            if dependents.contains(&niid) {
-                return true;
-            }
-            let input_data = topology.number_input(niid).unwrap();
-            let mut depends_on_target = false;
-            if let Some(tgt) = input_data.target() {
-                let ns_data = topology.number_source(tgt).unwrap();
-                for ns_input in ns_data.inputs() {
-                    if visitor(*ns_input, target_niid, topology, dependents) {
-                        depends_on_target = true;
-                    }
-                }
-            }
-            if depends_on_target {
-                dependents.insert(niid);
-            }
-            depends_on_target
-        }
-
-        let mut dependents = HashSet::<NumberInputId>::new();
-
-        for niid in topology.number_inputs().keys() {
-            visitor(*niid, input_id, topology, &mut dependents);
-        }
-
-        dependents
-    }
-
     fn recompile_number_input_nodes(
         &mut self,
-        which_nodes: &HashSet<NumberInputId>,
+        which_nodes: &HashSet<SoundNumberInputId>,
         topology: &SoundGraphTopology,
         context: &'ctx inkwell::context::Context,
     ) {
         let f_input = |_: &mut dyn SoundInputNode<'ctx>| true;
         let f_processor = |node: &mut dyn StateGraphNode<'ctx>| {
-            node.visit_number_inputs_mut(&mut |ni: &mut NumberInputNode<'ctx>| {
+            node.visit_number_inputs_mut(&mut |ni: &mut SoundNumberInputNode<'ctx>| {
                 if which_nodes.contains(&ni.id()) {
                     // TODO: do this not on the audio thread
                     ni.recompile(topology, context);

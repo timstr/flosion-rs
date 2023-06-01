@@ -3,8 +3,7 @@ use std::collections::HashSet;
 use eframe::egui;
 
 use crate::core::{
-    graphobject::{GraphId, ObjectId},
-    numbersource::NumberSourceOwner,
+    graphobject::{ObjectId, SoundGraphId},
     soundgraph::SoundGraph,
     soundgraphtopology::SoundGraphTopology,
     uniqueid::UniqueId,
@@ -133,7 +132,11 @@ impl GraphUIState {
         }
     }
 
-    pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<GraphId>, topo: &SoundGraphTopology) {
+    pub(super) fn cleanup(
+        &mut self,
+        remaining_ids: &HashSet<SoundGraphId>,
+        topo: &SoundGraphTopology,
+    ) {
         self.object_positions.retain(remaining_ids);
         self.temporal_layout.retain(remaining_ids);
 
@@ -215,15 +218,6 @@ impl GraphUIState {
                         good = false;
                     }
                 }
-                ObjectId::Number(i) => {
-                    if !topo.number_sources().contains_key(i) {
-                        println!(
-                            "An object position exists for a non-existent number source {}",
-                            i.value()
-                        );
-                        good = false;
-                    }
-                }
             }
         }
 
@@ -235,11 +229,6 @@ impl GraphUIState {
         {
             for i in topo.sound_processors().keys() {
                 ids.insert(i.into());
-            }
-            for (i, ns) in topo.number_sources() {
-                if ns.owner() == NumberSourceOwner::Nothing {
-                    ids.insert(i.into());
-                }
             }
         }
         self.set_selection(ids);

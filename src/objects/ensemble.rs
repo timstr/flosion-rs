@@ -3,16 +3,16 @@ use rand::prelude::*;
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::NumberInputHandle,
     numberinputnode::{
-        NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
-        NumberInputNodeVisitorMut,
+        SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+        SoundNumberInputNodeVisitorMut,
     },
-    numbersource::{NumberSourceHandle, NumberVisibility},
     numeric,
     soundchunk::SoundChunk,
     soundinput::InputOptions,
     soundinputtypes::{KeyedInput, KeyedInputNode},
+    soundnumberinput::SoundNumberInputHandle,
+    soundnumbersource::SoundNumberSourceHandle,
     soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
@@ -41,23 +41,23 @@ impl Default for VoiceState {
 
 pub struct Ensemble {
     pub input: KeyedInput<VoiceState>,
-    pub frequency_in: NumberInputHandle,
-    pub frequency_spread: NumberInputHandle,
-    pub voice_frequency: NumberSourceHandle,
+    pub frequency_in: SoundNumberInputHandle,
+    pub frequency_spread: SoundNumberInputHandle,
+    pub voice_frequency: SoundNumberSourceHandle,
 }
 
 pub struct EnsembleNumberInputs<'ctx> {
-    frequency_in: NumberInputNode<'ctx>,
-    frequency_spread: NumberInputNode<'ctx>,
+    frequency_in: SoundNumberInputNode<'ctx>,
+    frequency_spread: SoundNumberInputNode<'ctx>,
 }
 
-impl<'ctx> NumberInputNodeCollection<'ctx> for EnsembleNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
+impl<'ctx> SoundNumberInputNodeCollection<'ctx> for EnsembleNumberInputs<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.frequency_in);
         visitor.visit_node(&self.frequency_spread);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.frequency_in);
         visitor.visit_node(&mut self.frequency_spread);
     }
@@ -73,11 +73,9 @@ impl DynamicSoundProcessor for Ensemble {
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_keys = 8; // idk
         let input = KeyedInput::new(InputOptions::Synchronous, &mut tools, num_keys);
-        let voice_frequency = tools.add_input_scalar_number_source(
-            input.id(),
-            |state| state.downcast_if::<VoiceState>().unwrap().frequency,
-            NumberVisibility::Public,
-        );
+        let voice_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
+            state.downcast_if::<VoiceState>().unwrap().frequency
+        });
         Ok(Ensemble {
             input,
             frequency_in: tools.add_number_input(250.0),

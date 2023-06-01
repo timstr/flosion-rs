@@ -2,39 +2,39 @@ use crate::core::{
     anydata::AnyData,
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::NumberInputHandle,
     numberinputnode::{
-        NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
-        NumberInputNodeVisitorMut,
+        SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+        SoundNumberInputNodeVisitorMut,
     },
-    numbersource::{NumberSourceHandle, NumberVisibility},
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
+    soundnumberinput::SoundNumberInputHandle,
+    soundnumbersource::SoundNumberSourceHandle,
     soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
 };
 
 pub struct WaveGenerator {
-    pub phase: NumberSourceHandle,
-    pub time: NumberSourceHandle,
-    pub amplitude: NumberInputHandle,
-    pub frequency: NumberInputHandle,
+    pub phase: SoundNumberSourceHandle,
+    pub time: SoundNumberSourceHandle,
+    pub amplitude: SoundNumberInputHandle,
+    pub frequency: SoundNumberInputHandle,
 }
 
 pub struct WaveGeneratorNumberInputs<'ctx> {
-    frequency: NumberInputNode<'ctx>,
-    amplitude: NumberInputNode<'ctx>,
+    frequency: SoundNumberInputNode<'ctx>,
+    amplitude: SoundNumberInputNode<'ctx>,
 }
 
-impl<'ctx> NumberInputNodeCollection<'ctx> for WaveGeneratorNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
+impl<'ctx> SoundNumberInputNodeCollection<'ctx> for WaveGeneratorNumberInputs<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.frequency);
         visitor.visit_node(&self.amplitude);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.frequency);
         visitor.visit_node(&mut self.amplitude);
     }
@@ -57,13 +57,10 @@ impl DynamicSoundProcessor for WaveGenerator {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
-            phase: tools.add_processor_array_number_source(
-                |state: &AnyData| -> &[f32] {
-                    &state.downcast_if::<WaveGeneratorState>().unwrap().phase
-                },
-                NumberVisibility::Public,
-            ),
-            time: tools.add_processor_time(NumberVisibility::Public),
+            phase: tools.add_processor_array_number_source(|state: &AnyData| -> &[f32] {
+                &state.downcast_if::<WaveGeneratorState>().unwrap().phase
+            }),
+            time: tools.add_processor_time(),
             amplitude: tools.add_number_input(0.0),
             frequency: tools.add_number_input(250.0),
         })

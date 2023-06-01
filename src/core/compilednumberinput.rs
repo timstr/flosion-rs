@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use atomic_float::AtomicF32;
+use eframe::epaint::ahash::{HashMap, HashMapExt};
 use inkwell::{
     builder::Builder,
     intrinsics::Intrinsic,
@@ -19,9 +20,10 @@ use inkwell::{
 use crate::core::uniqueid::UniqueId;
 
 use super::{
-    anydata::AnyData, context::Context, numberinput::NumberInputId, numbersource::NumberSourceId,
-    samplefrequency::SAMPLE_FREQUENCY, soundgraphtopology::SoundGraphTopology,
-    soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    anydata::AnyData, context::Context, numbergraphtopology::NumberGraphTopology,
+    numberinput::NumberInputId, numbersource::NumberSourceId, samplefrequency::SAMPLE_FREQUENCY,
+    soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+    soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
 };
 
 struct InstructionLocations<'ctx> {
@@ -60,6 +62,7 @@ pub struct CodeGen<'ctx> {
     builder: Builder<'ctx>,
     module: Module<'ctx>,
     atomic_captures: Vec<Arc<AtomicF32>>,
+    compiled_sources: HashMap<NumberSourceId, FloatValue<'ctx>>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -79,13 +82,14 @@ impl<'ctx> CodeGen<'ctx> {
             builder,
             module,
             atomic_captures: Vec::new(),
+            compiled_sources: HashMap::new(),
         }
     }
 
     fn visit_input(
         &mut self,
         number_input_id: NumberInputId,
-        topology: &SoundGraphTopology,
+        topology: &NumberGraphTopology,
     ) -> FloatValue<'ctx> {
         let input_data = topology.number_input(number_input_id).unwrap();
         match input_data.target() {
@@ -97,20 +101,27 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    fn assign_source(&mut self, number_source_id: NumberSourceId, value: FloatValue<'ctx>) {
+        self.compiled_sources.insert(number_source_id, value);
+    }
+
     fn visit_source(
         &mut self,
         number_source_id: NumberSourceId,
-        topology: &SoundGraphTopology,
+        topology: &NumberGraphTopology,
     ) -> FloatValue<'ctx> {
+        if let Some(v) = self.compiled_sources.get(&number_source_id) {
+            return *v;
+        }
         let source_data = topology.number_source(number_source_id).unwrap();
-        // TODO: consider caching number inputs to avoid generating any
-        // a second time
         let input_values: Vec<_> = source_data
-            .inputs()
+            .number_inputs()
             .iter()
             .map(|niid| self.visit_input(*niid, topology))
             .collect();
-        source_data.instance().compile(self, &input_values)
+        let v = source_data.instance().compile(self, &input_values);
+        self.compiled_sources.insert(number_source_id, v);
+        v
     }
 
     pub fn module(&self) -> &Module<'ctx> {
@@ -441,7 +452,7 @@ impl<'ctx> CodeGen<'ctx> {
         load.into_float_value()
     }
 
-    fn run(&mut self, number_input_id: NumberInputId, topology: &SoundGraphTopology) {
+    fn run(&mut self, number_input_id: NumberInputId, topology: &NumberGraphTopology) {
         self.builder
             .position_before(&self.instruction_locations.end_of_bb_loop);
         let final_value = self.visit_input(number_input_id, topology);
@@ -599,7 +610,7 @@ impl<'ctx> Drop for CompiledNumberInputNode<'ctx> {
 
 impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
     pub(crate) fn compile(
-        number_input_id: NumberInputId,
+        number_input_id: SoundNumberInputId,
         topology: &SoundGraphTopology,
         inkwell_context: &'inkwell_ctx inkwell::context::Context,
     ) -> CompiledNumberInputNode<'inkwell_ctx> {
@@ -830,7 +841,25 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
             module,
         );
 
-        codegen.run(number_input_id, topology);
+        let sg_number_input_data = topology.number_input(number_input_id).unwrap();
+
+        let number_topo = sg_number_input_data.number_graph().topology();
+
+        // pre-compile all number graph inputs
+        for (snsid, nsid) in sg_number_input_data.input_mapping() {
+            let value = topology
+                .number_source(snsid)
+                .unwrap()
+                .instance()
+                .compile(&mut codegen);
+            codegen.assign_source(nsid, value);
+        }
+
+        // TODO: add support for multiple outputs
+        assert_eq!(number_topo.graph_outputs().len(), 1);
+
+        // compile the number graph output
+        codegen.run(number_topo.graph_outputs()[0], number_topo);
 
         if let Err(s) = codegen.module().verify() {
             let s = s.to_string();

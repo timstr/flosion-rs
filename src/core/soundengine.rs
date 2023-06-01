@@ -127,7 +127,7 @@ impl SoundEngine {
                 SoundGraphEdit::AddNumberInput(_) => false,
                 SoundGraphEdit::RemoveNumberInput(_, _) => true,
                 SoundGraphEdit::ConnectNumberInput(_, _) => false,
-                SoundGraphEdit::DisconnectNumberInput(_) => false,
+                SoundGraphEdit::DisconnectNumberInput(_, _) => false,
             };
             if stategraph_first {
                 state_graph.make_edit(edit.clone(), topology, context);

@@ -52,8 +52,6 @@ impl<'a> RegistrationHelper<'a> {
     where
         <<T as ObjectUi>::HandleType as ObjectHandle>::Type: PureNumberSource,
     {
-        self.object_factory
-            .register_number_source::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>();
         self.ui_factory.register_number_source::<T>();
     }
 }

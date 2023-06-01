@@ -1,21 +1,21 @@
 use std::slice;
 
 use super::{
-    compilednumberinput::CompiledNumberInputNode, context::Context, numberinput::NumberInputId,
-    soundgraphtopology::SoundGraphTopology,
+    compilednumberinput::CompiledNumberInputNode, context::Context,
+    soundgraphtopology::SoundGraphTopology, soundnumberinput::SoundNumberInputId,
 };
 
-pub struct NumberInputNode<'ctx> {
-    id: NumberInputId,
+pub struct SoundNumberInputNode<'ctx> {
+    id: SoundNumberInputId,
     artefact: Option<CompiledNumberInputNode<'ctx>>,
 }
 
-impl<'ctx> NumberInputNode<'ctx> {
-    pub(super) fn new(id: NumberInputId) -> Self {
+impl<'ctx> SoundNumberInputNode<'ctx> {
+    pub(super) fn new(id: SoundNumberInputId) -> Self {
         Self { id, artefact: None }
     }
 
-    pub(super) fn id(&self) -> NumberInputId {
+    pub(super) fn id(&self) -> SoundNumberInputId {
         self.id
     }
 
@@ -51,44 +51,50 @@ impl<'ctx> NumberInputNode<'ctx> {
     }
 }
 
-pub trait NumberInputNodeCollection<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>);
-    fn visit_number_inputs_mut(&mut self, visitor: &'_ mut dyn NumberInputNodeVisitorMut<'ctx>);
+pub trait SoundNumberInputNodeCollection<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>);
+    fn visit_number_inputs_mut(
+        &mut self,
+        visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
+    );
 
-    fn add_input(&self, _input_id: NumberInputId) {
-        panic!("This NumberInputNodeCollection type does not support adding inputs");
+    fn add_input(&self, _input_id: SoundNumberInputId) {
+        panic!("This SoundNumberInputNodeCollection type does not support adding inputs");
     }
-    fn remove_input(&self, _input_id: NumberInputId) {
-        panic!("This NumberInputNodeCollection type does not support removing inputs");
+    fn remove_input(&self, _input_id: SoundNumberInputId) {
+        panic!("This SoundNumberInputNodeCollection type does not support removing inputs");
     }
 }
 
-pub trait NumberInputNodeVisitor<'ctx> {
-    fn visit_node(&mut self, node: &NumberInputNode<'ctx>);
+pub trait SoundNumberInputNodeVisitor<'ctx> {
+    fn visit_node(&mut self, node: &SoundNumberInputNode<'ctx>);
 }
 
-pub trait NumberInputNodeVisitorMut<'ctx> {
-    fn visit_node(&mut self, node: &mut NumberInputNode<'ctx>);
+pub trait SoundNumberInputNodeVisitorMut<'ctx> {
+    fn visit_node(&mut self, node: &mut SoundNumberInputNode<'ctx>);
 }
 
-impl<'ctx, F: FnMut(&NumberInputNode<'ctx>)> NumberInputNodeVisitor<'ctx> for F {
-    fn visit_node(&mut self, node: &NumberInputNode<'ctx>) {
+impl<'ctx, F: FnMut(&SoundNumberInputNode<'ctx>)> SoundNumberInputNodeVisitor<'ctx> for F {
+    fn visit_node(&mut self, node: &SoundNumberInputNode<'ctx>) {
         (*self)(node);
     }
 }
 
-impl<'ctx, F: FnMut(&mut NumberInputNode<'ctx>)> NumberInputNodeVisitorMut<'ctx> for F {
-    fn visit_node(&mut self, node: &mut NumberInputNode<'ctx>) {
+impl<'ctx, F: FnMut(&mut SoundNumberInputNode<'ctx>)> SoundNumberInputNodeVisitorMut<'ctx> for F {
+    fn visit_node(&mut self, node: &mut SoundNumberInputNode<'ctx>) {
         (*self)(node);
     }
 }
 
-impl<'ctx> NumberInputNodeCollection<'ctx> for () {
-    fn visit_number_inputs(&self, _visitor: &mut dyn NumberInputNodeVisitor) {
+impl<'ctx> SoundNumberInputNodeCollection<'ctx> for () {
+    fn visit_number_inputs(&self, _visitor: &mut dyn SoundNumberInputNodeVisitor) {
         // Nothing to do
     }
 
-    fn visit_number_inputs_mut(&mut self, _visitor: &'_ mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(
+        &mut self,
+        _visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
+    ) {
         // Nothing to do
     }
 }

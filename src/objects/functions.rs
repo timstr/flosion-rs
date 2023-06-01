@@ -1,11 +1,9 @@
 use crate::core::{
     compilednumberinput::CodeGen,
-    context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numberinput::NumberInputHandle,
     numbersource::PureNumberSource,
     numbersourcetools::NumberSourceTools,
-    numeric,
     serialization::Serializer,
 };
 use atomic_float::AtomicF32;
@@ -24,10 +22,6 @@ impl PureNumberSource for Constant {
             ObjectInitialization::Default => 0.0,
         };
         Ok(Constant { value })
-    }
-
-    fn interpret(&self, dst: &mut [f32], _context: &Context) {
-        numeric::fill(dst, self.value);
     }
 
     fn serialize(&self, mut serializer: Serializer) {
@@ -74,10 +68,6 @@ impl PureNumberSource for Variable {
         Ok(Variable {
             value: Arc::new(AtomicF32::new(value)),
         })
-    }
-
-    fn interpret(&self, dst: &mut [f32], _context: &Context) {
-        numeric::fill(dst, self.value.load(Ordering::SeqCst));
     }
 
     fn serialize(&self, mut serializer: Serializer) {
@@ -172,11 +162,6 @@ macro_rules! unary_number_source {
                 })
             }
 
-            fn interpret(&self, dst: &mut [f32], context: &Context) {
-                self.input.interpret(dst, context);
-                numeric::apply_unary_inplace(dst, $f);
-            }
-
             fn compile<'ctx>(
                 &self,
                 codegen: &mut CodeGen<'ctx>,
@@ -210,13 +195,6 @@ macro_rules! binary_number_source {
                     input_1: tools.add_number_input(default_values.0),
                     input_2: tools.add_number_input(default_values.1),
                 })
-            }
-
-            fn interpret(&self, dst: &mut [f32], context: &Context) {
-                let mut scratch_space = context.get_scratch_space(dst.len());
-                self.input_1.interpret(dst, context);
-                self.input_2.interpret(&mut scratch_space, context);
-                numeric::apply_binary_inplace(dst, &scratch_space, $f);
             }
 
             fn compile<'ctx>(
@@ -254,15 +232,6 @@ macro_rules! ternary_number_source {
                     input_2: tools.add_number_input(default_values.1),
                     input_3: tools.add_number_input(default_values.2),
                 })
-            }
-
-            fn interpret(&self, dst: &mut [f32], context: &Context) {
-                let mut scratch_space_1 = context.get_scratch_space(dst.len());
-                let mut scratch_space_2 = context.get_scratch_space(dst.len());
-                self.input_1.interpret(dst, context);
-                self.input_2.interpret(&mut scratch_space_1, context);
-                self.input_3.interpret(&mut scratch_space_2, context);
-                numeric::apply_ternary_inplace(dst, &scratch_space_1, &scratch_space_2, $f);
             }
 
             fn compile<'ctx>(

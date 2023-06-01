@@ -7,7 +7,7 @@ use std::{
 use super::{
     context::Context,
     graphobject::{GraphObjectHandle, ObjectInitialization, ObjectType, WithObjectType},
-    numberinputnode::NumberInputNodeCollection,
+    numberinputnode::SoundNumberInputNodeCollection,
     serialization::Serializer,
     soundchunk::SoundChunk,
     soundinputnode::SoundProcessorInput,
@@ -50,7 +50,7 @@ pub enum StreamStatus {
 pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
     type SoundInputType: SoundProcessorInput;
 
-    type NumberInputType<'ctx>: NumberInputNodeCollection<'ctx>;
+    type NumberInputType<'ctx>: SoundNumberInputNodeCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 
@@ -77,7 +77,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     type SoundInputType: SoundProcessorInput;
 
-    type NumberInputType<'ctx>: NumberInputNodeCollection<'ctx>;
+    type NumberInputType<'ctx>: SoundNumberInputNodeCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 

@@ -236,19 +236,6 @@ impl<'a> Context<'a> {
         self.stack.find_processor_state(processor_id)
     }
 
-    pub(super) fn interpret_number_input(&self, input_id: NumberInputId, dst: &mut [f32]) {
-        let input = self.topology.number_input(input_id).unwrap();
-        if input.target().is_none() {
-            numeric::fill(dst, input.default_value());
-            return;
-        }
-        let source = self
-            .topology
-            .number_source(input.target().unwrap())
-            .unwrap();
-        source.instance().interpret(dst, self);
-    }
-
     pub fn get_scratch_space(&self, size: usize) -> BorrowedSlice {
         self.scratch_space.borrow_slice(size)
     }

@@ -7,7 +7,7 @@ use std::{
 use crate::{
     core::{
         graphobject::{ObjectId, ObjectInitialization},
-        graphserialization::{deserialize_sound_graph, serialize_sound_graph},
+        // graphserialization::{deserialize_sound_graph, serialize_sound_graph},
         object_factory::ObjectFactory,
         serialization::Archive,
         soundgraph::SoundGraph,
@@ -403,30 +403,32 @@ impl FlosionApp {
         graph: &SoundGraph,
         use_selection: bool,
     ) -> Option<String> {
-        #[cfg(debug_assertions)]
-        {
-            assert!(ui_state.check_invariants(graph.topology()));
-        }
+        // TODO: fix serialization
+        None
+        // #[cfg(debug_assertions)]
+        // {
+        //     assert!(ui_state.check_invariants(graph.topology()));
+        // }
 
-        let selection = if use_selection {
-            let s = ui_state.selection();
-            if s.is_empty() {
-                return None;
-            }
-            Some(s)
-        } else {
-            None
-        };
-        let archive = Archive::serialize_with(|mut serializer| {
-            let idmap = serialize_sound_graph(graph, selection.as_ref(), &mut serializer);
-            ui_state
-                .object_positions()
-                .serialize(&mut serializer, selection.as_ref(), &idmap);
-            object_states.serialize(&mut serializer, selection.as_ref(), &idmap);
-        });
-        let bytes = archive.into_vec();
-        let b64_str = base64::encode(&bytes);
-        Some(b64_str)
+        // let selection = if use_selection {
+        //     let s = ui_state.selection();
+        //     if s.is_empty() {
+        //         return None;
+        //     }
+        //     Some(s)
+        // } else {
+        //     None
+        // };
+        // let archive = Archive::serialize_with(|mut serializer| {
+        //     let idmap = serialize_sound_graph(graph, selection.as_ref(), &mut serializer);
+        //     ui_state
+        //         .object_positions()
+        //         .serialize(&mut serializer, selection.as_ref(), &idmap);
+        //     object_states.serialize(&mut serializer, selection.as_ref(), &idmap);
+        // });
+        // let bytes = archive.into_vec();
+        // let b64_str = base64::encode(&bytes);
+        // Some(b64_str)
     }
 
     fn deserialize(
@@ -437,15 +439,17 @@ impl FlosionApp {
         object_factory: &ObjectFactory,
         ui_factory: &UiFactory,
     ) -> Result<Vec<ObjectId>, ()> {
-        let bytes = base64::decode(data).map_err(|_| ())?;
-        let archive = Archive::from_vec(bytes);
-        let mut deserializer = archive.deserialize()?;
-        let (objects, idmap) = deserialize_sound_graph(graph, &mut deserializer, object_factory)?;
-        ui_state
-            .object_positions_mut()
-            .deserialize(&mut deserializer, &idmap)?;
-        object_states.deserialize(&mut deserializer, &idmap, graph.topology(), ui_factory)?;
-        Ok(objects)
+        // TODO: fix serialization
+        Err(())
+        // let bytes = base64::decode(data).map_err(|_| ())?;
+        // let archive = Archive::from_vec(bytes);
+        // let mut deserializer = archive.deserialize()?;
+        // let (objects, idmap) = deserialize_sound_graph(graph, &mut deserializer, object_factory)?;
+        // ui_state
+        //     .object_positions_mut()
+        //     .deserialize(&mut deserializer, &idmap)?;
+        // object_states.deserialize(&mut deserializer, &idmap, graph.topology(), ui_factory)?;
+        // Ok(objects)
     }
 
     fn handle_event(&mut self, event: &egui::Event, ui: &egui::Ui) {

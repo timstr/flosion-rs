@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::core::{
-    arguments::ParsedArguments, graphobject::ObjectInitialization, numbersource::PureNumberSource,
-    serialization::Deserializer,
+    arguments::ParsedArguments, graphobject::ObjectInitialization, serialization::Deserializer,
 };
 
 use super::{
@@ -45,20 +44,6 @@ impl ObjectFactory {
             |g: &mut SoundGraph, init: ObjectInitialization| -> Result<GraphObjectHandle, ()> {
                 let h = g.add_dynamic_sound_processor::<T>(init)?;
                 Ok(h.into_graph_object())
-            };
-        self.mapping.insert(
-            T::TYPE.name(),
-            ObjectData {
-                create: Box::new(create),
-            },
-        );
-    }
-
-    pub fn register_number_source<T: PureNumberSource>(&mut self) {
-        let create =
-            |g: &mut SoundGraph, init: ObjectInitialization| -> Result<GraphObjectHandle, ()> {
-                let h = g.add_pure_number_source::<T>(init)?;
-                Ok(h.into_graph_object().unwrap())
             };
         self.mapping.insert(
             T::TYPE.name(),

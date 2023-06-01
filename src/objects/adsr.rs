@@ -1,16 +1,16 @@
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::NumberInputHandle,
     numberinputnode::{
-        NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
-        NumberInputNodeVisitorMut,
+        SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+        SoundNumberInputNodeVisitorMut,
     },
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
     soundinputtypes::{SingleInput, SingleInputNode},
+    soundnumberinput::SoundNumberInputHandle,
     soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
@@ -26,21 +26,21 @@ enum Phase {
 }
 
 pub struct ADSRNumberInputs<'ctx> {
-    attack_time: NumberInputNode<'ctx>,
-    decay_time: NumberInputNode<'ctx>,
-    sustain_level: NumberInputNode<'ctx>,
-    release_time: NumberInputNode<'ctx>,
+    attack_time: SoundNumberInputNode<'ctx>,
+    decay_time: SoundNumberInputNode<'ctx>,
+    sustain_level: SoundNumberInputNode<'ctx>,
+    release_time: SoundNumberInputNode<'ctx>,
 }
 
-impl<'ctx> NumberInputNodeCollection<'ctx> for ADSRNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
+impl<'ctx> SoundNumberInputNodeCollection<'ctx> for ADSRNumberInputs<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.attack_time);
         visitor.visit_node(&self.decay_time);
         visitor.visit_node(&self.sustain_level);
         visitor.visit_node(&self.release_time);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.attack_time);
         visitor.visit_node(&mut self.decay_time);
         visitor.visit_node(&mut self.sustain_level);
@@ -66,10 +66,10 @@ impl State for ADSRState {
 
 pub struct ADSR {
     pub input: SingleInput,
-    pub attack_time: NumberInputHandle,
-    pub decay_time: NumberInputHandle,
-    pub sustain_level: NumberInputHandle,
-    pub release_time: NumberInputHandle,
+    pub attack_time: SoundNumberInputHandle,
+    pub decay_time: SoundNumberInputHandle,
+    pub sustain_level: SoundNumberInputHandle,
+    pub release_time: SoundNumberInputHandle,
 }
 
 // out_level : slice at the beginning of which to produce output level

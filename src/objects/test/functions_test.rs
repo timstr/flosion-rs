@@ -11,8 +11,8 @@ use crate::{
         graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         numberinput::{NumberInputHandle, NumberInputId},
         numberinputnode::{
-            NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
-            NumberInputNodeVisitorMut,
+            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+            SoundNumberInputNodeVisitorMut,
         },
         numbersource::{
             NumberSourceHandle, NumberSourceId, NumberSourceOwner, NumberVisibility,
@@ -21,7 +21,7 @@ use crate::{
         numbersourcetools::NumberSourceTools,
         scratcharena::ScratchArena,
         soundchunk::SoundChunk,
-        soundgraphdata::{NumberSourceData, SoundProcessorData},
+        soundgraphdata::{SoundNumberSourceData, SoundProcessorData},
         soundgraphedit::SoundGraphEdit,
         soundgraphtopology::SoundGraphTopology,
         soundinput::SoundInputId,
@@ -49,15 +49,18 @@ struct TestSoundProcessor {
 }
 
 struct TestNumberInput<'ctx> {
-    input: NumberInputNode<'ctx>,
+    input: SoundNumberInputNode<'ctx>,
 }
 
-impl<'ctx> NumberInputNodeCollection<'ctx> for TestNumberInput<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
+impl<'ctx> SoundNumberInputNodeCollection<'ctx> for TestNumberInput<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.input);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &'_ mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(
+        &mut self,
+        visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
+    ) {
         visitor.visit_node(&mut self.input);
     }
 }
@@ -226,7 +229,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     let ns_instance_2 = Arc::clone(&ns_instance);
 
     // add number source to topology
-    topo.make_edit(SoundGraphEdit::AddNumberSource(NumberSourceData::new(
+    topo.make_edit(SoundGraphEdit::AddNumberSource(SoundNumberSourceData::new(
         NumberSourceId::new(1),
         ns_instance_2,
         NumberSourceOwner::Nothing,
@@ -320,18 +323,6 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
         }
     }
     //------------------------
-
-    // test interpreted evaluation
-    let mut actual_values_interpreted = [0.0_f32; TEST_ARRAY_SIZE];
-    let the_number_source = topo.number_source(ns_instance.id()).unwrap().instance();
-    the_number_source.interpret(&mut actual_values_interpreted, &context);
-
-    for (expected, actual) in expected_values
-        .into_iter()
-        .zip(actual_values_interpreted.into_iter())
-    {
-        assert_near!(expected, actual);
-    }
 
     // test compiled evaluation
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];

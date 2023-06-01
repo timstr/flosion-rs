@@ -1,14 +1,14 @@
 use crate::core::{
     context::Context,
     graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::NumberInputHandle,
     numberinputnode::{
-        NumberInputNode, NumberInputNodeCollection, NumberInputNodeVisitor,
-        NumberInputNodeVisitorMut,
+        SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+        SoundNumberInputNodeVisitorMut,
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},
     soundinput::InputOptions,
     soundinputtypes::{SingleInput, SingleInputNode},
+    soundnumberinput::SoundNumberInputHandle,
     soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
@@ -16,19 +16,19 @@ use crate::core::{
 
 pub struct Resampler {
     pub input: SingleInput,
-    pub speed_ratio: NumberInputHandle,
+    pub speed_ratio: SoundNumberInputHandle,
 }
 
 pub struct ResamplerNumberInputs<'ctx> {
-    speed_ratio: NumberInputNode<'ctx>,
+    speed_ratio: SoundNumberInputNode<'ctx>,
 }
 
-impl<'ctx> NumberInputNodeCollection<'ctx> for ResamplerNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
+impl<'ctx> SoundNumberInputNodeCollection<'ctx> for ResamplerNumberInputs<'ctx> {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
         visitor.visit_node(&self.speed_ratio);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.speed_ratio);
     }
 }

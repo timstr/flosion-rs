@@ -9,7 +9,7 @@ use super::{
     anydata::AnyData,
     context::Context,
     numberinputnode::{
-        NumberInputNodeCollection, NumberInputNodeVisitor, NumberInputNodeVisitorMut,
+        SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor, SoundNumberInputNodeVisitorMut,
     },
     scratcharena::ScratchArena,
     soundchunk::SoundChunk,
@@ -97,9 +97,9 @@ pub trait StateGraphNode<'ctx> {
     fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>);
     fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>);
 
-    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection<'ctx>;
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>);
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>);
+    fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx>;
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>);
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>);
 }
 
 impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode<'ctx, T> {
@@ -134,15 +134,15 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
         self.sound_input.visit_inputs_mut(visitor);
     }
 
-    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection<'ctx> {
+    fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx> {
         &mut self.number_input
     }
 
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
         self.number_input.visit_number_inputs(visitor);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         self.number_input.visit_number_inputs_mut(visitor);
     }
 }
@@ -177,15 +177,15 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
         self.sound_input.visit_inputs_mut(visitor);
     }
 
-    fn number_input_node_mut(&mut self) -> &mut dyn NumberInputNodeCollection<'ctx> {
+    fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx> {
         &mut self.number_input
     }
 
-    fn visit_number_inputs(&self, visitor: &mut dyn NumberInputNodeVisitor<'ctx>) {
+    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
         self.number_input.visit_number_inputs(visitor);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn NumberInputNodeVisitorMut<'ctx>) {
+    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         self.number_input.visit_number_inputs_mut(visitor);
     }
 }

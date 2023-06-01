@@ -12,9 +12,9 @@ use rand::{thread_rng, Rng};
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
     graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
-    numberinput::NumberInputId,
     serialization::{Deserializer, Serializable, Serializer},
     soundinput::{InputOptions, SoundInputId},
+    soundnumberinput::SoundNumberInputId,
     soundprocessor::SoundProcessorId,
     uniqueid::UniqueId,
 };
@@ -152,17 +152,11 @@ impl<T: ObjectUi> AnyObjectUi for T {
     }
 }
 
-// TODO
-pub struct NumberSourceUi {}
-
-// TODO
-struct ProcessorNumberInputUi {}
-
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
     color: egui::Color32,
-    number_inputs: Vec<NumberInputId>,
+    number_inputs: Vec<SoundNumberInputId>,
     sound_inputs: Vec<SoundInputId>,
 }
 
@@ -189,7 +183,7 @@ impl ProcessorUi {
         self
     }
 
-    pub fn add_number_input(mut self, input_id: NumberInputId) -> Self {
+    pub fn add_number_input(mut self, input_id: SoundNumberInputId) -> Self {
         self.number_inputs.push(input_id);
         self
     }
@@ -467,7 +461,7 @@ impl ProcessorUi {
         &self,
         ui: &mut egui::Ui,
         ctx: &UiContext,
-        input_id: NumberInputId,
+        input_id: SoundNumberInputId,
         graph_tools: &mut GraphUIState,
         props: ProcessorUiProps,
     ) {

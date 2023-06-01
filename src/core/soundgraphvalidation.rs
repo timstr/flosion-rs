@@ -1,32 +1,27 @@
-use std::collections::HashSet;
-
 use super::{
-    numberinput::{NumberInputId, NumberInputOwner},
-    numbersource::{NumberSourceId, NumberSourceOwner},
-    path::{NumberPath, SoundPath},
+    path::SoundPath,
     soundgraphedit::SoundGraphEdit,
-    soundgrapherror::{NumberError, SoundError, SoundGraphError},
+    soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
+    soundnumberinput::SoundNumberInputId,
+    soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
     soundprocessor::SoundProcessorId,
     state::StateOwner,
 };
 
-pub(super) fn find_error(topology: &SoundGraphTopology) -> Option<SoundGraphError> {
+pub(super) fn find_error(topology: &SoundGraphTopology) -> Option<SoundError> {
     check_missing_ids(topology);
 
     if let Some(path) = find_sound_cycle(topology) {
         return Some(SoundError::CircularDependency { cycle: path }.into());
     }
     if let Some(err) = validate_sound_connections(topology) {
-        return Some(SoundGraphError::Sound(err));
-    }
-    if let Some(path) = find_number_cycle(topology) {
-        return Some(NumberError::CircularDependency { cycle: path }.into());
+        return Some(err);
     }
     let bad_dependencies = find_invalid_number_connections(topology);
     if bad_dependencies.len() > 0 {
-        return Some(NumberError::StateNotInScope { bad_dependencies }.into());
+        return Some(SoundError::StateNotInScope { bad_dependencies }.into());
     }
     None
 }
@@ -60,7 +55,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
             // each number input must exist and list the sound processor as its owner
             match topology.number_inputs().get(i) {
                 Some(idata) => {
-                    if idata.owner() != NumberInputOwner::SoundProcessor(sp.id()) {
+                    if idata.owner() != sp.id() {
                         panic!(
                             "Sound processor {:?} lists number input {:?} as one \
                             of its number inputs, but that number input does not list
@@ -82,7 +77,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
             // each number source must exist and list the sound processor as its owner
             match topology.number_sources().get(s) {
                 Some(sdata) => {
-                    if sdata.owner() != NumberSourceOwner::SoundProcessor(sp.id()) {
+                    if sdata.owner() != SoundNumberSourceOwner::SoundProcessor(sp.id()) {
                         panic!(
                             "Sound processor {:?} lists number source {:?} as one \
                                 of its number sources, but that number source doesn't \
@@ -138,7 +133,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
             // each number source must exist and list the sound input as its owner
             match topology.number_sources().get(nsid) {
                 Some(ns) => {
-                    if ns.owner() != NumberSourceOwner::SoundInput(si.id()) {
+                    if ns.owner() != SoundNumberSourceOwner::SoundInput(si.id()) {
                         panic!(
                             "Sound input {:?} lists number source {:?} as one of its \
                                 number sources, but that number source doesn't list the \
@@ -159,32 +154,9 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
     }
 
     for ns in topology.number_sources().values() {
-        // for each number source
-        for niid in ns.inputs() {
-            // each number input must exist and list the number source as its owner
-            match topology.number_inputs().get(niid) {
-                Some(ni) => {
-                    if ni.owner() != NumberInputOwner::NumberSource(ns.id()) {
-                        panic!(
-                            "The number source {:?} lists number input {:?} as one of its \
-                                number inputs, but that number input does not list the number \
-                                source as its owner.",
-                            ns.id(),
-                            niid
-                        );
-                    }
-                }
-                None => panic!(
-                    "The number source {:?} lists number input {:?} as one of its number \
-                        inputs, but that number input does not exist.",
-                    ns.id(),
-                    niid
-                ),
-            }
-        }
         match ns.owner() {
             // if the number source has an owner, it must exist and list the number source
-            NumberSourceOwner::SoundProcessor(spid) => match topology.sound_processor(spid) {
+            SoundNumberSourceOwner::SoundProcessor(spid) => match topology.sound_processor(spid) {
                 Some(sp) => {
                     if !sp.number_sources().contains(&ns.id()) {
                         panic!(
@@ -203,7 +175,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                     spid
                 ),
             },
-            NumberSourceOwner::SoundInput(siid) => match topology.sound_input(siid) {
+            SoundNumberSourceOwner::SoundInput(siid) => match topology.sound_input(siid) {
                 Some(si) => {
                     if !si.number_sources().contains(&ns.id()) {
                         panic!(
@@ -222,14 +194,13 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                     siid
                 ),
             },
-            NumberSourceOwner::Nothing => (),
         }
     }
 
     for ni in topology.number_inputs().values() {
         // for all number inputs
-        if let Some(nsid) = &ni.target() {
-            // its target, if any, must exist
+        for nsid in ni.targets() {
+            // its targets must exist
             if topology.number_sources().get(nsid).is_none() {
                 panic!(
                     "The number input {:?} lists number source {:?} as its target, but that \
@@ -239,46 +210,24 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                 );
             }
         }
-        match ni.owner() {
-            // the number input's owner must exist and list the number input
-            NumberInputOwner::SoundProcessor(spid) => match topology.sound_processor(spid) {
-                Some(sp) => {
-                    if !sp.number_inputs().contains(&ni.id()) {
-                        panic!(
-                            "The number input {:?} lists sound processor {:?} as its owner, \
+        match topology.sound_processor(ni.owner()) {
+            Some(sp) => {
+                if !sp.number_inputs().contains(&ni.id()) {
+                    panic!(
+                        "The number input {:?} lists sound processor {:?} as its owner, \
                                 but that sound processor doesn't list the number input as one of \
                                 its number inputs.",
-                            ni.id(),
-                            spid
-                        );
-                    }
+                        ni.id(),
+                        ni.owner()
+                    );
                 }
-                None => panic!(
-                    "The number input {:?} lists sound processor {:?} as its owner, but that \
+            }
+            None => panic!(
+                "The number input {:?} lists sound processor {:?} as its owner, but that \
                         sound processor does not exist.",
-                    ni.id(),
-                    spid
-                ),
-            },
-            NumberInputOwner::NumberSource(nsid) => match topology.number_source(nsid) {
-                Some(ns) => {
-                    if !ns.inputs().contains(&ni.id()) {
-                        panic!(
-                            "The number input {:?} lists number source {:?} as its owner, but \
-                                that number source does not list the number input as one of its \
-                                number inputs.",
-                            ni.id(),
-                            nsid
-                        );
-                    }
-                }
-                None => panic!(
-                    "The number input {:?} lists number source {:?} as its owner, but that \
-                        number source does not exist.",
-                    ni.id(),
-                    nsid
-                ),
-            },
+                ni.id(),
+                ni.owner()
+            ),
         }
     }
 
@@ -381,56 +330,6 @@ pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Optio
     None
 }
 
-pub(super) fn find_number_cycle(topology: &SoundGraphTopology) -> Option<NumberPath> {
-    fn dfs_find_cycle(
-        input_id: NumberInputId,
-        visited: &mut Vec<NumberInputId>,
-        path: &mut NumberPath,
-        topo: &SoundGraphTopology,
-    ) -> Option<NumberPath> {
-        if !visited.contains(&input_id) {
-            visited.push(input_id);
-        }
-        // If the input has already been visited, there is a cycle
-        if path.contains_input(input_id) {
-            return Some(path.trim_until_input(input_id));
-        }
-        let input_desc = topo.number_input(input_id).unwrap();
-        let target_id = match input_desc.target() {
-            Some(spid) => spid,
-            _ => return None,
-        };
-        let source_desc = topo.number_source(target_id).unwrap();
-        path.push(target_id, input_id);
-        for target_proc_input in source_desc.inputs() {
-            if let Some(path) = dfs_find_cycle(*target_proc_input, visited, path, topo) {
-                return Some(path);
-            }
-        }
-        path.pop();
-        None
-    }
-
-    let mut visited: Vec<NumberInputId> = Vec::new();
-    let mut path: NumberPath = NumberPath::new(Vec::new());
-
-    loop {
-        assert_eq!(path.connections.len(), 0);
-        let input_to_visit = topology
-            .number_inputs()
-            .keys()
-            .find(|pid| !visited.contains(&pid));
-        match input_to_visit {
-            None => break None,
-            Some(pid) => {
-                if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, topology) {
-                    break Some(path);
-                }
-            }
-        }
-    }
-}
-
 fn state_owner_has_dependency(
     topology: &SoundGraphTopology,
     owner: StateOwner,
@@ -463,115 +362,55 @@ fn state_owner_has_dependency(
     }
 }
 
-pub(super) fn find_all_stateful_dependencies_of(
+fn input_depends_on_processor(
+    input_id: SoundInputId,
+    processor_id: SoundProcessorId,
     topology: &SoundGraphTopology,
-    input_id: NumberInputId,
-) -> Vec<NumberSourceId> {
-    fn dfs(
-        input_id: NumberInputId,
-        out_sources: &mut Vec<NumberSourceId>,
-        topo: &SoundGraphTopology,
-    ) {
-        let input_desc = topo.number_input(input_id).unwrap();
-        if let Some(target_id) = input_desc.target() {
-            let target_desc = topo.number_source(target_id).unwrap();
-            if target_desc.owner().is_stateful() {
-                out_sources.push(target_id);
-            }
-            for target_input_id in target_desc.inputs() {
-                dfs(*target_input_id, out_sources, topo);
-            }
+) -> bool {
+    let input_data = topology.sound_input(input_id).unwrap();
+    match input_data.target() {
+        Some(spid) => processor_depends_on_processor(spid, processor_id, topology),
+        None => false,
+    }
+}
+
+fn processor_depends_on_processor(
+    processor_id: SoundProcessorId,
+    other_processor_id: SoundProcessorId,
+    topology: &SoundGraphTopology,
+) -> bool {
+    if processor_id == other_processor_id {
+        return true;
+    }
+    let processor_data = topology.sound_processor(processor_id).unwrap();
+    for siid in processor_data.sound_inputs() {
+        if input_depends_on_processor(*siid, other_processor_id, topology) {
+            return true;
         }
     }
-
-    let mut stateful_sources: Vec<NumberSourceId> = Vec::new();
-    dfs(input_id, &mut stateful_sources, topology);
-    stateful_sources
+    false
 }
 
 pub(super) fn find_invalid_number_connections(
     topology: &SoundGraphTopology,
-) -> Vec<(NumberSourceId, NumberInputId)> {
-    let mut bad_indirect_dependencies: Vec<(NumberSourceId, NumberInputId)> = Vec::new();
+) -> Vec<(SoundNumberSourceId, SoundNumberInputId)> {
+    let mut bad_connections: Vec<(SoundNumberSourceId, SoundNumberInputId)> = Vec::new();
 
-    for input_desc in topology
-        .number_inputs()
-        .values()
-        .filter(|i| i.owner().is_stateful())
-    {
-        let stateful_sources = find_all_stateful_dependencies_of(topology, input_desc.id());
-
-        let input_owner = input_desc.owner().as_state_owner().unwrap();
-        for ss in stateful_sources {
-            let source_owner = topology
-                .number_source(ss)
-                .unwrap()
-                .owner()
-                .as_state_owner()
-                .unwrap();
-            if !state_owner_has_dependency(topology, source_owner, input_owner) {
-                bad_indirect_dependencies.push((ss, input_desc.id()));
-            }
-        }
-    }
-
-    let mut bad_inputs: HashSet<NumberInputId> = HashSet::new();
-    let mut bad_connections: Vec<(NumberSourceId, NumberInputId)> = Vec::new();
-
-    fn visit_input(
-        niid: NumberInputId,
-        bad_source: NumberSourceId,
-        bad_inputs: &mut HashSet<NumberInputId>,
-        bad_connections: &mut Vec<(NumberSourceId, NumberInputId)>,
-        topology: &SoundGraphTopology,
-    ) -> bool {
-        if bad_inputs.contains(&niid) {
-            return true;
-        }
-
-        let target_nsid = match topology.number_input(niid).unwrap().target() {
-            Some(nsid) => nsid,
-            None => return false,
-        };
-
-        let mut target_is_bad = false;
-
-        if target_nsid == bad_source {
-            target_is_bad = true;
-        } else {
-            let target_data = topology.number_source(target_nsid).unwrap();
-
-            for target_input in target_data.inputs() {
-                if !visit_input(
-                    *target_input,
-                    bad_source,
-                    bad_inputs,
-                    bad_connections,
-                    topology,
-                ) {
-                    target_is_bad = true;
-                    break;
+    for (niid, ni) in topology.number_inputs() {
+        for target in ni.targets() {
+            let target_owner = topology.number_source(*target).unwrap().owner();
+            let depends = match target_owner {
+                SoundNumberSourceOwner::SoundProcessor(spid) => {
+                    processor_depends_on_processor(spid, ni.owner(), topology)
                 }
+                SoundNumberSourceOwner::SoundInput(siid) => {
+                    input_depends_on_processor(siid, ni.owner(), topology)
+                }
+            };
+            if !depends {
+                bad_connections.push((*target, *niid));
             }
         }
-
-        if target_is_bad {
-            bad_inputs.insert(niid);
-            bad_connections.push((target_nsid, niid));
-            return false;
-        }
-
-        return true;
-    }
-
-    for (final_nsid, final_niid) in bad_indirect_dependencies {
-        visit_input(
-            final_niid,
-            final_nsid,
-            &mut bad_inputs,
-            &mut bad_connections,
-            topology,
-        );
     }
 
     return bad_connections;
@@ -581,7 +420,7 @@ pub(crate) fn validate_sound_connection(
     topology: &SoundGraphTopology,
     input_id: SoundInputId,
     processor_id: SoundProcessorId,
-) -> Result<(), SoundGraphError> {
+) -> Result<(), SoundError> {
     // Lazy approach: duplicate the topology, make the edit, and see what happens
     let mut topo = topology.clone();
     topo.make_edit(SoundGraphEdit::ConnectSoundInput(input_id, processor_id));
@@ -594,7 +433,7 @@ pub(crate) fn validate_sound_connection(
 pub(crate) fn validate_sound_disconnection(
     topology: &SoundGraphTopology,
     input_id: SoundInputId,
-) -> Result<(), SoundGraphError> {
+) -> Result<(), SoundError> {
     // Lazy approach: duplicate the topology, make the edit, and see what happens
     let mut topo = topology.clone();
     topo.make_edit(SoundGraphEdit::DisconnectSoundInput(input_id));
@@ -606,9 +445,9 @@ pub(crate) fn validate_sound_disconnection(
 
 pub(crate) fn validate_number_connection(
     topology: &SoundGraphTopology,
-    input_id: NumberInputId,
-    source_id: NumberSourceId,
-) -> Result<(), SoundGraphError> {
+    input_id: SoundNumberInputId,
+    source_id: SoundNumberSourceId,
+) -> Result<(), SoundError> {
     // Lazy approach: duplicate the topology, make the edit, and see what happens
     let mut topo = topology.clone();
     topo.make_edit(SoundGraphEdit::ConnectNumberInput(input_id, source_id));

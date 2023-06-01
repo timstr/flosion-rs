@@ -5,12 +5,13 @@ use std::{
 
 use super::{
     arguments::ParsedArguments,
-    numberinput::NumberInputId,
     numbersource::{
         NumberSourceId, PureNumberSource, PureNumberSourceHandle, PureNumberSourceWithId,
     },
     serialization::{Deserializer, Serializable, Serializer},
     soundinput::SoundInputId,
+    soundnumberinput::SoundNumberInputId,
+    soundnumbersource::SoundNumberSourceId,
     soundprocessor::{
         DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
         SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
@@ -34,23 +35,19 @@ impl ObjectType {
     }
 }
 
+// Used to refer to top-level objects in the sound graph,
+// e.g. sound processors (TODO and number function definitions)
+// that have free-floating representations
+// TODO: rename to TopLevelSoundGraphId or something shorter but just as meaningful
 #[derive(Eq, PartialEq, Clone, Copy, Hash)]
 pub enum ObjectId {
     Sound(SoundProcessorId),
-    Number(NumberSourceId),
 }
 
 impl ObjectId {
     pub fn as_sound_processor_id(&self) -> Option<SoundProcessorId> {
         match self {
             ObjectId::Sound(id) => Some(*id),
-            _ => None,
-        }
-    }
-
-    pub fn as_number_source_id(&self) -> Option<NumberSourceId> {
-        match self {
-            ObjectId::Number(id) => Some(*id),
             _ => None,
         }
     }
@@ -67,61 +64,49 @@ impl From<&SoundProcessorId> for ObjectId {
     }
 }
 
-impl From<NumberSourceId> for ObjectId {
-    fn from(id: NumberSourceId) -> ObjectId {
-        ObjectId::Number(id)
-    }
-}
-impl From<&NumberSourceId> for ObjectId {
-    fn from(id: &NumberSourceId) -> ObjectId {
-        ObjectId::Number(*id)
-    }
-}
-
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
-pub enum GraphId {
+pub enum SoundGraphId {
     SoundInput(SoundInputId),
     SoundProcessor(SoundProcessorId),
-    NumberInput(NumberInputId),
-    NumberSource(NumberSourceId),
+    SoundNumberInput(SoundNumberInputId),
+    SoundNumberSource(SoundNumberSourceId),
 }
 
-impl GraphId {
+impl SoundGraphId {
     pub fn as_usize(&self) -> usize {
         match self {
-            GraphId::SoundInput(id) => id.value(),
-            GraphId::SoundProcessor(id) => id.value(),
-            GraphId::NumberInput(id) => id.value(),
-            GraphId::NumberSource(id) => id.value(),
+            SoundGraphId::SoundInput(id) => id.value(),
+            SoundGraphId::SoundProcessor(id) => id.value(),
+            SoundGraphId::SoundNumberInput(id) => id.value(),
+            SoundGraphId::SoundNumberSource(id) => id.value(),
         }
     }
 }
 
-impl From<SoundInputId> for GraphId {
-    fn from(id: SoundInputId) -> GraphId {
-        GraphId::SoundInput(id)
+impl From<SoundInputId> for SoundGraphId {
+    fn from(id: SoundInputId) -> SoundGraphId {
+        SoundGraphId::SoundInput(id)
     }
 }
-impl From<SoundProcessorId> for GraphId {
-    fn from(id: SoundProcessorId) -> GraphId {
-        GraphId::SoundProcessor(id)
+impl From<SoundProcessorId> for SoundGraphId {
+    fn from(id: SoundProcessorId) -> SoundGraphId {
+        SoundGraphId::SoundProcessor(id)
     }
 }
-impl From<NumberInputId> for GraphId {
-    fn from(id: NumberInputId) -> GraphId {
-        GraphId::NumberInput(id)
+impl From<SoundNumberInputId> for SoundGraphId {
+    fn from(id: SoundNumberInputId) -> SoundGraphId {
+        SoundGraphId::SoundNumberInput(id)
     }
 }
-impl From<NumberSourceId> for GraphId {
-    fn from(id: NumberSourceId) -> GraphId {
-        GraphId::NumberSource(id)
+impl From<SoundNumberSourceId> for SoundGraphId {
+    fn from(id: SoundNumberSourceId) -> SoundGraphId {
+        SoundGraphId::SoundNumberSource(id)
     }
 }
-impl From<ObjectId> for GraphId {
-    fn from(id: ObjectId) -> GraphId {
+impl From<ObjectId> for SoundGraphId {
+    fn from(id: ObjectId) -> SoundGraphId {
         match id {
-            ObjectId::Sound(i) => GraphId::SoundProcessor(i),
-            ObjectId::Number(i) => GraphId::NumberSource(i),
+            ObjectId::Sound(i) => SoundGraphId::SoundProcessor(i),
         }
     }
 }
@@ -240,29 +225,6 @@ impl<T: StaticSoundProcessor> GraphObject for StaticSoundProcessorWithId<T> {
 }
 
 impl<T: DynamicSoundProcessor> GraphObject for DynamicSoundProcessorWithId<T> {
-    fn get_id(&self) -> ObjectId {
-        self.id().into()
-    }
-
-    fn get_type(&self) -> ObjectType {
-        T::TYPE
-    }
-
-    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
-        self
-    }
-
-    fn get_language_type_name(&self) -> &'static str {
-        type_name::<Self>()
-    }
-
-    fn serialize(&self, serializer: Serializer) {
-        let s: &T = &*self;
-        s.serialize(serializer);
-    }
-}
-
-impl<T: PureNumberSource> GraphObject for PureNumberSourceWithId<T> {
     fn get_id(&self) -> ObjectId {
         self.id().into()
     }

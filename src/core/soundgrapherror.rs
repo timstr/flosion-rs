@@ -3,6 +3,8 @@ use super::{
     numbersource::NumberSourceId,
     path::{NumberPath, SoundPath},
     soundinput::SoundInputId,
+    soundnumberinput::SoundNumberInputId,
+    soundnumbersource::SoundNumberSourceId,
     soundprocessor::SoundProcessorId,
 };
 
@@ -12,23 +14,43 @@ pub enum SoundError {
     ProcessorNotFound(SoundProcessorId),
     BadProcessorInit(SoundProcessorId),
     BadProcessorCleanup(SoundProcessorId),
-    InputIdTaken(SoundInputId),
-    InputNotFound(SoundInputId),
-    BadInputInit(SoundInputId),
-    BadInputCleanup(SoundInputId),
-    BadInputKeyIndex(SoundInputId, usize),
-    InputOccupied {
+    SoundInputIdTaken(SoundInputId),
+    SoundInputNotFound(SoundInputId),
+    BadSoundInputInit(SoundInputId),
+    BadSoundInputCleanup(SoundInputId),
+    BadSoundInputKeyIndex(SoundInputId, usize),
+    SoundInputOccupied {
         input_id: SoundInputId,
         current_target: SoundProcessorId,
     },
-    InputUnoccupied(SoundInputId),
+    SoundInputUnoccupied(SoundInputId),
     CircularDependency {
         cycle: SoundPath,
     },
     StaticTooManyStates(SoundProcessorId),
     StaticNotSynchronous(SoundProcessorId),
+    NumberSourceIdTaken(SoundNumberSourceId),
+    NumberSourceNotFound(SoundNumberSourceId),
+    BadNumberSourceInit(SoundNumberSourceId),
+    BadNumberSourceCleanup(SoundNumberSourceId),
+    NumberInputIdTaken(SoundNumberInputId),
+    BadNumberInputInit(SoundNumberInputId),
+    BadNumberInputCleanup(SoundNumberInputId),
+    NumberInputNotFound(SoundNumberInputId),
+    NumberInputAlreadyConnected {
+        input_id: SoundNumberInputId,
+        target: SoundNumberSourceId,
+    },
+    NumberInputNotConnected {
+        input_id: SoundNumberInputId,
+        target: SoundNumberSourceId,
+    },
+    StateNotInScope {
+        bad_dependencies: Vec<(SoundNumberSourceId, SoundNumberInputId)>,
+    },
 }
 
+// TODO: move
 #[derive(Debug, Eq, PartialEq)]
 pub enum NumberError {
     SourceIdTaken(NumberSourceId),
@@ -47,41 +69,4 @@ pub enum NumberError {
     CircularDependency {
         cycle: NumberPath,
     },
-    StateNotInScope {
-        bad_dependencies: Vec<(NumberSourceId, NumberInputId)>,
-    },
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum SoundGraphError {
-    Number(NumberError),
-    Sound(SoundError),
-}
-
-impl SoundGraphError {
-    pub fn into_number(self) -> Option<NumberError> {
-        match self {
-            SoundGraphError::Number(e) => Some(e),
-            _ => None,
-        }
-    }
-
-    pub fn into_sound(self) -> Option<SoundError> {
-        match self {
-            SoundGraphError::Sound(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl From<SoundError> for SoundGraphError {
-    fn from(e: SoundError) -> SoundGraphError {
-        SoundGraphError::Sound(e)
-    }
-}
-
-impl From<NumberError> for SoundGraphError {
-    fn from(e: NumberError) -> SoundGraphError {
-        SoundGraphError::Number(e)
-    }
 }

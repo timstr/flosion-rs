@@ -1,13 +1,15 @@
 use super::{
-    numberinput::{NumberInputId, NumberInputOwner},
-    numbersource::{NumberSourceId, NumberSourceOwner},
-    soundgraphdata::{NumberInputData, NumberSourceData, SoundInputData, SoundProcessorData},
-    soundgrapherror::{NumberError, SoundError, SoundGraphError},
+    soundgraphdata::{
+        SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
+    },
+    soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::{
         validate_number_connection, validate_sound_connection, validate_sound_disconnection,
     },
     soundinput::SoundInputId,
+    soundnumberinput::SoundNumberInputId,
+    soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
     soundprocessor::SoundProcessorId,
 };
 
@@ -21,12 +23,12 @@ pub(crate) enum SoundGraphEdit {
     RemoveSoundInputKey(SoundInputId, usize),
     ConnectSoundInput(SoundInputId, SoundProcessorId),
     DisconnectSoundInput(SoundInputId),
-    AddNumberSource(NumberSourceData),
-    RemoveNumberSource(NumberSourceId, NumberSourceOwner),
-    AddNumberInput(NumberInputData),
-    RemoveNumberInput(NumberInputId, NumberInputOwner),
-    ConnectNumberInput(NumberInputId, NumberSourceId),
-    DisconnectNumberInput(NumberInputId),
+    AddNumberSource(SoundNumberSourceData),
+    RemoveNumberSource(SoundNumberSourceId, SoundNumberSourceOwner),
+    AddNumberInput(SoundNumberInputData),
+    RemoveNumberInput(SoundNumberInputId, SoundProcessorId),
+    ConnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
+    DisconnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
 }
 
 impl SoundGraphEdit {
@@ -45,33 +47,33 @@ impl SoundGraphEdit {
             SoundGraphEdit::AddNumberInput(_) => "AddNumberInput",
             SoundGraphEdit::RemoveNumberInput(_, _) => "RemoveNumberInput",
             SoundGraphEdit::ConnectNumberInput(_, _) => "ConnectNumberInput",
-            SoundGraphEdit::DisconnectNumberInput(_) => "DisconnectNumberInput",
+            SoundGraphEdit::DisconnectNumberInput(_, _) => "DisconnectNumberInput",
         }
     }
 
     // Ensures that all entities needed by the edit already exist, and that any
     // entities added by the edit do not introduce id collisions.
-    pub(super) fn check_preconditions(&self, topo: &SoundGraphTopology) -> Option<SoundGraphError> {
+    pub(super) fn check_preconditions(&self, topo: &SoundGraphTopology) -> Option<SoundError> {
         match self {
             SoundGraphEdit::AddSoundProcessor(data) => {
                 // The processor id must not be taken
                 if topo.sound_processor(data.id()).is_some() {
-                    return Some(SoundError::ProcessorIdTaken(data.id()).into());
+                    return Some(SoundError::ProcessorIdTaken(data.id()));
                 }
 
                 // the processor must have no sound inputs
                 if !data.sound_inputs().is_empty() {
-                    return Some(SoundError::BadProcessorInit(data.id()).into());
+                    return Some(SoundError::BadProcessorInit(data.id()));
                 }
 
                 // the processor must have no number sources
                 if !data.number_sources().is_empty() {
-                    return Some(SoundError::BadProcessorInit(data.id()).into());
+                    return Some(SoundError::BadProcessorInit(data.id()));
                 }
 
                 // the processor must have no number inputs
                 if !data.number_inputs().is_empty() {
-                    return Some(SoundError::BadProcessorInit(data.id()).into());
+                    return Some(SoundError::BadProcessorInit(data.id()));
                 }
             }
             SoundGraphEdit::RemoveSoundProcessor(spid) => {
@@ -79,51 +81,51 @@ impl SoundGraphEdit {
                 let data = match topo.sound_processor(*spid) {
                     Some(data) => data,
                     None => {
-                        return Some(SoundError::ProcessorNotFound(*spid).into());
+                        return Some(SoundError::ProcessorNotFound(*spid));
                     }
                 };
 
                 // it may not be connected to any sound inputs
                 for si in topo.sound_inputs().values() {
                     if si.target() == Some(*spid) {
-                        return Some(SoundError::BadProcessorCleanup(*spid).into());
+                        return Some(SoundError::BadProcessorCleanup(*spid));
                     }
                 }
 
                 // all its sound inputs must be removed
                 if !data.sound_inputs().is_empty() {
-                    return Some(SoundError::BadProcessorCleanup(*spid).into());
+                    return Some(SoundError::BadProcessorCleanup(*spid));
                 }
 
                 // all its number sources must be removed
                 if !data.number_sources().is_empty() {
-                    return Some(SoundError::BadProcessorCleanup(*spid).into());
+                    return Some(SoundError::BadProcessorCleanup(*spid));
                 }
 
                 // all number inputs must be disconnected
                 if !data.number_inputs().is_empty() {
-                    return Some(SoundError::BadProcessorCleanup(*spid).into());
+                    return Some(SoundError::BadProcessorCleanup(*spid));
                 }
             }
             SoundGraphEdit::AddSoundInput(data) => {
                 // the input id must not be taken
                 if topo.sound_input(data.id()).is_some() {
-                    return Some(SoundError::InputIdTaken(data.id()).into());
+                    return Some(SoundError::SoundInputIdTaken(data.id()));
                 }
 
                 // the owner processor must exist
                 if topo.sound_processor(data.owner()).is_none() {
-                    return Some(SoundError::BadInputInit(data.id()).into());
+                    return Some(SoundError::BadSoundInputInit(data.id()));
                 }
 
                 // the input must be vacant
                 if data.target().is_some() {
-                    return Some(SoundError::BadInputInit(data.id()).into());
+                    return Some(SoundError::BadSoundInputInit(data.id()));
                 }
 
                 // the input must have no number sources
                 if !data.number_sources().is_empty() {
-                    return Some(SoundError::BadInputInit(data.id()).into());
+                    return Some(SoundError::BadSoundInputInit(data.id()));
                 }
             }
             SoundGraphEdit::RemoveSoundInput(siid, owner_spid) => {
@@ -131,23 +133,23 @@ impl SoundGraphEdit {
                 let data = match topo.sound_input(*siid) {
                     Some(data) => data,
                     None => {
-                        return Some(SoundError::InputNotFound(*siid).into());
+                        return Some(SoundError::SoundInputNotFound(*siid));
                     }
                 };
 
                 // the sound input's owner must match and exist
                 if *owner_spid != data.owner() || topo.sound_processor(*owner_spid).is_none() {
-                    return Some(SoundError::BadInputCleanup(*siid).into());
+                    return Some(SoundError::BadSoundInputCleanup(*siid));
                 }
 
                 // the sound input must not be connected
                 if data.target().is_some() {
-                    return Some(SoundError::BadInputCleanup(*siid).into());
+                    return Some(SoundError::BadSoundInputCleanup(*siid));
                 }
 
                 // the sound input must have no number sources
                 if !data.number_sources().is_empty() {
-                    return Some(SoundError::BadInputCleanup(*siid).into());
+                    return Some(SoundError::BadSoundInputCleanup(*siid));
                 }
             }
             SoundGraphEdit::AddSoundInputKey(siid, index) => {
@@ -155,13 +157,13 @@ impl SoundGraphEdit {
                 let data = match topo.sound_input(*siid) {
                     Some(data) => data,
                     None => {
-                        return Some(SoundError::InputNotFound(*siid).into());
+                        return Some(SoundError::SoundInputNotFound(*siid));
                     }
                 };
 
                 // the index must be at most num_keys
                 if *index > data.num_keys() {
-                    return Some(SoundError::BadInputKeyIndex(*siid, *index).into());
+                    return Some(SoundError::BadSoundInputKeyIndex(*siid, *index));
                 }
             }
             SoundGraphEdit::RemoveSoundInputKey(siid, index) => {
@@ -169,13 +171,13 @@ impl SoundGraphEdit {
                 let data = match topo.sound_input(*siid) {
                     Some(data) => data,
                     None => {
-                        return Some(SoundError::InputNotFound(*siid).into());
+                        return Some(SoundError::SoundInputNotFound(*siid));
                     }
                 };
 
                 // the index must be at most num_keys-1
                 if *index >= data.num_keys() {
-                    return Some(SoundError::BadInputKeyIndex(*siid, *index).into());
+                    return Some(SoundError::BadSoundInputKeyIndex(*siid, *index));
                 }
             }
             SoundGraphEdit::ConnectSoundInput(siid, spid) => {
@@ -183,19 +185,19 @@ impl SoundGraphEdit {
                 let data = match topo.sound_input(*siid) {
                     Some(data) => data,
                     None => {
-                        return Some(SoundError::InputNotFound(*siid).into());
+                        return Some(SoundError::SoundInputNotFound(*siid));
                     }
                 };
 
                 // the processor must exist
                 if topo.sound_processor(*spid).is_none() {
-                    return Some(SoundError::ProcessorNotFound(*spid).into());
+                    return Some(SoundError::ProcessorNotFound(*spid));
                 }
 
                 // the input must be vacant
                 if let Some(target) = data.target() {
                     return Some(
-                        SoundError::InputOccupied {
+                        SoundError::SoundInputOccupied {
                             input_id: *siid,
                             current_target: target,
                         }
@@ -213,13 +215,13 @@ impl SoundGraphEdit {
                 let data = match topo.sound_input(*siid) {
                     Some(data) => data,
                     None => {
-                        return Some(SoundError::InputNotFound(*siid).into());
+                        return Some(SoundError::SoundInputNotFound(*siid));
                     }
                 };
 
                 // the sound input must be occupied
                 if data.target().is_none() {
-                    return Some(SoundError::InputUnoccupied(*siid).into());
+                    return Some(SoundError::SoundInputUnoccupied(*siid));
                 }
 
                 // the sound input must be safe to disconnect
@@ -230,148 +232,122 @@ impl SoundGraphEdit {
             SoundGraphEdit::AddNumberSource(data) => {
                 // the source's id must not be taken
                 if topo.number_source(data.id()).is_some() {
-                    return Some(NumberError::SourceIdTaken(data.id()).into());
+                    return Some(SoundError::NumberSourceIdTaken(data.id()));
                 }
 
                 // the source's owner must exist
                 match data.owner() {
-                    NumberSourceOwner::Nothing => (),
-                    NumberSourceOwner::SoundProcessor(spid) => {
+                    SoundNumberSourceOwner::SoundProcessor(spid) => {
                         if topo.sound_processor(spid).is_none() {
-                            return Some(NumberError::BadSourceInit(data.id()).into());
+                            return Some(SoundError::BadNumberSourceInit(data.id()));
                         }
                     }
-                    NumberSourceOwner::SoundInput(siid) => {
+                    SoundNumberSourceOwner::SoundInput(siid) => {
                         if topo.sound_input(siid).is_none() {
-                            return Some(NumberError::BadSourceInit(data.id()).into());
+                            return Some(SoundError::BadNumberSourceInit(data.id()));
                         }
                     }
-                }
-
-                // the source must have no inputs
-                if !data.inputs().is_empty() {
-                    return Some(NumberError::BadSourceInit(data.id()).into());
                 }
             }
             SoundGraphEdit::RemoveNumberSource(nsid, owner_id) => {
                 // the source must exist
                 let data = match topo.number_source(*nsid) {
                     Some(data) => data,
-                    None => return Some(NumberError::SourceNotFound(*nsid).into()),
+                    None => return Some(SoundError::NumberSourceNotFound(*nsid).into()),
                 };
 
                 // the owner must match and exist
                 if *owner_id != data.owner() {
-                    return Some(NumberError::BadSourceCleanup(*nsid).into());
+                    return Some(SoundError::BadNumberSourceCleanup(*nsid));
                 }
 
                 // the owner must cross-list the number source correctly
                 match *owner_id {
-                    NumberSourceOwner::Nothing => (),
-                    NumberSourceOwner::SoundProcessor(spid) => match topo.sound_processor(spid) {
-                        Some(sp) => {
-                            if !sp.number_sources().contains(&nsid) {
-                                return Some(NumberError::BadSourceCleanup(*nsid).into());
+                    SoundNumberSourceOwner::SoundProcessor(spid) => {
+                        match topo.sound_processor(spid) {
+                            Some(sp) => {
+                                if !sp.number_sources().contains(&nsid) {
+                                    return Some(SoundError::BadNumberSourceCleanup(*nsid));
+                                }
                             }
+                            None => return Some(SoundError::BadNumberSourceCleanup(*nsid).into()),
                         }
-                        None => return Some(NumberError::BadSourceCleanup(*nsid).into()),
-                    },
-                    NumberSourceOwner::SoundInput(siid) => match topo.sound_input(siid) {
+                    }
+                    SoundNumberSourceOwner::SoundInput(siid) => match topo.sound_input(siid) {
                         Some(si) => {
                             if !si.number_sources().contains(&nsid) {
-                                return Some(NumberError::BadSourceCleanup(*nsid).into());
+                                return Some(SoundError::BadNumberSourceCleanup(*nsid));
                             }
                         }
-                        None => return Some(NumberError::BadSourceCleanup(*nsid).into()),
+                        None => return Some(SoundError::BadNumberSourceCleanup(*nsid).into()),
                     },
                 }
 
                 // the source must not be connected to any inputs
                 for ni in topo.number_inputs().values() {
-                    if ni.target() == Some(*nsid) {
-                        return Some(NumberError::BadSourceCleanup(*nsid).into());
+                    if ni.targets().contains(nsid) {
+                        return Some(SoundError::BadNumberSourceCleanup(*nsid));
                     }
-                }
-
-                // the source must have no inputs
-                if !data.inputs().is_empty() {
-                    return Some(NumberError::BadSourceCleanup(*nsid).into());
                 }
             }
             SoundGraphEdit::AddNumberInput(data) => {
                 // the number input's id must not be taken
                 if topo.number_input(data.id()).is_some() {
-                    return Some(NumberError::InputIdTaken(data.id()).into());
+                    return Some(SoundError::NumberInputIdTaken(data.id()));
                 }
 
                 // the input's owner must exist
-                match data.owner() {
-                    NumberInputOwner::SoundProcessor(spid) => {
-                        if topo.sound_processor(spid).is_none() {
-                            return Some(NumberError::BadInputInit(data.id()).into());
-                        }
-                    }
-                    NumberInputOwner::NumberSource(nsid) => {
-                        if topo.number_source(nsid).is_none() {
-                            return Some(NumberError::BadInputInit(data.id()).into());
-                        }
-                    }
+                if topo.sound_processor(data.owner()).is_none() {
+                    return Some(SoundError::BadNumberInputInit(data.id()));
                 }
 
                 // the input must not be connected
-                if data.target().is_some() {
-                    return Some(NumberError::BadInputInit(data.id()).into());
+                if !data.targets().is_empty() {
+                    return Some(SoundError::BadNumberInputInit(data.id()));
                 }
             }
             SoundGraphEdit::RemoveNumberInput(niid, owner_id) => {
                 // the number input must exist
                 let data = match topo.number_input(*niid) {
                     Some(data) => data,
-                    None => return Some(NumberError::InputNotFound(*niid).into()),
+                    None => return Some(SoundError::NumberInputNotFound(*niid).into()),
                 };
 
+                // TODO: is owner_id really needed?
+                assert_eq!(data.owner(), *owner_id);
+
                 // the owner must match and exist
-                match owner_id {
-                    NumberInputOwner::SoundProcessor(spid) => match topo.sound_processor(*spid) {
-                        Some(sp) => {
-                            if !sp.number_inputs().contains(niid) {
-                                return Some(NumberError::BadInputCleanup(*niid).into());
-                            }
+                match topo.sound_processor(data.owner()) {
+                    Some(sp) => {
+                        if !sp.number_inputs().contains(niid) {
+                            return Some(SoundError::BadNumberInputCleanup(*niid));
                         }
-                        None => return Some(NumberError::BadInputCleanup(*niid).into()),
-                    },
-                    NumberInputOwner::NumberSource(nsid) => match topo.number_source(*nsid) {
-                        Some(ns) => {
-                            if !ns.inputs().contains(niid) {
-                                return Some(NumberError::BadInputCleanup(*niid).into());
-                            }
-                        }
-                        None => return Some(NumberError::BadInputCleanup(*niid).into()),
-                    },
+                    }
+                    None => return Some(SoundError::BadNumberInputCleanup(*niid).into()),
                 }
 
                 // the number input must not be connected
-                if data.target().is_some() {
-                    return Some(NumberError::BadInputCleanup(*niid).into());
+                if !data.targets().is_empty() {
+                    return Some(SoundError::BadNumberInputCleanup(*niid));
                 }
             }
             SoundGraphEdit::ConnectNumberInput(niid, nsid) => {
                 // the number input must exist
                 if topo.number_input(*niid).is_none() {
-                    return Some(NumberError::InputNotFound(*niid).into());
+                    return Some(SoundError::NumberInputNotFound(*niid));
                 }
 
                 // the number source must exist
                 if topo.number_source(*nsid).is_none() {
-                    return Some(NumberError::SourceNotFound(*nsid).into());
+                    return Some(SoundError::NumberSourceNotFound(*nsid));
                 }
 
                 // the number input must be vacant
-                if let Some(target) = topo.number_input(*niid).unwrap().target() {
+                if topo.number_input(*niid).unwrap().targets().contains(nsid) {
                     return Some(
-                        NumberError::InputOccupied {
+                        SoundError::NumberInputAlreadyConnected {
                             input_id: *niid,
-                            current_target: target,
+                            target: *nsid,
                         }
                         .into(),
                     );
@@ -382,16 +358,19 @@ impl SoundGraphEdit {
                     return Some(e);
                 }
             }
-            SoundGraphEdit::DisconnectNumberInput(niid) => {
+            SoundGraphEdit::DisconnectNumberInput(niid, nsid) => {
                 // the number input must exist
                 let data = match topo.number_input(*niid) {
                     Some(data) => data,
-                    None => return Some(NumberError::InputNotFound(*niid).into()),
+                    None => return Some(SoundError::NumberInputNotFound(*niid).into()),
                 };
 
                 // the number input must be occupied
-                if data.target().is_none() {
-                    return Some(NumberError::InputUnoccupied(*niid).into());
+                if !data.targets().contains(nsid) {
+                    return Some(SoundError::NumberInputNotConnected {
+                        input_id: *niid,
+                        target: *nsid,
+                    });
                 }
             }
         }

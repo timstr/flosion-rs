@@ -5,6 +5,7 @@ pub trait UniqueId: Default + Copy + Clone + PartialEq + Eq + Hash {
     fn next(&self) -> Self;
 }
 
+#[derive(Clone)]
 pub(crate) struct IdGenerator<T: UniqueId> {
     current_id: T,
 }

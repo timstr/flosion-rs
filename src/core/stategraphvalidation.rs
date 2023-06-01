@@ -3,11 +3,11 @@ use std::collections::HashSet;
 use crate::core::stategraphnode::NodeTargetValue;
 
 use super::{
-    numberinput::NumberInputId,
-    numberinputnode::NumberInputNode,
+    numberinputnode::SoundNumberInputNode,
     soundgraphdata::SoundProcessorData,
     soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
+    soundnumberinput::SoundNumberInputId,
     soundprocessor::SoundProcessorId,
     stategraph::StateGraph,
     stategraphnode::{
@@ -155,12 +155,12 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         node: &dyn StateGraphNode,
         proc_data: &SoundProcessorData,
     ) -> bool {
-        let mut remaining_inputs: HashSet<NumberInputId> =
+        let mut remaining_inputs: HashSet<SoundNumberInputId> =
             proc_data.number_inputs().iter().cloned().collect();
-        let mut unexpected_inputs: HashSet<NumberInputId> = HashSet::new();
-        let mut uninitialized_inputs: HashSet<NumberInputId> = HashSet::new();
+        let mut unexpected_inputs: HashSet<SoundNumberInputId> = HashSet::new();
+        let mut uninitialized_inputs: HashSet<SoundNumberInputId> = HashSet::new();
 
-        node.visit_number_inputs(&mut |number_input_node: &NumberInputNode| {
+        node.visit_number_inputs(&mut |number_input_node: &SoundNumberInputNode| {
             if !remaining_inputs.remove(&number_input_node.id()) {
                 unexpected_inputs.insert(number_input_node.id());
             }

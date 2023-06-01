@@ -1,14 +1,10 @@
-use std::{
-    cell::{Ref, RefCell},
-    collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::core::{
-    graphobject::{GraphId, ObjectId},
+    graphobject::{ObjectId, SoundGraphId},
     samplefrequency::SAMPLE_FREQUENCY,
     soundgraphtopology::SoundGraphTopology,
     soundprocessor::SoundProcessorId,
-    uniqueid::UniqueId,
 };
 
 use super::{object_ui_states::ObjectUiStates, ui_factory::UiFactory};
@@ -93,12 +89,11 @@ impl TemporalLayout {
                 ObjectId::Sound(spid) => {
                     layout.nesting_depth = count_nesting_depth(spid, &dependent_counts, topo);
                 }
-                ObjectId::Number(_) => todo!(),
             }
         }
     }
 
-    pub(crate) fn retain(&mut self, remaining_ids: &HashSet<GraphId>) {
+    pub(crate) fn retain(&mut self, remaining_ids: &HashSet<SoundGraphId>) {
         self.top_level_objects
             .retain(|k, _v| remaining_ids.contains(&(*k).into()));
     }

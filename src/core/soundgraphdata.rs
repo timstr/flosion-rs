@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use super::{
-    numberinput::{NumberInputId, NumberInputOwner},
-    numbersource::{NumberSource, NumberSourceId, NumberSourceOwner, NumberVisibility},
+    numbergraph::NumberGraph,
+    numbersource::NumberSourceId,
     soundinput::{InputOptions, SoundInputId},
+    soundnumberinput::SoundNumberInputId,
+    soundnumbersource::{SoundNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
@@ -14,7 +16,7 @@ pub(crate) struct SoundInputData {
     num_keys: usize,
     target: Option<SoundProcessorId>,
     owner: SoundProcessorId,
-    number_sources: Vec<NumberSourceId>,
+    number_sources: Vec<SoundNumberSourceId>,
 }
 
 impl SoundInputData {
@@ -62,11 +64,11 @@ impl SoundInputData {
         self.owner
     }
 
-    pub(crate) fn number_sources(&self) -> &Vec<NumberSourceId> {
+    pub(crate) fn number_sources(&self) -> &Vec<SoundNumberSourceId> {
         &self.number_sources
     }
 
-    pub(crate) fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
+    pub(crate) fn number_sources_mut(&mut self) -> &mut Vec<SoundNumberSourceId> {
         &mut self.number_sources
     }
 }
@@ -76,8 +78,8 @@ pub(crate) struct SoundProcessorData {
     id: SoundProcessorId,
     processor: Arc<dyn SoundProcessor>,
     sound_inputs: Vec<SoundInputId>,
-    number_sources: Vec<NumberSourceId>,
-    number_inputs: Vec<NumberInputId>,
+    number_sources: Vec<SoundNumberSourceId>,
+    number_inputs: Vec<SoundNumberInputId>,
 }
 
 impl SoundProcessorData {
@@ -103,19 +105,19 @@ impl SoundProcessorData {
         &mut self.sound_inputs
     }
 
-    pub(crate) fn number_sources(&self) -> &Vec<NumberSourceId> {
+    pub(crate) fn number_sources(&self) -> &Vec<SoundNumberSourceId> {
         &self.number_sources
     }
 
-    pub(super) fn number_sources_mut(&mut self) -> &mut Vec<NumberSourceId> {
+    pub(super) fn number_sources_mut(&mut self) -> &mut Vec<SoundNumberSourceId> {
         &mut self.number_sources
     }
 
-    pub(crate) fn number_inputs(&self) -> &Vec<NumberInputId> {
+    pub(crate) fn number_inputs(&self) -> &Vec<SoundNumberInputId> {
         &self.number_inputs
     }
 
-    pub(super) fn number_inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
+    pub(super) fn number_inputs_mut(&mut self) -> &mut Vec<SoundNumberInputId> {
         &mut self.number_inputs
     }
 
@@ -129,106 +131,111 @@ impl SoundProcessorData {
 }
 
 #[derive(Clone)]
-pub(crate) struct NumberInputData {
-    id: NumberInputId,
-    target: Option<NumberSourceId>,
-    owner: NumberInputOwner,
+pub(crate) struct SoundNumberInputData {
+    id: SoundNumberInputId,
+    targets: Vec<SoundNumberSourceId>,
+    number_graph: NumberGraph,
+    owner: SoundProcessorId,
     default_value: f32,
-    visibility: NumberVisibility,
 }
 
-impl NumberInputData {
-    pub(crate) fn new(
-        id: NumberInputId,
-        target: Option<NumberSourceId>,
-        owner: NumberInputOwner,
-        default_value: f32,
-        visibility: NumberVisibility,
-    ) -> Self {
+impl SoundNumberInputData {
+    pub(crate) fn new(id: SoundNumberInputId, owner: SoundProcessorId, default_value: f32) -> Self {
+        let mut number_graph = NumberGraph::new();
+
+        // HACK: assuming 1 output for now
+        number_graph.add_graph_output();
+
         Self {
             id,
-            target,
+            targets: Vec::new(),
+            number_graph,
             owner,
             default_value,
-            visibility,
         }
     }
 
-    pub(super) fn id(&self) -> NumberInputId {
+    pub(super) fn id(&self) -> SoundNumberInputId {
         self.id
     }
 
-    pub(crate) fn target(&self) -> Option<NumberSourceId> {
-        self.target
+    pub(crate) fn targets(&self) -> &[SoundNumberSourceId] {
+        &self.targets
     }
 
-    pub(super) fn set_target(&mut self, target: Option<NumberSourceId>) {
-        self.target = target;
+    pub(super) fn add_target(&mut self, target: SoundNumberSourceId) {
+        debug_assert_eq!(self.targets.iter().filter(|t| **t == target).count(), 0);
+        self.targets.push(target);
+        self.number_graph.add_graph_input();
     }
 
-    pub(crate) fn owner(&self) -> NumberInputOwner {
+    pub(super) fn remove_target(&mut self, target: SoundNumberSourceId) {
+        // TODO: consider something nicer than assuming that number graph
+        // inputs and sound number source targets always match up 1:1
+        debug_assert_eq!(self.targets.iter().filter(|t| **t == target).count(), 1);
+        let i = self.targets.iter().position(|t| *t == target).unwrap();
+        self.targets.remove(i);
+        let niid = self.number_graph.topology().graph_inputs()[i];
+        self.number_graph.remove_graph_input(niid);
+    }
+
+    pub(crate) fn number_graph(&self) -> &NumberGraph {
+        &self.number_graph
+    }
+
+    pub(crate) fn input_mapping<'a>(
+        &'a self,
+    ) -> impl 'a + Iterator<Item = (SoundNumberSourceId, NumberSourceId)> {
+        let number_topo = self.number_graph.topology();
+        debug_assert_eq!(self.targets.len(), number_topo.graph_inputs().len());
+        self.targets
+            .iter()
+            .cloned()
+            .zip(number_topo.graph_inputs().iter().cloned())
+    }
+
+    pub(crate) fn owner(&self) -> SoundProcessorId {
         self.owner
     }
 
     pub(super) fn default_value(&self) -> f32 {
         self.default_value
     }
-
-    pub(crate) fn visibility(&self) -> NumberVisibility {
-        self.visibility
-    }
 }
 
 #[derive(Clone)]
-pub(crate) struct NumberSourceData {
-    id: NumberSourceId,
-    instance: Arc<dyn NumberSource>,
-    owner: NumberSourceOwner,
-    inputs: Vec<NumberInputId>,
-    visibility: NumberVisibility,
+pub(crate) struct SoundNumberSourceData {
+    id: SoundNumberSourceId,
+    instance: Arc<dyn SoundNumberSource>,
+    owner: SoundNumberSourceOwner,
 }
 
-impl NumberSourceData {
+impl SoundNumberSourceData {
     pub(crate) fn new(
-        id: NumberSourceId,
-        instance: Arc<dyn NumberSource>,
-        owner: NumberSourceOwner,
-        visibility: NumberVisibility,
+        id: SoundNumberSourceId,
+        instance: Arc<dyn SoundNumberSource>,
+        owner: SoundNumberSourceOwner,
     ) -> Self {
         Self {
             id,
             instance,
             owner,
-            inputs: Vec::new(),
-            visibility,
         }
     }
 
-    pub(super) fn id(&self) -> NumberSourceId {
+    pub(super) fn id(&self) -> SoundNumberSourceId {
         self.id
     }
 
-    pub(crate) fn instance(&self) -> &dyn NumberSource {
+    pub(crate) fn instance(&self) -> &dyn SoundNumberSource {
         &*self.instance
     }
 
-    pub(crate) fn instance_arc(&self) -> Arc<dyn NumberSource> {
+    pub(crate) fn instance_arc(&self) -> Arc<dyn SoundNumberSource> {
         Arc::clone(&self.instance)
     }
 
-    pub(crate) fn owner(&self) -> NumberSourceOwner {
+    pub(crate) fn owner(&self) -> SoundNumberSourceOwner {
         self.owner
-    }
-
-    pub(crate) fn inputs(&self) -> &Vec<NumberInputId> {
-        &self.inputs
-    }
-
-    pub(super) fn inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
-        &mut self.inputs
-    }
-
-    pub(super) fn visibility(&self) -> NumberVisibility {
-        self.visibility
     }
 }
