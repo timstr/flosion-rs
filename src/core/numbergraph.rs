@@ -1,6 +1,10 @@
 use super::{
-    numbergraphedit::NumberGraphEdit, numbergraphtopology::NumberGraphTopology,
-    numberinput::NumberInputId, numbersource::NumberSourceId, uniqueid::IdGenerator,
+    numbergraphdata::{NumberInputData, NumberSourceData},
+    numbergraphedit::NumberGraphEdit,
+    numbergraphtopology::NumberGraphTopology,
+    numberinput::{NumberInputId, NumberInputOwner},
+    numbersource::NumberSourceId,
+    uniqueid::IdGenerator,
 };
 
 #[derive(Clone)]
@@ -25,24 +29,33 @@ impl NumberGraph {
 
     pub(crate) fn add_graph_input(&mut self) -> NumberSourceId {
         let id = self.number_source_idgen.next_id();
-        self.topology.make_edit(NumberGraphEdit::AddGraphInput(id));
+        self.topology.make_edit(NumberGraphEdit::AddNumberSource(
+            NumberSourceData::new_graph_input(id),
+        ));
         id
     }
 
     pub(crate) fn remove_graph_input(&mut self, id: NumberSourceId) {
         self.topology
-            .make_edit(NumberGraphEdit::RemoveGraphInput(id));
+            .make_edit(NumberGraphEdit::RemoveNumberSource(id));
     }
 
-    pub(crate) fn add_graph_output(&mut self) -> NumberInputId {
+    pub(crate) fn add_graph_output(&mut self, default_value: f32) -> NumberInputId {
         let id = self.number_input_idgen.next_id();
-        self.topology.make_edit(NumberGraphEdit::AddGraphOutput(id));
+        self.topology
+            .make_edit(NumberGraphEdit::AddNumberInput(NumberInputData::new(
+                id,
+                NumberInputOwner::ParentGraph,
+                default_value,
+            )));
         id
     }
 
     pub(crate) fn remove_graph_output(&mut self, id: NumberInputId) {
-        self.topology
-            .make_edit(NumberGraphEdit::RemoveGraphOutput(id));
+        self.topology.make_edit(NumberGraphEdit::RemoveNumberInput(
+            id,
+            NumberInputOwner::ParentGraph,
+        ));
     }
 
     // TODO: similar interface to SoundGraph for adding number sources and making connections

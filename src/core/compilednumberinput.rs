@@ -20,8 +20,9 @@ use inkwell::{
 use crate::core::uniqueid::UniqueId;
 
 use super::{
-    anydata::AnyData, context::Context, numbergraphtopology::NumberGraphTopology,
-    numberinput::NumberInputId, numbersource::NumberSourceId, samplefrequency::SAMPLE_FREQUENCY,
+    anydata::AnyData, context::Context, numbergraphdata::NumberSourceData,
+    numbergraphtopology::NumberGraphTopology, numberinput::NumberInputId,
+    numbersource::NumberSourceId, samplefrequency::SAMPLE_FREQUENCY,
     soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
 };
@@ -114,14 +115,23 @@ impl<'ctx> CodeGen<'ctx> {
             return *v;
         }
         let source_data = topology.number_source(number_source_id).unwrap();
-        let input_values: Vec<_> = source_data
-            .number_inputs()
-            .iter()
-            .map(|niid| self.visit_input(*niid, topology))
-            .collect();
-        let v = source_data.instance().compile(self, &input_values);
-        self.compiled_sources.insert(number_source_id, v);
-        v
+        match source_data {
+            NumberSourceData::Instance(inst) => {
+                let input_values: Vec<_> = inst
+                    .number_inputs()
+                    .iter()
+                    .map(|niid| self.visit_input(*niid, topology))
+                    .collect();
+                let v = inst.instance().compile(self, &input_values);
+                self.compiled_sources.insert(number_source_id, v);
+                v
+            }
+            NumberSourceData::GraphInput(_) => {
+                // Graph inputs should already have been compiled and found
+                // in the cache above
+                panic!()
+            }
+        }
     }
 
     pub fn module(&self) -> &Module<'ctx> {

@@ -49,19 +49,30 @@ impl NumberGraphTopology {
             NumberGraphEdit::RemoveNumberInput(niid, owner) => {
                 self.remove_number_input(niid, owner)
             }
-            NumberGraphEdit::AddGraphOutput(niid) => self.add_graph_output(niid),
-            NumberGraphEdit::RemoveGraphOutput(niid) => self.remove_graph_output(niid),
-            NumberGraphEdit::AddGraphInput(nsid) => self.add_graph_input(nsid),
-            NumberGraphEdit::RemoveGraphInput(nsid) => self.remove_graph_input(nsid),
+            NumberGraphEdit::AddNumberSource(data) => todo!(),
+            NumberGraphEdit::RemoveNumberSource(nsid) => todo!(),
         }
         // TODO: validation
     }
 
     fn add_number_input(&mut self, data: NumberInputData) {
         debug_assert!(data.target().is_none());
-        if let NumberInputOwner::NumberSource(source_id) = data.owner() {
-            let source_data = self.number_sources.get_mut(&source_id).unwrap();
-            source_data.number_inputs_mut().push(data.id());
+        match data.owner() {
+            NumberInputOwner::NumberSource(source_id) => {
+                let source_data = self.number_sources.get_mut(&source_id).unwrap();
+                match source_data {
+                    NumberSourceData::Instance(inst) => {
+                        let inst_inputs = inst.number_inputs_mut();
+                        debug_assert!(!inst_inputs.contains(&data.id()));
+                        inst_inputs.push(data.id());
+                    }
+                    NumberSourceData::GraphInput(_) => panic!(),
+                }
+            }
+            NumberInputOwner::ParentGraph => {
+                debug_assert!(!self.graph_outputs.contains(&data.id()));
+                self.graph_outputs.push(data.id());
+            }
         }
         let prev = self.number_inputs.insert(data.id(), data);
         debug_assert!(prev.is_none());
@@ -71,19 +82,20 @@ impl NumberGraphTopology {
         todo!()
     }
 
-    fn add_graph_output(&mut self, input_id: NumberInputId) {
-        todo!()
+    fn add_number_source(&mut self, data: NumberSourceData) {
+        match &data {
+            NumberSourceData::Instance(inst_data) => {
+                debug_assert!(inst_data.number_inputs().is_empty());
+            }
+            NumberSourceData::GraphInput(nsid) => {
+                debug_assert!(!self.graph_inputs.contains(&nsid))
+            }
+        }
+        let prev = self.number_sources.insert(data.id(), data);
+        debug_assert!(prev.is_none());
     }
 
-    fn remove_graph_output(&mut self, input_id: NumberInputId) {
-        todo!()
-    }
-
-    fn add_graph_input(&mut self, source_id: NumberSourceId) {
-        todo!()
-    }
-
-    fn remove_graph_input(&mut self, source_id: NumberSourceId) {
+    fn remove_number_source(&mut self, source_id: NumberSourceId) {
         todo!()
     }
 }

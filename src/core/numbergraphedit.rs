@@ -1,5 +1,5 @@
 use super::{
-    numbergraphdata::NumberInputData,
+    numbergraphdata::{NumberInputData, NumberSourceData},
     numberinput::{NumberInputId, NumberInputOwner},
     numbersource::NumberSourceId,
 };
@@ -7,8 +7,6 @@ use super::{
 pub(crate) enum NumberGraphEdit {
     AddNumberInput(NumberInputData),
     RemoveNumberInput(NumberInputId, NumberInputOwner),
-    AddGraphOutput(NumberInputId),
-    RemoveGraphOutput(NumberInputId),
-    AddGraphInput(NumberSourceId),
-    RemoveGraphInput(NumberSourceId),
+    AddNumberSource(NumberSourceData),
+    RemoveNumberSource(NumberSourceId),
 }

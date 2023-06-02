@@ -6,15 +6,18 @@ use super::{
 };
 
 #[derive(Clone)]
-pub(crate) struct NumberSourceData {
+pub(crate) struct NumberSourceInstanceData {
     id: NumberSourceId,
     instance: Arc<dyn NumberSource>,
     inputs: Vec<NumberInputId>,
 }
 
-impl NumberSourceData {
-    pub(crate) fn new(id: NumberSourceId, instance: Arc<dyn NumberSource>) -> NumberSourceData {
-        NumberSourceData {
+impl NumberSourceInstanceData {
+    pub(crate) fn new(
+        id: NumberSourceId,
+        instance: Arc<dyn NumberSource>,
+    ) -> NumberSourceInstanceData {
+        NumberSourceInstanceData {
             id,
             instance,
             inputs: Vec::new(),
@@ -43,6 +46,32 @@ impl NumberSourceData {
 }
 
 #[derive(Clone)]
+pub(crate) enum NumberSourceData {
+    Instance(NumberSourceInstanceData),
+    GraphInput(NumberSourceId),
+}
+
+impl NumberSourceData {
+    pub(crate) fn new_instance(
+        id: NumberSourceId,
+        instance: Arc<dyn NumberSource>,
+    ) -> NumberSourceData {
+        NumberSourceData::Instance(NumberSourceInstanceData::new(id, instance))
+    }
+
+    pub(crate) fn new_graph_input(id: NumberSourceId) -> NumberSourceData {
+        NumberSourceData::GraphInput(id)
+    }
+
+    pub(crate) fn id(&self) -> NumberSourceId {
+        match self {
+            NumberSourceData::Instance(data) => data.id(),
+            NumberSourceData::GraphInput(id) => *id,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct NumberInputData {
     id: NumberInputId,
     target: Option<NumberSourceId>,
@@ -53,13 +82,12 @@ pub(crate) struct NumberInputData {
 impl NumberInputData {
     pub(crate) fn new(
         id: NumberInputId,
-        target: Option<NumberSourceId>,
         owner: NumberInputOwner,
         default_value: f32,
     ) -> NumberInputData {
         NumberInputData {
             id,
-            target,
+            target: None,
             owner,
             default_value,
         }

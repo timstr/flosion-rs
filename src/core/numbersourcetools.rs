@@ -27,9 +27,8 @@ impl<'a> NumberSourceTools<'a> {
 
     pub fn add_number_input(&mut self, default_value: f32) -> NumberInputHandle {
         let id = self.number_input_idgen.next_id();
-        let target = None;
         let owner = NumberInputOwner::NumberSource(self.number_source_id);
-        let data = NumberInputData::new(id, target, owner, default_value);
+        let data = NumberInputData::new(id, owner, default_value);
         self.edit_queue.push(NumberGraphEdit::AddNumberInput(data));
         NumberInputHandle::new(id, owner)
     }

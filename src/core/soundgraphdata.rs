@@ -136,7 +136,6 @@ pub(crate) struct SoundNumberInputData {
     targets: Vec<SoundNumberSourceId>,
     number_graph: NumberGraph,
     owner: SoundProcessorId,
-    default_value: f32,
 }
 
 impl SoundNumberInputData {
@@ -144,14 +143,13 @@ impl SoundNumberInputData {
         let mut number_graph = NumberGraph::new();
 
         // HACK: assuming 1 output for now
-        number_graph.add_graph_output();
+        number_graph.add_graph_output(default_value);
 
         Self {
             id,
             targets: Vec::new(),
             number_graph,
             owner,
-            default_value,
         }
     }
 
@@ -196,10 +194,6 @@ impl SoundNumberInputData {
 
     pub(crate) fn owner(&self) -> SoundProcessorId {
         self.owner
-    }
-
-    pub(super) fn default_value(&self) -> f32 {
-        self.default_value
     }
 }
 
