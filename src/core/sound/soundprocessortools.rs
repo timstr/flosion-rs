@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
-use crate::core::uniqueid::IdGenerator;
+use crate::core::{
+    jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
+    uniqueid::IdGenerator,
+};
 
 use super::{
-    compilednumberinput::{ArrayReadFunc, ScalarReadFunc},
     soundgraphdata::{SoundInputData, SoundNumberInputData, SoundNumberSourceData},
     soundgraphedit::SoundGraphEdit,
     soundinput::{InputOptions, SoundInputId},

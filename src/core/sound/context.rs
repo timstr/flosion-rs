@@ -12,7 +12,7 @@ use super::{
     soundprocessor::{ProcessorState, SoundProcessorId},
 };
 
-pub(super) struct ProcessorStackFrame<'a> {
+pub(crate) struct ProcessorStackFrame<'a> {
     parent: &'a StackFrame<'a>,
     processor_id: SoundProcessorId,
     data: &'a dyn ProcessorState,
@@ -24,7 +24,7 @@ impl<'a> ProcessorStackFrame<'a> {
     }
 }
 
-pub(super) struct InputStackFrame<'a> {
+pub(crate) struct InputStackFrame<'a> {
     parent: &'a StackFrame<'a>,
     input_id: SoundInputId,
     state: AnyData<'a>,
@@ -32,11 +32,11 @@ pub(super) struct InputStackFrame<'a> {
 }
 
 impl<'a> InputStackFrame<'a> {
-    pub(super) fn state(&self) -> &AnyData<'a> {
+    pub(crate) fn state(&self) -> &AnyData<'a> {
         &self.state
     }
 
-    pub(super) fn timing(&'a self) -> &'a InputTiming {
+    pub(crate) fn timing(&'a self) -> &'a InputTiming {
         self.timing
     }
 
@@ -243,7 +243,7 @@ impl<'a> Context<'a> {
         self.scratch_space.borrow_slice(size)
     }
 
-    pub(super) fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
+    pub(crate) fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
         self.stack.find_input_frame(input_id)
     }
 
@@ -255,7 +255,7 @@ impl<'a> Context<'a> {
         numeric::linspace(dst, t0, t1);
     }
 
-    pub(super) fn current_time_at_sound_processor(
+    pub(crate) fn current_time_at_sound_processor(
         &self,
         processor_id: SoundProcessorId,
         dst: &mut [f32],
@@ -264,12 +264,12 @@ impl<'a> Context<'a> {
         Self::current_time_impl(s, dst);
     }
 
-    pub(super) fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
+    pub(crate) fn current_time_at_sound_input(&self, input_id: SoundInputId, dst: &mut [f32]) {
         let s = self.stack.find_input_sample_offset(input_id);
         Self::current_time_impl(s, dst);
     }
 
-    pub(super) fn time_offset_and_speed_at_processor(
+    pub(crate) fn time_offset_and_speed_at_processor(
         &self,
         processor_id: SoundProcessorId,
     ) -> (f32, f32) {
@@ -279,7 +279,7 @@ impl<'a> Context<'a> {
         (samples as f32 / SAMPLE_FREQUENCY as f32, speed)
     }
 
-    pub(super) fn time_offset_and_speed_at_input(&self, input_id: SoundInputId) -> (f32, f32) {
+    pub(crate) fn time_offset_and_speed_at_input(&self, input_id: SoundInputId) -> (f32, f32) {
         let (samples, speed) = self.stack.find_input_sample_offset_and_time_speed(input_id);
         (samples as f32 / SAMPLE_FREQUENCY as f32, speed)
     }

@@ -3,11 +3,9 @@ use std::{ops::Deref, sync::Arc};
 use inkwell::values::FloatValue;
 
 use crate::core::{
+    jit::codegen::CodeGen,
     serialization::Serializer,
-    sound::{
-        compilednumberinput::CodeGen,
-        graphobject::{ObjectInitialization, WithObjectType},
-    },
+    sound::graphobject::{ObjectInitialization, WithObjectType},
     uniqueid::UniqueId,
 };
 

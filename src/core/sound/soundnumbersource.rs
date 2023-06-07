@@ -1,12 +1,14 @@
 use inkwell::values::FloatValue;
 
-use crate::core::uniqueid::UniqueId;
-
-use super::{
-    compilednumberinput::{ArrayReadFunc, CodeGen, ScalarReadFunc},
-    soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
+use crate::core::{
+    jit::{
+        codegen::CodeGen,
+        wrappers::{ArrayReadFunc, ScalarReadFunc},
+    },
+    uniqueid::UniqueId,
 };
+
+use super::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundNumberSourceId(usize);

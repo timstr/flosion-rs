@@ -3,6 +3,7 @@ pub mod arguments;
 pub mod number;
 pub mod sound;
 // pub mod graphserialization;
+pub mod jit;
 pub mod numeric;
 pub mod object_factory;
 pub mod resample;
