@@ -1,11 +1,6 @@
 use super::{
-    numberinput::NumberInputId,
-    numbersource::NumberSourceId,
-    path::{NumberPath, SoundPath},
-    soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId,
-    soundnumbersource::SoundNumberSourceId,
-    soundprocessor::SoundProcessorId,
+    path::SoundPath, soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
+    soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -47,26 +42,5 @@ pub enum SoundError {
     },
     StateNotInScope {
         bad_dependencies: Vec<(SoundNumberSourceId, SoundNumberInputId)>,
-    },
-}
-
-// TODO: move
-#[derive(Debug, Eq, PartialEq)]
-pub enum NumberError {
-    SourceIdTaken(NumberSourceId),
-    SourceNotFound(NumberSourceId),
-    BadSourceInit(NumberSourceId),
-    BadSourceCleanup(NumberSourceId),
-    InputIdTaken(NumberInputId),
-    InputNotFound(NumberInputId),
-    BadInputInit(NumberInputId),
-    BadInputCleanup(NumberInputId),
-    InputOccupied {
-        input_id: NumberInputId,
-        current_target: NumberSourceId,
-    },
-    InputUnoccupied(NumberInputId),
-    CircularDependency {
-        cycle: NumberPath,
     },
 }

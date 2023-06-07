@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
-use crate::core::graphobject::{ObjectId, SoundGraphId};
+use crate::core::sound::graphobject::{ObjectId, SoundGraphId};
 
 pub struct LayoutState {
     pub rect: egui::Rect,

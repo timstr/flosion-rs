@@ -1,6 +1,4 @@
-use crate::core::soundchunk::CHUNK_SIZE;
-
-use super::uniqueid::UniqueId;
+use crate::core::{soundchunk::CHUNK_SIZE, uniqueid::UniqueId};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundInputId(usize);

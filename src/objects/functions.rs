@@ -1,10 +1,13 @@
 use crate::core::{
-    compilednumberinput::CodeGen,
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinput::NumberInputHandle,
-    numbersource::PureNumberSource,
-    numbersourcetools::NumberSourceTools,
+    number::{
+        numberinput::NumberInputHandle, numbersource::PureNumberSource,
+        numbersourcetools::NumberSourceTools,
+    },
     serialization::Serializer,
+    sound::{
+        compilednumberinput::CodeGen,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+    },
 };
 use atomic_float::AtomicF32;
 use inkwell::{values::FloatValue, FloatPredicate};

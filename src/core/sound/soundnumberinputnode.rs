@@ -1,8 +1,10 @@
 use std::slice;
 
+use crate::core::sound::soundnumberinput::SoundNumberInputId;
+
 use super::{
     compilednumberinput::CompiledNumberInputNode, context::Context,
-    soundgraphtopology::SoundGraphTopology, soundnumberinput::SoundNumberInputId,
+    soundgraphtopology::SoundGraphTopology,
 };
 
 pub struct SoundNumberInputNode<'ctx> {

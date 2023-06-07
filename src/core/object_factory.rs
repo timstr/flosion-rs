@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use crate::core::{
-    arguments::ParsedArguments, graphobject::ObjectInitialization, serialization::Deserializer,
-};
+use crate::core::{arguments::ParsedArguments, serialization::Deserializer};
 
-use super::{
-    graphobject::GraphObjectHandle,
+use super::sound::{
+    graphobject::{GraphObjectHandle, ObjectInitialization},
     soundgraph::SoundGraph,
     soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
 };

@@ -1,6 +1,6 @@
-use super::{
-    numberinputnode::SoundNumberInputNode, soundprocessor::SoundProcessorId, uniqueid::UniqueId,
-};
+use crate::core::uniqueid::UniqueId;
+
+use super::{soundnumberinputnode::SoundNumberInputNode, soundprocessor::SoundProcessorId};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundNumberInputId(usize);

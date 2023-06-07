@@ -1,11 +1,13 @@
 use rand::prelude::*;
 
 use crate::core::{
-    context::Context,
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+    sound::{
+        context::Context,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+        soundprocessortools::SoundProcessorTools,
+    },
     soundchunk::SoundChunk,
-    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-    soundprocessortools::SoundProcessorTools,
 };
 
 pub struct WhiteNoise {}

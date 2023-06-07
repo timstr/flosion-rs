@@ -10,13 +10,15 @@ use std::{
 
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use crate::core::{
-    soundgraphvalidation::find_error, stategraphvalidation::state_graph_matches_topology,
+use super::{
+    soundgraphedit::SoundGraphEdit, soundgraphtopology::SoundGraphTopology, stategraph::StateGraph,
 };
 
-use super::{
-    samplefrequency::SAMPLE_FREQUENCY, scratcharena::ScratchArena, soundchunk::CHUNK_SIZE,
-    soundgraphedit::SoundGraphEdit, soundgraphtopology::SoundGraphTopology, stategraph::StateGraph,
+use crate::core::{
+    samplefrequency::SAMPLE_FREQUENCY,
+    scratcharena::ScratchArena,
+    sound::{soundgraphvalidation::find_error, stategraphvalidation::state_graph_matches_topology},
+    soundchunk::CHUNK_SIZE,
 };
 
 pub(super) struct SoundEngineInterface {

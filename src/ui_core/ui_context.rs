@@ -1,10 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::{
-    graphobject::{ObjectId, SoundGraphId},
     samplefrequency::SAMPLE_FREQUENCY,
-    soundgraphtopology::SoundGraphTopology,
-    soundprocessor::SoundProcessorId,
+    sound::{
+        graphobject::{ObjectId, SoundGraphId},
+        soundgraphtopology::SoundGraphTopology,
+        soundprocessor::SoundProcessorId,
+    },
 };
 
 use super::{object_ui_states::ObjectUiStates, ui_factory::UiFactory};

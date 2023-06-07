@@ -4,10 +4,11 @@ use eframe::egui;
 
 use crate::core::{
     arguments::ParsedArguments,
-    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization, WithObjectType},
-    numbersource::PureNumberSource,
     serialization::Deserializer,
-    soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
+    sound::{
+        graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization, WithObjectType},
+        soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
+    },
 };
 
 use super::{
@@ -48,19 +49,6 @@ impl UiFactory {
     pub fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
     where
         <<T as ObjectUi>::HandleType as ObjectHandle>::Type: DynamicSoundProcessor,
-    {
-        let name = <<T as ObjectUi>::HandleType as ObjectHandle>::Type::TYPE.name();
-        self.mapping.insert(
-            name,
-            ObjectData {
-                ui: Box::new(T::default()),
-            },
-        );
-    }
-
-    pub fn register_number_source<T: ObjectUi>(&mut self)
-    where
-        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: PureNumberSource,
     {
         let name = <<T as ObjectUi>::HandleType as ObjectHandle>::Type::TYPE.name();
         self.mapping.insert(

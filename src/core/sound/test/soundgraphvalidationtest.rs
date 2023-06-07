@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::{
+use crate::core::sound::{
     soundgraphdata::SoundProcessorData,
     soundgraphedit::SoundGraphEdit,
     soundgraphtopology::SoundGraphTopology,

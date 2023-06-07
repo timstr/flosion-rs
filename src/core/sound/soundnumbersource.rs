@@ -1,10 +1,11 @@
 use inkwell::values::FloatValue;
 
+use crate::core::uniqueid::UniqueId;
+
 use super::{
     compilednumberinput::{ArrayReadFunc, CodeGen, ScalarReadFunc},
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
-    uniqueid::UniqueId,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

@@ -2,13 +2,16 @@ use std::{ops::Deref, sync::Arc};
 
 use inkwell::values::FloatValue;
 
-use super::{
-    compilednumberinput::CodeGen,
-    graphobject::{ObjectInitialization, WithObjectType},
-    numbersourcetools::NumberSourceTools,
+use crate::core::{
     serialization::Serializer,
+    sound::{
+        compilednumberinput::CodeGen,
+        graphobject::{ObjectInitialization, WithObjectType},
+    },
     uniqueid::UniqueId,
 };
+
+use super::numbersourcetools::NumberSourceTools;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NumberSourceId(usize);

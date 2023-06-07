@@ -1,5 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
+use crate::core::uniqueid::IdGenerator;
+
 use super::{
     graphobject::{ObjectId, ObjectInitialization},
     soundengine::{SoundEngine, SoundEngineInterface},
@@ -17,7 +19,6 @@ use super::{
         StaticSoundProcessorWithId,
     },
     soundprocessortools::SoundProcessorTools,
-    uniqueid::IdGenerator,
 };
 
 // TODO: only sound number sources and processor number inputs

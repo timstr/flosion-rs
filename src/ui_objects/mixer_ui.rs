@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::soundprocessor::DynamicSoundProcessorHandle,
+    core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::mixer::Mixer,
     ui_core::{
         graph_ui_state::GraphUIState,

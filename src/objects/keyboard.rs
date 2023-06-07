@@ -3,14 +3,16 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use parking_lot::Mutex;
 
 use crate::core::{
-    context::Context,
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+    sound::{
+        context::Context,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
+        soundnumbersource::SoundNumberSourceHandle,
+        soundprocessor::StaticSoundProcessor,
+        soundprocessortools::SoundProcessorTools,
+        state::State,
+    },
     soundchunk::SoundChunk,
-    soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
-    soundnumbersource::SoundNumberSourceHandle,
-    soundprocessor::StaticSoundProcessor,
-    soundprocessortools::SoundProcessorTools,
-    state::State,
 };
 
 type KeyId = u8;

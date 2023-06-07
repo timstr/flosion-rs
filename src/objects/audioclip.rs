@@ -3,13 +3,16 @@ use std::{ops::Deref, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::core::{
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     serialization::Serializer,
+    sound::{
+        context::Context,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+        soundprocessortools::SoundProcessorTools,
+        state::State,
+    },
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-    soundprocessortools::SoundProcessorTools,
-    state::State,
 };
 
 pub struct AudioClip {
@@ -88,7 +91,7 @@ impl DynamicSoundProcessor for AudioClip {
         _sound_inputs: &mut Self::SoundInputType,
         _number_inputs: &(),
         dst: &mut SoundChunk,
-        _context: crate::core::context::Context,
+        _context: Context,
     ) -> StreamStatus {
         let st = state.state_mut();
         let data = st.data.read();

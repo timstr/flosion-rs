@@ -1,4 +1,6 @@
-use super::{numbersource::NumberSourceId, uniqueid::UniqueId};
+use crate::core::uniqueid::UniqueId;
+
+use super::numbersource::NumberSourceId;
 
 // TODO: rework this, make number inputs for sound processors and number graphs separate
 

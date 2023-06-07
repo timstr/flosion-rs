@@ -8,9 +8,11 @@ use std::{
 use eframe::egui;
 
 use crate::core::{
-    graphobject::{ObjectId, SoundGraphId},
     serialization::{Serializable, Serializer},
-    soundgraphtopology::SoundGraphTopology,
+    sound::{
+        graphobject::{ObjectId, SoundGraphId},
+        soundgraphtopology::SoundGraphTopology,
+    },
 };
 
 use super::{object_ui::random_object_color, ui_factory::UiFactory};

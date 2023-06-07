@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::core::soundnumbersource::SoundNumberSourceOwner;
+use crate::core::sound::soundnumbersource::SoundNumberSourceOwner;
 
 use super::{
     graphobject::{GraphObjectHandle, ObjectId, SoundGraphId},

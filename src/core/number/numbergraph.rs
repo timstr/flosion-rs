@@ -1,10 +1,9 @@
+use crate::core::uniqueid::{IdGenerator, UniqueId};
+
 use super::{
-    numbergraphdata::NumberGraphOutputData,
-    numbergraphedit::NumberGraphEdit,
-    numbergraphtopology::NumberGraphTopology,
-    numberinput::NumberInputId,
+    numbergraphdata::NumberGraphOutputData, numbergraphedit::NumberGraphEdit,
+    numbergraphtopology::NumberGraphTopology, numberinput::NumberInputId,
     numbersource::NumberSourceId,
-    uniqueid::{IdGenerator, UniqueId},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

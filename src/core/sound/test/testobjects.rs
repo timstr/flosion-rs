@@ -1,9 +1,11 @@
 use crate::core::{
-    context::Context,
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+    sound::{
+        context::Context,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        soundprocessor::StaticSoundProcessor,
+        soundprocessortools::SoundProcessorTools,
+    },
     soundchunk::SoundChunk,
-    soundprocessor::StaticSoundProcessor,
-    soundprocessortools::SoundProcessorTools,
 };
 
 pub(super) struct TestStaticSoundProcessor {}

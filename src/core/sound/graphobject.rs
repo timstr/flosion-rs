@@ -3,12 +3,13 @@ use std::{
     sync::Arc,
 };
 
-use super::{
+use crate::core::{
     arguments::ParsedArguments,
-    numbersource::{
-        NumberSourceId, PureNumberSource, PureNumberSourceHandle, PureNumberSourceWithId,
-    },
-    serialization::{Deserializer, Serializable, Serializer},
+    serialization::{Deserializer, Serializer},
+    uniqueid::UniqueId,
+};
+
+use super::{
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
     soundnumbersource::SoundNumberSourceId,
@@ -17,7 +18,6 @@ use super::{
         SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
         StaticSoundProcessorWithId,
     },
-    uniqueid::UniqueId,
 };
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash)]
@@ -160,16 +160,6 @@ impl GraphObjectHandle {
             Err(_) => None,
         }
     }
-
-    pub(super) fn into_pure_number_source<T: PureNumberSource>(
-        self,
-    ) -> Option<PureNumberSourceHandle<T>> {
-        let arc_any = self.instance.into_arc_any();
-        match arc_any.downcast::<PureNumberSourceWithId<T>>() {
-            Ok(obj) => Some(PureNumberSourceHandle::new(obj)),
-            Err(_) => None,
-        }
-    }
 }
 
 pub trait ObjectHandle: Sized {
@@ -191,14 +181,6 @@ impl<T: DynamicSoundProcessor> ObjectHandle for DynamicSoundProcessorHandle<T> {
 
     fn from_graph_object(object: GraphObjectHandle) -> Option<Self> {
         object.into_dynamic_sound_processor()
-    }
-}
-
-impl<T: PureNumberSource> ObjectHandle for PureNumberSourceHandle<T> {
-    type Type = T;
-
-    fn from_graph_object(object: GraphObjectHandle) -> Option<Self> {
-        object.into_pure_number_source()
     }
 }
 

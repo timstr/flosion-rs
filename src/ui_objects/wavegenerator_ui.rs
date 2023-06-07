@@ -1,5 +1,5 @@
 use crate::{
-    core::soundprocessor::DynamicSoundProcessorHandle,
+    core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::wavegenerator::WaveGenerator,
     ui_core::{
         graph_ui_state::GraphUIState,

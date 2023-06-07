@@ -156,6 +156,7 @@ impl NumberGraphTopology {
     }
 
     fn add_graph_output(&mut self, data: NumberGraphOutputData) {
+        debug_assert!(data.target().is_none());
         debug_assert_eq!(
             self.graph_outputs
                 .iter()

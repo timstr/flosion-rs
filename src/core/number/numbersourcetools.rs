@@ -1,9 +1,10 @@
+use crate::core::uniqueid::IdGenerator;
+
 use super::{
     numbergraphdata::NumberInputData,
     numbergraphedit::NumberGraphEdit,
     numberinput::{NumberInputHandle, NumberInputId},
     numbersource::NumberSourceId,
-    uniqueid::IdGenerator,
 };
 
 pub struct NumberSourceTools<'a> {

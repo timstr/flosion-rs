@@ -1,21 +1,23 @@
 use rand::prelude::*;
 
 use crate::core::{
-    context::Context,
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numberinputnode::{
-        SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-        SoundNumberInputNodeVisitorMut,
-    },
     numeric,
+    sound::{
+        context::Context,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        soundinput::InputOptions,
+        soundinputtypes::{KeyedInput, KeyedInputNode},
+        soundnumberinput::SoundNumberInputHandle,
+        soundnumberinputnode::{
+            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+            SoundNumberInputNodeVisitorMut,
+        },
+        soundnumbersource::SoundNumberSourceHandle,
+        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+        soundprocessortools::SoundProcessorTools,
+        state::State,
+    },
     soundchunk::SoundChunk,
-    soundinput::InputOptions,
-    soundinputtypes::{KeyedInput, KeyedInputNode},
-    soundnumberinput::SoundNumberInputHandle,
-    soundnumbersource::SoundNumberSourceHandle,
-    soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-    soundprocessortools::SoundProcessorTools,
-    state::State,
 };
 
 pub struct VoiceState {

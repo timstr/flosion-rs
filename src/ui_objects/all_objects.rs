@@ -1,9 +1,10 @@
 use crate::{
     core::{
-        graphobject::ObjectHandle,
-        numbersource::PureNumberSource,
         object_factory::ObjectFactory,
-        soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
+        sound::{
+            graphobject::ObjectHandle,
+            soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
+        },
     },
     ui_core::{object_ui::ObjectUi, ui_factory::UiFactory},
 };
@@ -46,13 +47,6 @@ impl<'a> RegistrationHelper<'a> {
         self.object_factory
             .register_dynamic_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>();
         self.ui_factory.register_dynamic_sound_processor::<T>();
-    }
-
-    fn register_number_source<T: ObjectUi>(&mut self)
-    where
-        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: PureNumberSource,
-    {
-        self.ui_factory.register_number_source::<T>();
     }
 }
 

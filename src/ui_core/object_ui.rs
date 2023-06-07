@@ -11,11 +11,13 @@ use rand::{thread_rng, Rng};
 
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
-    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
     serialization::{Deserializer, Serializable, Serializer},
-    soundinput::{InputOptions, SoundInputId},
-    soundnumberinput::SoundNumberInputId,
-    soundprocessor::SoundProcessorId,
+    sound::{
+        graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
+        soundinput::{InputOptions, SoundInputId},
+        soundnumberinput::SoundNumberInputId,
+        soundprocessor::SoundProcessorId,
+    },
     uniqueid::UniqueId,
 };
 

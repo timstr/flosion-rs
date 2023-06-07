@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::core::uniqueid::IdGenerator;
+
 use super::{
     compilednumberinput::{ArrayReadFunc, ScalarReadFunc},
     soundgraphdata::{SoundInputData, SoundNumberInputData, SoundNumberSourceData},
@@ -12,7 +14,6 @@ use super::{
         SoundNumberSourceHandle, SoundNumberSourceId, SoundNumberSourceOwner,
     },
     soundprocessor::SoundProcessorId,
-    uniqueid::IdGenerator,
 };
 
 pub struct SoundProcessorTools<'a> {

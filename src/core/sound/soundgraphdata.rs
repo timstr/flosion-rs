@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use crate::core::number::numbergraph::{NumberGraph, NumberGraphInputId};
+
 use super::{
-    numbergraph::{NumberGraph, NumberGraphInputId},
     soundinput::{InputOptions, SoundInputId},
     soundnumberinput::SoundNumberInputId,
     soundnumbersource::{SoundNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},

@@ -17,12 +17,18 @@ use inkwell::{
     OptimizationLevel,
 };
 
-use crate::core::uniqueid::UniqueId;
+use crate::core::{
+    anydata::AnyData,
+    number::{
+        numbergraph::NumberGraphOutputId, numbergraphdata::NumberTarget,
+        numbergraphtopology::NumberGraphTopology, numberinput::NumberInputId,
+    },
+    samplefrequency::SAMPLE_FREQUENCY,
+    sound::context::Context,
+    uniqueid::UniqueId,
+};
 
 use super::{
-    anydata::AnyData, context::Context, numbergraph::NumberGraphOutputId,
-    numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology,
-    numberinput::NumberInputId, samplefrequency::SAMPLE_FREQUENCY,
     soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
 };

@@ -5,15 +5,17 @@ use std::sync::{
 };
 
 use crate::core::{
-    context::Context,
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
+    sound::{
+        context::Context,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        soundinput::InputOptions,
+        soundinputtypes::{SingleInput, SingleInputNode},
+        soundprocessor::StaticSoundProcessor,
+        soundprocessortools::SoundProcessorTools,
+    },
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundinput::InputOptions,
-    soundinputtypes::{SingleInput, SingleInputNode},
-    soundprocessor::StaticSoundProcessor,
-    soundprocessortools::SoundProcessorTools,
 };
 
 use cpal::{

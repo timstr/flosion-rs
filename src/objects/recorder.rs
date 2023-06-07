@@ -3,15 +3,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use parking_lot::RwLock;
 
 use crate::core::{
-    context::Context,
-    graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     serialization::{Serializable, Serializer},
+    sound::{
+        context::Context,
+        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        soundinput::InputOptions,
+        soundinputtypes::{SingleInput, SingleInputNode},
+        soundprocessor::{StaticSoundProcessor, StreamStatus},
+        soundprocessortools::SoundProcessorTools,
+    },
     soundbuffer::SoundBuffer,
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    soundinput::InputOptions,
-    soundinputtypes::{SingleInput, SingleInputNode},
-    soundprocessor::{StaticSoundProcessor, StreamStatus},
-    soundprocessortools::SoundProcessorTools,
 };
 
 const CHUNKS_PER_GROUP: usize = 64;

@@ -3,9 +3,11 @@ use std::collections::HashSet;
 use eframe::egui;
 
 use crate::core::{
-    graphobject::{ObjectId, SoundGraphId},
-    soundgraph::SoundGraph,
-    soundgraphtopology::SoundGraphTopology,
+    sound::{
+        graphobject::{ObjectId, SoundGraphId},
+        soundgraph::SoundGraph,
+        soundgraphtopology::SoundGraphTopology,
+    },
     uniqueid::UniqueId,
 };
 
