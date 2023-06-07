@@ -1,23 +1,21 @@
 use std::sync::Arc;
 
 use super::{
-    numberinput::{NumberInputId, NumberInputOwner},
+    numbergraph::{NumberGraphInputId, NumberGraphOutputId},
+    numberinput::NumberInputId,
     numbersource::{NumberSource, NumberSourceId},
 };
 
 #[derive(Clone)]
-pub(crate) struct NumberSourceInstanceData {
+pub(crate) struct NumberSourceData {
     id: NumberSourceId,
     instance: Arc<dyn NumberSource>,
     inputs: Vec<NumberInputId>,
 }
 
-impl NumberSourceInstanceData {
-    pub(crate) fn new(
-        id: NumberSourceId,
-        instance: Arc<dyn NumberSource>,
-    ) -> NumberSourceInstanceData {
-        NumberSourceInstanceData {
+impl NumberSourceData {
+    pub(crate) fn new(id: NumberSourceId, instance: Arc<dyn NumberSource>) -> NumberSourceData {
+        NumberSourceData {
             id,
             instance,
             inputs: Vec::new(),
@@ -45,44 +43,24 @@ impl NumberSourceInstanceData {
     }
 }
 
-#[derive(Clone)]
-pub(crate) enum NumberSourceData {
-    Instance(NumberSourceInstanceData),
-    GraphInput(NumberSourceId),
-}
-
-impl NumberSourceData {
-    pub(crate) fn new_instance(
-        id: NumberSourceId,
-        instance: Arc<dyn NumberSource>,
-    ) -> NumberSourceData {
-        NumberSourceData::Instance(NumberSourceInstanceData::new(id, instance))
-    }
-
-    pub(crate) fn new_graph_input(id: NumberSourceId) -> NumberSourceData {
-        NumberSourceData::GraphInput(id)
-    }
-
-    pub(crate) fn id(&self) -> NumberSourceId {
-        match self {
-            NumberSourceData::Instance(data) => data.id(),
-            NumberSourceData::GraphInput(id) => *id,
-        }
-    }
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+pub(crate) enum NumberTarget {
+    Source(NumberSourceId),
+    GraphInput(NumberGraphInputId),
 }
 
 #[derive(Clone)]
 pub(crate) struct NumberInputData {
     id: NumberInputId,
-    target: Option<NumberSourceId>,
-    owner: NumberInputOwner,
+    target: Option<NumberTarget>,
+    owner: NumberSourceId,
     default_value: f32,
 }
 
 impl NumberInputData {
     pub(crate) fn new(
         id: NumberInputId,
-        owner: NumberInputOwner,
+        owner: NumberSourceId,
         default_value: f32,
     ) -> NumberInputData {
         NumberInputData {
@@ -97,12 +75,49 @@ impl NumberInputData {
         self.id
     }
 
-    pub fn target(&self) -> Option<NumberSourceId> {
+    pub fn target(&self) -> Option<NumberTarget> {
         self.target
     }
 
-    pub fn owner(&self) -> NumberInputOwner {
+    pub fn set_target(&mut self, target: Option<NumberTarget>) {
+        self.target = target;
+    }
+
+    pub fn owner(&self) -> NumberSourceId {
         self.owner
+    }
+
+    pub fn default_value(&self) -> f32 {
+        self.default_value
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct NumberGraphOutputData {
+    id: NumberGraphOutputId,
+    target: Option<NumberTarget>,
+    default_value: f32,
+}
+
+impl NumberGraphOutputData {
+    pub(crate) fn new(id: NumberGraphOutputId, default_value: f32) -> NumberGraphOutputData {
+        NumberGraphOutputData {
+            id,
+            target: None,
+            default_value,
+        }
+    }
+
+    pub fn id(&self) -> NumberGraphOutputId {
+        self.id
+    }
+
+    pub fn target(&self) -> Option<NumberTarget> {
+        self.target
+    }
+
+    pub fn set_target(&mut self, target: Option<NumberTarget>) {
+        self.target = target;
     }
 
     pub fn default_value(&self) -> f32 {

@@ -1,7 +1,7 @@
 use super::{
     numbergraphdata::NumberInputData,
     numbergraphedit::NumberGraphEdit,
-    numberinput::{NumberInputHandle, NumberInputId, NumberInputOwner},
+    numberinput::{NumberInputHandle, NumberInputId},
     numbersource::NumberSourceId,
     uniqueid::IdGenerator,
 };
@@ -27,16 +27,14 @@ impl<'a> NumberSourceTools<'a> {
 
     pub fn add_number_input(&mut self, default_value: f32) -> NumberInputHandle {
         let id = self.number_input_idgen.next_id();
-        let owner = NumberInputOwner::NumberSource(self.number_source_id);
+        let owner = self.number_source_id;
         let data = NumberInputData::new(id, owner, default_value);
         self.edit_queue.push(NumberGraphEdit::AddNumberInput(data));
         NumberInputHandle::new(id, owner)
     }
 
     pub fn remove_number_input(&mut self, handle: NumberInputHandle) {
-        self.edit_queue.push(NumberGraphEdit::RemoveNumberInput(
-            handle.id(),
-            handle.owner(),
-        ));
+        self.edit_queue
+            .push(NumberGraphEdit::RemoveNumberInput(handle.id()));
     }
 }

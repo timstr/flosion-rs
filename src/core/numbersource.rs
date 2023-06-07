@@ -13,12 +13,6 @@ use super::{
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NumberSourceId(usize);
 
-impl NumberSourceId {
-    pub(crate) fn new(id: usize) -> NumberSourceId {
-        NumberSourceId(id)
-    }
-}
-
 impl Default for NumberSourceId {
     fn default() -> NumberSourceId {
         NumberSourceId(1)
@@ -29,14 +23,10 @@ impl UniqueId for NumberSourceId {
     fn value(&self) -> usize {
         self.0
     }
+
     fn next(&self) -> NumberSourceId {
         NumberSourceId(self.0 + 1)
     }
-}
-
-pub(crate) enum NumberInputOwner {
-    NumberSource(NumberSourceId),
-    ParentGraph,
 }
 
 #[derive(Copy, Clone)]

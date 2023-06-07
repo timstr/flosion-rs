@@ -20,19 +20,13 @@ impl UniqueId for NumberInputId {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum NumberInputOwner {
-    NumberSource(NumberSourceId),
-    ParentGraph,
-}
-
 pub struct NumberInputHandle {
     id: NumberInputId,
-    owner: NumberInputOwner,
+    owner: NumberSourceId,
 }
 
 impl NumberInputHandle {
-    pub(crate) fn new(id: NumberInputId, owner: NumberInputOwner) -> NumberInputHandle {
+    pub(crate) fn new(id: NumberInputId, owner: NumberSourceId) -> NumberInputHandle {
         NumberInputHandle { id, owner }
     }
 
@@ -40,7 +34,7 @@ impl NumberInputHandle {
         self.id
     }
 
-    pub(super) fn owner(&self) -> NumberInputOwner {
+    pub(super) fn owner(&self) -> NumberSourceId {
         self.owner
     }
 }

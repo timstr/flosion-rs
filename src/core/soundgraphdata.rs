@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use super::{
-    numbergraph::NumberGraph,
-    numbersource::NumberSourceId,
+    numbergraph::{NumberGraph, NumberGraphInputId},
     soundinput::{InputOptions, SoundInputId},
     soundnumberinput::SoundNumberInputId,
     soundnumbersource::{SoundNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},
@@ -183,7 +182,7 @@ impl SoundNumberInputData {
 
     pub(crate) fn input_mapping<'a>(
         &'a self,
-    ) -> impl 'a + Iterator<Item = (SoundNumberSourceId, NumberSourceId)> {
+    ) -> impl 'a + Iterator<Item = (SoundNumberSourceId, NumberGraphInputId)> {
         let number_topo = self.number_graph.topology();
         debug_assert_eq!(self.targets.len(), number_topo.graph_inputs().len());
         self.targets

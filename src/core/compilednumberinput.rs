@@ -20,9 +20,9 @@ use inkwell::{
 use crate::core::uniqueid::UniqueId;
 
 use super::{
-    anydata::AnyData, context::Context, numbergraphdata::NumberSourceData,
-    numbergraphtopology::NumberGraphTopology, numberinput::NumberInputId,
-    numbersource::NumberSourceId, samplefrequency::SAMPLE_FREQUENCY,
+    anydata::AnyData, context::Context, numbergraph::NumberGraphOutputId,
+    numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology,
+    numberinput::NumberInputId, samplefrequency::SAMPLE_FREQUENCY,
     soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
 };
@@ -63,7 +63,7 @@ pub struct CodeGen<'ctx> {
     builder: Builder<'ctx>,
     module: Module<'ctx>,
     atomic_captures: Vec<Arc<AtomicF32>>,
-    compiled_sources: HashMap<NumberSourceId, FloatValue<'ctx>>,
+    compiled_targets: HashMap<NumberTarget, FloatValue<'ctx>>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -83,7 +83,7 @@ impl<'ctx> CodeGen<'ctx> {
             builder,
             module,
             atomic_captures: Vec::new(),
-            compiled_sources: HashMap::new(),
+            compiled_targets: HashMap::new(),
         }
     }
 
@@ -94,7 +94,7 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> FloatValue<'ctx> {
         let input_data = topology.number_input(number_input_id).unwrap();
         match input_data.target() {
-            Some(nsid) => self.visit_source(nsid, topology),
+            Some(target) => self.visit_target(target, topology),
             None => self
                 .types
                 .float_type
@@ -102,34 +102,34 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    fn assign_source(&mut self, number_source_id: NumberSourceId, value: FloatValue<'ctx>) {
-        self.compiled_sources.insert(number_source_id, value);
+    fn assign_target(&mut self, target: NumberTarget, value: FloatValue<'ctx>) {
+        self.compiled_targets.insert(target, value);
     }
 
-    fn visit_source(
+    fn visit_target(
         &mut self,
-        number_source_id: NumberSourceId,
+        target: NumberTarget,
         topology: &NumberGraphTopology,
     ) -> FloatValue<'ctx> {
-        if let Some(v) = self.compiled_sources.get(&number_source_id) {
+        if let Some(v) = self.compiled_targets.get(&target) {
             return *v;
         }
-        let source_data = topology.number_source(number_source_id).unwrap();
-        match source_data {
-            NumberSourceData::Instance(inst) => {
-                let input_values: Vec<_> = inst
+        match target {
+            NumberTarget::Source(number_source_id) => {
+                let source_data = topology.number_source(number_source_id).unwrap();
+
+                let input_values: Vec<_> = source_data
                     .number_inputs()
                     .iter()
                     .map(|niid| self.visit_input(*niid, topology))
                     .collect();
-                let v = inst.instance().compile(self, &input_values);
-                self.compiled_sources.insert(number_source_id, v);
+                let v = source_data.instance().compile(self, &input_values);
+                self.compiled_targets
+                    .insert(NumberTarget::Source(number_source_id), v);
                 v
             }
-            NumberSourceData::GraphInput(_) => {
-                // Graph inputs should already have been compiled and found
-                // in the cache above
-                panic!()
+            NumberTarget::GraphInput(_) => {
+                panic!("Missing pre-compiled value for a number graph input")
             }
         }
     }
@@ -462,10 +462,18 @@ impl<'ctx> CodeGen<'ctx> {
         load.into_float_value()
     }
 
-    fn run(&mut self, number_input_id: NumberInputId, topology: &NumberGraphTopology) {
+    fn run(&mut self, output_id: NumberGraphOutputId, topology: &NumberGraphTopology) {
         self.builder
             .position_before(&self.instruction_locations.end_of_bb_loop);
-        let final_value = self.visit_input(number_input_id, topology);
+        let output_data = topology.graph_output(output_id).unwrap();
+        let final_value = match output_data.target() {
+            Some(target) => self.visit_target(target, topology),
+            None => self
+                .types
+                .float_type
+                .const_float(output_data.default_value() as f64)
+                .into(),
+        };
         let dst_elem_ptr = unsafe {
             self.builder.build_gep(
                 self.local_variables.dst_ptr,
@@ -856,20 +864,20 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         let number_topo = sg_number_input_data.number_graph().topology();
 
         // pre-compile all number graph inputs
-        for (snsid, nsid) in sg_number_input_data.input_mapping() {
+        for (snsid, giid) in sg_number_input_data.input_mapping() {
             let value = topology
                 .number_source(snsid)
                 .unwrap()
                 .instance()
                 .compile(&mut codegen);
-            codegen.assign_source(nsid, value);
+            codegen.assign_target(NumberTarget::GraphInput(giid), value);
         }
 
         // TODO: add support for multiple outputs
         assert_eq!(number_topo.graph_outputs().len(), 1);
 
         // compile the number graph output
-        codegen.run(number_topo.graph_outputs()[0], number_topo);
+        codegen.run(number_topo.graph_outputs()[0].id(), number_topo);
 
         if let Err(s) = codegen.module().verify() {
             let s = s.to_string();
