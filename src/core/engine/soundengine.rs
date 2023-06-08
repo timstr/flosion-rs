@@ -11,24 +11,27 @@ use std::{
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
-    soundgraphedit::SoundGraphEdit, soundgraphtopology::SoundGraphTopology, stategraph::StateGraph,
+    scratcharena::ScratchArena, stategraph::StateGraph,
+    stategraphvalidation::state_graph_matches_topology,
 };
 
 use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
-    scratcharena::ScratchArena,
-    sound::{soundgraphvalidation::find_error, stategraphvalidation::state_graph_matches_topology},
+    sound::{
+        soundgraphedit::SoundGraphEdit, soundgraphtopology::SoundGraphTopology,
+        soundgraphvalidation::find_error,
+    },
     soundchunk::CHUNK_SIZE,
 };
 
-pub(super) struct SoundEngineInterface {
+pub(crate) struct SoundEngineInterface {
     keep_running: Arc<AtomicBool>,
     edit_queue: Sender<SoundGraphEdit>,
     join_handle: Option<JoinHandle<()>>,
 }
 
 impl SoundEngineInterface {
-    pub(super) fn make_edit(&self, edit: SoundGraphEdit) {
+    pub(crate) fn make_edit(&self, edit: SoundGraphEdit) {
         self.edit_queue.send(edit).unwrap();
     }
 }
@@ -40,7 +43,7 @@ impl Drop for SoundEngineInterface {
     }
 }
 
-pub(super) struct SoundEngine {
+pub(crate) struct SoundEngine {
     keep_running: Arc<AtomicBool>,
     edit_queue: Receiver<SoundGraphEdit>,
     deadline_warning_issued: bool,
@@ -51,7 +54,7 @@ impl SoundEngine {
         static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
     }
 
-    pub(super) fn spawn() -> SoundEngineInterface {
+    pub(crate) fn spawn() -> SoundEngineInterface {
         let keep_running = Arc::new(AtomicBool::new(true));
         let keep_running_also = Arc::clone(&keep_running);
         let (sender, receiver) = channel();

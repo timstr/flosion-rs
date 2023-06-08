@@ -1,8 +1,8 @@
 use crate::core::{
     anydata::AnyData,
+    engine::scratcharena::{BorrowedSlice, ScratchArena},
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
-    scratcharena::{BorrowedSlice, ScratchArena},
     soundchunk::CHUNK_SIZE,
 };
 
@@ -202,7 +202,7 @@ impl<'a> Context<'a> {
     // TODO: it appears that input states and processor states are always pushed a pair at a time.
     // Consider avoiding half the indirections by storing both in the same frame, and by making
     // the root frame always correspond to a static processor without a target input
-    pub(super) fn push_input(
+    pub(crate) fn push_input(
         &'a self,
         target: Option<SoundProcessorId>,
         input_id: SoundInputId,

@@ -10,7 +10,7 @@ use super::{
     state::StateOwner,
 };
 
-pub(super) fn find_error(topology: &SoundGraphTopology) -> Option<SoundError> {
+pub(crate) fn find_error(topology: &SoundGraphTopology) -> Option<SoundError> {
     check_missing_ids(topology);
 
     if let Some(path) = find_sound_cycle(topology) {

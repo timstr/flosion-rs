@@ -4,7 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use crate::core::{serialization::Serializer, soundchunk::SoundChunk, uniqueid::UniqueId};
+use crate::core::{
+    engine::stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
+    serialization::Serializer,
+    soundchunk::SoundChunk,
+    uniqueid::UniqueId,
+};
 
 use super::{
     context::Context,
@@ -13,7 +18,6 @@ use super::{
     soundnumberinputnode::SoundNumberInputNodeCollection,
     soundprocessortools::SoundProcessorTools,
     state::State,
-    stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -303,7 +307,7 @@ impl ProcessorTiming {
         self.elapsed_chunks = 0;
     }
 
-    pub(super) fn advance_one_chunk(&mut self) {
+    pub(crate) fn advance_one_chunk(&mut self) {
         self.elapsed_chunks += 1;
     }
 
@@ -318,7 +322,7 @@ impl ProcessorTiming {
 
 pub struct StateAndTiming<T: State> {
     state: T,
-    pub(super) timing: ProcessorTiming,
+    pub(crate) timing: ProcessorTiming,
 }
 
 pub trait ProcessorState: 'static + Sync + Send {
@@ -327,6 +331,8 @@ pub trait ProcessorState: 'static + Sync + Send {
     fn is_static(&self) -> bool;
 
     fn timing(&self) -> Option<&ProcessorTiming>;
+
+    fn timing_mut(&mut self) -> Option<&mut ProcessorTiming>;
 
     fn reset(&mut self);
 }
@@ -341,6 +347,10 @@ impl<T: StaticSoundProcessor> ProcessorState for T {
     }
 
     fn timing(&self) -> Option<&ProcessorTiming> {
+        None
+    }
+
+    fn timing_mut(&mut self) -> Option<&mut ProcessorTiming> {
         None
     }
 
@@ -360,6 +370,10 @@ impl<T: State> ProcessorState for StateAndTiming<T> {
 
     fn timing(&self) -> Option<&ProcessorTiming> {
         Some((self as &StateAndTiming<T>).timing())
+    }
+
+    fn timing_mut(&mut self) -> Option<&mut ProcessorTiming> {
+        Some((self as &mut StateAndTiming<T>).timing_mut())
     }
 
     fn reset(&mut self) {
@@ -386,6 +400,10 @@ impl<T: State> StateAndTiming<T> {
 
     pub(super) fn timing(&self) -> &ProcessorTiming {
         &self.timing
+    }
+
+    pub(super) fn timing_mut(&mut self) -> &mut ProcessorTiming {
+        &mut self.timing
     }
 
     pub fn just_started(&self) -> bool {

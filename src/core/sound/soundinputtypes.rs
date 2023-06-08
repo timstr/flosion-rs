@@ -4,6 +4,7 @@ use parking_lot::RwLock;
 
 use crate::core::{
     anydata::AnyData,
+    engine::stategraphnode::NodeTarget,
     numeric,
     soundchunk::{SoundChunk, CHUNK_SIZE},
 };
@@ -17,7 +18,6 @@ use super::{
     soundprocessor::{ProcessorState, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
-    stategraphnode::NodeTarget,
 };
 
 pub struct SingleInput {

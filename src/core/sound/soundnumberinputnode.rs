@@ -16,15 +16,15 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         Self { id, artefact: None }
     }
 
-    pub(super) fn id(&self) -> SoundNumberInputId {
+    pub(crate) fn id(&self) -> SoundNumberInputId {
         self.id
     }
 
-    pub(super) fn is_initialized(&self) -> bool {
+    pub(crate) fn is_initialized(&self) -> bool {
         self.artefact.is_some()
     }
 
-    pub(super) fn recompile(
+    pub(crate) fn recompile(
         &mut self,
         topology: &SoundGraphTopology,
         inkwell_context: &'ctx inkwell::context::Context,

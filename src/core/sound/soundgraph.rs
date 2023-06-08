@@ -1,10 +1,12 @@
 use std::{collections::HashSet, sync::Arc};
 
-use crate::core::uniqueid::IdGenerator;
+use crate::core::{
+    engine::soundengine::{SoundEngine, SoundEngineInterface},
+    uniqueid::IdGenerator,
+};
 
 use super::{
     graphobject::{ObjectId, ObjectInitialization},
-    soundengine::{SoundEngine, SoundEngineInterface},
     soundgraphdata::SoundProcessorData,
     soundgraphedit::SoundGraphEdit,
     soundgrapherror::SoundError,

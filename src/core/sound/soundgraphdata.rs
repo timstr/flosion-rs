@@ -93,7 +93,7 @@ impl SoundProcessorData {
         }
     }
 
-    pub(super) fn id(&self) -> SoundProcessorId {
+    pub(crate) fn id(&self) -> SoundProcessorId {
         self.id
     }
 
@@ -121,7 +121,7 @@ impl SoundProcessorData {
         &mut self.number_inputs
     }
 
-    pub(super) fn instance(&self) -> &dyn SoundProcessor {
+    pub(crate) fn instance(&self) -> &dyn SoundProcessor {
         &*self.processor
     }
 
@@ -153,7 +153,7 @@ impl SoundNumberInputData {
         }
     }
 
-    pub(super) fn id(&self) -> SoundNumberInputId {
+    pub(crate) fn id(&self) -> SoundNumberInputId {
         self.id
     }
 

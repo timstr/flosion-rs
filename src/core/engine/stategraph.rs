@@ -2,20 +2,21 @@ use std::{collections::HashSet, marker::PhantomData};
 
 use inkwell::context::Context;
 
-use crate::core::sound::soundinput::InputTiming;
-
-use super::{
+use crate::core::sound::{
     soundgraphdata::{
         SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
     },
     soundgraphedit::SoundGraphEdit,
     soundgraphtopology::SoundGraphTopology,
-    soundinput::SoundInputId,
+    soundinput::{InputTiming, SoundInputId},
     soundinputnode::{SoundInputNode, SoundInputNodeVisitorMut},
     soundnumberinput::SoundNumberInputId,
     soundnumberinputnode::SoundNumberInputNode,
     soundnumbersource::SoundNumberSourceId,
     soundprocessor::SoundProcessorId,
+};
+
+use super::{
     stategraphnode::StateGraphNode,
     stategraphnode::{NodeTarget, NodeTargetValue},
     stategraphnode::{SharedProcessorNode, UniqueProcessorNode},

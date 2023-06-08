@@ -1,7 +1,6 @@
-use super::{
-    soundinput::{InputTiming, SoundInputId},
-    stategraphnode::NodeTarget,
-};
+use crate::core::engine::stategraphnode::NodeTarget;
+
+use super::soundinput::{InputTiming, SoundInputId};
 
 pub trait SoundInputNodeVisitor<'ctx> {
     fn visit_input(&mut self, input_id: SoundInputId, key_index: usize, target: &NodeTarget<'ctx>);
