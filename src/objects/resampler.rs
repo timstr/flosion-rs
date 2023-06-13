@@ -149,7 +149,7 @@ impl DynamicSoundProcessor for Resampler {
                 *dst_sample.1 = k_inv * acc.1;
             }
         }
-        if sound_inputs.is_done() {
+        if sound_inputs.timing().is_done() {
             StreamStatus::Done
         } else {
             StreamStatus::Playing

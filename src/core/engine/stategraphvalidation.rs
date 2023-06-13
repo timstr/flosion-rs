@@ -132,7 +132,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             node.visit_sound_inputs(
                 &mut |siid: SoundInputId, _kidx: usize, target: &NodeTarget| {
                     let input_data = self.topology.sound_input(siid).unwrap();
-                    if target.processor_id() != input_data.target() {
+                    if target.target_id() != input_data.target() {
                         all_good = false;
                     }
                 },

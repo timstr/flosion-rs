@@ -113,8 +113,8 @@ impl DynamicSoundProcessor for Ensemble {
     ) -> StreamStatus {
         let freq_in = number_inputs.frequency_in.eval_scalar(&context);
         let freq_spread = number_inputs.frequency_spread.eval_scalar(&context);
-        for voice_data in sound_inputs.data_mut() {
-            let voice_state = voice_data.state_mut();
+        for mut item in sound_inputs.items_mut() {
+            let voice_state = item.state_mut();
             if state.just_started() {
                 voice_state.spread_ratio = -1.0 + 2.0 * thread_rng().gen::<f32>();
             }
@@ -123,11 +123,11 @@ impl DynamicSoundProcessor for Ensemble {
 
         dst.silence();
         let mut temp_chunk = SoundChunk::new();
-        for voice_data in sound_inputs.data_mut() {
-            if voice_data.needs_reset() {
-                voice_data.reset(0);
+        for mut item in sound_inputs.items_mut() {
+            if item.timing().needs_reset() {
+                item.reset(0);
             }
-            voice_data.step(state, &mut temp_chunk, &context);
+            item.step(state, &mut temp_chunk, &context);
 
             // TODO: helper tools for mixing
             numeric::mul_scalar_inplace(&mut temp_chunk.l, 0.1);

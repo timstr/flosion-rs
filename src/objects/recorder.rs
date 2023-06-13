@@ -98,7 +98,7 @@ impl StaticSoundProcessor for Recorder {
         dst: &mut SoundChunk,
         ctx: Context,
     ) {
-        if sound_inputs.needs_reset() {
+        if sound_inputs.timing().needs_reset() {
             sound_inputs.reset(0);
         }
         let s = sound_inputs.step(self, dst, &ctx);

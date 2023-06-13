@@ -59,6 +59,13 @@ impl<'ctx> Drop for CompiledNumberInputNode<'ctx> {
 }
 
 impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
+    // TODO: move everything here that isn't unique to each individual
+    // compiled number input into a shared place and stop recreating
+    // it for each new input.
+    // TODO: either make compiled number input nodes very cheap to copy
+    // or find a way to clone the correct number of them ahead of time
+    // so that the audio thread is always able to cheaply update its
+    // nodes
     pub(crate) fn compile(
         number_input_id: SoundNumberInputId,
         topology: &SoundGraphTopology,
@@ -68,6 +75,8 @@ impl<'inkwell_ctx, 'audio_ctx> CompiledNumberInputNode<'inkwell_ctx> {
         let module = inkwell_context.create_module(&module_name);
 
         let builder = inkwell_context.create_builder();
+
+        // TODO: change optimization level here in release builds
         let execution_engine = module
             .create_jit_execution_engine(inkwell::OptimizationLevel::None)
             .unwrap();

@@ -1,25 +1,12 @@
-use std::{collections::HashSet, marker::PhantomData};
-
-use inkwell::context::Context;
-
 use crate::core::sound::{
-    soundgraphdata::{
-        SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
-    },
-    soundgraphedit::SoundGraphEdit,
-    soundgraphtopology::SoundGraphTopology,
-    soundinput::{InputTiming, SoundInputId},
-    soundinputnode::{SoundInputNode, SoundInputNodeVisitorMut},
-    soundnumberinput::SoundNumberInputId,
-    soundnumberinputnode::SoundNumberInputNode,
-    soundnumbersource::SoundNumberSourceId,
-    soundprocessor::SoundProcessorId,
+    soundgraphdata::SoundNumberInputData, soundinput::SoundInputId, soundinputnode::SoundInputNode,
+    soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
 };
 
 use super::{
-    stategraphnode::StateGraphNode,
-    stategraphnode::{NodeTarget, NodeTargetValue},
-    stategraphnode::{SharedProcessorNode, UniqueProcessorNode},
+    stategraphedit::StateGraphEdit,
+    stategraphnode::{NodeTargetValue, SharedProcessorNode},
+    stategraphnode::{OpaqueNodeTargetValue, StateGraphNode},
 };
 
 // A directed acyclic graph of nodes representing invidual sound processors,
@@ -44,77 +31,79 @@ impl<'ctx> StateGraph<'ctx> {
         &self.static_nodes
     }
 
-    pub(super) fn make_edit(
-        &mut self,
-        edit: SoundGraphEdit,
-        topology: &SoundGraphTopology,
-        context: &'ctx Context,
-    ) {
+    pub(super) fn make_edit(&mut self, edit: StateGraphEdit<'ctx>) {
         // TODO: consider adding a special edit type which marks that a batch of updates
         // is over, in order to avoid keeping all invariants in check unecessarily (e.g.
         // recompiling number inputs over and over). This would go nicely with marking
         // number inputs as "dirty" until updated
         match edit {
-            SoundGraphEdit::AddSoundProcessor(data) => self.add_sound_processor(data, context),
-            SoundGraphEdit::RemoveSoundProcessor(spid) => self.remove_sound_processor(spid),
-            SoundGraphEdit::AddSoundInput(data) => self.add_sound_input(data),
-            SoundGraphEdit::RemoveSoundInput(siid, owner) => self.remove_sound_input(siid, owner),
-            SoundGraphEdit::AddSoundInputKey(siid, i) => {
-                self.add_sound_input_key(siid, i, topology.sound_input(siid).unwrap().owner())
+            StateGraphEdit::AddStaticSoundProcessor(data) => self.add_static_sound_processor(data),
+            StateGraphEdit::RemoveStaticSoundProcessor(spid) => {
+                self.remove_static_sound_processor(spid)
             }
-            SoundGraphEdit::RemoveSoundInputKey(siid, i) => {
-                self.remove_sound_input_key(siid, i, topology.sound_input(siid).unwrap().owner())
+            StateGraphEdit::AddSoundInput {
+                input_id,
+                owner,
+                targets,
+            } => self.add_sound_input(input_id, owner, targets),
+            StateGraphEdit::RemoveSoundInput { input_id, owner_id } => {
+                self.remove_sound_input(input_id, owner_id)
             }
-            SoundGraphEdit::ConnectSoundInput(siid, spid) => {
-                self.connect_sound_input(siid, spid, topology, context)
-            }
-            SoundGraphEdit::DisconnectSoundInput(siid) => {
-                self.disconnect_sound_input(siid, topology)
-            }
-            SoundGraphEdit::AddNumberSource(data) => self.add_number_source(data),
-            SoundGraphEdit::RemoveNumberSource(nsid, _owner) => self.remove_number_source(nsid),
-            SoundGraphEdit::AddNumberInput(data) => self.add_number_input(data, topology, context),
-            SoundGraphEdit::RemoveNumberInput(niid, _owner) => {
-                self.remove_number_input(niid, topology, context)
-            }
-            SoundGraphEdit::ConnectNumberInput(niid, nsid) => {
-                self.connect_number_input(niid, nsid, topology, context)
-            }
-            SoundGraphEdit::DisconnectNumberInput(niid, nsid) => {
-                self.disconnect_number_input(niid, nsid, topology, context)
-            }
+            StateGraphEdit::AddSoundInputKey {
+                input_id,
+                owner_id,
+                key_index,
+                targets,
+            } => self.add_sound_input_key(input_id, key_index, owner_id, targets),
+            StateGraphEdit::RemoveSoundInputKey {
+                input_id,
+                owner_id,
+                key_index,
+            } => self.remove_sound_input_key(input_id, key_index, owner_id),
+            StateGraphEdit::ReplaceSoundInputTargets {
+                input_id,
+                owner_id,
+                targets,
+            } => self.replace_sound_input_targets(input_id, owner_id, targets),
+            StateGraphEdit::UpdateNumberInput(_, _) => todo!(),
         }
     }
 
-    fn add_sound_processor<'a>(&'a mut self, data: SoundProcessorData, context: &'ctx Context) {
-        // if the processor is static, add it as an entry point
-        // otherwise, since it isn't connected to anything
-        // and thus won't be called, nothing needs doing
-        if !data.instance().is_static() {
-            return;
-        }
-        let node = data.instance_arc().make_node(context);
+    fn add_static_sound_processor<'a>(&'a mut self, node: Box<dyn StateGraphNode<'ctx>>) {
         let shared_node = SharedProcessorNode::<'ctx>::new(node);
         self.static_nodes.push(shared_node);
     }
 
-    fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
+    fn remove_static_sound_processor(&mut self, processor_id: SoundProcessorId) {
         // NOTE: the processor is assumed to already be completely
         // disconnected. Dynamic processor nodes will thus have no
         // nodes allocated, and only static processors will have
         // allocated nodes.
+        // TODO: throw removed node into the garbage chute
         self.static_nodes.retain(|n| n.id() != processor_id);
     }
 
-    fn add_sound_input(&mut self, data: SoundInputData) {
-        Self::modify_sound_input_node(&mut self.static_nodes, data.owner(), |node| {
-            node.add_input(data.id());
+    fn add_sound_input(
+        &mut self,
+        input_id: SoundInputId,
+        owner: SoundProcessorId,
+        mut targets: Vec<NodeTargetValue<'ctx>>,
+    ) {
+        Self::modify_sound_input_node(&mut self.static_nodes, owner, |node| {
+            let key_index = 0;
+            node.insert_target(
+                input_id,
+                key_index,
+                OpaqueNodeTargetValue(targets.pop().unwrap()),
+            );
         });
     }
 
     fn remove_sound_input(&mut self, input_id: SoundInputId, owner: SoundProcessorId) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner, |node| {
-            node.remove_input(input_id);
+            let key_index = 0;
+            let old_target = node.erase_target(input_id, key_index);
+            // TODO: put old_target in the garbage chute
         });
     }
 
@@ -123,9 +112,14 @@ impl<'ctx> StateGraph<'ctx> {
         input_id: SoundInputId,
         index: usize,
         owner_id: SoundProcessorId,
+        mut targets: Vec<NodeTargetValue<'ctx>>,
     ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner_id, |node| {
-            node.add_key(input_id, index);
+            node.insert_target(
+                input_id,
+                index,
+                OpaqueNodeTargetValue(targets.pop().unwrap()),
+            );
         });
     }
 
@@ -136,147 +130,30 @@ impl<'ctx> StateGraph<'ctx> {
         owner_id: SoundProcessorId,
     ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner_id, |node| {
-            node.remove_key(input_id, index);
+            let old_target = node.erase_target(input_id, index);
+            // TODO: put old_target in the garbage chute
         });
     }
 
-    fn connect_sound_input(
+    fn add_number_input(&mut self, data: SoundNumberInputData) {
+        todo!();
+    }
+
+    fn remove_number_input(&mut self, input_id: SoundNumberInputId) {
+        todo!();
+    }
+
+    fn replace_sound_input_targets(
         &mut self,
         input_id: SoundInputId,
-        processor_id: SoundProcessorId,
-        topology: &SoundGraphTopology,
-        context: &'ctx Context,
+        owner_id: SoundProcessorId,
+        mut targets: Vec<NodeTargetValue<'ctx>>,
     ) {
-        let input_data = topology.sound_input(input_id).unwrap();
-
-        // TODO: allocate these not on the audio thread
-        // TODO: make this context-aware so that it detects reused nodes in a synchronous
-        // group and caches them.
-        // For now, no caching...
-
-        let num_input_nodes = self.count_input_nodes(input_data.id());
-        let mut targets = Vec::new();
-        for _ in 0..num_input_nodes {
-            targets.push(Self::allocate_subgraph(
-                &self.static_nodes,
-                processor_id,
-                topology,
-                context,
-            ));
-        }
-
-        Self::modify_sound_input_node(&mut self.static_nodes, input_data.owner(), |node| {
-            node.visit_inputs_mut(
-                &mut |siid: SoundInputId,
-                      _kidx: usize,
-                      tgt: &mut NodeTarget<'ctx>,
-                      timing: &mut InputTiming| {
-                    if siid == input_id {
-                        debug_assert!(tgt.is_empty());
-                        tgt.set_target(targets.pop().unwrap());
-                        timing.require_reset();
-                    }
-                },
-            );
+        Self::modify_sound_input_node(&mut self.static_nodes, owner_id, |node| {
+            for target in node.targets_mut() {
+                target.set_target(targets.pop().unwrap());
+            }
         });
-
-        debug_assert!(targets.is_empty());
-    }
-
-    fn disconnect_sound_input(&mut self, input_id: SoundInputId, topology: &SoundGraphTopology) {
-        let input_data = topology.sound_input(input_id).unwrap();
-        Self::modify_sound_input_node(&mut self.static_nodes, input_data.owner(), |node| {
-            node.visit_inputs_mut(
-                &mut |_siid: SoundInputId,
-                      _kidx: usize,
-                      tgt: &mut NodeTarget,
-                      timing: &mut InputTiming| {
-                    debug_assert!(!tgt.is_empty());
-                    tgt.set_target(NodeTargetValue::Empty);
-                    timing.mark_as_done();
-                },
-            )
-        });
-    }
-
-    fn add_number_source(&mut self, _data: SoundNumberSourceData) {
-        // The number source is not connected to anything,
-        // and so can't be evaluated and can't trigger a re-compile
-    }
-
-    fn remove_number_source(&mut self, _source_id: SoundNumberSourceId) {
-        // similar to add_number_source
-    }
-
-    fn add_number_input(
-        &mut self,
-        data: SoundNumberInputData,
-        topology: &SoundGraphTopology,
-        context: &'ctx Context,
-    ) {
-        // add a number input node to the owner processor's nodes
-        // but leave them empty - the new number input can't
-        // be connected to anything yet.
-        Self::modify_processor_node(
-            &mut self.static_nodes,
-            data.owner(),
-            |node: &mut dyn StateGraphNode<'ctx>| {
-                node.number_input_node_mut().add_input(data.id());
-                node.visit_number_inputs_mut(&mut |input: &mut SoundNumberInputNode<'ctx>| {
-                    if input.id() == data.id() {
-                        // TODO: do this not on the audio thread
-                        input.recompile(topology, context);
-                    }
-                });
-            },
-        );
-    }
-
-    fn remove_number_input(
-        &mut self,
-        input_id: SoundNumberInputId,
-        topology: &SoundGraphTopology,
-        context: &'ctx Context,
-    ) {
-        let data = topology.number_input(input_id).unwrap();
-
-        Self::modify_processor_node(
-            &mut self.static_nodes,
-            data.owner(),
-            |node: &'_ mut dyn StateGraphNode<'ctx>| {
-                node.number_input_node_mut().remove_input(input_id);
-                node.visit_number_inputs_mut(&mut |input: &mut SoundNumberInputNode<'ctx>| {
-                    if input.id() == input_id {
-                        // TODO: do this not on the audio thread
-                        input.recompile(topology, context);
-                    }
-                });
-            },
-        );
-    }
-
-    fn connect_number_input(
-        &mut self,
-        input_id: SoundNumberInputId,
-        source_id: SoundNumberSourceId,
-        topology: &SoundGraphTopology,
-        context: &'ctx inkwell::context::Context,
-    ) {
-        // HACK: recompiling all number inputs for now
-        let dependents = topology.number_inputs().keys().cloned().collect();
-        self.recompile_number_input_nodes(&dependents, topology, context);
-    }
-
-    fn disconnect_number_input(
-        &mut self,
-        _input_id: SoundNumberInputId,
-        _source_id: SoundNumberSourceId,
-        topology: &SoundGraphTopology,
-        context: &'ctx inkwell::context::Context,
-    ) {
-        // HACK: recompiling all number inputs for now
-        let dependents = topology.number_inputs().keys().cloned().collect();
-        self.recompile_number_input_nodes(&dependents, topology, context);
     }
 
     fn modify_sound_input_node<F: FnMut(&mut dyn SoundInputNode<'ctx>)>(
@@ -284,16 +161,7 @@ impl<'ctx> StateGraph<'ctx> {
         owner_id: SoundProcessorId,
         mut f: F,
     ) {
-        let f_input = |_: &mut dyn SoundInputNode<'ctx>| true;
-        let f_processor = |node: &mut dyn StateGraphNode<'ctx>| {
-            if node.id() == owner_id {
-                f(node.sound_input_node_mut());
-                false
-            } else {
-                true
-            }
-        };
-        visit_state_graph(f_input, f_processor, static_nodes);
+        todo!()
     }
 
     fn modify_processor_node<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(
@@ -301,171 +169,6 @@ impl<'ctx> StateGraph<'ctx> {
         processor_id: SoundProcessorId,
         mut f: F,
     ) {
-        let f_input = |_: &mut dyn SoundInputNode<'ctx>| true;
-        let f_processor = |node: &mut dyn StateGraphNode<'ctx>| {
-            if node.id() == processor_id {
-                f(node);
-                false // stop recursing
-            } else {
-                true
-            }
-        };
-        visit_state_graph(f_input, f_processor, static_nodes);
-    }
-
-    fn count_input_nodes(&mut self, input_id: SoundInputId) -> usize {
-        // NOTE: this should ideally take &self, but I'm too lazy
-        // to duplicate all of StateGraphVisitor to be non-mut
-        let mut count = 0;
-
-        let f_input = |node: &mut dyn SoundInputNode<'ctx>| {
-            node.visit_inputs(&mut |id, _key, _target: &NodeTarget<'ctx>| {
-                if id == input_id {
-                    count += 1;
-                }
-            });
-            true
-        };
-        let f_processor = |_: &mut dyn StateGraphNode<'ctx>| true;
-        visit_state_graph(f_input, f_processor, &mut self.static_nodes);
-
-        count
-    }
-
-    fn allocate_subgraph(
-        static_nodes: &[SharedProcessorNode<'ctx>],
-        processor_id: SoundProcessorId,
-        topology: &SoundGraphTopology,
-        context: &'ctx inkwell::context::Context,
-    ) -> NodeTargetValue<'ctx> {
-        // TODO: implement caching properly here
-        // TODO: when caching, make sure to not cache nodes which are parameterized by different states
-        let proc_data = topology.sound_processor(processor_id).unwrap();
-        if proc_data.instance().is_static() {
-            let shared_node = static_nodes
-                .iter()
-                .find(|n| n.id() == processor_id)
-                .unwrap()
-                .clone();
-            NodeTargetValue::Shared(shared_node)
-        } else {
-            let mut node = proc_data.instance_arc().make_node(context);
-            // TODO: do the equivalent of adding all soundinputs to the node right here.
-            // Otherwise, they will be missing or inactive
-            for input_id in proc_data.sound_inputs() {
-                node.sound_input_node_mut().add_input(*input_id);
-            }
-            node.number_input_node_mut().visit_number_inputs_mut(
-                &mut |n: &mut SoundNumberInputNode<'ctx>| {
-                    n.recompile(topology, context);
-                },
-            );
-            node.visit_sound_inputs_mut(
-                &mut |input_id: SoundInputId,
-                      _key_index: usize,
-                      node: &mut NodeTarget<'ctx>,
-                      timing: &mut InputTiming| {
-                    debug_assert!(node.is_empty());
-                    let input_data = topology.sound_input(input_id).unwrap();
-                    let target = match input_data.target() {
-                        Some(spid) => {
-                            Self::allocate_subgraph(static_nodes, spid, topology, context)
-                        }
-                        None => NodeTargetValue::Empty,
-                    };
-                    node.set_target(target);
-                    timing.require_reset();
-                },
-            );
-            let unique_node = UniqueProcessorNode::new(node);
-            NodeTargetValue::Unique(unique_node)
-        }
-    }
-
-    fn recompile_number_input_nodes(
-        &mut self,
-        which_nodes: &HashSet<SoundNumberInputId>,
-        topology: &SoundGraphTopology,
-        context: &'ctx inkwell::context::Context,
-    ) {
-        let f_input = |_: &mut dyn SoundInputNode<'ctx>| true;
-        let f_processor = |node: &mut dyn StateGraphNode<'ctx>| {
-            node.visit_number_inputs_mut(&mut |ni: &mut SoundNumberInputNode<'ctx>| {
-                if which_nodes.contains(&ni.id()) {
-                    // TODO: do this not on the audio thread
-                    ni.recompile(topology, context);
-                }
-            });
-            true
-        };
-        visit_state_graph(f_input, f_processor, &mut self.static_nodes);
-    }
-}
-
-struct StateGraphVisitor<'ctx, FInput, FProcessor>
-where
-    FInput: FnMut(&mut dyn SoundInputNode<'ctx>) -> bool,
-    FProcessor: FnMut(&mut dyn StateGraphNode<'ctx>) -> bool,
-{
-    f_input: FInput,
-    f_processor: FProcessor,
-    visited_nodes: HashSet<*const ()>,
-    phantom_data: PhantomData<&'ctx ()>,
-}
-
-impl<'ctx, FInput, FProcessor> StateGraphVisitor<'ctx, FInput, FProcessor>
-where
-    FInput: FnMut(&mut dyn SoundInputNode<'ctx>) -> bool,
-    FProcessor: FnMut(&mut dyn StateGraphNode<'ctx>) -> bool,
-{
-    fn visit_node<'a>(&mut self, node: &'a mut dyn StateGraphNode<'ctx>) {
-        let ptr = node.address();
-        if self.visited_nodes.contains(&ptr) {
-            return;
-        }
-        self.visited_nodes.insert(ptr);
-        if (self.f_processor)(node) {
-            if (self.f_input)(node.sound_input_node_mut()) {
-                node.visit_sound_inputs_mut(self);
-            }
-        }
-    }
-}
-
-impl<'ctx, FInput, FProcessor> SoundInputNodeVisitorMut<'ctx>
-    for StateGraphVisitor<'ctx, FInput, FProcessor>
-where
-    FInput: FnMut(&mut dyn SoundInputNode<'ctx>) -> bool,
-    FProcessor: FnMut(&mut dyn StateGraphNode<'ctx>) -> bool,
-{
-    fn visit_input(
-        &mut self,
-        _input_id: SoundInputId,
-        _key_index: usize,
-        target: &mut NodeTarget<'ctx>,
-        timing: &mut InputTiming,
-    ) {
-        target.visit(|n: &mut dyn StateGraphNode<'ctx>| {
-            self.visit_node(n);
-        })
-    }
-}
-
-fn visit_state_graph<'ctx, FInput, FProcessor>(
-    f_input: FInput,
-    f_processor: FProcessor,
-    entry_points: &mut [SharedProcessorNode<'ctx>],
-) where
-    FInput: FnMut(&mut dyn SoundInputNode<'ctx>) -> bool,
-    FProcessor: FnMut(&mut dyn StateGraphNode<'ctx>) -> bool,
-{
-    let mut visitor = StateGraphVisitor {
-        f_input,
-        f_processor,
-        visited_nodes: HashSet::new(),
-        phantom_data: PhantomData,
-    };
-    for node in entry_points {
-        visitor.visit_node(node.borrow_data_mut().node_mut());
+        todo!()
     }
 }

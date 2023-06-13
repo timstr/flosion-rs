@@ -1,9 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::core::sound::soundnumbersource::SoundNumberSourceOwner;
+use crate::core::{
+    number::numbergraphedit::NumberGraphEdit, sound::soundnumbersource::SoundNumberSourceOwner,
+};
 
 use super::{
     graphobject::{GraphObjectHandle, ObjectId, SoundGraphId},
+    soundedit::{SoundEdit, SoundNumberEdit},
     soundgraphdata::{
         SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
     },
@@ -111,24 +114,39 @@ impl SoundGraphTopology {
         sound_objects
     }
 
-    pub(crate) fn make_edit(&mut self, edit: SoundGraphEdit) {
+    pub(crate) fn make_sound_graph_edit(&mut self, edit: SoundGraphEdit) {
         match edit {
-            SoundGraphEdit::AddSoundProcessor(data) => self.add_sound_processor(data),
-            SoundGraphEdit::RemoveSoundProcessor(id) => self.remove_sound_processor(id),
-            SoundGraphEdit::AddSoundInput(data) => self.add_sound_input(data),
-            SoundGraphEdit::RemoveSoundInput(id, owner) => self.remove_sound_input(id, owner),
-            SoundGraphEdit::AddSoundInputKey(siid, i) => self.add_sound_input_key(siid, i),
-            SoundGraphEdit::RemoveSoundInputKey(siid, i) => self.remove_sound_input_key(siid, i),
-            SoundGraphEdit::ConnectSoundInput(siid, spid) => self.connect_sound_input(siid, spid),
-            SoundGraphEdit::DisconnectSoundInput(siid) => self.disconnect_sound_input(siid),
-            SoundGraphEdit::AddNumberSource(data) => self.add_number_source(data),
-            SoundGraphEdit::RemoveNumberSource(id, owner) => self.remove_number_source(id, owner),
-            SoundGraphEdit::AddNumberInput(data) => self.add_number_input(data),
-            SoundGraphEdit::RemoveNumberInput(id, owner) => self.remove_number_input(id, owner),
-            SoundGraphEdit::ConnectNumberInput(niid, nsid) => self.connect_number_input(niid, nsid),
-            SoundGraphEdit::DisconnectNumberInput(niid, nsid) => {
+            SoundGraphEdit::Sound(e) => self.make_sound_edit(e),
+            SoundGraphEdit::Number(e) => self.make_sound_number_edit(e),
+        }
+    }
+
+    pub(crate) fn make_sound_edit(&mut self, edit: SoundEdit) {
+        match edit {
+            SoundEdit::AddSoundProcessor(data) => self.add_sound_processor(data),
+            SoundEdit::RemoveSoundProcessor(id) => self.remove_sound_processor(id),
+            SoundEdit::AddSoundInput(data) => self.add_sound_input(data),
+            SoundEdit::RemoveSoundInput(id, owner) => self.remove_sound_input(id, owner),
+            SoundEdit::AddSoundInputKey(siid, i) => self.add_sound_input_key(siid, i),
+            SoundEdit::RemoveSoundInputKey(siid, i) => self.remove_sound_input_key(siid, i),
+            SoundEdit::ConnectSoundInput(siid, spid) => self.connect_sound_input(siid, spid),
+            SoundEdit::DisconnectSoundInput(siid) => self.disconnect_sound_input(siid),
+        }
+    }
+
+    pub(crate) fn make_sound_number_edit(&mut self, edit: SoundNumberEdit) {
+        match edit {
+            SoundNumberEdit::AddNumberSource(data) => self.add_number_source(data),
+            SoundNumberEdit::RemoveNumberSource(id, owner) => self.remove_number_source(id, owner),
+            SoundNumberEdit::AddNumberInput(data) => self.add_number_input(data),
+            SoundNumberEdit::RemoveNumberInput(id, owner) => self.remove_number_input(id, owner),
+            SoundNumberEdit::ConnectNumberInput(niid, nsid) => {
+                self.connect_number_input(niid, nsid)
+            }
+            SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
                 self.disconnect_number_input(niid, nsid)
             }
+            SoundNumberEdit::EditNumberInput(niid, edits) => self.edit_number_input(niid, edits),
         }
     }
 
@@ -287,18 +305,22 @@ impl SoundGraphTopology {
         let input_data = self.number_inputs.get_mut(&input_id).unwrap();
         input_data.remove_target(nsid);
     }
-}
 
-// TODO: precomputed dependencies?
-// - does one processor depend on another?
-//     - useful for validating number connection scope
-// does one number input depend indirectly on a given source?
-//     - useful for determining recompilation efficiently
-// then again, recompilation can be determined once per edit
-// and then applied to all affected number inputs.
-// Also, recompilation could be deffered until the after the
-// last edit in order to avoid wasted work. Affected number input
-// nodes could simply be invalidated and then recompiled in a singel
-// pass afterwards, which would have significant speedup for many
-// edits in row
-//
+    fn edit_number_input(&mut self, niid: SoundNumberInputId, edits: Vec<NumberGraphEdit>) {
+        let input_data = self.number_inputs.get_mut(&niid).unwrap();
+        // input_data.number_graph
+        todo!()
+        // TODO
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    }
+}

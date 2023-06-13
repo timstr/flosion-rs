@@ -10,68 +10,83 @@ use std::{
 
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use super::{
-    scratcharena::ScratchArena, stategraph::StateGraph,
-    stategraphvalidation::state_graph_matches_topology,
-};
+use super::{scratcharena::ScratchArena, stategraph::StateGraph, stategraphedit::StateGraphEdit};
 
 use crate::core::{
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{
-        soundgraphedit::SoundGraphEdit, soundgraphtopology::SoundGraphTopology,
-        soundgraphvalidation::find_error,
-    },
-    soundchunk::CHUNK_SIZE,
+    jit::jitcontext::JitContext, samplefrequency::SAMPLE_FREQUENCY,
+    sound::soundgraphtopology::SoundGraphTopology, soundchunk::CHUNK_SIZE,
 };
 
-pub(crate) struct SoundEngineInterface {
+pub(crate) struct SoundEngineInterface<'ctx> {
+    current_topology: SoundGraphTopology,
     keep_running: Arc<AtomicBool>,
-    edit_queue: Sender<SoundGraphEdit>,
+    edit_queue: Sender<StateGraphEdit<'ctx>>,
     join_handle: Option<JoinHandle<()>>,
 }
 
-impl SoundEngineInterface {
-    pub(crate) fn make_edit(&self, edit: SoundGraphEdit) {
-        self.edit_queue.send(edit).unwrap();
+impl<'ctx> SoundEngineInterface<'ctx> {
+    pub(crate) fn update(&mut self, new_topology: SoundGraphTopology) {
+        // TODO: diff current and new topology and create a list of state
+        // graph edits
+        // TODO: as a simpler first pass, consider just regenerating the
+        // entire state graph, e.g. replacing all state processors and
+        // their targets
+        todo!()
+        // self.edit_queue.send(edit).unwrap();
+        // self.current_topology = new_topology;
     }
 }
 
-impl Drop for SoundEngineInterface {
+impl<'ctx> Drop for SoundEngineInterface<'ctx> {
     fn drop(&mut self) {
         self.keep_running.store(false, Ordering::SeqCst);
         self.join_handle.take().unwrap().join().unwrap();
     }
 }
 
-pub(crate) struct SoundEngine {
+pub(crate) struct SoundEngine<'ctx> {
+    // TODO: add a queue for whatever objects the state graph no longer needs
+    // (e.g. removed sound processors, out-of-date compiled number inputs,
+    // removed sound input targets, etc) which need to be dropped but should
+    // ideally be dropped on a different thread to avoid spending audio
+    // processing deallocating objects. Call it the garbage chute maybe.
+    // Might require a dedicated trait so that Arc<dyn Garbage> or
+    // Box<dyn Garbage> can be sent down the chute.
     keep_running: Arc<AtomicBool>,
-    edit_queue: Receiver<SoundGraphEdit>,
+    edit_queue: Receiver<StateGraphEdit<'ctx>>,
     deadline_warning_issued: bool,
 }
 
-impl SoundEngine {
+pub(crate) fn spawn_sound_engine<'ctx>(
+    jit_context: &'ctx JitContext,
+) -> SoundEngineInterface<'ctx> {
+    let keep_running = Arc::new(AtomicBool::new(true));
+    let keep_running_also = Arc::clone(&keep_running);
+    let (sender, receiver) = channel();
+    let join_handle = thread::spawn(move || {
+        // NOTE: state_graph is not Send, and so must be constructed on the audio thread
+        // let mut se = SoundEngine {
+        //     keep_running: keep_running_also,
+        //     edit_queue: receiver,
+        //     deadline_warning_issued: false,
+        // };
+        // se.run();
+        // TODO: store only a single inkwell ExecutionEngine as part of a pre-constructed jit context,
+        // and just hope that inkwell's JitFunction is Send
+        // See notes in compilednumberinput.rs
+        todo!()
+    });
+    SoundEngineInterface {
+        current_topology: SoundGraphTopology::new(),
+        keep_running,
+        edit_queue: sender,
+        join_handle: Some(join_handle),
+    }
+}
+
+impl<'ctx> SoundEngine<'ctx> {
     thread_local! {
         static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
-    }
-
-    pub(crate) fn spawn() -> SoundEngineInterface {
-        let keep_running = Arc::new(AtomicBool::new(true));
-        let keep_running_also = Arc::clone(&keep_running);
-        let (sender, receiver) = channel();
-        let join_handle = thread::spawn(move || {
-            // NOTE: state_graph is not Send, and so must be constructed on the audio thread
-            let mut se = SoundEngine {
-                keep_running: keep_running_also,
-                edit_queue: receiver,
-                deadline_warning_issued: false,
-            };
-            se.run();
-        });
-        SoundEngineInterface {
-            keep_running,
-            edit_queue: sender,
-            join_handle: Some(join_handle),
-        }
     }
 
     fn run(&mut self) {
@@ -81,15 +96,14 @@ impl SoundEngine {
         set_current_thread_priority(ThreadPriority::Max).unwrap();
 
         let context = inkwell::context::Context::create();
-        let mut topology = SoundGraphTopology::new();
         let mut state_graph = StateGraph::new();
 
         let mut deadline = Instant::now() + chunk_duration;
 
         loop {
-            self.flush_updates(&mut state_graph, &mut topology, &context);
+            self.flush_updates(&mut state_graph);
 
-            self.process_audio(&state_graph, &topology);
+            self.process_audio(&state_graph);
             if !self.keep_running.load(Ordering::Relaxed) {
                 break;
             }
@@ -109,48 +123,19 @@ impl SoundEngine {
         }
     }
 
-    fn flush_updates<'ctx>(
-        &mut self,
-        state_graph: &mut StateGraph<'ctx>,
-        topology: &mut SoundGraphTopology,
-        context: &'ctx inkwell::context::Context,
-    ) {
+    fn flush_updates(&mut self, state_graph: &mut StateGraph<'ctx>) {
         while let Ok(edit) = self.edit_queue.try_recv() {
-            // TODO: consider removing connections from state graph first
-            // too if that makes diffing and editing easier
-            let stategraph_first = match edit {
-                SoundGraphEdit::AddSoundProcessor(_) => false,
-                SoundGraphEdit::RemoveSoundProcessor(_) => true,
-                SoundGraphEdit::AddSoundInput(_) => false,
-                SoundGraphEdit::RemoveSoundInput(_, _) => true,
-                SoundGraphEdit::AddSoundInputKey(_, _) => false,
-                SoundGraphEdit::RemoveSoundInputKey(_, _) => true,
-                SoundGraphEdit::ConnectSoundInput(_, _) => false,
-                SoundGraphEdit::DisconnectSoundInput(_) => false,
-                SoundGraphEdit::AddNumberSource(_) => false,
-                SoundGraphEdit::RemoveNumberSource(_, _) => true,
-                SoundGraphEdit::AddNumberInput(_) => false,
-                SoundGraphEdit::RemoveNumberInput(_, _) => true,
-                SoundGraphEdit::ConnectNumberInput(_, _) => false,
-                SoundGraphEdit::DisconnectNumberInput(_, _) => false,
-            };
-            if stategraph_first {
-                state_graph.make_edit(edit.clone(), topology, context);
-                topology.make_edit(edit);
-            } else {
-                topology.make_edit(edit.clone());
-                state_graph.make_edit(edit, topology, context);
-            }
-            debug_assert!(find_error(topology).is_none());
-            debug_assert!(state_graph_matches_topology(state_graph, topology));
+            state_graph.make_edit(edit);
+            // TODO: consider adding back a way to ensure that the state graph
+            // matches the corresponding topology in debug builds
         }
     }
 
-    fn process_audio(&mut self, state_graph: &StateGraph, topology: &SoundGraphTopology) {
+    fn process_audio(&mut self, state_graph: &StateGraph) {
         Self::SCRATCH_SPACE.with(|scratch_space| {
             for node in state_graph.static_nodes() {
                 if node.is_entry_point() {
-                    node.invoke_externally(topology, scratch_space);
+                    node.invoke_externally(scratch_space);
                 }
             }
         });

@@ -1,12 +1,19 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::{
+        mpsc::{channel, Sender},
+        Arc,
+    },
+    thread::JoinHandle,
+};
 
 use crate::core::{
-    engine::soundengine::{SoundEngine, SoundEngineInterface},
-    uniqueid::IdGenerator,
+    engine::soundengine::spawn_sound_engine, jit::jitcontext::JitContext, uniqueid::IdGenerator,
 };
 
 use super::{
     graphobject::{ObjectId, ObjectInitialization},
+    soundedit::{SoundEdit, SoundNumberEdit},
     soundgraphdata::SoundProcessorData,
     soundgraphedit::SoundGraphEdit,
     soundgrapherror::SoundError,
@@ -115,7 +122,8 @@ impl SoundGraphClosure {
 pub struct SoundGraph {
     local_topology: SoundGraphTopology,
 
-    engine_interface: SoundEngineInterface,
+    engine_interface_thread: JoinHandle<()>,
+    topology_sender: Sender<SoundGraphTopology>,
 
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
@@ -125,9 +133,23 @@ pub struct SoundGraph {
 
 impl SoundGraph {
     pub fn new() -> SoundGraph {
-        let engine_interface = SoundEngine::spawn();
+        // extra thread just to clearly limit the lifetime
+        // of the jit context and prevent lifetime annotations
+        // from ballooning out.
+        // sigh...
+
+        let (sender, receiver) = channel();
+        let engine_interface_thread = std::thread::spawn(move || {
+            let jit_context = JitContext::new();
+            let mut engine_interface = spawn_sound_engine(&jit_context);
+            while let Ok(topo) = receiver.recv() {
+                engine_interface.update(topo);
+            }
+        });
+
         SoundGraph {
-            engine_interface,
+            engine_interface_thread,
+            topology_sender: sender,
 
             local_topology: SoundGraphTopology::new(),
 
@@ -152,7 +174,7 @@ impl SoundGraph {
         }
         let processor2 = Arc::clone(&processor);
         let data = SoundProcessorData::new(processor);
-        edit_queue.insert(0, SoundGraphEdit::AddSoundProcessor(data));
+        edit_queue.insert(0, SoundGraphEdit::Sound(SoundEdit::AddSoundProcessor(data)));
         self.try_make_edits(edit_queue).unwrap();
         Ok(StaticSoundProcessorHandle::new(processor2))
     }
@@ -171,7 +193,7 @@ impl SoundGraph {
         }
         let processor2 = Arc::clone(&processor);
         let data = SoundProcessorData::new(processor);
-        edit_queue.insert(0, SoundGraphEdit::AddSoundProcessor(data));
+        edit_queue.insert(0, SoundGraphEdit::Sound(SoundEdit::AddSoundProcessor(data)));
         self.try_make_edits(edit_queue).unwrap();
         Ok(DynamicSoundProcessorHandle::new(processor2))
     }
@@ -182,7 +204,10 @@ impl SoundGraph {
         processor_id: SoundProcessorId,
     ) -> Result<(), SoundError> {
         let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::ConnectSoundInput(input_id, processor_id));
+        edit_queue.push(SoundGraphEdit::Sound(SoundEdit::ConnectSoundInput(
+            input_id,
+            processor_id,
+        )));
         self.try_make_edits(edit_queue)
     }
 
@@ -192,7 +217,9 @@ impl SoundGraph {
         source_id: SoundNumberSourceId,
     ) -> Result<(), SoundError> {
         let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::DisconnectNumberInput(input_id, source_id));
+        edit_queue.push(SoundGraphEdit::Number(
+            SoundNumberEdit::DisconnectNumberInput(input_id, source_id),
+        ));
         self.try_make_edits(edit_queue)
     }
 
@@ -202,13 +229,17 @@ impl SoundGraph {
         source_id: SoundNumberSourceId,
     ) -> Result<(), SoundError> {
         let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::ConnectNumberInput(input_id, source_id));
+        edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::ConnectNumberInput(
+            input_id, source_id,
+        )));
         self.try_make_edits(edit_queue)
     }
 
     pub fn disconnect_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
         let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::DisconnectSoundInput(input_id));
+        edit_queue.push(SoundGraphEdit::Sound(SoundEdit::DisconnectSoundInput(
+            input_id,
+        )));
         self.try_make_edits(edit_queue)
     }
 
@@ -231,7 +262,9 @@ impl SoundGraph {
         for ni in self.local_topology.number_inputs().values() {
             for target in ni.targets() {
                 if closure.includes_number_connection(ni.id(), &self.local_topology) {
-                    edit_queue.push(SoundGraphEdit::DisconnectNumberInput(ni.id(), *target));
+                    edit_queue.push(SoundGraphEdit::Number(
+                        SoundNumberEdit::DisconnectNumberInput(ni.id(), *target),
+                    ));
                 }
             }
         }
@@ -240,7 +273,9 @@ impl SoundGraph {
         for si in self.local_topology.sound_inputs().values() {
             if si.target().is_some() {
                 if closure.includes_sound_connection(si.id(), &self.local_topology) {
-                    edit_queue.push(SoundGraphEdit::DisconnectSoundInput(si.id()));
+                    edit_queue.push(SoundGraphEdit::Sound(SoundEdit::DisconnectSoundInput(
+                        si.id(),
+                    )));
                 }
             }
         }
@@ -248,24 +283,32 @@ impl SoundGraph {
         // remove all number inputs
         for niid in &closure.number_inputs {
             let owner = self.local_topology.number_input(*niid).unwrap().owner();
-            edit_queue.push(SoundGraphEdit::RemoveNumberInput(*niid, owner));
+            edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::RemoveNumberInput(
+                *niid, owner,
+            )));
         }
 
         // remove all number sources
         for nsid in &closure.number_sources {
             let owner = self.local_topology.number_source(*nsid).unwrap().owner();
-            edit_queue.push(SoundGraphEdit::RemoveNumberSource(*nsid, owner));
+            edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::RemoveNumberSource(
+                *nsid, owner,
+            )));
         }
 
         // remove all sound inputs
         for siid in &closure.sound_inputs {
             let owner = self.local_topology.sound_input(*siid).unwrap().owner();
-            edit_queue.push(SoundGraphEdit::RemoveSoundInput(*siid, owner));
+            edit_queue.push(SoundGraphEdit::Sound(SoundEdit::RemoveSoundInput(
+                *siid, owner,
+            )));
         }
 
         // remove all sound processors
         for spid in &closure.sound_processors {
-            edit_queue.push(SoundGraphEdit::RemoveSoundProcessor(*spid));
+            edit_queue.push(SoundGraphEdit::Sound(SoundEdit::RemoveSoundProcessor(
+                *spid,
+            )));
         }
 
         self.try_make_edits(edit_queue)
@@ -303,7 +346,7 @@ impl SoundGraph {
             if let Some(err) = edit.check_preconditions(&self.local_topology) {
                 return Err(err);
             }
-            self.local_topology.make_edit(edit.clone());
+            self.local_topology.make_sound_graph_edit(edit.clone());
             if let Some(err) = find_error(&self.local_topology) {
                 return Err(err);
             }
@@ -319,9 +362,7 @@ impl SoundGraph {
             self.local_topology = prev_topology;
         } else {
             debug_assert!(find_error(&self.local_topology).is_none());
-            for edit in edit_queue {
-                self.engine_interface.make_edit(edit);
-            }
+            self.topology_sender.send(self.local_topology.clone());
         }
         res
     }

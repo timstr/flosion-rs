@@ -2,6 +2,7 @@ pub mod context;
 pub mod graphobject;
 // pub mod graphserialization;
 mod path;
+pub(crate) mod soundedit;
 pub mod soundgraph;
 pub(crate) mod soundgraphdata;
 pub mod soundgraphedit;

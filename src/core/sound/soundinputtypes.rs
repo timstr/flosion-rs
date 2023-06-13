@@ -12,9 +12,7 @@ use crate::core::{
 use super::{
     context::Context,
     soundinput::{InputOptions, InputTiming, SoundInputId},
-    soundinputnode::{
-        SoundInputNode, SoundInputNodeVisitor, SoundInputNodeVisitorMut, SoundProcessorInput,
-    },
+    soundinputnode::{SoundInputNode, SoundProcessorInput},
     soundprocessor::{ProcessorState, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,
@@ -49,28 +47,22 @@ impl SoundProcessorInput for SingleInput {
 }
 
 pub struct SingleInputNode<'ctx> {
-    id: SoundInputId,
-    timing: InputTiming,
     target: NodeTarget<'ctx>,
-    active: bool,
 }
 
 impl<'ctx> SingleInputNode<'ctx> {
     pub fn new(id: SoundInputId) -> SingleInputNode<'ctx> {
         SingleInputNode {
-            id,
-            timing: InputTiming::default(),
             target: NodeTarget::new(id),
-            active: false,
         }
     }
 
-    pub fn is_done(&self) -> bool {
-        self.target.is_empty() || self.timing.is_done()
+    pub fn timing(&self) -> &InputTiming {
+        self.target.timing()
     }
 
-    pub fn request_release(&mut self, sample_offset: usize) {
-        self.timing.request_release(sample_offset);
+    pub fn timing_mut(&mut self) -> &mut InputTiming {
+        self.target.timing_mut()
     }
 
     pub fn step<T: ProcessorState>(
@@ -79,57 +71,22 @@ impl<'ctx> SingleInputNode<'ctx> {
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
-        self.target.step(
-            &mut self.timing,
-            processor_state,
-            dst,
-            ctx,
-            self.id,
-            AnyData::new(&()),
-        )
-    }
-
-    pub fn needs_reset(&self) -> bool {
-        self.timing.needs_reset()
-    }
-
-    pub fn require_reset(&mut self) {
-        self.timing.require_reset();
+        self.target
+            .step(processor_state, dst, ctx, AnyData::new(&()))
     }
 
     pub fn reset(&mut self, sample_offset: usize) {
-        self.target.reset();
-        self.timing.reset(sample_offset);
+        self.target.reset(sample_offset);
     }
 }
 
 impl<'ctx> SoundInputNode<'ctx> for SingleInputNode<'ctx> {
-    fn flag_for_reset(&mut self) {
-        self.timing.require_reset();
+    fn targets(&self) -> &[NodeTarget<'ctx>] {
+        todo!()
     }
 
-    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
-        if self.active {
-            visitor.visit_input(self.id, 0, &self.target);
-        }
-    }
-
-    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
-        if self.active {
-            visitor.visit_input(self.id, 0, &mut self.target, &mut self.timing);
-        }
-    }
-
-    fn add_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(input_id, self.id);
-        debug_assert!(!self.active);
-        self.active = true;
-    }
-
-    fn remove_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(input_id, self.id);
-        debug_assert!(self.active);
-        self.active = false;
+    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+        std::slice::from_mut(&mut self.target)
     }
 }
 
@@ -162,10 +119,10 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
         KeyedInputNode {
             id: self.id,
-            data: (0..self.num_keys)
-                .map(|_| KeyedInputData::new(self.id))
+            targets: (0..self.num_keys)
+                .map(|_| NodeTarget::new(self.id))
                 .collect(),
-            active: false,
+            states: (0..self.num_keys).map(|_| S::default()).collect(),
         }
     }
 
@@ -176,31 +133,28 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
 
 pub struct KeyedInputData<'ctx, S: State + Default> {
     id: SoundInputId,
-    timing: InputTiming,
     target: NodeTarget<'ctx>,
     state: S,
 }
 
-impl<'ctx, S: State + Default> KeyedInputData<'ctx, S> {
-    fn new(id: SoundInputId) -> Self {
-        Self {
-            id,
-            timing: InputTiming::default(),
-            target: NodeTarget::new(id),
-            state: S::default(),
-        }
+pub struct KeyedInputNode<'ctx, S: State + Default> {
+    id: SoundInputId,
+    targets: Vec<NodeTarget<'ctx>>,
+    states: Vec<S>,
+}
+
+pub struct KeyedInputNodeItem<'a, 'ctx, S> {
+    target: &'a mut NodeTarget<'ctx>,
+    state: &'a mut S,
+}
+
+impl<'a, 'ctx, S: 'static> KeyedInputNodeItem<'a, 'ctx, S> {
+    pub fn timing(&self) -> &InputTiming {
+        self.target.timing()
     }
 
-    pub fn is_done(&self) -> bool {
-        self.target.is_empty() || self.timing.is_done()
-    }
-
-    pub fn request_release(&mut self, sample_offset: usize) {
-        self.timing.request_release(sample_offset);
-    }
-
-    pub fn was_released(&self) -> bool {
-        self.timing.was_released()
+    pub fn timing_mut(&mut self) -> &mut InputTiming {
+        self.target.timing_mut()
     }
 
     pub fn step<T: ProcessorState>(
@@ -209,14 +163,8 @@ impl<'ctx, S: State + Default> KeyedInputData<'ctx, S> {
         dst: &mut SoundChunk,
         ctx: &Context,
     ) -> StreamStatus {
-        self.target.step(
-            &mut self.timing,
-            processor_state,
-            dst,
-            ctx,
-            self.id,
-            AnyData::new(&self.state),
-        )
+        self.target
+            .step(processor_state, dst, ctx, AnyData::new(self.state))
     }
 
     pub fn state(&self) -> &S {
@@ -227,79 +175,38 @@ impl<'ctx, S: State + Default> KeyedInputData<'ctx, S> {
         &mut self.state
     }
 
-    pub fn needs_reset(&self) -> bool {
-        self.timing.needs_reset()
-    }
-
-    pub fn require_reset(&mut self) {
-        self.timing.require_reset();
-    }
-
     pub fn reset(&mut self, sample_offset: usize) {
-        self.target.reset();
-        self.timing.reset(sample_offset);
+        self.target.reset(sample_offset);
     }
-}
-
-pub struct KeyedInputNode<'ctx, S: State + Default> {
-    id: SoundInputId,
-    data: Vec<KeyedInputData<'ctx, S>>,
-    active: bool,
 }
 
 impl<'ctx, S: State + Default> KeyedInputNode<'ctx, S> {
-    pub fn data(&self) -> &[KeyedInputData<'ctx, S>] {
-        &self.data
+    pub fn items_mut<'a>(&'a mut self) -> impl Iterator<Item = KeyedInputNodeItem<'a, 'ctx, S>> {
+        self.targets
+            .iter_mut()
+            .zip(self.states.iter_mut())
+            .map(|(t, s)| KeyedInputNodeItem {
+                target: t,
+                state: s,
+            })
     }
 
-    pub fn data_mut(&mut self) -> &mut [KeyedInputData<'ctx, S>] {
-        &mut self.data
+    pub fn states(&self) -> &[S] {
+        &self.states
+    }
+
+    pub fn states_mut(&mut self) -> &mut [S] {
+        &mut self.states
     }
 }
 
 impl<'ctx, S: State + Default> SoundInputNode<'ctx> for KeyedInputNode<'ctx, S> {
-    fn flag_for_reset(&mut self) {
-        for d in &mut self.data {
-            d.timing.require_reset();
-        }
+    fn targets(&self) -> &[NodeTarget<'ctx>] {
+        &self.targets
     }
 
-    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
-        if self.active {
-            for (i, d) in self.data.iter().enumerate() {
-                visitor.visit_input(d.id, i, &d.target);
-            }
-        }
-    }
-
-    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
-        if self.active {
-            for (i, d) in self.data.iter_mut().enumerate() {
-                visitor.visit_input(d.id, i, &mut d.target, &mut d.timing);
-            }
-        }
-    }
-
-    fn add_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(input_id, self.id);
-        debug_assert!(!self.active);
-        self.active = true;
-    }
-
-    fn remove_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(input_id, self.id);
-        debug_assert!(self.active);
-        self.active = true;
-    }
-
-    fn add_key(&mut self, input_id: SoundInputId, index: usize) {
-        debug_assert!(input_id == self.id);
-        self.data.insert(index, KeyedInputData::new(self.id));
-    }
-
-    fn remove_key(&mut self, input_id: SoundInputId, index: usize) {
-        debug_assert!(input_id == self.id);
-        self.data.remove(index);
+    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+        &mut self.targets
     }
 }
 
@@ -366,9 +273,14 @@ impl SoundProcessorInput for SingleInputList {
     type NodeType<'ctx> = SingleInputListNode<'ctx>;
 
     fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
-        // NOTE: individual inputs will be added via SoundGraphEdits
-        // by add_input
-        SingleInputListNode { inputs: Vec::new() }
+        SingleInputListNode {
+            targets: self
+                .input_ids
+                .read()
+                .iter()
+                .map(|id| NodeTarget::new(*id))
+                .collect(),
+        }
     }
 
     fn list_ids(&self) -> Vec<SoundInputId> {
@@ -377,45 +289,52 @@ impl SoundProcessorInput for SingleInputList {
 }
 
 pub struct SingleInputListNode<'ctx> {
-    inputs: Vec<SingleInputNode<'ctx>>,
+    targets: Vec<NodeTarget<'ctx>>,
+}
+
+pub struct SingleInputListNodeItem<'a, 'ctx> {
+    target: &'a mut NodeTarget<'ctx>,
+}
+
+impl<'a, 'ctx> SingleInputListNodeItem<'a, 'ctx> {
+    pub fn timing(&self) -> &InputTiming {
+        self.target.timing()
+    }
+
+    pub fn timing_mut(&mut self) -> &mut InputTiming {
+        self.target.timing_mut()
+    }
+
+    pub fn step<T: ProcessorState>(
+        &mut self,
+        processor_state: &T,
+        dst: &mut SoundChunk,
+        ctx: &Context,
+    ) -> StreamStatus {
+        self.target
+            .step(processor_state, dst, ctx, AnyData::new(&()))
+    }
+
+    pub fn reset(&mut self, sample_offset: usize) {
+        self.target.reset(sample_offset)
+    }
 }
 
 impl<'ctx> SingleInputListNode<'ctx> {
-    pub fn get(&self) -> &[SingleInputNode<'ctx>] {
-        &self.inputs
-    }
-    pub fn get_mut(&mut self) -> &mut [SingleInputNode<'ctx>] {
-        &mut self.inputs
+    pub fn items_mut<'a>(&'a mut self) -> impl Iterator<Item = SingleInputListNodeItem<'a, 'ctx>> {
+        self.targets
+            .iter_mut()
+            .map(|t| SingleInputListNodeItem { target: t })
     }
 }
 
 impl<'ctx> SoundInputNode<'ctx> for SingleInputListNode<'ctx> {
-    fn flag_for_reset(&mut self) {
-        for i in &mut self.inputs {
-            i.flag_for_reset();
-        }
+    fn targets(&self) -> &[NodeTarget<'ctx>] {
+        &self.targets
     }
 
-    fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
-        for i in &self.inputs {
-            visitor.visit_input(i.id, 0, &i.target);
-        }
-    }
-
-    fn visit_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
-        for i in &mut self.inputs {
-            visitor.visit_input(i.id, 0, &mut i.target, &mut i.timing);
-        }
-    }
-
-    fn add_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(self.inputs.iter().filter(|i| i.id == input_id).count(), 0);
-        self.inputs.push(SingleInputNode::new(input_id));
-    }
-
-    fn remove_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(self.inputs.iter().filter(|i| i.id == input_id).count(), 1);
-        self.inputs.retain(|i| i.id != input_id);
+    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+        &mut self.targets
     }
 }
 
@@ -477,15 +396,10 @@ impl<I: Copy + Eq, S: State> SoundProcessorInput for KeyedInputQueue<I, S> {
     }
 }
 
-pub struct KeyedInputQueueData<'ctx, I: Copy + Eq, S: State> {
-    timing: InputTiming,
-    target: NodeTarget<'ctx>,
-    state: QueuedKeyState<I, S>,
-}
-
 pub struct KeyedInputQueueNode<'ctx, I: Copy + Eq, S: State> {
     id: SoundInputId,
-    data: Vec<KeyedInputQueueData<'ctx, I, S>>,
+    targets: Vec<NodeTarget<'ctx>>,
+    states: Vec<QueuedKeyState<I, S>>,
     active: bool,
 }
 
@@ -493,12 +407,9 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
     fn new(id: SoundInputId, num_keys: usize) -> Self {
         Self {
             id,
-            data: (0..num_keys)
-                .map(|_| KeyedInputQueueData {
-                    timing: InputTiming::default(),
-                    target: NodeTarget::new(id),
-                    state: QueuedKeyState::NotPlaying(),
-                })
+            targets: (0..num_keys).map(|_| NodeTarget::new(id)).collect(),
+            states: (0..num_keys)
+                .map(|_| QueuedKeyState::NotPlaying())
                 .collect(),
             active: false,
         }
@@ -509,8 +420,8 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
     pub fn start_key(&mut self, duration_samples: Option<usize>, id: I, state: S, reuse: KeyReuse) {
         let mut oldest_key_index_and_age = None;
         let mut available_index = None;
-        for (i, d) in self.data.iter_mut().enumerate() {
-            if let QueuedKeyState::Playing(key_data) = &mut d.state {
+        for (i, d) in self.states.iter_mut().enumerate() {
+            if let QueuedKeyState::Playing(key_data) = d {
                 // if key_data.id == id {
                 //     key_data.duration = match duration_samples {
                 //         Some(s) => KeyDuration::Samples(s),
@@ -545,10 +456,9 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
             }
         };
 
-        let data = &mut self.data[index];
+        let data = &mut self.targets[index];
 
-        data.timing.reset(0); // TODO: sample offset
-        data.target.reset();
+        data.reset(0); // TODO: sample offset
         let key_data = KeyPlayingData {
             id,
             state,
@@ -558,13 +468,13 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
                 None => KeyDuration::Forever,
             },
         };
-        data.state = QueuedKeyState::Playing(key_data);
+        self.states[index] = QueuedKeyState::Playing(key_data);
     }
 
     // TODO: add sample_offset in [0, chunk_size)
     pub fn release_key(&mut self, id: I) {
-        for d in &mut self.data {
-            if let QueuedKeyState::Playing(key_data) = &mut d.state {
+        for d in &mut self.states {
+            if let QueuedKeyState::Playing(key_data) = d {
                 if key_data.id == id {
                     key_data.duration = KeyDuration::Samples(0);
                 }
@@ -573,8 +483,8 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
     }
 
     pub fn release_all_keys(&mut self) {
-        for d in &mut self.data {
-            if let QueuedKeyState::Playing(key_data) = &mut d.state {
+        for d in &mut self.states {
+            if let QueuedKeyState::Playing(key_data) = d {
                 key_data.duration = KeyDuration::Samples(0);
             }
         }
@@ -590,12 +500,12 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
 
         dst.silence();
         let mut temp_chunk = SoundChunk::new();
-        for d in &mut self.data {
-            if let QueuedKeyState::Playing(key_data) = &mut d.state {
+        for (d, t) in self.states.iter_mut().zip(self.targets.iter_mut()) {
+            if let QueuedKeyState::Playing(key_data) = d {
                 // TODO: allow keys to stack (after ignoring key repeats in keyboard_ui)
                 if let KeyDuration::Samples(s) = &mut key_data.duration {
                     if *s < CHUNK_SIZE {
-                        d.timing.request_release(*s);
+                        t.timing_mut().request_release(*s);
                         *s = 0;
                     } else {
                         *s -= CHUNK_SIZE;
@@ -603,18 +513,11 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
                 }
 
                 let a: &dyn Any = &key_data.state;
-                d.target.step(
-                    &mut d.timing,
-                    processor_state,
-                    &mut temp_chunk,
-                    ctx,
-                    self.id,
-                    AnyData::new(a),
-                );
+                t.step(processor_state, &mut temp_chunk, ctx, AnyData::new(a));
 
                 key_data.age += 1;
-                if d.timing.is_done() {
-                    d.state = QueuedKeyState::NotPlaying();
+                if t.timing().is_done() {
+                    *d = QueuedKeyState::NotPlaying();
                 }
 
                 // TODO: how to make this adjustable?
@@ -629,38 +532,11 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
 }
 
 impl<'ctx, I: Copy + Eq, S: State> SoundInputNode<'ctx> for KeyedInputQueueNode<'ctx, I, S> {
-    fn flag_for_reset(&mut self) {
-        for d in &mut self.data {
-            d.state = QueuedKeyState::NotPlaying();
-            d.timing.require_reset();
-        }
+    fn targets(&self) -> &[NodeTarget<'ctx>] {
+        &self.targets
     }
 
-    fn visit_inputs<'a>(&self, visitor: &'a mut dyn SoundInputNodeVisitor<'ctx>) {
-        if self.active {
-            for (i, d) in self.data.iter().enumerate() {
-                visitor.visit_input(self.id, i, &d.target);
-            }
-        }
-    }
-
-    fn visit_inputs_mut<'a>(&mut self, visitor: &'a mut dyn SoundInputNodeVisitorMut<'ctx>) {
-        if self.active {
-            for (i, d) in self.data.iter_mut().enumerate() {
-                visitor.visit_input(self.id, i, &mut d.target, &mut d.timing);
-            }
-        }
-    }
-
-    fn add_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(input_id, self.id);
-        debug_assert!(!self.active);
-        self.active = true;
-    }
-
-    fn remove_input(&mut self, input_id: SoundInputId) {
-        debug_assert_eq!(input_id, self.id);
-        debug_assert!(self.active);
-        self.active = false;
+    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+        &mut self.targets
     }
 }

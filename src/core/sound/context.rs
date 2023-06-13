@@ -7,7 +7,6 @@ use crate::core::{
 };
 
 use super::{
-    soundgraphtopology::SoundGraphTopology,
     soundinput::{InputTiming, SoundInputId},
     soundprocessor::{ProcessorState, SoundProcessorId},
 };
@@ -179,7 +178,6 @@ impl<'a> StackFrame<'a> {
 
 pub struct Context<'a> {
     target_processor_id: Option<SoundProcessorId>,
-    topology: &'a SoundGraphTopology,
     // TODO: delete scratch_space
     scratch_space: &'a ScratchArena,
     stack: StackFrame<'a>,
@@ -188,12 +186,10 @@ pub struct Context<'a> {
 impl<'a> Context<'a> {
     pub(crate) fn new(
         target_processor_id: SoundProcessorId,
-        topology: &'a SoundGraphTopology,
         scratch_space: &'a ScratchArena,
     ) -> Context<'a> {
         Context {
             target_processor_id: Some(target_processor_id),
-            topology,
             scratch_space,
             stack: StackFrame::Root,
         }
@@ -217,7 +213,6 @@ impl<'a> Context<'a> {
                 state,
                 timing,
             }),
-            topology: self.topology,
             scratch_space: self.scratch_space,
         }
     }
@@ -230,7 +225,6 @@ impl<'a> Context<'a> {
                 processor_id: self.target_processor_id.unwrap(),
                 data: state,
             }),
-            topology: self.topology,
             scratch_space: self.scratch_space,
         }
     }

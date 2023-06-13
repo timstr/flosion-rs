@@ -152,7 +152,8 @@ impl StaticSoundProcessor for Dac {
         _dst: &mut SoundChunk,
         ctx: Context,
     ) {
-        if sound_input.needs_reset() || self.shared_data.pending_reset.swap(false, Ordering::SeqCst)
+        if sound_input.timing().needs_reset()
+            || self.shared_data.pending_reset.swap(false, Ordering::SeqCst)
         {
             sound_input.reset(0);
         }

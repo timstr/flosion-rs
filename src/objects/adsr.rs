@@ -269,7 +269,7 @@ impl DynamicSoundProcessor for ADSR {
 
         debug_assert!(cursor == CHUNK_SIZE);
         // TODO: pass level through exponential
-        if sound_input.needs_reset() {
+        if sound_input.timing().needs_reset() {
             sound_input.reset(0);
         }
         sound_input.step(state, dst, &context);

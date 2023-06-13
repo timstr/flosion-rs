@@ -9,11 +9,8 @@ use crate::core::{
     anydata::AnyData,
     sound::{
         context::Context,
-        soundgraphtopology::SoundGraphTopology,
         soundinput::{InputTiming, SoundInputId},
-        soundinputnode::{
-            SoundInputNode, SoundInputNodeVisitor, SoundInputNodeVisitorMut, SoundProcessorInput,
-        },
+        soundinputnode::{SoundInputNode, SoundProcessorInput},
         soundnumberinputnode::{
             SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
             SoundNumberInputNodeVisitorMut,
@@ -71,7 +68,9 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
 
     fn reset(&mut self) {
         self.state.reset();
-        self.sound_input.flag_for_reset();
+        for t in self.sound_input.targets_mut() {
+            t.timing_mut().require_reset();
+        }
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
@@ -98,8 +97,6 @@ pub trait StateGraphNode<'ctx> {
     fn address(&self) -> *const ();
 
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx>;
-    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>);
-    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>);
 
     fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx>;
     fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>);
@@ -128,14 +125,6 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
 
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
         &mut self.sound_input
-    }
-
-    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
-        self.sound_input.visit_inputs(visitor);
-    }
-
-    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
-        self.sound_input.visit_inputs_mut(visitor);
     }
 
     fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx> {
@@ -171,14 +160,6 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
 
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
         &mut self.sound_input
-    }
-
-    fn visit_sound_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
-        self.sound_input.visit_inputs(visitor);
-    }
-
-    fn visit_sound_inputs_mut(&mut self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
-        self.sound_input.visit_inputs_mut(visitor);
     }
 
     fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx> {
@@ -319,21 +300,9 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         self.processor_id
     }
 
-    pub(crate) fn visit_inputs(&self, visitor: &mut dyn SoundInputNodeVisitor<'ctx>) {
-        self.data.borrow().node.visit_sound_inputs(visitor);
-    }
-
-    pub(crate) fn visit_inputs_mut(&self, visitor: &mut dyn SoundInputNodeVisitorMut<'ctx>) {
-        self.data.borrow_mut().node.visit_sound_inputs_mut(visitor);
-    }
-
-    pub(crate) fn invoke_externally(
-        &self,
-        topology: &SoundGraphTopology,
-        scratch_space: &ScratchArena,
-    ) {
+    pub(crate) fn invoke_externally(&self, scratch_space: &ScratchArena) {
         let mut data = self.data.borrow_mut();
-        let context = Context::new(self.processor_id, topology, scratch_space);
+        let context = Context::new(self.processor_id, scratch_space);
         let &mut SharedProcessorNodeData {
             ref mut node,
             ref mut cached_output,
@@ -432,8 +401,11 @@ pub(crate) enum NodeTargetValue<'ctx> {
     Empty,
 }
 
+pub struct OpaqueNodeTargetValue<'ctx>(pub(crate) NodeTargetValue<'ctx>);
+
 pub struct NodeTarget<'ctx> {
     input_id: SoundInputId,
+    timing: InputTiming,
     target: NodeTargetValue<'ctx>,
 }
 
@@ -441,11 +413,24 @@ impl<'ctx> NodeTarget<'ctx> {
     pub(crate) fn new(input_id: SoundInputId) -> Self {
         Self {
             input_id,
+            timing: InputTiming::default(),
             target: NodeTargetValue::Empty,
         }
     }
 
-    pub(crate) fn processor_id(&self) -> Option<SoundProcessorId> {
+    pub(crate) fn id(&self) -> SoundInputId {
+        self.input_id
+    }
+
+    // TODO: consider hiding inputtiming and publicly re-exposing only those functions which make sense
+    pub fn timing(&self) -> &InputTiming {
+        &self.timing
+    }
+    pub fn timing_mut(&mut self) -> &mut InputTiming {
+        &mut self.timing
+    }
+
+    pub(crate) fn target_id(&self) -> Option<SoundProcessorId> {
         match &self.target {
             NodeTargetValue::Unique(n) => Some(n.id()),
             NodeTargetValue::Shared(n) => Some(n.id()),
@@ -482,7 +467,8 @@ impl<'ctx> NodeTarget<'ctx> {
         }
     }
 
-    pub(crate) fn reset(&mut self) {
+    pub(crate) fn reset(&mut self, sample_offset: usize) {
+        self.timing.reset(sample_offset);
         match &mut self.target {
             NodeTargetValue::Unique(node) => node.reset(),
             NodeTargetValue::Shared(node) => node.reset(),
@@ -492,36 +478,44 @@ impl<'ctx> NodeTarget<'ctx> {
 
     pub(crate) fn step<T: ProcessorState>(
         &mut self,
-        timing: &mut InputTiming,
         state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
-        input_id: SoundInputId,
         input_state: AnyData,
     ) -> StreamStatus {
-        debug_assert!(!timing.needs_reset());
-        if timing.is_done() {
+        debug_assert!(!self.timing.needs_reset());
+        if self.timing.is_done() {
             dst.silence();
             return StreamStatus::Done;
         }
-        let release_pending = timing.pending_release().is_some();
+        let release_pending = self.timing.pending_release().is_some();
 
         let status = match &mut self.target {
-            NodeTargetValue::Unique(node) => {
-                node.step(timing, state, dst, ctx, input_id, input_state)
-            }
-            NodeTargetValue::Shared(node) => {
-                node.step(timing, state, dst, ctx, input_id, input_state)
-            }
+            NodeTargetValue::Unique(node) => node.step(
+                &mut self.timing,
+                state,
+                dst,
+                ctx,
+                self.input_id,
+                input_state,
+            ),
+            NodeTargetValue::Shared(node) => node.step(
+                &mut self.timing,
+                state,
+                dst,
+                ctx,
+                self.input_id,
+                input_state,
+            ),
             NodeTargetValue::Empty => {
                 dst.silence();
-                timing.mark_as_done();
+                self.timing.mark_as_done();
                 StreamStatus::Done
             }
         };
-        let was_released = timing.was_released();
+        let was_released = self.timing.was_released();
         if release_pending && !was_released {
-            timing.mark_as_done();
+            self.timing.mark_as_done();
             return StreamStatus::Done;
         }
         status

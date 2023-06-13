@@ -5,6 +5,7 @@ use super::{
     numbersource::NumberSourceId,
 };
 
+#[derive(Clone)]
 pub(crate) enum NumberGraphEdit {
     AddNumberInput(NumberInputData),
     RemoveNumberInput(NumberInputId),

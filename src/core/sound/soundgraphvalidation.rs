@@ -1,6 +1,6 @@
 use super::{
     path::SoundPath,
-    soundgraphedit::SoundGraphEdit,
+    soundedit::{SoundEdit, SoundNumberEdit},
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
@@ -423,7 +423,7 @@ pub(crate) fn validate_sound_connection(
 ) -> Result<(), SoundError> {
     // Lazy approach: duplicate the topology, make the edit, and see what happens
     let mut topo = topology.clone();
-    topo.make_edit(SoundGraphEdit::ConnectSoundInput(input_id, processor_id));
+    topo.make_sound_edit(SoundEdit::ConnectSoundInput(input_id, processor_id));
     match find_error(&topo) {
         Some(e) => Err(e),
         None => Ok(()),
@@ -436,7 +436,7 @@ pub(crate) fn validate_sound_disconnection(
 ) -> Result<(), SoundError> {
     // Lazy approach: duplicate the topology, make the edit, and see what happens
     let mut topo = topology.clone();
-    topo.make_edit(SoundGraphEdit::DisconnectSoundInput(input_id));
+    topo.make_sound_edit(SoundEdit::DisconnectSoundInput(input_id));
     match find_error(&topo) {
         Some(e) => Err(e),
         None => Ok(()),
@@ -450,7 +450,7 @@ pub(crate) fn validate_number_connection(
 ) -> Result<(), SoundError> {
     // Lazy approach: duplicate the topology, make the edit, and see what happens
     let mut topo = topology.clone();
-    topo.make_edit(SoundGraphEdit::ConnectNumberInput(input_id, source_id));
+    topo.make_sound_number_edit(SoundNumberEdit::ConnectNumberInput(input_id, source_id));
     match find_error(&topo) {
         Some(e) => Err(e),
         None => Ok(()),

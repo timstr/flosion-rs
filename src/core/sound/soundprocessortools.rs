@@ -6,6 +6,7 @@ use crate::core::{
 };
 
 use super::{
+    soundedit::{SoundEdit, SoundNumberEdit},
     soundgraphdata::{SoundInputData, SoundNumberInputData, SoundNumberSourceData},
     soundgraphedit::SoundGraphEdit,
     soundinput::{InputOptions, SoundInputId},
@@ -51,13 +52,16 @@ impl<'a> SoundProcessorTools<'a> {
         let id = self.sound_input_idgen.next_id();
         let owner = self.processor_id;
         let data = SoundInputData::new(id, options, num_keys, owner);
-        self.edit_queue.push(SoundGraphEdit::AddSoundInput(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Sound(SoundEdit::AddSoundInput(data)));
         id
     }
 
     pub(super) fn remove_sound_input(&mut self, input_id: SoundInputId, owner: SoundProcessorId) {
         self.edit_queue
-            .push(SoundGraphEdit::RemoveSoundInput(input_id, owner));
+            .push(SoundGraphEdit::Sound(SoundEdit::RemoveSoundInput(
+                input_id, owner,
+            )));
     }
 
     pub fn add_input_scalar_number_source(
@@ -69,7 +73,10 @@ impl<'a> SoundProcessorTools<'a> {
         let instance = Arc::new(ScalarInputNumberSource::new(input_id, function));
         let owner = SoundNumberSourceOwner::SoundInput(input_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
+                data,
+            )));
         SoundNumberSourceHandle::new(id)
     }
 
@@ -82,7 +89,10 @@ impl<'a> SoundProcessorTools<'a> {
         let instance = Arc::new(ArrayInputNumberSource::new(input_id, function));
         let owner = SoundNumberSourceOwner::SoundInput(input_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
+                data,
+            )));
         SoundNumberSourceHandle::new(id)
     }
 
@@ -97,7 +107,10 @@ impl<'a> SoundProcessorTools<'a> {
         ));
         let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
+                data,
+            )));
         SoundNumberSourceHandle::new(id)
     }
 
@@ -109,7 +122,10 @@ impl<'a> SoundProcessorTools<'a> {
         let instance = Arc::new(ArrayProcessorNumberSource::new(self.processor_id, function));
         let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
+                data,
+            )));
         SoundNumberSourceHandle::new(id)
     }
 
@@ -117,7 +133,10 @@ impl<'a> SoundProcessorTools<'a> {
         let id = self.number_input_idgen.next_id();
         let owner = self.processor_id;
         let data = SoundNumberInputData::new(id, owner, default_value);
-        self.edit_queue.push(SoundGraphEdit::AddNumberInput(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberInput(
+                data,
+            )));
         SoundNumberInputHandle::new(id, owner)
     }
 
@@ -126,7 +145,10 @@ impl<'a> SoundProcessorTools<'a> {
         let instance = Arc::new(ProcessorTimeNumberSource::new(self.processor_id));
         let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
+                data,
+            )));
         SoundNumberSourceHandle::new(id)
     }
 
@@ -135,7 +157,10 @@ impl<'a> SoundProcessorTools<'a> {
         let instance = Arc::new(InputTimeNumberSource::new(input_id));
         let owner = SoundNumberSourceOwner::SoundInput(input_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue.push(SoundGraphEdit::AddNumberSource(data));
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
+                data,
+            )));
         SoundNumberSourceHandle::new(id)
     }
 
