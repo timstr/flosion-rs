@@ -8,7 +8,7 @@ pub mod melody;
 pub mod mixer;
 pub mod recorder;
 pub mod resampler;
-pub mod sequencer;
+// pub mod sequencer;
 pub mod wavegenerator;
 pub mod whitenoise;
 

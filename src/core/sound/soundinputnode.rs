@@ -1,4 +1,7 @@
-use crate::core::engine::stategraphnode::{NodeTarget, OpaqueNodeTargetValue};
+use crate::core::engine::{
+    nodegen::NodeGen,
+    stategraphnode::{NodeTarget, OpaqueNodeTargetValue},
+};
 
 use super::soundinput::SoundInputId;
 
@@ -7,7 +10,7 @@ use super::soundinput::SoundInputId;
 // Trait used for automating allocation and reallocation of node inputs
 // Not concerned with actual audio processing or providing access to
 // said inputs - concrete types will provide those.
-pub trait SoundInputNode<'ctx> {
+pub trait SoundInputNode<'ctx>: Sync + Send {
     // TODO: delete add_input, remove_input, add_key, remove_key, replace
     // them with functions that the state graph and audio processing directly
     // care about, e.g. replacing NodeTargetValues. That's it! Replacing
@@ -79,17 +82,17 @@ pub trait SoundInputNode<'ctx> {
 
     fn insert_target(
         &mut self,
-        input_id: SoundInputId,
-        key_index: usize,
-        target: OpaqueNodeTargetValue<'ctx>,
+        _input_id: SoundInputId,
+        _key_index: usize,
+        _target: OpaqueNodeTargetValue<'ctx>,
     ) {
         panic!("This input node type does not support inserting targets");
     }
 
     fn erase_target(
         &mut self,
-        input_id: SoundInputId,
-        key_index: usize,
+        _input_id: SoundInputId,
+        _key_index: usize,
     ) -> OpaqueNodeTargetValue<'ctx> {
         panic!("This input node type does not support erasing targets");
     }
@@ -105,10 +108,10 @@ impl<'ctx> SoundInputNode<'ctx> for () {
     }
 }
 
-pub trait SoundProcessorInput {
+pub trait SoundProcessorInput: Sync + Send {
     type NodeType<'ctx>: SoundInputNode<'ctx>;
 
-    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx>;
+    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx>;
 
     fn list_ids(&self) -> Vec<SoundInputId>;
 }

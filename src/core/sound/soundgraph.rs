@@ -7,9 +7,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use crate::core::{
-    engine::soundengine::spawn_sound_engine, jit::jitcontext::JitContext, uniqueid::IdGenerator,
-};
+use crate::core::{engine::soundengine::create_sound_engine, uniqueid::IdGenerator};
 
 use super::{
     graphobject::{ObjectId, ObjectInitialization},
@@ -82,6 +80,7 @@ impl SoundGraphClosure {
             return;
         }
         let data = topology.number_source(id).unwrap();
+        todo!() // ????????
     }
 
     fn add_number_input(&mut self, id: SoundNumberInputId) {
@@ -133,18 +132,18 @@ pub struct SoundGraph {
 
 impl SoundGraph {
     pub fn new() -> SoundGraph {
-        // extra thread just to clearly limit the lifetime
-        // of the jit context and prevent lifetime annotations
-        // from ballooning out.
-        // sigh...
-
         let (sender, receiver) = channel();
         let engine_interface_thread = std::thread::spawn(move || {
-            let jit_context = JitContext::new();
-            let mut engine_interface = spawn_sound_engine(&jit_context);
-            while let Ok(topo) = receiver.recv() {
-                engine_interface.update(topo);
-            }
+            let inkwell_context = inkwell::context::Context::create();
+            std::thread::scope(|scope| {
+                let (mut engine_interface, engine_runner) = create_sound_engine(&inkwell_context);
+                scope.spawn(|| {
+                    engine_runner.run();
+                });
+                while let Ok(topo) = receiver.recv() {
+                    engine_interface.update(topo);
+                }
+            });
         });
 
         SoundGraph {
@@ -362,7 +361,9 @@ impl SoundGraph {
             self.local_topology = prev_topology;
         } else {
             debug_assert!(find_error(&self.local_topology).is_none());
-            self.topology_sender.send(self.local_topology.clone());
+            self.topology_sender
+                .send(self.local_topology.clone())
+                .unwrap();
         }
         res
     }

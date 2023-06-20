@@ -1,4 +1,5 @@
 use crate::core::{
+    engine::nodegen::NodeGen,
     sound::{
         context::Context,
         graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -75,12 +76,12 @@ impl DynamicSoundProcessor for Resampler {
         }
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ResamplerNumberInputs {
-            speed_ratio: self.speed_ratio.make_node(context),
+            speed_ratio: self.speed_ratio.make_node(nodegen),
         }
     }
 

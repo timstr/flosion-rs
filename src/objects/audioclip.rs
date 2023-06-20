@@ -3,6 +3,7 @@ use std::{ops::Deref, sync::Arc};
 use parking_lot::RwLock;
 
 use crate::core::{
+    engine::nodegen::NodeGen,
     serialization::Serializer,
     sound::{
         context::Context,
@@ -79,9 +80,9 @@ impl DynamicSoundProcessor for AudioClip {
         }
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        _context: &'ctx inkwell::context::Context,
+        _nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ()
     }

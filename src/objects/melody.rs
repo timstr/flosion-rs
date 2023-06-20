@@ -3,6 +3,7 @@ use std::sync::Arc;
 use parking_lot::{Mutex, RwLock};
 
 use crate::core::{
+    engine::nodegen::NodeGen,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::Context,
@@ -66,7 +67,7 @@ struct MelodyData {
 pub struct Melody {
     shared_data: Arc<RwLock<MelodyData>>,
     note_idgen: Mutex<IdGenerator<NoteId>>,
-    pub input: KeyedInputQueue<NoteId, NoteState>,
+    pub input: KeyedInputQueue<NoteState>,
     pub melody_time: SoundNumberSourceHandle,
     pub note_frequency: SoundNumberSourceHandle,
     pub note_time: SoundNumberSourceHandle,
@@ -129,7 +130,7 @@ impl Melody {
 impl DynamicSoundProcessor for Melody {
     type StateType = MelodyState;
 
-    type SoundInputType = KeyedInputQueue<NoteId, NoteState>;
+    type SoundInputType = KeyedInputQueue<NoteState>;
 
     type NumberInputType<'ctx> = ();
 
@@ -170,16 +171,16 @@ impl DynamicSoundProcessor for Melody {
         }
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        _context: &'ctx inkwell::context::Context,
+        _nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ()
     }
 
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<Self::StateType>,
-        sound_input: &mut KeyedInputQueueNode<NoteId, NoteState>,
+        sound_input: &mut KeyedInputQueueNode<NoteState>,
         _number_inputs: &(),
         dst: &mut SoundChunk,
         context: Context,
@@ -213,7 +214,7 @@ impl DynamicSoundProcessor for Melody {
                     // TODO: use offset when queueing note
                     sound_input.start_key(
                         Some(note.duration_samples),
-                        *note_id,
+                        note_id.0,
                         NoteState {
                             frequency: note.frequency,
                             length_seconds: note.duration_samples as f32 / SAMPLE_FREQUENCY as f32,

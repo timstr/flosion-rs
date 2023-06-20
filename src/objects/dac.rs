@@ -5,6 +5,7 @@ use std::sync::{
 };
 
 use crate::core::{
+    engine::nodegen::NodeGen,
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
@@ -138,9 +139,9 @@ impl StaticSoundProcessor for Dac {
         &self.input
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        _context: &'ctx inkwell::context::Context,
+        _nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ()
     }

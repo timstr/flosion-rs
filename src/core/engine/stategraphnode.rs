@@ -1,9 +1,9 @@
 use std::{
-    cell::RefCell,
     ops::{Deref, DerefMut},
-    rc::Rc,
     sync::Arc,
 };
+
+use parking_lot::RwLock;
 
 use crate::core::{
     anydata::AnyData,
@@ -23,7 +23,7 @@ use crate::core::{
     soundchunk::SoundChunk,
 };
 
-use super::scratcharena::ScratchArena;
+use super::{nodegen::NodeGen, scratcharena::ScratchArena};
 
 pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
     processor: Arc<StaticSoundProcessorWithId<T>>,
@@ -32,12 +32,12 @@ pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
 }
 
 impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
-    pub(crate) fn new(
+    pub(crate) fn new<'a>(
         processor: Arc<StaticSoundProcessorWithId<T>>,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self {
-        let sound_input = processor.get_sound_input().make_node();
-        let number_input = processor.make_number_inputs(context);
+        let sound_input = processor.get_sound_input().make_node(nodegen);
+        let number_input = processor.make_number_inputs(nodegen);
         Self {
             processor,
             sound_input,
@@ -54,15 +54,15 @@ pub struct DynamicProcessorNode<'ctx, T: DynamicSoundProcessor> {
 }
 
 impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
-    pub(crate) fn new(
+    pub(crate) fn new<'a>(
         processor: &DynamicSoundProcessorWithId<T>,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self {
         Self {
             id: processor.id(),
             state: StateAndTiming::new(processor.make_state()),
-            sound_input: processor.get_sound_input().make_node(),
-            number_input: processor.make_number_inputs(context),
+            sound_input: processor.get_sound_input().make_node(nodegen),
+            number_input: processor.make_number_inputs(nodegen),
         }
     }
 
@@ -87,7 +87,7 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
 }
 
 // TODO: make this not pub
-pub trait StateGraphNode<'ctx> {
+pub trait StateGraphNode<'ctx>: Sync + Send {
     fn id(&self) -> SoundProcessorId;
     fn reset(&mut self);
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
@@ -96,6 +96,7 @@ pub trait StateGraphNode<'ctx> {
     // and because comparing trait objects (fat pointers) for equality is fraught
     fn address(&self) -> *const ();
 
+    fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx>;
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx>;
 
     fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx>;
@@ -123,6 +124,9 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
         ptr as *const ()
     }
 
+    fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx> {
+        &self.sound_input
+    }
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
         &mut self.sound_input
     }
@@ -158,6 +162,9 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
         ptr as *const ()
     }
 
+    fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx> {
+        &self.sound_input
+    }
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
         &mut self.sound_input
     }
@@ -176,11 +183,11 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
 }
 
 pub(crate) struct UniqueProcessorNode<'ctx> {
-    node: Box<dyn StateGraphNode<'ctx> + 'ctx>,
+    node: Box<dyn 'ctx + StateGraphNode<'ctx>>,
 }
 
 impl<'ctx> UniqueProcessorNode<'ctx> {
-    pub(crate) fn new(node: Box<dyn StateGraphNode<'ctx> + 'ctx>) -> UniqueProcessorNode {
+    pub(crate) fn new(node: Box<dyn 'ctx + StateGraphNode<'ctx>>) -> UniqueProcessorNode {
         UniqueProcessorNode { node }
     }
 
@@ -225,14 +232,14 @@ impl<'ctx> UniqueProcessorNode<'ctx> {
 }
 
 pub(crate) struct SharedProcessorNodeData<'ctx> {
-    node: Box<dyn StateGraphNode<'ctx> + 'ctx>,
+    node: Box<dyn 'ctx + StateGraphNode<'ctx>>,
     cached_output: SoundChunk, // TODO: generalize to >1 output
     target_inputs: Vec<(SoundInputId, bool)>,
     stream_status: StreamStatus,
 }
 
 impl<'ctx> SharedProcessorNodeData<'ctx> {
-    fn new(node: Box<dyn StateGraphNode<'ctx> + 'ctx>) -> SharedProcessorNodeData<'ctx> {
+    fn new(node: Box<dyn 'ctx + StateGraphNode<'ctx>>) -> SharedProcessorNodeData<'ctx> {
         SharedProcessorNodeData {
             node,
             cached_output: SoundChunk::new(),
@@ -273,27 +280,27 @@ impl<'ctx> SharedProcessorNodeData<'ctx> {
 
 pub(crate) struct SharedProcessorNode<'ctx> {
     processor_id: SoundProcessorId,
-    data: Rc<RefCell<SharedProcessorNodeData<'ctx>>>,
+    data: Arc<RwLock<SharedProcessorNodeData<'ctx>>>,
 }
 
 impl<'ctx> SharedProcessorNode<'ctx> {
-    pub(crate) fn new(node: Box<dyn StateGraphNode<'ctx> + 'ctx>) -> SharedProcessorNode<'ctx> {
+    pub(crate) fn new(node: Box<dyn 'ctx + StateGraphNode<'ctx>>) -> SharedProcessorNode<'ctx> {
         SharedProcessorNode {
             processor_id: node.id(),
-            data: Rc::new(RefCell::new(SharedProcessorNodeData::new(node))),
+            data: Arc::new(RwLock::new(SharedProcessorNodeData::new(node))),
         }
     }
 
     pub(crate) fn borrow_data<'a>(
         &'a self,
     ) -> impl 'a + Deref<Target = SharedProcessorNodeData<'ctx>> {
-        self.data.borrow()
+        self.data.read()
     }
 
     pub(crate) fn borrow_data_mut<'a>(
         &'a mut self,
     ) -> impl 'a + DerefMut<Target = SharedProcessorNodeData<'ctx>> {
-        self.data.borrow_mut()
+        self.data.write()
     }
 
     pub(crate) fn id(&self) -> SoundProcessorId {
@@ -301,7 +308,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
     }
 
     pub(crate) fn invoke_externally(&self, scratch_space: &ScratchArena) {
-        let mut data = self.data.borrow_mut();
+        let mut data = self.data.write();
         let context = Context::new(self.processor_id, scratch_space);
         let &mut SharedProcessorNodeData {
             ref mut node,
@@ -314,7 +321,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
     }
 
     fn num_target_inputs(&self) -> usize {
-        self.data.borrow().num_target_inputs()
+        self.data.read().num_target_inputs()
     }
 
     pub(crate) fn is_entry_point(&self) -> bool {
@@ -322,9 +329,9 @@ impl<'ctx> SharedProcessorNode<'ctx> {
     }
 
     pub(crate) fn into_unique_node(self) -> Option<UniqueProcessorNode<'ctx>> {
-        debug_assert!(Rc::strong_count(&self.data) == self.num_target_inputs());
-        debug_assert!(Rc::weak_count(&self.data) == 0);
-        match Rc::try_unwrap(self.data) {
+        debug_assert!(Arc::strong_count(&self.data) == self.num_target_inputs());
+        debug_assert!(Arc::weak_count(&self.data) == 0);
+        match Arc::try_unwrap(self.data) {
             Ok(inner_mutex) => Some(inner_mutex.into_inner().into_unique_node()),
             Err(_) => None,
         }
@@ -339,7 +346,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         input_id: SoundInputId,
         input_state: AnyData,
     ) -> StreamStatus {
-        let mut data = self.data.borrow_mut();
+        let mut data = self.data.write();
         let &mut SharedProcessorNodeData {
             ref mut node,
             ref mut cached_output,
@@ -374,7 +381,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
     }
 
     fn reset(&mut self) {
-        let mut data = self.data.borrow_mut();
+        let mut data = self.data.write();
         data.node.reset();
         for (_target_id, used) in &mut data.target_inputs {
             *used = true;
@@ -382,7 +389,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
     }
 
     pub(crate) fn visit<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(&mut self, mut f: F) {
-        f(&mut *self.data.borrow_mut().node);
+        f(&mut *self.data.write().node);
     }
 }
 
@@ -390,7 +397,7 @@ impl<'ctx> Clone for SharedProcessorNode<'ctx> {
     fn clone(&self) -> Self {
         Self {
             processor_id: self.processor_id.clone(),
-            data: Rc::clone(&self.data),
+            data: Arc::clone(&self.data),
         }
     }
 }
@@ -405,14 +412,22 @@ pub struct OpaqueNodeTargetValue<'ctx>(pub(crate) NodeTargetValue<'ctx>);
 
 pub struct NodeTarget<'ctx> {
     input_id: SoundInputId,
+    key_index: usize,
     timing: InputTiming,
     target: NodeTargetValue<'ctx>,
 }
 
 impl<'ctx> NodeTarget<'ctx> {
-    pub(crate) fn new(input_id: SoundInputId) -> Self {
+    pub(crate) fn new<'a>(
+        input_id: SoundInputId,
+        key_index: usize,
+        nodegen: &NodeGen<'a, 'ctx>,
+    ) -> Self {
+        todo!();
+        // TODO: allocate target with nodegen
         Self {
             input_id,
+            key_index,
             timing: InputTiming::default(),
             target: NodeTargetValue::Empty,
         }
@@ -420,6 +435,10 @@ impl<'ctx> NodeTarget<'ctx> {
 
     pub(crate) fn id(&self) -> SoundInputId {
         self.input_id
+    }
+
+    pub(crate) fn key_index(&self) -> usize {
+        self.key_index
     }
 
     // TODO: consider hiding inputtiming and publicly re-exposing only those functions which make sense

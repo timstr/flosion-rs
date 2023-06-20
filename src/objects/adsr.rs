@@ -1,4 +1,5 @@
 use crate::core::{
+    engine::nodegen::NodeGen,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
@@ -138,15 +139,15 @@ impl DynamicSoundProcessor for ADSR {
         }
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ADSRNumberInputs {
-            attack_time: self.attack_time.make_node(context),
-            decay_time: self.decay_time.make_node(context),
-            sustain_level: self.sustain_level.make_node(context),
-            release_time: self.release_time.make_node(context),
+            attack_time: self.attack_time.make_node(nodegen),
+            decay_time: self.decay_time.make_node(nodegen),
+            sustain_level: self.sustain_level.make_node(nodegen),
+            release_time: self.release_time.make_node(nodegen),
         }
     }
 

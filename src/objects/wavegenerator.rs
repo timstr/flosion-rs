@@ -1,5 +1,6 @@
 use crate::core::{
     anydata::AnyData,
+    engine::nodegen::NodeGen,
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
@@ -78,13 +79,13 @@ impl DynamicSoundProcessor for WaveGenerator {
         }
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         WaveGeneratorNumberInputs {
-            frequency: self.frequency.make_node(context),
-            amplitude: self.amplitude.make_node(context),
+            frequency: self.frequency.make_node(nodegen),
+            amplitude: self.amplitude.make_node(nodegen),
         }
     }
 

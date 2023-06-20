@@ -3,23 +3,37 @@ use std::{collections::HashMap, sync::Arc};
 use atomic_float::AtomicF32;
 use inkwell::{
     builder::Builder,
+    execution_engine::ExecutionEngine,
     intrinsics::Intrinsic,
     module::Module,
-    types::{FloatType, IntType, PointerType},
-    values::{BasicValue, FloatValue, FunctionValue, InstructionValue, IntValue, PointerValue},
+    types::FloatType,
+    values::{BasicValue, FloatValue, InstructionValue, IntValue, PointerValue},
     AtomicOrdering,
+};
+
+#[cfg(not(debug_assertions))]
+use inkwell::{
+    passes::{PassManager, PassManagerBuilder},
+    OptimizationLevel,
 };
 
 use crate::core::{
     number::{
-        numbergraph::NumberGraphOutputId, numbergraphdata::NumberTarget,
-        numbergraphtopology::NumberGraphTopology, numberinput::NumberInputId,
+        numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology,
+        numberinput::NumberInputId,
     },
-    sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId},
+    sound::{
+        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+        soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
+    },
     uniqueid::UniqueId,
 };
 
-use super::wrappers::{ArrayReadFunc, ScalarReadFunc};
+use super::{
+    compilednumberinput::CompiledNumberInputCache,
+    types::JitTypes,
+    wrappers::{ArrayReadFunc, ScalarReadFunc, WrapperFunctions},
+};
 
 pub(super) struct InstructionLocations<'ctx> {
     pub(super) end_of_bb_entry: InstructionValue<'ctx>,
@@ -33,52 +47,191 @@ pub(super) struct LocalVariables<'ctx> {
     pub(super) context_ptr: PointerValue<'ctx>,
 }
 
-pub(super) struct Types<'ctx> {
-    pub(super) pointer_type: PointerType<'ctx>,
-    pub(super) float_type: FloatType<'ctx>,
-    pub(super) float_pointer_type: PointerType<'ctx>,
-    pub(super) usize_type: IntType<'ctx>,
-}
-
-pub(super) struct WrapperFunctions<'ctx> {
-    pub(super) processor_scalar_read_wrapper: FunctionValue<'ctx>,
-    pub(super) input_scalar_read_wrapper: FunctionValue<'ctx>,
-    pub(super) processor_array_read_wrapper: FunctionValue<'ctx>,
-    pub(super) input_array_read_wrapper: FunctionValue<'ctx>,
-    pub(super) processor_time_wrapper: FunctionValue<'ctx>,
-    pub(super) input_time_wrapper: FunctionValue<'ctx>,
-}
-
 pub struct CodeGen<'ctx> {
     pub(super) instruction_locations: InstructionLocations<'ctx>,
     pub(super) local_variables: LocalVariables<'ctx>,
-    pub(super) types: Types<'ctx>,
+    pub(super) types: JitTypes<'ctx>,
     pub(super) wrapper_functions: WrapperFunctions<'ctx>,
     pub(super) builder: Builder<'ctx>,
     pub(super) module: Module<'ctx>,
+    execution_engine: ExecutionEngine<'ctx>,
+    function_name: String,
     pub(super) atomic_captures: Vec<Arc<AtomicF32>>,
     pub(super) compiled_targets: HashMap<NumberTarget, FloatValue<'ctx>>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
-    pub(super) fn new(
-        basic_blocks: InstructionLocations<'ctx>,
-        local_variables: LocalVariables<'ctx>,
-        types: Types<'ctx>,
-        wrapper_functions: WrapperFunctions<'ctx>,
-        builder: Builder<'ctx>,
-        module: Module<'ctx>,
-    ) -> CodeGen<'ctx> {
+    pub(crate) fn new(inkwell_context: &'ctx inkwell::context::Context) -> CodeGen<'ctx> {
+        let module_name = "flosion_llvm_module";
+        let function_name = "flosion_llvm_function".to_string();
+
+        let module = inkwell_context.create_module(module_name);
+
+        // TODO: change optimization level here in release builds?
+        let execution_engine = module
+            .create_jit_execution_engine(inkwell::OptimizationLevel::None)
+            .unwrap();
+
+        let address_space = inkwell::AddressSpace::default();
+
+        let types = JitTypes::new(address_space, &execution_engine, inkwell_context);
+
+        let wrapper_functions = WrapperFunctions::new(&types, &module, &execution_engine);
+
+        let builder = inkwell_context.create_builder();
+
+        let fn_eval_number_input_type = types.void_type.fn_type(
+            &[
+                // *mut f32 : pointer to destination array
+                types.f32_pointer_type.into(),
+                // usize : length of destination array
+                types.usize_type.into(),
+                // *const () : pointer to context
+                types.pointer_type.into(),
+            ],
+            false, // is_var_args
+        );
+
+        let fn_eval_number_input =
+            module.add_function(&function_name, fn_eval_number_input_type, None);
+
+        let bb_entry = inkwell_context.append_basic_block(fn_eval_number_input, "entry");
+        let bb_loop = inkwell_context.append_basic_block(fn_eval_number_input, "loop");
+        let bb_exit = inkwell_context.append_basic_block(fn_eval_number_input, "exit");
+
+        // read arguments
+        let arg_f32_dst_ptr = fn_eval_number_input
+            .get_nth_param(0)
+            .unwrap()
+            .into_pointer_value();
+        let arg_dst_len = fn_eval_number_input
+            .get_nth_param(1)
+            .unwrap()
+            .into_int_value();
+        let arg_actx_ptr = fn_eval_number_input
+            .get_nth_param(2)
+            .unwrap()
+            .into_pointer_value();
+
+        arg_f32_dst_ptr.set_name("dst_ptr");
+        arg_dst_len.set_name("dst_len");
+        arg_actx_ptr.set_name("audio_ctx");
+
+        let inst_end_of_entry;
+        let inst_end_of_loop;
+        let v_loop_counter;
+
+        builder.position_at_end(bb_entry);
+        {
+            let len_is_zero = builder.build_int_compare(
+                inkwell::IntPredicate::EQ,
+                arg_dst_len,
+                types.usize_type.const_zero(),
+                "len_is_zero",
+            );
+
+            // array read functions will be inserted here later
+
+            inst_end_of_entry = builder.build_conditional_branch(len_is_zero, bb_exit, bb_loop);
+        }
+
+        builder.position_at_end(bb_loop);
+        {
+            // if loop_counter >= dst_len { goto exit } else { goto loop_body }
+            let phi = builder.build_phi(types.usize_type, "loop_counter");
+            v_loop_counter = phi.as_basic_value().into_int_value();
+
+            let v_loop_counter_inc = builder.build_int_add(
+                v_loop_counter,
+                types.usize_type.const_int(1, false),
+                "loop_counter_inc",
+            );
+
+            phi.add_incoming(&[
+                (&types.usize_type.const_zero(), bb_entry),
+                (&v_loop_counter_inc, bb_loop),
+            ]);
+
+            // check that _next_ loop iteration is in bounds, since
+            // loop body is about to be executed any way, and size
+            // zero has already been prevented
+            let v_loop_counter_ge_len = builder.build_int_compare(
+                inkwell::IntPredicate::EQ,
+                v_loop_counter_inc,
+                arg_dst_len,
+                "loop_counter_ge_len",
+            );
+
+            // loop body will be inserted here
+
+            inst_end_of_loop =
+                builder.build_conditional_branch(v_loop_counter_ge_len, bb_exit, bb_loop);
+        }
+
+        builder.position_at_end(bb_exit);
+        {
+            builder.build_return(None);
+        }
+
+        let instruction_locations = InstructionLocations {
+            end_of_bb_entry: inst_end_of_entry,
+            end_of_bb_loop: inst_end_of_loop,
+        };
+
+        let local_variables = LocalVariables {
+            loop_counter: v_loop_counter,
+            dst_ptr: arg_f32_dst_ptr,
+            dst_len: arg_dst_len,
+            context_ptr: arg_actx_ptr,
+        };
+
         CodeGen {
-            instruction_locations: basic_blocks,
+            instruction_locations,
             local_variables,
             types,
+            function_name,
             wrapper_functions,
             builder,
             module,
+            execution_engine,
             atomic_captures: Vec::new(),
             compiled_targets: HashMap::new(),
         }
+    }
+
+    pub(super) fn finish(self) -> CompiledNumberInputCache<'ctx> {
+        if let Err(s) = self.module().verify() {
+            let s = s.to_string();
+            println!("LLVM failed to verify IR module");
+            for line in s.lines() {
+                println!("    {}", line);
+            }
+            panic!();
+        }
+
+        // Apply optimizations in release mode
+        #[cfg(not(debug_assertions))]
+        {
+            let pass_manager_builder = PassManagerBuilder::create();
+
+            pass_manager_builder.set_optimization_level(OptimizationLevel::Aggressive);
+            // TODO: other optimization options?
+
+            let pass_manager = PassManager::create(());
+
+            pass_manager_builder.populate_lto_pass_manager(&pass_manager, false, false);
+
+            pass_manager.run_on(codegen.module());
+        }
+
+        let compiled_fn = match unsafe { self.execution_engine.get_function(&self.function_name) } {
+            Ok(f) => f,
+            Err(e) => {
+                panic!("Unable to run JIT compiler:\n    {:?}", e);
+            }
+        };
+
+        CompiledNumberInputCache::new(self.execution_engine, compiled_fn, self.atomic_captures)
     }
 
     fn visit_input(
@@ -91,7 +244,7 @@ impl<'ctx> CodeGen<'ctx> {
             Some(target) => self.visit_target(target, topology),
             None => self
                 .types
-                .float_type
+                .f32_type
                 .const_float(input_data.default_value().into()),
         }
     }
@@ -137,7 +290,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn float_type(&self) -> FloatType<'ctx> {
-        self.types.float_type
+        self.types.f32_type
     }
 
     pub fn build_input_scalar_read(
@@ -298,8 +451,8 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(processor_id.value() as u64, false);
-        let ptr_time = self.builder.build_alloca(self.types.float_type, "time");
-        let ptr_speed = self.builder.build_alloca(self.types.float_type, "speed");
+        let ptr_time = self.builder.build_alloca(self.types.f32_type, "time");
+        let ptr_speed = self.builder.build_alloca(self.types.f32_type, "speed");
         self.builder.build_call(
             self.wrapper_functions.processor_time_wrapper,
             &[
@@ -321,7 +474,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let index_float = self.builder.build_unsigned_int_to_float(
             self.local_variables.loop_counter,
-            self.types.float_type,
+            self.types.f32_type,
             "index_f",
         );
 
@@ -340,8 +493,8 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(input_id.value() as u64, false);
-        let ptr_time = self.builder.build_alloca(self.types.float_type, "time");
-        let ptr_speed = self.builder.build_alloca(self.types.float_type, "speed");
+        let ptr_time = self.builder.build_alloca(self.types.f32_type, "time");
+        let ptr_speed = self.builder.build_alloca(self.types.f32_type, "speed");
         self.builder.build_call(
             self.wrapper_functions.input_time_wrapper,
             &[
@@ -363,7 +516,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let index_float = self.builder.build_unsigned_int_to_float(
             self.local_variables.loop_counter,
-            self.types.float_type,
+            self.types.f32_type,
             "index_f",
         );
 
@@ -440,7 +593,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let ptr_val =
             self.builder
-                .build_int_to_ptr(addr_val, self.types.float_pointer_type, "p_atomicf32");
+                .build_int_to_ptr(addr_val, self.types.f32_pointer_type, "p_atomicf32");
         let load = self.builder.build_load(ptr_val, "atomic32_val");
         let load_inst = load.as_instruction_value().unwrap();
         load_inst
@@ -456,15 +609,37 @@ impl<'ctx> CodeGen<'ctx> {
         load.into_float_value()
     }
 
-    pub(super) fn run(&mut self, output_id: NumberGraphOutputId, topology: &NumberGraphTopology) {
+    pub(crate) fn compile_number_input(
+        mut self,
+        number_input_id: SoundNumberInputId,
+        topology: &SoundGraphTopology,
+    ) -> CompiledNumberInputCache<'ctx> {
+        let sg_number_input_data = topology.number_input(number_input_id).unwrap();
+
+        let number_topo = sg_number_input_data.number_graph().topology();
+
+        // pre-compile all number graph inputs
+        for (snsid, giid) in sg_number_input_data.input_mapping() {
+            let value = topology
+                .number_source(snsid)
+                .unwrap()
+                .instance()
+                .compile(&mut self);
+            self.assign_target(NumberTarget::GraphInput(giid), value);
+        }
+
+        // TODO: add support for multiple outputs
+        assert_eq!(number_topo.graph_outputs().len(), 1);
+        let output_id = number_topo.graph_outputs()[0].id();
+
         self.builder
             .position_before(&self.instruction_locations.end_of_bb_loop);
-        let output_data = topology.graph_output(output_id).unwrap();
+        let output_data = number_topo.graph_output(output_id).unwrap();
         let final_value = match output_data.target() {
-            Some(target) => self.visit_target(target, topology),
+            Some(target) => self.visit_target(target, number_topo),
             None => self
                 .types
-                .float_type
+                .f32_type
                 .const_float(output_data.default_value() as f64)
                 .into(),
         };
@@ -476,6 +651,8 @@ impl<'ctx> CodeGen<'ctx> {
             )
         };
         self.builder.build_store(dst_elem_ptr, final_value);
+
+        self.finish()
     }
 
     pub(super) fn into_atomic_captures(self) -> Vec<Arc<AtomicF32>> {

@@ -1,6 +1,7 @@
 use rand::prelude::*;
 
 use crate::core::{
+    engine::nodegen::NodeGen,
     sound::{
         context::Context,
         graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -29,9 +30,9 @@ impl DynamicSoundProcessor for WhiteNoise {
         ()
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        _context: &'ctx inkwell::context::Context,
+        _nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ()
     }

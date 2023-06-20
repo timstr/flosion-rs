@@ -12,7 +12,7 @@ use crate::core::{
 use super::{
     stategraph::StateGraph,
     stategraphnode::{
-        NodeTarget, NodeTargetValue, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,
+        NodeTargetValue, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,
         UniqueProcessorNode,
     },
 };
@@ -90,11 +90,11 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
                 }
             }
 
-            node.visit_sound_inputs(&mut |siid: SoundInputId, kidx: usize, _tgt: &NodeTarget| {
-                if !remaining_input_nodes.remove(&(siid, kidx)) {
-                    unexpected_input_nodes.insert((siid, kidx));
+            for target in node.sound_input_node().targets() {
+                if !remaining_input_nodes.remove(&(target.id(), target.key_index())) {
+                    unexpected_input_nodes.insert((target.id(), target.key_index()));
                 }
-            });
+            }
 
             if !unexpected_input_nodes.is_empty() {
                 println!(
@@ -129,14 +129,12 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         // verify that the sound inputs have the expected targets
         {
             let mut all_good = true;
-            node.visit_sound_inputs(
-                &mut |siid: SoundInputId, _kidx: usize, target: &NodeTarget| {
-                    let input_data = self.topology.sound_input(siid).unwrap();
-                    if target.target_id() != input_data.target() {
-                        all_good = false;
-                    }
-                },
-            );
+            for target in node.sound_input_node().targets() {
+                let input_data = self.topology.sound_input(target.id()).unwrap();
+                if target.target_id() != input_data.target() {
+                    all_good = false;
+                }
+            }
             if !all_good {
                 println!("state_graph_matches_topology: a sound input has the wrong target");
                 return false;
@@ -158,14 +156,10 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         let mut remaining_inputs: HashSet<SoundNumberInputId> =
             proc_data.number_inputs().iter().cloned().collect();
         let mut unexpected_inputs: HashSet<SoundNumberInputId> = HashSet::new();
-        let mut uninitialized_inputs: HashSet<SoundNumberInputId> = HashSet::new();
 
         node.visit_number_inputs(&mut |number_input_node: &SoundNumberInputNode| {
             if !remaining_inputs.remove(&number_input_node.id()) {
                 unexpected_inputs.insert(number_input_node.id());
-            }
-            if !number_input_node.is_initialized() {
-                uninitialized_inputs.insert(number_input_node.id());
             }
         });
 
@@ -191,15 +185,6 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             );
             all_good = false;
         }
-        if !uninitialized_inputs.is_empty() {
-            println!(
-                "state_graph_matches_topology: warning: sound processor {} \"{}\" has \
-                the following uninitialized number input nodes: {}",
-                node.id().value(),
-                proc_data.instance_arc().as_graph_object().get_type().name(),
-                comma_separated_list(uninitialized_inputs.iter().map(|x| x.value().to_string()))
-            );
-        }
 
         // TODO: once number input nodes are more fleshed out, verify that
         // they are up to date.
@@ -210,27 +195,25 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn visit_processor_sound_inputs(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
         let mut all_good = true;
 
-        node.visit_sound_inputs(
-            &mut |_siid: SoundInputId, _kidx: usize, target: &NodeTarget<'ctx>| {
-                if !all_good {
-                    return;
-                }
-                let good = match target.target() {
-                    NodeTargetValue::Unique(n) => self.visit_unique_processor_node(n),
-                    NodeTargetValue::Shared(n) => self.visit_shared_processor_node(n),
-                    NodeTargetValue::Empty => true,
-                };
-                if !good {
-                    all_good = false;
-                }
-            },
-        );
+        // node.visit_sound_inputs(
+        //     &mut |_siid: SoundInputId, _kidx: usize, target: &NodeTarget<'ctx>| {
+        for target in node.sound_input_node().targets() {
+            let good = match target.target() {
+                NodeTargetValue::Unique(n) => self.visit_unique_processor_node(n),
+                NodeTargetValue::Shared(n) => self.visit_shared_processor_node(n),
+                NodeTargetValue::Empty => true,
+            };
+            if !good {
+                all_good = false;
+                break;
+            }
+        }
 
         all_good
     }
 }
 
-pub(super) fn state_graph_matches_topology(
+pub(crate) fn state_graph_matches_topology(
     state_graph: &StateGraph,
     topology: &SoundGraphTopology,
 ) -> bool {

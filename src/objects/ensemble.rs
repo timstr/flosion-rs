@@ -1,6 +1,7 @@
 use rand::prelude::*;
 
 use crate::core::{
+    engine::nodegen::NodeGen,
     numeric,
     sound::{
         context::Context,
@@ -94,13 +95,13 @@ impl DynamicSoundProcessor for Ensemble {
         ()
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         EnsembleNumberInputs {
-            frequency_in: self.frequency_in.make_node(context),
-            frequency_spread: self.frequency_spread.make_node(context),
+            frequency_in: self.frequency_in.make_node(nodegen),
+            frequency_spread: self.frequency_spread.make_node(nodegen),
         }
     }
 

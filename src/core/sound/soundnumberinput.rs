@@ -1,4 +1,4 @@
-use crate::core::uniqueid::UniqueId;
+use crate::core::{engine::nodegen::NodeGen, uniqueid::UniqueId};
 
 use super::{soundnumberinputnode::SoundNumberInputNode, soundprocessor::SoundProcessorId};
 
@@ -41,10 +41,7 @@ impl SoundNumberInputHandle {
         self.id
     }
 
-    pub fn make_node<'ctx>(
-        &self,
-        context: &'ctx inkwell::context::Context,
-    ) -> SoundNumberInputNode<'ctx> {
-        SoundNumberInputNode::new(self.id)
+    pub fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> SoundNumberInputNode<'ctx> {
+        SoundNumberInputNode::new(self.id, nodegen)
     }
 }

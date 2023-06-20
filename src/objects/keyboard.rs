@@ -3,6 +3,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use parking_lot::Mutex;
 
 use crate::core::{
+    engine::nodegen::NodeGen,
     sound::{
         context::Context,
         graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -15,7 +16,7 @@ use crate::core::{
     soundchunk::SoundChunk,
 };
 
-type KeyId = u8;
+type KeyId = usize;
 
 pub struct KeyboardKeyState {
     frequency: f32,
@@ -34,7 +35,7 @@ enum KeyboardCommand {
 }
 
 pub struct Keyboard {
-    pub input: KeyedInputQueue<KeyId, KeyboardKeyState>,
+    pub input: KeyedInputQueue<KeyboardKeyState>,
     pub key_frequency: SoundNumberSourceHandle,
     pub key_time: SoundNumberSourceHandle,
     command_sender: SyncSender<KeyboardCommand>,
@@ -62,7 +63,7 @@ impl Keyboard {
 }
 
 impl StaticSoundProcessor for Keyboard {
-    type SoundInputType = KeyedInputQueue<KeyId, KeyboardKeyState>;
+    type SoundInputType = KeyedInputQueue<KeyboardKeyState>;
 
     type NumberInputType<'ctx> = ();
 
@@ -88,16 +89,16 @@ impl StaticSoundProcessor for Keyboard {
         &self.input
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        _context: &'ctx inkwell::context::Context,
+        _nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ()
     }
 
     fn process_audio<'ctx>(
         &self,
-        sound_input_node: &mut KeyedInputQueueNode<KeyId, KeyboardKeyState>,
+        sound_input_node: &mut KeyedInputQueueNode<KeyboardKeyState>,
         _number_inputs: &(),
         dst: &mut SoundChunk,
         context: Context,

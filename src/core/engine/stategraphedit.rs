@@ -1,10 +1,13 @@
 use crate::core::{
-    jit::compilednumberinput::CompiledNumberInputNode,
+    jit::compilednumberinput::CompiledNumberInputFunction,
     number::numberinput::NumberInputId,
     sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId},
 };
 
-use super::stategraphnode::{NodeTargetValue, StateGraphNode};
+use super::{
+    stategraph::StateGraph,
+    stategraphnode::{NodeTargetValue, StateGraphNode},
+};
 
 // Edits to be made to the state graph on the audio thread.
 // While StateGraphEdit is superficially similar to SoundEdit, it is heavily
@@ -13,7 +16,7 @@ use super::stategraphnode::{NodeTargetValue, StateGraphNode};
 // graph level have no analog or may not correspond to any edits here if
 // they don't imply any individual changes to the state graph.
 pub(crate) enum StateGraphEdit<'ctx> {
-    AddStaticSoundProcessor(Box<dyn StateGraphNode<'ctx>>),
+    AddStaticSoundProcessor(Box<dyn 'ctx + StateGraphNode<'ctx>>),
     RemoveStaticSoundProcessor(SoundProcessorId),
     AddSoundInput {
         input_id: SoundInputId,
@@ -48,5 +51,6 @@ pub(crate) enum StateGraphEdit<'ctx> {
         owner_id: SoundProcessorId,
         targets: Vec<NodeTargetValue<'ctx>>,
     },
-    UpdateNumberInput(NumberInputId, CompiledNumberInputNode<'ctx>),
+    UpdateNumberInput(NumberInputId, CompiledNumberInputFunction<'ctx>),
+    DebugInspection(Box<dyn Send + FnOnce(&StateGraph<'ctx>) -> ()>),
 }

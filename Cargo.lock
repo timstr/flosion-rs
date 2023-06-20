@@ -1056,6 +1056,7 @@ dependencies = [
  "parking_lot 0.11.2",
  "rand",
  "rfd",
+ "send_wrapper",
  "spin_sleep",
  "thread-priority",
 ]
@@ -2341,6 +2342,12 @@ name = "semver"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58bc9567378fc7690d6b2addae4e60ac2eeea07becb2c64b9f218b53865cba2a"
+
+[[package]]
+name = "send_wrapper"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"

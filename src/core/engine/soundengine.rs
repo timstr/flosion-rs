@@ -4,43 +4,119 @@ use std::{
         mpsc::{channel, Receiver, Sender},
         Arc,
     },
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use super::{scratcharena::ScratchArena, stategraph::StateGraph, stategraphedit::StateGraphEdit};
+use super::{
+    nodegen::NodeGen, scratcharena::ScratchArena, stategraph::StateGraph,
+    stategraphedit::StateGraphEdit,
+};
 
 use crate::core::{
-    jit::jitcontext::JitContext, samplefrequency::SAMPLE_FREQUENCY,
+    engine::stategraphvalidation::state_graph_matches_topology, samplefrequency::SAMPLE_FREQUENCY,
     sound::soundgraphtopology::SoundGraphTopology, soundchunk::CHUNK_SIZE,
 };
 
+pub(crate) fn create_sound_engine<'ctx>(
+    inkwell_context: &'ctx inkwell::context::Context,
+) -> (SoundEngineInterface<'ctx>, SoundEngineRunner<'ctx>) {
+    let keep_running = Arc::new(AtomicBool::new(true));
+    let (sender, receiver) = channel::<StateGraphEdit<'ctx>>();
+
+    let se_interface = SoundEngineInterface {
+        inkwell_context,
+        current_topology: SoundGraphTopology::new(),
+        keep_running: Arc::clone(&keep_running),
+        edit_queue: sender,
+    };
+
+    let se_runner = SoundEngineRunner {
+        keep_running,
+        edit_queue: receiver,
+    };
+
+    (se_interface, se_runner)
+}
+
 pub(crate) struct SoundEngineInterface<'ctx> {
+    inkwell_context: &'ctx inkwell::context::Context,
     current_topology: SoundGraphTopology,
     keep_running: Arc<AtomicBool>,
     edit_queue: Sender<StateGraphEdit<'ctx>>,
-    join_handle: Option<JoinHandle<()>>,
 }
 
 impl<'ctx> SoundEngineInterface<'ctx> {
     pub(crate) fn update(&mut self, new_topology: SoundGraphTopology) {
-        // TODO: diff current and new topology and create a list of state
-        // graph edits
-        // TODO: as a simpler first pass, consider just regenerating the
-        // entire state graph, e.g. replacing all state processors and
-        // their targets
-        todo!()
-        // self.edit_queue.send(edit).unwrap();
-        // self.current_topology = new_topology;
+        // TODO: diff current and new topology and create a list of fine-grained state graph edits
+        // HACK deleting everything and then adding it back
+        for proc in self.current_topology.sound_processors().values() {
+            if proc.instance().is_static() {
+                self.edit_queue
+                    .send(StateGraphEdit::RemoveStaticSoundProcessor(proc.id()))
+                    .unwrap();
+            }
+        }
+        // all should be deleted now
+        #[cfg(debug_assertions)]
+        {
+            self.edit_queue
+                .send(StateGraphEdit::DebugInspection(Box::new(
+                    |sg: &StateGraph<'ctx>| {
+                        debug_assert!(sg.static_nodes().is_empty());
+                    },
+                )))
+                .unwrap();
+        }
+
+        // Add back static processors with populated inputs
+        let nodegen = NodeGen::new(&self.current_topology, self.inkwell_context);
+        for proc in self.current_topology.sound_processors().values() {
+            if proc.instance().is_static() {
+                let node = proc.instance_arc().make_node(&nodegen);
+                self.edit_queue
+                    .send(StateGraphEdit::AddStaticSoundProcessor(node));
+            }
+        }
+
+        // topology and state graph should match now
+        #[cfg(debug_assertions)]
+        {
+            let topo_clone = new_topology.clone();
+            self.edit_queue
+                .send(StateGraphEdit::DebugInspection(Box::new(
+                    |sg: &StateGraph<'ctx>| {
+                        let topo = topo_clone;
+                        debug_assert!(state_graph_matches_topology(sg, &topo));
+                    },
+                )))
+                .unwrap();
+        }
+
+        self.current_topology = new_topology;
     }
 }
 
 impl<'ctx> Drop for SoundEngineInterface<'ctx> {
     fn drop(&mut self) {
         self.keep_running.store(false, Ordering::SeqCst);
-        self.join_handle.take().unwrap().join().unwrap();
+    }
+}
+
+pub(crate) struct SoundEngineRunner<'ctx> {
+    keep_running: Arc<AtomicBool>,
+    edit_queue: Receiver<StateGraphEdit<'ctx>>,
+}
+
+impl<'ctx> SoundEngineRunner<'ctx> {
+    pub(crate) fn run(self) {
+        let mut se = SoundEngine {
+            keep_running: self.keep_running,
+            edit_queue: self.edit_queue,
+            deadline_warning_issued: false,
+        };
+        se.run();
     }
 }
 
@@ -57,33 +133,6 @@ pub(crate) struct SoundEngine<'ctx> {
     deadline_warning_issued: bool,
 }
 
-pub(crate) fn spawn_sound_engine<'ctx>(
-    jit_context: &'ctx JitContext,
-) -> SoundEngineInterface<'ctx> {
-    let keep_running = Arc::new(AtomicBool::new(true));
-    let keep_running_also = Arc::clone(&keep_running);
-    let (sender, receiver) = channel();
-    let join_handle = thread::spawn(move || {
-        // NOTE: state_graph is not Send, and so must be constructed on the audio thread
-        // let mut se = SoundEngine {
-        //     keep_running: keep_running_also,
-        //     edit_queue: receiver,
-        //     deadline_warning_issued: false,
-        // };
-        // se.run();
-        // TODO: store only a single inkwell ExecutionEngine as part of a pre-constructed jit context,
-        // and just hope that inkwell's JitFunction is Send
-        // See notes in compilednumberinput.rs
-        todo!()
-    });
-    SoundEngineInterface {
-        current_topology: SoundGraphTopology::new(),
-        keep_running,
-        edit_queue: sender,
-        join_handle: Some(join_handle),
-    }
-}
-
 impl<'ctx> SoundEngine<'ctx> {
     thread_local! {
         static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
@@ -95,7 +144,6 @@ impl<'ctx> SoundEngine<'ctx> {
 
         set_current_thread_priority(ThreadPriority::Max).unwrap();
 
-        let context = inkwell::context::Context::create();
         let mut state_graph = StateGraph::new();
 
         let mut deadline = Instant::now() + chunk_duration;

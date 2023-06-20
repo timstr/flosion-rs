@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 
 use crate::core::{
     anydata::AnyData,
-    engine::stategraphnode::NodeTarget,
+    engine::{nodegen::NodeGen, stategraphnode::NodeTarget},
     numeric,
     soundchunk::{SoundChunk, CHUNK_SIZE},
 };
@@ -37,8 +37,8 @@ impl SingleInput {
 impl SoundProcessorInput for SingleInput {
     type NodeType<'ctx> = SingleInputNode<'ctx>;
 
-    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
-        SingleInputNode::new(self.id)
+    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+        SingleInputNode::new(self.id, nodegen)
     }
 
     fn list_ids(&self) -> Vec<SoundInputId> {
@@ -51,9 +51,9 @@ pub struct SingleInputNode<'ctx> {
 }
 
 impl<'ctx> SingleInputNode<'ctx> {
-    pub fn new(id: SoundInputId) -> SingleInputNode<'ctx> {
+    pub fn new<'a>(id: SoundInputId, nodegen: &NodeGen<'a, 'ctx>) -> SingleInputNode<'ctx> {
         SingleInputNode {
-            target: NodeTarget::new(id),
+            target: NodeTarget::new(id, 0, nodegen),
         }
     }
 
@@ -116,11 +116,11 @@ impl<S: State + Default> KeyedInput<S> {
 impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
     type NodeType<'ctx> = KeyedInputNode<'ctx, S>;
 
-    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         KeyedInputNode {
             id: self.id,
             targets: (0..self.num_keys)
-                .map(|_| NodeTarget::new(self.id))
+                .map(|i| NodeTarget::new(self.id, i, nodegen))
                 .collect(),
             states: (0..self.num_keys).map(|_| S::default()).collect(),
         }
@@ -213,7 +213,7 @@ impl<'ctx, S: State + Default> SoundInputNode<'ctx> for KeyedInputNode<'ctx, S> 
 impl SoundProcessorInput for () {
     type NodeType<'ctx> = ();
 
-    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, _nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         ()
     }
 
@@ -272,13 +272,13 @@ impl SingleInputList {
 impl SoundProcessorInput for SingleInputList {
     type NodeType<'ctx> = SingleInputListNode<'ctx>;
 
-    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         SingleInputListNode {
             targets: self
                 .input_ids
                 .read()
                 .iter()
-                .map(|id| NodeTarget::new(*id))
+                .map(|id| NodeTarget::new(*id, 0, nodegen))
                 .collect(),
         }
     }
@@ -349,32 +349,30 @@ enum KeyDuration {
     Samples(usize),
 }
 
-struct KeyPlayingData<I: Copy + Eq, S: State> {
-    id: I,
+struct KeyPlayingData<S: State> {
+    id: usize,
     state: S,
     age: usize,
     duration: KeyDuration,
 }
 
-enum QueuedKeyState<I: Copy + Eq, S: State> {
+enum QueuedKeyState<S: State> {
     NotPlaying(),
-    Playing(KeyPlayingData<I, S>),
+    Playing(KeyPlayingData<S>),
 }
 
-pub struct KeyedInputQueue<I: Copy + Eq, S: State> {
+pub struct KeyedInputQueue<S: State> {
     id: SoundInputId,
     num_keys: usize,
-    phantom_data_i: PhantomData<I>,
     phantom_data_s: PhantomData<S>,
 }
 
-impl<I: Copy + Eq, S: State> KeyedInputQueue<I, S> {
+impl<S: State> KeyedInputQueue<S> {
     pub fn new(queue_size: usize, tools: &mut SoundProcessorTools) -> Self {
         let id = tools.add_sound_input(InputOptions::NonSynchronous, queue_size);
         Self {
             id,
             num_keys: queue_size,
-            phantom_data_i: PhantomData,
             phantom_data_s: PhantomData,
         }
     }
@@ -384,11 +382,11 @@ impl<I: Copy + Eq, S: State> KeyedInputQueue<I, S> {
     }
 }
 
-impl<I: Copy + Eq, S: State> SoundProcessorInput for KeyedInputQueue<I, S> {
-    type NodeType<'ctx> = KeyedInputQueueNode<'ctx, I, S>;
+impl<S: State> SoundProcessorInput for KeyedInputQueue<S> {
+    type NodeType<'ctx> = KeyedInputQueueNode<'ctx, S>;
 
-    fn make_node<'ctx>(&self) -> Self::NodeType<'ctx> {
-        KeyedInputQueueNode::new(self.id, self.num_keys)
+    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+        KeyedInputQueueNode::new(self.id, self.num_keys, nodegen)
     }
 
     fn list_ids(&self) -> Vec<SoundInputId> {
@@ -396,18 +394,20 @@ impl<I: Copy + Eq, S: State> SoundProcessorInput for KeyedInputQueue<I, S> {
     }
 }
 
-pub struct KeyedInputQueueNode<'ctx, I: Copy + Eq, S: State> {
+pub struct KeyedInputQueueNode<'ctx, S: State> {
     id: SoundInputId,
     targets: Vec<NodeTarget<'ctx>>,
-    states: Vec<QueuedKeyState<I, S>>,
+    states: Vec<QueuedKeyState<S>>,
     active: bool,
 }
 
-impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
-    fn new(id: SoundInputId, num_keys: usize) -> Self {
+impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
+    fn new<'a>(id: SoundInputId, num_keys: usize, nodegen: &NodeGen<'a, 'ctx>) -> Self {
         Self {
             id,
-            targets: (0..num_keys).map(|_| NodeTarget::new(id)).collect(),
+            targets: (0..num_keys)
+                .map(|i| NodeTarget::new(id, i, nodegen))
+                .collect(),
             states: (0..num_keys)
                 .map(|_| QueuedKeyState::NotPlaying())
                 .collect(),
@@ -417,7 +417,13 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
 
     // TODO: add sample_offset in [0, chunk_size)
     // TODO: make stacking optional
-    pub fn start_key(&mut self, duration_samples: Option<usize>, id: I, state: S, reuse: KeyReuse) {
+    pub fn start_key(
+        &mut self,
+        duration_samples: Option<usize>,
+        id: usize,
+        state: S,
+        reuse: KeyReuse,
+    ) {
         let mut oldest_key_index_and_age = None;
         let mut available_index = None;
         for (i, d) in self.states.iter_mut().enumerate() {
@@ -472,7 +478,7 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
     }
 
     // TODO: add sample_offset in [0, chunk_size)
-    pub fn release_key(&mut self, id: I) {
+    pub fn release_key(&mut self, id: usize) {
         for d in &mut self.states {
             if let QueuedKeyState::Playing(key_data) = d {
                 if key_data.id == id {
@@ -531,7 +537,7 @@ impl<'ctx, I: Copy + Eq, S: State> KeyedInputQueueNode<'ctx, I, S> {
     }
 }
 
-impl<'ctx, I: Copy + Eq, S: State> SoundInputNode<'ctx> for KeyedInputQueueNode<'ctx, I, S> {
+impl<'ctx, S: State> SoundInputNode<'ctx> for KeyedInputQueueNode<'ctx, S> {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
         &self.targets
     }

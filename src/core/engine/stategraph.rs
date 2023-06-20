@@ -66,10 +66,11 @@ impl<'ctx> StateGraph<'ctx> {
                 targets,
             } => self.replace_sound_input_targets(input_id, owner_id, targets),
             StateGraphEdit::UpdateNumberInput(_, _) => todo!(),
+            StateGraphEdit::DebugInspection(f) => f(self),
         }
     }
 
-    fn add_static_sound_processor<'a>(&'a mut self, node: Box<dyn StateGraphNode<'ctx>>) {
+    fn add_static_sound_processor(&mut self, node: Box<dyn 'ctx + StateGraphNode<'ctx>>) {
         let shared_node = SharedProcessorNode::<'ctx>::new(node);
         self.static_nodes.push(shared_node);
     }

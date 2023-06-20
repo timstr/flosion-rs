@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use parking_lot::RwLock;
 
 use crate::core::{
+    engine::nodegen::NodeGen,
     serialization::{Serializable, Serializer},
     sound::{
         context::Context,
@@ -84,9 +85,9 @@ impl StaticSoundProcessor for Recorder {
         &self.input
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        _context: &'ctx inkwell::context::Context,
+        _nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ()
     }

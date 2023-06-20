@@ -1,4 +1,4 @@
 pub mod codegen;
 pub mod compilednumberinput;
-pub mod jitcontext;
+pub mod types;
 pub(crate) mod wrappers;

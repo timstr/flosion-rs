@@ -1,4 +1,5 @@
 use crate::core::{
+    engine::nodegen::NodeGen,
     numeric,
     serialization::Serializer,
     sound::{
@@ -63,9 +64,9 @@ impl DynamicSoundProcessor for Mixer {
         ()
     }
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        _context: &'ctx inkwell::context::Context,
+        _nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx> {
         ()
     }

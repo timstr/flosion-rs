@@ -5,7 +5,10 @@ use std::{
 };
 
 use crate::core::{
-    engine::stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
+    engine::{
+        nodegen::NodeGen,
+        stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
+    },
     serialization::Serializer,
     soundchunk::SoundChunk,
     uniqueid::UniqueId,
@@ -59,9 +62,9 @@ pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx>;
 
     fn process_audio<'ctx>(
@@ -88,9 +91,9 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     fn make_state(&self) -> Self::StateType;
 
-    fn make_number_inputs<'ctx>(
+    fn make_number_inputs<'a, 'ctx>(
         &self,
-        context: &'ctx inkwell::context::Context,
+        nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::NumberInputType<'ctx>;
 
     fn process_audio<'ctx>(
@@ -235,10 +238,10 @@ pub(crate) trait SoundProcessor: 'static + Sync + Send {
 
     fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle;
 
-    fn make_node<'ctx>(
+    fn make_node<'a, 'ctx>(
         self: Arc<Self>,
-        context: &'ctx inkwell::context::Context,
-    ) -> Box<dyn StateGraphNode + 'ctx>;
+        nodegen: &NodeGen<'a, 'ctx>,
+    ) -> Box<dyn 'ctx + StateGraphNode<'ctx>>;
 }
 
 impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
@@ -258,11 +261,11 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
         GraphObjectHandle::new(self)
     }
 
-    fn make_node<'ctx>(
+    fn make_node<'a, 'ctx>(
         self: Arc<Self>,
-        context: &'ctx inkwell::context::Context,
-    ) -> Box<dyn StateGraphNode + 'ctx> {
-        let processor_node = StaticProcessorNode::<T>::new(Arc::clone(&self), context);
+        nodegen: &NodeGen<'a, 'ctx>,
+    ) -> Box<dyn 'ctx + StateGraphNode<'ctx>> {
+        let processor_node = StaticProcessorNode::new(Arc::clone(&self), nodegen);
         Box::new(processor_node)
     }
 }
@@ -284,11 +287,11 @@ impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T>
         GraphObjectHandle::new(self)
     }
 
-    fn make_node<'ctx>(
+    fn make_node<'a, 'ctx>(
         self: Arc<Self>,
-        context: &'ctx inkwell::context::Context,
-    ) -> Box<dyn StateGraphNode + 'ctx> {
-        let processor_node = DynamicProcessorNode::<T>::new(&*self, context);
+        nodegen: &NodeGen<'a, 'ctx>,
+    ) -> Box<dyn 'ctx + StateGraphNode<'ctx>> {
+        let processor_node = DynamicProcessorNode::new(&*self, nodegen);
         Box::new(processor_node)
     }
 }

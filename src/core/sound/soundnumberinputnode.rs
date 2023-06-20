@@ -1,47 +1,41 @@
 use std::slice;
 
 use crate::core::{
-    jit::compilednumberinput::CompiledNumberInputNode, sound::soundnumberinput::SoundNumberInputId,
+    engine::nodegen::NodeGen,
+    jit::{codegen::CodeGen, compilednumberinput::CompiledNumberInputFunction},
+    sound::soundnumberinput::SoundNumberInputId,
 };
 
-use super::{context::Context, soundgraphtopology::SoundGraphTopology};
+use super::context::Context;
 
 pub struct SoundNumberInputNode<'ctx> {
     id: SoundNumberInputId,
-    artefact: Option<CompiledNumberInputNode<'ctx>>,
+    function: CompiledNumberInputFunction<'ctx>,
 }
 
 impl<'ctx> SoundNumberInputNode<'ctx> {
-    pub(super) fn new(id: SoundNumberInputId) -> Self {
-        Self { id, artefact: None }
+    pub(super) fn new<'a>(
+        id: SoundNumberInputId,
+        nodegen: &NodeGen<'a, 'ctx>,
+    ) -> SoundNumberInputNode<'ctx> {
+        // TODO: cache compiled number inputs
+        let codegen = CodeGen::new(nodegen.inkwell_context());
+        let data = codegen.compile_number_input(id, nodegen.topology());
+        let function = data.make_function();
+        SoundNumberInputNode { id, function }
     }
 
     pub(crate) fn id(&self) -> SoundNumberInputId {
         self.id
     }
 
-    pub(crate) fn is_initialized(&self) -> bool {
-        self.artefact.is_some()
-    }
-
-    pub(crate) fn recompile(
-        &mut self,
-        topology: &SoundGraphTopology,
-        inkwell_context: &'ctx inkwell::context::Context,
-    ) {
-        // TODO: skip recompilation if up to date
-        self.artefact = Some(CompiledNumberInputNode::compile(
-            self.id,
-            topology,
-            inkwell_context,
-        ))
+    pub(crate) fn update(&mut self, mut function: CompiledNumberInputFunction<'ctx>) {
+        std::mem::swap(&mut self.function, &mut function);
+        // TODO: put the spent function in the gargabe chute
     }
 
     pub fn eval(&self, dst: &mut [f32], context: &Context) {
-        match &self.artefact {
-            Some(a) => a.eval(dst, context),
-            None => panic!("Attempted to evaluate an unitialized NumberInputNode"),
-        }
+        self.function.eval(dst, context)
     }
 
     pub fn eval_scalar(&self, context: &Context) -> f32 {
@@ -52,7 +46,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
     }
 }
 
-pub trait SoundNumberInputNodeCollection<'ctx> {
+pub trait SoundNumberInputNodeCollection<'ctx>: Sync + Send {
     fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>);
     fn visit_number_inputs_mut(
         &mut self,

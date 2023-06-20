@@ -48,7 +48,6 @@ impl ObjectId {
     pub fn as_sound_processor_id(&self) -> Option<SoundProcessorId> {
         match self {
             ObjectId::Sound(id) => Some(*id),
-            _ => None,
         }
     }
 }

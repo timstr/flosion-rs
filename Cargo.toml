@@ -21,5 +21,6 @@ inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", feat
 parking_lot = "0.11.2"
 rand = "0.8.3"
 rfd = "0.10.0"
+send_wrapper = "0.6.0"
 spin_sleep = "1.0.0"
 thread-priority = "0.4.1"
