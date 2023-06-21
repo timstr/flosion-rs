@@ -1,3 +1,4 @@
+pub(crate) mod garbage;
 pub mod nodegen;
 pub(crate) mod scratcharena;
 pub mod soundengine;

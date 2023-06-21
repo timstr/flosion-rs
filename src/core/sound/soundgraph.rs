@@ -7,6 +7,8 @@ use std::{
     thread::JoinHandle,
 };
 
+use thread_priority::{set_current_thread_priority, ThreadPriority};
+
 use crate::core::{engine::soundengine::create_sound_engine, uniqueid::IdGenerator};
 
 use super::{
@@ -136,12 +138,23 @@ impl SoundGraph {
         let engine_interface_thread = std::thread::spawn(move || {
             let inkwell_context = inkwell::context::Context::create();
             std::thread::scope(|scope| {
-                let (mut engine_interface, engine_runner) = create_sound_engine(&inkwell_context);
-                scope.spawn(|| {
-                    engine_runner.run();
+                let (mut engine_interface, engine, garbage_disposer) =
+                    create_sound_engine(&inkwell_context);
+
+                scope.spawn(move || {
+                    set_current_thread_priority(ThreadPriority::Max).unwrap();
+                    engine.run();
                 });
-                while let Ok(topo) = receiver.recv() {
-                    engine_interface.update(topo);
+
+                // NOTE: both the engine interface and the garbage disposer
+                // deal with LLVM resources and so need to stay on the same
+                // thread as the inkwell_context above
+                loop {
+                    while let Ok(topo) = receiver.recv() {
+                        engine_interface.update(topo);
+                    }
+                    garbage_disposer.clear();
+                    std::thread::sleep(std::time::Duration::from_millis(100))
                 }
             });
         });
@@ -354,6 +367,10 @@ impl SoundGraph {
     }
 
     fn try_make_edits(&mut self, edit_queue: Vec<SoundGraphEdit>) -> Result<(), SoundError> {
+        // TODO: add a separate flush() or commit() method that
+        // sends updates to the sound engine on an opt-in basis,
+        // e.g. at most once per UI update, rather than sending
+        // an update for every smallest change`
         debug_assert!(find_error(&self.local_topology).is_none());
         let prev_topology = self.local_topology.clone();
         let res = self.try_make_edits_locally(&edit_queue);

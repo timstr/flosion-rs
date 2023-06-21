@@ -7,10 +7,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use thread_priority::{set_current_thread_priority, ThreadPriority};
-
 use super::{
-    nodegen::NodeGen, scratcharena::ScratchArena, stategraph::StateGraph,
+    garbage::{new_garbage_disposer, GarbageChute, GarbageDisposer},
+    nodegen::NodeGen,
+    scratcharena::ScratchArena,
+    stategraph::StateGraph,
     stategraphedit::StateGraphEdit,
 };
 
@@ -21,9 +22,14 @@ use crate::core::{
 
 pub(crate) fn create_sound_engine<'ctx>(
     inkwell_context: &'ctx inkwell::context::Context,
-) -> (SoundEngineInterface<'ctx>, SoundEngineRunner<'ctx>) {
+) -> (
+    SoundEngineInterface<'ctx>,
+    SoundEngine<'ctx>,
+    GarbageDisposer<'ctx>,
+) {
     let keep_running = Arc::new(AtomicBool::new(true));
     let (sender, receiver) = channel::<StateGraphEdit<'ctx>>();
+    let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
     let se_interface = SoundEngineInterface {
         inkwell_context,
@@ -32,12 +38,14 @@ pub(crate) fn create_sound_engine<'ctx>(
         edit_queue: sender,
     };
 
-    let se_runner = SoundEngineRunner {
+    let se = SoundEngine {
         keep_running,
         edit_queue: receiver,
+        deadline_warning_issued: false,
+        garbage_chute,
     };
 
-    (se_interface, se_runner)
+    (se_interface, se, garbage_disposer)
 }
 
 pub(crate) struct SoundEngineInterface<'ctx> {
@@ -49,6 +57,23 @@ pub(crate) struct SoundEngineInterface<'ctx> {
 
 impl<'ctx> SoundEngineInterface<'ctx> {
     pub(crate) fn update(&mut self, new_topology: SoundGraphTopology) {
+        // topology and state graph should match
+        #[cfg(debug_assertions)]
+        {
+            let topo_clone = self.current_topology.clone();
+            self.edit_queue
+                .send(StateGraphEdit::DebugInspection(Box::new(
+                    |sg: &StateGraph<'ctx>| {
+                        let topo = topo_clone;
+                        debug_assert!(
+                            state_graph_matches_topology(sg, &topo),
+                            "State graph failed to match topology before any updates were made"
+                        );
+                    },
+                )))
+                .unwrap();
+        }
+
         // TODO: diff current and new topology and create a list of fine-grained state graph edits
         // HACK deleting everything and then adding it back
         for proc in self.current_topology.sound_processors().values() {
@@ -71,16 +96,17 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         }
 
         // Add back static processors with populated inputs
-        let nodegen = NodeGen::new(&self.current_topology, self.inkwell_context);
-        for proc in self.current_topology.sound_processors().values() {
+        let nodegen = NodeGen::new(&new_topology, self.inkwell_context);
+        for proc in new_topology.sound_processors().values() {
             if proc.instance().is_static() {
                 let node = proc.instance_arc().make_node(&nodegen);
                 self.edit_queue
-                    .send(StateGraphEdit::AddStaticSoundProcessor(node));
+                    .send(StateGraphEdit::AddStaticSoundProcessor(node))
+                    .unwrap();
             }
         }
 
-        // topology and state graph should match now
+        // topology and state graph should still match
         #[cfg(debug_assertions)]
         {
             let topo_clone = new_topology.clone();
@@ -88,7 +114,10 @@ impl<'ctx> SoundEngineInterface<'ctx> {
                 .send(StateGraphEdit::DebugInspection(Box::new(
                     |sg: &StateGraph<'ctx>| {
                         let topo = topo_clone;
-                        debug_assert!(state_graph_matches_topology(sg, &topo));
+                        debug_assert!(
+                            state_graph_matches_topology(sg, &topo),
+                            "State graph no longer matches topology after applying updates"
+                        );
                     },
                 )))
                 .unwrap();
@@ -104,22 +133,6 @@ impl<'ctx> Drop for SoundEngineInterface<'ctx> {
     }
 }
 
-pub(crate) struct SoundEngineRunner<'ctx> {
-    keep_running: Arc<AtomicBool>,
-    edit_queue: Receiver<StateGraphEdit<'ctx>>,
-}
-
-impl<'ctx> SoundEngineRunner<'ctx> {
-    pub(crate) fn run(self) {
-        let mut se = SoundEngine {
-            keep_running: self.keep_running,
-            edit_queue: self.edit_queue,
-            deadline_warning_issued: false,
-        };
-        se.run();
-    }
-}
-
 pub(crate) struct SoundEngine<'ctx> {
     // TODO: add a queue for whatever objects the state graph no longer needs
     // (e.g. removed sound processors, out-of-date compiled number inputs,
@@ -131,6 +144,7 @@ pub(crate) struct SoundEngine<'ctx> {
     keep_running: Arc<AtomicBool>,
     edit_queue: Receiver<StateGraphEdit<'ctx>>,
     deadline_warning_issued: bool,
+    garbage_chute: GarbageChute<'ctx>,
 }
 
 impl<'ctx> SoundEngine<'ctx> {
@@ -138,18 +152,16 @@ impl<'ctx> SoundEngine<'ctx> {
         static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
     }
 
-    fn run(&mut self) {
+    pub(crate) fn run(mut self) {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
         let chunk_duration = Duration::from_micros((1_000_000.0 / chunks_per_sec) as u64);
-
-        set_current_thread_priority(ThreadPriority::Max).unwrap();
 
         let mut state_graph = StateGraph::new();
 
         let mut deadline = Instant::now() + chunk_duration;
 
         loop {
-            self.flush_updates(&mut state_graph);
+            Self::flush_updates(&self.edit_queue, &mut state_graph, &self.garbage_chute);
 
             self.process_audio(&state_graph);
             if !self.keep_running.load(Ordering::Relaxed) {
@@ -171,9 +183,13 @@ impl<'ctx> SoundEngine<'ctx> {
         }
     }
 
-    fn flush_updates(&mut self, state_graph: &mut StateGraph<'ctx>) {
-        while let Ok(edit) = self.edit_queue.try_recv() {
-            state_graph.make_edit(edit);
+    fn flush_updates(
+        edit_queue: &Receiver<StateGraphEdit<'ctx>>,
+        state_graph: &mut StateGraph<'ctx>,
+        garbage_chute: &GarbageChute<'ctx>,
+    ) {
+        while let Ok(edit) = edit_queue.try_recv() {
+            state_graph.make_edit(edit, garbage_chute);
             // TODO: consider adding back a way to ensure that the state graph
             // matches the corresponding topology in debug builds
         }

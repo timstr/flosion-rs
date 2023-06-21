@@ -82,7 +82,7 @@ impl<'ctx> SingleInputNode<'ctx> {
 
 impl<'ctx> SoundInputNode<'ctx> for SingleInputNode<'ctx> {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
-        todo!()
+        std::slice::from_ref(&self.target)
     }
 
     fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {

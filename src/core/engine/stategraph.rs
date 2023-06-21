@@ -4,9 +4,10 @@ use crate::core::sound::{
 };
 
 use super::{
+    garbage::{Garbage, GarbageChute},
     stategraphedit::StateGraphEdit,
+    stategraphnode::StateGraphNode,
     stategraphnode::{NodeTargetValue, SharedProcessorNode},
-    stategraphnode::{OpaqueNodeTargetValue, StateGraphNode},
 };
 
 // A directed acyclic graph of nodes representing invidual sound processors,
@@ -31,15 +32,15 @@ impl<'ctx> StateGraph<'ctx> {
         &self.static_nodes
     }
 
-    pub(super) fn make_edit(&mut self, edit: StateGraphEdit<'ctx>) {
-        // TODO: consider adding a special edit type which marks that a batch of updates
-        // is over, in order to avoid keeping all invariants in check unecessarily (e.g.
-        // recompiling number inputs over and over). This would go nicely with marking
-        // number inputs as "dirty" until updated
+    pub(super) fn make_edit(
+        &mut self,
+        edit: StateGraphEdit<'ctx>,
+        garbage_chute: &GarbageChute<'ctx>,
+    ) {
         match edit {
             StateGraphEdit::AddStaticSoundProcessor(data) => self.add_static_sound_processor(data),
             StateGraphEdit::RemoveStaticSoundProcessor(spid) => {
-                self.remove_static_sound_processor(spid)
+                self.remove_static_sound_processor(spid, garbage_chute)
             }
             StateGraphEdit::AddSoundInput {
                 input_id,
@@ -47,7 +48,7 @@ impl<'ctx> StateGraph<'ctx> {
                 targets,
             } => self.add_sound_input(input_id, owner, targets),
             StateGraphEdit::RemoveSoundInput { input_id, owner_id } => {
-                self.remove_sound_input(input_id, owner_id)
+                self.remove_sound_input(input_id, owner_id, garbage_chute)
             }
             StateGraphEdit::AddSoundInputKey {
                 input_id,
@@ -59,12 +60,12 @@ impl<'ctx> StateGraph<'ctx> {
                 input_id,
                 owner_id,
                 key_index,
-            } => self.remove_sound_input_key(input_id, key_index, owner_id),
+            } => self.remove_sound_input_key(input_id, key_index, owner_id, garbage_chute),
             StateGraphEdit::ReplaceSoundInputTargets {
                 input_id,
                 owner_id,
                 targets,
-            } => self.replace_sound_input_targets(input_id, owner_id, targets),
+            } => self.replace_sound_input_targets(input_id, owner_id, targets, garbage_chute),
             StateGraphEdit::UpdateNumberInput(_, _) => todo!(),
             StateGraphEdit::DebugInspection(f) => f(self),
         }
@@ -75,13 +76,25 @@ impl<'ctx> StateGraph<'ctx> {
         self.static_nodes.push(shared_node);
     }
 
-    fn remove_static_sound_processor(&mut self, processor_id: SoundProcessorId) {
-        // NOTE: the processor is assumed to already be completely
-        // disconnected. Dynamic processor nodes will thus have no
-        // nodes allocated, and only static processors will have
-        // allocated nodes.
-        // TODO: throw removed node into the garbage chute
-        self.static_nodes.retain(|n| n.id() != processor_id);
+    fn remove_static_sound_processor(
+        &mut self,
+        processor_id: SoundProcessorId,
+        garbage_chute: &GarbageChute<'ctx>,
+    ) {
+        debug_assert_eq!(
+            self.static_nodes
+                .iter()
+                .filter(|n| n.id() == processor_id)
+                .count(),
+            1
+        );
+        let i = self
+            .static_nodes
+            .iter()
+            .position(|n| n.id() == processor_id)
+            .unwrap();
+        let old_node = self.static_nodes.remove(i);
+        old_node.toss(garbage_chute);
     }
 
     fn add_sound_input(
@@ -92,19 +105,20 @@ impl<'ctx> StateGraph<'ctx> {
     ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner, |node| {
             let key_index = 0;
-            node.insert_target(
-                input_id,
-                key_index,
-                OpaqueNodeTargetValue(targets.pop().unwrap()),
-            );
+            node.insert_target(input_id, key_index, targets.pop().unwrap());
         });
     }
 
-    fn remove_sound_input(&mut self, input_id: SoundInputId, owner: SoundProcessorId) {
+    fn remove_sound_input(
+        &mut self,
+        input_id: SoundInputId,
+        owner: SoundProcessorId,
+        garbage_chute: &GarbageChute<'ctx>,
+    ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner, |node| {
             let key_index = 0;
             let old_target = node.erase_target(input_id, key_index);
-            // TODO: put old_target in the garbage chute
+            old_target.toss(garbage_chute);
         });
     }
 
@@ -116,11 +130,7 @@ impl<'ctx> StateGraph<'ctx> {
         mut targets: Vec<NodeTargetValue<'ctx>>,
     ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner_id, |node| {
-            node.insert_target(
-                input_id,
-                index,
-                OpaqueNodeTargetValue(targets.pop().unwrap()),
-            );
+            node.insert_target(input_id, index, targets.pop().unwrap());
         });
     }
 
@@ -129,10 +139,11 @@ impl<'ctx> StateGraph<'ctx> {
         input_id: SoundInputId,
         index: usize,
         owner_id: SoundProcessorId,
+        garbage_chute: &GarbageChute<'ctx>,
     ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner_id, |node| {
             let old_target = node.erase_target(input_id, index);
-            // TODO: put old_target in the garbage chute
+            old_target.toss(garbage_chute);
         });
     }
 
@@ -149,10 +160,12 @@ impl<'ctx> StateGraph<'ctx> {
         input_id: SoundInputId,
         owner_id: SoundProcessorId,
         mut targets: Vec<NodeTargetValue<'ctx>>,
+        garbage_chute: &GarbageChute<'ctx>,
     ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner_id, |node| {
             for target in node.targets_mut() {
-                target.set_target(targets.pop().unwrap());
+                let old_target = target.swap_target(targets.pop().unwrap());
+                old_target.toss(garbage_chute);
             }
         });
     }

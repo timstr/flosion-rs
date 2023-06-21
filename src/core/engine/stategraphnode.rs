@@ -23,7 +23,11 @@ use crate::core::{
     soundchunk::SoundChunk,
 };
 
-use super::{nodegen::NodeGen, scratcharena::ScratchArena};
+use super::{
+    garbage::{Droppable, Garbage, GarbageChute},
+    nodegen::NodeGen,
+    scratcharena::ScratchArena,
+};
 
 pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
     processor: Arc<StaticSoundProcessorWithId<T>>,
@@ -96,6 +100,8 @@ pub trait StateGraphNode<'ctx>: Sync + Send {
     // and because comparing trait objects (fat pointers) for equality is fraught
     fn address(&self) -> *const ();
 
+    fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable>;
+
     fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx>;
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx>;
 
@@ -142,6 +148,10 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
     fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         self.number_input.visit_number_inputs_mut(visitor);
     }
+
+    fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable> {
+        self
+    }
 }
 
 impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNode<'ctx, T> {
@@ -180,9 +190,13 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
     fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
         self.number_input.visit_number_inputs_mut(visitor);
     }
+
+    fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable> {
+        self
+    }
 }
 
-pub(crate) struct UniqueProcessorNode<'ctx> {
+pub struct UniqueProcessorNode<'ctx> {
     node: Box<dyn 'ctx + StateGraphNode<'ctx>>,
 }
 
@@ -197,6 +211,10 @@ impl<'ctx> UniqueProcessorNode<'ctx> {
 
     pub(crate) fn node(&self) -> &dyn StateGraphNode<'ctx> {
         &*self.node
+    }
+
+    fn into_box(self) -> Box<dyn 'ctx + StateGraphNode<'ctx>> {
+        self.node
     }
 
     pub(crate) fn node_mut(&mut self) -> &mut dyn StateGraphNode<'ctx> {
@@ -278,7 +296,7 @@ impl<'ctx> SharedProcessorNodeData<'ctx> {
     }
 }
 
-pub(crate) struct SharedProcessorNode<'ctx> {
+pub struct SharedProcessorNode<'ctx> {
     processor_id: SoundProcessorId,
     data: Arc<RwLock<SharedProcessorNodeData<'ctx>>>,
 }
@@ -328,14 +346,14 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         self.num_target_inputs() == 0
     }
 
-    pub(crate) fn into_unique_node(self) -> Option<UniqueProcessorNode<'ctx>> {
-        debug_assert!(Arc::strong_count(&self.data) == self.num_target_inputs());
-        debug_assert!(Arc::weak_count(&self.data) == 0);
-        match Arc::try_unwrap(self.data) {
-            Ok(inner_mutex) => Some(inner_mutex.into_inner().into_unique_node()),
-            Err(_) => None,
-        }
-    }
+    // pub(crate) fn into_unique_node(self) -> Option<UniqueProcessorNode<'ctx>> {
+    //     debug_assert!(Arc::strong_count(&self.data) == self.num_target_inputs());
+    //     debug_assert!(Arc::weak_count(&self.data) == 0);
+    //     match Arc::try_unwrap(self.data) {
+    //         Ok(inner_mutex) => Some(inner_mutex.into_inner().into_unique_node()),
+    //         Err(_) => None,
+    //     }
+    // }
 
     fn step<T: ProcessorState>(
         &mut self,
@@ -391,6 +409,16 @@ impl<'ctx> SharedProcessorNode<'ctx> {
     pub(crate) fn visit<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(&mut self, mut f: F) {
         f(&mut *self.data.write().node);
     }
+
+    fn into_arc(self) -> Arc<RwLock<SharedProcessorNodeData<'ctx>>> {
+        self.data
+    }
+}
+
+impl<'ctx> Garbage<'ctx> for SharedProcessorNode<'ctx> {
+    fn toss(self, chute: &GarbageChute<'ctx>) {
+        chute.send_arc(self.into_arc());
+    }
 }
 
 impl<'ctx> Clone for SharedProcessorNode<'ctx> {
@@ -402,13 +430,11 @@ impl<'ctx> Clone for SharedProcessorNode<'ctx> {
     }
 }
 
-pub(crate) enum NodeTargetValue<'ctx> {
+pub enum NodeTargetValue<'ctx> {
     Unique(UniqueProcessorNode<'ctx>),
     Shared(SharedProcessorNode<'ctx>),
     Empty,
 }
-
-pub struct OpaqueNodeTargetValue<'ctx>(pub(crate) NodeTargetValue<'ctx>);
 
 pub struct NodeTarget<'ctx> {
     input_id: SoundInputId,
@@ -422,14 +448,12 @@ impl<'ctx> NodeTarget<'ctx> {
         input_id: SoundInputId,
         key_index: usize,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self {
-        todo!();
-        // TODO: allocate target with nodegen
-        Self {
+    ) -> NodeTarget<'ctx> {
+        NodeTarget {
             input_id,
             key_index,
             timing: InputTiming::default(),
-            target: NodeTargetValue::Empty,
+            target: nodegen.allocate_sound_input_node(input_id),
         }
     }
 
@@ -476,14 +500,18 @@ impl<'ctx> NodeTarget<'ctx> {
         }
     }
 
-    pub(crate) fn set_target(&mut self, target: NodeTargetValue<'ctx>) {
+    pub(crate) fn swap_target(
+        &mut self,
+        mut target: NodeTargetValue<'ctx>,
+    ) -> NodeTargetValue<'ctx> {
         if let NodeTargetValue::Shared(node) = &mut self.target {
             node.borrow_data_mut().remove_target_input(self.input_id);
         }
-        self.target = target;
+        std::mem::swap(&mut self.target, &mut target);
         if let NodeTargetValue::Shared(node) = &mut self.target {
             node.borrow_data_mut().add_target_input(self.input_id);
         }
+        target
     }
 
     pub(crate) fn reset(&mut self, sample_offset: usize) {
@@ -544,6 +572,18 @@ impl<'ctx> NodeTarget<'ctx> {
 impl<'ctx> Drop for NodeTarget<'ctx> {
     fn drop(&mut self) {
         // Remove input id from shared node target if needed
-        self.set_target(NodeTargetValue::Empty);
+        // uhhhhhhhhh how to orchestrate this correctly with
+        // state graph edits?
+        self.swap_target(NodeTargetValue::Empty);
+    }
+}
+
+impl<'ctx> Garbage<'ctx> for NodeTargetValue<'ctx> {
+    fn toss(self, chute: &GarbageChute<'ctx>) {
+        match self {
+            NodeTargetValue::Unique(n) => chute.send_box(n.into_box().into_droppable()),
+            NodeTargetValue::Shared(n) => chute.send_arc(n.into_arc()),
+            NodeTargetValue::Empty => (),
+        }
     }
 }
