@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::core::sound::{
+    soundedit::SoundEdit,
     soundgraphdata::SoundProcessorData,
-    soundgraphedit::SoundGraphEdit,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::find_error,
     soundprocessor::{SoundProcessorId, StaticSoundProcessorWithId},
@@ -20,7 +20,7 @@ fn find_error_empty_graph() {
 #[test]
 fn find_error_one_proc() {
     let mut topo = SoundGraphTopology::new();
-    topo.make_edit(SoundGraphEdit::AddSoundProcessor(SoundProcessorData::new(
+    topo.make_sound_edit(SoundEdit::AddSoundProcessor(SoundProcessorData::new(
         Arc::new(StaticSoundProcessorWithId::new(
             TestStaticSoundProcessor::new(),
             SoundProcessorId::new(1),

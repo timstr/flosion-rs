@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        object_factory::ObjectFactory,
+        objectfactory::ObjectFactory,
         sound::{
             graphobject::ObjectHandle,
             soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},

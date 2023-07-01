@@ -6,7 +6,7 @@ pub mod sound;
 pub mod engine;
 pub mod jit;
 pub mod numeric;
-pub mod object_factory;
+pub mod objectfactory;
 pub mod resample;
 pub mod samplefrequency;
 pub mod serialization;

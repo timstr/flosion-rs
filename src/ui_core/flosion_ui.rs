@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     core::{
-        object_factory::ObjectFactory,
+        objectfactory::ObjectFactory,
         sound::{
             graphobject::{ObjectId, ObjectInitialization},
             soundgraph::SoundGraph,
