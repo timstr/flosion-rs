@@ -4,7 +4,6 @@ use super::{
     soundgraphtopology::SoundGraphTopology,
 };
 
-#[derive(Clone)]
 pub(crate) enum SoundGraphEdit {
     Sound(SoundEdit),
     Number(SoundNumberEdit),

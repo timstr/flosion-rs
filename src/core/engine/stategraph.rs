@@ -186,3 +186,11 @@ impl<'ctx> StateGraph<'ctx> {
         todo!()
     }
 }
+
+impl<'ctx> Garbage<'ctx> for StateGraph<'ctx> {
+    fn toss(self, chute: &GarbageChute<'ctx>) {
+        for node in self.static_nodes {
+            node.toss(chute);
+        }
+    }
+}

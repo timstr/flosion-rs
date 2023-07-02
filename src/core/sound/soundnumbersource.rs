@@ -48,6 +48,10 @@ impl SoundNumberSourceHandle {
     pub(super) fn new(id: SoundNumberSourceId) -> SoundNumberSourceHandle {
         SoundNumberSourceHandle { id }
     }
+
+    pub fn id(&self) -> SoundNumberSourceId {
+        self.id
+    }
 }
 
 // Trait holding the runtime information on how to evaluate/compile a specific

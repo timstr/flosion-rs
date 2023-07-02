@@ -43,8 +43,8 @@ impl NumberSourceData {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
-pub(crate) enum NumberTarget {
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
+pub enum NumberTarget {
     Source(NumberSourceId),
     GraphInput(NumberGraphInputId),
 }

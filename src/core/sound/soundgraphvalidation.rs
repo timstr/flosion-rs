@@ -443,7 +443,7 @@ pub(crate) fn validate_sound_disconnection(
     }
 }
 
-pub(crate) fn validate_number_connection(
+pub(crate) fn validate_sound_number_connection(
     topology: &SoundGraphTopology,
     input_id: SoundNumberInputId,
     source_id: SoundNumberSourceId,

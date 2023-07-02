@@ -9,7 +9,11 @@ use std::{
 
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use crate::core::{engine::soundengine::create_sound_engine, uniqueid::IdGenerator};
+use crate::core::{
+    engine::soundengine::{create_sound_engine, StopButton},
+    number::{numbergraph::NumberGraph, numbergrapherror::NumberError},
+    uniqueid::IdGenerator,
+};
 
 use super::{
     graphobject::{ObjectId, ObjectInitialization},
@@ -58,7 +62,7 @@ impl SoundGraphClosure {
             self.add_sound_input(*siid, topology);
         }
         for nsid in data.number_sources() {
-            self.add_number_source(*nsid, topology);
+            self.add_number_source(*nsid);
         }
         for niid in data.number_inputs() {
             self.add_number_input(*niid);
@@ -72,17 +76,12 @@ impl SoundGraphClosure {
         }
         let data = topology.sound_input(id).unwrap();
         for nsid in data.number_sources() {
-            self.add_number_source(*nsid, topology);
+            self.add_number_source(*nsid);
         }
     }
 
-    fn add_number_source(&mut self, id: SoundNumberSourceId, topology: &SoundGraphTopology) {
-        let was_added = self.number_sources.insert(id);
-        if !was_added {
-            return;
-        }
-        let data = topology.number_source(id).unwrap();
-        todo!() // ????????
+    fn add_number_source(&mut self, id: SoundNumberSourceId) {
+        self.number_sources.insert(id);
     }
 
     fn add_number_input(&mut self, id: SoundNumberInputId) {
@@ -123,7 +122,8 @@ impl SoundGraphClosure {
 pub struct SoundGraph {
     local_topology: SoundGraphTopology,
 
-    engine_interface_thread: JoinHandle<()>,
+    engine_interface_thread: Option<JoinHandle<()>>,
+    stop_button: StopButton,
     topology_sender: Sender<SoundGraphTopology>,
 
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
@@ -135,13 +135,15 @@ pub struct SoundGraph {
 impl SoundGraph {
     pub fn new() -> SoundGraph {
         let (sender, receiver) = channel();
+        let stop_button = StopButton::new();
+        let stop_button_also = stop_button.clone();
         let engine_interface_thread = std::thread::spawn(move || {
             let inkwell_context = inkwell::context::Context::create();
             std::thread::scope(|scope| {
                 let (mut engine_interface, engine, garbage_disposer) =
-                    create_sound_engine(&inkwell_context);
+                    create_sound_engine(&inkwell_context, &stop_button_also);
 
-                scope.spawn(move || {
+                let engine_thread_handle = scope.spawn(move || {
                     set_current_thread_priority(ThreadPriority::Max).unwrap();
                     engine.run();
                 });
@@ -150,17 +152,23 @@ impl SoundGraph {
                 // deal with LLVM resources and so need to stay on the same
                 // thread as the inkwell_context above
                 loop {
-                    while let Ok(topo) = receiver.recv() {
+                    while let Ok(topo) = receiver.try_recv() {
                         engine_interface.update(topo);
                     }
                     garbage_disposer.clear();
-                    std::thread::sleep(std::time::Duration::from_millis(100))
+
+                    if engine_thread_handle.is_finished() {
+                        break;
+                    }
+
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             });
         });
 
         SoundGraph {
-            engine_interface_thread,
+            engine_interface_thread: Some(engine_interface_thread),
+            stop_button,
             topology_sender: sender,
 
             local_topology: SoundGraphTopology::new(),
@@ -223,15 +231,11 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn disconnect_number_input(
-        &mut self,
-        input_id: SoundNumberInputId,
-        source_id: SoundNumberSourceId,
-    ) -> Result<(), SoundError> {
+    pub fn disconnect_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
         let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::Number(
-            SoundNumberEdit::DisconnectNumberInput(input_id, source_id),
-        ));
+        edit_queue.push(SoundGraphEdit::Sound(SoundEdit::DisconnectSoundInput(
+            input_id,
+        )));
         self.try_make_edits(edit_queue)
     }
 
@@ -247,11 +251,15 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn disconnect_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
+    pub fn disconnect_number_input(
+        &mut self,
+        input_id: SoundNumberInputId,
+        source_id: SoundNumberSourceId,
+    ) -> Result<(), SoundError> {
         let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::Sound(SoundEdit::DisconnectSoundInput(
-            input_id,
-        )));
+        edit_queue.push(SoundGraphEdit::Number(
+            SoundNumberEdit::DisconnectNumberInput(input_id, source_id),
+        ));
         self.try_make_edits(edit_queue)
     }
 
@@ -326,7 +334,7 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn apply_processor_tools<F: Fn(SoundProcessorTools)>(
+    pub fn apply_processor_tools<F: FnOnce(SoundProcessorTools)>(
         &mut self,
         processor_id: SoundProcessorId,
         f: F,
@@ -336,6 +344,19 @@ impl SoundGraph {
             let tools = self.make_tools_for(processor_id, &mut edit_queue);
             f(tools);
         }
+        self.try_make_edits(edit_queue)
+    }
+
+    pub fn edit_number_input<F: FnOnce(&mut NumberGraph) + 'static>(
+        &mut self,
+        input_id: SoundNumberInputId,
+        f: F,
+    ) -> Result<(), SoundError> {
+        let mut edit_queue = Vec::new();
+        edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::EditNumberInput(
+            input_id,
+            Box::new(f),
+        )));
         self.try_make_edits(edit_queue)
     }
 
@@ -353,12 +374,15 @@ impl SoundGraph {
         )
     }
 
-    fn try_make_edits_locally(&mut self, edit_queue: &[SoundGraphEdit]) -> Result<(), SoundError> {
+    fn try_make_edits_locally(
+        &mut self,
+        edit_queue: Vec<SoundGraphEdit>,
+    ) -> Result<(), SoundError> {
         for edit in edit_queue {
             if let Some(err) = edit.check_preconditions(&self.local_topology) {
                 return Err(err);
             }
-            self.local_topology.make_sound_graph_edit(edit.clone());
+            self.local_topology.make_sound_graph_edit(edit);
             if let Some(err) = find_error(&self.local_topology) {
                 return Err(err);
             }
@@ -373,7 +397,7 @@ impl SoundGraph {
         // an update for every smallest change`
         debug_assert!(find_error(&self.local_topology).is_none());
         let prev_topology = self.local_topology.clone();
-        let res = self.try_make_edits_locally(&edit_queue);
+        let res = self.try_make_edits_locally(edit_queue);
         if res.is_err() {
             self.local_topology = prev_topology;
         } else {
@@ -387,5 +411,13 @@ impl SoundGraph {
 
     pub(crate) fn topology(&self) -> &SoundGraphTopology {
         &self.local_topology
+    }
+}
+
+impl Drop for SoundGraph {
+    fn drop(&mut self) {
+        self.stop_button.stop();
+        let engine_interface_thread = self.engine_interface_thread.take().unwrap();
+        engine_interface_thread.join().unwrap();
     }
 }

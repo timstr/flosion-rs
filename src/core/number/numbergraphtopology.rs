@@ -34,6 +34,14 @@ impl NumberGraphTopology {
         self.number_sources.get(&id)
     }
 
+    pub(crate) fn number_inputs(&self) -> &HashMap<NumberInputId, NumberInputData> {
+        &self.number_inputs
+    }
+
+    pub(crate) fn number_sources(&self) -> &HashMap<NumberSourceId, NumberSourceData> {
+        &self.number_sources
+    }
+
     pub(crate) fn graph_inputs(&self) -> &[NumberGraphInputId] {
         &self.graph_inputs
     }

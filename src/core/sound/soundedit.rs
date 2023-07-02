@@ -1,4 +1,4 @@
-use crate::core::number::numbergraphedit::NumberGraphEdit;
+use crate::core::number::numbergraph::NumberGraph;
 
 use super::{
     soundgraphdata::{
@@ -7,7 +7,7 @@ use super::{
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::{
-        validate_number_connection, validate_sound_connection, validate_sound_disconnection,
+        validate_sound_connection, validate_sound_disconnection, validate_sound_number_connection,
     },
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
@@ -19,7 +19,6 @@ use super::{
 // and making/breaking connections between them. These edits also
 // affect the state graph, requiring distinct modifications on the
 // audio processing thread.
-#[derive(Clone)]
 pub(crate) enum SoundEdit {
     AddSoundProcessor(SoundProcessorData),
     RemoveSoundProcessor(SoundProcessorId),
@@ -37,12 +36,11 @@ pub(crate) enum SoundEdit {
 // combination of them may in general require compiled sound number
 // inputs to be recompiled to remain up to date with the sound engine's
 // sound graph topology.
-#[derive(Clone)]
 pub(crate) enum SoundNumberEdit {
     AddNumberSource(SoundNumberSourceData),
     RemoveNumberSource(SoundNumberSourceId, SoundNumberSourceOwner),
     AddNumberInput(SoundNumberInputData),
-    EditNumberInput(SoundNumberInputId, Vec<NumberGraphEdit>),
+    EditNumberInput(SoundNumberInputId, Box<dyn FnOnce(&mut NumberGraph)>),
     RemoveNumberInput(SoundNumberInputId, SoundProcessorId),
     ConnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
     DisconnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
@@ -385,7 +383,7 @@ impl SoundNumberEdit {
                 }
 
                 // the connection must be legal
-                if let Err(e) = validate_number_connection(topo, *niid, *nsid) {
+                if let Err(e) = validate_sound_number_connection(topo, *niid, *nsid) {
                     return Some(e);
                 }
             }
@@ -404,14 +402,14 @@ impl SoundNumberEdit {
                     });
                 }
             }
-            SoundNumberEdit::EditNumberInput(sniid, edits) => {
+            SoundNumberEdit::EditNumberInput(sniid, _edits) => {
                 // the number input must exist
-                let data = match topo.number_input(*sniid) {
-                    Some(data) => data,
-                    None => return Some(SoundError::NumberInputNotFound(*sniid)),
-                };
+                if topo.number_input(*sniid).is_none() {
+                    return Some(SoundError::NumberInputNotFound(*sniid));
+                }
 
-                print!("TODO: validate number edits");
+                // NOTE that the function can't be tested without
+                // cloning, which would disallow using FnOnce
             }
         }
         None

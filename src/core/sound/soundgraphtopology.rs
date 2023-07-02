@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::{
-    number::numbergraphedit::NumberGraphEdit, sound::soundnumbersource::SoundNumberSourceOwner,
+    number::{numbergraph::NumberGraph, numbergraphedit::NumberGraphEdit},
+    sound::soundnumbersource::SoundNumberSourceOwner,
 };
 
 use super::{
@@ -146,7 +147,7 @@ impl SoundGraphTopology {
             SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
                 self.disconnect_number_input(niid, nsid)
             }
-            SoundNumberEdit::EditNumberInput(niid, edits) => self.edit_number_input(niid, edits),
+            SoundNumberEdit::EditNumberInput(niid, f) => self.edit_number_input(niid, f),
         }
     }
 
@@ -306,21 +307,12 @@ impl SoundGraphTopology {
         input_data.remove_target(nsid);
     }
 
-    fn edit_number_input(&mut self, niid: SoundNumberInputId, edits: Vec<NumberGraphEdit>) {
+    fn edit_number_input(
+        &mut self,
+        niid: SoundNumberInputId,
+        f: Box<dyn FnOnce(&mut NumberGraph)>,
+    ) {
         let input_data = self.number_inputs.get_mut(&niid).unwrap();
-        // input_data.number_graph
-        todo!()
-        // TODO
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        input_data.edit_number_graph(f);
     }
 }

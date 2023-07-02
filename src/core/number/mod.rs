@@ -3,6 +3,7 @@ pub mod numbergraphdata;
 pub mod numbergraphedit;
 pub mod numbergrapherror;
 pub mod numbergraphtopology;
+mod numbergraphvalidation;
 pub mod numberinput;
 pub mod numbersource;
 pub mod numbersourcetools;

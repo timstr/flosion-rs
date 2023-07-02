@@ -6,6 +6,7 @@ use std::{
 
 use crate::{
     core::{
+        number::numbergraphdata::NumberTarget,
         objectfactory::ObjectFactory,
         sound::{
             graphobject::{ObjectId, ObjectInitialization},
@@ -14,7 +15,11 @@ use crate::{
         },
     },
     objects::{
-        dac::Dac, mixer::Mixer, resampler::Resampler, wavegenerator::WaveGenerator,
+        dac::Dac,
+        functions::{Constant, SineWave, Variable},
+        mixer::Mixer,
+        resampler::Resampler,
+        wavegenerator::WaveGenerator,
         whitenoise::WhiteNoise,
     },
     ui_objects::all_objects::all_objects,
@@ -60,48 +65,103 @@ impl FlosionApp {
             let dac = graph
                 .add_static_sound_processor::<Dac>(ObjectInitialization::Default)
                 .unwrap();
-            let mixer = graph
-                .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
-                .unwrap();
-            let mixer2 = graph
-                .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
-                .unwrap();
-            let mixer3 = graph
-                .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
-                .unwrap();
-            let whitenoise = graph
-                .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
-                .unwrap();
-            let whitenoise2 = graph
-                .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
-                .unwrap();
-            let resampler = graph
-                .add_dynamic_sound_processor::<Resampler>(ObjectInitialization::Default)
-                .unwrap();
             let wavgen = graph
                 .add_dynamic_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
                 .unwrap();
             graph
-                .connect_sound_input(dac.input.id(), mixer.id())
+                .connect_sound_input(dac.input.id(), wavgen.id())
+                .unwrap();
+            // TODO: consider renaming all sound number sources / sound number inputs
+            // in order to:
+            // 1. remove overloaded terminology w.r.t. numbergraphs
+            // 2. make it more clear how these number sources differ and
+            //    how they merely provide access to numeric data for the
+            //    number graph internals to do anything with
+            graph
+                .connect_number_input(wavgen.amplitude.id(), wavgen.phase.id())
                 .unwrap();
             graph
-                .connect_sound_input(mixer.get_input_ids()[0], whitenoise.id())
+                .edit_number_input(wavgen.amplitude.id(), |numbergraph| {
+                    let sine = numbergraph
+                        .add_number_source::<SineWave>(ObjectInitialization::Default)
+                        .unwrap();
+                    // brutal
+                    numbergraph
+                        .connect_graph_output(
+                            numbergraph.topology().graph_outputs()[0].id(),
+                            NumberTarget::Source(sine.id()),
+                        )
+                        .unwrap();
+                    // brutal
+                    numbergraph
+                        .connect_number_input(
+                            sine.input.id(),
+                            NumberTarget::GraphInput(numbergraph.topology().graph_inputs()[0]),
+                        )
+                        .unwrap();
+                })
                 .unwrap();
             graph
-                .connect_sound_input(mixer.get_input_ids()[1], mixer2.id())
+                .edit_number_input(wavgen.frequency.id(), |numbergraph| {
+                    let variable = numbergraph
+                        .add_number_source::<Variable>(ObjectInitialization::Default)
+                        .unwrap();
+                    variable.set_value(100.0);
+                    // brutal
+                    numbergraph
+                        .connect_graph_output(
+                            numbergraph.topology().graph_outputs()[0].id(),
+                            NumberTarget::Source(variable.id()),
+                        )
+                        .unwrap();
+                })
                 .unwrap();
-            graph
-                .connect_sound_input(mixer2.get_input_ids()[1], resampler.id())
-                .unwrap();
-            graph
-                .connect_sound_input(resampler.input.id(), mixer3.id())
-                .unwrap();
-            graph
-                .connect_sound_input(mixer3.get_input_ids()[0], whitenoise2.id())
-                .unwrap();
-            graph
-                .connect_sound_input(mixer3.get_input_ids()[1], wavgen.id())
-                .unwrap();
+
+            // let dac = graph
+            //     .add_static_sound_processor::<Dac>(ObjectInitialization::Default)
+            //     .unwrap();
+            // let mixer = graph
+            //     .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
+            //     .unwrap();
+            // let mixer2 = graph
+            //     .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
+            //     .unwrap();
+            // let mixer3 = graph
+            //     .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
+            //     .unwrap();
+            // let whitenoise = graph
+            //     .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
+            //     .unwrap();
+            // let whitenoise2 = graph
+            //     .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
+            //     .unwrap();
+            // let resampler = graph
+            //     .add_dynamic_sound_processor::<Resampler>(ObjectInitialization::Default)
+            //     .unwrap();
+            // let wavgen = graph
+            //     .add_dynamic_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
+            //     .unwrap();
+            // graph
+            //     .connect_sound_input(dac.input.id(), mixer.id())
+            //     .unwrap();
+            // graph
+            //     .connect_sound_input(mixer.get_input_ids()[0], whitenoise.id())
+            //     .unwrap();
+            // graph
+            //     .connect_sound_input(mixer.get_input_ids()[1], mixer2.id())
+            //     .unwrap();
+            // graph
+            //     .connect_sound_input(mixer2.get_input_ids()[1], resampler.id())
+            //     .unwrap();
+            // graph
+            //     .connect_sound_input(resampler.input.id(), mixer3.id())
+            //     .unwrap();
+            // graph
+            //     .connect_sound_input(mixer3.get_input_ids()[0], whitenoise2.id())
+            //     .unwrap();
+            // graph
+            //     .connect_sound_input(mixer3.get_input_ids()[1], wavgen.id())
+            //     .unwrap();
         }
 
         let (object_factory, ui_factory) = all_objects();

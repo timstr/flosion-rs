@@ -8,7 +8,7 @@ use std::{
 };
 
 use super::{
-    garbage::{new_garbage_disposer, GarbageChute, GarbageDisposer},
+    garbage::{new_garbage_disposer, Garbage, GarbageChute, GarbageDisposer},
     nodegen::NodeGen,
     scratcharena::ScratchArena,
     stategraph::StateGraph,
@@ -20,14 +20,33 @@ use crate::core::{
     sound::soundgraphtopology::SoundGraphTopology, soundchunk::CHUNK_SIZE,
 };
 
+pub(crate) struct StopButton(Arc<AtomicBool>);
+
+impl StopButton {
+    pub(crate) fn new() -> StopButton {
+        StopButton(Arc::new(AtomicBool::new(true)))
+    }
+
+    pub(crate) fn stop(&self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
+}
+
+impl Clone for StopButton {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
 pub(crate) fn create_sound_engine<'ctx>(
     inkwell_context: &'ctx inkwell::context::Context,
+    stop_button: &StopButton,
 ) -> (
     SoundEngineInterface<'ctx>,
     SoundEngine<'ctx>,
     GarbageDisposer<'ctx>,
 ) {
-    let keep_running = Arc::new(AtomicBool::new(true));
+    let keep_running = Arc::clone(&stop_button.0);
     let (sender, receiver) = channel::<StateGraphEdit<'ctx>>();
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
@@ -181,6 +200,8 @@ impl<'ctx> SoundEngine<'ctx> {
             }
             deadline += chunk_duration;
         }
+
+        state_graph.toss(&self.garbage_chute);
     }
 
     fn flush_updates(

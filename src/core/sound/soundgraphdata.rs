@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::core::number::numbergraph::{NumberGraph, NumberGraphInputId};
+use crate::core::number::{
+    numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
+    numbergraphtopology::NumberGraphTopology,
+};
 
 use super::{
     soundinput::{InputOptions, SoundInputId},
@@ -179,6 +182,29 @@ impl SoundNumberInputData {
 
     pub(crate) fn number_graph(&self) -> &NumberGraph {
         &self.number_graph
+    }
+
+    pub(crate) fn edit_number_graph(&mut self, f: Box<dyn FnOnce(&mut NumberGraph)>) {
+        // TODO: find a more structurally elegant way to disallow modifying graph inputs
+        // and outputs when editing the internals of the number graph.
+        // In other words, consider making graph inputs and outputs be exposed
+        // through a separate interface
+        let get_input_and_output_ids = |topo: &NumberGraphTopology| {
+            let input_ids: Vec<NumberGraphInputId> = topo.graph_inputs().to_vec();
+            let output_ids: Vec<NumberGraphOutputId> =
+                topo.graph_outputs().iter().map(|x| x.id()).collect();
+            (input_ids, output_ids)
+        };
+
+        let (original_input_ids, original_output_ids) =
+            get_input_and_output_ids(self.number_graph.topology());
+
+        f(&mut self.number_graph);
+
+        let (input_ids, output_ids) = get_input_and_output_ids(self.number_graph.topology());
+
+        debug_assert_eq!(original_input_ids, input_ids);
+        debug_assert_eq!(original_output_ids, output_ids);
     }
 
     pub(crate) fn input_mapping<'a>(
