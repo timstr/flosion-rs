@@ -16,7 +16,8 @@ use crate::{
     },
     objects::{
         dac::Dac,
-        functions::{Constant, SineWave, Variable},
+        ensemble::Ensemble,
+        functions::{Constant, SawWave, SineWave, Variable},
         mixer::Mixer,
         resampler::Resampler,
         wavegenerator::WaveGenerator,
@@ -68,9 +69,16 @@ impl FlosionApp {
             let wavgen = graph
                 .add_dynamic_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
                 .unwrap();
-            graph
-                .connect_sound_input(dac.input.id(), wavgen.id())
+            let ensemble = graph
+                .add_dynamic_sound_processor::<Ensemble>(ObjectInitialization::Default)
                 .unwrap();
+            graph
+                .connect_sound_input(dac.input.id(), ensemble.id())
+                .unwrap();
+            graph
+                .connect_sound_input(ensemble.input.id(), wavgen.id())
+                .unwrap();
+
             // TODO: consider renaming all sound number sources / sound number inputs
             // in order to:
             // 1. remove overloaded terminology w.r.t. numbergraphs
@@ -82,32 +90,45 @@ impl FlosionApp {
                 .unwrap();
             graph
                 .edit_number_input(wavgen.amplitude.id(), |numbergraph| {
-                    let sine = numbergraph
-                        .add_number_source::<SineWave>(ObjectInitialization::Default)
+                    let saw = numbergraph
+                        .add_number_source::<SawWave>(ObjectInitialization::Default)
                         .unwrap();
                     // brutal
                     numbergraph
                         .connect_graph_output(
                             numbergraph.topology().graph_outputs()[0].id(),
-                            NumberTarget::Source(sine.id()),
+                            NumberTarget::Source(saw.id()),
                         )
                         .unwrap();
                     // brutal
                     numbergraph
                         .connect_number_input(
-                            sine.input.id(),
+                            saw.input.id(),
                             NumberTarget::GraphInput(numbergraph.topology().graph_inputs()[0]),
                         )
                         .unwrap();
                 })
                 .unwrap();
             graph
+                .connect_number_input(wavgen.frequency.id(), ensemble.voice_frequency.id())
+                .unwrap();
+            graph
                 .edit_number_input(wavgen.frequency.id(), |numbergraph| {
+                    // brutal
+                    numbergraph
+                        .connect_graph_output(
+                            numbergraph.topology().graph_outputs()[0].id(),
+                            NumberTarget::GraphInput(numbergraph.topology().graph_inputs()[0]),
+                        )
+                        .unwrap();
+                })
+                .unwrap();
+            graph
+                .edit_number_input(ensemble.frequency_in.id(), |numbergraph| {
                     let variable = numbergraph
                         .add_number_source::<Variable>(ObjectInitialization::Default)
                         .unwrap();
-                    variable.set_value(100.0);
-                    // brutal
+                    variable.set_value(60.0);
                     numbergraph
                         .connect_graph_output(
                             numbergraph.topology().graph_outputs()[0].id(),

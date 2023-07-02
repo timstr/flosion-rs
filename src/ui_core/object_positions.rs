@@ -2,7 +2,11 @@ use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
-use crate::core::sound::graphobject::{ObjectId, SoundGraphId};
+use crate::core::sound::{
+    graphobject::{ObjectId, SoundGraphId},
+    soundnumberinput::SoundNumberInputId,
+    soundprocessor::SoundProcessorId,
+};
 
 pub struct LayoutState {
     pub rect: egui::Rect,
@@ -16,12 +20,16 @@ impl LayoutState {
 
 pub struct ObjectPositions {
     objects: HashMap<ObjectId, LayoutState>,
+    processor_rails: HashMap<SoundProcessorId, LayoutState>,
+    sound_number_inputs: HashMap<SoundNumberInputId, LayoutState>,
 }
 
 impl ObjectPositions {
     pub(super) fn new() -> ObjectPositions {
         ObjectPositions {
             objects: HashMap::new(),
+            processor_rails: HashMap::new(),
+            sound_number_inputs: HashMap::new(),
         }
     }
 
@@ -41,8 +49,24 @@ impl ObjectPositions {
         self.objects.insert(id, LayoutState { rect });
     }
 
+    pub fn track_processor_rail_location(&mut self, id: SoundProcessorId, rect: egui::Rect) {
+        self.processor_rails.insert(id, LayoutState { rect });
+    }
+
+    pub fn track_sound_number_input_location(&mut self, id: SoundNumberInputId, rect: egui::Rect) {
+        self.sound_number_inputs.insert(id, LayoutState { rect });
+    }
+
     pub fn get_object_location(&self, id: ObjectId) -> Option<&LayoutState> {
         self.objects.get(&id)
+    }
+
+    pub fn get_processor_rail_location(&self, id: SoundProcessorId) -> Option<&LayoutState> {
+        self.processor_rails.get(&id)
+    }
+
+    pub fn get_sound_number_input_location(&self, id: SoundNumberInputId) -> Option<&LayoutState> {
+        self.sound_number_inputs.get(&id)
     }
 
     // pub(super) fn serialize(

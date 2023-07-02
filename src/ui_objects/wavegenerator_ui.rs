@@ -24,13 +24,11 @@ impl ObjectUi for WaveGeneratorUi {
         data: ObjectUiData<NoUIState>,
     ) {
         ProcessorUi::new(wavgen.id(), "WaveGenerator", data.color)
-            // .add_left_peg(&wavgen.amplitude, "Amplitude")
-            // .add_left_peg(&wavgen.frequency, "Frequency")
             // .add_top_peg(&wavgen.time, "Time")
             // .add_top_peg(&wavgen.phase, "Phase")
             // .add_right_peg(wavgen.id(), "Output")
-            .add_number_input(wavgen.amplitude.id())
-            .add_number_input(wavgen.frequency.id())
+            .add_number_input(wavgen.amplitude.id(), "Amplitude")
+            .add_number_input(wavgen.frequency.id(), "Frequency")
             .show(ui, ctx, graph_tools);
     }
 }

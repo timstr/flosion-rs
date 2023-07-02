@@ -39,7 +39,7 @@ impl ObjectType {
 // e.g. sound processors (TODO and number function definitions)
 // that have free-floating representations
 // TODO: rename to TopLevelSoundGraphId or something shorter but just as meaningful
-#[derive(Eq, PartialEq, Clone, Copy, Hash)]
+#[derive(Eq, PartialEq, Clone, Copy, Hash, Debug)]
 pub enum ObjectId {
     Sound(SoundProcessorId),
 }

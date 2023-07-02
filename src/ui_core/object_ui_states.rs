@@ -5,7 +5,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use eframe::egui;
+use eframe::{egui, epaint::ecolor};
 
 use crate::core::{
     serialization::{Serializable, Serializer},
@@ -15,7 +15,7 @@ use crate::core::{
     },
 };
 
-use super::{object_ui::random_object_color, ui_factory::UiFactory};
+use super::{graph_ui_state::GraphUIState, object_ui::random_object_color, ui_factory::UiFactory};
 
 pub trait AnyObjectUiState: 'static {
     fn as_any(&self) -> &dyn Any;
@@ -43,6 +43,7 @@ impl<T: 'static + Serializable> AnyObjectUiState for T {
 }
 
 pub struct AnyObjectUiData {
+    id: ObjectId,
     state: Box<RefCell<dyn AnyObjectUiState>>,
     color: egui::Color32,
 }
@@ -58,6 +59,16 @@ impl AnyObjectUiData {
 
     pub(crate) fn color(&self) -> egui::Color32 {
         self.color
+    }
+
+    pub(crate) fn apparent_color(&self, graph_ui_state: &GraphUIState) -> egui::Color32 {
+        if graph_ui_state.is_object_selected(self.id) {
+            let mut hsva = ecolor::Hsva::from(self.color);
+            hsva.v = 0.5 * (1.0 + hsva.a);
+            hsva.into()
+        } else {
+            self.color
+        }
     }
 }
 
@@ -78,7 +89,7 @@ impl ObjectUiStates {
         state: Box<RefCell<dyn AnyObjectUiState>>,
         color: egui::Color32,
     ) {
-        self.data.insert(id, AnyObjectUiData { state, color });
+        self.data.insert(id, AnyObjectUiData { id, state, color });
     }
 
     pub(super) fn get_object_data(&self, id: ObjectId) -> &AnyObjectUiData {
@@ -205,6 +216,7 @@ impl ObjectUiStates {
             let graph_object = topo.graph_object(object_id).unwrap();
             let state = ui_factory.create_default_state(&graph_object);
             AnyObjectUiData {
+                id: object_id,
                 state,
                 color: random_object_color(),
             }
