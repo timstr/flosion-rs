@@ -2,9 +2,12 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::wavegenerator::WaveGenerator,
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ProcessorUi},
-        ui_context::UiContext,
+        object_ui::{NoUIState, ObjectUi},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUIState,
+        soundobjectuistate::ConcreteSoundObjectUiData,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -12,16 +15,17 @@ use crate::{
 pub struct WaveGeneratorUi {}
 
 impl ObjectUi for WaveGeneratorUi {
+    type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<WaveGenerator>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         wavgen: DynamicSoundProcessorHandle<WaveGenerator>,
-        graph_tools: &mut GraphUIState,
+        graph_tools: &mut SoundGraphUIState,
         ui: &mut eframe::egui::Ui,
-        ctx: &UiContext,
-        data: ObjectUiData<NoUIState>,
+        ctx: &SoundGraphUiContext,
+        data: ConcreteSoundObjectUiData<NoUIState>,
     ) {
         ProcessorUi::new(wavgen.id(), "WaveGenerator", data.color)
             // .add_top_peg(&wavgen.time, "Time")

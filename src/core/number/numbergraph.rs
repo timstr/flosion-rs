@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use crate::core::{
+    graph::graphobject::ObjectInitialization,
     number::{
-        numbergraphvalidation::find_number_error, numbersource::PureNumberSourceWithId,
+        numbergraphvalidation::find_number_error, numbersource::NumberSourceWithId,
         numbersourcetools::NumberSourceTools,
     },
-    sound::graphobject::ObjectInitialization,
     uniqueid::{IdGenerator, UniqueId},
 };
 
@@ -15,7 +15,7 @@ use super::{
     numbergrapherror::NumberError,
     numbergraphtopology::NumberGraphTopology,
     numberinput::NumberInputId,
-    numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
+    numbersource::{NumberSource, NumberSourceHandle, NumberSourceId, PureNumberSource},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -131,19 +131,19 @@ impl NumberGraph {
     pub fn add_number_source<T: PureNumberSource>(
         &mut self,
         init: ObjectInitialization,
-    ) -> Result<PureNumberSourceHandle<T>, ()> {
+    ) -> Result<NumberSourceHandle<T>, ()> {
         let id = self.number_source_idgen.next_id();
         let mut edit_queue = Vec::new();
         let source;
         {
             let tools = NumberSourceTools::new(id, &mut self.number_input_idgen, &mut edit_queue);
-            source = Arc::new(PureNumberSourceWithId::new(T::new(tools, init)?, id));
+            source = Arc::new(NumberSourceWithId::new(T::new(tools, init)?, id));
         }
         let source2 = Arc::clone(&source);
         let data = NumberSourceData::new(id, source2);
         edit_queue.insert(0, NumberGraphEdit::AddNumberSource(data));
         self.try_make_edits(edit_queue).unwrap();
-        Ok(PureNumberSourceHandle::new(source))
+        Ok(NumberSourceHandle::new(source))
     }
 
     pub fn remove_number_source(&mut self, id: NumberSourceId) -> Result<(), NumberError> {

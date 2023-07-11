@@ -1,15 +1,23 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
 
 use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
-        graphobject::{ObjectId, SoundGraphId},
+        soundgraphid::{SoundGraphId, SoundObjectId},
         soundgraphtopology::SoundGraphTopology,
         soundprocessor::SoundProcessorId,
     },
 };
 
-use super::{object_ui_states::ObjectUiStates, ui_factory::UiFactory};
+use super::{
+    graph_ui::GraphUiContext,
+    soundgraphui::SoundGraphUi,
+    soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
+    ui_factory::UiFactory,
+};
 
 #[derive(Clone, Copy)]
 pub struct TimeAxis {
@@ -24,7 +32,7 @@ pub struct TopLevelLayout {
 }
 
 pub struct TemporalLayout {
-    top_level_objects: HashMap<ObjectId, TopLevelLayout>,
+    top_level_objects: HashMap<SoundObjectId, TopLevelLayout>,
 }
 impl TemporalLayout {
     pub(crate) fn new() -> TemporalLayout {
@@ -33,7 +41,10 @@ impl TemporalLayout {
         }
     }
 
-    pub(crate) fn find_top_level_layout(&self, object_id: ObjectId) -> Option<&TopLevelLayout> {
+    pub(crate) fn find_top_level_layout(
+        &self,
+        object_id: SoundObjectId,
+    ) -> Option<&TopLevelLayout> {
         self.top_level_objects.get(&object_id)
     }
 
@@ -88,7 +99,7 @@ impl TemporalLayout {
 
         for (oid, layout) in &mut self.top_level_objects {
             match *oid {
-                ObjectId::Sound(spid) => {
+                SoundObjectId::Sound(spid) => {
                     layout.nesting_depth = count_nesting_depth(spid, &dependent_counts, topo);
                 }
             }
@@ -101,9 +112,9 @@ impl TemporalLayout {
     }
 }
 
-pub struct UiContext<'a> {
-    ui_factory: &'a UiFactory,
-    object_states: &'a ObjectUiStates,
+pub struct SoundGraphUiContext<'a> {
+    ui_factory: &'a UiFactory<SoundGraphUi>,
+    object_states: &'a SoundObjectUiStates,
     topology: &'a SoundGraphTopology,
     is_top_level: bool,
     time_axis: TimeAxis,
@@ -111,17 +122,17 @@ pub struct UiContext<'a> {
     nesting_depth: usize,
 }
 
-impl<'a> UiContext<'a> {
+impl<'a> SoundGraphUiContext<'a> {
     pub(crate) fn new(
-        ui_factory: &'a UiFactory,
-        object_states: &'a ObjectUiStates,
+        ui_factory: &'a UiFactory<SoundGraphUi>,
+        object_states: &'a mut SoundObjectUiStates,
         topology: &'a SoundGraphTopology,
         is_top_level: bool,
         time_axis: TimeAxis,
         width: f32,
         nesting_depth: usize,
-    ) -> UiContext<'a> {
-        UiContext {
+    ) -> SoundGraphUiContext<'a> {
+        SoundGraphUiContext {
             ui_factory,
             object_states,
             topology,
@@ -132,11 +143,11 @@ impl<'a> UiContext<'a> {
         }
     }
 
-    pub(crate) fn ui_factory(&self) -> &UiFactory {
+    pub(crate) fn ui_factory(&self) -> &UiFactory<SoundGraphUi> {
         self.ui_factory
     }
 
-    pub(crate) fn object_states(&self) -> &ObjectUiStates {
+    pub(crate) fn object_states(&self) -> &SoundObjectUiStates {
         self.object_states
     }
 
@@ -156,8 +167,8 @@ impl<'a> UiContext<'a> {
         self.is_top_level
     }
 
-    pub(crate) fn nest(&self, new_width: f32) -> UiContext {
-        UiContext {
+    pub(crate) fn nest(&self, new_width: f32) -> SoundGraphUiContext {
+        SoundGraphUiContext {
             ui_factory: self.ui_factory,
             object_states: self.object_states,
             topology: self.topology,
@@ -170,5 +181,13 @@ impl<'a> UiContext<'a> {
 
     pub(crate) fn nesting_depth(&self) -> usize {
         self.nesting_depth
+    }
+}
+
+impl<'a> GraphUiContext<'a> for SoundGraphUiContext<'a> {
+    type GraphUi = SoundGraphUi;
+
+    fn get_object_ui_data(&self, id: SoundObjectId) -> &RefCell<AnySoundObjectUiData> {
+        self.object_states.get_object_data(id)
     }
 }

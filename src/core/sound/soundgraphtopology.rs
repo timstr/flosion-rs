@@ -1,17 +1,18 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::{
-    number::{numbergraph::NumberGraph, numbergraphedit::NumberGraphEdit},
+    graph::graphobject::GraphObjectHandle, number::numbergraph::NumberGraph,
     sound::soundnumbersource::SoundNumberSourceOwner,
 };
 
 use super::{
-    graphobject::{GraphObjectHandle, ObjectId, SoundGraphId},
     soundedit::{SoundEdit, SoundNumberEdit},
+    soundgraph::SoundGraph,
     soundgraphdata::{
         SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
     },
     soundgraphedit::SoundGraphEdit,
+    soundgraphid::{SoundGraphId, SoundObjectId},
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
     soundnumbersource::SoundNumberSourceId,
@@ -93,21 +94,26 @@ impl SoundGraphTopology {
         ids
     }
 
-    pub(crate) fn graph_object(&self, object_id: ObjectId) -> Option<GraphObjectHandle> {
+    pub(crate) fn graph_object(
+        &self,
+        object_id: SoundObjectId,
+    ) -> Option<GraphObjectHandle<SoundGraph>> {
         match object_id {
-            ObjectId::Sound(spid) => self
+            SoundObjectId::Sound(spid) => self
                 .sound_processors
                 .get(&spid)
                 .map(|p| p.instance_arc().as_graph_object()),
         }
     }
 
-    pub(crate) fn graph_object_ids<'a>(&'a self) -> impl 'a + Iterator<Item = ObjectId> {
+    pub(crate) fn graph_object_ids<'a>(&'a self) -> impl 'a + Iterator<Item = SoundObjectId> {
         let sound_objects = self.sound_processors.values().map(|x| x.id().into());
         sound_objects
     }
 
-    pub(crate) fn graph_objects<'a>(&'a self) -> impl 'a + Iterator<Item = GraphObjectHandle> {
+    pub(crate) fn graph_objects<'a>(
+        &'a self,
+    ) -> impl 'a + Iterator<Item = GraphObjectHandle<SoundGraph>> {
         let sound_objects = self
             .sound_processors
             .values()

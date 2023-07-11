@@ -11,16 +11,17 @@ use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use crate::core::{
     engine::soundengine::{create_sound_engine, StopButton},
-    number::{numbergraph::NumberGraph, numbergrapherror::NumberError},
+    graph::{graph::Graph, graphobject::ObjectInitialization},
+    number::numbergraph::NumberGraph,
     uniqueid::IdGenerator,
 };
 
 use super::{
-    graphobject::{ObjectId, ObjectInitialization},
     soundedit::{SoundEdit, SoundNumberEdit},
     soundgraphdata::SoundProcessorData,
     soundgraphedit::SoundGraphEdit,
     soundgrapherror::SoundError,
+    soundgraphid::SoundObjectId,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::find_error,
     soundinput::SoundInputId,
@@ -267,11 +268,13 @@ impl SoundGraph {
         self.remove_objects_batch(&[id.into()])
     }
 
-    pub fn remove_objects_batch(&mut self, objects: &[ObjectId]) -> Result<(), SoundError> {
+    pub fn remove_objects_batch(&mut self, objects: &[SoundObjectId]) -> Result<(), SoundError> {
         let mut closure = SoundGraphClosure::new();
         for oid in objects {
             match oid {
-                ObjectId::Sound(spid) => closure.add_sound_processor(*spid, &self.local_topology),
+                SoundObjectId::Sound(spid) => {
+                    closure.add_sound_processor(*spid, &self.local_topology)
+                }
             }
         }
         let closure = closure;
@@ -420,4 +423,8 @@ impl Drop for SoundGraph {
         let engine_interface_thread = self.engine_interface_thread.take().unwrap();
         engine_interface_thread.join().unwrap();
     }
+}
+
+impl Graph for SoundGraph {
+    type ObjectId = SoundObjectId;
 }

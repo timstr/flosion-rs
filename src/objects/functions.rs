@@ -1,11 +1,11 @@
 use crate::core::{
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::codegen::CodeGen,
     number::{
         numberinput::NumberInputHandle, numbersource::PureNumberSource,
         numbersourcetools::NumberSourceTools,
     },
     serialization::Serializer,
-    sound::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
 };
 use atomic_float::AtomicF32;
 use inkwell::{values::FloatValue, FloatPredicate};

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use eframe::egui;
 
 use crate::core::sound::{
-    graphobject::{ObjectId, SoundGraphId},
+    soundgraphid::{SoundGraphId, SoundObjectId},
     soundnumberinput::SoundNumberInputId,
     soundprocessor::SoundProcessorId,
 };
@@ -19,7 +19,7 @@ impl LayoutState {
 }
 
 pub struct ObjectPositions {
-    objects: HashMap<ObjectId, LayoutState>,
+    objects: HashMap<SoundObjectId, LayoutState>,
     processor_rails: HashMap<SoundProcessorId, LayoutState>,
     sound_number_inputs: HashMap<SoundNumberInputId, LayoutState>,
 }
@@ -37,15 +37,15 @@ impl ObjectPositions {
         self.objects.retain(|i, _| ids.contains(&(*i).into()));
     }
 
-    pub(super) fn objects(&self) -> &HashMap<ObjectId, LayoutState> {
+    pub(super) fn objects(&self) -> &HashMap<SoundObjectId, LayoutState> {
         &self.objects
     }
 
-    pub(super) fn objects_mut(&mut self) -> &mut HashMap<ObjectId, LayoutState> {
+    pub(super) fn objects_mut(&mut self) -> &mut HashMap<SoundObjectId, LayoutState> {
         &mut self.objects
     }
 
-    pub fn track_object_location(&mut self, id: ObjectId, rect: egui::Rect) {
+    pub fn track_object_location(&mut self, id: SoundObjectId, rect: egui::Rect) {
         self.objects.insert(id, LayoutState { rect });
     }
 
@@ -57,7 +57,7 @@ impl ObjectPositions {
         self.sound_number_inputs.insert(id, LayoutState { rect });
     }
 
-    pub fn get_object_location(&self, id: ObjectId) -> Option<&LayoutState> {
+    pub fn get_object_location(&self, id: SoundObjectId) -> Option<&LayoutState> {
         self.objects.get(&id)
     }
 
@@ -110,7 +110,7 @@ impl ObjectPositions {
     //     Ok(())
     // }
 
-    pub(crate) fn create_state_for(&mut self, object_id: ObjectId) {
+    pub(crate) fn create_state_for(&mut self, object_id: SoundObjectId) {
         // TODO: allow the position to be passed in
         self.objects
             .entry(object_id)

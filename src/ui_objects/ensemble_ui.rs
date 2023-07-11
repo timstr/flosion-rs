@@ -2,9 +2,12 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::ensemble::Ensemble,
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ProcessorUi},
-        ui_context::UiContext,
+        object_ui::{NoUIState, ObjectUi},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUIState,
+        soundobjectuistate::ConcreteSoundObjectUiData,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -12,16 +15,17 @@ use crate::{
 pub struct EnsembleUi {}
 
 impl ObjectUi for EnsembleUi {
+    type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<Ensemble>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         ensemble: DynamicSoundProcessorHandle<Ensemble>,
-        graph_tools: &mut GraphUIState,
+        graph_tools: &mut SoundGraphUIState,
         ui: &mut eframe::egui::Ui,
-        ctx: &UiContext,
-        data: ObjectUiData<NoUIState>,
+        ctx: &SoundGraphUiContext,
+        data: ConcreteSoundObjectUiData<NoUIState>,
     ) {
         ProcessorUi::new(ensemble.id(), "Ensemble", data.color)
             // .add_left_peg(ensemble.input.id(), "Input")

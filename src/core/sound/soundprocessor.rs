@@ -1,5 +1,5 @@
 use std::{
-    any::Any,
+    any::{type_name, Any},
     ops::{Deref, DerefMut},
     sync::Arc,
 };
@@ -9,18 +9,19 @@ use crate::core::{
         nodegen::NodeGen,
         stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
     },
+    graph::graphobject::{
+        GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
+        WithObjectType,
+    },
     serialization::Serializer,
     soundchunk::SoundChunk,
     uniqueid::UniqueId,
 };
 
 use super::{
-    context::Context,
-    graphobject::{GraphObjectHandle, ObjectInitialization, ObjectType, WithObjectType},
-    soundinputnode::SoundProcessorInput,
-    soundnumberinputnode::SoundNumberInputNodeCollection,
-    soundprocessortools::SoundProcessorTools,
-    state::State,
+    context::Context, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+    soundinputnode::SoundProcessorInput, soundnumberinputnode::SoundNumberInputNodeCollection,
+    soundprocessortools::SoundProcessorTools, state::State,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -107,7 +108,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-pub(crate) struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
+pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
 }
@@ -117,7 +118,7 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
         Self { processor, id }
     }
 
-    pub(crate) fn id(&self) -> SoundProcessorId {
+    pub fn id(&self) -> SoundProcessorId {
         self.id
     }
 }
@@ -134,7 +135,7 @@ impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
 
-pub(crate) struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
+pub struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
 }
@@ -144,7 +145,7 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
         Self { processor, id }
     }
 
-    pub(crate) fn id(&self) -> SoundProcessorId {
+    pub fn id(&self) -> SoundProcessorId {
         self.id
     }
 }
@@ -170,11 +171,19 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
         Self { instance }
     }
 
+    pub(super) fn from_graph_object(handle: GraphObjectHandle<SoundGraph>) -> Option<Self> {
+        let arc_any = handle.instance_arc().into_arc_any();
+        match arc_any.downcast::<StaticSoundProcessorWithId<T>>() {
+            Ok(obj) => Some(StaticSoundProcessorHandle::new(obj)),
+            Err(_) => None,
+        }
+    }
+
     pub fn id(&self) -> SoundProcessorId {
         self.instance.id()
     }
 
-    pub fn into_graph_object(self) -> GraphObjectHandle {
+    pub fn into_graph_object(self) -> GraphObjectHandle<SoundGraph> {
         GraphObjectHandle::new(self.instance)
     }
 }
@@ -204,11 +213,19 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
         Self { instance }
     }
 
+    pub(super) fn from_graph_object(handle: GraphObjectHandle<SoundGraph>) -> Option<Self> {
+        let arc_any = handle.instance_arc().into_arc_any();
+        match arc_any.downcast::<DynamicSoundProcessorWithId<T>>() {
+            Ok(obj) => Some(DynamicSoundProcessorHandle::new(obj)),
+            Err(_) => None,
+        }
+    }
+
     pub fn id(&self) -> SoundProcessorId {
         self.instance.id()
     }
 
-    pub fn into_graph_object(self) -> GraphObjectHandle {
+    pub fn into_graph_object(self) -> GraphObjectHandle<SoundGraph> {
         GraphObjectHandle::new(self.instance)
     }
 }
@@ -236,7 +253,7 @@ pub(crate) trait SoundProcessor: 'static + Sync + Send {
 
     fn is_static(&self) -> bool;
 
-    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle;
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<SoundGraph>;
 
     fn make_node<'a, 'ctx>(
         self: Arc<Self>,
@@ -257,7 +274,7 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
         true
     }
 
-    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle {
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<SoundGraph> {
         GraphObjectHandle::new(self)
     }
 
@@ -283,7 +300,7 @@ impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T>
         false
     }
 
-    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle {
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<SoundGraph> {
         GraphObjectHandle::new(self)
     }
 
@@ -425,5 +442,92 @@ impl<T: State> Deref for StateAndTiming<T> {
 impl<T: State> DerefMut for StateAndTiming<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.state
+    }
+}
+
+impl<T: StaticSoundProcessor> ObjectHandle<SoundGraph> for StaticSoundProcessorHandle<T> {
+    type ObjectType = StaticSoundProcessorWithId<T>;
+
+    fn from_graph_object(object: GraphObjectHandle<SoundGraph>) -> Option<Self> {
+        StaticSoundProcessorHandle::from_graph_object(object)
+    }
+}
+
+impl<T: DynamicSoundProcessor> ObjectHandle<SoundGraph> for DynamicSoundProcessorHandle<T> {
+    type ObjectType = DynamicSoundProcessorWithId<T>;
+
+    fn from_graph_object(object: GraphObjectHandle<SoundGraph>) -> Option<Self> {
+        DynamicSoundProcessorHandle::from_graph_object(object)
+    }
+}
+
+impl<T: StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWithId<T> {
+    fn create(
+        graph: &mut SoundGraph,
+        init: ObjectInitialization,
+    ) -> Result<GraphObjectHandle<SoundGraph>, ()> {
+        graph
+            .add_static_sound_processor::<T>(init)
+            .map(|h| h.into_graph_object())
+    }
+
+    fn get_id(&self) -> SoundObjectId {
+        self.id().into()
+    }
+
+    fn get_type() -> ObjectType {
+        T::TYPE
+    }
+
+    fn get_dynamic_type(&self) -> ObjectType {
+        T::TYPE
+    }
+
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+        self
+    }
+
+    fn get_language_type_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
+
+    fn serialize(&self, serializer: Serializer) {
+        (&*self as &T).serialize(serializer);
+    }
+}
+
+impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessorWithId<T> {
+    fn create(
+        graph: &mut SoundGraph,
+        init: ObjectInitialization,
+    ) -> Result<GraphObjectHandle<SoundGraph>, ()> {
+        graph
+            .add_dynamic_sound_processor::<T>(init)
+            .map(|h| h.into_graph_object())
+    }
+
+    fn get_id(&self) -> SoundObjectId {
+        self.id().into()
+    }
+
+    fn get_type() -> ObjectType {
+        T::TYPE
+    }
+
+    fn get_dynamic_type(&self) -> ObjectType {
+        T::TYPE
+    }
+
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+        self
+    }
+
+    fn get_language_type_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
+
+    fn serialize(&self, serializer: Serializer) {
+        let s: &T = &*self;
+        s.serialize(serializer);
     }
 }

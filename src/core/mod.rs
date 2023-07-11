@@ -1,12 +1,12 @@
-pub mod anydata;
+pub(crate) mod anydata;
 pub mod arguments;
 pub mod number;
 pub mod sound;
 // pub mod graphserialization;
-pub mod engine;
+pub(crate) mod engine;
+pub(crate) mod graph;
 pub mod jit;
 pub mod numeric;
-pub mod objectfactory;
 pub mod resample;
 pub mod samplefrequency;
 pub mod serialization;

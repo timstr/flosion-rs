@@ -4,9 +4,12 @@ use crate::{
     core::sound::soundprocessor::StaticSoundProcessorHandle,
     objects::dac::Dac,
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ProcessorUi},
-        ui_context::UiContext,
+        object_ui::{NoUIState, ObjectUi},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUIState,
+        soundobjectuistate::ConcreteSoundObjectUiData,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -14,15 +17,16 @@ use crate::{
 pub struct DacUi {}
 
 impl ObjectUi for DacUi {
+    type GraphUi = SoundGraphUi;
     type HandleType = StaticSoundProcessorHandle<Dac>;
     type StateType = NoUIState;
     fn ui(
         &self,
         dac: StaticSoundProcessorHandle<Dac>,
-        graph_tools: &mut GraphUIState,
+        graph_tools: &mut SoundGraphUIState,
         ui: &mut egui::Ui,
-        ctx: &UiContext,
-        data: ObjectUiData<NoUIState>,
+        ctx: &SoundGraphUiContext,
+        data: ConcreteSoundObjectUiData<NoUIState>,
     ) {
         ProcessorUi::new(dac.id(), "Dac", data.color)
             // .add_left_peg(dac.input.id(), "Input")

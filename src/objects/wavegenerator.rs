@@ -1,11 +1,11 @@
 use crate::core::{
     anydata::AnyData,
     engine::nodegen::NodeGen,
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         soundnumberinput::SoundNumberInputHandle,
         soundnumberinputnode::{
             SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,

@@ -6,11 +6,11 @@ use std::sync::{
 
 use crate::core::{
     engine::nodegen::NodeGen,
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundprocessor::StaticSoundProcessor,

@@ -4,9 +4,9 @@ use parking_lot::Mutex;
 
 use crate::core::{
     engine::nodegen::NodeGen,
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
         soundnumbersource::SoundNumberSourceHandle,
         soundprocessor::StaticSoundProcessor,

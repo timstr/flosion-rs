@@ -1,5 +1,5 @@
 use crate::core::sound::{
-    graphobject::{ObjectId, SoundGraphId},
+    soundgraphid::{SoundGraphId, SoundObjectId},
     soundprocessor::SoundProcessorId,
 };
 
@@ -15,10 +15,11 @@ impl KeyboardFocusState {
         }
     }
 
-    pub(super) fn object_has_keyboard_focus(&self, object: ObjectId) -> bool {
+    pub(super) fn object_has_keyboard_focus(&self, object: SoundObjectId) -> bool {
         match (object, self) {
-            (ObjectId::Sound(spid1), KeyboardFocusState::SoundProcessor(spid2)) => spid1 == *spid2,
-            _ => false,
+            (SoundObjectId::Sound(spid1), KeyboardFocusState::SoundProcessor(spid2)) => {
+                spid1 == *spid2
+            }
         }
     }
 }

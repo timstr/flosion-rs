@@ -4,10 +4,10 @@ use parking_lot::RwLock;
 
 use crate::core::{
     engine::nodegen::NodeGen,
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     serialization::{Serializable, Serializer},
     sound::{
         context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundprocessor::{StaticSoundProcessor, StreamStatus},

@@ -4,9 +4,12 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::mixer::Mixer,
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ProcessorUi},
-        ui_context::UiContext,
+        object_ui::{NoUIState, ObjectUi},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUIState,
+        soundobjectuistate::ConcreteSoundObjectUiData,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -14,16 +17,17 @@ use crate::{
 pub struct MixerUi {}
 
 impl ObjectUi for MixerUi {
+    type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<Mixer>;
     type StateType = NoUIState;
 
     fn ui(
         &self,
         mixer: DynamicSoundProcessorHandle<Mixer>,
-        graph_tools: &mut GraphUIState,
+        graph_tools: &mut SoundGraphUIState,
         ui: &mut egui::Ui,
-        ctx: &UiContext,
-        data: ObjectUiData<NoUIState>,
+        ctx: &SoundGraphUiContext,
+        data: ConcreteSoundObjectUiData<NoUIState>,
     ) {
         let mut objwin = ProcessorUi::new(mixer.id(), "Mixer", data.color);
 

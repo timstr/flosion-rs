@@ -4,15 +4,16 @@ use eframe::egui;
 
 use crate::core::{
     sound::{
-        graphobject::{ObjectId, SoundGraphId},
         soundgraph::SoundGraph,
+        soundgraphid::{SoundGraphId, SoundObjectId},
         soundgraphtopology::SoundGraphTopology,
     },
     uniqueid::UniqueId,
 };
 
 use super::{
-    hotkeys::KeyboardFocusState, object_positions::ObjectPositions, ui_context::TemporalLayout,
+    hotkeys::KeyboardFocusState, object_positions::ObjectPositions,
+    soundgraphuicontext::TemporalLayout,
 };
 
 pub enum SelectionChange {
@@ -24,19 +25,19 @@ pub enum SelectionChange {
 enum UiMode {
     Passive,
     UsingKeyboardNav(KeyboardFocusState),
-    Selecting(HashSet<ObjectId>),
+    Selecting(HashSet<SoundObjectId>),
 }
 
-pub struct GraphUIState {
+pub struct SoundGraphUIState {
     object_positions: ObjectPositions,
     temporal_layout: TemporalLayout,
-    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut GraphUIState) -> ()>>,
+    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUIState) -> ()>>,
     mode: UiMode,
 }
 
-impl GraphUIState {
-    pub(super) fn new() -> GraphUIState {
-        GraphUIState {
+impl SoundGraphUIState {
+    pub(super) fn new() -> SoundGraphUIState {
+        SoundGraphUIState {
             object_positions: ObjectPositions::new(),
             temporal_layout: TemporalLayout::new(),
             pending_changes: Vec::new(),
@@ -56,11 +57,7 @@ impl GraphUIState {
         &self.temporal_layout
     }
 
-    pub(super) fn temporal_layout_mut(&mut self) -> &mut TemporalLayout {
-        &mut self.temporal_layout
-    }
-
-    pub fn make_change<F: FnOnce(&mut SoundGraph, &mut GraphUIState) -> () + 'static>(
+    pub fn make_change<F: FnOnce(&mut SoundGraph, &mut SoundGraphUIState) -> () + 'static>(
         &mut self,
         f: F,
     ) {
@@ -74,11 +71,11 @@ impl GraphUIState {
         }
     }
 
-    pub fn set_selection(&mut self, object_ids: HashSet<ObjectId>) {
+    pub fn set_selection(&mut self, object_ids: HashSet<SoundObjectId>) {
         self.mode = UiMode::Selecting(object_ids);
     }
 
-    pub fn select_object(&mut self, object_id: ObjectId) {
+    pub fn select_object(&mut self, object_id: SoundObjectId) {
         match &mut self.mode {
             UiMode::Selecting(s) => {
                 s.insert(object_id);
@@ -91,7 +88,7 @@ impl GraphUIState {
         }
     }
 
-    pub fn deselect_object(&mut self, object_id: ObjectId) {
+    pub fn deselect_object(&mut self, object_id: SoundObjectId) {
         match &mut self.mode {
             UiMode::Selecting(s) => {
                 s.remove(&object_id);
@@ -161,21 +158,21 @@ impl GraphUIState {
         self.temporal_layout.regenerate(topo);
     }
 
-    pub fn selection(&self) -> HashSet<ObjectId> {
+    pub fn selection(&self) -> HashSet<SoundObjectId> {
         match &self.mode {
             UiMode::Selecting(s) => s.clone(),
             _ => HashSet::new(),
         }
     }
 
-    pub fn is_object_selected(&self, object_id: ObjectId) -> bool {
+    pub fn is_object_selected(&self, object_id: SoundObjectId) -> bool {
         match &self.mode {
             UiMode::Selecting(s) => s.contains(&object_id),
             _ => false,
         }
     }
 
-    pub fn move_selection(&mut self, delta: egui::Vec2, excluded: Option<ObjectId>) {
+    pub fn move_selection(&mut self, delta: egui::Vec2, excluded: Option<SoundObjectId>) {
         let objects = self.object_positions.objects_mut();
         match &self.mode {
             UiMode::Selecting(selection) => {
@@ -190,7 +187,7 @@ impl GraphUIState {
         }
     }
 
-    pub fn object_has_keyboard_focus(&self, object_id: ObjectId) -> bool {
+    pub fn object_has_keyboard_focus(&self, object_id: SoundObjectId) -> bool {
         match &self.mode {
             UiMode::UsingKeyboardNav(k) => k.object_has_keyboard_focus(object_id),
             _ => false,
@@ -211,8 +208,8 @@ impl GraphUIState {
         let mut good = true;
         for i in self.object_positions.objects().keys() {
             match i {
-                ObjectId::Sound(i) => {
-                    if !topo.sound_processors().contains_key(i) {
+                SoundObjectId::Sound(i) => {
+                    if !topo.sound_processors().contains_key(&i) {
                         println!(
                             "An object position exists for a non-existent sound processor {}",
                             i.value()
@@ -227,7 +224,7 @@ impl GraphUIState {
     }
 
     pub(super) fn select_all(&mut self, topo: &SoundGraphTopology) {
-        let mut ids: HashSet<ObjectId> = HashSet::new();
+        let mut ids: HashSet<SoundObjectId> = HashSet::new();
         {
             for i in topo.sound_processors().keys() {
                 ids.insert(i.into());
@@ -242,7 +239,7 @@ impl GraphUIState {
         }
     }
 
-    pub(super) fn create_state_for(&mut self, object_id: ObjectId, topo: &SoundGraphTopology) {
+    pub(super) fn create_state_for(&mut self, object_id: SoundObjectId) {
         self.object_positions.create_state_for(object_id);
     }
 }

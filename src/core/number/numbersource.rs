@@ -3,9 +3,7 @@ use std::{ops::Deref, sync::Arc};
 use inkwell::values::FloatValue;
 
 use crate::core::{
-    jit::codegen::CodeGen,
-    serialization::Serializer,
-    sound::graphobject::{ObjectInitialization, WithObjectType},
+    graph::graphobject::ObjectInitialization, jit::codegen::CodeGen, serialization::Serializer,
     uniqueid::UniqueId,
 };
 
@@ -60,17 +58,9 @@ impl NumberConfig {
     }
 }
 
-// TODO: now that trait SoundNumberSource is separate, consider merging this with PureNumberSource below
-pub(crate) trait NumberSource: 'static + Sync + Send {
-    fn compile<'ctx>(
-        &self,
-        codegen: &mut CodeGen<'ctx>,
-        _inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx>;
-}
-
-// TODO: repurpose this for use strictly within NumberGraphs
-pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
+// Intended for concrete number source types,
+// hence the new() associated function
+pub trait PureNumberSource: 'static + Sync + Send {
     fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
@@ -78,20 +68,29 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
-        _inputs: &[FloatValue<'ctx>],
+        inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-pub struct PureNumberSourceWithId<T: PureNumberSource> {
+// Intended for type-erased number sources
+pub trait NumberSource: 'static + Sync + Send {
+    fn compile<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+    ) -> FloatValue<'ctx>;
+}
+
+pub struct NumberSourceWithId<T: PureNumberSource> {
     source: T,
     id: NumberSourceId,
 }
 
-impl<T: PureNumberSource> PureNumberSourceWithId<T> {
-    pub(crate) fn new(source: T, id: NumberSourceId) -> PureNumberSourceWithId<T> {
-        PureNumberSourceWithId { source, id }
+impl<T: PureNumberSource> NumberSourceWithId<T> {
+    pub(crate) fn new(source: T, id: NumberSourceId) -> NumberSourceWithId<T> {
+        NumberSourceWithId { source, id }
     }
 
     pub(crate) fn id(&self) -> NumberSourceId {
@@ -99,7 +98,7 @@ impl<T: PureNumberSource> PureNumberSourceWithId<T> {
     }
 }
 
-impl<T: PureNumberSource> Deref for PureNumberSourceWithId<T> {
+impl<T: PureNumberSource> Deref for NumberSourceWithId<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -107,7 +106,7 @@ impl<T: PureNumberSource> Deref for PureNumberSourceWithId<T> {
     }
 }
 
-impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
+impl<T: PureNumberSource> NumberSource for NumberSourceWithId<T> {
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
@@ -117,12 +116,12 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
     }
 }
 
-pub struct PureNumberSourceHandle<T: PureNumberSource> {
-    instance: Arc<PureNumberSourceWithId<T>>,
+pub struct NumberSourceHandle<T: PureNumberSource> {
+    instance: Arc<NumberSourceWithId<T>>,
 }
 
-impl<T: PureNumberSource> PureNumberSourceHandle<T> {
-    pub(super) fn new(instance: Arc<PureNumberSourceWithId<T>>) -> Self {
+impl<T: PureNumberSource> NumberSourceHandle<T> {
+    pub(super) fn new(instance: Arc<NumberSourceWithId<T>>) -> Self {
         Self { instance }
     }
 
@@ -131,7 +130,7 @@ impl<T: PureNumberSource> PureNumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> Deref for PureNumberSourceHandle<T> {
+impl<T: PureNumberSource> Deref for NumberSourceHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -139,7 +138,7 @@ impl<T: PureNumberSource> Deref for PureNumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
+impl<T: PureNumberSource> Clone for NumberSourceHandle<T> {
     fn clone(&self) -> Self {
         Self {
             instance: Arc::clone(&self.instance),

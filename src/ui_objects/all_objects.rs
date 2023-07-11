@@ -1,12 +1,11 @@
 use crate::{
     core::{
-        objectfactory::ObjectFactory,
-        sound::{
-            graphobject::ObjectHandle,
-            soundprocessor::{DynamicSoundProcessor, StaticSoundProcessor},
-        },
+        graph::{graphobject::ObjectHandle, objectfactory::ObjectFactory},
+        sound::soundgraph::SoundGraph,
     },
-    ui_core::{object_ui::ObjectUi, ui_factory::UiFactory},
+    ui_core::{
+        graph_ui::GraphUi, object_ui::ObjectUi, soundgraphui::SoundGraphUi, ui_factory::UiFactory,
+    },
 };
 
 use super::{
@@ -14,62 +13,68 @@ use super::{
     wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
 };
 
-struct RegistrationHelper<'a> {
-    object_factory: &'a mut ObjectFactory,
-    ui_factory: &'a mut UiFactory,
+struct RegistrationHelper<'a, G: GraphUi> {
+    object_factory: &'a mut ObjectFactory<G::Graph>,
+    ui_factory: &'a mut UiFactory<G>,
 }
 
-impl<'a> RegistrationHelper<'a> {
+impl<'a, G: GraphUi> RegistrationHelper<'a, G> {
     fn new(
-        object_factory: &'a mut ObjectFactory,
-        ui_factory: &'a mut UiFactory,
-    ) -> RegistrationHelper<'a> {
+        object_factory: &'a mut ObjectFactory<G::Graph>,
+        ui_factory: &'a mut UiFactory<G>,
+    ) -> RegistrationHelper<'a, G> {
         RegistrationHelper {
             object_factory,
             ui_factory,
         }
     }
 
-    fn register_static_sound_processor<T: ObjectUi>(&mut self)
-    where
-        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: StaticSoundProcessor,
-    {
+    fn register<T: ObjectUi<GraphUi = G>>(&mut self) {
         self.object_factory
-            .register_static_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>(
-            );
-        self.ui_factory.register_static_sound_processor::<T>();
+            .register::<<T::HandleType as ObjectHandle<G::Graph>>::ObjectType>();
+        self.ui_factory.register::<T>();
     }
 
-    fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
-    where
-        <<T as ObjectUi>::HandleType as ObjectHandle>::Type: DynamicSoundProcessor,
-    {
-        self.object_factory
-            .register_dynamic_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>();
-        self.ui_factory.register_dynamic_sound_processor::<T>();
-    }
+    // fn register_static_sound_processor<T: ObjectUi>(&mut self)
+    // where
+    //     <<T as ObjectUi>::HandleType as ObjectHandle>::Type: StaticSoundProcessor,
+    // {
+    //     self.object_factory
+    //         .register_static_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>(
+    //         );
+    //     self.ui_factory.register_static_sound_processor::<T>();
+    // }
+
+    // fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
+    // where
+    //     <<T as ObjectUi>::HandleType as ObjectHandle>::Type: DynamicSoundProcessor,
+    // {
+    //     self.object_factory
+    //         .register_dynamic_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>();
+    //     self.ui_factory.register_dynamic_sound_processor::<T>();
+    // }
 }
 
-pub fn all_objects() -> (ObjectFactory, UiFactory) {
+pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundGraphUi>) {
     let mut object_factory = ObjectFactory::new_empty();
     let mut ui_factory = UiFactory::new_empty();
 
     let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     // Static sound processors
-    helper.register_static_sound_processor::<DacUi>();
+    helper.register::<DacUi>();
     // helper.register_static_sound_processor::<KeyboardUi>();
     // helper.register_static_sound_processor::<RecorderUi>();
 
     // Dynamic sound processors
     // helper.register_dynamic_sound_processor::<ADSRUi>();
     // helper.register_dynamic_sound_processor::<AudioClipUi>();
-    helper.register_dynamic_sound_processor::<EnsembleUi>();
+    helper.register::<EnsembleUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
-    helper.register_dynamic_sound_processor::<MixerUi>();
-    helper.register_dynamic_sound_processor::<ResamplerUi>();
-    helper.register_dynamic_sound_processor::<WaveGeneratorUi>();
-    helper.register_dynamic_sound_processor::<WhiteNoiseUi>();
+    helper.register::<MixerUi>();
+    helper.register::<ResamplerUi>();
+    helper.register::<WaveGeneratorUi>();
+    helper.register::<WhiteNoiseUi>();
 
     // Pure number sources
     // helper.register_number_source::<ConstantUi>();

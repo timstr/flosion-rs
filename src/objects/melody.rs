@@ -4,10 +4,10 @@ use parking_lot::{Mutex, RwLock};
 
 use crate::core::{
     engine::nodegen::NodeGen,
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
         soundnumbersource::SoundNumberSourceHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},

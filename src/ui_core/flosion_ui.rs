@@ -6,24 +6,20 @@ use std::{
 
 use crate::{
     core::{
+        graph::{graphobject::ObjectInitialization, objectfactory::ObjectFactory},
         number::numbergraphdata::NumberTarget,
-        objectfactory::ObjectFactory,
         sound::{
-            graphobject::{ObjectId, ObjectInitialization},
-            soundgraph::SoundGraph,
+            soundgraph::SoundGraph, soundgraphid::SoundObjectId,
             soundgraphtopology::SoundGraphTopology,
         },
     },
     objects::{
         dac::Dac,
         ensemble::Ensemble,
-        functions::{Constant, SawWave, SineWave, Variable},
-        mixer::Mixer,
-        resampler::Resampler,
+        functions::{SawWave, Variable},
         wavegenerator::WaveGenerator,
-        whitenoise::WhiteNoise,
     },
-    ui_objects::all_objects::all_objects,
+    ui_objects::all_objects::all_sound_graph_objects,
 };
 use eframe::{
     self,
@@ -32,11 +28,12 @@ use eframe::{
 use rfd::FileDialog;
 
 use super::{
-    graph_ui_state::{GraphUIState, SelectionChange},
     object_ui::random_object_color,
-    object_ui_states::ObjectUiStates,
+    soundgraphui::SoundGraphUi,
+    soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::{SelectionChange, SoundGraphUIState},
+    soundobjectuistate::SoundObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState},
-    ui_context::UiContext,
     ui_factory::UiFactory,
 };
 
@@ -47,13 +44,13 @@ struct SelectionState {
 
 pub struct FlosionApp {
     graph: SoundGraph,
-    object_factory: ObjectFactory,
-    ui_factory: UiFactory,
-    ui_state: GraphUIState,
-    object_states: ObjectUiStates,
+    object_factory: ObjectFactory<SoundGraph>,
+    ui_factory: UiFactory<SoundGraphUi>,
+    ui_state: SoundGraphUIState,
+    object_states: SoundObjectUiStates,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
-    known_object_ids: HashSet<ObjectId>,
+    known_object_ids: HashSet<SoundObjectId>,
 }
 
 impl FlosionApp {
@@ -185,11 +182,11 @@ impl FlosionApp {
             //     .unwrap();
         }
 
-        let (object_factory, ui_factory) = all_objects();
+        let (object_factory, ui_factory) = all_sound_graph_objects();
         let mut app = FlosionApp {
             graph,
-            ui_state: GraphUIState::new(),
-            object_states: ObjectUiStates::new(),
+            ui_state: SoundGraphUIState::new(),
+            object_states: SoundObjectUiStates::new(),
             object_factory,
             ui_factory,
             summon_state: None,
@@ -211,10 +208,10 @@ impl FlosionApp {
 
     fn draw_all_objects(
         ui: &mut Ui,
-        factory: &UiFactory,
+        factory: &UiFactory<SoundGraphUi>,
         graph: &SoundGraph,
-        ui_state: &mut GraphUIState,
-        object_states: &mut ObjectUiStates,
+        ui_state: &mut SoundGraphUIState,
+        object_states: &mut SoundObjectUiStates,
     ) {
         // NOTE: ObjectUiStates doesn't technically need to be borrowed mutably
         // here, but it uses interior mutability with individual object states
@@ -228,9 +225,9 @@ impl FlosionApp {
                 // TODO: store this width somewhere
                 let width = 300.0;
                 let is_top_level = true;
-                let ctx = UiContext::new(
+                let ctx = SoundGraphUiContext::new(
                     factory,
-                    &object_states,
+                    object_states,
                     graph.topology(),
                     is_top_level,
                     layout.time_axis,
@@ -245,7 +242,7 @@ impl FlosionApp {
     fn handle_shortcuts_selection(
         key: egui::Key,
         modifiers: egui::Modifiers,
-        ui_state: &mut GraphUIState,
+        ui_state: &mut SoundGraphUIState,
         topo: &SoundGraphTopology,
     ) -> bool {
         if !modifiers.command_only() {
@@ -267,11 +264,11 @@ impl FlosionApp {
     fn handle_shortcuts_save_open(
         key: egui::Key,
         modifiers: egui::Modifiers,
-        ui_state: &mut GraphUIState,
-        object_states: &mut ObjectUiStates,
+        ui_state: &mut SoundGraphUIState,
+        object_states: &mut SoundObjectUiStates,
         graph: &mut SoundGraph,
-        object_factory: &ObjectFactory,
-        ui_factory: &UiFactory,
+        object_factory: &ObjectFactory<SoundGraph>,
+        ui_factory: &UiFactory<SoundGraphUi>,
     ) -> bool {
         if !modifiers.command_only() {
             return false;
@@ -355,7 +352,7 @@ impl FlosionApp {
         ui: &mut Ui,
         bg_response: &Response,
         selection_area: &mut Option<SelectionState>,
-        ui_state: &mut GraphUIState,
+        ui_state: &mut SoundGraphUIState,
     ) {
         let pointer_pos = bg_response.interact_pointer_pos();
         if bg_response.drag_started() {
@@ -469,8 +466,8 @@ impl FlosionApp {
         }
     }
 
-    fn delete_selection(ui_state: &mut GraphUIState) {
-        let selection: Vec<ObjectId> = ui_state.selection().iter().cloned().collect();
+    fn delete_selection(ui_state: &mut SoundGraphUIState) {
+        let selection: Vec<SoundObjectId> = ui_state.selection().iter().cloned().collect();
         ui_state.make_change(move |g, _s| {
             g.remove_objects_batch(&selection).unwrap_or_else(|e| {
                 println!("Nope! Can't remove that:\n    {:?}", e);
@@ -479,12 +476,13 @@ impl FlosionApp {
     }
 
     fn serialize(
-        ui_state: &GraphUIState,
-        object_states: &ObjectUiStates,
-        graph: &SoundGraph,
-        use_selection: bool,
+        _ui_state: &SoundGraphUIState,
+        _object_states: &SoundObjectUiStates,
+        _graph: &SoundGraph,
+        _use_selection: bool,
     ) -> Option<String> {
-        // TODO: fix serialization
+        // TODO
+        println!("TODO: fix serialization");
         None
         // #[cfg(debug_assertions)]
         // {
@@ -513,14 +511,15 @@ impl FlosionApp {
     }
 
     fn deserialize(
-        ui_state: &mut GraphUIState,
-        object_states: &mut ObjectUiStates,
-        data: &str,
-        graph: &mut SoundGraph,
-        object_factory: &ObjectFactory,
-        ui_factory: &UiFactory,
-    ) -> Result<Vec<ObjectId>, ()> {
-        // TODO: fix serialization
+        _ui_state: &mut SoundGraphUIState,
+        _object_states: &mut SoundObjectUiStates,
+        _data: &str,
+        _graph: &mut SoundGraph,
+        _object_factory: &ObjectFactory<SoundGraph>,
+        _ui_factory: &UiFactory<SoundGraphUi>,
+    ) -> Result<Vec<SoundObjectId>, ()> {
+        // TODO
+        println!("TODO: fix serialization");
         Err(())
         // let bytes = base64::decode(data).map_err(|_| ())?;
         // let archive = Archive::from_vec(bytes);
@@ -604,13 +603,12 @@ impl FlosionApp {
     }
 
     fn cleanup(&mut self) {
-        let current_object_ids: HashSet<ObjectId> =
+        let current_object_ids: HashSet<SoundObjectId> =
             self.graph.topology().graph_object_ids().collect();
 
         for object_id in &current_object_ids {
             if !self.known_object_ids.contains(object_id) {
-                self.ui_state
-                    .create_state_for(*object_id, self.graph.topology());
+                self.ui_state.create_state_for(*object_id);
                 self.object_states.create_state_for(
                     *object_id,
                     self.graph.topology(),

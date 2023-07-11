@@ -1,5 +1,5 @@
 pub mod context;
-pub mod graphobject;
+pub mod soundgraphid;
 // pub mod graphserialization;
 mod path;
 pub(crate) mod soundedit;

@@ -1,10 +1,10 @@
 use crate::core::{
     engine::nodegen::NodeGen,
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundnumberinput::SoundNumberInputHandle,
