@@ -134,10 +134,7 @@ impl ProcessorUi {
 
         let fill = self.color;
 
-        let selected = graph_tools.is_object_selected(self.processor_id.into());
-
         let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
-        let bright_yellow_stroke = egui::Stroke::new(2.0, egui::Color32::YELLOW);
 
         let outer_frame = egui::Frame::default()
             .fill(egui::Color32::from_rgb(
@@ -151,11 +148,7 @@ impl ProcessorUi {
         let content_frame = egui::Frame::default()
             .fill(fill)
             .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(if selected {
-                bright_yellow_stroke
-            } else {
-                darkish_stroke
-            });
+            .stroke(darkish_stroke);
 
         let props = ProcessorUiProps {
             origin: ui.cursor().left_top(),
@@ -216,6 +209,14 @@ impl ProcessorUi {
                 .object_positions_mut()
                 .track_processor_rail_location(self.processor_id, top_rail_rect);
         });
+
+        if graph_tools.is_object_selected(self.processor_id.into()) {
+            ui.painter().rect_stroke(
+                r.response.rect,
+                egui::Rounding::same(3.0),
+                egui::Stroke::new(2.0, egui::Color32::YELLOW),
+            );
+        }
 
         graph_tools
             .object_positions_mut()
