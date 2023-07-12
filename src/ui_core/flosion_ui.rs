@@ -430,6 +430,10 @@ impl FlosionApp {
                         }
                     };
                     let new_state = self.ui_factory.create_state_from_args(&new_object, &args);
+                    let p = s.position();
+                    self.ui_state
+                        .object_positions_mut()
+                        .track_object_location(new_object.id(), egui::Rect::from_two_pos(p, p));
                     self.object_states.set_object_data(
                         new_object.id(),
                         new_state,

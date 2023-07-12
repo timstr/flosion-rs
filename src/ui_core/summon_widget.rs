@@ -117,6 +117,10 @@ impl SummonWidgetState {
         self.object_scores
             .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().reverse());
     }
+
+    pub(super) fn position(&self) -> egui::Pos2 {
+        self.position
+    }
 }
 
 pub(super) struct SummonWidget<'a> {
