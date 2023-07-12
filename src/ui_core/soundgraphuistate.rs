@@ -115,6 +115,13 @@ impl SoundGraphUIState {
             selection.clear();
         }
         for (object_id, object_state) in self.object_positions.objects() {
+            if self
+                .temporal_layout
+                .find_top_level_layout(*object_id)
+                .is_none()
+            {
+                continue;
+            }
             if rect.intersects(object_state.rect) {
                 if let SelectionChange::Subtract = change {
                     selection.remove(object_id);
