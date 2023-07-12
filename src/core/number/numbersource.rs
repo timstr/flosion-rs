@@ -1,13 +1,17 @@
-use std::{ops::Deref, sync::Arc};
+use std::{any::type_name, ops::Deref, sync::Arc};
 
 use inkwell::values::FloatValue;
 
 use crate::core::{
-    graph::graphobject::ObjectInitialization, jit::codegen::CodeGen, serialization::Serializer,
+    graph::graphobject::{
+        GraphObject, GraphObjectHandle, ObjectInitialization, ObjectType, WithObjectType,
+    },
+    jit::codegen::CodeGen,
+    serialization::Serializer,
     uniqueid::UniqueId,
 };
 
-use super::numbersourcetools::NumberSourceTools;
+use super::{numbergraph::NumberGraph, numbersourcetools::NumberSourceTools};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NumberSourceId(usize);
@@ -60,7 +64,7 @@ impl NumberConfig {
 
 // Intended for concrete number source types,
 // hence the new() associated function
-pub trait PureNumberSource: 'static + Sync + Send {
+pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
@@ -81,6 +85,8 @@ pub trait NumberSource: 'static + Sync + Send {
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx>;
+
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph>;
 }
 
 pub struct NumberSourceWithId<T: PureNumberSource> {
@@ -114,6 +120,45 @@ impl<T: PureNumberSource> NumberSource for NumberSourceWithId<T> {
     ) -> FloatValue<'ctx> {
         self.source.compile(codegen, inputs)
     }
+
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph> {
+        GraphObjectHandle::new(self)
+    }
+}
+
+impl<T: PureNumberSource> GraphObject<NumberGraph> for NumberSourceWithId<T> {
+    fn create(
+        graph: &mut NumberGraph,
+        init: ObjectInitialization,
+    ) -> Result<GraphObjectHandle<NumberGraph>, ()> {
+        graph
+            .add_number_source::<T>(init)
+            .map(|h| h.into_graph_object())
+    }
+
+    fn get_type() -> ObjectType {
+        T::TYPE
+    }
+
+    fn get_dynamic_type(&self) -> ObjectType {
+        T::TYPE
+    }
+
+    fn get_id(&self) -> NumberSourceId {
+        self.id
+    }
+
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn std::any::Any + Send + Sync> {
+        self
+    }
+
+    fn get_language_type_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
+
+    fn serialize(&self, serializer: Serializer) {
+        (&*self as &T).serialize(serializer);
+    }
 }
 
 pub struct NumberSourceHandle<T: PureNumberSource> {
@@ -127,6 +172,10 @@ impl<T: PureNumberSource> NumberSourceHandle<T> {
 
     pub fn id(&self) -> NumberSourceId {
         self.instance.id()
+    }
+
+    pub fn into_graph_object(self) -> GraphObjectHandle<NumberGraph> {
+        GraphObjectHandle::new(self.instance)
     }
 }
 

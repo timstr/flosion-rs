@@ -172,7 +172,7 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
     }
 
     pub(super) fn from_graph_object(handle: GraphObjectHandle<SoundGraph>) -> Option<Self> {
-        let arc_any = handle.instance_arc().into_arc_any();
+        let arc_any = handle.into_instance_arc().into_arc_any();
         match arc_any.downcast::<StaticSoundProcessorWithId<T>>() {
             Ok(obj) => Some(StaticSoundProcessorHandle::new(obj)),
             Err(_) => None,
@@ -214,7 +214,7 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
     }
 
     pub(super) fn from_graph_object(handle: GraphObjectHandle<SoundGraph>) -> Option<Self> {
-        let arc_any = handle.instance_arc().into_arc_any();
+        let arc_any = handle.into_instance_arc().into_arc_any();
         match arc_any.downcast::<DynamicSoundProcessorWithId<T>>() {
             Ok(obj) => Some(DynamicSoundProcessorHandle::new(obj)),
             Err(_) => None,

@@ -147,11 +147,11 @@ impl<'ctx> StateGraph<'ctx> {
         });
     }
 
-    fn add_number_input(&mut self, data: SoundNumberInputData) {
+    fn add_number_input(&mut self, _data: SoundNumberInputData) {
         todo!();
     }
 
-    fn remove_number_input(&mut self, input_id: SoundNumberInputId) {
+    fn remove_number_input(&mut self, _input_id: SoundNumberInputId) {
         todo!();
     }
 
@@ -164,24 +164,28 @@ impl<'ctx> StateGraph<'ctx> {
     ) {
         Self::modify_sound_input_node(&mut self.static_nodes, owner_id, |node| {
             for target in node.targets_mut() {
+                if target.id() != input_id {
+                    continue;
+                }
                 let old_target = target.swap_target(targets.pop().unwrap());
                 old_target.toss(garbage_chute);
             }
         });
+        // TODO: toss the vec also
     }
 
     fn modify_sound_input_node<F: FnMut(&mut dyn SoundInputNode<'ctx>)>(
-        static_nodes: &mut [SharedProcessorNode<'ctx>],
-        owner_id: SoundProcessorId,
-        mut f: F,
+        _static_nodes: &mut [SharedProcessorNode<'ctx>],
+        _owner_id: SoundProcessorId,
+        _f: F,
     ) {
         todo!()
     }
 
     fn modify_processor_node<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(
-        static_nodes: &mut [SharedProcessorNode<'ctx>],
-        processor_id: SoundProcessorId,
-        mut f: F,
+        _static_nodes: &mut [SharedProcessorNode<'ctx>],
+        _processor_id: SoundProcessorId,
+        _f: F,
     ) {
         todo!()
     }

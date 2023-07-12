@@ -310,7 +310,7 @@ impl SoundGraphTopology {
 
     fn disconnect_number_input(&mut self, input_id: SoundNumberInputId, nsid: SoundNumberSourceId) {
         let input_data = self.number_inputs.get_mut(&input_id).unwrap();
-        input_data.remove_target(nsid);
+        input_data.remove_target(nsid).unwrap();
     }
 
     fn edit_number_input(

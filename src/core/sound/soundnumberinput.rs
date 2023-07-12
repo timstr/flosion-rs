@@ -41,6 +41,10 @@ impl SoundNumberInputHandle {
         self.id
     }
 
+    pub fn owner(&self) -> SoundProcessorId {
+        self.owner
+    }
+
     pub fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> SoundNumberInputNode<'ctx> {
         SoundNumberInputNode::new(self.id, nodegen)
     }

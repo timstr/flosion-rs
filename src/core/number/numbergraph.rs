@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::core::{
-    graph::graphobject::ObjectInitialization,
+    graph::{graph::Graph, graphobject::ObjectInitialization},
     number::{
         numbergraphvalidation::find_number_error, numbersource::NumberSourceWithId,
         numbersourcetools::NumberSourceTools,
@@ -15,7 +15,7 @@ use super::{
     numbergrapherror::NumberError,
     numbergraphtopology::NumberGraphTopology,
     numberinput::NumberInputId,
-    numbersource::{NumberSource, NumberSourceHandle, NumberSourceId, PureNumberSource},
+    numbersource::{NumberSourceHandle, NumberSourceId, PureNumberSource},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -112,6 +112,7 @@ impl NumberGraph {
         id
     }
 
+    // Will be needed once multiple outputs are supported
     pub(crate) fn remove_graph_output(
         &mut self,
         id: NumberGraphOutputId,
@@ -244,4 +245,8 @@ impl NumberGraph {
         }
         Ok(())
     }
+}
+
+impl Graph for NumberGraph {
+    type ObjectId = NumberSourceId;
 }

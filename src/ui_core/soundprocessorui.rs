@@ -1,7 +1,9 @@
 use eframe::egui;
 
 use crate::core::{
+    number::{numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology},
     sound::{
+        soundgraphdata::SoundNumberInputData,
         soundinput::{InputOptions, SoundInputId},
         soundnumberinput::SoundNumberInputId,
         soundnumbersource::SoundNumberSourceOwner,
@@ -337,7 +339,13 @@ impl ProcessorUi {
 
         let res = input_frame.show(ui, |ui| {
             ui.set_width(ctx.width());
-            let label_str = format!("Number Input {} - {}", input_id.value(), input_label);
+            let label_str = format!(
+                "Number Input {} - {}\n = {}",
+                input_id.value(),
+                input_label,
+                // HACK: recomputing this every redraw
+                self.stringify_number_input(ctx.topology().number_input(input_id).unwrap())
+            );
             ui.add(
                 egui::Label::new(
                     egui::RichText::new(label_str)
@@ -421,28 +429,44 @@ impl ProcessorUi {
         }
     }
 
-    // fn stringify_number_input(&self, input: &SoundNumberInputData, ctx: &UiContext) -> String {
-    //     let topo = input.number_graph().topology();
+    fn stringify_number_input(&self, input: &SoundNumberInputData) -> String {
+        let topo = input.number_graph().topology();
 
-    //     debug_assert!(topo.graph_outputs().len() == 1);
+        debug_assert!(topo.graph_outputs().len() == 1);
 
-    //     let output = &topo.graph_outputs()[0];
+        let output = &topo.graph_outputs()[0];
 
-    //     fn visit(target: Option<NumberTarget>, topo: &NumberGraphTopology) -> String {
-    //         let target = match target {
-    //             Some(t) => t,
-    //             None => return "?".to_string(),
-    //         };
+        fn visit(target: Option<NumberTarget>, topo: &NumberGraphTopology) -> String {
+            let target = match target {
+                Some(t) => t,
+                None => return "?".to_string(),
+            };
 
-    //         match target {
-    //             NumberTarget::Source(nsid) => {
-    //                 let data = topo.number_source(nsid).unwrap();
-    //                 let inst = data.instance_arc().compile(codegen, inputs)
-    //             },
-    //             NumberTarget::GraphInput(giid) => format!("input{}", giid.value()),
-    //         }
-    //     }
+            match target {
+                NumberTarget::Source(nsid) => {
+                    let data = topo.number_source(nsid).unwrap();
+                    let inst = data.instance_arc();
+                    let input_strings: Vec<String> = data
+                        .number_inputs()
+                        .iter()
+                        .map(|niid| {
+                            let input_data = topo.number_input(*niid).unwrap();
+                            match input_data.target() {
+                                Some(t) => visit(Some(t), topo),
+                                None => input_data.default_value().to_string(),
+                            }
+                        })
+                        .collect();
+                    format!(
+                        "{}({})",
+                        inst.as_graph_object().get_type().name(),
+                        input_strings.join(", ")
+                    )
+                }
+                NumberTarget::GraphInput(giid) => format!("input{}", giid.value()),
+            }
+        }
 
-    //     visit(output.target(), topo)
-    // }
+        visit(output.target(), topo)
+    }
 }

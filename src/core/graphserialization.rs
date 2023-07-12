@@ -264,7 +264,7 @@ pub(crate) fn serialize_sound_graph(
                 .iter()
                 .map(|x| idmap.number_inputs.map_id(*x).unwrap()),
         );
-        let obj = pd.instance_arc().as_graph_object();
+        let obj = pd.into_instance_arc().as_graph_object();
         // the type name
         s1.string(obj.get_type().name());
         // the instance itself
@@ -291,7 +291,7 @@ pub(crate) fn serialize_sound_graph(
                 .iter()
                 .map(|x| idmap.number_inputs.map_id(*x).unwrap()),
         );
-        let obj = ns.instance_arc().as_graph_object().unwrap();
+        let obj = ns.into_instance_arc().as_graph_object().unwrap();
         // the type name
         s1.string(obj.get_type().name());
         // the instance itself

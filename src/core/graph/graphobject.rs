@@ -56,12 +56,8 @@ impl<G: Graph> GraphObjectHandle<G> {
         self.instance.get_dynamic_type()
     }
 
-    pub(crate) fn instance(&self) -> &dyn GraphObject<G> {
-        &*self.instance
-    }
-
-    pub(crate) fn instance_arc(&self) -> Arc<dyn GraphObject<G>> {
-        Arc::clone(&self.instance)
+    pub(crate) fn into_instance_arc(self) -> Arc<dyn GraphObject<G>> {
+        self.instance
     }
 }
 

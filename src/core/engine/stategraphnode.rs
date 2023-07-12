@@ -466,10 +466,10 @@ impl<'ctx> NodeTarget<'ctx> {
     }
 
     // TODO: consider hiding inputtiming and publicly re-exposing only those functions which make sense
-    pub fn timing(&self) -> &InputTiming {
+    pub(crate) fn timing(&self) -> &InputTiming {
         &self.timing
     }
-    pub fn timing_mut(&mut self) -> &mut InputTiming {
+    pub(crate) fn timing_mut(&mut self) -> &mut InputTiming {
         &mut self.timing
     }
 

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::core::number::{
     numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
+    numbergrapherror::NumberError,
     numbergraphtopology::NumberGraphTopology,
 };
 
@@ -170,14 +171,14 @@ impl SoundNumberInputData {
         self.number_graph.add_graph_input();
     }
 
-    pub(super) fn remove_target(&mut self, target: SoundNumberSourceId) {
+    pub(super) fn remove_target(&mut self, target: SoundNumberSourceId) -> Result<(), NumberError> {
         // TODO: consider something nicer than assuming that number graph
         // inputs and sound number source targets always match up 1:1
         debug_assert_eq!(self.targets.iter().filter(|t| **t == target).count(), 1);
         let i = self.targets.iter().position(|t| *t == target).unwrap();
         self.targets.remove(i);
         let niid = self.number_graph.topology().graph_inputs()[i];
-        self.number_graph.remove_graph_input(niid);
+        self.number_graph.remove_graph_input(niid)
     }
 
     pub(crate) fn number_graph(&self) -> &NumberGraph {
