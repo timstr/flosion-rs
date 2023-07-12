@@ -67,7 +67,7 @@ impl ProcessorUi {
         graph_tools: &mut SoundGraphUIState,
         add_contents: F,
     ) {
-        if ctx.is_top_level() {
+        let response = if ctx.is_top_level() {
             // If the object is top-level, draw it in a new egui::Area,
             // which can be independently clicked and dragged and moved
             // in front of other objects
@@ -96,29 +96,35 @@ impl ProcessorUi {
                 r
             });
 
-            let r = r.response.union(r.inner);
+            let response = r.response.union(r.inner);
 
-            if r.drag_started() {
+            if response.drag_started() {
                 if !graph_tools.is_object_selected(self.processor_id.into()) {
                     graph_tools.clear_selection();
                     graph_tools.select_object(self.processor_id.into());
                 }
             }
 
-            if r.dragged() {
-                graph_tools.move_selection(r.drag_delta(), Some(self.processor_id.into()));
+            if response.dragged() {
+                graph_tools.move_selection(response.drag_delta(), Some(self.processor_id.into()));
             }
 
-            if r.clicked() {
-                if !graph_tools.is_object_selected(self.processor_id.into()) {
-                    graph_tools.clear_selection();
-                    graph_tools.select_object(self.processor_id.into());
-                }
-            }
+            response
         } else {
             // Otherwise, if the object isn't top-level, nest it within the
             // current egui::Ui
-            self.show_with_impl(ui, ctx, graph_tools, add_contents);
+            let reponse = self.show_with_impl(ui, ctx, graph_tools, add_contents);
+
+            reponse
+        };
+
+        // responses common to top-level and nested processors
+
+        if response.clicked() {
+            if !graph_tools.is_object_selected(self.processor_id.into()) {
+                graph_tools.clear_selection();
+                graph_tools.select_object(self.processor_id.into());
+            }
         }
     }
 
@@ -172,6 +178,9 @@ impl ProcessorUi {
                 ui.cursor().top()..=f32::INFINITY,
             );
 
+            // check for click/drag interactions with the background of the processor body
+            let response = ui.interact(body_rect, ui.id(), egui::Sense::click_and_drag());
+
             ui.allocate_ui_at_rect(body_rect, |ui| {
                 content_frame.show(ui, |ui| {
                     ui.vertical(|ui| {
@@ -187,7 +196,7 @@ impl ProcessorUi {
                             )
                             .wrap(false),
                         );
-                        add_contents(ui, graph_tools);
+                        add_contents(ui, graph_tools)
                     });
                 });
             });
@@ -208,6 +217,8 @@ impl ProcessorUi {
             graph_tools
                 .object_positions_mut()
                 .track_processor_rail_location(self.processor_id, top_rail_rect);
+
+            response
         });
 
         if graph_tools.is_object_selected(self.processor_id.into()) {
@@ -222,8 +233,8 @@ impl ProcessorUi {
             .object_positions_mut()
             .track_object_location(self.processor_id.into(), r.response.rect);
 
-        // r.response.union(r.inner)
-        r.response
+        r.response.union(r.inner)
+        // r
     }
 
     fn show_sound_input(
