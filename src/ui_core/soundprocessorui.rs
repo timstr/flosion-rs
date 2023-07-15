@@ -76,7 +76,7 @@ impl ProcessorUi {
             let id = egui::Id::new(s);
 
             let mut area = egui::Area::new(id)
-                .movable(true)
+                .movable(false) // disable dragging the area directly, since that gets handled below
                 .constrain(false)
                 .drag_bounds(egui::Rect::EVERYTHING);
 
@@ -106,7 +106,7 @@ impl ProcessorUi {
             }
 
             if response.dragged() {
-                graph_tools.move_selection(response.drag_delta(), Some(self.processor_id.into()));
+                graph_tools.move_selection(response.drag_delta());
             }
 
             response
@@ -120,7 +120,7 @@ impl ProcessorUi {
 
         // responses common to top-level and nested processors
 
-        if response.clicked() {
+        if response.clicked() || response.dragged() {
             if !graph_tools.is_object_selected(self.processor_id.into()) {
                 graph_tools.clear_selection();
                 graph_tools.select_object(self.processor_id.into());

@@ -179,15 +179,13 @@ impl SoundGraphUIState {
         }
     }
 
-    pub fn move_selection(&mut self, delta: egui::Vec2, excluded: Option<SoundObjectId>) {
+    pub fn move_selection(&mut self, delta: egui::Vec2) {
         let objects = self.object_positions.objects_mut();
         match &self.mode {
             UiMode::Selecting(selection) => {
                 for s in selection {
-                    if Some(*s) != excluded {
-                        let state = objects.get_mut(s).unwrap();
-                        state.rect = state.rect.translate(delta);
-                    }
+                    let state = objects.get_mut(s).unwrap();
+                    state.rect = state.rect.translate(delta);
                 }
             }
             _ => (),
