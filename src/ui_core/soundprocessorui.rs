@@ -96,7 +96,10 @@ impl ProcessorUi {
                 r
             });
 
-            let response = r.response.union(r.inner);
+            let response = r
+                .response
+                .interact(egui::Sense::click_and_drag())
+                .union(r.inner);
 
             if response.drag_started() {
                 if !graph_tools.is_object_selected(self.processor_id.into()) {
