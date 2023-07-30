@@ -7,6 +7,7 @@ use crate::core::{
         soundgraph::SoundGraph,
         soundgraphid::{SoundGraphId, SoundObjectId},
         soundgraphtopology::SoundGraphTopology,
+        soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
 };
@@ -15,6 +16,12 @@ use super::{
     hotkeys::KeyboardFocusState, object_positions::ObjectPositions,
     soundgraphuicontext::TemporalLayout,
 };
+
+#[derive(Clone, Copy)]
+pub struct NestedProcessorData {
+    pub processor_id: SoundProcessorId,
+    pub rect: egui::Rect,
+}
 
 pub enum SelectionChange {
     Replace,
@@ -26,6 +33,8 @@ enum UiMode {
     Passive,
     UsingKeyboardNav(KeyboardFocusState),
     Selecting(HashSet<SoundObjectId>),
+    DraggingNestedProcessor(NestedProcessorData),
+    DroppingProcessor(NestedProcessorData),
 }
 
 pub struct SoundGraphUIState {
@@ -55,6 +64,10 @@ impl SoundGraphUIState {
 
     pub(super) fn temporal_layout(&self) -> &TemporalLayout {
         &self.temporal_layout
+    }
+
+    pub(super) fn temporal_layout_mut(&mut self) -> &mut TemporalLayout {
+        &mut self.temporal_layout
     }
 
     pub fn make_change<F: FnOnce(&mut SoundGraph, &mut SoundGraphUIState) -> () + 'static>(
@@ -138,6 +151,64 @@ impl SoundGraphUIState {
         }
     }
 
+    pub(super) fn drag_nested_processor(
+        &mut self,
+        processor_id: SoundProcessorId,
+        delta: egui::Vec2,
+    ) {
+        let get_default_rect = || {
+            self.object_positions
+                .get_object_location(processor_id.into())
+                .unwrap()
+                .rect
+        };
+        let rect: egui::Rect = match &self.mode {
+            UiMode::DraggingNestedProcessor(data) => {
+                if data.processor_id == processor_id {
+                    data.rect
+                } else {
+                    get_default_rect()
+                }
+            }
+            _ => get_default_rect(),
+        };
+        self.mode = UiMode::DraggingNestedProcessor(NestedProcessorData {
+            processor_id,
+            rect: rect.translate(delta),
+        });
+    }
+
+    pub(super) fn drop_dragging_nested_processor(&mut self) {
+        if let UiMode::DraggingNestedProcessor(data) = &self.mode {
+            self.mode = UiMode::DroppingProcessor(*data);
+        }
+    }
+
+    pub(super) fn drop_dragging_top_level_processor(
+        &mut self,
+        processor_id: SoundProcessorId,
+        rect: egui::Rect,
+    ) {
+        self.mode = UiMode::DroppingProcessor(NestedProcessorData { processor_id, rect });
+    }
+
+    pub(super) fn take_dropped_nested_processor(&mut self) -> Option<NestedProcessorData> {
+        match self.mode {
+            UiMode::DroppingProcessor(data) => {
+                self.mode = UiMode::Passive;
+                Some(data)
+            }
+            _ => None,
+        }
+    }
+
+    pub(super) fn get_nested_processor_drag(&self) -> Option<NestedProcessorData> {
+        match &self.mode {
+            UiMode::DraggingNestedProcessor(data) => Some(*data),
+            _ => None,
+        }
+    }
+
     pub(super) fn cleanup(
         &mut self,
         remaining_ids: &HashSet<SoundGraphId>,
@@ -156,6 +227,16 @@ impl SoundGraphUIState {
             UiMode::Passive => (),
             UiMode::UsingKeyboardNav(kbd_focus) => {
                 if !remaining_ids.contains(&kbd_focus.as_graph_id()) {
+                    self.mode = UiMode::Passive;
+                }
+            }
+            UiMode::DraggingNestedProcessor(data) => {
+                if !remaining_ids.contains(&data.processor_id.into()) {
+                    self.mode = UiMode::Passive;
+                }
+            }
+            UiMode::DroppingProcessor(data) => {
+                if !remaining_ids.contains(&data.processor_id.into()) {
                     self.mode = UiMode::Passive;
                 }
             }

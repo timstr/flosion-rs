@@ -69,6 +69,19 @@ impl SoundGraphTopology {
         self.number_inputs.get(&id)
     }
 
+    pub(crate) fn sound_processor_targets<'a>(
+        &'a self,
+        id: SoundProcessorId,
+    ) -> impl 'a + Iterator<Item = SoundInputId> {
+        self.sound_inputs.values().filter_map(move |i| {
+            if i.target() == Some(id) {
+                Some(i.id())
+            } else {
+                None
+            }
+        })
+    }
+
     pub(crate) fn all_ids(&self) -> HashSet<SoundGraphId> {
         let mut ids: HashSet<SoundGraphId> = HashSet::new();
         ids.extend(

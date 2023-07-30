@@ -112,23 +112,51 @@ impl ProcessorUi {
                 graph_tools.move_selection(response.drag_delta());
             }
 
+            if response.clicked() || response.dragged() {
+                if !graph_tools.is_object_selected(self.processor_id.into()) {
+                    graph_tools.clear_selection();
+                    graph_tools.select_object(self.processor_id.into());
+                }
+            }
+
+            if response.drag_released() && graph_tools.selection().len() == 1 {
+                graph_tools.drop_dragging_top_level_processor(self.processor_id, response.rect);
+            }
+
             response
         } else {
             // Otherwise, if the object isn't top-level, nest it within the
             // current egui::Ui
-            let reponse = self.show_with_impl(ui, ctx, graph_tools, add_contents);
 
-            reponse
+            let response = self.show_with_impl(ui, ctx, graph_tools, add_contents);
+
+            if graph_tools
+                .get_nested_processor_drag()
+                .filter(|d| d.processor_id == self.processor_id)
+                .is_some()
+            {
+                // Make the processor appear faded if it's being dragged. A representation
+                // of the processor that follows the cursor will be drawn separately.
+                ui.painter().rect_filled(
+                    response.rect,
+                    egui::Rounding::none(),
+                    egui::Color32::from_black_alpha(64),
+                );
+            }
+
+            if response.dragged() {
+                graph_tools.drag_nested_processor(self.processor_id, response.drag_delta());
+            }
+
+            if response.drag_released() {
+                graph_tools.drop_dragging_nested_processor();
+            }
+
+            response
         };
 
         // responses common to top-level and nested processors
-
-        if response.clicked() || response.dragged() {
-            if !graph_tools.is_object_selected(self.processor_id.into()) {
-                graph_tools.clear_selection();
-                graph_tools.select_object(self.processor_id.into());
-            }
-        }
+        // if any?
     }
 
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUIState)>(
@@ -182,7 +210,7 @@ impl ProcessorUi {
             );
 
             // check for click/drag interactions with the background of the processor body
-            let response = ui.interact(body_rect, ui.id(), egui::Sense::click_and_drag());
+            let mut response = ui.interact(body_rect, ui.id(), egui::Sense::click_and_drag());
 
             ui.allocate_ui_at_rect(body_rect, |ui| {
                 content_frame.show(ui, |ui| {
@@ -205,6 +233,10 @@ impl ProcessorUi {
             });
 
             let bottom_of_body = ui.cursor().top();
+
+            response.rect = response
+                .rect
+                .intersect(egui::Rect::everything_above(bottom_of_body));
 
             let top_rail_rect = egui::Rect::from_x_y_ranges(
                 props.origin.x..=(props.origin.x + Self::RAIL_WIDTH - 2.0),
@@ -248,6 +280,8 @@ impl ProcessorUi {
         graph_tools: &mut SoundGraphUIState,
         mut props: ProcessorUiProps,
     ) {
+        // TODO: highlight if empty and a single processor (nested or top-level) is being dragged
+
         let input_data = ctx.topology().sound_input(input_id).unwrap();
 
         let opts = input_data.options();
@@ -274,14 +308,8 @@ impl ProcessorUi {
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
         let target = input_data.target();
-        match target {
+        let r = match target {
             Some(spid) => {
-                // draw the processor right above
-                let target_processor = ctx.topology().sound_processor(spid).unwrap();
-                let target_graph_object = target_processor.instance_arc().as_graph_object();
-
-                let inner_ctx = ctx.nest(desired_width);
-
                 // move the inner UI one rail's width to the right to account for
                 // the lesser nesting level and to let the nested object ui find
                 // the correct horizontal extent again
@@ -291,9 +319,23 @@ impl ProcessorUi {
                 );
 
                 ui.allocate_ui_at_rect(inner_objectui_rect, |ui| {
-                    ctx.ui_factory()
-                        .ui(&target_graph_object, graph_tools, ui, &inner_ctx);
-                });
+                    if graph_tools
+                        .temporal_layout()
+                        .find_top_level_layout(spid.into())
+                        .is_some()
+                    {
+                        ui.label(format!("TODO: refer to processor {}", spid.value()));
+                    } else {
+                        // draw the processor right above
+                        let target_processor = ctx.topology().sound_processor(spid).unwrap();
+                        let target_graph_object = target_processor.instance_arc().as_graph_object();
+
+                        let inner_ctx = ctx.nest(desired_width);
+
+                        ctx.ui_factory()
+                            .ui(&target_graph_object, graph_tools, ui, &inner_ctx);
+                    }
+                })
             }
             None => {
                 // move the inner UI exactly to the desired horizontal extent,
@@ -317,9 +359,13 @@ impl ProcessorUi {
                             .wrap(false),
                         );
                     });
-                });
+                })
             }
-        }
+        };
+
+        graph_tools
+            .object_positions_mut()
+            .track_sound_input_location(input_id, r.response.rect);
 
         let bottom_of_input = ui.cursor().top();
 
@@ -420,11 +466,12 @@ impl ProcessorUi {
                 let x_end = input_location.rect.left() + 5.0;
 
                 let wire_rect = egui::Rect::from_x_y_ranges(x_begin..=x_end, y..=(y + 8.0));
-                let wire_color = ctx
-                    .object_states()
-                    .get_object_data(processor_owner.into())
-                    .borrow()
-                    .apparent_color(ui_state);
+                // let wire_color = ctx
+                //     .object_states()
+                //     .get_object_data(processor_owner.into())
+                //     .borrow()
+                //     .apparent_color(ui_state);
+                let wire_color = egui::Color32::WHITE;
 
                 ui.painter().rect(
                     wire_rect,

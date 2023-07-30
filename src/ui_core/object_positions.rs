@@ -4,6 +4,7 @@ use eframe::egui;
 
 use crate::core::sound::{
     soundgraphid::{SoundGraphId, SoundObjectId},
+    soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
     soundprocessor::SoundProcessorId,
 };
@@ -21,6 +22,7 @@ impl LayoutState {
 pub struct ObjectPositions {
     objects: HashMap<SoundObjectId, LayoutState>,
     processor_rails: HashMap<SoundProcessorId, LayoutState>,
+    sound_inputs: HashMap<SoundInputId, LayoutState>,
     sound_number_inputs: HashMap<SoundNumberInputId, LayoutState>,
 }
 
@@ -29,12 +31,18 @@ impl ObjectPositions {
         ObjectPositions {
             objects: HashMap::new(),
             processor_rails: HashMap::new(),
+            sound_inputs: HashMap::new(),
             sound_number_inputs: HashMap::new(),
         }
     }
 
     pub(super) fn retain(&mut self, ids: &HashSet<SoundGraphId>) {
         self.objects.retain(|i, _| ids.contains(&(*i).into()));
+        self.processor_rails
+            .retain(|i, _| ids.contains(&(*i).into()));
+        self.sound_inputs.retain(|i, _| ids.contains(&(*i).into()));
+        self.sound_number_inputs
+            .retain(|i, _| ids.contains(&(*i).into()));
     }
 
     pub(super) fn objects(&self) -> &HashMap<SoundObjectId, LayoutState> {
@@ -53,6 +61,10 @@ impl ObjectPositions {
         self.processor_rails.insert(id, LayoutState { rect });
     }
 
+    pub fn track_sound_input_location(&mut self, id: SoundInputId, rect: egui::Rect) {
+        self.sound_inputs.insert(id, LayoutState { rect });
+    }
+
     pub fn track_sound_number_input_location(&mut self, id: SoundNumberInputId, rect: egui::Rect) {
         self.sound_number_inputs.insert(id, LayoutState { rect });
     }
@@ -63,6 +75,14 @@ impl ObjectPositions {
 
     pub fn get_processor_rail_location(&self, id: SoundProcessorId) -> Option<&LayoutState> {
         self.processor_rails.get(&id)
+    }
+
+    pub fn get_sound_input_locations(&self) -> &HashMap<SoundInputId, LayoutState> {
+        &self.sound_inputs
+    }
+
+    pub fn get_sound_input_location(&self, id: SoundInputId) -> Option<&LayoutState> {
+        self.sound_inputs.get(&id)
     }
 
     pub fn get_sound_number_input_location(&self, id: SoundNumberInputId) -> Option<&LayoutState> {

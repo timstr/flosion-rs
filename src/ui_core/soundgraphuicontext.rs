@@ -35,6 +35,8 @@ pub struct TemporalLayout {
     top_level_objects: HashMap<SoundObjectId, TopLevelLayout>,
 }
 impl TemporalLayout {
+    const DEFAULT_WIDTH: usize = 300;
+
     pub(crate) fn new() -> TemporalLayout {
         TemporalLayout {
             top_level_objects: HashMap::new(),
@@ -48,13 +50,24 @@ impl TemporalLayout {
         self.top_level_objects.get(&object_id)
     }
 
-    pub(crate) fn regenerate(&mut self, topo: &SoundGraphTopology) {
-        // TODO:
-        // - compute all dependent counts for all processors
-        // - create new top-level layouts for those processors with zero or multiple dependents
-        // - recompute the nesting depths of all top-level layouts recursively, increasing for
-        //   each transitive input until one calls upon a processor with zero or multiple dependents
+    pub(crate) fn create_top_level_layout(&mut self, object_id: SoundObjectId) {
+        self.top_level_objects.insert(
+            object_id,
+            TopLevelLayout {
+                width_pixels: Self::DEFAULT_WIDTH,
+                time_axis: TimeAxis {
+                    samples_per_x_pixel: SAMPLE_FREQUENCY as f32 / Self::DEFAULT_WIDTH as f32,
+                },
+                nesting_depth: 0,
+            },
+        );
+    }
 
+    pub(crate) fn remove_top_level_layout(&mut self, object_id: SoundObjectId) {
+        self.top_level_objects.remove(&object_id);
+    }
+
+    pub(crate) fn regenerate(&mut self, topo: &SoundGraphTopology) {
         let mut dependent_counts: HashMap<SoundProcessorId, usize> =
             topo.sound_processors().keys().map(|k| (*k, 0)).collect();
 
@@ -64,21 +77,11 @@ impl TemporalLayout {
             }
         }
 
-        const DEFAULT_WIDTH: usize = 300;
-
         for (spid, n_deps) in &dependent_counts {
             if *n_deps == 1 {
                 continue;
             }
-            self.top_level_objects
-                .entry((*spid).into())
-                .or_insert_with(|| TopLevelLayout {
-                    width_pixels: DEFAULT_WIDTH,
-                    time_axis: TimeAxis {
-                        samples_per_x_pixel: SAMPLE_FREQUENCY as f32 / DEFAULT_WIDTH as f32,
-                    },
-                    nesting_depth: 0,
-                });
+            self.create_top_level_layout(spid.into());
         }
 
         fn count_nesting_depth(
