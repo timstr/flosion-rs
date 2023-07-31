@@ -1,15 +1,15 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
-use crate::core::{
-    sound::{
-        soundgraph::SoundGraph,
-        soundgraphid::{SoundGraphId, SoundObjectId},
-        soundgraphtopology::SoundGraphTopology,
-        soundprocessor::SoundProcessorId,
-    },
-    uniqueid::UniqueId,
+use crate::core::sound::{
+    soundedit::SoundEdit,
+    soundgraph::SoundGraph,
+    soundgraphid::{SoundGraphId, SoundObjectId},
+    soundgraphtopology::SoundGraphTopology,
+    soundgraphvalidation::find_error,
+    soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 use super::{
@@ -17,10 +17,27 @@ use super::{
     soundgraphuicontext::TemporalLayout,
 };
 
-#[derive(Clone, Copy)]
-pub struct NestedProcessorData {
+pub struct NestedProcessorClosure {
+    pub sound_processors: HashSet<SoundProcessorId>,
+    pub sound_inputs: HashSet<SoundInputId>,
+}
+
+pub struct CandidateSoundInput {
+    pub score: f32,
+    pub is_selected: bool,
+}
+
+pub struct DraggingProcessorData {
     pub processor_id: SoundProcessorId,
     pub rect: egui::Rect,
+    pub drag_closure: NestedProcessorClosure,
+    pub candidate_inputs: HashMap<SoundInputId, CandidateSoundInput>,
+}
+
+pub struct DroppingProcessorData {
+    pub processor_id: SoundProcessorId,
+    pub rect: egui::Rect,
+    pub target_input: Option<SoundInputId>,
 }
 
 pub enum SelectionChange {
@@ -33,8 +50,8 @@ enum UiMode {
     Passive,
     UsingKeyboardNav(KeyboardFocusState),
     Selecting(HashSet<SoundObjectId>),
-    DraggingNestedProcessor(NestedProcessorData),
-    DroppingProcessor(NestedProcessorData),
+    DraggingProcessor(DraggingProcessorData),
+    DroppingProcessor(DroppingProcessorData),
 }
 
 pub struct SoundGraphUIState {
@@ -42,6 +59,7 @@ pub struct SoundGraphUIState {
     temporal_layout: TemporalLayout,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUIState) -> ()>>,
     mode: UiMode,
+    pending_drag: Option<(SoundProcessorId, egui::Vec2, egui::Pos2)>,
 }
 
 impl SoundGraphUIState {
@@ -51,6 +69,7 @@ impl SoundGraphUIState {
             temporal_layout: TemporalLayout::new(),
             pending_changes: Vec::new(),
             mode: UiMode::Passive,
+            pending_drag: None,
         }
     }
 
@@ -77,18 +96,25 @@ impl SoundGraphUIState {
         self.pending_changes.push(Box::new(f));
     }
 
-    pub fn clear_selection(&mut self) {
+    pub(super) fn stop_selecting(&mut self) {
         match self.mode {
             UiMode::Selecting(_) => self.mode = UiMode::Passive,
             _ => (),
         }
     }
 
-    pub fn set_selection(&mut self, object_ids: HashSet<SoundObjectId>) {
+    pub(super) fn set_selection(&mut self, object_ids: HashSet<SoundObjectId>) {
         self.mode = UiMode::Selecting(object_ids);
     }
 
-    pub fn select_object(&mut self, object_id: SoundObjectId) {
+    pub(super) fn is_selecting(&self) -> bool {
+        match self.mode {
+            UiMode::Selecting(_) => true,
+            _ => false,
+        }
+    }
+
+    pub(super) fn select_object(&mut self, object_id: SoundObjectId) {
         match &mut self.mode {
             UiMode::Selecting(s) => {
                 s.insert(object_id);
@@ -101,7 +127,7 @@ impl SoundGraphUIState {
         }
     }
 
-    pub fn deselect_object(&mut self, object_id: SoundObjectId) {
+    pub(super) fn deselect_object(&mut self, object_id: SoundObjectId) {
         match &mut self.mode {
             UiMode::Selecting(s) => {
                 s.remove(&object_id);
@@ -113,7 +139,7 @@ impl SoundGraphUIState {
         }
     }
 
-    pub fn select_with_rect(&mut self, rect: egui::Rect, change: SelectionChange) {
+    pub(super) fn select_with_rect(&mut self, rect: egui::Rect, change: SelectionChange) {
         let mut selection = match &mut self.mode {
             UiMode::Selecting(s) => {
                 let mut ss = HashSet::new();
@@ -128,14 +154,10 @@ impl SoundGraphUIState {
             selection.clear();
         }
         for (object_id, object_state) in self.object_positions.objects() {
-            if self
-                .temporal_layout
-                .find_top_level_layout(*object_id)
-                .is_none()
-            {
+            if !self.temporal_layout.is_top_level(*object_id) {
                 continue;
             }
-            if rect.intersects(object_state.rect) {
+            if rect.intersects(object_state.rect()) {
                 if let SelectionChange::Subtract = change {
                     selection.remove(object_id);
                 } else {
@@ -151,60 +173,243 @@ impl SoundGraphUIState {
         }
     }
 
-    pub(super) fn drag_nested_processor(
-        &mut self,
+    fn find_nested_processor_closure(
         processor_id: SoundProcessorId,
-        delta: egui::Vec2,
-    ) {
-        let get_default_rect = || {
-            self.object_positions
-                .get_object_location(processor_id.into())
-                .unwrap()
-                .rect
-        };
-        let rect: egui::Rect = match &self.mode {
-            UiMode::DraggingNestedProcessor(data) => {
-                if data.processor_id == processor_id {
-                    data.rect
-                } else {
-                    get_default_rect()
+        topo: &SoundGraphTopology,
+        temporal_layout: &TemporalLayout,
+    ) -> NestedProcessorClosure {
+        fn visitor(
+            processor_id: SoundProcessorId,
+            topo: &SoundGraphTopology,
+            temporal_layout: &TemporalLayout,
+            closure: &mut NestedProcessorClosure,
+        ) {
+            closure.sound_processors.insert(processor_id);
+            let inputs = topo.sound_processor(processor_id).unwrap().sound_inputs();
+            for siid in inputs {
+                closure.sound_inputs.insert(*siid);
+                let target_spid = match topo.sound_input(*siid).unwrap().target() {
+                    Some(spid) => spid,
+                    None => continue,
+                };
+
+                if temporal_layout.is_top_level(target_spid.into()) {
+                    continue;
                 }
+
+                visitor(target_spid, topo, temporal_layout, closure);
             }
-            _ => get_default_rect(),
+        }
+
+        let mut closure = NestedProcessorClosure {
+            sound_processors: HashSet::new(),
+            sound_inputs: HashSet::new(),
         };
-        self.mode = UiMode::DraggingNestedProcessor(NestedProcessorData {
-            processor_id,
-            rect: rect.translate(delta),
-        });
+
+        visitor(processor_id, topo, temporal_layout, &mut closure);
+
+        closure
     }
 
-    pub(super) fn drop_dragging_nested_processor(&mut self) {
-        if let UiMode::DraggingNestedProcessor(data) = &self.mode {
-            self.mode = UiMode::DroppingProcessor(*data);
+    fn find_candidate_sound_inputs(
+        processor_id: SoundProcessorId,
+        original_topo: &SoundGraphTopology,
+        excluded_closure: &NestedProcessorClosure,
+    ) -> HashMap<SoundInputId, CandidateSoundInput> {
+        // disconnect the processor from any sound inputs
+        // TODO: make this optional when the user wants to add a new connection
+        // without breaking existing ones
+        let mut topo_disconnected = original_topo.clone();
+        for si_data in original_topo.sound_inputs().values() {
+            if si_data.target() != Some(processor_id) {
+                continue;
+            }
+            // TODO: disconnect any crossing number connections, make sure these
+            // are the same steps as in flosion_ui when dropping the processor
+            topo_disconnected.make_sound_edit(SoundEdit::DisconnectSoundInput(si_data.id()));
+        }
+
+        let topo_disconnected = topo_disconnected;
+
+        debug_assert_eq!(find_error(&topo_disconnected), None);
+
+        let mut candidates = HashMap::new();
+
+        for si_data in topo_disconnected.sound_inputs().values() {
+            if excluded_closure.sound_inputs.contains(&si_data.id()) {
+                continue;
+            }
+
+            if si_data.target().is_some() {
+                continue;
+            }
+
+            // try connecting the sound input in a clone of the topology,
+            // mark it as a candidate if there are no errors
+            let mut topo_reconnected = topo_disconnected.clone();
+            topo_reconnected
+                .make_sound_edit(SoundEdit::ConnectSoundInput(si_data.id(), processor_id));
+            if find_error(&topo_reconnected).is_none() {
+                candidates.insert(
+                    si_data.id(),
+                    CandidateSoundInput {
+                        score: f32::INFINITY,
+                        is_selected: false,
+                    },
+                );
+            }
+        }
+
+        candidates
+    }
+
+    pub(super) fn update_candidate_input_scores(
+        candidate_inputs: &mut HashMap<SoundInputId, CandidateSoundInput>,
+        drag_processor_rect: egui::Rect,
+        object_positions: &ObjectPositions,
+        cursor_pos: egui::Pos2,
+    ) {
+        let mut lowest_score = f32::INFINITY;
+        let mut lowest_scoring_input = None;
+
+        for (siid, input_data) in candidate_inputs.iter_mut() {
+            let input_layout = object_positions.get_sound_input_location(*siid).unwrap();
+
+            let intersection = drag_processor_rect.intersect(input_layout.rect());
+            if intersection.is_negative() {
+                input_data.score = f32::INFINITY;
+                input_data.is_selected = false;
+                continue;
+            }
+
+            let intersection_score = -intersection.area().sqrt();
+            let cursor_distance_score = input_layout.rect().signed_distance_to_pos(cursor_pos);
+            let score = intersection_score + cursor_distance_score;
+            if score < lowest_score {
+                lowest_score = score;
+                lowest_scoring_input = Some(*siid);
+            }
+
+            input_data.score = score;
+            input_data.is_selected = false;
+        }
+
+        if let Some(siid) = lowest_scoring_input {
+            // feels about right
+            if lowest_score < -30.0 {
+                candidate_inputs.get_mut(&siid).unwrap().is_selected = true;
+            }
         }
     }
 
-    pub(super) fn drop_dragging_top_level_processor(
+    pub(super) fn drag_processor(
         &mut self,
         processor_id: SoundProcessorId,
-        rect: egui::Rect,
+        delta: egui::Vec2,
+        cursor_pos: egui::Pos2,
     ) {
-        self.mode = UiMode::DroppingProcessor(NestedProcessorData { processor_id, rect });
+        self.pending_drag = Some((processor_id.into(), delta, cursor_pos));
     }
 
-    pub(super) fn take_dropped_nested_processor(&mut self) -> Option<NestedProcessorData> {
-        match self.mode {
+    pub(super) fn apply_processor_drag(&mut self, topo: &SoundGraphTopology) {
+        let (processor_id, delta, cursor_pos) = match self.pending_drag.take() {
+            Some(x) => x,
+            None => return,
+        };
+
+        if let UiMode::Selecting(_) = &self.mode {
+            self.move_selection(delta, topo);
+            return;
+        }
+
+        let get_default_data = || {
+            let rect = self
+                .object_positions
+                .get_object_location(processor_id.into())
+                .unwrap()
+                .rect();
+            let drag_closure =
+                Self::find_nested_processor_closure(processor_id, topo, &self.temporal_layout);
+            let candidate_inputs =
+                Self::find_candidate_sound_inputs(processor_id, topo, &drag_closure);
+            DraggingProcessorData {
+                processor_id,
+                rect,
+                drag_closure,
+                candidate_inputs,
+            }
+        };
+
+        // Assumption: sound graph topology isn't changing while processor is being dragged,
+        // so candidate inputs don't need recomputing
+
+        let mode = std::mem::replace(&mut self.mode, UiMode::Passive);
+        let mut data = match mode {
+            UiMode::DraggingProcessor(data) => {
+                if data.processor_id == processor_id {
+                    data
+                } else {
+                    get_default_data()
+                }
+            }
+            _ => get_default_data(),
+        };
+
+        data.rect = data.rect.translate(delta);
+
+        // If the processor is top level, move it
+        if self.temporal_layout.is_top_level(processor_id.into()) {
+            // self.object_positions
+            //     .track_object_location(processor_id.into(), data.rect);
+            self.object_positions.move_sound_processor_closure(
+                processor_id.into(),
+                topo,
+                &self.temporal_layout,
+                delta,
+            );
+        }
+
+        Self::update_candidate_input_scores(
+            &mut data.candidate_inputs,
+            data.rect,
+            &self.object_positions,
+            cursor_pos,
+        );
+
+        self.mode = UiMode::DraggingProcessor(data);
+    }
+
+    pub(super) fn drop_dragging_processor(&mut self) {
+        if let UiMode::DraggingProcessor(data) = &self.mode {
+            self.mode = UiMode::DroppingProcessor(DroppingProcessorData {
+                processor_id: data.processor_id,
+                rect: data.rect,
+                target_input: data
+                    .candidate_inputs
+                    .iter()
+                    .filter_map(|(siid, d)| if d.is_selected { Some(*siid) } else { None })
+                    .next(),
+            });
+        }
+    }
+
+    pub(super) fn take_dropped_nested_processor(&mut self) -> Option<DroppingProcessorData> {
+        let mode = std::mem::replace(&mut self.mode, UiMode::Passive);
+        match mode {
             UiMode::DroppingProcessor(data) => {
                 self.mode = UiMode::Passive;
                 Some(data)
             }
-            _ => None,
+            _ => {
+                self.mode = mode;
+                None
+            }
         }
     }
 
-    pub(super) fn get_nested_processor_drag(&self) -> Option<NestedProcessorData> {
+    pub(super) fn dragging_processor_data(&self) -> Option<&DraggingProcessorData> {
         match &self.mode {
-            UiMode::DraggingNestedProcessor(data) => Some(*data),
+            UiMode::DraggingProcessor(data) => Some(data),
             _ => None,
         }
     }
@@ -230,7 +435,7 @@ impl SoundGraphUIState {
                     self.mode = UiMode::Passive;
                 }
             }
-            UiMode::DraggingNestedProcessor(data) => {
+            UiMode::DraggingProcessor(data) => {
                 if !remaining_ids.contains(&data.processor_id.into()) {
                     self.mode = UiMode::Passive;
                 }
@@ -246,34 +451,52 @@ impl SoundGraphUIState {
         self.temporal_layout.regenerate(topo);
     }
 
-    pub fn selection(&self) -> HashSet<SoundObjectId> {
+    pub(super) fn selection(&self) -> HashSet<SoundObjectId> {
+        // TODO: this is silly, don't clone the selection.
         match &self.mode {
             UiMode::Selecting(s) => s.clone(),
             _ => HashSet::new(),
         }
     }
 
-    pub fn is_object_selected(&self, object_id: SoundObjectId) -> bool {
+    pub(super) fn is_object_selected(&self, object_id: SoundObjectId) -> bool {
         match &self.mode {
             UiMode::Selecting(s) => s.contains(&object_id),
             _ => false,
         }
     }
 
-    pub fn move_selection(&mut self, delta: egui::Vec2) {
+    pub(super) fn is_object_only_selected(&self, object_id: SoundObjectId) -> bool {
+        match &self.mode {
+            UiMode::Selecting(s) => s.len() == 1 && s.contains(&object_id),
+            _ => false,
+        }
+    }
+
+    pub(super) fn move_selection(&mut self, delta: egui::Vec2, topo: &SoundGraphTopology) {
         let objects = self.object_positions.objects_mut();
         match &self.mode {
             UiMode::Selecting(selection) => {
                 for s in selection {
-                    let state = objects.get_mut(s).unwrap();
-                    state.rect = state.rect.translate(delta);
+                    if self.temporal_layout.is_top_level((*s).into()) {
+                        match s {
+                            SoundObjectId::Sound(spid) => {
+                                self.object_positions.move_sound_processor_closure(
+                                    *spid,
+                                    topo,
+                                    &self.temporal_layout,
+                                    delta,
+                                )
+                            }
+                        }
+                    }
                 }
             }
             _ => (),
         }
     }
 
-    pub fn object_has_keyboard_focus(&self, object_id: SoundObjectId) -> bool {
+    pub(super) fn object_has_keyboard_focus(&self, object_id: SoundObjectId) -> bool {
         match &self.mode {
             UiMode::UsingKeyboardNav(k) => k.object_has_keyboard_focus(object_id),
             _ => false,
@@ -296,10 +519,6 @@ impl SoundGraphUIState {
             match i {
                 SoundObjectId::Sound(i) => {
                     if !topo.sound_processors().contains_key(&i) {
-                        println!(
-                            "An object position exists for a non-existent sound processor {}",
-                            i.value()
-                        );
                         good = false;
                     }
                 }

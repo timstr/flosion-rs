@@ -84,7 +84,7 @@ impl ProcessorUi {
                 .object_positions()
                 .get_object_location(self.processor_id.into())
             {
-                let pos = state.rect.left_top();
+                let pos = state.rect().left_top();
                 area = area.current_pos(pos);
             }
 
@@ -102,25 +102,31 @@ impl ProcessorUi {
                 .union(r.inner);
 
             if response.drag_started() {
-                if !graph_tools.is_object_selected(self.processor_id.into()) {
-                    graph_tools.clear_selection();
-                    graph_tools.select_object(self.processor_id.into());
+                if !graph_tools.is_object_selected(self.processor_id.into())
+                    || graph_tools.is_object_only_selected(self.processor_id.into())
+                {
+                    // Stop selecting, allowing the processor to be dragged onto sound inputs
+                    graph_tools.stop_selecting();
                 }
             }
 
             if response.dragged() {
-                graph_tools.move_selection(response.drag_delta());
+                graph_tools.drag_processor(
+                    self.processor_id,
+                    response.drag_delta(),
+                    response.interact_pointer_pos().unwrap(),
+                );
             }
 
-            if response.clicked() || response.dragged() {
+            if response.clicked() {
                 if !graph_tools.is_object_selected(self.processor_id.into()) {
-                    graph_tools.clear_selection();
+                    graph_tools.stop_selecting();
                     graph_tools.select_object(self.processor_id.into());
                 }
             }
 
-            if response.drag_released() && graph_tools.selection().len() == 1 {
-                graph_tools.drop_dragging_top_level_processor(self.processor_id, response.rect);
+            if response.drag_released() {
+                graph_tools.drop_dragging_processor();
             }
 
             response
@@ -131,9 +137,9 @@ impl ProcessorUi {
             let response = self.show_with_impl(ui, ctx, graph_tools, add_contents);
 
             if graph_tools
-                .get_nested_processor_drag()
-                .filter(|d| d.processor_id == self.processor_id)
-                .is_some()
+                .dragging_processor_data()
+                .map(|x| x.processor_id)
+                == Some(self.processor_id)
             {
                 // Make the processor appear faded if it's being dragged. A representation
                 // of the processor that follows the cursor will be drawn separately.
@@ -145,11 +151,15 @@ impl ProcessorUi {
             }
 
             if response.dragged() {
-                graph_tools.drag_nested_processor(self.processor_id, response.drag_delta());
+                graph_tools.drag_processor(
+                    self.processor_id,
+                    response.drag_delta(),
+                    response.interact_pointer_pos().unwrap(),
+                );
             }
 
             if response.drag_released() {
-                graph_tools.drop_dragging_nested_processor();
+                graph_tools.drop_dragging_processor();
             }
 
             response
@@ -280,7 +290,9 @@ impl ProcessorUi {
         graph_tools: &mut SoundGraphUIState,
         mut props: ProcessorUiProps,
     ) {
-        // TODO: highlight if empty and a single processor (nested or top-level) is being dragged
+        let processor_candidacy = graph_tools
+            .dragging_processor_data()
+            .and_then(|d| d.candidate_inputs.get(&input_id));
 
         let input_data = ctx.topology().sound_input(input_id).unwrap();
 
@@ -302,10 +314,17 @@ impl ProcessorUi {
 
         let top_of_input = ui.cursor().top();
 
-        let input_frame = egui::Frame::default()
-            .fill(egui::Color32::from_black_alpha(64))
-            .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
+        let input_frame = if let Some(candidacy) = processor_candidacy {
+            egui::Frame::default()
+                .fill(egui::Color32::from_white_alpha(64))
+                .inner_margin(egui::vec2(0.0, 5.0))
+                .stroke(egui::Stroke::new(2.0, egui::Color32::from_white_alpha(128)))
+        } else {
+            egui::Frame::default()
+                .fill(egui::Color32::from_black_alpha(64))
+                .inner_margin(egui::vec2(0.0, 5.0))
+                .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)))
+        };
 
         let target = input_data.target();
         let r = match target {
@@ -319,11 +338,7 @@ impl ProcessorUi {
                 );
 
                 ui.allocate_ui_at_rect(inner_objectui_rect, |ui| {
-                    if graph_tools
-                        .temporal_layout()
-                        .find_top_level_layout(spid.into())
-                        .is_some()
-                    {
+                    if graph_tools.temporal_layout().is_top_level(spid.into()) {
                         ui.label(format!("TODO: refer to processor {}", spid.value()));
                     } else {
                         // draw the processor right above
@@ -349,7 +364,15 @@ impl ProcessorUi {
                     // TODO: draw an empty field onto which things can be dragged
                     input_frame.show(ui, |ui| {
                         ui.set_width(desired_width);
-                        let label_str = format!("Sound Input {} (empty)", input_id.value());
+                        let label_str = format!(
+                            "Sound Input {} (empty){}",
+                            input_id.value(),
+                            if let Some(c) = processor_candidacy {
+                                format!(", score = {}", c.score)
+                            } else {
+                                "".to_string()
+                            },
+                        );
                         ui.add(
                             egui::Label::new(
                                 egui::RichText::new(label_str)
@@ -460,10 +483,10 @@ impl ProcessorUi {
                     .get_processor_rail_location(processor_owner)
                     .unwrap();
 
-                let y = input_location.rect.top() + 10.0 * target_index as f32 + 1.0;
+                let y = input_location.rect().top() + 10.0 * target_index as f32 + 1.0;
 
-                let x_begin = target_rail_location.rect.left() + 1.0;
-                let x_end = input_location.rect.left() + 5.0;
+                let x_begin = target_rail_location.rect().left() + 1.0;
+                let x_end = input_location.rect().left() + 5.0;
 
                 let wire_rect = egui::Rect::from_x_y_ranges(x_begin..=x_end, y..=(y + 8.0));
                 // let wire_color = ctx

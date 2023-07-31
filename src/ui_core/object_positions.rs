@@ -4,18 +4,25 @@ use eframe::egui;
 
 use crate::core::sound::{
     soundgraphid::{SoundGraphId, SoundObjectId},
+    soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
     soundprocessor::SoundProcessorId,
 };
 
+use super::soundgraphuicontext::TemporalLayout;
+
 pub struct LayoutState {
-    pub rect: egui::Rect,
+    rect: egui::Rect,
 }
 
 impl LayoutState {
-    pub fn center(&self) -> egui::Pos2 {
-        self.rect.center()
+    pub(super) fn rect(&self) -> egui::Rect {
+        self.rect
+    }
+
+    fn translate(&mut self, delta: egui::Vec2) {
+        self.rect = self.rect.translate(delta);
     }
 }
 
@@ -53,40 +60,82 @@ impl ObjectPositions {
         &mut self.objects
     }
 
-    pub fn track_object_location(&mut self, id: SoundObjectId, rect: egui::Rect) {
+    pub(super) fn track_object_location(&mut self, id: SoundObjectId, rect: egui::Rect) {
         self.objects.insert(id, LayoutState { rect });
     }
 
-    pub fn track_processor_rail_location(&mut self, id: SoundProcessorId, rect: egui::Rect) {
+    pub(super) fn track_processor_rail_location(&mut self, id: SoundProcessorId, rect: egui::Rect) {
         self.processor_rails.insert(id, LayoutState { rect });
     }
 
-    pub fn track_sound_input_location(&mut self, id: SoundInputId, rect: egui::Rect) {
+    pub(super) fn track_sound_input_location(&mut self, id: SoundInputId, rect: egui::Rect) {
         self.sound_inputs.insert(id, LayoutState { rect });
     }
 
-    pub fn track_sound_number_input_location(&mut self, id: SoundNumberInputId, rect: egui::Rect) {
+    pub(super) fn track_sound_number_input_location(
+        &mut self,
+        id: SoundNumberInputId,
+        rect: egui::Rect,
+    ) {
         self.sound_number_inputs.insert(id, LayoutState { rect });
     }
 
-    pub fn get_object_location(&self, id: SoundObjectId) -> Option<&LayoutState> {
+    pub(super) fn get_object_location(&self, id: SoundObjectId) -> Option<&LayoutState> {
         self.objects.get(&id)
     }
 
-    pub fn get_processor_rail_location(&self, id: SoundProcessorId) -> Option<&LayoutState> {
+    pub(super) fn get_processor_rail_location(&self, id: SoundProcessorId) -> Option<&LayoutState> {
         self.processor_rails.get(&id)
     }
 
-    pub fn get_sound_input_locations(&self) -> &HashMap<SoundInputId, LayoutState> {
+    pub(super) fn get_sound_input_locations(&self) -> &HashMap<SoundInputId, LayoutState> {
         &self.sound_inputs
     }
 
-    pub fn get_sound_input_location(&self, id: SoundInputId) -> Option<&LayoutState> {
+    pub(super) fn get_sound_input_location(&self, id: SoundInputId) -> Option<&LayoutState> {
         self.sound_inputs.get(&id)
     }
 
-    pub fn get_sound_number_input_location(&self, id: SoundNumberInputId) -> Option<&LayoutState> {
+    pub(super) fn get_sound_number_input_location(
+        &self,
+        id: SoundNumberInputId,
+    ) -> Option<&LayoutState> {
         self.sound_number_inputs.get(&id)
+    }
+
+    pub(super) fn move_sound_processor_closure(
+        &mut self,
+        processor_id: SoundProcessorId,
+        topo: &SoundGraphTopology,
+        temporal_layout: &TemporalLayout,
+        delta: egui::Vec2,
+    ) {
+        self.objects
+            .get_mut(&processor_id.into())
+            .unwrap()
+            .translate(delta);
+        self.processor_rails
+            .get_mut(&processor_id)
+            .unwrap()
+            .translate(delta);
+        let proc_data = topo.sound_processor(processor_id).unwrap();
+        for niid in proc_data.number_inputs() {
+            self.sound_number_inputs
+                .get_mut(&niid)
+                .unwrap()
+                .translate(delta);
+        }
+        for siid in proc_data.sound_inputs() {
+            self.sound_inputs.get_mut(siid).unwrap().translate(delta);
+            let input_target = match topo.sound_input(*siid).unwrap().target() {
+                Some(t) => t,
+                None => continue,
+            };
+            if temporal_layout.is_top_level(input_target.into()) {
+                continue;
+            }
+            self.move_sound_processor_closure(input_target, topo, temporal_layout, delta);
+        }
     }
 
     // pub(super) fn serialize(

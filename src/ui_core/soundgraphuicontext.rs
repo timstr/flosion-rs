@@ -43,6 +43,10 @@ impl TemporalLayout {
         }
     }
 
+    pub(crate) fn is_top_level(&self, object_id: SoundObjectId) -> bool {
+        self.top_level_objects.contains_key(&object_id)
+    }
+
     pub(crate) fn find_top_level_layout(
         &self,
         object_id: SoundObjectId,

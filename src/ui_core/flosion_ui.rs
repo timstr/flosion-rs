@@ -10,8 +10,7 @@ use crate::{
         number::numbergraphdata::NumberTarget,
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-            soundprocessor::SoundProcessorId,
+            soundgraphtopology::SoundGraphTopology,
         },
         uniqueid::UniqueId,
     },
@@ -32,8 +31,8 @@ use rfd::FileDialog;
 use super::{
     object_ui::random_object_color,
     soundgraphui::SoundGraphUi,
-    soundgraphuicontext::{SoundGraphUiContext, TemporalLayout, TopLevelLayout},
-    soundgraphuistate::{NestedProcessorData, SelectionChange, SoundGraphUIState},
+    soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::{DroppingProcessorData, SelectionChange, SoundGraphUIState},
     soundobjectuistate::SoundObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
@@ -239,6 +238,7 @@ impl FlosionApp {
                 factory.ui(&object, ui_state, ui, &ctx);
             }
         }
+        ui_state.apply_processor_drag(graph.topology());
     }
 
     fn handle_shortcuts_selection(
@@ -441,7 +441,7 @@ impl FlosionApp {
                         new_state,
                         random_object_color(),
                     );
-                    self.ui_state.clear_selection();
+                    self.ui_state.stop_selecting();
                     self.ui_state.select_object(new_object.id());
                 }
                 self.summon_state = None;
@@ -449,97 +449,7 @@ impl FlosionApp {
         }
     }
 
-    fn handle_dropped_nested_processor(&mut self, ui: &egui::Ui, data: NestedProcessorData) {
-        let cursor_pos = ui.input(|i| i.pointer.interact_pos()).unwrap();
-        let mut lowest_score = f32::INFINITY;
-        let mut lowest_scoring_input = None;
-
-        // Assuming the current processor and all of its unique inputs are being
-        // dragged, does the input belong to that stack of processors?
-        fn input_is_being_dragged(
-            input_id: SoundInputId,
-            current_processor: SoundProcessorId,
-            topo: &SoundGraphTopology,
-            temporallayout: &TemporalLayout,
-        ) -> bool {
-            let proc_data = topo.sound_processor(current_processor).unwrap();
-            let inputs = proc_data.sound_inputs();
-
-            // if the input directly belongs to a processor in the stack, then yes
-            if inputs.contains(&input_id) {
-                return true;
-            }
-
-            // otherwise, visit inputs recursively
-            for siid in inputs {
-                let target = topo.sound_input(*siid).unwrap().target();
-                let target_spid = match target {
-                    Some(spid) => spid,
-                    None => continue,
-                };
-
-                // if the target processor has a top level layout, it isn't
-                // part of the stack
-                if temporallayout
-                    .find_top_level_layout(target_spid.into())
-                    .is_some()
-                {
-                    continue;
-                }
-
-                if input_is_being_dragged(input_id, target_spid, topo, temporallayout) {
-                    return true;
-                }
-            }
-            false
-        }
-
-        for (siid, layout) in self.ui_state.object_positions().get_sound_input_locations() {
-            if self
-                .graph
-                .topology()
-                .sound_input(*siid)
-                .unwrap()
-                .target()
-                .is_some()
-            {
-                continue;
-            }
-
-            if input_is_being_dragged(
-                *siid,
-                data.processor_id,
-                self.graph.topology(),
-                self.ui_state.temporal_layout(),
-            ) {
-                continue;
-            }
-
-            let intersection = data.rect.intersect(layout.rect);
-            if intersection.is_negative() {
-                continue;
-            }
-
-            if self
-                .graph
-                .topology()
-                .sound_input(*siid)
-                .unwrap()
-                .target()
-                .is_some()
-            {
-                continue;
-            }
-
-            let intersection_score = intersection.area().sqrt();
-            let cursor_distance_score = layout.rect.signed_distance_to_pos(cursor_pos);
-            let score = intersection_score + cursor_distance_score;
-            if score < lowest_score {
-                lowest_score = score;
-                lowest_scoring_input = Some(*siid);
-            }
-        }
-
+    fn handle_dropped_processor(&mut self, ui: &egui::Ui, data: DroppingProcessorData) {
         let mut previous_targets = self
             .graph
             .topology()
@@ -552,9 +462,7 @@ impl FlosionApp {
 
         std::mem::drop(previous_targets);
 
-        if let Some(siid) = lowest_scoring_input {
-            println!("Score = {}", lowest_score);
-            // TODO: add a score threshold here.
+        if let Some(siid) = data.target_input {
             if let Some(previous_siid) = previous_target {
                 if siid == previous_siid {
                     return;
@@ -814,12 +722,12 @@ impl eframe::App for FlosionApp {
             let layer_id = ui.layer_id();
             self.handle_summon_widget(ui, &bg_response, layer_id);
             if let Some(drag_data) = self.ui_state.take_dropped_nested_processor() {
-                self.handle_dropped_nested_processor(ui, drag_data);
+                self.handle_dropped_processor(ui, drag_data);
             }
 
             Self::draw_selection_rect(ui, &self.selection_area);
 
-            if let Some(data) = self.ui_state.get_nested_processor_drag() {
+            if let Some(data) = self.ui_state.dragging_processor_data() {
                 let color = self
                     .object_states
                     .get_object_data(data.processor_id.into())
