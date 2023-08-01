@@ -378,16 +378,31 @@ impl ProcessorUi {
                                     inner_frame,
                                     ui.id().with(input_id),
                                     |ui| {
-                                        ui.set_width(desired_width);
-                                        ui.label(format!(
-                                            "Refer to top level processor {}",
-                                            spid.value()
-                                        ));
+                                        ui.horizontal(|ui| {
+                                            ui.set_width(desired_width);
+                                            ui.add_space(10.0);
+                                            let rect = ui.allocate_space(egui::Vec2::splat(20.0)).1;
+                                            let origin = rect.center();
+                                            let processor_position = graph_tools
+                                                .object_positions()
+                                                .get_object_location(spid.into())
+                                                .unwrap()
+                                                .rect()
+                                                .center();
+                                            let vec_to_processor = processor_position - origin;
+                                            let vec_to_processor = vec_to_processor
+                                                * (10.0 / vec_to_processor.length());
+                                            ui.painter().arrow(
+                                                origin - vec_to_processor,
+                                                2.0 * vec_to_processor,
+                                                egui::Stroke::new(2.0, egui::Color32::BLACK),
+                                            );
+                                        });
                                     },
                                 )
                             })
                             .inner;
-                        ///////////////////////////////////
+
                         if response.dragged() {
                             let from_input = Some(input_id);
                             let from_rect = response.rect;
@@ -403,7 +418,6 @@ impl ProcessorUi {
                         if response.drag_released() {
                             graph_tools.drop_dragging_processor();
                         }
-                        ///////////////////////////////////
                     } else {
                         // draw the processor right above
                         let target_processor = ctx.topology().sound_processor(spid).unwrap();
