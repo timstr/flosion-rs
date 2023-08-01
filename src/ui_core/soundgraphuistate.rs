@@ -30,14 +30,17 @@ pub struct CandidateSoundInput {
 pub struct DraggingProcessorData {
     pub processor_id: SoundProcessorId,
     pub rect: egui::Rect,
+    original_rect: egui::Rect,
     pub drag_closure: NestedProcessorClosure,
     pub candidate_inputs: HashMap<SoundInputId, CandidateSoundInput>,
+    pub from_input: Option<SoundInputId>,
 }
 
 pub struct DroppingProcessorData {
     pub processor_id: SoundProcessorId,
     pub rect: egui::Rect,
     pub target_input: Option<SoundInputId>,
+    pub from_input: Option<SoundInputId>,
 }
 
 pub enum SelectionChange {
@@ -54,12 +57,21 @@ enum UiMode {
     DroppingProcessor(DroppingProcessorData),
 }
 
+// Used to defer moving processors from the process of laying them out
+struct PendingProcessorDrag {
+    processor_id: SoundProcessorId,
+    delta: egui::Vec2,
+    cursor_pos: egui::Pos2,
+    from_input: Option<SoundInputId>,
+    from_rect: egui::Rect,
+}
+
 pub struct SoundGraphUIState {
     object_positions: ObjectPositions,
     temporal_layout: TemporalLayout,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUIState) -> ()>>,
     mode: UiMode,
-    pending_drag: Option<(SoundProcessorId, egui::Vec2, egui::Pos2)>,
+    pending_drag: Option<PendingProcessorDrag>,
 }
 
 impl SoundGraphUIState {
@@ -107,13 +119,6 @@ impl SoundGraphUIState {
         self.mode = UiMode::Selecting(object_ids);
     }
 
-    pub(super) fn is_selecting(&self) -> bool {
-        match self.mode {
-            UiMode::Selecting(_) => true,
-            _ => false,
-        }
-    }
-
     pub(super) fn select_object(&mut self, object_id: SoundObjectId) {
         match &mut self.mode {
             UiMode::Selecting(s) => {
@@ -124,18 +129,6 @@ impl SoundGraphUIState {
                 s.insert(object_id);
                 self.mode = UiMode::Selecting(s);
             }
-        }
-    }
-
-    pub(super) fn deselect_object(&mut self, object_id: SoundObjectId) {
-        match &mut self.mode {
-            UiMode::Selecting(s) => {
-                s.remove(&object_id);
-                if s.is_empty() {
-                    self.mode = UiMode::Passive;
-                }
-            }
-            _ => (),
         }
     }
 
@@ -307,15 +300,31 @@ impl SoundGraphUIState {
         processor_id: SoundProcessorId,
         delta: egui::Vec2,
         cursor_pos: egui::Pos2,
+        from_input: Option<SoundInputId>,
+        from_rect: egui::Rect,
     ) {
-        self.pending_drag = Some((processor_id.into(), delta, cursor_pos));
+        self.pending_drag = Some(PendingProcessorDrag {
+            processor_id,
+            delta,
+            cursor_pos,
+            from_input,
+            from_rect,
+        });
     }
 
-    pub(super) fn apply_processor_drag(&mut self, topo: &SoundGraphTopology) {
-        let (processor_id, delta, cursor_pos) = match self.pending_drag.take() {
+    pub(super) fn apply_processor_drag(&mut self, ui: &egui::Ui, topo: &SoundGraphTopology) {
+        let pending_drag = match self.pending_drag.take() {
             Some(x) => x,
             None => return,
         };
+
+        let PendingProcessorDrag {
+            processor_id,
+            delta,
+            cursor_pos,
+            from_input,
+            from_rect,
+        } = pending_drag;
 
         if let UiMode::Selecting(_) = &self.mode {
             self.move_selection(delta, topo);
@@ -323,11 +332,12 @@ impl SoundGraphUIState {
         }
 
         let get_default_data = || {
-            let rect = self
-                .object_positions
-                .get_object_location(processor_id.into())
-                .unwrap()
-                .rect();
+            // let rect = self
+            //     .object_positions
+            //     .get_object_location(processor_id.into())
+            //     .unwrap()
+            //     .rect();
+            let rect = from_rect;
             let drag_closure =
                 Self::find_nested_processor_closure(processor_id, topo, &self.temporal_layout);
             let candidate_inputs =
@@ -335,8 +345,10 @@ impl SoundGraphUIState {
             DraggingProcessorData {
                 processor_id,
                 rect,
+                original_rect: rect,
                 drag_closure,
                 candidate_inputs,
+                from_input,
             }
         };
 
@@ -357,16 +369,21 @@ impl SoundGraphUIState {
 
         data.rect = data.rect.translate(delta);
 
-        // If the processor is top level, move it
-        if self.temporal_layout.is_top_level(processor_id.into()) {
-            // self.object_positions
-            //     .track_object_location(processor_id.into(), data.rect);
-            self.object_positions.move_sound_processor_closure(
-                processor_id.into(),
-                topo,
-                &self.temporal_layout,
-                delta,
-            );
+        // If the processor is top level and shift isn't held, move it
+        let shift_is_down = ui.input(|i| i.modifiers.shift);
+
+        if self.temporal_layout.is_top_level(processor_id.into()) && from_input.is_none() {
+            if shift_is_down {
+                self.object_positions
+                    .track_object_location(processor_id.into(), data.original_rect);
+            } else {
+                self.object_positions.move_sound_processor_closure(
+                    processor_id.into(),
+                    topo,
+                    &self.temporal_layout,
+                    delta,
+                );
+            }
         }
 
         Self::update_candidate_input_scores(
@@ -389,6 +406,7 @@ impl SoundGraphUIState {
                     .iter()
                     .filter_map(|(siid, d)| if d.is_selected { Some(*siid) } else { None })
                     .next(),
+                from_input: data.from_input,
             });
         }
     }
@@ -474,7 +492,6 @@ impl SoundGraphUIState {
     }
 
     pub(super) fn move_selection(&mut self, delta: egui::Vec2, topo: &SoundGraphTopology) {
-        let objects = self.object_positions.objects_mut();
         match &self.mode {
             UiMode::Selecting(selection) => {
                 for s in selection {

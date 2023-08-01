@@ -135,10 +135,20 @@ impl ProcessorUi {
         }
 
         if response.dragged() {
+            let from_input = if ctx.is_top_level() {
+                None
+            } else {
+                Some(ctx.parent_sound_input().unwrap())
+            };
+
+            let from_rect = response.rect;
+
             graph_tools.drag_processor(
                 self.processor_id,
                 response.drag_delta(),
                 response.interact_pointer_pos().unwrap(),
+                from_input,
+                from_rect,
             );
         }
 
@@ -154,6 +164,26 @@ impl ProcessorUi {
         }
     }
 
+    fn outer_and_inner_processor_frames(color: egui::Color32) -> (egui::Frame, egui::Frame) {
+        let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
+
+        let outer_frame = egui::Frame::default()
+            .fill(egui::Color32::from_rgb(
+                (color.r() as u16 * 3 / 4) as u8,
+                (color.g() as u16 * 3 / 4) as u8,
+                (color.b() as u16 * 3 / 4) as u8,
+            ))
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .stroke(darkish_stroke);
+
+        let inner_frame = egui::Frame::default()
+            .fill(color)
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .stroke(darkish_stroke);
+
+        (outer_frame, inner_frame)
+    }
+
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUIState)>(
         &self,
         ui: &mut egui::Ui,
@@ -166,21 +196,7 @@ impl ProcessorUi {
 
         let fill = self.color;
 
-        let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
-
-        let outer_frame = egui::Frame::default()
-            .fill(egui::Color32::from_rgb(
-                (fill.r() as u16 * 3 / 4) as u8,
-                (fill.g() as u16 * 3 / 4) as u8,
-                (fill.b() as u16 * 3 / 4) as u8,
-            ))
-            .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(darkish_stroke);
-
-        let content_frame = egui::Frame::default()
-            .fill(fill)
-            .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(darkish_stroke);
+        let (outer_frame, inner_frame) = Self::outer_and_inner_processor_frames(fill);
 
         let props = ProcessorUiProps {
             origin: ui.cursor().left_top(),
@@ -192,23 +208,20 @@ impl ProcessorUi {
         let desired_width = ctx.width();
 
         let r = outer_frame.show(ui, |ui| {
+            ui.set_width(desired_width);
             if !self.sound_inputs.is_empty() {
-                ui.set_width(desired_width);
                 for input_id in &self.sound_inputs {
                     self.show_sound_input(ui, ctx, *input_id, graph_tools, props);
                 }
             }
 
-            let body_rect = egui::Rect::from_x_y_ranges(
-                left_of_body..=(left_of_body + desired_width),
-                ui.cursor().top()..=f32::INFINITY,
-            );
-
-            // check for click/drag interactions with the background of the processor body
-            let mut response = ui.interact(body_rect, ui.id(), egui::Sense::click_and_drag());
-
-            ui.allocate_ui_at_rect(body_rect, |ui| {
-                content_frame.show(ui, |ui| {
+            let response = Self::show_inner_processor_contents(
+                ui,
+                left_of_body,
+                desired_width,
+                inner_frame,
+                ui.id().with(self.processor_id),
+                |ui| {
                     ui.vertical(|ui| {
                         for (input_id, input_label) in &self.number_inputs {
                             self.show_number_input(ui, ctx, *input_id, input_label, graph_tools);
@@ -224,25 +237,22 @@ impl ProcessorUi {
                         );
                         add_contents(ui, graph_tools)
                     });
-                });
-            });
-
-            let bottom_of_body = ui.cursor().top();
-
-            response.rect = response
-                .rect
-                .intersect(egui::Rect::everything_above(bottom_of_body));
+                },
+            );
 
             let top_rail_rect = egui::Rect::from_x_y_ranges(
                 props.origin.x..=(props.origin.x + Self::RAIL_WIDTH - 2.0),
-                props.origin.y..=bottom_of_body,
+                props.origin.y..=response.rect.bottom(),
             );
 
             let rounding = egui::Rounding::same(3.0);
 
             ui.painter().rect_filled(top_rail_rect, rounding, fill);
-            ui.painter()
-                .rect_stroke(top_rail_rect, rounding, darkish_stroke);
+            ui.painter().rect_stroke(
+                top_rail_rect,
+                rounding,
+                egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)),
+            );
 
             graph_tools
                 .object_positions_mut()
@@ -265,6 +275,34 @@ impl ProcessorUi {
 
         r.response.union(r.inner)
         // r
+    }
+
+    fn show_inner_processor_contents<F: FnOnce(&mut egui::Ui)>(
+        ui: &mut egui::Ui,
+        left_of_body: f32,
+        desired_width: f32,
+        inner_frame: egui::Frame,
+        id: egui::Id,
+        f: F,
+    ) -> egui::Response {
+        let body_rect = egui::Rect::from_x_y_ranges(
+            left_of_body..=(left_of_body + desired_width),
+            ui.cursor().top()..=f32::INFINITY,
+        );
+
+        ui.allocate_ui_at_rect(body_rect, |ui| {
+            ui.set_width(desired_width);
+            inner_frame.show(ui, f);
+        });
+
+        let bottom_of_body = ui.cursor().top();
+
+        let body_rect = body_rect.intersect(egui::Rect::everything_above(bottom_of_body));
+
+        // check for click/drag interactions with the background of the processor body
+        let response = ui.interact(body_rect, id, egui::Sense::click_and_drag());
+
+        response
     }
 
     fn show_sound_input(
@@ -324,13 +362,54 @@ impl ProcessorUi {
 
                 ui.allocate_ui_at_rect(inner_objectui_rect, |ui| {
                     if graph_tools.temporal_layout().is_top_level(spid.into()) {
-                        ui.label(format!("TODO: refer to processor {}", spid.value()));
+                        let color = ctx
+                            .object_states()
+                            .get_object_data(spid.into())
+                            .borrow()
+                            .color();
+                        let (outer_frame, inner_frame) =
+                            Self::outer_and_inner_processor_frames(color);
+                        let response = outer_frame
+                            .show(ui, |ui| {
+                                Self::show_inner_processor_contents(
+                                    ui,
+                                    inner_objectui_rect.left() + Self::RAIL_WIDTH,
+                                    desired_width,
+                                    inner_frame,
+                                    ui.id().with(input_id),
+                                    |ui| {
+                                        ui.set_width(desired_width);
+                                        ui.label(format!(
+                                            "Refer to top level processor {}",
+                                            spid.value()
+                                        ));
+                                    },
+                                )
+                            })
+                            .inner;
+                        ///////////////////////////////////
+                        if response.dragged() {
+                            let from_input = Some(input_id);
+                            let from_rect = response.rect;
+                            graph_tools.drag_processor(
+                                spid,
+                                response.drag_delta(),
+                                response.interact_pointer_pos().unwrap(),
+                                from_input,
+                                from_rect,
+                            );
+                        }
+
+                        if response.drag_released() {
+                            graph_tools.drop_dragging_processor();
+                        }
+                        ///////////////////////////////////
                     } else {
                         // draw the processor right above
                         let target_processor = ctx.topology().sound_processor(spid).unwrap();
                         let target_graph_object = target_processor.instance_arc().as_graph_object();
 
-                        let inner_ctx = ctx.nest(desired_width);
+                        let inner_ctx = ctx.nest(input_id, desired_width);
 
                         ctx.ui_factory()
                             .ui(&target_graph_object, graph_tools, ui, &inner_ctx);
@@ -349,15 +428,7 @@ impl ProcessorUi {
                     // TODO: draw an empty field onto which things can be dragged
                     input_frame.show(ui, |ui| {
                         ui.set_width(desired_width);
-                        let label_str = format!(
-                            "Sound Input {} (empty){}",
-                            input_id.value(),
-                            if let Some(c) = processor_candidacy {
-                                format!(", score = {}", c.score)
-                            } else {
-                                "".to_string()
-                            },
-                        );
+                        let label_str = format!("Sound Input {} (empty)", input_id.value(),);
                         ui.add(
                             egui::Label::new(
                                 egui::RichText::new(label_str)

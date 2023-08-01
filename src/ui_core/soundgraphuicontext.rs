@@ -8,6 +8,7 @@ use crate::core::{
     sound::{
         soundgraphid::{SoundGraphId, SoundObjectId},
         soundgraphtopology::SoundGraphTopology,
+        soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -62,6 +63,7 @@ impl TemporalLayout {
                 time_axis: TimeAxis {
                     samples_per_x_pixel: SAMPLE_FREQUENCY as f32 / Self::DEFAULT_WIDTH as f32,
                 },
+                // nesting depth will be recomputed later
                 nesting_depth: 0,
             },
         );
@@ -127,6 +129,7 @@ pub struct SoundGraphUiContext<'a> {
     time_axis: TimeAxis,
     width: f32,
     nesting_depth: usize,
+    parent_input: Option<SoundInputId>,
 }
 
 impl<'a> SoundGraphUiContext<'a> {
@@ -147,6 +150,7 @@ impl<'a> SoundGraphUiContext<'a> {
             time_axis,
             width,
             nesting_depth,
+            parent_input: None,
         }
     }
 
@@ -174,7 +178,7 @@ impl<'a> SoundGraphUiContext<'a> {
         self.is_top_level
     }
 
-    pub(crate) fn nest(&self, new_width: f32) -> SoundGraphUiContext {
+    pub(crate) fn nest(&self, input_id: SoundInputId, new_width: f32) -> SoundGraphUiContext {
         SoundGraphUiContext {
             ui_factory: self.ui_factory,
             object_states: self.object_states,
@@ -183,11 +187,16 @@ impl<'a> SoundGraphUiContext<'a> {
             time_axis: self.time_axis,
             width: new_width,
             nesting_depth: self.nesting_depth - 1,
+            parent_input: Some(input_id),
         }
     }
 
     pub(crate) fn nesting_depth(&self) -> usize {
         self.nesting_depth
+    }
+
+    pub(crate) fn parent_sound_input(&self) -> Option<SoundInputId> {
+        self.parent_input
     }
 }
 

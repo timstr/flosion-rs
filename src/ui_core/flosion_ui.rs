@@ -12,7 +12,6 @@ use crate::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
             soundgraphtopology::SoundGraphTopology,
         },
-        uniqueid::UniqueId,
     },
     objects::{
         dac::Dac,
@@ -238,7 +237,7 @@ impl FlosionApp {
                 factory.ui(&object, ui_state, ui, &ctx);
             }
         }
-        ui_state.apply_processor_drag(graph.topology());
+        ui_state.apply_processor_drag(ui, graph.topology());
     }
 
     fn handle_shortcuts_selection(
@@ -450,47 +449,64 @@ impl FlosionApp {
     }
 
     fn handle_dropped_processor(&mut self, ui: &egui::Ui, data: DroppingProcessorData) {
-        let mut previous_targets = self
-            .graph
-            .topology()
-            .sound_processor_targets(data.processor_id);
-
-        let previous_target = previous_targets.next();
-
-        // TODO: add support for multiple targets here
-        assert!(previous_targets.next().is_none());
-
-        std::mem::drop(previous_targets);
+        let shift_is_down = ui.input(|i| i.modifiers.shift);
 
         if let Some(siid) = data.target_input {
-            if let Some(previous_siid) = previous_target {
+            // dropped onto a sound input
+
+            if let Some(previous_siid) = data.from_input {
+                // being dragged from another input
                 if siid == previous_siid {
                     return;
                 }
-                self.graph.disconnect_sound_input(previous_siid).unwrap();
+
+                if !shift_is_down {
+                    self.graph.disconnect_sound_input(previous_siid).unwrap();
+                }
+            } else if !shift_is_down {
+                // being dragged from top level, shift isn't held
+
+                // ensure top level layout is removed if possible
+                if self
+                    .graph
+                    .topology()
+                    .sound_processor_targets(data.processor_id)
+                    .count()
+                    == 0
+                {
+                    self.ui_state
+                        .temporal_layout_mut()
+                        .remove_top_level_layout(data.processor_id.into());
+                }
             }
+
             self.graph
                 .connect_sound_input(siid, data.processor_id)
                 .unwrap();
-            // Make sure the processor isn't top level anymore
-            self.ui_state
-                .temporal_layout_mut()
-                .remove_top_level_layout(data.processor_id.into());
         } else {
             // not dropped suitably close to an input
-            if let Some(previous_siid) = previous_target {
-                self.graph.disconnect_sound_input(previous_siid).unwrap();
+            if let Some(previous_siid) = data.from_input {
+                if !shift_is_down {
+                    self.graph.disconnect_sound_input(previous_siid).unwrap();
+                }
             }
 
-            // place the processor where it was dragged to
-            self.ui_state
-                .object_positions_mut()
-                .track_object_location(data.processor_id.into(), data.rect);
+            if !self
+                .ui_state
+                .temporal_layout()
+                .is_top_level(data.processor_id.into())
+            {
+                // place the processor where it was dragged to if it was dragged
+                // at top level
+                self.ui_state
+                    .object_positions_mut()
+                    .track_object_location(data.processor_id.into(), data.rect);
 
-            // give the processor a top level layout
-            self.ui_state
-                .temporal_layout_mut()
-                .create_top_level_layout(data.processor_id.into());
+                // give the processor a top level layout
+                self.ui_state
+                    .temporal_layout_mut()
+                    .create_top_level_layout(data.processor_id.into());
+            }
         }
     }
 
