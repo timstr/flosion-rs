@@ -101,34 +101,6 @@ impl ProcessorUi {
                 .interact(egui::Sense::click_and_drag())
                 .union(r.inner);
 
-            if response.drag_started() {
-                if !graph_tools.is_object_selected(self.processor_id.into())
-                    || graph_tools.is_object_only_selected(self.processor_id.into())
-                {
-                    // Stop selecting, allowing the processor to be dragged onto sound inputs
-                    graph_tools.stop_selecting();
-                }
-            }
-
-            if response.dragged() {
-                graph_tools.drag_processor(
-                    self.processor_id,
-                    response.drag_delta(),
-                    response.interact_pointer_pos().unwrap(),
-                );
-            }
-
-            if response.clicked() {
-                if !graph_tools.is_object_selected(self.processor_id.into()) {
-                    graph_tools.stop_selecting();
-                    graph_tools.select_object(self.processor_id.into());
-                }
-            }
-
-            if response.drag_released() {
-                graph_tools.drop_dragging_processor();
-            }
-
             response
         } else {
             // Otherwise, if the object isn't top-level, nest it within the
@@ -150,23 +122,36 @@ impl ProcessorUi {
                 );
             }
 
-            if response.dragged() {
-                graph_tools.drag_processor(
-                    self.processor_id,
-                    response.drag_delta(),
-                    response.interact_pointer_pos().unwrap(),
-                );
-            }
-
-            if response.drag_released() {
-                graph_tools.drop_dragging_processor();
-            }
-
             response
         };
 
-        // responses common to top-level and nested processors
-        // if any?
+        if response.drag_started() {
+            if !graph_tools.is_object_selected(self.processor_id.into())
+                || graph_tools.is_object_only_selected(self.processor_id.into())
+            {
+                // Stop selecting, allowing the processor to be dragged onto sound inputs
+                graph_tools.stop_selecting();
+            }
+        }
+
+        if response.dragged() {
+            graph_tools.drag_processor(
+                self.processor_id,
+                response.drag_delta(),
+                response.interact_pointer_pos().unwrap(),
+            );
+        }
+
+        if response.clicked() {
+            if !graph_tools.is_object_selected(self.processor_id.into()) {
+                graph_tools.stop_selecting();
+                graph_tools.select_object(self.processor_id.into());
+            }
+        }
+
+        if response.drag_released() {
+            graph_tools.drop_dragging_processor();
+        }
     }
 
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUIState)>(
