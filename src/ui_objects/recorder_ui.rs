@@ -4,8 +4,8 @@ use crate::{
     core::{graphobject::ObjectInitialization, soundprocessor::StaticSoundProcessorHandle},
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
+        graph_ui_state::GraphUiState,
+        object_ui::{ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -14,19 +14,19 @@ pub struct RecorderUi;
 
 impl ObjectUi for RecorderUi {
     type HandleType = StaticSoundProcessorHandle<Recorder>;
-    type StateType = NoUIState;
+    type StateType = ();
 
     fn ui(
         &self,
         recorder: StaticSoundProcessorHandle<Recorder>,
-        graph_tools: &mut GraphUIState,
+        ui_state: &mut GraphUiState,
         ui: &mut egui::Ui,
-        data: ObjectUiData<NoUIState>,
+        data: ObjectUiData<()>,
     ) {
         ObjectWindow::new_sound_processor(recorder.id(), "Recorder", data.color)
             // .add_left_peg(recorder.input.id(), "Input")
             // .add_right_peg(recorder.id(), "Output")
-            .show_with(ui.ctx(), graph_tools, |ui, graph_tools| {
+            .show_with(ui.ctx(), ui_state, |ui, ui_state| {
                 let r = recorder.is_recording();
                 let n = recorder.recording_length();
                 let btn_str = if r {
@@ -49,7 +49,7 @@ impl ObjectUi for RecorderUi {
                     }
                     if ui.add(Button::new("Create AudioClip")).clicked() {
                         let a = recorder.copy_audio();
-                        graph_tools.make_change(move |graph, _| {
+                        ui_state.make_change(move |graph, _| {
                             let ac = graph.add_dynamic_sound_processor::<AudioClip>(
                                 ObjectInitialization::Default,
                             );

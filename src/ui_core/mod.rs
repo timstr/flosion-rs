@@ -7,6 +7,7 @@ pub mod object_ui_states;
 pub mod soundgraphui;
 pub mod soundgraphuicontext;
 pub mod soundgraphuistate;
+pub mod soundnumberinputui;
 pub mod soundobjectuistate;
 pub mod soundprocessorui;
 mod summon_widget;

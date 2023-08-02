@@ -4,11 +4,8 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::mixer::Mixer,
     ui_core::{
-        object_ui::{NoUIState, ObjectUi},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUIState,
-        soundobjectuistate::ConcreteSoundObjectUiData,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -19,15 +16,15 @@ pub struct MixerUi {}
 impl ObjectUi for MixerUi {
     type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<Mixer>;
-    type StateType = NoUIState;
+    type StateType = ();
 
     fn ui(
         &self,
         mixer: DynamicSoundProcessorHandle<Mixer>,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: ConcreteSoundObjectUiData<NoUIState>,
+        data: SoundObjectUiData<()>,
     ) {
         let mut objwin = ProcessorUi::new(mixer.id(), "Mixer", data.color);
 
@@ -35,13 +32,13 @@ impl ObjectUi for MixerUi {
             objwin = objwin.add_sound_input(siid);
         }
 
-        objwin.show_with(ui, ctx, graph_tools, |ui, graph_tools| {
+        objwin.show_with(ui, ctx, ui_state, |ui, ui_state| {
             ui.horizontal(|ui| {
                 let last_input = mixer.get_input_ids().into_iter().last();
 
                 if ui.button("+").clicked() {
                     let w = mixer.clone();
-                    graph_tools.make_change(move |sg, _| {
+                    ui_state.make_change(move |sg, _| {
                         sg.apply_processor_tools(w.id(), |mut tools| {
                             w.add_input(&mut tools);
                         })
@@ -52,7 +49,7 @@ impl ObjectUi for MixerUi {
                 if let Some(siid) = last_input {
                     if ui.button("-").clicked() {
                         let w = mixer.clone();
-                        graph_tools.make_change(move |sg, _| {
+                        ui_state.make_change(move |sg, _| {
                             sg.apply_processor_tools(w.id(), |mut tools| {
                                 w.remove_input(siid, &mut tools);
                             })

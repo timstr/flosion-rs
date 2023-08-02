@@ -4,8 +4,8 @@ use crate::{
     core::soundprocessor::DynamicSoundProcessorHandle,
     objects::adsr::ADSR,
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
+        graph_ui_state::GraphUiState,
+        object_ui::{ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -14,14 +14,14 @@ pub struct ADSRUi;
 
 impl ObjectUi for ADSRUi {
     type HandleType = DynamicSoundProcessorHandle<ADSR>;
-    type StateType = NoUIState;
+    type StateType = ();
 
     fn ui(
         &self,
         adsr: DynamicSoundProcessorHandle<ADSR>,
-        graph_state: &mut GraphUIState,
+        graph_state: &mut GraphUiState,
         ui: &mut egui::Ui,
-        data: ObjectUiData<NoUIState>,
+        data: ObjectUiData<()>,
     ) {
         ObjectWindow::new_sound_processor(adsr.id(), "ADSR", data.color)
             // .add_top_peg(&adsr.attack_time, "Attack Time")

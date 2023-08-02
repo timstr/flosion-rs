@@ -66,17 +66,17 @@ struct PendingProcessorDrag {
     from_rect: egui::Rect,
 }
 
-pub struct SoundGraphUIState {
+pub struct SoundGraphUiState {
     object_positions: ObjectPositions,
     temporal_layout: TemporalLayout,
-    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUIState) -> ()>>,
+    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> ()>>,
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
 }
 
-impl SoundGraphUIState {
-    pub(super) fn new() -> SoundGraphUIState {
-        SoundGraphUIState {
+impl SoundGraphUiState {
+    pub(super) fn new() -> SoundGraphUiState {
+        SoundGraphUiState {
             object_positions: ObjectPositions::new(),
             temporal_layout: TemporalLayout::new(),
             pending_changes: Vec::new(),
@@ -101,7 +101,7 @@ impl SoundGraphUIState {
         &mut self.temporal_layout
     }
 
-    pub fn make_change<F: FnOnce(&mut SoundGraph, &mut SoundGraphUIState) -> () + 'static>(
+    pub fn make_change<F: FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> () + 'static>(
         &mut self,
         f: F,
     ) {

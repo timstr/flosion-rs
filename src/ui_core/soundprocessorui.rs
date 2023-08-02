@@ -12,7 +12,7 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUIState};
+use super::{soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState};
 
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
@@ -55,16 +55,16 @@ impl ProcessorUi {
         self,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
     ) {
-        self.show_with(ui, ctx, graph_tools, |_ui, _tools| {});
+        self.show_with(ui, ctx, ui_state, |_ui, _tools| {});
     }
 
-    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUIState)>(
+    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState)>(
         self,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         add_contents: F,
     ) {
         let response = if ctx.is_top_level() {
@@ -80,7 +80,7 @@ impl ProcessorUi {
                 .constrain(false)
                 .drag_bounds(egui::Rect::EVERYTHING);
 
-            if let Some(state) = graph_tools
+            if let Some(state) = ui_state
                 .object_positions()
                 .get_object_location(self.processor_id.into())
             {
@@ -89,9 +89,9 @@ impl ProcessorUi {
             }
 
             let r = area.show(ui.ctx(), |ui| {
-                let r = self.show_with_impl(ui, ctx, graph_tools, add_contents);
+                let r = self.show_with_impl(ui, ctx, ui_state, add_contents);
 
-                self.draw_wires(self.processor_id, ui, ctx, graph_tools);
+                self.draw_wires(self.processor_id, ui, ctx, ui_state);
 
                 r
             });
@@ -106,12 +106,9 @@ impl ProcessorUi {
             // Otherwise, if the object isn't top-level, nest it within the
             // current egui::Ui
 
-            let response = self.show_with_impl(ui, ctx, graph_tools, add_contents);
+            let response = self.show_with_impl(ui, ctx, ui_state, add_contents);
 
-            if graph_tools
-                .dragging_processor_data()
-                .map(|x| x.processor_id)
-                == Some(self.processor_id)
+            if ui_state.dragging_processor_data().map(|x| x.processor_id) == Some(self.processor_id)
             {
                 // Make the processor appear faded if it's being dragged. A representation
                 // of the processor that follows the cursor will be drawn separately.
@@ -126,11 +123,11 @@ impl ProcessorUi {
         };
 
         if response.drag_started() {
-            if !graph_tools.is_object_selected(self.processor_id.into())
-                || graph_tools.is_object_only_selected(self.processor_id.into())
+            if !ui_state.is_object_selected(self.processor_id.into())
+                || ui_state.is_object_only_selected(self.processor_id.into())
             {
                 // Stop selecting, allowing the processor to be dragged onto sound inputs
-                graph_tools.stop_selecting();
+                ui_state.stop_selecting();
             }
         }
 
@@ -143,7 +140,7 @@ impl ProcessorUi {
 
             let from_rect = response.rect;
 
-            graph_tools.drag_processor(
+            ui_state.drag_processor(
                 self.processor_id,
                 response.drag_delta(),
                 response.interact_pointer_pos().unwrap(),
@@ -153,14 +150,14 @@ impl ProcessorUi {
         }
 
         if response.clicked() {
-            if !graph_tools.is_object_selected(self.processor_id.into()) {
-                graph_tools.stop_selecting();
-                graph_tools.select_object(self.processor_id.into());
+            if !ui_state.is_object_selected(self.processor_id.into()) {
+                ui_state.stop_selecting();
+                ui_state.select_object(self.processor_id.into());
             }
         }
 
         if response.drag_released() {
-            graph_tools.drop_dragging_processor();
+            ui_state.drop_dragging_processor();
         }
     }
 
@@ -184,11 +181,11 @@ impl ProcessorUi {
         (outer_frame, inner_frame)
     }
 
-    fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUIState)>(
+    fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState)>(
         &self,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         add_contents: F,
     ) -> egui::Response {
         // Clip to the entire screen, not just outside the area
@@ -211,7 +208,7 @@ impl ProcessorUi {
             ui.set_width(desired_width);
             if !self.sound_inputs.is_empty() {
                 for input_id in &self.sound_inputs {
-                    self.show_sound_input(ui, ctx, *input_id, graph_tools, props);
+                    self.show_sound_input(ui, ctx, *input_id, ui_state, props);
                 }
             }
 
@@ -224,7 +221,7 @@ impl ProcessorUi {
                 |ui| {
                     ui.vertical(|ui| {
                         for (input_id, input_label) in &self.number_inputs {
-                            self.show_number_input(ui, ctx, *input_id, input_label, graph_tools);
+                            self.show_number_input(ui, ctx, *input_id, input_label, ui_state);
                         }
                         ui.set_width(desired_width);
                         ui.add(
@@ -235,7 +232,7 @@ impl ProcessorUi {
                             )
                             .wrap(false),
                         );
-                        add_contents(ui, graph_tools)
+                        add_contents(ui, ui_state)
                     });
                 },
             );
@@ -254,14 +251,14 @@ impl ProcessorUi {
                 egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)),
             );
 
-            graph_tools
+            ui_state
                 .object_positions_mut()
                 .track_processor_rail_location(self.processor_id, top_rail_rect);
 
             response
         });
 
-        if graph_tools.is_object_selected(self.processor_id.into()) {
+        if ui_state.is_object_selected(self.processor_id.into()) {
             ui.painter().rect_stroke(
                 r.response.rect,
                 egui::Rounding::same(3.0),
@@ -269,7 +266,7 @@ impl ProcessorUi {
             );
         }
 
-        graph_tools
+        ui_state
             .object_positions_mut()
             .track_object_location(self.processor_id.into(), r.response.rect);
 
@@ -310,10 +307,10 @@ impl ProcessorUi {
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         input_id: SoundInputId,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         mut props: ProcessorUiProps,
     ) {
-        let processor_candidacy = graph_tools
+        let processor_candidacy = ui_state
             .dragging_processor_data()
             .and_then(|d| d.candidate_inputs.get(&input_id));
 
@@ -361,12 +358,8 @@ impl ProcessorUi {
                 );
 
                 ui.allocate_ui_at_rect(inner_objectui_rect, |ui| {
-                    if graph_tools.temporal_layout().is_top_level(spid.into()) {
-                        let color = ctx
-                            .object_states()
-                            .get_object_data(spid.into())
-                            .borrow()
-                            .color();
+                    if ui_state.temporal_layout().is_top_level(spid.into()) {
+                        let color = ctx.object_states().get_object_color(spid.into());
                         let (outer_frame, inner_frame) =
                             Self::outer_and_inner_processor_frames(color);
                         let response = outer_frame
@@ -383,7 +376,7 @@ impl ProcessorUi {
                                             ui.add_space(10.0);
                                             let rect = ui.allocate_space(egui::Vec2::splat(20.0)).1;
                                             let origin = rect.center();
-                                            let processor_position = graph_tools
+                                            let processor_position = ui_state
                                                 .object_positions()
                                                 .get_object_location(spid.into())
                                                 .unwrap()
@@ -406,7 +399,7 @@ impl ProcessorUi {
                         if response.dragged() {
                             let from_input = Some(input_id);
                             let from_rect = response.rect;
-                            graph_tools.drag_processor(
+                            ui_state.drag_processor(
                                 spid,
                                 response.drag_delta(),
                                 response.interact_pointer_pos().unwrap(),
@@ -416,7 +409,7 @@ impl ProcessorUi {
                         }
 
                         if response.drag_released() {
-                            graph_tools.drop_dragging_processor();
+                            ui_state.drop_dragging_processor();
                         }
                     } else {
                         // draw the processor right above
@@ -426,7 +419,7 @@ impl ProcessorUi {
                         let inner_ctx = ctx.nest(input_id, desired_width);
 
                         ctx.ui_factory()
-                            .ui(&target_graph_object, graph_tools, ui, &inner_ctx);
+                            .ui(&target_graph_object, ui_state, ui, &inner_ctx);
                     }
                 })
             }
@@ -456,7 +449,7 @@ impl ProcessorUi {
             }
         };
 
-        graph_tools
+        ui_state
             .object_positions_mut()
             .track_sound_input_location(input_id, r.response.rect);
 
@@ -482,7 +475,7 @@ impl ProcessorUi {
         ctx: &SoundGraphUiContext,
         input_id: SoundNumberInputId,
         input_label: &'static str,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
     ) {
         let fill = egui::Color32::from_black_alpha(64);
 
@@ -510,7 +503,7 @@ impl ProcessorUi {
             );
         });
 
-        graph_tools
+        ui_state
             .object_positions_mut()
             .track_sound_number_input_location(input_id, res.response.rect);
     }
@@ -520,7 +513,7 @@ impl ProcessorUi {
         processor_id: SoundProcessorId,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        ui_state: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
     ) {
         // TODO: respond to clicks and drags, return response
 
@@ -559,12 +552,9 @@ impl ProcessorUi {
                 let x_end = input_location.rect().left() + 5.0;
 
                 let wire_rect = egui::Rect::from_x_y_ranges(x_begin..=x_end, y..=(y + 8.0));
-                // let wire_color = ctx
-                //     .object_states()
-                //     .get_object_data(processor_owner.into())
-                //     .borrow()
-                //     .apparent_color(ui_state);
-                let wire_color = egui::Color32::WHITE;
+                let wire_color = ctx
+                    .object_states()
+                    .get_apparent_object_color(processor_owner.into(), ui_state);
 
                 ui.painter().rect(
                     wire_rect,

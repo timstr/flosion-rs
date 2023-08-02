@@ -5,6 +5,16 @@ pub trait Serializable: Sized {
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()>;
 }
 
+impl Serializable for () {
+    fn serialize(&self, _serializer: &mut Serializer) {
+        // Nothing to do
+    }
+
+    fn deserialize(_deserializer: &mut Deserializer) -> Result<Self, ()> {
+        Ok(())
+    }
+}
+
 #[derive(PartialEq, Eq, Debug)]
 pub enum PrimitiveType {
     Bool,

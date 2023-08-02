@@ -2,11 +2,8 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::ensemble::Ensemble,
     ui_core::{
-        object_ui::{NoUIState, ObjectUi},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUIState,
-        soundobjectuistate::ConcreteSoundObjectUiData,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -17,15 +14,15 @@ pub struct EnsembleUi {}
 impl ObjectUi for EnsembleUi {
     type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<Ensemble>;
-    type StateType = NoUIState;
+    type StateType = ();
 
     fn ui(
         &self,
         ensemble: DynamicSoundProcessorHandle<Ensemble>,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: ConcreteSoundObjectUiData<NoUIState>,
+        data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(ensemble.id(), "Ensemble", data.color)
             // .add_left_peg(ensemble.input.id(), "Input")
@@ -36,6 +33,6 @@ impl ObjectUi for EnsembleUi {
             .add_sound_input(ensemble.input.id())
             .add_number_input(ensemble.frequency_in.id(), "Frequency In")
             .add_number_input(ensemble.frequency_spread.id(), "Frequency Spread")
-            .show(ui, ctx, graph_tools);
+            .show(ui, ctx, ui_state);
     }
 }

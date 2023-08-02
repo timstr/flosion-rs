@@ -4,8 +4,8 @@ use crate::{
     core::soundprocessor::DynamicSoundProcessorHandle,
     objects::audioclip::AudioClip,
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
+        graph_ui_state::GraphUiState,
+        object_ui::{ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -14,16 +14,16 @@ pub struct AudioClipUi {}
 
 impl ObjectUi for AudioClipUi {
     type HandleType = DynamicSoundProcessorHandle<AudioClip>;
-    type StateType = NoUIState;
+    type StateType = ();
     fn ui(
         &self,
         audioclip: DynamicSoundProcessorHandle<AudioClip>,
-        graph_tools: &mut GraphUIState,
+        ui_state: &mut GraphUiState,
         ui: &mut egui::Ui,
-        data: ObjectUiData<NoUIState>,
+        data: ObjectUiData<()>,
     ) {
         ObjectWindow::new_sound_processor(audioclip.id(), "AudioClip", data.color)
             // .add_right_peg(audioclip.id(), "Output")
-            .show(ui.ctx(), graph_tools)
+            .show(ui.ctx(), ui_state)
     }
 }

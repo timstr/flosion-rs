@@ -31,7 +31,7 @@ use super::{
     object_ui::random_object_color,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::{DroppingProcessorData, SelectionChange, SoundGraphUIState},
+    soundgraphuistate::{DroppingProcessorData, SelectionChange, SoundGraphUiState},
     soundobjectuistate::SoundObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
@@ -46,7 +46,7 @@ pub struct FlosionApp {
     graph: SoundGraph,
     object_factory: ObjectFactory<SoundGraph>,
     ui_factory: UiFactory<SoundGraphUi>,
-    ui_state: SoundGraphUIState,
+    ui_state: SoundGraphUiState,
     object_states: SoundObjectUiStates,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
@@ -185,7 +185,7 @@ impl FlosionApp {
         let (object_factory, ui_factory) = all_sound_graph_objects();
         let mut app = FlosionApp {
             graph,
-            ui_state: SoundGraphUIState::new(),
+            ui_state: SoundGraphUiState::new(),
             object_states: SoundObjectUiStates::new(),
             object_factory,
             ui_factory,
@@ -210,7 +210,7 @@ impl FlosionApp {
         ui: &mut Ui,
         factory: &UiFactory<SoundGraphUi>,
         graph: &SoundGraph,
-        ui_state: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         object_states: &mut SoundObjectUiStates,
     ) {
         // NOTE: ObjectUiStates doesn't technically need to be borrowed mutably
@@ -243,7 +243,7 @@ impl FlosionApp {
     fn handle_shortcuts_selection(
         key: egui::Key,
         modifiers: egui::Modifiers,
-        ui_state: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         topo: &SoundGraphTopology,
     ) -> bool {
         if !modifiers.command_only() {
@@ -265,7 +265,7 @@ impl FlosionApp {
     fn handle_shortcuts_save_open(
         key: egui::Key,
         modifiers: egui::Modifiers,
-        ui_state: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         object_states: &mut SoundObjectUiStates,
         graph: &mut SoundGraph,
         object_factory: &ObjectFactory<SoundGraph>,
@@ -353,7 +353,7 @@ impl FlosionApp {
         ui: &mut Ui,
         bg_response: &Response,
         selection_area: &mut Option<SelectionState>,
-        ui_state: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
     ) {
         let pointer_pos = bg_response.interact_pointer_pos();
         if bg_response.drag_started() {
@@ -552,7 +552,7 @@ impl FlosionApp {
         );
     }
 
-    fn delete_selection(ui_state: &mut SoundGraphUIState) {
+    fn delete_selection(ui_state: &mut SoundGraphUiState) {
         let selection: Vec<SoundObjectId> = ui_state.selection().iter().cloned().collect();
         ui_state.make_change(move |g, _s| {
             g.remove_objects_batch(&selection).unwrap_or_else(|e| {
@@ -562,7 +562,7 @@ impl FlosionApp {
     }
 
     fn serialize(
-        _ui_state: &SoundGraphUIState,
+        _ui_state: &SoundGraphUiState,
         _object_states: &SoundObjectUiStates,
         _graph: &SoundGraph,
         _use_selection: bool,
@@ -597,7 +597,7 @@ impl FlosionApp {
     }
 
     fn deserialize(
-        _ui_state: &mut SoundGraphUIState,
+        _ui_state: &mut SoundGraphUiState,
         _object_states: &mut SoundObjectUiStates,
         _data: &str,
         _graph: &mut SoundGraph,
@@ -746,9 +746,7 @@ impl eframe::App for FlosionApp {
             if let Some(data) = self.ui_state.dragging_processor_data() {
                 let color = self
                     .object_states
-                    .get_object_data(data.processor_id.into())
-                    .borrow()
-                    .color();
+                    .get_object_color(data.processor_id.into());
                 Self::draw_nested_processor_dragging(ui, data.rect, color);
             }
 

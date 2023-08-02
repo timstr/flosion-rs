@@ -2,11 +2,8 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::wavegenerator::WaveGenerator,
     ui_core::{
-        object_ui::{NoUIState, ObjectUi},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUIState,
-        soundobjectuistate::ConcreteSoundObjectUiData,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -17,15 +14,15 @@ pub struct WaveGeneratorUi {}
 impl ObjectUi for WaveGeneratorUi {
     type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<WaveGenerator>;
-    type StateType = NoUIState;
+    type StateType = ();
 
     fn ui(
         &self,
         wavgen: DynamicSoundProcessorHandle<WaveGenerator>,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: ConcreteSoundObjectUiData<NoUIState>,
+        data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(wavgen.id(), "WaveGenerator", data.color)
             // .add_top_peg(&wavgen.time, "Time")
@@ -33,6 +30,6 @@ impl ObjectUi for WaveGeneratorUi {
             // .add_right_peg(wavgen.id(), "Output")
             .add_number_input(wavgen.amplitude.id(), "Amplitude")
             .add_number_input(wavgen.frequency.id(), "Frequency")
-            .show(ui, ctx, graph_tools);
+            .show(ui, ctx, ui_state);
     }
 }

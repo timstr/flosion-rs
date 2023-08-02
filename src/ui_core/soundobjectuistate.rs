@@ -16,39 +16,25 @@ use super::{
     object_ui::{random_object_color, ObjectUiState},
     object_ui_states::AnyObjectUiState,
     soundgraphui::SoundGraphUi,
-    soundgraphuistate::SoundGraphUIState,
+    soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::SoundGraphUiState,
     ui_factory::UiFactory,
 };
 
 pub struct AnySoundObjectUiData {
     id: SoundObjectId,
     state: Box<dyn AnyObjectUiState>,
-    color: egui::Color32,
-}
-
-impl AnySoundObjectUiData {
-    pub(crate) fn color(&self) -> egui::Color32 {
-        self.color
-    }
-
-    pub(crate) fn apparent_color(&self, graph_ui_state: &SoundGraphUIState) -> egui::Color32 {
-        if graph_ui_state.is_object_selected(self.id) {
-            let mut hsva = ecolor::Hsva::from(self.color);
-            hsva.v = 0.5 * (1.0 + hsva.a);
-            hsva.into()
-        } else {
-            self.color
-        }
-    }
 }
 
 impl ObjectUiData for AnySoundObjectUiData {
-    type ConcreteType<'a, T: ObjectUiState> = ConcreteSoundObjectUiData<'a, T>;
+    type GraphUi = SoundGraphUi;
+    type ConcreteType<'a, T: ObjectUiState> = SoundObjectUiData<'a, T>;
 
-    fn downcast<'a, T: ObjectUiState>(&'a mut self) -> ConcreteSoundObjectUiData<'a, T> {
-        // TODO: ?
-        // let color = self.apparent_color(graph_state);
-        let color = self.color;
+    fn downcast<'a, T: ObjectUiState>(
+        &'a mut self,
+        ui_state: &SoundGraphUiState,
+        ctx: &SoundGraphUiContext<'_>,
+    ) -> SoundObjectUiData<'a, T> {
         let state_mut = &mut *self.state;
         #[cfg(debug_assertions)]
         {
@@ -63,18 +49,25 @@ impl ObjectUiData for AnySoundObjectUiData {
         }
         let state_any = state_mut.as_mut_any();
         let state = state_any.downcast_mut::<T>().unwrap();
-        ConcreteSoundObjectUiData { state, color }
+        let color = ctx
+            .object_states()
+            .get_apparent_object_color(self.id, ui_state);
+        SoundObjectUiData { state, color }
     }
 }
 
-// TODO: remove "Concrete" from name
-pub struct ConcreteSoundObjectUiData<'a, T: ObjectUiState> {
+pub struct SoundObjectUiData<'a, T: ObjectUiState> {
     pub state: &'a mut T,
     pub color: egui::Color32,
 }
 
+struct ObjectData {
+    state: RefCell<AnySoundObjectUiData>,
+    color: egui::Color32,
+}
+
 pub struct SoundObjectUiStates {
-    data: HashMap<SoundObjectId, RefCell<AnySoundObjectUiData>>,
+    data: HashMap<SoundObjectId, ObjectData>,
 }
 
 impl SoundObjectUiStates {
@@ -90,12 +83,36 @@ impl SoundObjectUiStates {
         state: Box<dyn AnyObjectUiState>,
         color: egui::Color32,
     ) {
-        self.data
-            .insert(id, RefCell::new(AnySoundObjectUiData { id, state, color }));
+        self.data.insert(
+            id,
+            ObjectData {
+                state: RefCell::new(AnySoundObjectUiData { id, state }),
+                color,
+            },
+        );
     }
 
     pub(super) fn get_object_data(&self, id: SoundObjectId) -> &RefCell<AnySoundObjectUiData> {
-        self.data.get(&id).unwrap()
+        &self.data.get(&id).unwrap().state
+    }
+
+    pub(super) fn get_object_color(&self, id: SoundObjectId) -> egui::Color32 {
+        self.data.get(&id).unwrap().color
+    }
+
+    pub(super) fn get_apparent_object_color(
+        &self,
+        id: SoundObjectId,
+        ui_state: &SoundGraphUiState,
+    ) -> egui::Color32 {
+        let color = self.get_object_color(id);
+        if ui_state.is_object_selected(id) {
+            let mut hsva = ecolor::Hsva::from(color);
+            hsva.v = 0.5 * (1.0 + hsva.a);
+            hsva.into()
+        } else {
+            color
+        }
     }
 
     pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<SoundGraphId>) {
@@ -220,9 +237,11 @@ impl SoundObjectUiStates {
             let data = AnySoundObjectUiData {
                 id: object_id,
                 state,
-                color: random_object_color(),
             };
-            RefCell::new(data)
+            ObjectData {
+                state: RefCell::new(data),
+                color: random_object_color(),
+            }
         });
     }
 }

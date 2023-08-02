@@ -2,11 +2,8 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::resampler::Resampler,
     ui_core::{
-        object_ui::{NoUIState, ObjectUi},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUIState,
-        soundobjectuistate::ConcreteSoundObjectUiData,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -17,18 +14,18 @@ pub struct ResamplerUi {}
 impl ObjectUi for ResamplerUi {
     type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<Resampler>;
-    type StateType = NoUIState;
+    type StateType = ();
     fn ui(
         &self,
         resampler: DynamicSoundProcessorHandle<Resampler>,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: ConcreteSoundObjectUiData<NoUIState>,
+        data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(resampler.id(), "Resampler", data.color)
             .add_sound_input(resampler.input.id())
             .add_number_input(resampler.speed_ratio.id(), "Speed Ratio")
-            .show(ui, ctx, graph_tools);
+            .show(ui, ctx, ui_state);
     }
 }

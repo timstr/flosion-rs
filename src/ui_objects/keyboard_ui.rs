@@ -4,8 +4,8 @@ use crate::{
     core::soundprocessor::StaticSoundProcessorHandle,
     objects::keyboard::Keyboard,
     ui_core::{
-        graph_ui_state::GraphUIState,
-        object_ui::{NoUIState, ObjectUi, ObjectUiData, ObjectWindow},
+        graph_ui_state::GraphUiState,
+        object_ui::{ObjectUi, ObjectUiData, ObjectWindow},
     },
 };
 
@@ -14,21 +14,21 @@ pub struct KeyboardUi {}
 
 impl ObjectUi for KeyboardUi {
     type HandleType = StaticSoundProcessorHandle<Keyboard>;
-    type StateType = NoUIState;
+    type StateType = ();
 
     fn ui(
         &self,
         keyboard: StaticSoundProcessorHandle<Keyboard>,
-        graph_tools: &mut GraphUIState,
+        ui_state: &mut GraphUiState,
         ui: &mut eframe::egui::Ui,
-        data: ObjectUiData<NoUIState>,
+        data: ObjectUiData<()>,
     ) {
         ObjectWindow::new_sound_processor(keyboard.id(), "Keyboard", data.color)
             // .add_left_peg(keyboard.input.id(), "Input")
             // .add_left_peg(&keyboard.key_frequency, "Note Frequency")
             // .add_left_peg(&keyboard.key_time, "Note Time")
             // .add_right_peg(keyboard.id(), "Output")
-            .show_with(ui.ctx(), graph_tools, |ui, _graph_tools| {
+            .show_with(ui.ctx(), ui_state, |ui, _ui_state| {
                 let has_focus_id = egui::Id::new("keyboard_has_focus").with(keyboard.id());
 
                 let had_focus = ui.memory_mut(|m| m.data.get_temp(has_focus_id).unwrap_or(false));

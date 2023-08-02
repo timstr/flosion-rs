@@ -15,7 +15,7 @@ pub trait GraphUi {
     type Context<'a>: GraphUiContext<'a, GraphUi = Self>;
 
     // data associated with individual object ui
-    type ObjectUiData: ObjectUiData;
+    type ObjectUiData: ObjectUiData<GraphUi = Self>;
 }
 
 pub trait GraphUiContext<'a> {
@@ -28,9 +28,15 @@ pub trait GraphUiContext<'a> {
 }
 
 pub trait ObjectUiData {
+    type GraphUi: GraphUi;
+
     type ConcreteType<'a, T: ObjectUiState>
     where
         Self: 'a;
 
-    fn downcast<'a, T: ObjectUiState>(&'a mut self) -> Self::ConcreteType<'a, T>;
+    fn downcast<'a, T: ObjectUiState>(
+        &'a mut self,
+        ui_state: &<Self::GraphUi as GraphUi>::State,
+        ctx: &<Self::GraphUi as GraphUi>::Context<'_>,
+    ) -> Self::ConcreteType<'a, T>;
 }

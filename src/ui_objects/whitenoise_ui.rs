@@ -4,11 +4,8 @@ use crate::{
     core::sound::soundprocessor::DynamicSoundProcessorHandle,
     objects::whitenoise::WhiteNoise,
     ui_core::{
-        object_ui::{NoUIState, ObjectUi},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUIState,
-        soundobjectuistate::ConcreteSoundObjectUiData,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -19,18 +16,18 @@ pub struct WhiteNoiseUi {}
 impl ObjectUi for WhiteNoiseUi {
     type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<WhiteNoise>;
-    type StateType = NoUIState;
+    type StateType = ();
 
     fn ui(
         &self,
         whitenoise: DynamicSoundProcessorHandle<WhiteNoise>,
-        graph_tools: &mut SoundGraphUIState,
+        ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: ConcreteSoundObjectUiData<NoUIState>,
+        data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(whitenoise.id(), "WhiteNoise", data.color)
             // .add_right_peg(whitenoise.id(), "Output")
-            .show(ui, ctx, graph_tools);
+            .show(ui, ctx, ui_state);
     }
 }

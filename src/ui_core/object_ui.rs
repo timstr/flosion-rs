@@ -9,7 +9,7 @@ use rand::{thread_rng, Rng};
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
     graph::graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
-    serialization::{Deserializer, Serializable, Serializer},
+    serialization::Serializable,
 };
 
 use super::{
@@ -17,21 +17,7 @@ use super::{
     object_ui_states::AnyObjectUiState,
 };
 
-// TODO: replace with ()
-#[derive(Default)]
-pub struct NoUIState;
-
-impl Serializable for NoUIState {
-    fn serialize(&self, _serializer: &mut Serializer) {
-        // Nothing to do
-    }
-
-    fn deserialize(_deserializer: &mut Deserializer) -> Result<Self, ()> {
-        Ok(Self)
-    }
-}
-
-impl ObjectUiState for NoUIState {}
+impl ObjectUiState for () {}
 
 pub fn random_object_color() -> egui::Color32 {
     let hue: f32 = thread_rng().gen();
@@ -112,7 +98,7 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
         ctx: &G::Context<'_>,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let data = object_ui_state.downcast::<T::StateType>();
+        let data = object_ui_state.downcast::<T::StateType>(graph_state, ctx);
         self.ui(handle, graph_state, ui, ctx, data);
     }
 
