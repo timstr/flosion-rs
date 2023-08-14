@@ -128,18 +128,24 @@ impl LexicalLayout {
         }
     }
 
-    pub(super) fn show(&self, ui: &mut egui::Ui, ctx: &NumberGraphUiContext) {
+    pub(super) fn show(&self, ui: &mut egui::Ui, result_label: &str, ctx: &NumberGraphUiContext) {
         ui.vertical(|ui| {
             for var_assn in &self.variable_definitions {
                 ui.horizontal(|ui| {
                     // TODO: make this and other text pretty
                     ui.label(format!("{} = ", var_assn.name));
                     self.show_internal_node(ui, &var_assn.value, ctx);
+                    ui.label(",");
                 });
             }
+            if !self.variable_definitions.is_empty() {
+                ui.separator();
+            }
             ui.horizontal(|ui| {
+                ui.label(format!("{} = ", result_label));
                 self.show_ast_node(ui, &self.final_expression, ctx);
-            })
+                ui.label(".");
+            });
         });
     }
 
@@ -160,41 +166,41 @@ impl LexicalLayout {
         node: &InternalASTNode,
         ctx: &NumberGraphUiContext,
     ) {
-        let dark_text = |ui: &mut egui::Ui, s: String| {
-            let text = egui::RichText::new(s).code().color(egui::Color32::BLACK);
+        let styled_text = |ui: &mut egui::Ui, s: String| {
+            let text = egui::RichText::new(s).code().color(egui::Color32::WHITE);
             ui.add(egui::Label::new(text));
         };
 
         match node {
             InternalASTNode::Prefix(nsid, expr) => {
-                dark_text(ui, self.number_source_token(*nsid, ctx));
+                styled_text(ui, self.number_source_token(*nsid, ctx));
                 self.show_ast_node(ui, expr, ctx);
             }
             InternalASTNode::Infix(expr1, nsid, expr2) => {
                 self.show_ast_node(ui, expr1, ctx);
-                dark_text(ui, self.number_source_token(*nsid, ctx));
+                styled_text(ui, self.number_source_token(*nsid, ctx));
                 self.show_ast_node(ui, expr2, ctx);
             }
             InternalASTNode::Postfix(expr, nsid) => {
                 self.show_ast_node(ui, expr, ctx);
-                dark_text(ui, self.number_source_token(*nsid, ctx));
+                styled_text(ui, self.number_source_token(*nsid, ctx));
             }
             InternalASTNode::Function(nsid, exprs) => {
-                dark_text(ui, format!("{}(", self.number_source_token(*nsid, ctx)));
+                styled_text(ui, format!("{}(", self.number_source_token(*nsid, ctx)));
                 if let Some((last_expr, other_exprs)) = exprs.split_last() {
                     for expr in other_exprs {
                         self.show_ast_node(ui, expr, ctx);
-                        dark_text(ui, ",".to_string());
+                        styled_text(ui, ",".to_string());
                     }
                     self.show_ast_node(ui, last_expr, ctx);
                 }
-                dark_text(ui, ")".to_string());
+                styled_text(ui, ")".to_string());
             }
             InternalASTNode::Variable(name) => {
-                dark_text(ui, name.clone());
+                styled_text(ui, name.clone());
             }
             InternalASTNode::GraphInput(giid) => {
-                dark_text(ui, format!("input{}", giid.value()));
+                styled_text(ui, format!("input{}", giid.value()));
             }
         };
     }

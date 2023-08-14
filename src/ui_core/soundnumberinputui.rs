@@ -15,17 +15,17 @@ impl SoundNumberInputUi {
         }
     }
 
-    pub(super) fn show(self, ui: &mut egui::Ui, ctx: &NumberGraphUiContext) {
+    pub(super) fn show(self, ui: &mut egui::Ui, result_label: &str, ctx: &NumberGraphUiContext) {
         // TODO:
         // (now) simple frame containing all number sources in lexical ordering
         // (later) expandable/collapsible popup window with full layout
         let frame = egui::Frame::default()
-            .fill(egui::Color32::GRAY)
+            .fill(egui::Color32::BLACK)
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(64)));
         frame.show(ui, |ui| {
             // TODO: store layout in ui state
             let layout = LexicalLayout::generate(ctx.topology());
-            layout.show(ui, ctx);
+            layout.show(ui, result_label, ctx);
         });
     }
 }
