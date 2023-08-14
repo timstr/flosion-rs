@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs::File,
     io::{Read, Write},
 };
@@ -7,10 +7,10 @@ use std::{
 use crate::{
     core::{
         graph::{graphobject::ObjectInitialization, objectfactory::ObjectFactory},
-        number::numbergraphdata::NumberTarget,
+        number::{numbergraph::NumberGraph, numbergraphdata::NumberTarget},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphtopology::SoundGraphTopology,
+            soundgraphtopology::SoundGraphTopology, soundnumberinput::SoundNumberInputId,
         },
     },
     objects::{
@@ -19,7 +19,7 @@ use crate::{
         functions::{SawWave, Variable},
         wavegenerator::WaveGenerator,
     },
-    ui_objects::all_objects::all_sound_graph_objects,
+    ui_objects::all_objects::{all_number_graph_objects, all_sound_graph_objects},
 };
 use eframe::{
     self,
@@ -28,6 +28,7 @@ use eframe::{
 use rfd::FileDialog;
 
 use super::{
+    numbergraphui::{NumberGraphUi, NumberGraphUiData},
     object_ui::random_object_color,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
@@ -45,9 +46,12 @@ struct SelectionState {
 pub struct FlosionApp {
     graph: SoundGraph,
     object_factory: ObjectFactory<SoundGraph>,
+    number_object_factory: ObjectFactory<NumberGraph>,
     ui_factory: UiFactory<SoundGraphUi>,
+    number_ui_factory: UiFactory<NumberGraphUi>,
     ui_state: SoundGraphUiState,
     object_states: SoundObjectUiStates,
+    number_graph_ui_state: HashMap<SoundNumberInputId, NumberGraphUiData>,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
     known_object_ids: HashSet<SoundObjectId>,
@@ -183,15 +187,19 @@ impl FlosionApp {
         }
 
         let (object_factory, ui_factory) = all_sound_graph_objects();
+        let (number_object_factory, number_ui_factory) = all_number_graph_objects();
         let mut app = FlosionApp {
             graph,
             ui_state: SoundGraphUiState::new(),
             object_states: SoundObjectUiStates::new(),
             object_factory,
+            number_object_factory,
             ui_factory,
+            number_ui_factory,
             summon_state: None,
             selection_area: None,
             known_object_ids: HashSet::new(),
+            number_graph_ui_state: HashMap::new(),
         };
 
         // Initialize all necessary ui state
@@ -209,9 +217,11 @@ impl FlosionApp {
     fn draw_all_objects(
         ui: &mut Ui,
         factory: &UiFactory<SoundGraphUi>,
+        number_ui_factory: &UiFactory<NumberGraphUi>,
         graph: &SoundGraph,
         ui_state: &mut SoundGraphUiState,
-        object_states: &mut SoundObjectUiStates,
+        object_states: &SoundObjectUiStates,
+        number_object_states: &HashMap<SoundNumberInputId, NumberGraphUiData>,
     ) {
         // NOTE: ObjectUiStates doesn't technically need to be borrowed mutably
         // here, but it uses interior mutability with individual object states
@@ -227,7 +237,9 @@ impl FlosionApp {
                 let is_top_level = true;
                 let ctx = SoundGraphUiContext::new(
                     factory,
+                    number_ui_factory,
                     object_states,
+                    number_object_states,
                     graph.topology(),
                     is_top_level,
                     layout.time_axis,
@@ -314,12 +326,9 @@ impl FlosionApp {
                 let path = FileDialog::new()
                     .add_filter("Flosion project files", &["flo"])
                     .pick_file();
-                let path = match path {
-                    Some(p) => p,
-                    None => {
-                        println!("No file was selected");
-                        return true;
-                    }
+                let Some(path) = path else {
+                    println!("No file was selected");
+                    return true;
                 };
                 let mut file = match File::open(&path) {
                     Ok(f) => f,
@@ -689,6 +698,9 @@ impl FlosionApp {
     }
 
     fn cleanup(&mut self) {
+        // TODO: only do this work when something has changed.
+        // consider adding a dirty flag
+
         let current_object_ids: HashSet<SoundObjectId> =
             self.graph.topology().graph_object_ids().collect();
 
@@ -708,6 +720,19 @@ impl FlosionApp {
             .cleanup(&remaining_graph_ids, self.graph.topology());
         self.object_states.cleanup(&remaining_graph_ids);
 
+        for number_input_data in self.graph.topology().number_inputs().values() {
+            let number_graph_data = self
+                .number_graph_ui_state
+                .entry(number_input_data.id())
+                .or_insert_with(|| {
+                    NumberGraphUiData::new(number_input_data.number_graph().topology())
+                });
+            number_graph_data.cleanup(number_input_data.number_graph().topology());
+        }
+
+        self.number_graph_ui_state
+            .retain(|id, _data| self.graph.topology().number_inputs().contains_key(id));
+
         self.known_object_ids = current_object_ids;
     }
 }
@@ -718,9 +743,11 @@ impl eframe::App for FlosionApp {
             Self::draw_all_objects(
                 ui,
                 &self.ui_factory,
+                &self.number_ui_factory,
                 &self.graph,
                 &mut self.ui_state,
-                &mut self.object_states,
+                &self.object_states,
+                &self.number_graph_ui_state,
             );
 
             let screen_rect = ui.input(|i| i.screen_rect());

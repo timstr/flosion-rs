@@ -12,7 +12,10 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState};
+use super::{
+    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+    soundnumberinputui::SoundNumberInputUi,
+};
 
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
@@ -57,7 +60,7 @@ impl ProcessorUi {
         ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
     ) {
-        self.show_with(ui, ctx, ui_state, |_ui, _tools| {});
+        self.show_with(ui, ctx, ui_state, |_ui, _ui_state| {});
     }
 
     pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState)>(
@@ -334,7 +337,7 @@ impl ProcessorUi {
 
         let top_of_input = ui.cursor().top();
 
-        let input_frame = if let Some(candidacy) = processor_candidacy {
+        let input_frame = if processor_candidacy.is_some() {
             egui::Frame::default()
                 .fill(egui::Color32::from_white_alpha(64))
                 .inner_margin(egui::vec2(0.0, 5.0))
@@ -486,21 +489,12 @@ impl ProcessorUi {
 
         let res = input_frame.show(ui, |ui| {
             ui.set_width(ctx.width());
-            let label_str = format!(
-                "Number Input {} - {}\n = {}",
-                input_id.value(),
-                input_label,
-                // HACK: recomputing this every redraw
-                self.stringify_number_input(ctx.topology().number_input(input_id).unwrap())
-            );
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(label_str)
-                        .color(egui::Color32::BLACK)
-                        .strong(),
-                )
-                .wrap(false),
-            );
+
+            let input_ui = SoundNumberInputUi::new(input_id);
+
+            let number_ctx = ctx.number_graph_ui_context(input_id);
+
+            input_ui.show(ui, &number_ctx);
         });
 
         ui_state
@@ -572,46 +566,5 @@ impl ProcessorUi {
                 self.draw_wires(target, ui, ctx, ui_state);
             }
         }
-    }
-
-    fn stringify_number_input(&self, input: &SoundNumberInputData) -> String {
-        let topo = input.number_graph().topology();
-
-        debug_assert!(topo.graph_outputs().len() == 1);
-
-        let output = &topo.graph_outputs()[0];
-
-        fn visit(target: Option<NumberTarget>, topo: &NumberGraphTopology) -> String {
-            let target = match target {
-                Some(t) => t,
-                None => return "?".to_string(),
-            };
-
-            match target {
-                NumberTarget::Source(nsid) => {
-                    let data = topo.number_source(nsid).unwrap();
-                    let inst = data.instance_arc();
-                    let input_strings: Vec<String> = data
-                        .number_inputs()
-                        .iter()
-                        .map(|niid| {
-                            let input_data = topo.number_input(*niid).unwrap();
-                            match input_data.target() {
-                                Some(t) => visit(Some(t), topo),
-                                None => input_data.default_value().to_string(),
-                            }
-                        })
-                        .collect();
-                    format!(
-                        "{}({})",
-                        inst.as_graph_object().get_type().name(),
-                        input_strings.join(", ")
-                    )
-                }
-                NumberTarget::GraphInput(giid) => format!("input{}", giid.value()),
-            }
-        }
-
-        visit(output.target(), topo)
     }
 }

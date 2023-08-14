@@ -126,10 +126,8 @@ fn find_number_cycle(topology: &NumberGraphTopology) -> Option<NumberPath> {
             return Some(path.trim_until_input(input_id));
         }
         let input_desc = topo.number_input(input_id).unwrap();
-        let target_id = match input_desc.target() {
-            Some(NumberTarget::Source(nsid)) => nsid,
-            Some(NumberTarget::GraphInput(_)) => return None,
-            None => return None,
+        let Some(NumberTarget::Source(target_id)) = input_desc.target() else {
+            return None;
         };
         let proc_desc = topo.number_source(target_id).unwrap();
         path.push(target_id, input_id);

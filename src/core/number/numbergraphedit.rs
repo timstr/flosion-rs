@@ -47,9 +47,8 @@ impl NumberGraphEdit {
             }
             NumberGraphEdit::RemoveNumberInput(niid) => {
                 // the input must exist
-                let data = match topology.number_input(*niid) {
-                    Some(data) => data,
-                    None => return Some(NumberError::InputNotFound(*niid)),
+                let Some(data) = topology.number_input(*niid) else {
+                    return Some(NumberError::InputNotFound(*niid));
                 };
 
                 // the input must be disconnected
@@ -70,9 +69,8 @@ impl NumberGraphEdit {
             }
             NumberGraphEdit::RemoveNumberSource(nsid) => {
                 // the source must exist
-                let data = match topology.number_source(*nsid) {
-                    Some(data) => data,
-                    None => return Some(NumberError::SourceNotFound(*nsid)),
+                let Some(data) = topology.number_source(*nsid) else {
+                    return Some(NumberError::SourceNotFound(*nsid));
                 };
 
                 // the source must have no inputs
@@ -133,9 +131,8 @@ impl NumberGraphEdit {
             }
             NumberGraphEdit::RemoveGraphOutput(ngoid) => {
                 // the output must exist
-                let data = match topology.graph_output(*ngoid) {
-                    Some(data) => data,
-                    None => return Some(NumberError::GraphOutputNotFound(*ngoid)),
+                let Some(data) = topology.graph_output(*ngoid) else {
+                    return Some(NumberError::GraphOutputNotFound(*ngoid));
                 };
 
                 // the output must not be connected
@@ -145,9 +142,8 @@ impl NumberGraphEdit {
             }
             NumberGraphEdit::ConnectNumberInput(niid, target) => {
                 // the input must exist
-                let input_data = match topology.number_input(*niid) {
-                    Some(data) => data,
-                    None => return Some(NumberError::InputNotFound(*niid)),
+                let Some(input_data) = topology.number_input(*niid) else {
+                    return Some(NumberError::InputNotFound(*niid));
                 };
 
                 // the target must exist
@@ -179,9 +175,8 @@ impl NumberGraphEdit {
             }
             NumberGraphEdit::DisconnectNumberInput(niid) => {
                 // the input must exist
-                let input_data = match topology.number_input(*niid) {
-                    Some(data) => data,
-                    None => return Some(NumberError::InputNotFound(*niid)),
+                let Some(input_data) = topology.number_input(*niid) else {
+                    return Some(NumberError::InputNotFound(*niid));
                 };
 
                 // the input must be occupied
@@ -191,9 +186,8 @@ impl NumberGraphEdit {
             }
             NumberGraphEdit::ConnectGraphOutput(ngoid, target) => {
                 // the output must exist
-                let output_data = match topology.graph_output(*ngoid) {
-                    Some(data) => data,
-                    None => return Some(NumberError::GraphOutputNotFound(*ngoid)),
+                let Some(output_data) = topology.graph_output(*ngoid) else {
+                    return Some(NumberError::GraphOutputNotFound(*ngoid));
                 };
 
                 // the target must exist
@@ -223,9 +217,8 @@ impl NumberGraphEdit {
             }
             NumberGraphEdit::DisconnectGraphOutput(ngoid) => {
                 // the output must exist
-                let output_data = match topology.graph_output(*ngoid) {
-                    Some(data) => data,
-                    None => return Some(NumberError::GraphOutputNotFound(*ngoid)),
+                let Some(output_data) = topology.graph_output(*ngoid) else {
+                    return Some(NumberError::GraphOutputNotFound(*ngoid));
                 };
 
                 // the output must be occupied

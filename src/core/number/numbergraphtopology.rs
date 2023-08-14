@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use super::{
     numbergraph::{NumberGraphInputId, NumberGraphOutputId},
-    numbergraphdata::{NumberGraphOutputData, NumberInputData, NumberSourceData, NumberTarget},
+    numbergraphdata::{
+        NumberDestination, NumberGraphOutputData, NumberInputData, NumberSourceData, NumberTarget,
+    },
     numbergraphedit::NumberGraphEdit,
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
@@ -52,6 +54,27 @@ impl NumberGraphTopology {
 
     pub(crate) fn graph_outputs(&self) -> &[NumberGraphOutputData] {
         &self.graph_outputs
+    }
+
+    pub(crate) fn number_target_destinations<'a>(
+        &'a self,
+        target: NumberTarget,
+    ) -> impl 'a + Iterator<Item = NumberDestination> {
+        let matching_number_inputs = self.number_inputs.values().filter_map(move |i| {
+            if i.target() == Some(target) {
+                Some(NumberDestination::Input(i.id()))
+            } else {
+                None
+            }
+        });
+        let matching_graph_outputs = self.graph_outputs.iter().filter_map(move |i| {
+            if i.target() == Some(target) {
+                Some(NumberDestination::GraphOutput(i.id()))
+            } else {
+                None
+            }
+        });
+        matching_number_inputs.chain(matching_graph_outputs)
     }
 
     pub(crate) fn make_edit(&mut self, edit: NumberGraphEdit) {

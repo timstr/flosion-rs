@@ -49,6 +49,12 @@ pub enum NumberTarget {
     GraphInput(NumberGraphInputId),
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
+pub enum NumberDestination {
+    Input(NumberInputId),
+    GraphOutput(NumberGraphOutputId),
+}
+
 #[derive(Clone)]
 pub(crate) struct NumberInputData {
     id: NumberInputId,

@@ -3,13 +3,16 @@ use eframe::egui;
 use crate::{
     core::{
         arguments::{ArgumentList, ArgumentValue},
-        numbersource::PureNumberSourceHandle,
+        number::numbersource::NumberSourceHandle,
         serialization::{Deserializer, Serializable, Serializer},
     },
     objects::functions::*,
     ui_core::{
-        graph_ui_state::GraphUiState,
-        object_ui::{ObjectUi, ObjectUiData, ObjectWindow, UiInitialization},
+        numbergraphui::NumberGraphUi,
+        numbergraphuicontext::NumberGraphUiContext,
+        numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
+        numbersourceui::NumberSourceUi,
+        object_ui::{ObjectUi, ObjectUiState, UiInitialization},
     },
 };
 
@@ -17,21 +20,20 @@ use crate::{
 pub struct ConstantUi {}
 
 impl ObjectUi for ConstantUi {
-    type HandleType = PureNumberSourceHandle<Constant>;
-
+    type GraphUi = NumberGraphUi;
+    type HandleType = NumberSourceHandle<Constant>;
     type StateType = ();
 
     fn ui(
         &self,
-        handle: Self::HandleType,
-        graph_state: &mut GraphUiState,
+        constant: NumberSourceHandle<Constant>,
+        ui_state: &mut NumberGraphUiState,
         ui: &mut egui::Ui,
-        data: ObjectUiData<Self::StateType>,
+        ctx: &NumberGraphUiContext,
+        _data: NumberObjectUiData<()>,
     ) {
         // TODO: add ui state for custom name
-        ObjectWindow::new_number_source(handle.id(), "Constant", data.color)
-            // .add_right_peg(&handle, "Output")
-            .show(ui.ctx(), graph_state);
+        NumberSourceUi::new(constant.id(), "Constant").show(ui, ctx, ui_state);
     }
 
     fn arguments(&self) -> ArgumentList {
@@ -76,31 +78,36 @@ impl Serializable for VariableUiState {
     }
 }
 
+impl ObjectUiState for VariableUiState {}
+
 impl ObjectUi for VariableUi {
-    type HandleType = PureNumberSourceHandle<Variable>;
+    type GraphUi = NumberGraphUi;
+    type HandleType = NumberSourceHandle<Variable>;
     type StateType = VariableUiState;
     fn ui(
         &self,
-        constant: PureNumberSourceHandle<Variable>,
-        ui_state: &mut GraphUiState,
+        variable: NumberSourceHandle<Variable>,
+        ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
-        data: ObjectUiData<VariableUiState>,
+        ctx: &NumberGraphUiContext,
+        data: NumberObjectUiData<VariableUiState>,
     ) {
-        // TODO: use data.state.name instead of always "Variable"
-        // Will need to accept something other than &'static str in ObjectWindow
-        ObjectWindow::new_number_source(constant.id(), "Variable", data.color)
-            // .add_right_peg(&constant, "Output")
-            .show_with(ui.ctx(), ui_state, |ui, _ui_state| {
-                let mut v = constant.get_value();
+        NumberSourceUi::new(variable.id(), "Variable").show_with(
+            ui,
+            ctx,
+            ui_state,
+            |ui, _ui_state| {
+                let mut v = variable.get_value();
                 let v_old = v;
                 ui.add(egui::Slider::new(
                     &mut v,
                     data.state.min_value..=data.state.max_value,
                 ));
                 if v != v_old {
-                    constant.set_value(v);
+                    variable.set_value(v);
                 }
-            });
+            },
+        );
     }
 
     fn arguments(&self) -> ArgumentList {
@@ -114,7 +121,7 @@ impl ObjectUi for VariableUi {
 
     fn make_ui_state(
         &self,
-        object: &PureNumberSourceHandle<Variable>,
+        object: &NumberSourceHandle<Variable>,
         init: UiInitialization,
     ) -> Self::StateType {
         match init {
@@ -141,19 +148,18 @@ macro_rules! unary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type HandleType = PureNumberSourceHandle<$object>;
+            type GraphUi = NumberGraphUi;
+            type HandleType = NumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureNumberSourceHandle<$object>,
-                ui_state: &mut GraphUiState,
-                ui: &mut eframe::egui::Ui,
-                data: ObjectUiData<Self::StateType>,
+                object: NumberSourceHandle<$object>,
+                ui_state: &mut NumberGraphUiState,
+                ui: &mut egui::Ui,
+                ctx: &NumberGraphUiContext,
+                _data: NumberObjectUiData<Self::StateType>,
             ) {
-                ObjectWindow::new_number_source(object.id(), $display_name, data.color)
-                    // .add_left_peg(&object.input, "Input")
-                    // .add_right_peg(&object, "Output")
-                    .show(ui.ctx(), ui_state);
+                NumberSourceUi::new(object.id(), $display_name).show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -169,20 +175,18 @@ macro_rules! binary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type HandleType = PureNumberSourceHandle<$object>;
+            type GraphUi = NumberGraphUi;
+            type HandleType = NumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureNumberSourceHandle<$object>,
-                ui_state: &mut GraphUiState,
-                ui: &mut eframe::egui::Ui,
-                data: ObjectUiData<Self::StateType>,
+                object: NumberSourceHandle<$object>,
+                ui_state: &mut NumberGraphUiState,
+                ui: &mut egui::Ui,
+                ctx: &NumberGraphUiContext,
+                _data: NumberObjectUiData<Self::StateType>,
             ) {
-                ObjectWindow::new_number_source(object.id(), $display_name, data.color)
-                    // .add_left_peg(&object.input_1, "Input 1")
-                    // .add_left_peg(&object.input_2, "Input 2")
-                    // .add_right_peg(&object, "Output")
-                    .show(ui.ctx(), ui_state);
+                NumberSourceUi::new(object.id(), $display_name).show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -198,21 +202,18 @@ macro_rules! ternary_number_source_ui {
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type HandleType = PureNumberSourceHandle<$object>;
+            type GraphUi = NumberGraphUi;
+            type HandleType = NumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureNumberSourceHandle<$object>,
-                ui_state: &mut GraphUiState,
-                ui: &mut eframe::egui::Ui,
-                data: ObjectUiData<Self::StateType>,
+                object: NumberSourceHandle<$object>,
+                ui_state: &mut NumberGraphUiState,
+                ui: &mut egui::Ui,
+                ctx: &NumberGraphUiContext,
+                _data: NumberObjectUiData<Self::StateType>,
             ) {
-                ObjectWindow::new_number_source(object.id(), $display_name, data.color)
-                    // .add_left_peg(&object.input_1, "Input 1")
-                    // .add_left_peg(&object.input_2, "Input 2")
-                    // .add_left_peg(&object.input_3, "Input 3")
-                    // .add_right_peg(&object, "Output")
-                    .show(ui.ctx(), ui_state);
+                NumberSourceUi::new(object.id(), $display_name).show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {

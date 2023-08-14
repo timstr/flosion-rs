@@ -10,7 +10,7 @@ use crate::core::sound::{
     soundprocessor::SoundProcessorId,
 };
 
-use super::soundgraphuicontext::TemporalLayout;
+use super::temporallayout::TemporalLayout;
 
 pub struct LayoutState {
     rect: egui::Rect,
@@ -127,9 +127,8 @@ impl ObjectPositions {
         }
         for siid in proc_data.sound_inputs() {
             self.sound_inputs.get_mut(siid).unwrap().translate(delta);
-            let input_target = match topo.sound_input(*siid).unwrap().target() {
-                Some(t) => t,
-                None => continue,
+            let Some(input_target) = topo.sound_input(*siid).unwrap().target() else {
+                continue;
             };
             if temporal_layout.is_top_level(input_target.into()) {
                 continue;

@@ -118,9 +118,8 @@ impl NumberGraph {
         id: NumberGraphOutputId,
     ) -> Result<(), NumberError> {
         let mut edits = Vec::new();
-        let data = match self.topology.graph_output(id) {
-            Some(data) => data,
-            None => return Err(NumberError::GraphOutputNotFound(id)),
+        let Some(data) = self.topology.graph_output(id) else{
+            return Err(NumberError::GraphOutputNotFound(id));
         };
         if data.target().is_some() {
             edits.push(NumberGraphEdit::DisconnectGraphOutput(id));
@@ -159,14 +158,12 @@ impl NumberGraph {
                 edits.push(NumberGraphEdit::DisconnectNumberInput(ni.id()));
             }
         }
-        let data = match self.topology.number_source(id) {
-            Some(data) => data,
-            None => return Err(NumberError::SourceNotFound(id)),
+        let Some(data) =  self.topology.number_source(id) else{
+            return Err(NumberError::SourceNotFound(id));
         };
         for niid in data.number_inputs() {
-            let ni = match self.topology.number_input(*niid) {
-                Some(data) => data,
-                None => return Err(NumberError::InputNotFound(*niid)),
+            let Some(ni) = self.topology.number_input(*niid) else {
+                return Err(NumberError::InputNotFound(*niid));
             };
             if ni.target().is_some() {
                 edits.push(NumberGraphEdit::DisconnectNumberInput(*niid));

@@ -13,8 +13,7 @@ use crate::core::sound::{
 };
 
 use super::{
-    hotkeys::KeyboardFocusState, object_positions::ObjectPositions,
-    soundgraphuicontext::TemporalLayout,
+    hotkeys::KeyboardFocusState, object_positions::ObjectPositions, temporallayout::TemporalLayout,
 };
 
 pub struct NestedProcessorClosure {
@@ -67,6 +66,7 @@ struct PendingProcessorDrag {
 }
 
 pub struct SoundGraphUiState {
+    // TODO: consider storing SoundObjectUiStates here directly
     object_positions: ObjectPositions,
     temporal_layout: TemporalLayout,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> ()>>,
@@ -181,9 +181,8 @@ impl SoundGraphUiState {
             let inputs = topo.sound_processor(processor_id).unwrap().sound_inputs();
             for siid in inputs {
                 closure.sound_inputs.insert(*siid);
-                let target_spid = match topo.sound_input(*siid).unwrap().target() {
-                    Some(spid) => spid,
-                    None => continue,
+                let Some(target_spid) = topo.sound_input(*siid).unwrap().target() else {
+                    continue;
                 };
 
                 if temporal_layout.is_top_level(target_spid.into()) {
@@ -313,9 +312,8 @@ impl SoundGraphUiState {
     }
 
     pub(super) fn apply_processor_drag(&mut self, ui: &egui::Ui, topo: &SoundGraphTopology) {
-        let pending_drag = match self.pending_drag.take() {
-            Some(x) => x,
-            None => return,
+        let Some(pending_drag) = self.pending_drag.take() else {
+            return;
         };
 
         let PendingProcessorDrag {

@@ -87,11 +87,8 @@ impl SoundEdit {
             }
             SoundEdit::RemoveSoundProcessor(spid) => {
                 // the processor must exist
-                let data = match topo.sound_processor(*spid) {
-                    Some(data) => data,
-                    None => {
-                        return Some(SoundError::ProcessorNotFound(*spid));
-                    }
+                let Some(data) = topo.sound_processor(*spid) else {
+                    return Some(SoundError::ProcessorNotFound(*spid));
                 };
 
                 // it may not be connected to any sound inputs
@@ -139,11 +136,8 @@ impl SoundEdit {
             }
             SoundEdit::RemoveSoundInput(siid, owner_spid) => {
                 // the sound input must exist
-                let data = match topo.sound_input(*siid) {
-                    Some(data) => data,
-                    None => {
-                        return Some(SoundError::SoundInputNotFound(*siid));
-                    }
+                let Some(data) = topo.sound_input(*siid) else {
+                    return Some(SoundError::SoundInputNotFound(*siid));
                 };
 
                 // the sound input's owner must match and exist
@@ -163,11 +157,8 @@ impl SoundEdit {
             }
             SoundEdit::AddSoundInputKey(siid, index) => {
                 // the sound input must exist
-                let data = match topo.sound_input(*siid) {
-                    Some(data) => data,
-                    None => {
-                        return Some(SoundError::SoundInputNotFound(*siid));
-                    }
+                let Some(data) = topo.sound_input(*siid) else {
+                    return Some(SoundError::SoundInputNotFound(*siid));
                 };
 
                 // the index must be at most num_keys
@@ -177,11 +168,8 @@ impl SoundEdit {
             }
             SoundEdit::RemoveSoundInputKey(siid, index) => {
                 // the sound input must exist
-                let data = match topo.sound_input(*siid) {
-                    Some(data) => data,
-                    None => {
-                        return Some(SoundError::SoundInputNotFound(*siid));
-                    }
+                let Some(data) = topo.sound_input(*siid) else {
+                    return Some(SoundError::SoundInputNotFound(*siid));
                 };
 
                 // the index must be at most num_keys-1
@@ -191,11 +179,8 @@ impl SoundEdit {
             }
             SoundEdit::ConnectSoundInput(siid, spid) => {
                 // the input must exist
-                let data = match topo.sound_input(*siid) {
-                    Some(data) => data,
-                    None => {
-                        return Some(SoundError::SoundInputNotFound(*siid));
-                    }
+                let Some(data) = topo.sound_input(*siid) else {
+                    return Some(SoundError::SoundInputNotFound(*siid));
                 };
 
                 // the processor must exist
@@ -221,11 +206,8 @@ impl SoundEdit {
             }
             SoundEdit::DisconnectSoundInput(siid) => {
                 // the sound input must exist
-                let data = match topo.sound_input(*siid) {
-                    Some(data) => data,
-                    None => {
-                        return Some(SoundError::SoundInputNotFound(*siid));
-                    }
+                let Some(data) = topo.sound_input(*siid) else {
+                    return Some(SoundError::SoundInputNotFound(*siid));
                 };
 
                 // the sound input must be occupied
@@ -280,9 +262,8 @@ impl SoundNumberEdit {
             }
             SoundNumberEdit::RemoveNumberSource(nsid, owner_id) => {
                 // the source must exist
-                let data = match topo.number_source(*nsid) {
-                    Some(data) => data,
-                    None => return Some(SoundError::NumberSourceNotFound(*nsid).into()),
+                let Some(data) = topo.number_source(*nsid) else {
+                    return Some(SoundError::NumberSourceNotFound(*nsid).into());
                 };
 
                 // the owner must match and exist
@@ -337,9 +318,8 @@ impl SoundNumberEdit {
             }
             SoundNumberEdit::RemoveNumberInput(niid, owner_id) => {
                 // the number input must exist
-                let data = match topo.number_input(*niid) {
-                    Some(data) => data,
-                    None => return Some(SoundError::NumberInputNotFound(*niid).into()),
+                let Some(data) = topo.number_input(*niid) else {
+                    return Some(SoundError::NumberInputNotFound(*niid).into());
                 };
 
                 // TODO: is owner_id really needed?
@@ -389,9 +369,8 @@ impl SoundNumberEdit {
             }
             SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
                 // the number input must exist
-                let data = match topo.number_input(*niid) {
-                    Some(data) => data,
-                    None => return Some(SoundError::NumberInputNotFound(*niid).into()),
+                let Some(data) = topo.number_input(*niid) else {
+                    return Some(SoundError::NumberInputNotFound(*niid).into());
                 };
 
                 // the number input must be occupied

@@ -4,7 +4,8 @@ use inkwell::values::FloatValue;
 
 use crate::core::{
     graph::graphobject::{
-        GraphObject, GraphObjectHandle, ObjectInitialization, ObjectType, WithObjectType,
+        GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
+        WithObjectType,
     },
     jit::codegen::CodeGen,
     serialization::Serializer,
@@ -170,6 +171,14 @@ impl<T: PureNumberSource> NumberSourceHandle<T> {
         Self { instance }
     }
 
+    pub(super) fn from_graph_object(handle: GraphObjectHandle<NumberGraph>) -> Option<Self> {
+        let arc_any = handle.into_instance_arc().into_arc_any();
+        match arc_any.downcast::<NumberSourceWithId<T>>() {
+            Ok(obj) => Some(NumberSourceHandle::new(obj)),
+            Err(_) => None,
+        }
+    }
+
     pub fn id(&self) -> NumberSourceId {
         self.instance.id()
     }
@@ -192,5 +201,13 @@ impl<T: PureNumberSource> Clone for NumberSourceHandle<T> {
         Self {
             instance: Arc::clone(&self.instance),
         }
+    }
+}
+
+impl<T: PureNumberSource> ObjectHandle<NumberGraph> for NumberSourceHandle<T> {
+    type ObjectType = NumberSourceWithId<T>;
+
+    fn from_graph_object(object: GraphObjectHandle<NumberGraph>) -> Option<Self> {
+        NumberSourceHandle::from_graph_object(object)
     }
 }

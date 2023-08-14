@@ -305,9 +305,8 @@ pub(crate) fn serialize_sound_graph(
         topo.sound_inputs()
             .values()
             .filter_map(|si| {
-                let t = match si.target() {
-                    Some(t) => t,
-                    None => return None,
+                let Some(t) = si.target() else{
+                    return None
                 };
                 let i = idmap.sound_inputs.map_id(si.id());
                 let o = idmap.sound_processors.map_id(t);
@@ -323,11 +322,8 @@ pub(crate) fn serialize_sound_graph(
         topo.number_inputs()
             .values()
             .filter_map(|si| {
-                let t = match si.target() {
-                    Some(t) => t,
-                    None => {
-                        return None;
-                    }
+                let Some(t) =  si.target() else {
+                    return None;
                 };
                 let i = idmap.number_inputs.map_id(si.id());
                 let o = idmap.number_sources.map_id(t);

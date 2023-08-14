@@ -47,12 +47,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     }
 
     fn check_processor(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
-        let proc_data = match self.topology.sound_processors().get(&node.id()) {
-            Some(p) => p,
-            None => {
-                println!("state_graph_matches_topology: a sound processor was found which shouldn't exist");
-                return false;
-            }
+        let Some(proc_data) = self.topology.sound_processors().get(&node.id()) else {
+            println!("state_graph_matches_topology: a sound processor was found which shouldn't exist");
+            return false;
         };
 
         if proc_data.instance().is_static() {

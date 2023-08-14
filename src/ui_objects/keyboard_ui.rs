@@ -82,9 +82,8 @@ impl ObjectUi for KeyboardUi {
                         if repeat || modifiers.any() {
                             continue;
                         }
-                        let i = match all_keys.iter().position(|k| *k == key) {
-                            Some(i) => i,
-                            None => continue,
+                        let Some(i) = all_keys.iter().position(|k| *k == key) else {
+                            continue;
                         };
                         if pressed {
                             let f = 256.0_f32 * (2.0_f32).powf((i as f32) / 12.0_f32);

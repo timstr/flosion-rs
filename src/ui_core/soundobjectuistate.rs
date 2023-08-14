@@ -42,7 +42,7 @@ impl ObjectUiData for AnySoundObjectUiData {
             let state_any = state_mut.as_mut_any();
             debug_assert!(
                 state_any.is::<T>(),
-                "AnyObjectUi expected to receive state type {}, but got {:?} instead",
+                "AnySoundObjectUiData expected to receive state type {}, but got {:?} instead",
                 type_name::<T>(),
                 actual_name
             );

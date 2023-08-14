@@ -1,16 +1,28 @@
 use crate::{
     core::{
         graph::{graphobject::ObjectHandle, objectfactory::ObjectFactory},
+        number::numbergraph::NumberGraph,
         sound::soundgraph::SoundGraph,
     },
     ui_core::{
-        graph_ui::GraphUi, object_ui::ObjectUi, soundgraphui::SoundGraphUi, ui_factory::UiFactory,
+        graph_ui::GraphUi, numbergraphui::NumberGraphUi, object_ui::ObjectUi,
+        soundgraphui::SoundGraphUi, ui_factory::UiFactory,
     },
 };
 
 use super::{
-    dac_ui::DacUi, ensemble_ui::EnsembleUi, mixer_ui::MixerUi, resampler_ui::ResamplerUi,
-    wavegenerator_ui::WaveGeneratorUi, whitenoise_ui::WhiteNoiseUi,
+    dac_ui::DacUi,
+    ensemble_ui::EnsembleUi,
+    functions_ui::{
+        AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
+        Exp2Ui, ExpUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi, MultiplyUi, NegateUi,
+        PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SquareWaveUi, SubtractUi,
+        TriangleWaveUi, TruncUi, VariableUi,
+    },
+    mixer_ui::MixerUi,
+    resampler_ui::ResamplerUi,
+    wavegenerator_ui::WaveGeneratorUi,
+    whitenoise_ui::WhiteNoiseUi,
 };
 
 struct RegistrationHelper<'a, G: GraphUi> {
@@ -76,54 +88,62 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     helper.register::<WaveGeneratorUi>();
     helper.register::<WhiteNoiseUi>();
 
-    // Pure number sources
-    // helper.register_number_source::<ConstantUi>();
-    // helper.register_number_source::<VariableUi>();
+    (object_factory, ui_factory)
+}
 
-    // helper.register_number_source::<NegateUi>();
-    // helper.register_number_source::<FloorUi>();
-    // helper.register_number_source::<CeilUi>();
-    // helper.register_number_source::<RoundUi>();
-    // helper.register_number_source::<TruncUi>();
-    // helper.register_number_source::<FractUi>();
-    // helper.register_number_source::<AbsUi>();
-    // helper.register_number_source::<SignumUi>();
-    // helper.register_number_source::<ExpUi>();
-    // helper.register_number_source::<Exp2Ui>();
-    // helper.register_number_source::<Exp10Ui>();
-    // helper.register_number_source::<LogUi>();
-    // helper.register_number_source::<Log2Ui>();
-    // helper.register_number_source::<Log10Ui>();
-    // // helper.register_number_source::<CbrtUi>();
-    // helper.register_number_source::<SinUi>();
-    // helper.register_number_source::<CosUi>();
-    // // helper.register_number_source::<TanUi>();
-    // // helper.register_number_source::<AsinUi>();
-    // // helper.register_number_source::<AcosUi>();
-    // // helper.register_number_source::<AtanUi>();
-    // // helper.register_number_source::<SinhUi>();
-    // // helper.register_number_source::<CoshUi>();
-    // // helper.register_number_source::<TanhUi>();
-    // // helper.register_number_source::<AsinhUi>();
-    // // helper.register_number_source::<AcoshUi>();
-    // // helper.register_number_source::<AtanhUi>();
+pub fn all_number_graph_objects() -> (ObjectFactory<NumberGraph>, UiFactory<NumberGraphUi>) {
+    let mut object_factory = ObjectFactory::new_empty();
+    let mut ui_factory = UiFactory::new_empty();
 
-    // helper.register_number_source::<SineWaveUi>();
-    // helper.register_number_source::<CosineWaveUi>();
-    // helper.register_number_source::<SquareWaveUi>();
-    // helper.register_number_source::<SawWaveUi>();
-    // helper.register_number_source::<TriangleWaveUi>();
+    let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
-    // helper.register_number_source::<AddUi>();
-    // helper.register_number_source::<SubtractUi>();
-    // helper.register_number_source::<MultiplyUi>();
-    // helper.register_number_source::<DivideUi>();
-    // // helper.register_number_source::<HypotUi>();
-    // helper.register_number_source::<CopysignUi>();
-    // helper.register_number_source::<PowUi>();
-    // // helper.register_number_source::<Atan2Ui>();
+    helper.register::<ConstantUi>();
+    helper.register::<VariableUi>();
 
-    // helper.register_number_source::<LerpUi>();
+    helper.register::<NegateUi>();
+    helper.register::<FloorUi>();
+    helper.register::<CeilUi>();
+    helper.register::<RoundUi>();
+    helper.register::<TruncUi>();
+    helper.register::<FractUi>();
+    helper.register::<AbsUi>();
+    helper.register::<SignumUi>();
+    helper.register::<ExpUi>();
+    helper.register::<Exp2Ui>();
+    helper.register::<Exp10Ui>();
+    helper.register::<LogUi>();
+    helper.register::<Log2Ui>();
+    helper.register::<Log10Ui>();
+    // helper.register::<CbrtUi>();
+    helper.register::<SinUi>();
+    helper.register::<CosUi>();
+    // helper.register::<TanUi>();
+    // helper.register::<AsinUi>();
+    // helper.register::<AcosUi>();
+    // helper.register::<AtanUi>();
+    // helper.register::<SinhUi>();
+    // helper.register::<CoshUi>();
+    // helper.register::<TanhUi>();
+    // helper.register::<AsinhUi>();
+    // helper.register::<AcoshUi>();
+    // helper.register::<AtanhUi>();
+
+    helper.register::<SineWaveUi>();
+    helper.register::<CosineWaveUi>();
+    helper.register::<SquareWaveUi>();
+    helper.register::<SawWaveUi>();
+    helper.register::<TriangleWaveUi>();
+
+    helper.register::<AddUi>();
+    helper.register::<SubtractUi>();
+    helper.register::<MultiplyUi>();
+    helper.register::<DivideUi>();
+    // helper.register::<HypotUi>();
+    helper.register::<CopysignUi>();
+    helper.register::<PowUi>();
+    // helper.register::<Atan2Ui>();
+
+    helper.register::<LerpUi>();
 
     (object_factory, ui_factory)
 }
