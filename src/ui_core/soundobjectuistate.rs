@@ -1,18 +1,16 @@
-use std::{
-    any::type_name,
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-};
+use std::{any::type_name, cell::RefCell, collections::HashMap};
 
 use eframe::{egui, epaint::ecolor};
 
 use crate::core::sound::{
-    soundgraphid::{SoundGraphId, SoundObjectId},
-    soundgraphtopology::SoundGraphTopology,
+    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
+    soundnumberinput::SoundNumberInputId,
 };
 
 use super::{
     graph_ui::ObjectUiData,
+    numbergraphui::NumberGraphUi,
+    numbergraphuistate::NumberObjectUiStates,
     object_ui::{random_object_color, ObjectUiState},
     object_ui_states::AnyObjectUiState,
     soundgraphui::SoundGraphUi,
@@ -68,12 +66,14 @@ struct ObjectData {
 
 pub struct SoundObjectUiStates {
     data: HashMap<SoundObjectId, ObjectData>,
+    number_graph_object_states: HashMap<SoundNumberInputId, NumberObjectUiStates>,
 }
 
 impl SoundObjectUiStates {
     pub(super) fn new() -> SoundObjectUiStates {
         SoundObjectUiStates {
             data: HashMap::new(),
+            number_graph_object_states: HashMap::new(),
         }
     }
 
@@ -115,9 +115,16 @@ impl SoundObjectUiStates {
         }
     }
 
-    pub(super) fn cleanup(&mut self, remaining_ids: &HashSet<SoundGraphId>) {
-        self.data
-            .retain(|i, _| remaining_ids.contains(&(*i).into()));
+    pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {
+        self.data.retain(|i, _| match i {
+            SoundObjectId::Sound(spid) => topo.sound_processors().contains_key(spid),
+        });
+        self.number_graph_object_states
+            .retain(|i, _| topo.number_inputs().contains_key(i));
+        for (niid, states) in &mut self.number_graph_object_states {
+            let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+            states.cleanup(number_topo);
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -144,6 +151,7 @@ impl SoundObjectUiStates {
                 }
             }
         }
+        // TODO: invariant check for number object states
         good
     }
 
@@ -230,6 +238,7 @@ impl SoundObjectUiStates {
         object_id: SoundObjectId,
         topo: &SoundGraphTopology,
         ui_factory: &UiFactory<SoundGraphUi>,
+        number_ui_factory: &UiFactory<NumberGraphUi>,
     ) {
         self.data.entry(object_id).or_insert_with(|| {
             let graph_object = topo.graph_object(object_id).unwrap();
@@ -243,5 +252,32 @@ impl SoundObjectUiStates {
                 color: random_object_color(),
             }
         });
+        match object_id {
+            SoundObjectId::Sound(spid) => {
+                let number_input_ids = topo.sound_processor(spid).unwrap().number_inputs();
+                for niid in number_input_ids {
+                    let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+                    self.number_graph_object_states
+                        .entry(*niid)
+                        .or_insert_with(|| {
+                            let mut states = NumberObjectUiStates::new();
+                            for ns_data in number_topo.number_sources().values() {
+                                let graph_object = ns_data.instance_arc().as_graph_object();
+                                let object_state =
+                                    number_ui_factory.create_default_state(&graph_object);
+                                states.set_object_data(ns_data.id(), object_state);
+                            }
+                            states
+                        });
+                }
+            }
+        }
+    }
+
+    pub(super) fn number_graph_object_states(
+        &self,
+        input_id: SoundNumberInputId,
+    ) -> &NumberObjectUiStates {
+        self.number_graph_object_states.get(&input_id).unwrap()
     }
 }

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::cell::RefCell;
 
 use crate::core::sound::{
     soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
@@ -7,9 +7,8 @@ use crate::core::sound::{
 
 use super::{
     graph_ui::GraphUiContext,
-    numbergraphui::{NumberGraphUi, NumberGraphUiData},
+    numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
-    numbergraphuistate::NumberObjectUiStates,
     soundgraphui::SoundGraphUi,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
     temporallayout::TimeAxis,
@@ -22,7 +21,6 @@ pub struct SoundGraphUiContext<'a> {
     number_ui_factory: &'a UiFactory<NumberGraphUi>,
     // TODO: rename object_states to sound_object_states
     object_states: &'a SoundObjectUiStates,
-    number_graph_ui_data: &'a HashMap<SoundNumberInputId, NumberGraphUiData>,
     topology: &'a SoundGraphTopology,
     is_top_level: bool,
     time_axis: TimeAxis,
@@ -36,7 +34,6 @@ impl<'a> SoundGraphUiContext<'a> {
         ui_factory: &'a UiFactory<SoundGraphUi>,
         number_ui_factory: &'a UiFactory<NumberGraphUi>,
         object_states: &'a SoundObjectUiStates,
-        number_graph_ui_data: &'a HashMap<SoundNumberInputId, NumberGraphUiData>,
         topology: &'a SoundGraphTopology,
         is_top_level: bool,
         time_axis: TimeAxis,
@@ -47,7 +44,6 @@ impl<'a> SoundGraphUiContext<'a> {
             ui_factory,
             number_ui_factory,
             object_states,
-            number_graph_ui_data,
             topology,
             is_top_level,
             time_axis,
@@ -86,7 +82,6 @@ impl<'a> SoundGraphUiContext<'a> {
             ui_factory: self.ui_factory,
             number_ui_factory: self.number_ui_factory,
             object_states: self.object_states,
-            number_graph_ui_data: self.number_graph_ui_data,
             topology: self.topology,
             is_top_level: false,
             time_axis: self.time_axis,
@@ -108,11 +103,7 @@ impl<'a> SoundGraphUiContext<'a> {
         &self,
         input_id: SoundNumberInputId,
     ) -> NumberGraphUiContext {
-        let object_states = self
-            .number_graph_ui_data
-            .get(&input_id)
-            .expect("Missing number object states for a sound number input's number graph")
-            .object_ui_states();
+        let object_states = self.object_states.number_graph_object_states(input_id);
         let topology = self
             .topology
             .number_input(input_id)

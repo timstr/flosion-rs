@@ -494,7 +494,9 @@ impl ProcessorUi {
 
             let number_ctx = ctx.number_graph_ui_context(input_id);
 
-            input_ui.show(ui, input_label, &number_ctx);
+            let number_ui_state = ui_state.number_graph_ui_state(input_id);
+
+            input_ui.show(ui, input_label, number_ui_state, &number_ctx);
         });
 
         ui_state

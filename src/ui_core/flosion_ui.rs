@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fs::File,
     io::{Read, Write},
 };
@@ -10,7 +10,7 @@ use crate::{
         number::{numbergraph::NumberGraph, numbergraphdata::NumberTarget},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphtopology::SoundGraphTopology, soundnumberinput::SoundNumberInputId,
+            soundgraphtopology::SoundGraphTopology,
         },
     },
     objects::{
@@ -28,7 +28,7 @@ use eframe::{
 use rfd::FileDialog;
 
 use super::{
-    numbergraphui::{NumberGraphUi, NumberGraphUiData},
+    numbergraphui::NumberGraphUi,
     object_ui::random_object_color,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
@@ -51,7 +51,6 @@ pub struct FlosionApp {
     number_ui_factory: UiFactory<NumberGraphUi>,
     ui_state: SoundGraphUiState,
     object_states: SoundObjectUiStates,
-    number_graph_ui_state: HashMap<SoundNumberInputId, NumberGraphUiData>,
     summon_state: Option<SummonWidgetState>,
     selection_area: Option<SelectionState>,
     known_object_ids: HashSet<SoundObjectId>,
@@ -199,7 +198,6 @@ impl FlosionApp {
             summon_state: None,
             selection_area: None,
             known_object_ids: HashSet::new(),
-            number_graph_ui_state: HashMap::new(),
         };
 
         // Initialize all necessary ui state
@@ -221,7 +219,6 @@ impl FlosionApp {
         graph: &SoundGraph,
         ui_state: &mut SoundGraphUiState,
         object_states: &SoundObjectUiStates,
-        number_object_states: &HashMap<SoundNumberInputId, NumberGraphUiData>,
     ) {
         // NOTE: ObjectUiStates doesn't technically need to be borrowed mutably
         // here, but it uses interior mutability with individual object states
@@ -239,7 +236,6 @@ impl FlosionApp {
                     factory,
                     number_ui_factory,
                     object_states,
-                    number_object_states,
                     graph.topology(),
                     is_top_level,
                     layout.time_axis,
@@ -699,18 +695,20 @@ impl FlosionApp {
 
     fn cleanup(&mut self) {
         // TODO: only do this work when something has changed.
-        // consider adding a dirty flag
+        // consider adding a dirty flag or revision number
 
         let current_object_ids: HashSet<SoundObjectId> =
             self.graph.topology().graph_object_ids().collect();
 
         for object_id in &current_object_ids {
             if !self.known_object_ids.contains(object_id) {
-                self.ui_state.create_state_for(*object_id);
+                self.ui_state
+                    .create_state_for(*object_id, self.graph.topology());
                 self.object_states.create_state_for(
                     *object_id,
                     self.graph.topology(),
                     &self.ui_factory,
+                    &self.number_ui_factory,
                 );
             }
         }
@@ -718,20 +716,7 @@ impl FlosionApp {
         let remaining_graph_ids = self.graph.topology().all_ids();
         self.ui_state
             .cleanup(&remaining_graph_ids, self.graph.topology());
-        self.object_states.cleanup(&remaining_graph_ids);
-
-        for number_input_data in self.graph.topology().number_inputs().values() {
-            let number_graph_data = self
-                .number_graph_ui_state
-                .entry(number_input_data.id())
-                .or_insert_with(|| {
-                    NumberGraphUiData::new(number_input_data.number_graph().topology())
-                });
-            number_graph_data.cleanup(number_input_data.number_graph().topology());
-        }
-
-        self.number_graph_ui_state
-            .retain(|id, _data| self.graph.topology().number_inputs().contains_key(id));
+        self.object_states.cleanup(self.graph.topology());
 
         self.known_object_ids = current_object_ids;
     }
@@ -747,7 +732,6 @@ impl eframe::App for FlosionApp {
                 &self.graph,
                 &mut self.ui_state,
                 &self.object_states,
-                &self.number_graph_ui_state,
             );
 
             let screen_rect = ui.input(|i| i.screen_rect());

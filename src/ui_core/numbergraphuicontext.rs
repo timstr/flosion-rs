@@ -28,6 +28,14 @@ impl<'a> NumberGraphUiContext<'a> {
         }
     }
 
+    pub(super) fn ui_factory(&self) -> &UiFactory<NumberGraphUi> {
+        self.ui_factory
+    }
+
+    pub(super) fn object_ui_states(&self) -> &NumberObjectUiStates {
+        self.object_states
+    }
+
     pub(super) fn topology(&self) -> &NumberGraphTopology {
         self.topology
     }

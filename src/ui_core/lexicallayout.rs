@@ -1,3 +1,5 @@
+use std::borrow::BorrowMut;
+
 use eframe::egui;
 
 use crate::core::{
@@ -8,7 +10,7 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::numbergraphuicontext::NumberGraphUiContext;
+use super::{numbergraphuicontext::NumberGraphUiContext, numbergraphuistate::NumberGraphUiState};
 
 enum ASTNode {
     Empty,
@@ -128,13 +130,19 @@ impl LexicalLayout {
         }
     }
 
-    pub(super) fn show(&self, ui: &mut egui::Ui, result_label: &str, ctx: &NumberGraphUiContext) {
+    pub(super) fn show(
+        &self,
+        ui: &mut egui::Ui,
+        result_label: &str,
+        graph_state: &mut NumberGraphUiState,
+        ctx: &NumberGraphUiContext,
+    ) {
         ui.vertical(|ui| {
             for var_assn in &self.variable_definitions {
                 ui.horizontal(|ui| {
                     // TODO: make this and other text pretty
                     ui.label(format!("{} = ", var_assn.name));
-                    self.show_internal_node(ui, &var_assn.value, ctx);
+                    self.show_internal_node(ui, &var_assn.value, graph_state, ctx);
                     ui.label(",");
                 });
             }
@@ -143,19 +151,25 @@ impl LexicalLayout {
             }
             ui.horizontal(|ui| {
                 ui.label(format!("{} = ", result_label));
-                self.show_ast_node(ui, &self.final_expression, ctx);
+                self.show_ast_node(ui, &self.final_expression, graph_state, ctx);
                 ui.label(".");
             });
         });
     }
 
-    fn show_ast_node(&self, ui: &mut egui::Ui, node: &ASTNode, ctx: &NumberGraphUiContext) {
+    fn show_ast_node(
+        &self,
+        ui: &mut egui::Ui,
+        node: &ASTNode,
+        graph_state: &mut NumberGraphUiState,
+        ctx: &NumberGraphUiContext,
+    ) {
         match node {
             ASTNode::Empty => {
                 ui.label("???");
             }
             ASTNode::Full(n) => {
-                self.show_internal_node(ui, &*n, ctx);
+                self.show_internal_node(ui, &*n, graph_state, ctx);
             }
         };
     }
@@ -164,6 +178,7 @@ impl LexicalLayout {
         &self,
         ui: &mut egui::Ui,
         node: &InternalASTNode,
+        graph_state: &mut NumberGraphUiState,
         ctx: &NumberGraphUiContext,
     ) {
         let styled_text = |ui: &mut egui::Ui, s: String| {
@@ -173,28 +188,31 @@ impl LexicalLayout {
 
         match node {
             InternalASTNode::Prefix(nsid, expr) => {
-                styled_text(ui, self.number_source_token(*nsid, ctx));
-                self.show_ast_node(ui, expr, ctx);
+                self.show_number_source_ui(ui, *nsid, graph_state, ctx);
+                self.show_ast_node(ui, expr, graph_state, ctx);
             }
             InternalASTNode::Infix(expr1, nsid, expr2) => {
-                self.show_ast_node(ui, expr1, ctx);
-                styled_text(ui, self.number_source_token(*nsid, ctx));
-                self.show_ast_node(ui, expr2, ctx);
+                self.show_ast_node(ui, expr1, graph_state, ctx);
+                self.show_number_source_ui(ui, *nsid, graph_state, ctx);
+                self.show_ast_node(ui, expr2, graph_state, ctx);
             }
             InternalASTNode::Postfix(expr, nsid) => {
-                self.show_ast_node(ui, expr, ctx);
-                styled_text(ui, self.number_source_token(*nsid, ctx));
+                self.show_ast_node(ui, expr, graph_state, ctx);
+                self.show_number_source_ui(ui, *nsid, graph_state, ctx);
             }
             InternalASTNode::Function(nsid, exprs) => {
-                styled_text(ui, format!("{}(", self.number_source_token(*nsid, ctx)));
-                if let Some((last_expr, other_exprs)) = exprs.split_last() {
-                    for expr in other_exprs {
-                        self.show_ast_node(ui, expr, ctx);
-                        styled_text(ui, ",".to_string());
+                self.show_number_source_ui(ui, *nsid, graph_state, ctx);
+                if !exprs.is_empty() {
+                    styled_text(ui, "(".to_string());
+                    if let Some((last_expr, other_exprs)) = exprs.split_last() {
+                        for expr in other_exprs {
+                            self.show_ast_node(ui, expr, graph_state, ctx);
+                            styled_text(ui, ",".to_string());
+                        }
+                        self.show_ast_node(ui, last_expr, graph_state, ctx);
                     }
-                    self.show_ast_node(ui, last_expr, ctx);
+                    styled_text(ui, ")".to_string());
                 }
-                styled_text(ui, ")".to_string());
             }
             InternalASTNode::Variable(name) => {
                 styled_text(ui, name.clone());
@@ -205,15 +223,29 @@ impl LexicalLayout {
         };
     }
 
-    fn number_source_token(&self, id: NumberSourceId, ctx: &NumberGraphUiContext) -> String {
-        ctx.topology()
+    fn show_number_source_ui(
+        &self,
+        ui: &mut egui::Ui,
+        id: NumberSourceId,
+        graph_state: &mut NumberGraphUiState,
+        ctx: &NumberGraphUiContext,
+    ) {
+        let graph_object = ctx
+            .topology()
             .number_source(id)
             .unwrap()
             .instance_arc()
-            .as_graph_object()
-            .get_type()
-            .name()
-            .to_string()
+            .as_graph_object();
+        let type_str = graph_object.get_type().name();
+        let object_ui = ctx.ui_factory().get_object_ui(type_str);
+        let object_state = ctx.object_ui_states().get_object_data(id);
+        object_ui.apply(
+            &graph_object,
+            &mut object_state.borrow_mut(),
+            graph_state,
+            ui,
+            ctx,
+        );
     }
 
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {

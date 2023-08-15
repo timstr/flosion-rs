@@ -2,18 +2,23 @@ use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
-use crate::core::sound::{
-    soundedit::SoundEdit,
-    soundgraph::SoundGraph,
-    soundgraphid::{SoundGraphId, SoundObjectId},
-    soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::find_error,
-    soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
+use crate::core::{
+    sound::{
+        soundedit::SoundEdit,
+        soundgraph::SoundGraph,
+        soundgraphid::{SoundGraphId, SoundObjectId},
+        soundgraphtopology::SoundGraphTopology,
+        soundgraphvalidation::find_error,
+        soundinput::SoundInputId,
+        soundnumberinput::SoundNumberInputId,
+        soundprocessor::SoundProcessorId,
+    },
+    uniqueid::UniqueId,
 };
 
 use super::{
-    hotkeys::KeyboardFocusState, object_positions::ObjectPositions, temporallayout::TemporalLayout,
+    hotkeys::KeyboardFocusState, numbergraphuistate::NumberGraphUiState,
+    object_positions::ObjectPositions, temporallayout::TemporalLayout,
 };
 
 pub struct NestedProcessorClosure {
@@ -66,12 +71,12 @@ struct PendingProcessorDrag {
 }
 
 pub struct SoundGraphUiState {
-    // TODO: consider storing SoundObjectUiStates here directly
     object_positions: ObjectPositions,
     temporal_layout: TemporalLayout,
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> ()>>,
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
+    number_graph_ui_states: HashMap<SoundNumberInputId, NumberGraphUiState>,
 }
 
 impl SoundGraphUiState {
@@ -82,6 +87,7 @@ impl SoundGraphUiState {
             pending_changes: Vec::new(),
             mode: UiMode::Passive,
             pending_drag: None,
+            number_graph_ui_states: HashMap::new(),
         }
     }
 
@@ -432,6 +438,7 @@ impl SoundGraphUiState {
 
     pub(super) fn cleanup(
         &mut self,
+        // TODO: remove this hashset completely here and elsewhere, refer to topology only
         remaining_ids: &HashSet<SoundGraphId>,
         topo: &SoundGraphTopology,
     ) {
@@ -465,6 +472,14 @@ impl SoundGraphUiState {
 
         // TODO: do this conservatively, e.g. when the topology changes
         self.temporal_layout.regenerate(topo);
+
+        self.number_graph_ui_states
+            .retain(|id, _| topo.number_inputs().contains_key(id));
+
+        for (niid, number_ui_state) in &mut self.number_graph_ui_states {
+            let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+            number_ui_state.cleanup(number_topo);
+        }
     }
 
     pub(super) fn selection(&self) -> HashSet<SoundObjectId> {
@@ -559,7 +574,26 @@ impl SoundGraphUiState {
         }
     }
 
-    pub(super) fn create_state_for(&mut self, object_id: SoundObjectId) {
+    pub(super) fn create_state_for(&mut self, object_id: SoundObjectId, topo: &SoundGraphTopology) {
         self.object_positions.create_state_for(object_id);
+
+        match object_id {
+            SoundObjectId::Sound(spid) => {
+                let number_input_ids = topo.sound_processor(spid).unwrap().number_inputs();
+                for niid in number_input_ids {
+                    let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+                    self.number_graph_ui_states
+                        .entry(*niid)
+                        .or_insert_with(|| NumberGraphUiState::new(number_topo));
+                }
+            }
+        }
+    }
+
+    pub(super) fn number_graph_ui_state(
+        &mut self,
+        input_id: SoundNumberInputId,
+    ) -> &mut NumberGraphUiState {
+        self.number_graph_ui_states.get_mut(&input_id).unwrap()
     }
 }
