@@ -290,9 +290,9 @@ impl ProcessorUi {
             ui.cursor().top()..=f32::INFINITY,
         );
 
-        ui.allocate_ui_at_rect(body_rect, |ui| {
+        let r = ui.allocate_ui_at_rect(body_rect, |ui| {
             ui.set_width(desired_width);
-            inner_frame.show(ui, f);
+            inner_frame.show(ui, f).response
         });
 
         let bottom_of_body = ui.cursor().top();
@@ -300,7 +300,12 @@ impl ProcessorUi {
         let body_rect = body_rect.intersect(egui::Rect::everything_above(bottom_of_body));
 
         // check for click/drag interactions with the background of the processor body
-        let response = ui.interact(body_rect, id, egui::Sense::click_and_drag());
+        // let response = ui.interact(body_rect, id, egui::Sense::click_and_drag());
+        // let response = ui.interact(body_rect, id, egui::Sense::focusable_noninteractive());
+        let response = r
+            .response
+            .with_new_rect(body_rect)
+            .interact(egui::Sense::click_and_drag());
 
         response
     }
