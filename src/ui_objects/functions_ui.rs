@@ -33,7 +33,7 @@ impl ObjectUi for ConstantUi {
         _data: NumberObjectUiData<()>,
     ) {
         // TODO: add ui state for custom name
-        NumberSourceUi::new(constant.id(), "Constant").show(ui, ctx, ui_state);
+        NumberSourceUi::new_unnamed(constant.id()).show(ui, ctx, ui_state);
     }
 
     fn arguments(&self) -> ArgumentList {
@@ -92,22 +92,17 @@ impl ObjectUi for VariableUi {
         ctx: &NumberGraphUiContext,
         data: NumberObjectUiData<VariableUiState>,
     ) {
-        NumberSourceUi::new(variable.id(), "Variable").show_with(
-            ui,
-            ctx,
-            ui_state,
-            |ui, _ui_state| {
-                let mut v = variable.get_value();
-                let v_old = v;
-                ui.add(egui::Slider::new(
-                    &mut v,
-                    data.state.min_value..=data.state.max_value,
-                ));
-                if v != v_old {
-                    variable.set_value(v);
-                }
-            },
-        );
+        NumberSourceUi::new_unnamed(variable.id()).show_with(ui, ctx, ui_state, |ui, _ui_state| {
+            let mut v = variable.get_value();
+            let v_old = v;
+            ui.add(egui::Slider::new(
+                &mut v,
+                data.state.min_value..=data.state.max_value,
+            ));
+            if v != v_old {
+                variable.set_value(v);
+            }
+        });
     }
 
     fn arguments(&self) -> ArgumentList {
@@ -159,7 +154,7 @@ macro_rules! unary_number_source_ui {
                 ctx: &NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new(object.id(), $display_name).show(ui, ctx, ui_state);
+                NumberSourceUi::new_named(object.id(), $display_name).show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -186,7 +181,7 @@ macro_rules! binary_number_source_ui {
                 ctx: &NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new(object.id(), $display_name).show(ui, ctx, ui_state);
+                NumberSourceUi::new_named(object.id(), $display_name).show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -213,7 +208,7 @@ macro_rules! ternary_number_source_ui {
                 ctx: &NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new(object.id(), $display_name).show(ui, ctx, ui_state);
+                NumberSourceUi::new_named(object.id(), $display_name).show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {

@@ -6,12 +6,22 @@ use super::{numbergraphuicontext::NumberGraphUiContext, numbergraphuistate::Numb
 
 pub struct NumberSourceUi {
     source_id: NumberSourceId,
-    label: &'static str,
+    label: Option<&'static str>,
 }
 
 impl NumberSourceUi {
-    pub fn new(source_id: NumberSourceId, label: &'static str) -> NumberSourceUi {
-        NumberSourceUi { source_id, label }
+    pub fn new_named(source_id: NumberSourceId, label: &'static str) -> NumberSourceUi {
+        NumberSourceUi {
+            source_id,
+            label: Some(label),
+        }
+    }
+
+    pub fn new_unnamed(source_id: NumberSourceId) -> NumberSourceUi {
+        NumberSourceUi {
+            source_id,
+            label: None,
+        }
     }
 
     pub fn show(
@@ -35,14 +45,16 @@ impl NumberSourceUi {
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(64)))
             .rounding(5.0);
         frame.show(ui, |ui| {
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(self.label)
-                        .color(egui::Color32::BLACK)
-                        .strong(),
-                )
-                .wrap(false),
-            );
+            if let Some(label) = self.label {
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(label)
+                            .color(egui::Color32::BLACK)
+                            .strong(),
+                    )
+                    .wrap(false),
+                );
+            }
             add_contents(ui, ui_state);
         });
     }

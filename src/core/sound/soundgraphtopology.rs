@@ -19,6 +19,12 @@ use super::{
     soundprocessor::SoundProcessorId,
 };
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum SoundConnectionPart {
+    Processor(SoundProcessorId),
+    Input(SoundInputId),
+}
+
 #[derive(Clone)]
 pub(crate) struct SoundGraphTopology {
     sound_processors: HashMap<SoundProcessorId, SoundProcessorData>,
@@ -79,6 +85,34 @@ impl SoundGraphTopology {
             } else {
                 None
             }
+        })
+    }
+
+    pub(crate) fn number_connection_crossings<'a>(
+        &'a self,
+        id: SoundInputId,
+    ) -> impl 'a + Iterator<Item = (SoundNumberInputId, SoundNumberSourceId)> {
+        self.number_inputs.values().flat_map(move |ni_data| {
+            let id = id;
+            ni_data.targets().iter().filter_map(move |target_ns| {
+                let target_ns_owner = self.number_source(*target_ns).unwrap().owner();
+                let target_part = match target_ns_owner {
+                    SoundNumberSourceOwner::SoundProcessor(spid) => {
+                        SoundConnectionPart::Processor(spid)
+                    }
+                    SoundNumberSourceOwner::SoundInput(siid) => SoundConnectionPart::Input(siid),
+                };
+                if self.depends_on(target_part, SoundConnectionPart::Input(id))
+                    && self.depends_on(
+                        SoundConnectionPart::Input(id),
+                        SoundConnectionPart::Processor(ni_data.owner()),
+                    )
+                {
+                    Some((ni_data.id(), *target_ns))
+                } else {
+                    None
+                }
+            })
         })
     }
 
@@ -333,5 +367,28 @@ impl SoundGraphTopology {
     ) {
         let input_data = self.number_inputs.get_mut(&niid).unwrap();
         input_data.edit_number_graph(f);
+    }
+
+    fn depends_on(&self, part: SoundConnectionPart, other_part: SoundConnectionPart) -> bool {
+        if part == other_part {
+            return true;
+        }
+        match part {
+            SoundConnectionPart::Processor(spid) => {
+                for siid in self.sound_processor(spid).unwrap().sound_inputs() {
+                    if self.depends_on(SoundConnectionPart::Input(*siid), other_part) {
+                        return true;
+                    }
+                }
+                false
+            }
+            SoundConnectionPart::Input(siid) => {
+                if let Some(target) = self.sound_input(siid).unwrap().target() {
+                    self.depends_on(SoundConnectionPart::Processor(target), other_part)
+                } else {
+                    false
+                }
+            }
+        }
     }
 }

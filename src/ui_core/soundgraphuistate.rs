@@ -4,7 +4,7 @@ use eframe::egui;
 
 use crate::core::{
     sound::{
-        soundedit::SoundEdit,
+        soundedit::{SoundEdit, SoundNumberEdit},
         soundgraph::SoundGraph,
         soundgraphid::{SoundGraphId, SoundObjectId},
         soundgraphtopology::SoundGraphTopology,
@@ -214,16 +214,15 @@ impl SoundGraphUiState {
         original_topo: &SoundGraphTopology,
         excluded_closure: &NestedProcessorClosure,
     ) -> HashMap<SoundInputId, CandidateSoundInput> {
-        // disconnect the processor from any sound inputs
-        // TODO: make this optional when the user wants to add a new connection
-        // without breaking existing ones
         let mut topo_disconnected = original_topo.clone();
         for si_data in original_topo.sound_inputs().values() {
             if si_data.target() != Some(processor_id) {
                 continue;
             }
-            // TODO: disconnect any crossing number connections, make sure these
-            // are the same steps as in flosion_ui when dropping the processor
+            for (niid, nsid) in original_topo.number_connection_crossings(si_data.id()) {
+                topo_disconnected
+                    .make_sound_number_edit(SoundNumberEdit::DisconnectNumberInput(niid, nsid));
+            }
             topo_disconnected.make_sound_edit(SoundEdit::DisconnectSoundInput(si_data.id()));
         }
 

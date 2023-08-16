@@ -10,7 +10,7 @@ use crate::{
         number::{numbergraph::NumberGraph, numbergraphdata::NumberTarget},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphtopology::SoundGraphTopology,
+            soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
         },
     },
     objects::{
@@ -456,6 +456,16 @@ impl FlosionApp {
     fn handle_dropped_processor(&mut self, ui: &egui::Ui, data: DroppingProcessorData) {
         let shift_is_down = ui.input(|i| i.modifiers.shift);
 
+        fn break_number_connections(graph: &mut SoundGraph, sound_input: SoundInputId) {
+            let crossings: Vec<_> = graph
+                .topology()
+                .number_connection_crossings(sound_input)
+                .collect();
+            for (niid, nsid) in crossings {
+                graph.disconnect_number_input(niid, nsid).unwrap();
+            }
+        }
+
         if let Some(siid) = data.target_input {
             // dropped onto a sound input
 
@@ -466,6 +476,7 @@ impl FlosionApp {
                 }
 
                 if !shift_is_down {
+                    break_number_connections(&mut self.graph, previous_siid);
                     self.graph.disconnect_sound_input(previous_siid).unwrap();
                 }
             } else if !shift_is_down {
@@ -492,6 +503,7 @@ impl FlosionApp {
             // not dropped suitably close to an input
             if let Some(previous_siid) = data.from_input {
                 if !shift_is_down {
+                    break_number_connections(&mut self.graph, previous_siid);
                     self.graph.disconnect_sound_input(previous_siid).unwrap();
                 }
             }
