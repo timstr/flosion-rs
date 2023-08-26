@@ -1,11 +1,11 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use parking_lot::RwLock;
+use serialization::{Serializable, Serializer};
 
 use crate::core::{
     engine::nodegen::NodeGen,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    serialization::{Serializable, Serializer},
     sound::{
         context::Context,
         soundinput::InputOptions,

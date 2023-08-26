@@ -1,8 +1,9 @@
+use serialization::Serializer;
+
 use crate::core::{
     engine::nodegen::NodeGen,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     numeric,
-    serialization::Serializer,
     sound::{
         context::Context,
         soundinput::{InputOptions, SoundInputId},

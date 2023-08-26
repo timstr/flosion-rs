@@ -9,7 +9,6 @@ pub mod jit;
 pub mod numeric;
 pub mod resample;
 pub mod samplefrequency;
-pub mod serialization;
 pub mod soundbuffer;
 pub mod soundchunk;
 pub(crate) mod uniqueid;

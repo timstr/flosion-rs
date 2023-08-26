@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::core::{arguments::ParsedArguments, serialization::Deserializer};
+use serialization::Deserializer;
+
+use crate::core::arguments::ParsedArguments;
 
 use super::{
     graph::Graph,

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use eframe::egui;
+use serialization::Deserializer;
 
 use crate::core::{
     arguments::ParsedArguments,
     graph::graphobject::{GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization},
-    serialization::Deserializer,
 };
 
 use super::{

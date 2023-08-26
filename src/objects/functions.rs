@@ -5,10 +5,10 @@ use crate::core::{
         numberinput::NumberInputHandle, numbersource::PureNumberSource,
         numbersourcetools::NumberSourceTools,
     },
-    serialization::Serializer,
 };
 use atomic_float::AtomicF32;
 use inkwell::{values::FloatValue, FloatPredicate};
+use serialization::Serializer;
 use std::sync::{atomic::Ordering, Arc};
 
 pub struct Constant {

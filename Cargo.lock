@@ -1058,6 +1058,7 @@ dependencies = [
  "rand",
  "rfd",
  "send_wrapper",
+ "serialization",
  "spin_sleep",
  "thread-priority",
 ]
@@ -2415,6 +2416,11 @@ dependencies = [
  "quote",
  "syn 2.0.5",
 ]
+
+[[package]]
+name = "serialization"
+version = "0.1.0"
+source = "git+https://github.com/timstr/serialization?branch=main#c9d200b94947cdc88ed7976d8e70f679938db6ef"
 
 [[package]]
 name = "sha1"

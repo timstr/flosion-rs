@@ -1,6 +1,6 @@
 use std::any::{type_name, Any};
 
-use crate::core::serialization::{Serializable, Serializer};
+use serialization::{Serializable, Serializer};
 
 pub trait AnyObjectUiState: 'static {
     fn as_any(&self) -> &dyn Any;

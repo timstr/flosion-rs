@@ -1,10 +1,11 @@
 use eframe::egui;
 
+use serialization::{Deserializer, Serializable, Serializer};
+
 use crate::{
     core::{
         arguments::{ArgumentList, ArgumentValue},
         number::numbersource::NumberSourceHandle,
-        serialization::{Deserializer, Serializable, Serializer},
     },
     objects::functions::*,
     ui_core::{

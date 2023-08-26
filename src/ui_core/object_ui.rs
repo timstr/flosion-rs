@@ -5,11 +5,11 @@ use eframe::{
     epaint::ecolor::{self},
 };
 use rand::{thread_rng, Rng};
+use serialization::Serializable;
 
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
     graph::graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
-    serialization::Serializable,
 };
 
 use super::{

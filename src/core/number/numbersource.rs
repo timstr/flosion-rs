@@ -1,6 +1,7 @@
 use std::{any::type_name, ops::Deref, sync::Arc};
 
 use inkwell::values::FloatValue;
+use serialization::Serializer;
 
 use crate::core::{
     graph::graphobject::{
@@ -8,7 +9,6 @@ use crate::core::{
         WithObjectType,
     },
     jit::codegen::CodeGen,
-    serialization::Serializer,
     uniqueid::UniqueId,
 };
 

@@ -1,9 +1,8 @@
 use std::{any::Any, sync::Arc};
 
-use crate::core::{
-    arguments::ParsedArguments,
-    serialization::{Deserializer, Serializer},
-};
+use serialization::{Deserializer, Serializer};
+
+use crate::core::arguments::ParsedArguments;
 
 use super::graph::Graph;
 

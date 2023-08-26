@@ -22,5 +22,6 @@ parking_lot = "0.11.2"
 rand = "0.8.3"
 rfd = "0.10.0"
 send_wrapper = "0.6.0"
+serialization = { git = "https://github.com/timstr/serialization", branch = "main" }
 spin_sleep = "1.0.0"
 thread-priority = "0.4.1"

@@ -4,6 +4,8 @@ use std::{
     sync::Arc,
 };
 
+use serialization::Serializer;
+
 use crate::core::{
     engine::{
         nodegen::NodeGen,
@@ -13,7 +15,6 @@ use crate::core::{
         GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
         WithObjectType,
     },
-    serialization::Serializer,
     soundchunk::SoundChunk,
     uniqueid::UniqueId,
 };

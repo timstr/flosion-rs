@@ -1,11 +1,11 @@
 use std::{ops::Deref, sync::Arc};
 
 use parking_lot::RwLock;
+use serialization::Serializer;
 
 use crate::core::{
     engine::nodegen::NodeGen,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    serialization::Serializer,
     sound::{
         context::Context,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},

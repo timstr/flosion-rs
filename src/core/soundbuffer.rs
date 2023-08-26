@@ -1,6 +1,7 @@
+use serialization::{Deserializer, Serializable, Serializer};
+
 use super::{
     numeric,
-    serialization::{Deserializer, Serializable, Serializer},
     soundchunk::{SoundChunk, CHUNK_SIZE},
 };
 
