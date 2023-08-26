@@ -1,9 +1,6 @@
 use serialization::{Deserializer, Serializable, Serializer};
 
-use super::{
-    numeric,
-    soundchunk::{SoundChunk, CHUNK_SIZE},
-};
+use super::soundchunk::{SoundChunk, CHUNK_SIZE};
 
 pub struct SoundBuffer {
     chunks: Vec<SoundChunk>,

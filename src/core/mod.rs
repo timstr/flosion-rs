@@ -6,7 +6,6 @@ pub mod sound;
 pub(crate) mod engine;
 pub(crate) mod graph;
 pub mod jit;
-pub mod numeric;
 pub mod resample;
 pub mod samplefrequency;
 pub mod soundbuffer;

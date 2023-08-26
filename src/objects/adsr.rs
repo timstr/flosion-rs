@@ -1,7 +1,6 @@
 use crate::core::{
     engine::nodegen::NodeGen,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::Context,
@@ -95,14 +94,24 @@ fn chunked_interp(
         prev_level + (samples_so_far as f32 / samples as f32) * (next_level - prev_level);
     if samples_remaining <= out_level.len() {
         let last_value = next_level;
-        numeric::linspace(&mut out_level[..samples_remaining], first_value, last_value);
+        numeric::linspace(
+            &mut out_level[..samples_remaining],
+            first_value,
+            last_value,
+            numeric::EndPoint::Excluded,
+        );
         samples_remaining
     } else {
         let samples_until_chunk_boundary = out_level.len();
         let last_value = prev_level
             + ((samples_so_far + samples_until_chunk_boundary) as f32 / samples as f32)
                 * (next_level - prev_level);
-        numeric::linspace(&mut out_level[..], first_value, last_value);
+        numeric::linspace(
+            &mut out_level[..],
+            first_value,
+            last_value,
+            numeric::EndPoint::Excluded,
+        );
         samples_until_chunk_boundary
     }
 }

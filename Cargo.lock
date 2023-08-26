@@ -1054,6 +1054,7 @@ dependencies = [
  "eframe",
  "futures",
  "inkwell",
+ "numeric",
  "parking_lot 0.11.2",
  "rand",
  "rfd",
@@ -1931,6 +1932,11 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "numeric"
+version = "0.1.0"
+source = "git+https://github.com/timstr/numeric?branch=main#9b4ca4f07c86713b09e7413015e6dd56c49526d8"
 
 [[package]]
 name = "objc"

@@ -1,7 +1,6 @@
 use crate::core::{
     anydata::AnyData,
     engine::scratcharena::{BorrowedSlice, ScratchArena},
-    numeric,
     samplefrequency::SAMPLE_FREQUENCY,
     soundchunk::CHUNK_SIZE,
 };
@@ -246,7 +245,7 @@ impl<'a> Context<'a> {
         let t0 = samples_at_start as f32 * seconds_per_sample;
         let t1 = (samples_at_start + dst.len()) as f32 * seconds_per_sample;
         // TODO: check whether dst is temporal or not
-        numeric::linspace(dst, t0, t1);
+        numeric::linspace(dst, t0, t1, numeric::EndPoint::Excluded);
     }
 
     pub(crate) fn current_time_at_sound_processor(
