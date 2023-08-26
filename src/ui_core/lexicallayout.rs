@@ -13,16 +13,6 @@ use super::{
     soundnumberinputui::SpatialGraphInputReference,
 };
 
-// TODO: this cursor thing is a mess because too many things are trying to describe the same thing.
-// If there was simply a single unambiguous integer representation for these paths (which n.b. are
-// purely internal to this file!) then this would be WAY simpler.
-// Cursors and paths are only intended for editing and maneouvering through the AST, so they should
-// be implemented cleanly for that purpose.
-// Note also that including "just before" and "just after" doubles or triples the number of visitable
-// locations (e.g. the number of keypresses needed to skip through an expression) but the control it
-// offers could just as easily be obtained during actual edit actions, e.g. do XYZ to overwrite,
-// do shift+XYZ to insert after, do alt+XYZ to insert after. Or use arrow keys?
-
 #[derive(Clone)]
 pub(super) struct ASTPath {
     steps: Vec<usize>,
