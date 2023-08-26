@@ -16,7 +16,7 @@ use crate::{
     objects::{
         dac::Dac,
         ensemble::Ensemble,
-        functions::{SawWave, Variable},
+        functions::{Add, Multiply, SawWave, Variable},
         wavegenerator::WaveGenerator,
     },
     ui_objects::all_objects::{all_number_graph_objects, all_sound_graph_objects},
@@ -100,10 +100,61 @@ impl FlosionApp {
                             NumberTarget::Source(saw.id()),
                         )
                         .unwrap();
-                    // brutal
+                    let variable = numbergraph
+                        .add_number_source::<Variable>(ObjectInitialization::Default)
+                        .unwrap();
+                    variable.set_value(1.0);
+
+                    let add1 = numbergraph
+                        .add_number_source::<Add>(ObjectInitialization::Default)
+                        .unwrap();
+
+                    let add2 = numbergraph
+                        .add_number_source::<Add>(ObjectInitialization::Default)
+                        .unwrap();
+
+                    let multiply = numbergraph
+                        .add_number_source::<Multiply>(ObjectInitialization::Default)
+                        .unwrap();
+
+                    numbergraph
+                        .connect_number_input(saw.input.id(), NumberTarget::Source(multiply.id()))
+                        .unwrap();
+
                     numbergraph
                         .connect_number_input(
-                            saw.input.id(),
+                            multiply.input_1.id(),
+                            NumberTarget::Source(add2.id()),
+                        )
+                        .unwrap();
+
+                    numbergraph
+                        .connect_number_input(add2.input_1.id(), NumberTarget::Source(add1.id()))
+                        .unwrap();
+
+                    numbergraph
+                        .connect_number_input(add2.input_2.id(), NumberTarget::Source(add1.id()))
+                        .unwrap();
+
+                    numbergraph
+                        .connect_number_input(
+                            add1.input_1.id(),
+                            NumberTarget::Source(variable.id()),
+                        )
+                        .unwrap();
+
+                    numbergraph
+                        .connect_number_input(
+                            add1.input_2.id(),
+                            NumberTarget::Source(variable.id()),
+                        )
+                        .unwrap();
+
+                    // brutal. Would be way nicer if "wavgen.phase" appeared here somehow rather than
+                    // a shot in the dark like index 0
+                    numbergraph
+                        .connect_number_input(
+                            multiply.input_2.id(),
                             NumberTarget::GraphInput(numbergraph.topology().graph_inputs()[0]),
                         )
                         .unwrap();
@@ -229,8 +280,6 @@ impl FlosionApp {
                 .temporal_layout()
                 .find_top_level_layout(object.id())
             {
-                // TODO: store this width somewhere
-                let width = 300.0;
                 let is_top_level = true;
                 let ctx = SoundGraphUiContext::new(
                     factory,
@@ -239,7 +288,7 @@ impl FlosionApp {
                     graph.topology(),
                     is_top_level,
                     layout.time_axis,
-                    width,
+                    layout.width_pixels as f32,
                     layout.nesting_depth,
                 );
                 factory.ui(&object, ui_state, ui, &ctx);

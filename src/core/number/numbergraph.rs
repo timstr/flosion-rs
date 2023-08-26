@@ -21,6 +21,12 @@ use super::{
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NumberGraphInputId(usize);
 
+impl NumberGraphInputId {
+    pub(crate) fn new(value: usize) -> NumberGraphInputId {
+        NumberGraphInputId(value)
+    }
+}
+
 impl Default for NumberGraphInputId {
     fn default() -> NumberGraphInputId {
         NumberGraphInputId(1)

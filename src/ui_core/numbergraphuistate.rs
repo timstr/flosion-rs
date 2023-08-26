@@ -19,6 +19,14 @@ impl NumberGraphUiState {
         }
     }
 
+    pub(super) fn lexical_layout(&self) -> &LexicalLayout {
+        &self.lexical_layout
+    }
+
+    pub(super) fn lexical_layout_mut(&mut self) -> &mut LexicalLayout {
+        &mut self.lexical_layout
+    }
+
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
         self.lexical_layout.cleanup(topology);
     }

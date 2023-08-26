@@ -219,6 +219,19 @@ impl SoundNumberInputData {
             .zip(number_topo.graph_inputs().iter().cloned())
     }
 
+    pub(crate) fn graph_input_to_target(
+        &self,
+        input_id: NumberGraphInputId,
+    ) -> SoundNumberSourceId {
+        self.targets[self
+            .number_graph
+            .topology()
+            .graph_inputs()
+            .iter()
+            .position(|i| *i == input_id)
+            .unwrap()]
+    }
+
     pub(crate) fn owner(&self) -> SoundProcessorId {
         self.owner
     }

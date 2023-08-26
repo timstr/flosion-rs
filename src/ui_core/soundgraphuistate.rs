@@ -2,23 +2,21 @@ use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
-use crate::core::{
-    sound::{
-        soundedit::{SoundEdit, SoundNumberEdit},
-        soundgraph::SoundGraph,
-        soundgraphid::{SoundGraphId, SoundObjectId},
-        soundgraphtopology::SoundGraphTopology,
-        soundgraphvalidation::find_error,
-        soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId,
-        soundprocessor::SoundProcessorId,
-    },
-    uniqueid::UniqueId,
+use crate::core::sound::{
+    soundedit::{SoundEdit, SoundNumberEdit},
+    soundgraph::SoundGraph,
+    soundgraphid::{SoundGraphId, SoundObjectId},
+    soundgraphtopology::SoundGraphTopology,
+    soundgraphvalidation::find_error,
+    soundinput::SoundInputId,
+    soundnumberinput::SoundNumberInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 use super::{
     hotkeys::KeyboardFocusState, numbergraphuistate::NumberGraphUiState,
-    object_positions::ObjectPositions, temporallayout::TemporalLayout,
+    object_positions::ObjectPositions, soundnumberinputui::SoundNumberInputPresentation,
+    temporallayout::TemporalLayout,
 };
 
 pub struct NestedProcessorClosure {
@@ -76,7 +74,8 @@ pub struct SoundGraphUiState {
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> ()>>,
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
-    number_graph_ui_states: HashMap<SoundNumberInputId, NumberGraphUiState>,
+    number_graph_uis:
+        HashMap<SoundNumberInputId, (NumberGraphUiState, SoundNumberInputPresentation)>,
 }
 
 impl SoundGraphUiState {
@@ -87,7 +86,7 @@ impl SoundGraphUiState {
             pending_changes: Vec::new(),
             mode: UiMode::Passive,
             pending_drag: None,
-            number_graph_ui_states: HashMap::new(),
+            number_graph_uis: HashMap::new(),
         }
     }
 
@@ -472,12 +471,13 @@ impl SoundGraphUiState {
         // TODO: do this conservatively, e.g. when the topology changes
         self.temporal_layout.regenerate(topo);
 
-        self.number_graph_ui_states
+        self.number_graph_uis
             .retain(|id, _| topo.number_inputs().contains_key(id));
 
-        for (niid, number_ui_state) in &mut self.number_graph_ui_states {
+        for (niid, (number_ui_state, presentation)) in &mut self.number_graph_uis {
             let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
             number_ui_state.cleanup(number_topo);
+            presentation.cleanup(number_topo);
         }
     }
 
@@ -581,18 +581,24 @@ impl SoundGraphUiState {
                 let number_input_ids = topo.sound_processor(spid).unwrap().number_inputs();
                 for niid in number_input_ids {
                     let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
-                    self.number_graph_ui_states
-                        .entry(*niid)
-                        .or_insert_with(|| NumberGraphUiState::new(number_topo));
+                    self.number_graph_uis.entry(*niid).or_insert_with(|| {
+                        (
+                            NumberGraphUiState::new(number_topo),
+                            SoundNumberInputPresentation::new(number_topo),
+                        )
+                    });
                 }
             }
         }
     }
 
-    pub(super) fn number_graph_ui_state(
+    pub(super) fn number_graph_ui(
         &mut self,
         input_id: SoundNumberInputId,
-    ) -> &mut NumberGraphUiState {
-        self.number_graph_ui_states.get_mut(&input_id).unwrap()
+    ) -> (&mut NumberGraphUiState, &mut SoundNumberInputPresentation) {
+        self.number_graph_uis
+            .get_mut(&input_id)
+            .map(|(a, b)| (a, b))
+            .unwrap()
     }
 }

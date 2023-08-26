@@ -17,6 +17,12 @@ use super::{numbergraph::NumberGraph, numbersourcetools::NumberSourceTools};
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NumberSourceId(usize);
 
+impl NumberSourceId {
+    pub(crate) fn new(value: usize) -> NumberSourceId {
+        NumberSourceId(value)
+    }
+}
+
 impl Default for NumberSourceId {
     fn default() -> NumberSourceId {
         NumberSourceId(1)

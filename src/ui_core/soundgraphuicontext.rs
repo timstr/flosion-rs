@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::core::sound::{
     soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
@@ -10,6 +10,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     soundgraphui::SoundGraphUi,
+    soundnumberinputui::SpatialGraphInputReference,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
     temporallayout::TimeAxis,
     ui_factory::UiFactory,
@@ -27,6 +28,8 @@ pub struct SoundGraphUiContext<'a> {
     width: f32,
     nesting_depth: usize,
     parent_input: Option<SoundInputId>,
+    number_graph_input_references:
+        Rc<RefCell<Vec<(SoundNumberInputId, Vec<SpatialGraphInputReference>)>>>,
 }
 
 impl<'a> SoundGraphUiContext<'a> {
@@ -50,6 +53,7 @@ impl<'a> SoundGraphUiContext<'a> {
             width,
             nesting_depth,
             parent_input: None,
+            number_graph_input_references: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -73,6 +77,12 @@ impl<'a> SoundGraphUiContext<'a> {
         self.width
     }
 
+    pub(super) fn number_graph_input_references(
+        &self,
+    ) -> &RefCell<Vec<(SoundNumberInputId, Vec<SpatialGraphInputReference>)>> {
+        &*self.number_graph_input_references
+    }
+
     pub fn is_top_level(&self) -> bool {
         self.is_top_level
     }
@@ -88,6 +98,7 @@ impl<'a> SoundGraphUiContext<'a> {
             width: new_width,
             nesting_depth: self.nesting_depth - 1,
             parent_input: Some(input_id),
+            number_graph_input_references: Rc::clone(&self.number_graph_input_references),
         }
     }
 

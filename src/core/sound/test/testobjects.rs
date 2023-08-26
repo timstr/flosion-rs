@@ -1,9 +1,8 @@
 use crate::core::{
     engine::nodegen::NodeGen,
+    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
-        context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-        soundprocessor::StaticSoundProcessor,
+        context::Context, soundprocessor::StaticSoundProcessor,
         soundprocessortools::SoundProcessorTools,
     },
     soundchunk::SoundChunk,

@@ -1,9 +1,7 @@
 use eframe::egui;
 
 use crate::core::{
-    number::{numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology},
     sound::{
-        soundgraphdata::SoundNumberInputData,
         soundinput::{InputOptions, SoundInputId},
         soundnumberinput::SoundNumberInputId,
         soundnumbersource::SoundNumberSourceOwner,
@@ -13,8 +11,9 @@ use crate::core::{
 };
 
 use super::{
-    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
-    soundnumberinputui::SoundNumberInputUi,
+    soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::SoundGraphUiState,
+    soundnumberinputui::{SoundNumberInputUi, SpatialGraphInputReference},
 };
 
 pub struct ProcessorUi {
@@ -220,7 +219,6 @@ impl ProcessorUi {
                 left_of_body,
                 desired_width,
                 inner_frame,
-                ui.id().with(self.processor_id),
                 |ui| {
                     ui.vertical(|ui| {
                         for (input_id, input_label) in &self.number_inputs {
@@ -282,7 +280,6 @@ impl ProcessorUi {
         left_of_body: f32,
         desired_width: f32,
         inner_frame: egui::Frame,
-        id: egui::Id,
         f: F,
     ) -> egui::Response {
         let body_rect = egui::Rect::from_x_y_ranges(
@@ -300,14 +297,9 @@ impl ProcessorUi {
         let body_rect = body_rect.intersect(egui::Rect::everything_above(bottom_of_body));
 
         // check for click/drag interactions with the background of the processor body
-        // let response = ui.interact(body_rect, id, egui::Sense::click_and_drag());
-        // let response = ui.interact(body_rect, id, egui::Sense::focusable_noninteractive());
-        let response = r
-            .response
+        r.response
             .with_new_rect(body_rect)
-            .interact(egui::Sense::click_and_drag());
-
-        response
+            .interact(egui::Sense::click_and_drag())
     }
 
     fn show_sound_input(
@@ -377,7 +369,6 @@ impl ProcessorUi {
                                     inner_objectui_rect.left() + Self::RAIL_WIDTH,
                                     desired_width,
                                     inner_frame,
-                                    ui.id().with(input_id),
                                     |ui| {
                                         ui.horizontal(|ui| {
                                             ui.set_width(desired_width);
@@ -499,14 +490,23 @@ impl ProcessorUi {
 
             let number_ctx = ctx.number_graph_ui_context(input_id);
 
-            let number_ui_state = ui_state.number_graph_ui_state(input_id);
+            let (number_ui_state, presentation) = ui_state.number_graph_ui(input_id);
 
-            input_ui.show(ui, input_label, number_ui_state, &number_ctx);
+            let graph_input_references =
+                input_ui.show(ui, input_label, number_ui_state, &number_ctx, presentation);
+
+            graph_input_references
         });
+
+        let graph_input_references = res.inner;
 
         ui_state
             .object_positions_mut()
             .track_sound_number_input_location(input_id, res.response.rect);
+
+        ctx.number_graph_input_references()
+            .borrow_mut()
+            .push((input_id, graph_input_references));
     }
 
     fn draw_wires(
@@ -516,27 +516,27 @@ impl ProcessorUi {
         ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
     ) {
-        // TODO: respond to clicks and drags, return response
+        let references = ctx.number_graph_input_references().borrow();
 
-        let processor_data = ctx.topology().sound_processor(processor_id).unwrap();
-
-        for input_id in processor_data.number_inputs() {
-            let input_data = ctx.topology().number_input(*input_id).unwrap();
-
-            let input_location = ui_state
+        for (number_input_id, graph_input_references) in references.iter() {
+            let top_of_number_input = ui_state
                 .object_positions()
-                .get_sound_number_input_location(*input_id)
-                .unwrap();
-
-            for (target_index, target_source) in input_data.targets().iter().enumerate() {
-                let source_owner = ctx
+                .get_sound_number_input_location(*number_input_id)
+                .unwrap()
+                .rect()
+                .top();
+            for (i, graph_input) in graph_input_references.iter().enumerate() {
+                let target_number_source = ctx
                     .topology()
-                    .number_source(*target_source)
+                    .number_input(*number_input_id)
                     .unwrap()
-                    .owner();
-                // Hmmm should sound inputs with number sources produce separate
-                // rails?
-                let processor_owner = match source_owner {
+                    .graph_input_to_target(graph_input.input_id());
+                let target_processor = match ctx
+                    .topology()
+                    .number_source(target_number_source)
+                    .unwrap()
+                    .owner()
+                {
                     SoundNumberSourceOwner::SoundProcessor(spid) => spid,
                     SoundNumberSourceOwner::SoundInput(siid) => {
                         ctx.topology().sound_input(siid).unwrap().owner()
@@ -544,18 +544,18 @@ impl ProcessorUi {
                 };
                 let target_rail_location = ui_state
                     .object_positions()
-                    .get_processor_rail_location(processor_owner)
+                    .get_processor_rail_location(target_processor)
                     .unwrap();
 
-                let y = input_location.rect().top() + 10.0 * target_index as f32 + 1.0;
+                let y = graph_input.location().y;
 
                 let x_begin = target_rail_location.rect().left() + 1.0;
-                let x_end = input_location.rect().left() + 5.0;
+                let x_end = graph_input.location().x;
 
                 let wire_rect = egui::Rect::from_x_y_ranges(x_begin..=x_end, y..=(y + 8.0));
                 let wire_color = ctx
                     .object_states()
-                    .get_apparent_object_color(processor_owner.into(), ui_state);
+                    .get_apparent_object_color(target_processor.into(), ui_state);
 
                 ui.painter().rect(
                     wire_rect,
@@ -563,14 +563,6 @@ impl ProcessorUi {
                     wire_color,
                     egui::Stroke::new(1.0, egui::Color32::from_black_alpha(128)),
                 );
-            }
-        }
-
-        for input_id in processor_data.sound_inputs() {
-            let input_data = ctx.topology().sound_input(*input_id).unwrap();
-
-            if let Some(target) = input_data.target() {
-                self.draw_wires(target, ui, ctx, ui_state);
             }
         }
     }

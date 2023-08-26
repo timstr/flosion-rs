@@ -25,7 +25,7 @@ pub struct TemporalLayout {
     top_level_objects: HashMap<SoundObjectId, TopLevelLayout>,
 }
 impl TemporalLayout {
-    const DEFAULT_WIDTH: usize = 300;
+    const DEFAULT_WIDTH: usize = 600;
 
     pub(crate) fn new() -> TemporalLayout {
         TemporalLayout {

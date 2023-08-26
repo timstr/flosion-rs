@@ -183,7 +183,7 @@ impl ObjectPositions {
         self.objects
             .entry(object_id)
             .or_insert_with(|| LayoutState {
-                rect: egui::Rect::from_center_size(egui::pos2(400.0, 400.0), egui::Vec2::ZERO),
+                rect: egui::Rect::from_center_size(egui::pos2(50.0, 50.0), egui::Vec2::ZERO),
             });
     }
 }

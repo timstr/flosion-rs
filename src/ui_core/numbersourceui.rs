@@ -41,21 +41,31 @@ impl NumberSourceUi {
         add_contents: F,
     ) {
         let frame = egui::Frame::default()
-            .fill(egui::Color32::WHITE)
-            .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(64)))
-            .rounding(5.0);
-        frame.show(ui, |ui| {
+            .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 0, 32))
+            // .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(64)))
+            .rounding(5.0)
+            .inner_margin(2.0);
+        let r = frame.show(ui, |ui| {
             if let Some(label) = self.label {
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(label)
-                            .color(egui::Color32::BLACK)
+                            .color(egui::Color32::WHITE)
                             .strong(),
                     )
+                    .sense(egui::Sense::click())
                     .wrap(false),
                 );
             }
             add_contents(ui, ui_state);
         });
+        // let r = r.response.interact(egui::Sense::click());
+        // let r = ui.interact(r.response.rect, r.response.id, egui::Sense::click());
+        // let r = r
+        //     .response
+        //     .union(ui.interact(r.response.rect, r.response.id, egui::Sense::click()));
+        // if r.clicked() {
+        //     println!("Clicked");
+        // }
     }
 }
