@@ -29,7 +29,6 @@ use rfd::FileDialog;
 
 use super::{
     numbergraphui::NumberGraphUi,
-    object_ui::random_object_color,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuistate::{DroppingProcessorData, SelectionChange, SoundGraphUiState},
@@ -489,11 +488,8 @@ impl FlosionApp {
                     self.ui_state
                         .object_positions_mut()
                         .track_object_location(new_object.id(), egui::Rect::from_two_pos(p, p));
-                    self.object_states.set_object_data(
-                        new_object.id(),
-                        new_state,
-                        random_object_color(),
-                    );
+                    self.object_states
+                        .set_object_data(new_object.id(), new_state);
                     self.ui_state.stop_selecting();
                     self.ui_state.select_object(new_object.id());
                 }
@@ -763,13 +759,16 @@ impl FlosionApp {
 
         for object_id in &current_object_ids {
             if !self.known_object_ids.contains(object_id) {
-                self.ui_state
-                    .create_state_for(*object_id, self.graph.topology());
                 self.object_states.create_state_for(
                     *object_id,
                     self.graph.topology(),
                     &self.ui_factory,
                     &self.number_ui_factory,
+                );
+                self.ui_state.create_state_for(
+                    *object_id,
+                    self.graph.topology(),
+                    &self.object_states,
                 );
             }
         }

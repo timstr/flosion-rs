@@ -8,10 +8,10 @@ use crate::core::sound::{
 };
 
 use super::{
-    graph_ui::ObjectUiData,
+    graph_ui::{ObjectUiData, ObjectUiState},
     numbergraphui::NumberGraphUi,
     numbergraphuistate::NumberObjectUiStates,
-    object_ui::{random_object_color, ObjectUiState},
+    object_ui::Color,
     object_ui_states::AnyObjectUiState,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
@@ -21,19 +21,34 @@ use super::{
 
 pub struct AnySoundObjectUiData {
     id: SoundObjectId,
-    state: Box<dyn AnyObjectUiState>,
+    state: RefCell<Box<dyn AnyObjectUiState>>,
+    color: Color,
 }
 
 impl ObjectUiData for AnySoundObjectUiData {
     type GraphUi = SoundGraphUi;
     type ConcreteType<'a, T: ObjectUiState> = SoundObjectUiData<'a, T>;
 
-    fn downcast<'a, T: ObjectUiState>(
-        &'a mut self,
-        ui_state: &SoundGraphUiState,
+    type RequiredData = Color;
+
+    fn new<S: ObjectUiState>(id: SoundObjectId, state: S, data: Self::RequiredData) -> Self {
+        AnySoundObjectUiData {
+            id,
+            state: RefCell::new(Box::new(state)),
+            color: data,
+        }
+    }
+
+    fn downcast_with<
+        T: ObjectUiState,
+        F: FnOnce(SoundObjectUiData<'_, T>, &mut SoundGraphUiState),
+    >(
+        &self,
+        ui_state: &mut SoundGraphUiState,
         ctx: &SoundGraphUiContext<'_>,
-    ) -> SoundObjectUiData<'a, T> {
-        let state_mut = &mut *self.state;
+        f: F,
+    ) {
+        let mut state_mut = self.state.borrow_mut();
         #[cfg(debug_assertions)]
         {
             let actual_name = state_mut.get_language_type_name();
@@ -50,7 +65,7 @@ impl ObjectUiData for AnySoundObjectUiData {
         let color = ctx
             .object_states()
             .get_apparent_object_color(self.id, ui_state);
-        SoundObjectUiData { state, color }
+        f(SoundObjectUiData { state, color }, ui_state);
     }
 }
 
@@ -59,13 +74,8 @@ pub struct SoundObjectUiData<'a, T: ObjectUiState> {
     pub color: egui::Color32,
 }
 
-struct ObjectData {
-    state: RefCell<AnySoundObjectUiData>,
-    color: egui::Color32,
-}
-
 pub struct SoundObjectUiStates {
-    data: HashMap<SoundObjectId, ObjectData>,
+    data: HashMap<SoundObjectId, AnySoundObjectUiData>,
     number_graph_object_states: HashMap<SoundNumberInputId, NumberObjectUiStates>,
 }
 
@@ -77,27 +87,16 @@ impl SoundObjectUiStates {
         }
     }
 
-    pub(super) fn set_object_data(
-        &mut self,
-        id: SoundObjectId,
-        state: Box<dyn AnyObjectUiState>,
-        color: egui::Color32,
-    ) {
-        self.data.insert(
-            id,
-            ObjectData {
-                state: RefCell::new(AnySoundObjectUiData { id, state }),
-                color,
-            },
-        );
+    pub(super) fn set_object_data(&mut self, id: SoundObjectId, state: AnySoundObjectUiData) {
+        self.data.insert(id, state);
     }
 
-    pub(super) fn get_object_data(&self, id: SoundObjectId) -> &RefCell<AnySoundObjectUiData> {
-        &self.data.get(&id).unwrap().state
+    pub(super) fn get_object_data(&self, id: SoundObjectId) -> &AnySoundObjectUiData {
+        self.data.get(&id).unwrap()
     }
 
     pub(super) fn get_object_color(&self, id: SoundObjectId) -> egui::Color32 {
-        self.data.get(&id).unwrap().color
+        self.data.get(&id).unwrap().color.color
     }
 
     pub(super) fn get_apparent_object_color(
@@ -242,15 +241,7 @@ impl SoundObjectUiStates {
     ) {
         self.data.entry(object_id).or_insert_with(|| {
             let graph_object = topo.graph_object(object_id).unwrap();
-            let state = ui_factory.create_default_state(&graph_object);
-            let data = AnySoundObjectUiData {
-                id: object_id,
-                state,
-            };
-            ObjectData {
-                state: RefCell::new(data),
-                color: random_object_color(),
-            }
+            ui_factory.create_default_state(&graph_object)
         });
         match object_id {
             SoundObjectId::Sound(spid) => {

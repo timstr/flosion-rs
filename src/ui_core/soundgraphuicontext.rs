@@ -128,7 +128,7 @@ impl<'a> SoundGraphUiContext<'a> {
 impl<'a> GraphUiContext<'a> for SoundGraphUiContext<'a> {
     type GraphUi = SoundGraphUi;
 
-    fn get_object_ui_data(&self, id: SoundObjectId) -> &RefCell<AnySoundObjectUiData> {
+    fn get_object_ui_data(&self, id: SoundObjectId) -> &AnySoundObjectUiData {
         self.object_states.get_object_data(id)
     }
 }

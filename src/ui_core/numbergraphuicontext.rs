@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use crate::core::number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId};
 
 use super::{
@@ -44,7 +42,7 @@ impl<'a> NumberGraphUiContext<'a> {
 impl<'a> GraphUiContext<'a> for NumberGraphUiContext<'a> {
     type GraphUi = NumberGraphUi;
 
-    fn get_object_ui_data(&self, id: NumberSourceId) -> &RefCell<AnyNumberObjectUiData> {
+    fn get_object_ui_data(&self, id: NumberSourceId) -> &AnyNumberObjectUiData {
         todo!()
     }
 }

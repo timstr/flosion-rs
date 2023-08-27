@@ -1,21 +1,45 @@
-use std::any::Any;
-
 use eframe::{
     egui::{self},
     epaint::ecolor::{self},
 };
 use rand::{thread_rng, Rng};
-use serialization::Serializable;
+use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::core::{
     arguments::{ArgumentList, ParsedArguments},
-    graph::graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
+    graph::{
+        graph::Graph,
+        graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
+    },
 };
 
-use super::{
-    graph_ui::{GraphUi, ObjectUiData},
-    object_ui_states::AnyObjectUiState,
-};
+use super::graph_ui::{GraphUi, ObjectUiData, ObjectUiState};
+
+pub struct Color {
+    pub color: egui::Color32,
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Color {
+            color: random_object_color(),
+        }
+    }
+}
+
+impl Serializable for Color {
+    fn serialize(&self, serializer: &mut Serializer) {
+        serializer.u32(u32::from_be_bytes(self.color.to_array()))
+    }
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+        let i = deserializer.u32()?;
+        let [r, g, b, a] = i.to_be_bytes();
+        Ok(Color {
+            color: egui::Color32::from_rgba_premultiplied(r, g, b, a),
+        })
+    }
+}
 
 impl ObjectUiState for () {}
 
@@ -29,8 +53,6 @@ pub enum UiInitialization<'a> {
     Args(&'a ParsedArguments),
     Default,
 }
-
-pub trait ObjectUiState: Any + Default + Serializable {}
 
 pub trait ObjectUi: 'static + Default {
     // TODO: find a way to clean up these darn nested types
@@ -62,8 +84,11 @@ pub trait ObjectUi: 'static + Default {
         &self,
         _handle: &Self::HandleType,
         _init: UiInitialization,
-    ) -> Self::StateType {
-        Self::StateType::default()
+    ) -> (
+        Self::StateType,
+        <<Self::GraphUi as GraphUi>::ObjectUiData as ObjectUiData>::RequiredData,
+    ) {
+        (Default::default(), Default::default())
     }
 }
 
@@ -71,7 +96,7 @@ pub trait AnyObjectUi<G: GraphUi> {
     fn apply(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        object_ui_state: &mut G::ObjectUiData,
+        object_ui_state: &G::ObjectUiData,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
         ctx: &G::Context<'_>,
@@ -83,23 +108,25 @@ pub trait AnyObjectUi<G: GraphUi> {
 
     fn make_ui_state(
         &self,
+        id: <G::Graph as Graph>::ObjectId,
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()>;
+    ) -> Result<G::ObjectUiData, ()>;
 }
 
 impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
     fn apply(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        object_ui_state: &mut G::ObjectUiData,
+        object_ui_state: &G::ObjectUiData,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
         ctx: &G::Context<'_>,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let data = object_ui_state.downcast::<T::StateType>(graph_state, ctx);
-        self.ui(handle, graph_state, ui, ctx, data);
+        object_ui_state.downcast_with(graph_state, ctx, |data, graph_state| {
+            self.ui(handle, graph_state, ui, ctx, data);
+        });
     }
 
     fn aliases(&self) -> &'static [&'static str] {
@@ -112,16 +139,25 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
 
     fn make_ui_state(
         &self,
+        id: <G::Graph as Graph>::ObjectId,
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()> {
+    ) -> Result<G::ObjectUiData, ()> {
         // let dc_object = downcast_object_ref::<T>(object.instance());
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let state: T::StateType = match init {
+        let (state, required_data) = match init {
             ObjectInitialization::Args(a) => self.make_ui_state(&handle, UiInitialization::Args(a)),
-            ObjectInitialization::Archive(mut a) => T::StateType::deserialize(&mut a)?,
+            ObjectInitialization::Archive(mut a) => (
+                T::StateType::deserialize(&mut a)?,
+                Serializable::deserialize(&mut a)?,
+            ),
             ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
         };
-        Ok(Box::new(state))
+
+        Ok(<G::ObjectUiData as ObjectUiData>::new(
+            id,
+            state,
+            required_data,
+        ))
     }
 }

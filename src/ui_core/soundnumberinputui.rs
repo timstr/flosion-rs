@@ -8,7 +8,7 @@ use crate::core::{
 use super::{
     lexicallayout::{Cursor, LexicalLayout},
     numbergraphuicontext::NumberGraphUiContext,
-    numbergraphuistate::NumberGraphUiState,
+    numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
 };
 
 // TODO: add other presentations (e.g. plot, DAG maybe) and allow non-destructively switching between them
@@ -18,9 +18,12 @@ pub(super) struct SoundNumberInputPresentation {
 }
 
 impl SoundNumberInputPresentation {
-    pub(super) fn new(topology: &NumberGraphTopology) -> SoundNumberInputPresentation {
+    pub(super) fn new(
+        topology: &NumberGraphTopology,
+        object_ui_states: &NumberObjectUiStates,
+    ) -> SoundNumberInputPresentation {
         SoundNumberInputPresentation {
-            lexical_layout: LexicalLayout::generate(topology),
+            lexical_layout: LexicalLayout::generate(topology, object_ui_states),
             cursor: None,
         }
     }

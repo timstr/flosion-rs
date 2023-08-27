@@ -1,8 +1,10 @@
-use std::cell::RefCell;
+use std::any::Any;
+
+use serialization::Serializable;
 
 use crate::core::graph::graph::Graph;
 
-use super::object_ui::ObjectUiState;
+pub trait ObjectUiState: Any + Default + Serializable {}
 
 pub trait GraphUi {
     // the graph type being represented in the ui
@@ -24,19 +26,29 @@ pub trait GraphUiContext<'a> {
     fn get_object_ui_data(
         &self,
         id: <<Self::GraphUi as GraphUi>::Graph as Graph>::ObjectId,
-    ) -> &RefCell<<Self::GraphUi as GraphUi>::ObjectUiData>;
+    ) -> &<Self::GraphUi as GraphUi>::ObjectUiData;
 }
 
 pub trait ObjectUiData {
     type GraphUi: GraphUi;
 
-    type ConcreteType<'a, T: ObjectUiState>
-    where
-        Self: 'a;
+    type RequiredData: Default + Serializable;
 
-    fn downcast<'a, T: ObjectUiState>(
-        &'a mut self,
-        ui_state: &<Self::GraphUi as GraphUi>::State,
+    fn new<S: ObjectUiState>(
+        id: <<Self::GraphUi as GraphUi>::Graph as Graph>::ObjectId,
+        state: S,
+        data: Self::RequiredData,
+    ) -> Self;
+
+    type ConcreteType<'a, T: ObjectUiState>;
+
+    fn downcast_with<
+        T: ObjectUiState,
+        F: FnOnce(Self::ConcreteType<'_, T>, &mut <Self::GraphUi as GraphUi>::State),
+    >(
+        &self,
+        ui_state: &mut <Self::GraphUi as GraphUi>::State,
         ctx: &<Self::GraphUi as GraphUi>::Context<'_>,
-    ) -> Self::ConcreteType<'a, T>;
+        f: F,
+    );
 }

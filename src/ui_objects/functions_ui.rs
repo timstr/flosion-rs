@@ -9,11 +9,13 @@ use crate::{
     },
     objects::functions::*,
     ui_core::{
+        graph_ui::ObjectUiState,
+        lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
         numbergraphuicontext::NumberGraphUiContext,
         numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
         numbersourceui::NumberSourceUi,
-        object_ui::{ObjectUi, ObjectUiState, UiInitialization},
+        object_ui::{ObjectUi, UiInitialization},
     },
 };
 
@@ -119,8 +121,8 @@ impl ObjectUi for VariableUi {
         &self,
         object: &NumberSourceHandle<Variable>,
         init: UiInitialization,
-    ) -> Self::StateType {
-        match init {
+    ) -> (Self::StateType, NumberSourceLayout) {
+        let state = match init {
             UiInitialization::Args(args) => VariableUiState {
                 min_value: args.get("min").as_float().unwrap(),
                 max_value: args.get("max").as_float().unwrap(),
@@ -134,12 +136,13 @@ impl ObjectUi for VariableUi {
                     name: "Variable".to_string(),
                 }
             }
-        }
+        };
+        (state, NumberSourceLayout::default())
     }
 }
 
 macro_rules! unary_number_source_ui {
-    ($name: ident, $object: ident, $display_name: literal, $aliases: expr) => {
+    ($name: ident, $object: ident, $display_name: literal, $aliases: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
@@ -160,13 +163,21 @@ macro_rules! unary_number_source_ui {
 
             fn aliases(&self) -> &'static [&'static str] {
                 &$aliases
+            }
+
+            fn make_ui_state(
+                &self,
+                _object: &NumberSourceHandle<$object>,
+                _init: UiInitialization,
+            ) -> (Self::StateType, NumberSourceLayout) {
+                ((), $layout)
             }
         }
     };
 }
 
 macro_rules! binary_number_source_ui {
-    ($name: ident, $object: ident, $display_name: literal, $aliases: expr) => {
+    ($name: ident, $object: ident, $display_name: literal, $aliases: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
@@ -187,6 +198,14 @@ macro_rules! binary_number_source_ui {
 
             fn aliases(&self) -> &'static [&'static str] {
                 &$aliases
+            }
+
+            fn make_ui_state(
+                &self,
+                _object: &NumberSourceHandle<$object>,
+                _init: UiInitialization,
+            ) -> (Self::StateType, NumberSourceLayout) {
+                ((), $layout)
             }
         }
     };
@@ -219,24 +238,24 @@ macro_rules! ternary_number_source_ui {
     };
 }
 
-unary_number_source_ui!(NegateUi, Negate, "Negate", []);
-unary_number_source_ui!(FloorUi, Floor, "Floor", []);
-unary_number_source_ui!(CeilUi, Ceil, "Ceil", []);
-unary_number_source_ui!(RoundUi, Round, "Round", []);
-unary_number_source_ui!(TruncUi, Trunc, "Trunc", []);
-unary_number_source_ui!(FractUi, Fract, "Fract", []);
-unary_number_source_ui!(AbsUi, Abs, "Abs", []);
-unary_number_source_ui!(SignumUi, Signum, "Signum", []);
-unary_number_source_ui!(ExpUi, Exp, "Exp", []);
-unary_number_source_ui!(Exp2Ui, Exp2, "Exp2", []);
-unary_number_source_ui!(Exp10Ui, Exp10, "Exp10", []);
-unary_number_source_ui!(LogUi, Log, "Log", []);
-unary_number_source_ui!(Log2Ui, Log2, "Log2", []);
-unary_number_source_ui!(Log10Ui, Log10, "Log10", []);
-unary_number_source_ui!(SqrtUi, Sqrt, "Sqrt", []);
+unary_number_source_ui!(NegateUi, Negate, "Negate", [], NumberSourceLayout::Prefix);
+unary_number_source_ui!(FloorUi, Floor, "Floor", [], NumberSourceLayout::Function);
+unary_number_source_ui!(CeilUi, Ceil, "Ceil", [], NumberSourceLayout::Function);
+unary_number_source_ui!(RoundUi, Round, "Round", [], NumberSourceLayout::Function);
+unary_number_source_ui!(TruncUi, Trunc, "Trunc", [], NumberSourceLayout::Function);
+unary_number_source_ui!(FractUi, Fract, "Fract", [], NumberSourceLayout::Function);
+unary_number_source_ui!(AbsUi, Abs, "Abs", [], NumberSourceLayout::Function);
+unary_number_source_ui!(SignumUi, Signum, "Signum", [], NumberSourceLayout::Function);
+unary_number_source_ui!(ExpUi, Exp, "Exp", [], NumberSourceLayout::Function);
+unary_number_source_ui!(Exp2Ui, Exp2, "Exp2", [], NumberSourceLayout::Function);
+unary_number_source_ui!(Exp10Ui, Exp10, "Exp10", [], NumberSourceLayout::Function);
+unary_number_source_ui!(LogUi, Log, "Log", [], NumberSourceLayout::Function);
+unary_number_source_ui!(Log2Ui, Log2, "Log2", [], NumberSourceLayout::Function);
+unary_number_source_ui!(Log10Ui, Log10, "Log10", [], NumberSourceLayout::Function);
+unary_number_source_ui!(SqrtUi, Sqrt, "Sqrt", [], NumberSourceLayout::Function);
 // unary_number_source_ui!(CbrtUi, Cbrt, "Cbrt", []);
-unary_number_source_ui!(SinUi, Sin, "Sin", []);
-unary_number_source_ui!(CosUi, Cos, "Cos", []);
+unary_number_source_ui!(SinUi, Sin, "Sin", [], NumberSourceLayout::Function);
+unary_number_source_ui!(CosUi, Cos, "Cos", [], NumberSourceLayout::Function);
 // unary_number_source_ui!(TanUi, Tan, "Tan", []);
 // unary_number_source_ui!(AsinUi, Asin, "Asin", []);
 // unary_number_source_ui!(AcosUi, Acos, "Acos", []);
@@ -248,19 +267,67 @@ unary_number_source_ui!(CosUi, Cos, "Cos", []);
 // unary_number_source_ui!(AcoshUi, Acosh, "Acosh", []);
 // unary_number_source_ui!(AtanhUi, Atanh, "Atanh", []);
 
-unary_number_source_ui!(SineWaveUi, SineWave, "SineWave", []);
-unary_number_source_ui!(CosineWaveUi, CosineWave, "CosineWave", []);
-unary_number_source_ui!(SquareWaveUi, SquareWave, "SquareWave", []);
-unary_number_source_ui!(SawWaveUi, SawWave, "SawWave", []);
-unary_number_source_ui!(TriangleWaveUi, TriangleWave, "TriangleWave", []);
+unary_number_source_ui!(
+    SineWaveUi,
+    SineWave,
+    "SineWave",
+    [],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    CosineWaveUi,
+    CosineWave,
+    "CosineWave",
+    [],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    SquareWaveUi,
+    SquareWave,
+    "SquareWave",
+    [],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    SawWaveUi,
+    SawWave,
+    "SawWave",
+    [],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    TriangleWaveUi,
+    TriangleWave,
+    "TriangleWave",
+    [],
+    NumberSourceLayout::Function
+);
 
-binary_number_source_ui!(AddUi, Add, "Add", ["+", "plus"]);
-binary_number_source_ui!(SubtractUi, Subtract, "Subtract", ["-", "minus"]);
-binary_number_source_ui!(MultiplyUi, Multiply, "Multiply", ["*", "times"]);
-binary_number_source_ui!(DivideUi, Divide, "Divide", ["/"]);
+binary_number_source_ui!(AddUi, Add, "Add", ["+", "plus"], NumberSourceLayout::Infix);
+binary_number_source_ui!(
+    SubtractUi,
+    Subtract,
+    "Subtract",
+    ["-", "minus"],
+    NumberSourceLayout::Infix
+);
+binary_number_source_ui!(
+    MultiplyUi,
+    Multiply,
+    "Multiply",
+    ["*", "times"],
+    NumberSourceLayout::Infix
+);
+binary_number_source_ui!(DivideUi, Divide, "Divide", ["/"], NumberSourceLayout::Infix);
 // binary_number_source_ui!(HypotUi, Hypot, "Hypot", []);
-binary_number_source_ui!(CopysignUi, Copysign, "Copysign", []);
-binary_number_source_ui!(PowUi, Pow, "Pow", []);
+binary_number_source_ui!(
+    CopysignUi,
+    Copysign,
+    "Copysign",
+    [],
+    NumberSourceLayout::Function
+);
+binary_number_source_ui!(PowUi, Pow, "Pow", [], NumberSourceLayout::Function);
 // binary_number_source_ui!(Atan2Ui, Atan2, "Atan2", []);
 
 ternary_number_source_ui!(LerpUi, Lerp, "Lerp", []);

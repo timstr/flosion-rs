@@ -16,7 +16,7 @@ use crate::core::sound::{
 use super::{
     hotkeys::KeyboardFocusState, numbergraphuistate::NumberGraphUiState,
     object_positions::ObjectPositions, soundnumberinputui::SoundNumberInputPresentation,
-    temporallayout::TemporalLayout,
+    soundobjectuistate::SoundObjectUiStates, temporallayout::TemporalLayout,
 };
 
 pub struct NestedProcessorClosure {
@@ -573,7 +573,12 @@ impl SoundGraphUiState {
         }
     }
 
-    pub(super) fn create_state_for(&mut self, object_id: SoundObjectId, topo: &SoundGraphTopology) {
+    pub(super) fn create_state_for(
+        &mut self,
+        object_id: SoundObjectId,
+        topo: &SoundGraphTopology,
+        object_ui_states: &SoundObjectUiStates,
+    ) {
         self.object_positions.create_state_for(object_id);
 
         match object_id {
@@ -581,10 +586,11 @@ impl SoundGraphUiState {
                 let number_input_ids = topo.sound_processor(spid).unwrap().number_inputs();
                 for niid in number_input_ids {
                     let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+                    let states = object_ui_states.number_graph_object_states(*niid);
                     self.number_graph_uis.entry(*niid).or_insert_with(|| {
                         (
-                            NumberGraphUiState::new(number_topo),
-                            SoundNumberInputPresentation::new(number_topo),
+                            NumberGraphUiState::new(),
+                            SoundNumberInputPresentation::new(number_topo, states),
                         )
                     });
                 }

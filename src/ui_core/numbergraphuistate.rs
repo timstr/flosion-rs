@@ -3,51 +3,62 @@ use std::{any::type_name, cell::RefCell, collections::HashMap};
 use crate::core::number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId};
 
 use super::{
-    graph_ui::ObjectUiData, lexicallayout::LexicalLayout, numbergraphui::NumberGraphUi,
-    numbergraphuicontext::NumberGraphUiContext, object_ui::ObjectUiState,
+    graph_ui::{ObjectUiData, ObjectUiState},
+    lexicallayout::NumberSourceLayout,
+    numbergraphui::NumberGraphUi,
+    numbergraphuicontext::NumberGraphUiContext,
     object_ui_states::AnyObjectUiState,
 };
 
 pub struct NumberGraphUiState {
-    lexical_layout: LexicalLayout,
+    // TODO: what is this for???
 }
 
 impl NumberGraphUiState {
-    pub(super) fn new(topo: &NumberGraphTopology) -> NumberGraphUiState {
-        NumberGraphUiState {
-            lexical_layout: LexicalLayout::generate(topo),
-        }
+    pub(super) fn new() -> NumberGraphUiState {
+        NumberGraphUiState {}
     }
 
-    pub(super) fn lexical_layout(&self) -> &LexicalLayout {
-        &self.lexical_layout
-    }
-
-    pub(super) fn lexical_layout_mut(&mut self) -> &mut LexicalLayout {
-        &mut self.lexical_layout
-    }
-
-    pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
-        self.lexical_layout.cleanup(topology);
-    }
+    pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {}
 }
 
 pub struct AnyNumberObjectUiData {
     id: NumberSourceId,
-    state: Box<dyn AnyObjectUiState>,
+    state: RefCell<Box<dyn AnyObjectUiState>>,
+    layout: NumberSourceLayout, // DO NOT REMOVE
+}
+
+impl AnyNumberObjectUiData {
+    pub(crate) fn layout(&self) -> NumberSourceLayout {
+        self.layout
+    }
 }
 
 impl ObjectUiData for AnyNumberObjectUiData {
     type GraphUi = NumberGraphUi;
 
+    type RequiredData = NumberSourceLayout;
+
+    fn new<S: ObjectUiState>(id: NumberSourceId, state: S, data: Self::RequiredData) -> Self {
+        AnyNumberObjectUiData {
+            id,
+            state: RefCell::new(Box::new(state)),
+            layout: data,
+        }
+    }
+
     type ConcreteType<'a, T: ObjectUiState> = NumberObjectUiData<'a, T>;
 
-    fn downcast<'a, T: ObjectUiState>(
-        &'a mut self,
-        ui_state: &NumberGraphUiState,
+    fn downcast_with<
+        T: ObjectUiState,
+        F: FnOnce(NumberObjectUiData<'_, T>, &mut NumberGraphUiState),
+    >(
+        &self,
+        ui_state: &mut NumberGraphUiState,
         ctx: &NumberGraphUiContext<'_>,
-    ) -> Self::ConcreteType<'a, T> {
-        let state_mut = &mut *self.state;
+        f: F,
+    ) {
+        let mut state_mut = self.state.borrow_mut();
         #[cfg(debug_assertions)]
         {
             let actual_name = state_mut.get_language_type_name();
@@ -62,7 +73,7 @@ impl ObjectUiData for AnyNumberObjectUiData {
         let state_any = state_mut.as_mut_any();
         let state = state_any.downcast_mut::<T>().unwrap();
 
-        NumberObjectUiData { state }
+        f(NumberObjectUiData { state }, ui_state);
     }
 }
 
@@ -71,13 +82,8 @@ pub struct NumberObjectUiData<'a, T: ObjectUiState> {
     // TODO: other presentation state, e.g. color?
 }
 
-struct ObjectData {
-    state: RefCell<AnyNumberObjectUiData>,
-    // TODO: other presentation state, e.g. color?
-}
-
 pub struct NumberObjectUiStates {
-    data: HashMap<NumberSourceId, ObjectData>,
+    data: HashMap<NumberSourceId, AnyNumberObjectUiData>,
 }
 
 impl NumberObjectUiStates {
@@ -87,17 +93,12 @@ impl NumberObjectUiStates {
         }
     }
 
-    pub(super) fn set_object_data(&mut self, id: NumberSourceId, state: Box<dyn AnyObjectUiState>) {
-        self.data.insert(
-            id,
-            ObjectData {
-                state: RefCell::new(AnyNumberObjectUiData { id, state }),
-            },
-        );
+    pub(super) fn set_object_data(&mut self, id: NumberSourceId, state: AnyNumberObjectUiData) {
+        self.data.insert(id, state);
     }
 
-    pub(super) fn get_object_data(&self, id: NumberSourceId) -> &RefCell<AnyNumberObjectUiData> {
-        &self.data.get(&id).unwrap().state
+    pub(super) fn get_object_data(&self, id: NumberSourceId) -> &AnyNumberObjectUiData {
+        self.data.get(&id).unwrap()
     }
 
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {

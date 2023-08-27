@@ -11,7 +11,6 @@ use crate::core::{
 use super::{
     graph_ui::{GraphUi, GraphUiContext},
     object_ui::{AnyObjectUi, ObjectUi},
-    object_ui_states::AnyObjectUiState,
 };
 
 struct ObjectData<G: GraphUi> {
@@ -85,8 +84,7 @@ impl<G: GraphUi> UiFactory<G> {
         match self.mapping.get(name) {
             Some(data) => {
                 let state = ctx.get_object_ui_data(id);
-                data.ui
-                    .apply(object, &mut state.borrow_mut(), graph_state, ui, ctx);
+                data.ui.apply(object, state, graph_state, ui, ctx);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",
@@ -99,10 +97,10 @@ impl<G: GraphUi> UiFactory<G> {
         &self,
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()> {
+    ) -> Result<G::ObjectUiData, ()> {
         let name = object.get_type().name();
         match self.mapping.get(name) {
-            Some(data) => data.ui.make_ui_state(object, init),
+            Some(data) => data.ui.make_ui_state(object.id(), object, init),
             None => panic!(
                 "Tried to create ui state for an object of unrecognized type \"{}\"",
                 name
@@ -110,10 +108,7 @@ impl<G: GraphUi> UiFactory<G> {
         }
     }
 
-    pub fn create_default_state(
-        &self,
-        object: &GraphObjectHandle<G::Graph>,
-    ) -> Box<dyn AnyObjectUiState> {
+    pub fn create_default_state(&self, object: &GraphObjectHandle<G::Graph>) -> G::ObjectUiData {
         self.create_state_impl(object, ObjectInitialization::Default)
             .unwrap()
     }
@@ -122,7 +117,7 @@ impl<G: GraphUi> UiFactory<G> {
         &self,
         object: &GraphObjectHandle<G::Graph>,
         args: &ParsedArguments,
-    ) -> Box<dyn AnyObjectUiState> {
+    ) -> G::ObjectUiData {
         self.create_state_impl(object, ObjectInitialization::Args(args))
             .unwrap()
     }
@@ -131,7 +126,7 @@ impl<G: GraphUi> UiFactory<G> {
         &self,
         object: &GraphObjectHandle<G::Graph>,
         deserializer: Deserializer,
-    ) -> Result<Box<dyn AnyObjectUiState>, ()> {
+    ) -> Result<G::ObjectUiData, ()> {
         self.create_state_impl(object, ObjectInitialization::Archive(deserializer))
     }
 }

@@ -1,4 +1,5 @@
 use eframe::egui;
+use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::core::{
     number::{
@@ -9,7 +10,8 @@ use crate::core::{
 };
 
 use super::{
-    numbergraphuicontext::NumberGraphUiContext, numbergraphuistate::NumberGraphUiState,
+    numbergraphuicontext::NumberGraphUiContext,
+    numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
     soundnumberinputui::SpatialGraphInputReference,
 };
 
@@ -182,6 +184,41 @@ impl ASTNode {
     }
 }
 
+impl Default for NumberSourceLayout {
+    fn default() -> Self {
+        NumberSourceLayout::Function
+    }
+}
+
+impl Serializable for NumberSourceLayout {
+    fn serialize(&self, serializer: &mut Serializer) {
+        serializer.u8(match self {
+            NumberSourceLayout::Prefix => 1,
+            NumberSourceLayout::Infix => 2,
+            NumberSourceLayout::Postfix => 3,
+            NumberSourceLayout::Function => 4,
+        });
+    }
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+        Ok(match deserializer.u8()? {
+            1 => NumberSourceLayout::Prefix,
+            2 => NumberSourceLayout::Infix,
+            3 => NumberSourceLayout::Postfix,
+            4 => NumberSourceLayout::Function,
+            _ => return Err(()),
+        })
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum NumberSourceLayout {
+    Prefix,
+    Infix,
+    Postfix,
+    Function,
+}
+
 enum InternalASTNodeValue {
     Prefix(NumberSourceId, ASTNode),
     Infix(ASTNode, NumberSourceId, ASTNode),
@@ -284,7 +321,10 @@ pub(super) struct LexicalLayout {
 }
 
 impl LexicalLayout {
-    pub(super) fn generate(topo: &NumberGraphTopology) -> LexicalLayout {
+    pub(super) fn generate(
+        topo: &NumberGraphTopology,
+        object_ui_states: &NumberObjectUiStates,
+    ) -> LexicalLayout {
         let outputs = topo.graph_outputs();
         assert_eq!(outputs.len(), 1);
         let output = &topo.graph_outputs()[0];
@@ -295,6 +335,7 @@ impl LexicalLayout {
             target: NumberTarget,
             variable_assignments: &mut Vec<VariableDefinitions>,
             topo: &NumberGraphTopology,
+            object_ui_states: &NumberObjectUiStates,
         ) -> ASTNode {
             let nsid = match target {
                 NumberTarget::Source(nsid) => nsid,
@@ -312,36 +353,55 @@ impl LexicalLayout {
 
             let create_new_variable = topo.number_target_destinations(target).count() >= 2;
 
-            // TODO: let number source uis define whether they are infix, postfix, etc
-            // assuming all function calls for now
+            let layout = object_ui_states.get_object_data(nsid).layout();
 
-            let arguments = topo
+            let arguments: Vec<ASTNode> = topo
                 .number_source(nsid)
                 .unwrap()
                 .number_inputs()
                 .iter()
                 .map(|niid| match topo.number_input(*niid).unwrap().target() {
-                    Some(target) => visit_target(target, variable_assignments, topo),
+                    Some(target) => {
+                        visit_target(target, variable_assignments, topo, object_ui_states)
+                    }
                     None => ASTNode::new(ASTNodeValue::Empty),
                 })
                 .collect();
 
-            let value = InternalASTNode::new(InternalASTNodeValue::Function(nsid, arguments));
+            let value = match layout {
+                NumberSourceLayout::Prefix => {
+                    assert_eq!(arguments.len(), 1);
+                    let mut args = arguments.into_iter();
+                    InternalASTNodeValue::Prefix(nsid, args.next().unwrap())
+                }
+                NumberSourceLayout::Infix => {
+                    assert_eq!(arguments.len(), 2);
+                    let mut args = arguments.into_iter();
+                    InternalASTNodeValue::Infix(args.next().unwrap(), nsid, args.next().unwrap())
+                }
+                NumberSourceLayout::Postfix => {
+                    assert_eq!(arguments.len(), 1);
+                    let mut args = arguments.into_iter();
+                    InternalASTNodeValue::Postfix(args.next().unwrap(), nsid)
+                }
+                NumberSourceLayout::Function => InternalASTNodeValue::Function(nsid, arguments),
+            };
+            let node = InternalASTNode::new(value);
 
             if create_new_variable {
                 let new_variable_name = format!("x{}", variable_assignments.len());
                 variable_assignments.push(VariableDefinitions {
                     name: new_variable_name.clone(),
-                    value: ASTNode::new(ASTNodeValue::Internal(Box::new(value))),
+                    value: ASTNode::new(ASTNodeValue::Internal(Box::new(node))),
                 });
                 ASTNode::new(ASTNodeValue::Variable(new_variable_name))
             } else {
-                ASTNode::new(ASTNodeValue::Internal(Box::new(value)))
+                ASTNode::new(ASTNodeValue::Internal(Box::new(node)))
             }
         }
 
         let final_expression = match output.target() {
-            Some(target) => visit_target(target, &mut variable_assignments, topo),
+            Some(target) => visit_target(target, &mut variable_assignments, topo, object_ui_states),
             None => ASTNode::new(ASTNodeValue::Empty),
         };
 
@@ -708,13 +768,7 @@ impl LexicalLayout {
         let object_ui = ctx.ui_factory().get_object_ui(type_str);
         let object_state = ctx.object_ui_states().get_object_data(id);
         ui.horizontal_centered(|ui| {
-            object_ui.apply(
-                &graph_object,
-                &mut object_state.borrow_mut(),
-                graph_state,
-                ui,
-                ctx,
-            );
+            object_ui.apply(&graph_object, &object_state, graph_state, ui, ctx);
         })
         .response
         .rect
@@ -725,13 +779,6 @@ impl LexicalLayout {
         let t = ui.input(|i| i.time);
         let a = (((t - t.floor()) * 2.0 * std::f64::consts::TAU).sin() * 16.0 + 64.0) as u8;
         egui::Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, a)
-    }
-
-    fn draw_free_cursor(ui: &mut egui::Ui) {
-        let (_, rect) = ui.allocate_space(egui::vec2(5.0, 20.0));
-        let color = Self::flashing_highlight_color(ui);
-        ui.painter()
-            .rect_filled(rect, egui::Rounding::none(), color);
     }
 
     fn with_cursor<R, F: FnOnce(&mut egui::Ui, &mut Option<ASTPath>) -> R>(
