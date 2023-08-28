@@ -21,11 +21,15 @@ pub(super) struct ASTPath {
 }
 
 impl ASTPath {
-    fn new(steps: Vec<usize>) -> ASTPath {
+    pub(super) fn new(steps: Vec<usize>) -> ASTPath {
         ASTPath { steps }
     }
 
-    fn go_left(&mut self, tree: &InternalASTNode) {
+    pub(super) fn steps(&self) -> &[usize] {
+        &self.steps
+    }
+
+    pub(super) fn go_left(&mut self, tree: &InternalASTNode) {
         let Some(last_step) = self.steps.pop() else {
             return;
         };
@@ -43,7 +47,7 @@ impl ASTPath {
         }
     }
 
-    fn go_right(&mut self, tree: &InternalASTNode) {
+    pub(super) fn go_right(&mut self, tree: &InternalASTNode) {
         if let Some(node) = tree.get_along_path(&self.steps) {
             if node.num_children() > 0 {
                 self.steps.push(0);
@@ -124,20 +128,20 @@ impl<'a> ASTPathBuilder<'a> {
     }
 }
 
-enum ASTNodeValue {
+pub(super) enum ASTNodeValue {
     Empty,
     Internal(Box<InternalASTNode>),
     Variable(String),
     GraphInput(NumberGraphInputId),
 }
 
-struct ASTNode {
+pub(super) struct ASTNode {
     value: ASTNodeValue,
     rect: egui::Rect,
 }
 
 impl ASTNode {
-    fn new(value: ASTNodeValue) -> ASTNode {
+    pub(super) fn new(value: ASTNodeValue) -> ASTNode {
         ASTNode {
             value,
             rect: egui::Rect::NOTHING,
@@ -219,24 +223,28 @@ pub enum NumberSourceLayout {
     Function,
 }
 
-enum InternalASTNodeValue {
+pub(super) enum InternalASTNodeValue {
     Prefix(NumberSourceId, ASTNode),
     Infix(ASTNode, NumberSourceId, ASTNode),
     Postfix(ASTNode, NumberSourceId),
     Function(NumberSourceId, Vec<ASTNode>),
 }
 
-struct InternalASTNode {
+pub(super) struct InternalASTNode {
     value: InternalASTNodeValue,
     self_rect: egui::Rect,
 }
 
 impl InternalASTNode {
-    fn new(value: InternalASTNodeValue) -> InternalASTNode {
+    pub(super) fn new(value: InternalASTNodeValue) -> InternalASTNode {
         InternalASTNode {
             value,
             self_rect: egui::Rect::NOTHING,
         }
+    }
+
+    pub(super) fn value(&self) -> &InternalASTNodeValue {
+        &self.value
     }
 
     fn target(&self, variables: &[VariableDefinitions]) -> NumberTarget {
@@ -283,7 +291,7 @@ impl InternalASTNode {
         }
     }
 
-    fn get_along_path(&self, path: &[usize]) -> Option<&InternalASTNode> {
+    pub(super) fn get_along_path(&self, path: &[usize]) -> Option<&InternalASTNode> {
         let Some((next_step, rest_of_path)) = path.split_first() else {
             return Some(self);
         };
@@ -845,142 +853,5 @@ impl LexicalLayout {
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
         // TODO: check whether anything was removed, update the layout somehow.
         // This might be a lot of work and should only be done conservatively
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_get_along_path() {
-        let tree = InternalASTNode::new(InternalASTNodeValue::Function(
-            NumberSourceId::new(1),
-            vec![
-                ASTNode::new(ASTNodeValue::Empty),
-                ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
-                    InternalASTNodeValue::Function(
-                        NumberSourceId::new(2),
-                        vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
-                    ),
-                )))),
-                ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
-                ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
-            ],
-        ));
-
-        let Some(tree_at_empty_path) = tree.get_along_path(&[]) else {
-            panic!();
-        };
-
-        assert!(
-            if let InternalASTNodeValue::Function(_, _) = tree_at_empty_path.value {
-                true
-            } else {
-                false
-            }
-        );
-
-        assert!(tree.get_along_path(&[0]).is_none());
-
-        let Some(tree_at_path_1) = tree.get_along_path(&[1]) else {
-            panic!();
-        };
-
-        assert!(
-            if let InternalASTNodeValue::Function(_, _) = tree_at_path_1.value {
-                true
-            } else {
-                false
-            }
-        );
-
-        assert!(tree.get_along_path(&[2]).is_none());
-
-        assert!(tree.get_along_path(&[3]).is_none());
-    }
-
-    #[test]
-    fn test_go_left() {
-        let tree = InternalASTNode::new(InternalASTNodeValue::Function(
-            NumberSourceId::new(1),
-            vec![
-                ASTNode::new(ASTNodeValue::Empty),
-                ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
-                    InternalASTNodeValue::Function(
-                        NumberSourceId::new(2),
-                        vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
-                    ),
-                )))),
-                ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
-                ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
-            ],
-        ));
-
-        let mut path = ASTPath::new(vec![]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[]);
-
-        let mut path = ASTPath::new(vec![0]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[]);
-
-        let mut path = ASTPath::new(vec![1]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[0]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[]);
-
-        let mut path = ASTPath::new(vec![1, 0]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[1]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[0]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[]);
-
-        let mut path = ASTPath::new(vec![3]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[2]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[1, 0]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[1]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[0]);
-        path.go_left(&tree);
-        assert_eq!(&path.steps, &[]);
-    }
-
-    #[test]
-    fn test_go_right() {
-        let tree = InternalASTNode::new(InternalASTNodeValue::Function(
-            NumberSourceId::new(1),
-            vec![
-                ASTNode::new(ASTNodeValue::Empty),
-                ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
-                    InternalASTNodeValue::Function(
-                        NumberSourceId::new(2),
-                        vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
-                    ),
-                )))),
-                ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
-                ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
-            ],
-        ));
-
-        let mut path = ASTPath::new(vec![]);
-        path.go_right(&tree);
-        assert_eq!(&path.steps, &[0]);
-        path.go_right(&tree);
-        assert_eq!(&path.steps, &[1]);
-        path.go_right(&tree);
-        assert_eq!(&path.steps, &[1, 0]);
-        path.go_right(&tree);
-        assert_eq!(&path.steps, &[2,]);
-        path.go_right(&tree);
-        assert_eq!(&path.steps, &[3]);
-        path.go_right(&tree);
-        assert_eq!(&path.steps, &[3]);
     }
 }
