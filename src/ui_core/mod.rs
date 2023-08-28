@@ -1,6 +1,6 @@
 pub mod flosion_ui;
 pub mod graph_ui;
-pub mod hotkeys;
+pub mod keyboardfocus;
 pub mod lexicallayout;
 pub mod numbergraphui;
 pub mod numbergraphuicontext;

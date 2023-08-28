@@ -8,7 +8,9 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
+use super::{
+    soundgraphid::SoundGraphId, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundNumberSourceId(usize);
@@ -38,6 +40,15 @@ impl UniqueId for SoundNumberSourceId {
 pub(crate) enum SoundNumberSourceOwner {
     SoundProcessor(SoundProcessorId),
     SoundInput(SoundInputId),
+}
+
+impl From<SoundNumberSourceOwner> for SoundGraphId {
+    fn from(value: SoundNumberSourceOwner) -> Self {
+        match value {
+            SoundNumberSourceOwner::SoundProcessor(spid) => spid.into(),
+            SoundNumberSourceOwner::SoundInput(siid) => siid.into(),
+        }
+    }
 }
 
 pub struct SoundNumberSourceHandle {

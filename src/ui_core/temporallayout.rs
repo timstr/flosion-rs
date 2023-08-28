@@ -108,4 +108,69 @@ impl TemporalLayout {
         self.top_level_objects
             .retain(|k, _v| remaining_ids.contains(&(*k).into()));
     }
+
+    pub(crate) fn find_root_processor(
+        &self,
+        id: SoundGraphId,
+        topo: &SoundGraphTopology,
+    ) -> SoundProcessorId {
+        match id {
+            SoundGraphId::SoundInput(siid) => {
+                self.find_root_processor(topo.sound_input(siid).unwrap().owner().into(), topo)
+            }
+            SoundGraphId::SoundProcessor(spid) => {
+                if self.is_top_level(spid.into()) {
+                    spid
+                } else {
+                    let mut target_iter = topo.sound_processor_targets(spid);
+                    let target = target_iter.next().unwrap();
+                    // A sound processor without a top level layout should be connected
+                    // to exactly one sound input
+                    debug_assert!(target_iter.next().is_none());
+                    self.find_root_processor(target.into(), topo)
+                }
+            }
+            SoundGraphId::SoundNumberInput(sniid) => {
+                self.find_root_processor(topo.number_input(sniid).unwrap().owner().into(), topo)
+            }
+            SoundGraphId::SoundNumberSource(snsid) => {
+                self.find_root_processor(topo.number_source(snsid).unwrap().owner().into(), topo)
+            }
+        }
+    }
+
+    pub(crate) fn get_stack_items(
+        &self,
+        spid: SoundProcessorId,
+        topo: &SoundGraphTopology,
+    ) -> Vec<SoundGraphId> {
+        fn visitor(
+            spid: SoundProcessorId,
+            temporal_layout: &TemporalLayout,
+            topo: &SoundGraphTopology,
+            items: &mut Vec<SoundGraphId>,
+        ) {
+            let sp_data = topo.sound_processor(spid).unwrap();
+            for siid in sp_data.sound_inputs() {
+                let si_data = topo.sound_input(*siid).unwrap();
+                if let Some(target_spid) = si_data.target() {
+                    if !temporal_layout.is_top_level(target_spid.into()) {
+                        visitor(target_spid, temporal_layout, topo, items);
+                    } else {
+                        items.push((*siid).into());
+                    }
+                } else {
+                    items.push((*siid).into());
+                }
+            }
+            for niid in sp_data.number_inputs() {
+                items.push((*niid).into());
+            }
+            items.push(spid.into());
+        }
+
+        let mut items = Vec::new();
+        visitor(spid, self, topo, &mut items);
+        items
+    }
 }

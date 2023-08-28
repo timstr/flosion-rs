@@ -305,9 +305,18 @@ impl InternalASTNode {
     }
 }
 
-pub(super) struct Cursor {
+pub(super) struct LexicalLayoutCursor {
     line: usize,
     path: ASTPath,
+}
+
+impl LexicalLayoutCursor {
+    pub(super) fn new() -> LexicalLayoutCursor {
+        LexicalLayoutCursor {
+            line: 0,
+            path: ASTPath::new(Vec::new()),
+        }
+    }
 }
 
 struct VariableDefinitions {
@@ -417,7 +426,7 @@ impl LexicalLayout {
         result_label: &str,
         graph_state: &mut NumberGraphUiState,
         ctx: &NumberGraphUiContext,
-        cursor: &mut Option<Cursor>,
+        mut cursor: Option<&mut LexicalLayoutCursor>,
     ) -> Vec<SpatialGraphInputReference> {
         let variable_definitions = &mut self.variable_definitions;
         let num_variable_definitions = variable_definitions.len();
@@ -431,7 +440,7 @@ impl LexicalLayout {
                     ui,
                     &mut var_assn.value,
                     &mut graph_input_references,
-                    cursor,
+                    &mut cursor,
                     line_number,
                     |ui, graph_input_references, cursor, node| {
                         ui.horizontal(|ui| {
@@ -459,7 +468,7 @@ impl LexicalLayout {
                 ui,
                 final_expression,
                 &mut graph_input_references,
-                cursor,
+                &mut cursor,
                 line_number,
                 |ui, graph_input_references, cursor, node| {
                     ui.horizontal(|ui| {
@@ -479,11 +488,11 @@ impl LexicalLayout {
             );
         });
 
-        if let Some(cursor) = cursor.as_mut() {
-            let (pressed_up, pressed_down) = ui.input(|i| {
+        if let Some(cursor) = cursor {
+            let (pressed_up, pressed_down) = ui.input_mut(|i| {
                 (
-                    i.key_pressed(egui::Key::ArrowUp),
-                    i.key_pressed(egui::Key::ArrowDown),
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
                 )
             });
             if pressed_up {
@@ -510,7 +519,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         node: &mut ASTNode,
         graph_input_references: &mut Vec<SpatialGraphInputReference>,
-        cursor: &mut Option<Cursor>,
+        cursor: &mut Option<&mut LexicalLayoutCursor>,
         line_number: usize,
         add_contents: F,
     ) {
@@ -535,26 +544,28 @@ impl LexicalLayout {
         add_contents(ui, graph_input_references, &mut cursor_path, node);
 
         if let Some(mut path) = cursor_path {
-            let (pressed_left, pressed_right) = ui.input(|i| {
-                (
-                    i.key_pressed(egui::Key::ArrowLeft),
-                    i.key_pressed(egui::Key::ArrowRight),
-                )
-            });
+            if let Some(cursor) = cursor {
+                let (pressed_left, pressed_right) = ui.input_mut(|i| {
+                    (
+                        i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft),
+                        i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight),
+                    )
+                });
 
-            if let Some(n) = node.internal_node() {
-                if pressed_left {
-                    path.go_left(n);
+                if let Some(n) = node.internal_node() {
+                    if pressed_left {
+                        path.go_left(n);
+                    }
+                    if pressed_right {
+                        path.go_right(n);
+                    }
                 }
-                if pressed_right {
-                    path.go_right(n);
-                }
+
+                **cursor = LexicalLayoutCursor {
+                    line: line_number,
+                    path,
+                };
             }
-
-            *cursor = Some(Cursor {
-                line: line_number,
-                path,
-            });
         }
 
         let num_inputs_after = graph_input_references.len();

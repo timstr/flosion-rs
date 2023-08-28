@@ -11,12 +11,6 @@ use inkwell::{
     AtomicOrdering,
 };
 
-#[cfg(not(debug_assertions))]
-use inkwell::{
-    passes::{PassManager, PassManagerBuilder},
-    OptimizationLevel,
-};
-
 use crate::core::{
     number::{
         numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology,
@@ -212,6 +206,11 @@ impl<'ctx> CodeGen<'ctx> {
         // Apply optimizations in release mode
         #[cfg(not(debug_assertions))]
         {
+            use inkwell::{
+                passes::{PassManager, PassManagerBuilder},
+                OptimizationLevel,
+            };
+
             let pass_manager_builder = PassManagerBuilder::create();
 
             pass_manager_builder.set_optimization_level(OptimizationLevel::Aggressive);
@@ -220,8 +219,7 @@ impl<'ctx> CodeGen<'ctx> {
             let pass_manager = PassManager::create(());
 
             pass_manager_builder.populate_lto_pass_manager(&pass_manager, false, false);
-
-            pass_manager.run_on(codegen.module());
+            pass_manager.run_on(&self.module);
         }
 
         let compiled_fn = match unsafe { self.execution_engine.get_function(&self.function_name) } {

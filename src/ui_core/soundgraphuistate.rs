@@ -14,9 +14,12 @@ use crate::core::sound::{
 };
 
 use super::{
-    hotkeys::KeyboardFocusState, numbergraphuistate::NumberGraphUiState,
-    object_positions::ObjectPositions, soundnumberinputui::SoundNumberInputPresentation,
-    soundobjectuistate::SoundObjectUiStates, temporallayout::TemporalLayout,
+    keyboardfocus::KeyboardFocusState,
+    numbergraphuistate::NumberGraphUiState,
+    object_positions::ObjectPositions,
+    soundnumberinputui::{SoundNumberInputFocus, SoundNumberInputPresentation},
+    soundobjectuistate::SoundObjectUiStates,
+    temporallayout::TemporalLayout,
 };
 
 pub struct NestedProcessorClosure {
@@ -113,6 +116,22 @@ impl SoundGraphUiState {
         self.pending_changes.push(Box::new(f));
     }
 
+    fn update_mode_from_selection(&mut self) {
+        if let UiMode::Selecting(object_ids) = &mut self.mode {
+            match object_ids.len() {
+                0 => self.mode = UiMode::Passive,
+                1 => {
+                    self.mode = UiMode::UsingKeyboardNav(match object_ids.iter().next().unwrap() {
+                        SoundObjectId::Sound(spid) => {
+                            KeyboardFocusState::AroundSoundProcessor(*spid)
+                        }
+                    })
+                }
+                _ => (),
+            }
+        }
+    }
+
     pub(super) fn stop_selecting(&mut self) {
         match self.mode {
             UiMode::Selecting(_) => self.mode = UiMode::Passive,
@@ -122,6 +141,7 @@ impl SoundGraphUiState {
 
     pub(super) fn set_selection(&mut self, object_ids: HashSet<SoundObjectId>) {
         self.mode = UiMode::Selecting(object_ids);
+        self.update_mode_from_selection();
     }
 
     pub(super) fn select_object(&mut self, object_id: SoundObjectId) {
@@ -135,6 +155,7 @@ impl SoundGraphUiState {
                 self.mode = UiMode::Selecting(s);
             }
         }
+        self.update_mode_from_selection();
     }
 
     pub(super) fn select_with_rect(&mut self, rect: egui::Rect, change: SelectionChange) {
@@ -164,11 +185,8 @@ impl SoundGraphUiState {
             }
         }
 
-        if selection.len() > 0 {
-            self.mode = UiMode::Selecting(selection)
-        } else {
-            self.mode = UiMode::Passive;
-        }
+        self.mode = UiMode::Selecting(selection);
+        self.update_mode_from_selection();
     }
 
     fn find_nested_processor_closure(
@@ -452,7 +470,7 @@ impl SoundGraphUiState {
             }
             UiMode::Passive => (),
             UiMode::UsingKeyboardNav(kbd_focus) => {
-                if !remaining_ids.contains(&kbd_focus.as_graph_id()) {
+                if !remaining_ids.contains(&kbd_focus.graph_id()) {
                     self.mode = UiMode::Passive;
                 }
             }
@@ -496,11 +514,21 @@ impl SoundGraphUiState {
         }
     }
 
-    pub(super) fn is_object_only_selected(&self, object_id: SoundObjectId) -> bool {
+    pub(super) fn is_item_focused(&self, id: SoundGraphId) -> bool {
         match &self.mode {
-            UiMode::Selecting(s) => s.len() == 1 && s.contains(&object_id),
+            UiMode::UsingKeyboardNav(kbd) => kbd.item_has_keyboard_focus(id),
             _ => false,
         }
+    }
+
+    pub(super) fn set_keyboard_focus(&mut self, focus: KeyboardFocusState) {
+        self.mode = UiMode::UsingKeyboardNav(focus);
+    }
+
+    pub(super) fn handle_move_keyboard_focus(&mut self, ui: &egui::Ui, topo: &SoundGraphTopology) {
+        if let UiMode::UsingKeyboardNav(kbd) = &mut self.mode {
+            kbd.handle_move_keyboard_focus(ui, topo, &self.temporal_layout);
+        };
     }
 
     pub(super) fn move_selection(&mut self, delta: egui::Vec2, topo: &SoundGraphTopology) {
@@ -525,9 +553,9 @@ impl SoundGraphUiState {
         }
     }
 
-    pub(super) fn object_has_keyboard_focus(&self, object_id: SoundObjectId) -> bool {
+    pub(super) fn item_has_keyboard_focus(&self, id: SoundGraphId) -> bool {
         match &self.mode {
-            UiMode::UsingKeyboardNav(k) => k.object_has_keyboard_focus(object_id),
+            UiMode::UsingKeyboardNav(k) => k.item_has_keyboard_focus(id),
             _ => false,
         }
     }
@@ -601,10 +629,20 @@ impl SoundGraphUiState {
     pub(super) fn number_graph_ui(
         &mut self,
         input_id: SoundNumberInputId,
-    ) -> (&mut NumberGraphUiState, &mut SoundNumberInputPresentation) {
-        self.number_graph_uis
+    ) -> (
+        &mut NumberGraphUiState,
+        &mut SoundNumberInputPresentation,
+        Option<&mut SoundNumberInputFocus>,
+    ) {
+        let (ui_state, presentation) = self
+            .number_graph_uis
             .get_mut(&input_id)
             .map(|(a, b)| (a, b))
-            .unwrap()
+            .unwrap();
+        let focus = match &mut self.mode {
+            UiMode::UsingKeyboardNav(kbd) => kbd.sound_number_input_focus(input_id),
+            _ => None,
+        };
+        (ui_state, presentation, focus)
     }
 }

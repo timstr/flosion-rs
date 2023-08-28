@@ -6,15 +6,25 @@ use crate::core::{
 };
 
 use super::{
-    lexicallayout::{Cursor, LexicalLayout},
+    lexicallayout::{LexicalLayout, LexicalLayoutCursor},
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
 };
+pub(super) struct SoundNumberInputFocus {
+    cursor: LexicalLayoutCursor,
+}
+
+impl SoundNumberInputFocus {
+    pub(super) fn new() -> SoundNumberInputFocus {
+        SoundNumberInputFocus {
+            cursor: LexicalLayoutCursor::new(),
+        }
+    }
+}
 
 // TODO: add other presentations (e.g. plot, DAG maybe) and allow non-destructively switching between them
 pub(super) struct SoundNumberInputPresentation {
     lexical_layout: LexicalLayout,
-    cursor: Option<Cursor>,
 }
 
 impl SoundNumberInputPresentation {
@@ -24,7 +34,6 @@ impl SoundNumberInputPresentation {
     ) -> SoundNumberInputPresentation {
         SoundNumberInputPresentation {
             lexical_layout: LexicalLayout::generate(topology, object_ui_states),
-            cursor: None,
         }
     }
 
@@ -85,12 +94,14 @@ impl SoundNumberInputUi {
         graph_state: &mut NumberGraphUiState,
         ctx: &NumberGraphUiContext,
         presentation: &mut SoundNumberInputPresentation,
+        focus: Option<&mut SoundNumberInputFocus>,
     ) -> Vec<SpatialGraphInputReference> {
         // TODO: expandable/collapsible popup window with full layout
         let frame = egui::Frame::default()
             .fill(egui::Color32::BLACK)
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(64)))
             .inner_margin(egui::Margin::same(5.0));
+
         frame
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -99,7 +110,7 @@ impl SoundNumberInputUi {
                     result_label,
                     graph_state,
                     ctx,
-                    &mut presentation.cursor,
+                    focus.and_then(|f| Some(&mut f.cursor)),
                 )
             })
             .inner

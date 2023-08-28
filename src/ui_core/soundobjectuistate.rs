@@ -105,7 +105,7 @@ impl SoundObjectUiStates {
         ui_state: &SoundGraphUiState,
     ) -> egui::Color32 {
         let color = self.get_object_color(id);
-        if ui_state.is_object_selected(id) {
+        if ui_state.is_item_focused(id.into()) || ui_state.is_object_selected(id) {
             let mut hsva = ecolor::Hsva::from(color);
             hsva.v = 0.5 * (1.0 + hsva.a);
             hsva.into()

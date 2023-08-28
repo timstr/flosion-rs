@@ -11,9 +11,8 @@ use crate::core::{
 };
 
 use super::{
-    soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState,
-    soundnumberinputui::{SoundNumberInputUi, SpatialGraphInputReference},
+    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+    soundnumberinputui::SoundNumberInputUi,
 };
 
 pub struct ProcessorUi {
@@ -125,9 +124,7 @@ impl ProcessorUi {
         };
 
         if response.drag_started() {
-            if !ui_state.is_object_selected(self.processor_id.into())
-                || ui_state.is_object_only_selected(self.processor_id.into())
-            {
+            if !ui_state.is_object_selected(self.processor_id.into()) {
                 // Stop selecting, allowing the processor to be dragged onto sound inputs
                 ui_state.stop_selecting();
             }
@@ -259,7 +256,9 @@ impl ProcessorUi {
             response
         });
 
-        if ui_state.is_object_selected(self.processor_id.into()) {
+        if ui_state.is_item_focused(self.processor_id.into())
+            || ui_state.is_object_selected(self.processor_id.into())
+        {
             ui.painter().rect_stroke(
                 r.response.rect,
                 egui::Rounding::same(3.0),
@@ -466,6 +465,14 @@ impl ProcessorUi {
                 egui::Color32::from_black_alpha(64),
             );
         }
+
+        if ui_state.is_item_focused(input_id.into()) {
+            ui.painter().rect_stroke(
+                r.response.rect,
+                egui::Rounding::same(3.0),
+                egui::Stroke::new(2.0, egui::Color32::YELLOW),
+            );
+        }
     }
 
     fn show_number_input(
@@ -490,10 +497,16 @@ impl ProcessorUi {
 
             let number_ctx = ctx.number_graph_ui_context(input_id);
 
-            let (number_ui_state, presentation) = ui_state.number_graph_ui(input_id);
+            let (number_ui_state, presentation, focus) = ui_state.number_graph_ui(input_id);
 
-            let graph_input_references =
-                input_ui.show(ui, input_label, number_ui_state, &number_ctx, presentation);
+            let graph_input_references = input_ui.show(
+                ui,
+                input_label,
+                number_ui_state,
+                &number_ctx,
+                presentation,
+                focus,
+            );
 
             graph_input_references
         });
@@ -507,6 +520,14 @@ impl ProcessorUi {
         ctx.number_graph_input_references()
             .borrow_mut()
             .push((input_id, graph_input_references));
+
+        if ui_state.is_item_focused(input_id.into()) {
+            ui.painter().rect_stroke(
+                res.response.rect,
+                egui::Rounding::same(3.0),
+                egui::Stroke::new(2.0, egui::Color32::YELLOW),
+            );
+        }
     }
 
     fn draw_wires(
