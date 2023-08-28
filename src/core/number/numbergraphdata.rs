@@ -49,6 +49,12 @@ pub enum NumberTarget {
     GraphInput(NumberGraphInputId),
 }
 
+impl From<NumberSourceId> for NumberTarget {
+    fn from(value: NumberSourceId) -> Self {
+        NumberTarget::Source(value)
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
 pub enum NumberDestination {
     Input(NumberInputId),

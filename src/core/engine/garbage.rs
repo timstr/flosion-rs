@@ -22,11 +22,11 @@ pub(crate) struct GarbageChute<'ctx> {
 
 impl<'ctx> GarbageChute<'ctx> {
     pub(crate) fn send_box(&self, item: Box<dyn 'ctx + Droppable>) {
-        self.sender.send(WrappedDroppable::Box(item)).unwrap();
+        self.sender.try_send(WrappedDroppable::Box(item)).unwrap();
     }
 
     pub(crate) fn send_arc(&self, item: Arc<dyn 'ctx + Droppable>) {
-        self.sender.send(WrappedDroppable::Arc(item)).unwrap();
+        self.sender.try_send(WrappedDroppable::Arc(item)).unwrap();
     }
 }
 

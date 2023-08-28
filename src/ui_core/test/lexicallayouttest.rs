@@ -5,24 +5,30 @@ use crate::{
     },
 };
 
+fn create_test_ast() -> ASTNode {
+    ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
+        InternalASTNodeValue::Function(
+            NumberSourceId::new(1),
+            vec![
+                ASTNode::new(ASTNodeValue::Empty),
+                ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
+                    InternalASTNodeValue::Function(
+                        NumberSourceId::new(2),
+                        vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
+                    ),
+                )))),
+                ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
+                ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
+            ],
+        ),
+    ))))
+}
+
 #[test]
 fn test_get_along_path() {
-    let tree = InternalASTNode::new(InternalASTNodeValue::Function(
-        NumberSourceId::new(1),
-        vec![
-            ASTNode::new(ASTNodeValue::Empty),
-            ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
-                InternalASTNodeValue::Function(
-                    NumberSourceId::new(2),
-                    vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
-                ),
-            )))),
-            ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
-            ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
-        ],
-    ));
+    let tree = create_test_ast();
 
-    let Some(tree_at_empty_path) = tree.get_along_path(&[]) else {
+    let ASTNodeValue::Internal(tree_at_empty_path) = tree.get_along_path(&[]).value() else {
         panic!();
     };
 
@@ -34,9 +40,12 @@ fn test_get_along_path() {
         }
     );
 
-    assert!(tree.get_along_path(&[0]).is_none());
+    assert!(match tree.get_along_path(&[0]).value() {
+        ASTNodeValue::Empty => true,
+        _ => false,
+    });
 
-    let Some(tree_at_path_1) = tree.get_along_path(&[1]) else {
+    let ASTNodeValue::Internal(tree_at_path_1) = tree.get_along_path(&[1]).value() else {
         panic!();
     };
 
@@ -48,27 +57,25 @@ fn test_get_along_path() {
         }
     );
 
-    assert!(tree.get_along_path(&[2]).is_none());
+    assert!(match tree.get_along_path(&[1, 0]).value() {
+        ASTNodeValue::Variable(name) => name == "foo",
+        _ => false,
+    });
 
-    assert!(tree.get_along_path(&[3]).is_none());
+    assert!(match tree.get_along_path(&[2]).value() {
+        ASTNodeValue::GraphInput(giid) => *giid == NumberGraphInputId::new(11),
+        _ => false,
+    });
+
+    assert!(match tree.get_along_path(&[3]).value() {
+        ASTNodeValue::Variable(name) => name == "bar",
+        _ => false,
+    });
 }
 
 #[test]
 fn test_go_left() {
-    let tree = InternalASTNode::new(InternalASTNodeValue::Function(
-        NumberSourceId::new(1),
-        vec![
-            ASTNode::new(ASTNodeValue::Empty),
-            ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
-                InternalASTNodeValue::Function(
-                    NumberSourceId::new(2),
-                    vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
-                ),
-            )))),
-            ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
-            ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
-        ],
-    ));
+    let tree = create_test_ast();
 
     let mut path = ASTPath::new(vec![]);
     path.go_left(&tree);
@@ -107,20 +114,7 @@ fn test_go_left() {
 
 #[test]
 fn test_go_right() {
-    let tree = InternalASTNode::new(InternalASTNodeValue::Function(
-        NumberSourceId::new(1),
-        vec![
-            ASTNode::new(ASTNodeValue::Empty),
-            ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
-                InternalASTNodeValue::Function(
-                    NumberSourceId::new(2),
-                    vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
-                ),
-            )))),
-            ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
-            ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
-        ],
-    ));
+    let tree = create_test_ast();
 
     let mut path = ASTPath::new(vec![]);
     path.go_right(&tree);

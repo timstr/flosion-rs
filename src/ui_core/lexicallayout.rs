@@ -3,8 +3,10 @@ use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::core::{
     number::{
-        numbergraph::NumberGraphInputId, numbergraphdata::NumberTarget,
-        numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
+        numbergraph::{NumberGraph, NumberGraphInputId},
+        numbergraphdata::NumberTarget,
+        numbergraphtopology::NumberGraphTopology,
+        numbersource::NumberSourceId,
     },
     uniqueid::UniqueId,
 };
@@ -29,7 +31,7 @@ impl ASTPath {
         &self.steps
     }
 
-    pub(super) fn go_left(&mut self, tree: &InternalASTNode) {
+    pub(super) fn go_left(&mut self, tree: &ASTNode) {
         let Some(last_step) = self.steps.pop() else {
             return;
         };
@@ -37,7 +39,7 @@ impl ASTPath {
             self.steps.push(last_step - 1);
             loop {
                 let node = tree.get_along_path(&self.steps);
-                let num_children = node.and_then(|n| Some(n.num_children())).unwrap_or(0);
+                let num_children = node.num_children();
                 if num_children > 0 {
                     self.steps.push(num_children - 1);
                 } else {
@@ -47,18 +49,16 @@ impl ASTPath {
         }
     }
 
-    pub(super) fn go_right(&mut self, tree: &InternalASTNode) {
-        if let Some(node) = tree.get_along_path(&self.steps) {
-            if node.num_children() > 0 {
-                self.steps.push(0);
-                return;
-            }
+    pub(super) fn go_right(&mut self, tree: &ASTNode) {
+        if tree.get_along_path(&self.steps).num_children() > 0 {
+            self.steps.push(0);
+            return;
         }
         loop {
             let Some(last_step) = self.steps.pop() else {
                 break;
             };
-            let parent = tree.get_along_path(&self.steps).unwrap();
+            let parent = tree.get_along_path(&self.steps);
             let num_siblings = parent.num_children();
             let next_step = last_step + 1;
             if next_step < num_siblings {
@@ -67,9 +67,7 @@ impl ASTPath {
             }
         }
         loop {
-            let Some(node) = tree.get_along_path(&self.steps) else {
-                return;
-            };
+            let node = tree.get_along_path(&self.steps);
             let num_children = node.num_children();
             if num_children > 0 {
                 self.steps.push(num_children - 1);
@@ -148,10 +146,14 @@ impl ASTNode {
         }
     }
 
-    fn target(&self, variables: &[VariableDefinitions]) -> Option<NumberTarget> {
+    pub(super) fn value(&self) -> &ASTNodeValue {
+        &self.value
+    }
+
+    fn target(&self) -> Option<NumberTarget> {
         match &self.value {
             ASTNodeValue::Empty => None,
-            ASTNodeValue::Internal(node) => Some(node.target(variables)),
+            ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
             ASTNodeValue::Variable(_) => None,
             ASTNodeValue::GraphInput(_) => None,
         }
@@ -162,6 +164,12 @@ impl ASTNode {
             ASTNodeValue::Internal(n) => Some(&*n),
             _ => None,
         }
+    }
+
+    fn num_children(&self) -> usize {
+        self.internal_node()
+            .and_then(|n| Some(n.num_children()))
+            .unwrap_or(0)
     }
 
     fn is_over(&self, p: egui::Pos2) -> bool {
@@ -184,6 +192,28 @@ impl ASTNode {
             ASTNodeValue::Internal(n) => n.count_graph_inputs(),
             ASTNodeValue::GraphInput(_) => 1,
             _ => 0,
+        }
+    }
+
+    pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
+        if path.is_empty() {
+            self
+        } else {
+            let ASTNodeValue::Internal(node) = &self.value else {
+                panic!()
+            };
+            node.get_along_path(path)
+        }
+    }
+
+    fn set_along_path(&mut self, path: &[usize], value: ASTNode) {
+        if path.is_empty() {
+            *self = value;
+        } else {
+            let ASTNodeValue::Internal(node) = &mut self.value else {
+                panic!();
+            };
+            node.set_along_path(path, value);
         }
     }
 }
@@ -247,12 +277,12 @@ impl InternalASTNode {
         &self.value
     }
 
-    fn target(&self, variables: &[VariableDefinitions]) -> NumberTarget {
+    fn number_source_id(&self) -> NumberSourceId {
         match &self.value {
-            InternalASTNodeValue::Prefix(id, _) => NumberTarget::Source(*id),
-            InternalASTNodeValue::Infix(_, id, _) => NumberTarget::Source(*id),
-            InternalASTNodeValue::Postfix(_, id) => NumberTarget::Source(*id),
-            InternalASTNodeValue::Function(id, _) => NumberTarget::Source(*id),
+            InternalASTNodeValue::Prefix(id, _) => *id,
+            InternalASTNodeValue::Infix(_, id, _) => *id,
+            InternalASTNodeValue::Postfix(_, id) => *id,
+            InternalASTNodeValue::Function(id, _) => *id,
         }
     }
 
@@ -291,9 +321,9 @@ impl InternalASTNode {
         }
     }
 
-    pub(super) fn get_along_path(&self, path: &[usize]) -> Option<&InternalASTNode> {
+    pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
         let Some((next_step, rest_of_path)) = path.split_first() else {
-            return Some(self);
+            panic!("Empty paths can only be passed to ASTNode, not InternalASTNode");
         };
         let child_node = match (next_step, &self.value) {
             (0, InternalASTNodeValue::Prefix(_, c)) => c,
@@ -301,15 +331,24 @@ impl InternalASTNode {
             (1, InternalASTNodeValue::Infix(_, _, c)) => c,
             (0, InternalASTNodeValue::Postfix(c, _)) => c,
             (i, InternalASTNodeValue::Function(_, cs)) => &cs[*i],
-            _ => panic!(),
+            _ => panic!("Invalid child index"),
         };
-        match &child_node.value {
-            ASTNodeValue::Internal(node) => node.get_along_path(rest_of_path),
-            _ => {
-                assert!(rest_of_path.is_empty());
-                None
-            }
-        }
+        child_node.get_along_path(rest_of_path)
+    }
+
+    fn set_along_path(&mut self, path: &[usize], value: ASTNode) {
+        let Some((next_step, rest_of_path)) = path.split_first() else {
+            panic!("Empty paths can only be passed to ASTNode, not InternalASTNode");
+        };
+        let child_node = match (next_step, &mut self.value) {
+            (0, InternalASTNodeValue::Prefix(_, c)) => c,
+            (0, InternalASTNodeValue::Infix(c, _, _)) => c,
+            (1, InternalASTNodeValue::Infix(_, _, c)) => c,
+            (0, InternalASTNodeValue::Postfix(c, _)) => c,
+            (i, InternalASTNodeValue::Function(_, cs)) => &mut cs[*i],
+            _ => panic!("Invalid child index"),
+        };
+        child_node.set_along_path(rest_of_path, value);
     }
 }
 
@@ -363,7 +402,7 @@ impl LexicalLayout {
 
             if let Some(existing_variable) = variable_assignments
                 .iter()
-                .find(|va| va.value.target(&variable_assignments) == Some(target))
+                .find(|va| va.value.target() == Some(target))
             {
                 return ASTNode::new(ASTNodeValue::Variable(existing_variable.name.clone()));
             }
@@ -560,13 +599,11 @@ impl LexicalLayout {
                     )
                 });
 
-                if let Some(n) = node.internal_node() {
-                    if pressed_left {
-                        path.go_left(n);
-                    }
-                    if pressed_right {
-                        path.go_right(n);
-                    }
+                if pressed_left {
+                    path.go_left(node);
+                }
+                if pressed_right {
+                    path.go_right(node);
                 }
 
                 **cursor = LexicalLayoutCursor {
@@ -848,6 +885,91 @@ impl LexicalLayout {
             }
         }
         ret
+    }
+
+    pub(super) fn handle_keypress(
+        &mut self,
+        ui: &mut egui::Ui,
+        cursor: Option<&mut LexicalLayoutCursor>,
+        numbergraph: &mut NumberGraph,
+    ) {
+        let Some(cursor) = cursor else {
+            return;
+        };
+
+        let pressed_delete =
+            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
+
+        if pressed_delete {
+            self.delete_at_cursor(cursor, numbergraph);
+        }
+    }
+
+    fn get_node_at_cursor(&self, cursor: &LexicalLayoutCursor) -> &ASTNode {
+        if cursor.line < self.variable_definitions.len() {
+            self.variable_definitions[cursor.line]
+                .value
+                .get_along_path(cursor.path.steps())
+        } else if cursor.line == self.variable_definitions.len() {
+            self.final_expression.get_along_path(cursor.path.steps())
+        } else {
+            panic!("Invalid line number")
+        }
+    }
+
+    fn set_node_at_cursor(&mut self, cursor: &LexicalLayoutCursor, value: ASTNode) {
+        if cursor.line < self.variable_definitions.len() {
+            self.variable_definitions[cursor.line]
+                .value
+                .set_along_path(cursor.path.steps(), value);
+        } else if cursor.line == self.variable_definitions.len() {
+            self.final_expression
+                .set_along_path(cursor.path.steps(), value);
+        } else {
+            panic!("Invalid line number")
+        }
+    }
+
+    fn delete_at_cursor(&mut self, cursor: &LexicalLayoutCursor, numbergraph: &mut NumberGraph) {
+        let node = self.get_node_at_cursor(cursor);
+
+        // if an internal node was found, it corresponds to a number source with exactly one target.
+        // Delete it and its unique descendants.
+        // WAIT NOPE that's not true. Consider a variable definition set to an internal node which
+        // is referenced in multiple places.
+        todo!();
+        if let ASTNodeValue::Internal(internal_node) = &node.value {
+            self.delete_internal_node_from_graph(&*internal_node, numbergraph);
+        }
+
+        // TODO: disconnect the thing just before the cursor, whether it's
+        // an internal node -> (input of a number source)
+        // a variable definition -> ???
+        //     - find all points in the AST that reference the variable and disconnect those?
+        //     - Doing so without actually deleting the referenced variable name from the AST
+        //       would preserve the other parts of the AST, e.g. so that assigning a new
+        //       value to the variable's definition (assuming a symmetric implementation of
+        //       e.g. insert_at_cursor or replace_at_cursor) would repopulate all places
+        //       that the variable's name is referenced
+        // the final expression -> the graph output
+        todo!();
+
+        self.set_node_at_cursor(cursor, ASTNode::new(ASTNodeValue::Empty));
+    }
+
+    fn delete_internal_node_from_graph(
+        &self,
+        node: &InternalASTNode,
+        numbergraph: &mut NumberGraph,
+    ) {
+        // TODO:
+        // - get the internal node's number source id
+        // - find that number source's destination number inputs and clear them
+        // - recurse through the AST's children and delete any internal nodes there
+        // - clear the number source's inputs (just make empty, don't recurse or delete)
+        // - make sure the number source inputs still correspond to the AST children?
+        // - delete the number source
+        todo!()
     }
 
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
