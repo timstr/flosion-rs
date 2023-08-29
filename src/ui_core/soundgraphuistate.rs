@@ -525,9 +525,15 @@ impl SoundGraphUiState {
         self.mode = UiMode::UsingKeyboardNav(focus);
     }
 
-    pub(super) fn handle_move_keyboard_focus(&mut self, ui: &egui::Ui, topo: &SoundGraphTopology) {
+    pub(super) fn handle_keyboard_focus(&mut self, ui: &egui::Ui, soundgraph: &mut SoundGraph) {
         if let UiMode::UsingKeyboardNav(kbd) = &mut self.mode {
-            kbd.handle_move_keyboard_focus(ui, topo, &self.temporal_layout);
+            kbd.handle_keyboard_focus(
+                ui,
+                soundgraph,
+                &self.temporal_layout,
+                // gross
+                &mut self.number_graph_uis,
+            );
         };
     }
 

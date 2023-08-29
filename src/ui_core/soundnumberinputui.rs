@@ -1,7 +1,10 @@
 use eframe::egui;
 
 use crate::core::{
-    number::{numbergraph::NumberGraphInputId, numbergraphtopology::NumberGraphTopology},
+    number::{
+        numbergraph::{NumberGraph, NumberGraphInputId},
+        numbergraphtopology::NumberGraphTopology,
+    },
     sound::soundnumberinput::SoundNumberInputId,
 };
 
@@ -47,6 +50,16 @@ impl SoundNumberInputPresentation {
 
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
         self.lexical_layout.cleanup(topology);
+    }
+
+    pub(super) fn handle_keypress(
+        &mut self,
+        ui: &egui::Ui,
+        focus: &mut SoundNumberInputFocus,
+        numbergraph: &mut NumberGraph,
+    ) {
+        self.lexical_layout
+            .handle_keypress(ui, Some(&mut focus.cursor), numbergraph)
     }
 }
 

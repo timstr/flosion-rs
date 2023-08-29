@@ -10,7 +10,7 @@ use crate::core::{
 };
 
 use super::{
-    numbergraphdata::{NumberGraphOutputData, NumberSourceData, NumberTarget},
+    numbergraphdata::{NumberDestination, NumberGraphOutputData, NumberSourceData, NumberTarget},
     numbergraphedit::NumberGraphEdit,
     numbergrapherror::NumberError,
     numbergraphtopology::NumberGraphTopology,
@@ -209,6 +209,14 @@ impl NumberGraph {
     ) -> Result<(), NumberError> {
         let edits = vec![NumberGraphEdit::DisconnectGraphOutput(output_id)];
         self.try_make_edits(edits)
+    }
+
+    pub fn disconnect_destination(&mut self, target: NumberDestination) -> Result<(), NumberError> {
+        let edit = match target {
+            NumberDestination::Input(niid) => NumberGraphEdit::DisconnectNumberInput(niid),
+            NumberDestination::GraphOutput(goid) => NumberGraphEdit::DisconnectGraphOutput(goid),
+        };
+        self.try_make_edits(vec![edit])
     }
 
     pub fn apply_number_source_tools<F: FnOnce(NumberSourceTools)>(

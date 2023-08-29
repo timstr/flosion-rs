@@ -1,11 +1,18 @@
+use std::collections::HashMap;
+
 use eframe::egui;
 
 use crate::core::sound::{
-    soundgraphid::SoundGraphId, soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
+    soundgraph::SoundGraph, soundgraphid::SoundGraphId, soundgraphtopology::SoundGraphTopology,
+    soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
+    soundprocessor::SoundProcessorId,
 };
 
-use super::{soundnumberinputui::SoundNumberInputFocus, temporallayout::TemporalLayout};
+use super::{
+    numbergraphuistate::NumberGraphUiState,
+    soundnumberinputui::{SoundNumberInputFocus, SoundNumberInputPresentation},
+    temporallayout::TemporalLayout,
+};
 
 pub(super) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
@@ -112,11 +119,15 @@ impl KeyboardFocusState {
         false
     }
 
-    pub(super) fn handle_move_keyboard_focus(
+    pub(super) fn handle_keyboard_focus(
         &mut self,
         ui: &egui::Ui,
-        topology: &SoundGraphTopology,
+        soundgraph: &mut SoundGraph,
         temporal_layout: &TemporalLayout,
+        number_graph_uis: &mut HashMap<
+            SoundNumberInputId,
+            (NumberGraphUiState, SoundNumberInputPresentation),
+        >,
     ) {
         ui.input_mut(|i| {
             //  preemptively avoid some unnecessary computation
@@ -127,7 +138,20 @@ impl KeyboardFocusState {
             {
                 return;
             }
-            while self.handle_single_keyboard_event(topology, temporal_layout, i) {}
+            while self.handle_single_keyboard_event(soundgraph.topology(), temporal_layout, i) {}
         });
+
+        if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
+            let (ui_state, ui_presentation) = number_graph_uis.get_mut(niid).unwrap();
+            // Oh no!
+            // This closure approach makes no sense anymore. I just want a plain ol' mutable
+            // reference to the numbergraph
+
+            // soundgraph
+            //     .edit_number_input(*niid, |numbergraph| {
+            //         ui_presentation.handle_keypress(ui, ni_focus, numbergraph);
+            //     })
+            //     .unwrap();
+        }
     }
 }

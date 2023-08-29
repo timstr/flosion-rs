@@ -153,7 +153,6 @@ impl SoundGraph {
                 // deal with LLVM resources and so need to stay on the same
                 // thread as the inkwell_context above
                 loop {
-                    // TODO: update once no more messages have been received for now, rather than
                     while let Ok(topo) = receiver.try_recv() {
                         engine_interface.update(topo);
                     }

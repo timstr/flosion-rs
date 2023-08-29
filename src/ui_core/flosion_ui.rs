@@ -811,8 +811,7 @@ impl eframe::App for FlosionApp {
             if let Some(drag_data) = self.ui_state.take_dropped_nested_processor() {
                 self.handle_dropped_processor(ui, drag_data);
             }
-            self.ui_state
-                .handle_move_keyboard_focus(ui, self.graph.topology());
+            self.ui_state.handle_keyboard_focus(ui, &mut self.graph);
 
             Self::draw_selection_rect(ui, &self.selection_area);
 
