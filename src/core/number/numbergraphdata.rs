@@ -55,6 +55,12 @@ impl From<NumberSourceId> for NumberTarget {
     }
 }
 
+impl From<NumberGraphInputId> for NumberTarget {
+    fn from(value: NumberGraphInputId) -> Self {
+        NumberTarget::GraphInput(value)
+    }
+}
+
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
 pub enum NumberDestination {
     Input(NumberInputId),

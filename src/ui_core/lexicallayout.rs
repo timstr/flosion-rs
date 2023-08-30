@@ -8,7 +8,6 @@ use crate::core::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphdata::NumberTarget,
         numbergraphtopology::NumberGraphTopology,
-        numberinput::NumberInputId,
         numbersource::NumberSourceId,
     },
     uniqueid::UniqueId,
@@ -180,12 +179,12 @@ impl ASTNode {
         &self.value
     }
 
-    fn target(&self) -> Option<NumberTarget> {
+    fn direct_target(&self) -> Option<NumberTarget> {
         match &self.value {
             ASTNodeValue::Empty => None,
             ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
             ASTNodeValue::Variable(_) => None,
-            ASTNodeValue::GraphInput(_) => None,
+            ASTNodeValue::GraphInput(giid) => Some((*giid).into()),
         }
     }
 
@@ -471,7 +470,7 @@ impl LexicalLayout {
 
             if let Some(existing_variable) = variable_assignments
                 .iter()
-                .find(|va| va.value.target() == Some(target))
+                .find(|va| va.value.direct_target() == Some(target))
             {
                 return ASTNode::new(ASTNodeValue::Variable(existing_variable.name.clone()));
             }
@@ -1007,7 +1006,7 @@ impl LexicalLayout {
                 let graph_outputs = numbergraph.topology().graph_outputs();
                 debug_assert_eq!(graph_outputs.len(), 1);
                 let graph_output = graph_outputs.first().unwrap();
-                debug_assert_eq!(self.final_expression.target(), graph_output.target());
+                debug_assert_eq!(self.final_expression.direct_target(), graph_output.target());
                 numbergraph
                     .disconnect_graph_output(graph_output.id())
                     .unwrap();
@@ -1049,26 +1048,6 @@ impl LexicalLayout {
 
         fn visitor_internal_node(node: &InternalASTNode, numbergraph: &mut NumberGraph) {
             let nsid = node.number_source_id();
-
-            // Disconnect all the number source's inputs
-            let number_inputs = numbergraph
-                .topology()
-                .number_source(nsid)
-                .unwrap()
-                .number_inputs()
-                .to_vec();
-            debug_assert_eq!(number_inputs.len(), node.num_children());
-            for niid in number_inputs {
-                if numbergraph
-                    .topology()
-                    .number_input(niid)
-                    .unwrap()
-                    .target()
-                    .is_some()
-                {
-                    numbergraph.disconnect_number_input(niid).unwrap();
-                }
-            }
 
             // Recursively delete any number sources corresponding to direct AST children
             match node.value() {

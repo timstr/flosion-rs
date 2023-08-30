@@ -40,7 +40,6 @@ pub(crate) enum SoundNumberEdit {
     AddNumberSource(SoundNumberSourceData),
     RemoveNumberSource(SoundNumberSourceId, SoundNumberSourceOwner),
     AddNumberInput(SoundNumberInputData),
-    EditNumberInput(SoundNumberInputId, Box<dyn FnOnce(&mut NumberGraph)>),
     RemoveNumberInput(SoundNumberInputId, SoundProcessorId),
     ConnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
     DisconnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
@@ -234,7 +233,6 @@ impl SoundNumberEdit {
             SoundNumberEdit::RemoveNumberInput(_, _) => "RemoveNumberInput",
             SoundNumberEdit::ConnectNumberInput(_, _) => "ConnectNumberInput",
             SoundNumberEdit::DisconnectNumberInput(_, _) => "DisconnectNumberInput",
-            SoundNumberEdit::EditNumberInput(_, _) => "EditNumberInput",
         }
     }
 
@@ -380,15 +378,6 @@ impl SoundNumberEdit {
                         target: *nsid,
                     });
                 }
-            }
-            SoundNumberEdit::EditNumberInput(sniid, _edits) => {
-                // the number input must exist
-                if topo.number_input(*sniid).is_none() {
-                    return Some(SoundError::NumberInputNotFound(*sniid));
-                }
-
-                // NOTE that the function can't be tested without
-                // cloning, which would disallow using FnOnce
             }
         }
         None

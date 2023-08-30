@@ -75,7 +75,7 @@ pub(crate) struct SoundEngineInterface<'ctx> {
 }
 
 impl<'ctx> SoundEngineInterface<'ctx> {
-    pub(crate) fn update(&mut self, new_topology: SoundGraphTopology) {
+    pub(crate) fn update(&mut self, new_topology: SoundGraphTopology) -> Result<(), ()> {
         // topology and state graph should match
         #[cfg(debug_assertions)]
         {
@@ -90,7 +90,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
                         );
                     },
                 )))
-                .unwrap();
+                .map_err(|_| ())?;
         }
 
         // TODO: diff current and new topology and create a list of fine-grained state graph edits
@@ -99,7 +99,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             if proc.instance().is_static() {
                 self.edit_queue
                     .send(StateGraphEdit::RemoveStaticSoundProcessor(proc.id()))
-                    .unwrap();
+                    .map_err(|_| ())?;
             }
         }
         // all should be deleted now
@@ -111,7 +111,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
                         debug_assert!(sg.static_nodes().is_empty());
                     },
                 )))
-                .unwrap();
+                .map_err(|_| ())?;
         }
 
         // Add back static processors with populated inputs
@@ -121,7 +121,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
                 let node = proc.instance_arc().make_node(&nodegen);
                 self.edit_queue
                     .send(StateGraphEdit::AddStaticSoundProcessor(node))
-                    .unwrap();
+                    .map_err(|_| ())?;
             }
         }
 
@@ -139,10 +139,12 @@ impl<'ctx> SoundEngineInterface<'ctx> {
                         );
                     },
                 )))
-                .unwrap();
+                .map_err(|_| ())?;
         }
 
         self.current_topology = new_topology;
+
+        Ok(())
     }
 }
 

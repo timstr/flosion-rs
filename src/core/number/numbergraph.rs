@@ -153,20 +153,22 @@ impl NumberGraph {
     }
 
     pub fn remove_number_source(&mut self, id: NumberSourceId) -> Result<(), NumberError> {
-        let mut edits = Vec::new();
-        for go in self.topology.graph_outputs() {
-            if go.target() == Some(NumberTarget::Source(id)) {
-                edits.push(NumberGraphEdit::DisconnectGraphOutput(go.id()));
-            }
-        }
-        for ni in self.topology.number_inputs().values() {
-            if ni.target() == Some(NumberTarget::Source(id)) {
-                edits.push(NumberGraphEdit::DisconnectNumberInput(ni.id()));
-            }
-        }
-        let Some(data) =  self.topology.number_source(id) else{
+        let Some(data) = self.topology.number_source(id) else {
             return Err(NumberError::SourceNotFound(id));
         };
+        let mut edits = Vec::new();
+        for dst in self
+            .topology
+            .number_target_destinations(NumberTarget::Source(id))
+        {
+            let edit = match dst {
+                NumberDestination::Input(niid) => NumberGraphEdit::DisconnectNumberInput(niid),
+                NumberDestination::GraphOutput(goid) => {
+                    NumberGraphEdit::DisconnectGraphOutput(goid)
+                }
+            };
+            edits.push(edit);
+        }
         for niid in data.number_inputs() {
             let Some(ni) = self.topology.number_input(*niid) else {
                 return Err(NumberError::InputNotFound(*niid));

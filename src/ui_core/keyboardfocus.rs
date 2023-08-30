@@ -147,11 +147,11 @@ impl KeyboardFocusState {
             // This closure approach makes no sense anymore. I just want a plain ol' mutable
             // reference to the numbergraph
 
-            // soundgraph
-            //     .edit_number_input(*niid, |numbergraph| {
-            //         ui_presentation.handle_keypress(ui, ni_focus, numbergraph);
-            //     })
-            //     .unwrap();
+            soundgraph
+                .edit_number_input(*niid, |numbergraph| {
+                    ui_presentation.handle_keypress(ui, ni_focus, numbergraph);
+                })
+                .unwrap();
         }
     }
 }

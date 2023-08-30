@@ -131,14 +131,7 @@ impl NumberGraphTopology {
 
     fn remove_number_source(&mut self, source_id: NumberSourceId) {
         debug_assert!(!self.number_inputs.values().any(|d| d.owner() == source_id));
-        debug_assert!(self
-            .number_inputs
-            .values()
-            .any(|x| x.target() == Some(NumberTarget::Source(source_id))));
-        debug_assert!(self
-            .graph_outputs
-            .iter()
-            .any(|x| x.target() == Some(NumberTarget::Source(source_id))));
+        debug_assert_eq!(self.number_target_destinations(source_id.into()).count(), 0);
         debug_assert!(self
             .number_sources
             .get(&source_id)

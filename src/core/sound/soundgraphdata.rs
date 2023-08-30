@@ -185,7 +185,7 @@ impl SoundNumberInputData {
         &self.number_graph
     }
 
-    pub(crate) fn edit_number_graph(&mut self, f: Box<dyn FnOnce(&mut NumberGraph)>) {
+    pub(crate) fn edit_number_graph<F: FnOnce(&mut NumberGraph)>(&mut self, f: F) {
         // TODO: find a more structurally elegant way to disallow modifying graph inputs
         // and outputs when editing the internals of the number graph.
         // In other words, consider making graph inputs and outputs be exposed

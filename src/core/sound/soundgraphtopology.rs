@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::{
-    graph::graphobject::GraphObjectHandle, number::numbergraph::NumberGraph,
-    sound::soundnumbersource::SoundNumberSourceOwner,
+    graph::graphobject::GraphObjectHandle, sound::soundnumbersource::SoundNumberSourceOwner,
 };
 
 use super::{
@@ -73,6 +72,13 @@ impl SoundGraphTopology {
 
     pub(crate) fn number_input(&self, id: SoundNumberInputId) -> Option<&SoundNumberInputData> {
         self.number_inputs.get(&id)
+    }
+
+    pub(crate) fn number_input_mut(
+        &mut self,
+        id: SoundNumberInputId,
+    ) -> Option<&mut SoundNumberInputData> {
+        self.number_inputs.get_mut(&id)
     }
 
     pub(crate) fn sound_processor_targets<'a>(
@@ -200,7 +206,6 @@ impl SoundGraphTopology {
             SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
                 self.disconnect_number_input(niid, nsid)
             }
-            SoundNumberEdit::EditNumberInput(niid, f) => self.edit_number_input(niid, f),
         }
     }
 
@@ -358,15 +363,6 @@ impl SoundGraphTopology {
     fn disconnect_number_input(&mut self, input_id: SoundNumberInputId, nsid: SoundNumberSourceId) {
         let input_data = self.number_inputs.get_mut(&input_id).unwrap();
         input_data.remove_target(nsid).unwrap();
-    }
-
-    fn edit_number_input(
-        &mut self,
-        niid: SoundNumberInputId,
-        f: Box<dyn FnOnce(&mut NumberGraph)>,
-    ) {
-        let input_data = self.number_inputs.get_mut(&niid).unwrap();
-        input_data.edit_number_graph(f);
     }
 
     fn depends_on(&self, part: SoundConnectionPart, other_part: SoundConnectionPart) -> bool {

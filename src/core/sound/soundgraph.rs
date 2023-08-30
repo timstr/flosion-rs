@@ -154,7 +154,9 @@ impl SoundGraph {
                 // thread as the inkwell_context above
                 loop {
                     while let Ok(topo) = receiver.try_recv() {
-                        engine_interface.update(topo);
+                        if engine_interface.update(topo).is_err() {
+                            break;
+                        }
                     }
                     garbage_disposer.clear();
 
@@ -350,17 +352,20 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn edit_number_input<F: FnOnce(&mut NumberGraph) + 'static>(
+    pub fn edit_number_input<F: FnOnce(&mut NumberGraph)>(
         &mut self,
         input_id: SoundNumberInputId,
         f: F,
     ) -> Result<(), SoundError> {
-        let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::EditNumberInput(
-            input_id,
-            Box::new(f),
-        )));
-        self.try_make_edits(edit_queue)
+        self.try_make_change(|topo| {
+            let number_input = topo
+                .number_input_mut(input_id)
+                .ok_or_else(|| SoundError::NumberInputNotFound(input_id))?;
+
+            number_input.edit_number_graph(f);
+
+            Ok(())
+        })
     }
 
     fn make_tools_for<'a>(
@@ -378,15 +383,15 @@ impl SoundGraph {
     }
 
     fn try_make_edits_locally(
-        &mut self,
+        topo: &mut SoundGraphTopology,
         edit_queue: Vec<SoundGraphEdit>,
     ) -> Result<(), SoundError> {
         for edit in edit_queue {
-            if let Some(err) = edit.check_preconditions(&self.local_topology) {
+            if let Some(err) = edit.check_preconditions(&topo) {
                 return Err(err);
             }
-            self.local_topology.make_sound_graph_edit(edit);
-            if let Some(err) = find_error(&self.local_topology) {
+            topo.make_sound_graph_edit(edit);
+            if let Some(err) = find_error(&topo) {
                 return Err(err);
             }
         }
@@ -394,13 +399,20 @@ impl SoundGraph {
     }
 
     fn try_make_edits(&mut self, edit_queue: Vec<SoundGraphEdit>) -> Result<(), SoundError> {
+        self.try_make_change(|topo| Self::try_make_edits_locally(topo, edit_queue))
+    }
+
+    fn try_make_change<F: FnOnce(&mut SoundGraphTopology) -> Result<(), SoundError>>(
+        &mut self,
+        f: F,
+    ) -> Result<(), SoundError> {
         // TODO: add a separate flush() or commit() method that
         // sends updates to the sound engine on an opt-in basis,
         // e.g. at most once per UI update, rather than sending
-        // an update for every smallest change`
+        // an update for every smallest change
         debug_assert!(find_error(&self.local_topology).is_none());
         let prev_topology = self.local_topology.clone();
-        let res = self.try_make_edits_locally(edit_queue);
+        let res = f(&mut self.local_topology);
         if res.is_err() {
             self.local_topology = prev_topology;
         } else {
