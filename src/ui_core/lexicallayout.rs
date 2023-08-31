@@ -902,6 +902,9 @@ impl LexicalLayout {
     }
 
     fn flashing_highlight_color(ui: &mut egui::Ui) -> egui::Color32 {
+        // TODO: why does this cause an apparent memory leak?
+        // Note that request_repaint() causes the entire UI to continuous
+        // re-run, so the leak could be in many places.
         // ui.ctx().request_repaint();
         let t = ui.input(|i| i.time);
         let a = (((t - t.floor()) * 2.0 * std::f64::consts::TAU).sin() * 16.0 + 64.0) as u8;
