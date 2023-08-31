@@ -1,6 +1,9 @@
 use std::{any::type_name, cell::RefCell, collections::HashMap};
 
-use crate::core::number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId};
+use crate::core::{
+    number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId},
+    sound::{soundgraphtopology::SoundGraphTopology, soundnumberinput::SoundNumberInputId},
+};
 
 use super::{
     graph_ui::{ObjectUiData, ObjectUiState},
@@ -8,6 +11,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     object_ui_states::AnyObjectUiState,
+    soundnumberinputui::SoundNumberInputPresentation,
 };
 
 pub struct NumberGraphUiState {
@@ -20,6 +24,49 @@ impl NumberGraphUiState {
     }
 
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {}
+}
+
+pub(super) struct SoundNumberInputUiCollection {
+    data: HashMap<SoundNumberInputId, (NumberGraphUiState, SoundNumberInputPresentation)>,
+}
+
+impl SoundNumberInputUiCollection {
+    pub(super) fn new() -> SoundNumberInputUiCollection {
+        SoundNumberInputUiCollection {
+            data: HashMap::new(),
+        }
+    }
+
+    pub(super) fn set_ui_data(
+        &mut self,
+        niid: SoundNumberInputId,
+        ui_state: NumberGraphUiState,
+        presentation: SoundNumberInputPresentation,
+    ) {
+        self.data.insert(niid, (ui_state, presentation));
+    }
+
+    pub(super) fn cleanup(&mut self, topology: &SoundGraphTopology) {
+        self.data
+            .retain(|id, _| topology.number_inputs().contains_key(id));
+
+        for (niid, (ui_state, presentation)) in &mut self.data {
+            let number_topo = topology
+                .number_input(*niid)
+                .unwrap()
+                .number_graph()
+                .topology();
+            ui_state.cleanup(number_topo);
+            presentation.cleanup(number_topo);
+        }
+    }
+
+    pub(crate) fn get_mut(
+        &mut self,
+        niid: SoundNumberInputId,
+    ) -> Option<(&mut NumberGraphUiState, &mut SoundNumberInputPresentation)> {
+        self.data.get_mut(&niid).map(|(a, b)| (a, b))
+    }
 }
 
 pub struct AnyNumberObjectUiData {

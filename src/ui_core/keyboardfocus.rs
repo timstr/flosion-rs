@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use eframe::egui;
 
 use crate::core::sound::{
@@ -9,8 +7,7 @@ use crate::core::sound::{
 };
 
 use super::{
-    numbergraphuistate::NumberGraphUiState,
-    soundnumberinputui::{SoundNumberInputFocus, SoundNumberInputPresentation},
+    numbergraphuistate::SoundNumberInputUiCollection, soundnumberinputui::SoundNumberInputFocus,
     temporallayout::TemporalLayout,
 };
 
@@ -124,10 +121,7 @@ impl KeyboardFocusState {
         ui: &egui::Ui,
         soundgraph: &mut SoundGraph,
         temporal_layout: &TemporalLayout,
-        number_graph_uis: &mut HashMap<
-            SoundNumberInputId,
-            (NumberGraphUiState, SoundNumberInputPresentation),
-        >,
+        number_graph_uis: &mut SoundNumberInputUiCollection,
     ) {
         ui.input_mut(|i| {
             //  preemptively avoid some unnecessary computation
@@ -142,11 +136,7 @@ impl KeyboardFocusState {
         });
 
         if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
-            let (ui_state, ui_presentation) = number_graph_uis.get_mut(niid).unwrap();
-            // Oh no!
-            // This closure approach makes no sense anymore. I just want a plain ol' mutable
-            // reference to the numbergraph
-
+            let (ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             soundgraph
                 .edit_number_input(*niid, |numbergraph| {
                     ui_presentation.handle_keypress(ui, ni_focus, numbergraph);

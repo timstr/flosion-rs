@@ -15,7 +15,7 @@ use crate::core::sound::{
 
 use super::{
     keyboardfocus::KeyboardFocusState,
-    numbergraphuistate::NumberGraphUiState,
+    numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
     soundnumberinputui::{SoundNumberInputFocus, SoundNumberInputPresentation},
     soundobjectuistate::SoundObjectUiStates,
@@ -77,8 +77,7 @@ pub struct SoundGraphUiState {
     pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> ()>>,
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
-    number_graph_uis:
-        HashMap<SoundNumberInputId, (NumberGraphUiState, SoundNumberInputPresentation)>,
+    number_input_uis: SoundNumberInputUiCollection,
 }
 
 impl SoundGraphUiState {
@@ -89,7 +88,7 @@ impl SoundGraphUiState {
             pending_changes: Vec::new(),
             mode: UiMode::Passive,
             pending_drag: None,
-            number_graph_uis: HashMap::new(),
+            number_input_uis: SoundNumberInputUiCollection::new(),
         }
     }
 
@@ -489,14 +488,7 @@ impl SoundGraphUiState {
         // TODO: do this conservatively, e.g. when the topology changes
         self.temporal_layout.regenerate(topo);
 
-        self.number_graph_uis
-            .retain(|id, _| topo.number_inputs().contains_key(id));
-
-        for (niid, (number_ui_state, presentation)) in &mut self.number_graph_uis {
-            let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
-            number_ui_state.cleanup(number_topo);
-            presentation.cleanup(number_topo);
-        }
+        self.number_input_uis.cleanup(topo);
     }
 
     pub(super) fn selection(&self) -> HashSet<SoundObjectId> {
@@ -531,8 +523,7 @@ impl SoundGraphUiState {
                 ui,
                 soundgraph,
                 &self.temporal_layout,
-                // gross
-                &mut self.number_graph_uis,
+                &mut self.number_input_uis,
             );
         };
     }
@@ -621,12 +612,11 @@ impl SoundGraphUiState {
                 for niid in number_input_ids {
                     let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
                     let states = object_ui_states.number_graph_object_states(*niid);
-                    self.number_graph_uis.entry(*niid).or_insert_with(|| {
-                        (
-                            NumberGraphUiState::new(),
-                            SoundNumberInputPresentation::new(number_topo, states),
-                        )
-                    });
+                    self.number_input_uis.set_ui_data(
+                        *niid,
+                        NumberGraphUiState::new(),
+                        SoundNumberInputPresentation::new(number_topo, states),
+                    );
                 }
             }
         }
@@ -640,11 +630,7 @@ impl SoundGraphUiState {
         &mut SoundNumberInputPresentation,
         Option<&mut SoundNumberInputFocus>,
     ) {
-        let (ui_state, presentation) = self
-            .number_graph_uis
-            .get_mut(&input_id)
-            .map(|(a, b)| (a, b))
-            .unwrap();
+        let (ui_state, presentation) = self.number_input_uis.get_mut(input_id).unwrap();
         let focus = match &mut self.mode {
             UiMode::UsingKeyboardNav(kbd) => kbd.sound_number_input_focus(input_id),
             _ => None,

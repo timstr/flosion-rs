@@ -78,8 +78,6 @@ impl NumberGraphTopology {
     }
 
     pub(crate) fn make_edit(&mut self, edit: NumberGraphEdit) {
-        // TODO: validation
-        // TODO: precondition check
         match edit {
             NumberGraphEdit::AddNumberInput(data) => self.add_number_input(data),
             NumberGraphEdit::RemoveNumberInput(niid) => self.remove_number_input(niid),
@@ -94,7 +92,6 @@ impl NumberGraphTopology {
             NumberGraphEdit::ConnectGraphOutput(goid, tid) => self.connect_graph_output(goid, tid),
             NumberGraphEdit::DisconnectGraphOutput(goid) => self.disconnect_graph_output(goid),
         }
-        // TODO: validation
     }
 
     fn add_number_input(&mut self, data: NumberInputData) {

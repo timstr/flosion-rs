@@ -1,7 +1,10 @@
 use std::slice;
 
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::{
+        garbage::{Garbage, GarbageChute},
+        nodegen::NodeGen,
+    },
     jit::{codegen::CodeGen, compilednumberinput::CompiledNumberInputFunction},
     sound::soundnumberinput::SoundNumberInputId,
 };
@@ -29,9 +32,13 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         self.id
     }
 
-    pub(crate) fn update(&mut self, mut function: CompiledNumberInputFunction<'ctx>) {
-        std::mem::swap(&mut self.function, &mut function);
-        // TODO: put the spent function in the gargabe chute
+    pub(crate) fn update(
+        &mut self,
+        function: CompiledNumberInputFunction<'ctx>,
+        garbage_chute: &GarbageChute<'ctx>,
+    ) {
+        let old_function = std::mem::replace(&mut self.function, function);
+        old_function.toss(garbage_chute);
     }
 
     pub fn eval(&self, dst: &mut [f32], context: &Context) {

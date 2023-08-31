@@ -3,7 +3,10 @@ use std::sync::Arc;
 use atomic_float::AtomicF32;
 use send_wrapper::SendWrapper;
 
-use crate::core::sound::context::Context;
+use crate::core::{
+    engine::garbage::{Garbage, GarbageChute},
+    sound::context::Context,
+};
 
 type EvalNumberInputFunc = unsafe extern "C" fn(
     *mut f32,  // pointer to destination array
@@ -12,8 +15,8 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 );
 
 struct CompiledNumberInputData<'ctx> {
-    execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
-    function: inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>,
+    execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
+    function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
     atomic_captures: Vec<Arc<AtomicF32>>,
 }
 
@@ -33,8 +36,8 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
         atomic_captures: Vec<Arc<AtomicF32>>,
     ) -> CompiledNumberInputData<'inkwell_ctx> {
         CompiledNumberInputData {
-            execution_engine,
-            function,
+            execution_engine: SendWrapper::new(execution_engine),
+            function: SendWrapper::new(function),
             atomic_captures,
         }
     }
@@ -66,7 +69,7 @@ impl<'ctx> CompiledNumberInputCache<'ctx> {
         // that the inkwell data can neither be accessed nor dropped on
         // the audio thread.
         CompiledNumberInputFunction {
-            data: SendWrapper::new(Arc::clone(&self.data)),
+            data: Arc::clone(&self.data),
             function: unsafe { self.data.function.as_raw() },
         }
     }
@@ -74,7 +77,7 @@ impl<'ctx> CompiledNumberInputCache<'ctx> {
 
 pub(crate) struct CompiledNumberInputFunction<'ctx> {
     // TODO: can stateful number source state be stored here???????
-    data: SendWrapper<Arc<CompiledNumberInputData<'ctx>>>,
+    data: Arc<CompiledNumberInputData<'ctx>>,
     function: EvalNumberInputFunc,
 }
 
@@ -84,5 +87,11 @@ impl<'ctx> CompiledNumberInputFunction<'ctx> {
             let context_ptr: *const () = std::mem::transmute_copy(&context);
             (self.function)(dst.as_mut_ptr(), dst.len(), context_ptr);
         }
+    }
+}
+
+impl<'ctx> Garbage<'ctx> for CompiledNumberInputFunction<'ctx> {
+    fn toss(self, chute: &GarbageChute<'ctx>) {
+        chute.send_arc(self.data);
     }
 }

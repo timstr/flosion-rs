@@ -260,6 +260,14 @@ impl ASTNode {
             node.visit(path, f);
         }
     }
+
+    fn is_empty(&self) -> bool {
+        if let ASTNodeValue::Empty = &self.value {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Default for NumberSourceLayout {
@@ -894,7 +902,7 @@ impl LexicalLayout {
     }
 
     fn flashing_highlight_color(ui: &mut egui::Ui) -> egui::Color32 {
-        ui.ctx().request_repaint();
+        // ui.ctx().request_repaint();
         let t = ui.input(|i| i.time);
         let a = (((t - t.floor()) * 2.0 * std::f64::consts::TAU).sin() * 16.0 + 64.0) as u8;
         egui::Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, a)
@@ -994,6 +1002,10 @@ impl LexicalLayout {
     }
 
     fn delete_at_cursor(&mut self, cursor: &LexicalLayoutCursor, numbergraph: &mut NumberGraph) {
+        if self.get_node_at_cursor(cursor).is_empty() {
+            return;
+        }
+
         if cursor.path.at_beginning() {
             if cursor.line < self.variable_definitions.len() {
                 // Cursor points to definition of a variable
