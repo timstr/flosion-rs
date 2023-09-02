@@ -1,9 +1,13 @@
-use std::sync::Arc;
+use std::{hash::Hasher, sync::Arc};
 
-use crate::core::number::{
-    numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
-    numbergrapherror::NumberError,
-    numbergraphtopology::NumberGraphTopology,
+use crate::core::{
+    number::{
+        numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
+        numbergrapherror::NumberError,
+        numbergraphtopology::NumberGraphTopology,
+    },
+    revision::Revision,
+    uniqueid::UniqueId,
 };
 
 use super::{
@@ -77,6 +81,28 @@ impl SoundInputData {
     }
 }
 
+impl Revision for SoundInputData {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.id.value());
+        hasher.write_u8(match &self.options {
+            InputOptions::Synchronous => 0x1,
+            InputOptions::NonSynchronous => 0x2,
+        });
+        hasher.write_usize(self.num_keys);
+        hasher.write_usize(match &self.target {
+            Some(id) => id.value(),
+            None => usize::MAX,
+        });
+        hasher.write_usize(self.owner.value());
+        hasher.write_usize(self.number_sources.len());
+        for nsid in &self.number_sources {
+            hasher.write_usize(nsid.value());
+        }
+        hasher.finish()
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct SoundProcessorData {
     id: SoundProcessorId,
@@ -131,6 +157,28 @@ impl SoundProcessorData {
 
     pub(crate) fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
         Arc::clone(&self.processor)
+    }
+}
+
+impl Revision for SoundProcessorData {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.id.value());
+        hasher.write_u8(if self.processor.is_static() { 1 } else { 2 });
+        // Do not hash processor instance
+        hasher.write_usize(self.sound_inputs.len());
+        for siid in &self.sound_inputs {
+            hasher.write_usize(siid.value());
+        }
+        hasher.write_usize(self.number_sources.len());
+        for nsid in &self.number_sources {
+            hasher.write_usize(nsid.value());
+        }
+        hasher.write_usize(self.number_inputs.len());
+        for niid in &self.number_inputs {
+            hasher.write_usize(niid.value());
+        }
+        hasher.finish()
     }
 }
 
@@ -237,6 +285,20 @@ impl SoundNumberInputData {
     }
 }
 
+impl Revision for SoundNumberInputData {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.id.value());
+        hasher.write_usize(self.targets.len());
+        for t in &self.targets {
+            hasher.write_usize(t.value());
+        }
+        hasher.write_u64(self.number_graph.topology().get_revision());
+        hasher.write_usize(self.owner.value());
+        hasher.finish()
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct SoundNumberSourceData {
     id: SoundNumberSourceId,
@@ -271,5 +333,24 @@ impl SoundNumberSourceData {
 
     pub(crate) fn owner(&self) -> SoundNumberSourceOwner {
         self.owner
+    }
+}
+
+impl Revision for SoundNumberSourceData {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.id.value());
+        // Do not hash instance
+        match &self.owner {
+            SoundNumberSourceOwner::SoundProcessor(spid) => {
+                hasher.write_u8(1);
+                hasher.write_usize(spid.value());
+            }
+            SoundNumberSourceOwner::SoundInput(siid) => {
+                hasher.write_u8(2);
+                hasher.write_usize(siid.value());
+            }
+        }
+        hasher.finish()
     }
 }

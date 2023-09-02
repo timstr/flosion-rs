@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hasher};
+
+use crate::core::{revision::Revision, uniqueid::UniqueId};
 
 use super::{
     numbergraph::{NumberGraphInputId, NumberGraphOutputId},
@@ -231,5 +233,22 @@ impl NumberGraphTopology {
             .unwrap();
         debug_assert!(data.target().is_some());
         data.set_target(None);
+    }
+}
+
+impl Revision for NumberGraphTopology {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_u64(self.number_sources.get_revision());
+        hasher.write_u64(self.number_inputs.get_revision());
+        hasher.write_usize(self.graph_inputs.len());
+        for giid in &self.graph_inputs {
+            hasher.write_usize(giid.value());
+        }
+        hasher.write_usize(self.graph_outputs.len());
+        for o in &self.graph_outputs {
+            hasher.write_u64(o.get_revision());
+        }
+        hasher.finish()
     }
 }

@@ -7,6 +7,7 @@ pub(crate) mod engine;
 pub(crate) mod graph;
 pub mod jit;
 pub mod resample;
+pub(crate) mod revision;
 pub mod samplefrequency;
 pub mod soundbuffer;
 pub mod soundchunk;

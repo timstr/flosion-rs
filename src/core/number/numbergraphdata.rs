@@ -1,4 +1,6 @@
-use std::sync::Arc;
+use std::{hash::Hasher, sync::Arc};
+
+use crate::core::{revision::Revision, uniqueid::UniqueId};
 
 use super::{
     numbergraph::{NumberGraphInputId, NumberGraphOutputId},
@@ -40,6 +42,18 @@ impl NumberSourceData {
 
     pub fn number_inputs_mut(&mut self) -> &mut Vec<NumberInputId> {
         &mut self.inputs
+    }
+}
+
+impl Revision for NumberSourceData {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.id.value());
+        hasher.write_usize(self.inputs.len());
+        for niid in &self.inputs {
+            hasher.write_usize(niid.value());
+        }
+        hasher.finish()
     }
 }
 
@@ -110,6 +124,33 @@ impl NumberInputData {
     }
 }
 
+fn hash_optional_target(target: Option<NumberTarget>, hasher: &mut seahash::SeaHasher) {
+    match target {
+        Some(NumberTarget::GraphInput(giid)) => {
+            hasher.write_u8(1);
+            hasher.write_usize(giid.value());
+        }
+        Some(NumberTarget::Source(nsid)) => {
+            hasher.write_u8(2);
+            hasher.write_usize(nsid.value());
+        }
+        None => {
+            hasher.write_u8(3);
+        }
+    }
+}
+
+impl Revision for NumberInputData {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.id.value());
+        hash_optional_target(self.target, &mut hasher);
+        hasher.write_usize(self.owner.value());
+        hasher.write_u32(self.default_value.to_bits());
+        hasher.finish()
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct NumberGraphOutputData {
     id: NumberGraphOutputId,
@@ -140,5 +181,15 @@ impl NumberGraphOutputData {
 
     pub fn default_value(&self) -> f32 {
         self.default_value
+    }
+}
+
+impl Revision for NumberGraphOutputData {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.id.value());
+        hash_optional_target(self.target, &mut hasher);
+        hasher.write_u32(self.default_value.to_bits());
+        hasher.finish()
     }
 }

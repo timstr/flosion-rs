@@ -1,7 +1,7 @@
 use std::{
     collections::HashSet,
     sync::{
-        mpsc::{sync_channel, SendError, SyncSender, TryRecvError, TrySendError},
+        mpsc::{sync_channel, SyncSender, TryRecvError, TrySendError},
         Arc,
     },
     thread::JoinHandle,
@@ -14,6 +14,7 @@ use crate::core::{
     engine::soundengine::{create_sound_engine, StopButton},
     graph::{graph::Graph, graphobject::ObjectInitialization},
     number::numbergraph::NumberGraph,
+    revision::Revision,
     uniqueid::IdGenerator,
 };
 
@@ -123,6 +124,7 @@ impl SoundGraphClosure {
 
 pub struct SoundGraph {
     local_topology: SoundGraphTopology,
+    last_revision: Option<u64>,
 
     engine_interface_thread: Option<JoinHandle<()>>,
     stop_button: StopButton,
@@ -154,6 +156,14 @@ impl SoundGraph {
                 // NOTE: both the engine interface and the garbage disposer
                 // deal with LLVM resources and so need to stay on the same
                 // thread as the inkwell_context above
+                // Yes, it might be more efficient to perform topology diffing
+                // and recompilation on the sound graph / ui thread but it
+                // needs to happen on the same thread as the inkwell context,
+                // whose lifetime needs to be confined here.
+                // Yes, it might also seem safer and simpler to perform garbage
+                // disposal on a separate thread, removing the need for the
+                // following interleaving mess, but this would mean disposing
+                // LLVM resources on a separate thread, which is also not allowed.
                 loop {
                     'handle_pending_updates: loop {
                         garbage_disposer.clear();
@@ -205,6 +215,7 @@ impl SoundGraph {
 
         SoundGraph {
             engine_interface_thread: Some(engine_interface_thread),
+            last_revision: None,
             stop_button,
             topology_sender: topo_sender,
 
@@ -446,26 +457,36 @@ impl SoundGraph {
         // sends updates to the sound engine on an opt-in basis,
         // e.g. at most once per UI update, rather than sending
         // an update for every smallest change
-        debug_assert!(find_error(&self.local_topology).is_none());
+        debug_assert_eq!(find_error(&self.local_topology), None);
         let prev_topology = self.local_topology.clone();
         let res = f(&mut self.local_topology);
         if res.is_err() {
             self.local_topology = prev_topology;
-        } else {
-            debug_assert!(find_error(&self.local_topology).is_none());
+        }
+        debug_assert_eq!(find_error(&self.local_topology), None);
+        res
+    }
 
-            let time_sent = Instant::now();
-            if let Err(err) = self
-                .topology_sender
-                .try_send((self.local_topology.clone(), time_sent))
-            {
-                match err {
-                    TrySendError::Full(_) => panic!("Sound Engine update overflow!"),
-                    TrySendError::Disconnected(_) => panic!("Sound Engine is no longer running!"),
-                }
+    pub fn flush_updates(&mut self) {
+        let revision = self.local_topology.get_revision();
+        if self.last_revision == Some(revision) {
+            return;
+        }
+
+        debug_assert_eq!(find_error(&self.local_topology), None);
+
+        let time_sent = Instant::now();
+        if let Err(err) = self
+            .topology_sender
+            .try_send((self.local_topology.clone(), time_sent))
+        {
+            match err {
+                TrySendError::Full(_) => panic!("Sound Engine update overflow!"),
+                TrySendError::Disconnected(_) => panic!("Sound Engine is no longer running!"),
             }
         }
-        res
+
+        self.last_revision = Some(revision);
     }
 
     pub(crate) fn topology(&self) -> &SoundGraphTopology {

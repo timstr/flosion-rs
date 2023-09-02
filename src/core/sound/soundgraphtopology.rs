@@ -1,7 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hasher,
+};
 
 use crate::core::{
-    graph::graphobject::GraphObjectHandle, sound::soundnumbersource::SoundNumberSourceOwner,
+    graph::graphobject::GraphObjectHandle, revision::Revision,
+    sound::soundnumbersource::SoundNumberSourceOwner,
 };
 
 use super::{
@@ -386,5 +390,16 @@ impl SoundGraphTopology {
                 }
             }
         }
+    }
+}
+
+impl Revision for SoundGraphTopology {
+    fn get_revision(&self) -> u64 {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_u64(self.sound_processors.get_revision());
+        hasher.write_u64(self.sound_inputs.get_revision());
+        hasher.write_u64(self.number_sources.get_revision());
+        hasher.write_u64(self.number_inputs.get_revision());
+        hasher.finish()
     }
 }
