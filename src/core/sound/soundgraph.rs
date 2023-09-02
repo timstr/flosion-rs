@@ -146,7 +146,7 @@ impl SoundGraph {
                 let (mut engine_interface, engine, garbage_disposer) =
                     create_sound_engine(&inkwell_context, &stop_button_also);
 
-                scope.spawn(move || {
+                let audio_thread_handle = scope.spawn(move || {
                     set_current_thread_priority(ThreadPriority::Max).unwrap();
                     engine.run();
                 });
@@ -192,6 +192,10 @@ impl SoundGraph {
                                 return;
                             }
                         }
+                    }
+
+                    if audio_thread_handle.is_finished() {
+                        return;
                     }
 
                     std::thread::sleep(Duration::from_millis(50));
