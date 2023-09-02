@@ -1,7 +1,7 @@
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{channel, Receiver, Sender},
+        mpsc::{sync_channel, Receiver, SyncSender, TrySendError},
         Arc,
     },
     time::{Duration, Instant},
@@ -47,19 +47,20 @@ pub(crate) fn create_sound_engine<'ctx>(
     GarbageDisposer<'ctx>,
 ) {
     let keep_running = Arc::clone(&stop_button.0);
-    let (sender, receiver) = channel::<StateGraphEdit<'ctx>>();
+    let edit_queue_size = 1024;
+    let (edit_sender, edit_receiver) = sync_channel::<StateGraphEdit<'ctx>>(edit_queue_size);
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
     let se_interface = SoundEngineInterface {
         inkwell_context,
         current_topology: SoundGraphTopology::new(),
         keep_running: Arc::clone(&keep_running),
-        edit_queue: sender,
+        edit_queue: edit_sender,
     };
 
     let se = SoundEngine {
         keep_running,
-        edit_queue: receiver,
+        edit_queue: edit_receiver,
         deadline_warning_issued: false,
         garbage_chute,
     };
@@ -71,78 +72,90 @@ pub(crate) struct SoundEngineInterface<'ctx> {
     inkwell_context: &'ctx inkwell::context::Context,
     current_topology: SoundGraphTopology,
     keep_running: Arc<AtomicBool>,
-    edit_queue: Sender<StateGraphEdit<'ctx>>,
+    edit_queue: SyncSender<StateGraphEdit<'ctx>>,
 }
 
 impl<'ctx> SoundEngineInterface<'ctx> {
     pub(crate) fn update(&mut self, new_topology: SoundGraphTopology) -> Result<(), ()> {
-        // topology and state graph should match
-        #[cfg(debug_assertions)]
-        {
-            let topo_clone = self.current_topology.clone();
-            self.edit_queue
-                .send(StateGraphEdit::DebugInspection(Box::new(
-                    |sg: &StateGraph<'ctx>| {
-                        let topo = topo_clone;
-                        debug_assert!(
-                            state_graph_matches_topology(sg, &topo),
-                            "State graph failed to match topology before any updates were made"
-                        );
-                    },
-                )))
-                .map_err(|_| ())?;
-        }
-
-        // TODO: diff current and new topology and create a list of fine-grained state graph edits
-        // HACK deleting everything and then adding it back
-        for proc in self.current_topology.sound_processors().values() {
-            if proc.instance().is_static() {
+        let do_it = || -> Result<(), TrySendError<StateGraphEdit<'ctx>>> {
+            // topology and state graph should match
+            #[cfg(debug_assertions)]
+            {
+                let topo_clone = self.current_topology.clone();
                 self.edit_queue
-                    .send(StateGraphEdit::RemoveStaticSoundProcessor(proc.id()))
-                    .map_err(|_| ())?;
+                    .try_send(StateGraphEdit::DebugInspection(Box::new(
+                        |sg: &StateGraph<'ctx>| {
+                            let topo = topo_clone;
+                            debug_assert!(
+                                state_graph_matches_topology(sg, &topo),
+                                "State graph failed to match topology before any updates were made"
+                            );
+                        },
+                    )))?;
+            }
+
+            // TODO: diff current and new topology and create a list of fine-grained state graph edits
+            // HACK deleting everything and then adding it back
+            for proc in self.current_topology.sound_processors().values() {
+                if proc.instance().is_static() {
+                    self.edit_queue
+                        .try_send(StateGraphEdit::RemoveStaticSoundProcessor(proc.id()))?;
+                }
+            }
+            // all should be deleted now
+            #[cfg(debug_assertions)]
+            {
+                self.edit_queue
+                    .try_send(StateGraphEdit::DebugInspection(Box::new(
+                        |sg: &StateGraph<'ctx>| {
+                            debug_assert!(sg.static_nodes().is_empty());
+                        },
+                    )))?;
+            }
+
+            // Add back static processors with populated inputs
+            let nodegen = NodeGen::new(&new_topology, self.inkwell_context);
+            for proc in new_topology.sound_processors().values() {
+                if proc.instance().is_static() {
+                    let node = proc.instance_arc().make_node(&nodegen);
+                    self.edit_queue
+                        .try_send(StateGraphEdit::AddStaticSoundProcessor(node))?;
+                }
+            }
+
+            // topology and state graph should still match
+            #[cfg(debug_assertions)]
+            {
+                let topo_clone = new_topology.clone();
+                self.edit_queue
+                    .try_send(StateGraphEdit::DebugInspection(Box::new(
+                        |sg: &StateGraph<'ctx>| {
+                            let topo = topo_clone;
+                            debug_assert!(
+                                state_graph_matches_topology(sg, &topo),
+                                "State graph no longer matches topology after applying updates"
+                            );
+                        },
+                    )))?;
+            }
+
+            self.current_topology = new_topology;
+
+            Ok(())
+        };
+
+        if let Err(err) = do_it() {
+            match err {
+                TrySendError::Full(_) => panic!("State graph edit queue overflow!"),
+                TrySendError::Disconnected(_) => {
+                    println!(
+                        "State graph thread is no longer running, \
+                        sound engine update thread is exiting"
+                    );
+                    return Err(());
+                }
             }
         }
-        // all should be deleted now
-        #[cfg(debug_assertions)]
-        {
-            self.edit_queue
-                .send(StateGraphEdit::DebugInspection(Box::new(
-                    |sg: &StateGraph<'ctx>| {
-                        debug_assert!(sg.static_nodes().is_empty());
-                    },
-                )))
-                .map_err(|_| ())?;
-        }
-
-        // Add back static processors with populated inputs
-        let nodegen = NodeGen::new(&new_topology, self.inkwell_context);
-        for proc in new_topology.sound_processors().values() {
-            if proc.instance().is_static() {
-                let node = proc.instance_arc().make_node(&nodegen);
-                self.edit_queue
-                    .send(StateGraphEdit::AddStaticSoundProcessor(node))
-                    .map_err(|_| ())?;
-            }
-        }
-
-        // topology and state graph should still match
-        #[cfg(debug_assertions)]
-        {
-            let topo_clone = new_topology.clone();
-            self.edit_queue
-                .send(StateGraphEdit::DebugInspection(Box::new(
-                    |sg: &StateGraph<'ctx>| {
-                        let topo = topo_clone;
-                        debug_assert!(
-                            state_graph_matches_topology(sg, &topo),
-                            "State graph no longer matches topology after applying updates"
-                        );
-                    },
-                )))
-                .map_err(|_| ())?;
-        }
-
-        self.current_topology = new_topology;
 
         Ok(())
     }
@@ -213,8 +226,6 @@ impl<'ctx> SoundEngine<'ctx> {
     ) {
         while let Ok(edit) = edit_queue.try_recv() {
             state_graph.make_edit(edit, garbage_chute);
-            // TODO: consider adding back a way to ensure that the state graph
-            // matches the corresponding topology in debug builds
         }
     }
 

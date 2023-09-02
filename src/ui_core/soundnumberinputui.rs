@@ -10,18 +10,31 @@ use crate::core::{
 
 use super::{
     lexicallayout::{LexicalLayout, LexicalLayoutCursor},
+    numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
+    summon_widget::SummonWidgetState,
+    ui_factory::UiFactory,
 };
 pub(super) struct SoundNumberInputFocus {
     cursor: LexicalLayoutCursor,
+    summon_widget_state: Option<SummonWidgetState>,
 }
 
 impl SoundNumberInputFocus {
     pub(super) fn new() -> SoundNumberInputFocus {
         SoundNumberInputFocus {
             cursor: LexicalLayoutCursor::new(),
+            summon_widget_state: None,
         }
+    }
+
+    pub(super) fn cursor_mut(&mut self) -> &mut LexicalLayoutCursor {
+        &mut self.cursor
+    }
+
+    pub(super) fn summon_widget_state_mut(&mut self) -> &mut Option<SummonWidgetState> {
+        &mut self.summon_widget_state
     }
 }
 
@@ -57,9 +70,10 @@ impl SoundNumberInputPresentation {
         ui: &egui::Ui,
         focus: &mut SoundNumberInputFocus,
         numbergraph: &mut NumberGraph,
+        ui_factory: &UiFactory<NumberGraphUi>,
     ) {
         self.lexical_layout
-            .handle_keypress(ui, Some(&mut focus.cursor), numbergraph)
+            .handle_keypress(ui, focus, numbergraph, ui_factory)
     }
 }
 
@@ -118,13 +132,9 @@ impl SoundNumberInputUi {
         frame
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                presentation.lexical_layout.show(
-                    ui,
-                    result_label,
-                    graph_state,
-                    ctx,
-                    focus.and_then(|f| Some(&mut f.cursor)),
-                )
+                presentation
+                    .lexical_layout
+                    .show(ui, result_label, graph_state, ctx, focus)
             })
             .inner
     }

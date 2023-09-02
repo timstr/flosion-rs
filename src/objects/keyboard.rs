@@ -45,19 +45,19 @@ pub struct Keyboard {
 impl Keyboard {
     pub fn start_key(&self, id: KeyId, frequency: f32) {
         self.command_sender
-            .send(KeyboardCommand::StartKey { id, frequency })
+            .try_send(KeyboardCommand::StartKey { id, frequency })
             .unwrap();
     }
 
     pub fn release_key(&self, id: KeyId) {
         self.command_sender
-            .send(KeyboardCommand::ReleaseKey { id })
+            .try_send(KeyboardCommand::ReleaseKey { id })
             .unwrap();
     }
 
     pub fn release_all_keys(&self) {
         self.command_sender
-            .send(KeyboardCommand::ReleaseAllKeys)
+            .try_send(KeyboardCommand::ReleaseAllKeys)
             .unwrap();
     }
 }

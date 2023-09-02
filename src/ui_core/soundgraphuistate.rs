@@ -15,11 +15,13 @@ use crate::core::sound::{
 
 use super::{
     keyboardfocus::KeyboardFocusState,
+    numbergraphui::NumberGraphUi,
     numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
     soundnumberinputui::{SoundNumberInputFocus, SoundNumberInputPresentation},
     soundobjectuistate::SoundObjectUiStates,
     temporallayout::TemporalLayout,
+    ui_factory::UiFactory,
 };
 
 pub struct NestedProcessorClosure {
@@ -517,13 +519,19 @@ impl SoundGraphUiState {
         self.mode = UiMode::UsingKeyboardNav(focus);
     }
 
-    pub(super) fn handle_keyboard_focus(&mut self, ui: &egui::Ui, soundgraph: &mut SoundGraph) {
+    pub(super) fn handle_keyboard_focus(
+        &mut self,
+        ui: &egui::Ui,
+        soundgraph: &mut SoundGraph,
+        number_ui_factory: &UiFactory<NumberGraphUi>,
+    ) {
         if let UiMode::UsingKeyboardNav(kbd) = &mut self.mode {
             kbd.handle_keyboard_focus(
                 ui,
                 soundgraph,
                 &self.temporal_layout,
                 &mut self.number_input_uis,
+                number_ui_factory,
             );
         };
     }

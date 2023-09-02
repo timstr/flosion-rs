@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::core::arguments::{ArgumentList, ParsedArguments};
 
-use super::{soundgraphui::SoundGraphUi, ui_factory::UiFactory};
+use super::{graph_ui::GraphUi, ui_factory::UiFactory};
 
 fn score_match(query: &str, content: &str) -> f32 {
     let mut score: f32 = 0.0;
@@ -32,7 +32,6 @@ struct MatchingObject {
     arguments: ArgumentList,
 }
 
-// TODO: consider making this shareable between sound and number graphs
 pub(super) struct SummonWidgetState {
     position: egui::Pos2,
     text: String,
@@ -44,13 +43,13 @@ pub(super) struct SummonWidgetState {
 }
 
 impl SummonWidgetState {
-    pub(super) fn new(
+    pub(super) fn new<G: GraphUi>(
         position: egui::Pos2,
-        all_objects: &UiFactory<SoundGraphUi>,
+        ui_factory: &UiFactory<G>,
     ) -> SummonWidgetState {
         let mut object_scores: Vec<(MatchingObject, f32)> = Vec::new();
-        for t in all_objects.all_object_types() {
-            let ui = all_objects.get_object_ui(t);
+        for t in ui_factory.all_object_types() {
+            let ui = ui_factory.get_object_ui(t);
             object_scores.push((
                 MatchingObject {
                     object_type_str: t.to_string(),

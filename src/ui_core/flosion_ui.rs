@@ -785,6 +785,9 @@ impl FlosionApp {
 impl eframe::App for FlosionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            // HACK while testing
+            ui.ctx().request_repaint();
+
             Self::draw_all_objects(
                 ui,
                 &self.ui_factory,
@@ -800,34 +803,35 @@ impl eframe::App for FlosionApp {
                 egui::Id::new("background"),
                 egui::Sense::click_and_drag(),
             );
-            Self::handle_drag_objects(
-                ui,
-                &bg_response,
-                &mut self.selection_area,
-                &mut self.ui_state,
-            );
-            let layer_id = ui.layer_id();
-            self.handle_summon_widget(ui, &bg_response, layer_id);
-            if let Some(drag_data) = self.ui_state.take_dropped_nested_processor() {
-                self.handle_dropped_processor(ui, drag_data);
-            }
-            self.ui_state.handle_keyboard_focus(ui, &mut self.graph);
+            // Self::handle_drag_objects(
+            //     ui,
+            //     &bg_response,
+            //     &mut self.selection_area,
+            //     &mut self.ui_state,
+            // );
+            // let layer_id = ui.layer_id();
+            // self.handle_summon_widget(ui, &bg_response, layer_id);
+            // if let Some(drag_data) = self.ui_state.take_dropped_nested_processor() {
+            //     self.handle_dropped_processor(ui, drag_data);
+            // }
+            self.ui_state
+                .handle_keyboard_focus(ui, &mut self.graph, &self.number_ui_factory);
 
-            Self::draw_selection_rect(ui, &self.selection_area);
+            // Self::draw_selection_rect(ui, &self.selection_area);
 
-            if let Some(data) = self.ui_state.dragging_processor_data() {
-                let color = self
-                    .object_states
-                    .get_object_color(data.processor_id.into());
-                Self::draw_nested_processor_dragging(ui, data.rect, color);
-            }
+            // if let Some(data) = self.ui_state.dragging_processor_data() {
+            //     let color = self
+            //         .object_states
+            //         .get_object_color(data.processor_id.into());
+            //     Self::draw_nested_processor_dragging(ui, data.rect, color);
+            // }
 
-            if self.summon_state.is_none() {
-                let events = ctx.input_mut(|i| std::mem::take(&mut i.events));
-                for event in &events {
-                    self.handle_event(event, ui);
-                }
-            }
+            // if self.summon_state.is_none() {
+            //     let events = ctx.input_mut(|i| std::mem::take(&mut i.events));
+            //     for event in &events {
+            //         self.handle_event(event, ui);
+            //     }
+            // }
 
             #[cfg(debug_assertions)]
             {

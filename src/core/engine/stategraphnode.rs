@@ -1,6 +1,7 @@
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use parking_lot::RwLock;
@@ -21,6 +22,7 @@ use crate::core::{
         },
     },
     soundchunk::SoundChunk,
+    uniqueid::UniqueId,
 };
 
 use super::{
@@ -40,8 +42,19 @@ impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
         processor: Arc<StaticSoundProcessorWithId<T>>,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self {
+        let start = Instant::now();
         let sound_input = processor.get_sound_input().make_node(nodegen);
         let number_input = processor.make_number_inputs(nodegen);
+        let finish = Instant::now();
+        let time_to_compile: Duration = finish - start;
+        let time_to_compile_ms = time_to_compile.as_millis();
+        if time_to_compile_ms > 10 {
+            println!(
+                "Compiling static sound processor {} took {} ms",
+                processor.id().value(),
+                time_to_compile_ms
+            );
+        }
         Self {
             processor,
             sound_input,
@@ -62,11 +75,25 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
         processor: &DynamicSoundProcessorWithId<T>,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self {
+        let start = Instant::now();
+        let state = StateAndTiming::new(processor.make_state());
+        let sound_input = processor.get_sound_input().make_node(nodegen);
+        let number_input = processor.make_number_inputs(nodegen);
+        let finish = Instant::now();
+        let time_to_compile: Duration = finish - start;
+        let time_to_compile_ms = time_to_compile.as_millis();
+        if time_to_compile_ms > 10 {
+            println!(
+                "Compiling dynamic sound processor {} took {} ms",
+                processor.id().value(),
+                time_to_compile_ms
+            );
+        }
         Self {
             id: processor.id(),
-            state: StateAndTiming::new(processor.make_state()),
-            sound_input: processor.get_sound_input().make_node(nodegen),
-            number_input: processor.make_number_inputs(nodegen),
+            state,
+            sound_input,
+            number_input,
         }
     }
 

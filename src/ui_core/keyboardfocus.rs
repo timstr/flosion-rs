@@ -7,8 +7,9 @@ use crate::core::sound::{
 };
 
 use super::{
-    numbergraphuistate::SoundNumberInputUiCollection, soundnumberinputui::SoundNumberInputFocus,
-    temporallayout::TemporalLayout,
+    numbergraphui::NumberGraphUi, numbergraphuistate::SoundNumberInputUiCollection,
+    soundnumberinputui::SoundNumberInputFocus, temporallayout::TemporalLayout,
+    ui_factory::UiFactory,
 };
 
 pub(super) enum KeyboardFocusState {
@@ -122,6 +123,7 @@ impl KeyboardFocusState {
         soundgraph: &mut SoundGraph,
         temporal_layout: &TemporalLayout,
         number_graph_uis: &mut SoundNumberInputUiCollection,
+        ui_factory: &UiFactory<NumberGraphUi>,
     ) {
         ui.input_mut(|i| {
             //  preemptively avoid some unnecessary computation
@@ -139,7 +141,7 @@ impl KeyboardFocusState {
             let (ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             soundgraph
                 .edit_number_input(*niid, |numbergraph| {
-                    ui_presentation.handle_keypress(ui, ni_focus, numbergraph);
+                    ui_presentation.handle_keypress(ui, ni_focus, numbergraph, ui_factory);
                 })
                 .unwrap();
         }

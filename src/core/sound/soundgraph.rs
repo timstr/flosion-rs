@@ -1,10 +1,11 @@
 use std::{
     collections::HashSet,
     sync::{
-        mpsc::{channel, Sender},
+        mpsc::{sync_channel, SendError, SyncSender, TryRecvError, TrySendError},
         Arc,
     },
     thread::JoinHandle,
+    time::{Duration, Instant},
 };
 
 use thread_priority::{set_current_thread_priority, ThreadPriority};
@@ -125,7 +126,7 @@ pub struct SoundGraph {
 
     engine_interface_thread: Option<JoinHandle<()>>,
     stop_button: StopButton,
-    topology_sender: Sender<SoundGraphTopology>,
+    topology_sender: SyncSender<(SoundGraphTopology, Instant)>,
 
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
@@ -135,7 +136,8 @@ pub struct SoundGraph {
 
 impl SoundGraph {
     pub fn new() -> SoundGraph {
-        let (sender, receiver) = channel();
+        let topo_channel_size = 1024;
+        let (topo_sender, topo_receiver) = sync_channel(topo_channel_size);
         let stop_button = StopButton::new();
         let stop_button_also = stop_button.clone();
         let engine_interface_thread = std::thread::spawn(move || {
@@ -144,7 +146,7 @@ impl SoundGraph {
                 let (mut engine_interface, engine, garbage_disposer) =
                     create_sound_engine(&inkwell_context, &stop_button_also);
 
-                let engine_thread_handle = scope.spawn(move || {
+                scope.spawn(move || {
                     set_current_thread_priority(ThreadPriority::Max).unwrap();
                     engine.run();
                 });
@@ -153,18 +155,46 @@ impl SoundGraph {
                 // deal with LLVM resources and so need to stay on the same
                 // thread as the inkwell_context above
                 loop {
-                    while let Ok(topo) = receiver.try_recv() {
-                        if engine_interface.update(topo).is_err() {
-                            break;
+                    'handle_pending_updates: loop {
+                        garbage_disposer.clear();
+                        let time_received = Instant::now();
+                        let mut issued_late_warning = false;
+                        for _ in 0..16 {
+                            let topo = match topo_receiver.try_recv() {
+                                Ok((topo, time_sent)) => {
+                                    let latency: Duration = time_received - time_sent;
+                                    let latency_ms = latency.as_millis();
+                                    if latency_ms > 200 && !issued_late_warning {
+                                        println!(
+                                            "Warning: sound graph updates are {} milliseconds late",
+                                            latency_ms
+                                        );
+                                        issued_late_warning = true;
+                                    }
+                                    topo
+                                }
+                                Err(TryRecvError::Empty) => {
+                                    break 'handle_pending_updates;
+                                }
+                                Err(TryRecvError::Disconnected) => {
+                                    println!(
+                                        "Sound topology update channel disconnected, \
+                                         sound engine interface thread is exiting"
+                                    );
+                                    return;
+                                }
+                            };
+                            if engine_interface.update(topo).is_err() {
+                                println!(
+                                    "Failed to update sound engine, sound engine interface \
+                                    thread is exiting"
+                                );
+                                return;
+                            }
                         }
                     }
-                    garbage_disposer.clear();
 
-                    if engine_thread_handle.is_finished() {
-                        break;
-                    }
-
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    std::thread::sleep(Duration::from_millis(50));
                 }
             });
         });
@@ -172,7 +202,7 @@ impl SoundGraph {
         SoundGraph {
             engine_interface_thread: Some(engine_interface_thread),
             stop_button,
-            topology_sender: sender,
+            topology_sender: topo_sender,
 
             local_topology: SoundGraphTopology::new(),
 
@@ -357,6 +387,8 @@ impl SoundGraph {
         input_id: SoundNumberInputId,
         f: F,
     ) -> Result<(), SoundError> {
+        // TODO: do nothing if nothing changed!!! How to do?
+        // panic!()
         self.try_make_change(|topo| {
             let number_input = topo
                 .number_input_mut(input_id)
@@ -417,9 +449,17 @@ impl SoundGraph {
             self.local_topology = prev_topology;
         } else {
             debug_assert!(find_error(&self.local_topology).is_none());
-            self.topology_sender
-                .send(self.local_topology.clone())
-                .unwrap();
+
+            let time_sent = Instant::now();
+            if let Err(err) = self
+                .topology_sender
+                .try_send((self.local_topology.clone(), time_sent))
+            {
+                match err {
+                    TrySendError::Full(_) => panic!("Sound Engine update overflow!"),
+                    TrySendError::Disconnected(_) => panic!("Sound Engine is no longer running!"),
+                }
+            }
         }
         res
     }

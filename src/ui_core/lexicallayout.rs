@@ -14,9 +14,12 @@ use crate::core::{
 };
 
 use super::{
+    numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
-    soundnumberinputui::SpatialGraphInputReference,
+    soundnumberinputui::{SoundNumberInputFocus, SpatialGraphInputReference},
+    summon_widget::{SummonWidget, SummonWidgetState},
+    ui_factory::UiFactory,
 };
 
 #[derive(Clone)]
@@ -549,12 +552,14 @@ impl LexicalLayout {
         result_label: &str,
         graph_state: &mut NumberGraphUiState,
         ctx: &NumberGraphUiContext,
-        mut cursor: Option<&mut LexicalLayoutCursor>,
+        mut focus: Option<&mut SoundNumberInputFocus>,
     ) -> Vec<SpatialGraphInputReference> {
         let variable_definitions = &self.variable_definitions;
         let num_variable_definitions = variable_definitions.len();
         let final_expression = &self.final_expression;
         let mut graph_input_references = Vec::new();
+
+        let mut cursor = focus.as_mut().and_then(|f| Some(f.cursor_mut()));
 
         ui.vertical(|ui| {
             for (i, var_def) in variable_definitions.iter().enumerate() {
@@ -611,21 +616,13 @@ impl LexicalLayout {
             );
         });
 
-        if let Some(cursor) = cursor {
-            let (pressed_up, pressed_down) = ui.input_mut(|i| {
-                (
-                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
-                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
-                )
-            });
-            if pressed_up {
-                cursor.line = cursor.line.saturating_sub(1);
-                cursor.path.clear();
-            }
-            if pressed_down {
-                cursor.line = (cursor.line + 1).min(variable_definitions.len());
-                cursor.path.clear();
-            }
+        if let Some(summon_widget_state) = focus
+            .and_then(|f| Some(f.summon_widget_state_mut().as_mut()))
+            .flatten()
+        {
+            let summon_widget = SummonWidget::new(summon_widget_state);
+            ui.add(summon_widget);
+            // TODO: ?
         }
 
         graph_input_references
@@ -964,19 +961,79 @@ impl LexicalLayout {
     pub(super) fn handle_keypress(
         &mut self,
         ui: &egui::Ui,
-        cursor: Option<&mut LexicalLayoutCursor>,
+        focus: &mut SoundNumberInputFocus,
         numbergraph: &mut NumberGraph,
+        ui_factory: &UiFactory<NumberGraphUi>,
     ) {
-        let Some(cursor) = cursor else {
-            return;
-        };
+        // TODO: consider filtering egui's InputState's vec of inputs
+        // and consuming key presses from there
 
-        let pressed_delete =
-            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
+        {
+            let cursor = focus.cursor_mut();
+            let (pressed_up, pressed_down) = ui.input_mut(|i| {
+                (
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                )
+            });
+            if pressed_up {
+                cursor.line = cursor.line.saturating_sub(1);
+                cursor.path.clear();
+            }
+            if pressed_down {
+                cursor.line = (cursor.line + 1).min(self.variable_definitions.len());
+                cursor.path.clear();
+            }
 
-        if pressed_delete {
-            self.delete_at_cursor(cursor, numbergraph);
+            let pressed_delete =
+                ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
+
+            if pressed_delete {
+                self.delete_at_cursor(focus.cursor_mut(), numbergraph);
+            }
         }
+
+        let pressed_space =
+            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Space));
+
+        if pressed_space {
+            *focus.summon_widget_state_mut() =
+                Some(SummonWidgetState::new(ui.cursor().left_top(), ui_factory));
+        }
+
+        // TODO: create a summon widget similar to that used in flosion_ui.
+        // start typing to gather a list of candidate number sources.
+        // Ideally the experience should have minimal overhead typing,
+        // e.g. typing something like "sin x + 2 * b" should result in sin(x + (2 * b))
+        // with all intermediate values nicely built up. This might require knowing
+        // operator precedence and doing funny things with the cursor but hopefully not.
+        // Intermediates with cursor:
+        // (no input yet)   -> _
+        //                   ^
+        // "sin "           -> sin(_)
+        //                       ^
+        // "x "             -> sin(x)
+        //                         ^
+        // "+ "             -> sin(x + _)           NOTE: so typing an infix operator nests the selected ast node
+        //                             ^            as the left child and places the cursor on the right child?
+        //
+        // "2 "             -> sin(x + 2)
+        //                             ^
+        // "* "             -> sin(x + (2 * _))     NOTE: operator precedence could be applied here to determine
+        //                                  ^       whether or not to place a node inside or around the parent(s)
+        //
+        // "b "             -> sin(x + (2 * b))
+        //                                  ^
+        //
+        // left a bunch     -> sin(x + (2 * b))     NOTE: could press home also
+        //                     ^
+        // "^ ""            -> sin(x + (2 * b))^_
+        //                                      ^
+        // "1 "             -> sin(x + (2 * b))^1
+        //                                      ^
+        // "/"              -> sin(x + (2 * b))^(1/_)
+        //                                         ^
+        // "2 "             -> sin(x + (2 * b))^(1/2)
     }
 
     fn get_node_at_cursor(&self, cursor: &LexicalLayoutCursor) -> &ASTNode {
