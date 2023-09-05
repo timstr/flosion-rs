@@ -1,14 +1,23 @@
+use std::collections::HashMap;
+
 use eframe::egui;
 
-use crate::core::sound::{
-    soundgraph::SoundGraph, soundgraphid::SoundGraphId, soundgraphtopology::SoundGraphTopology,
-    soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
-    soundprocessor::SoundProcessorId,
+use crate::core::{
+    graph::objectfactory::ObjectFactory,
+    number::numbergraph::NumberGraph,
+    sound::{
+        soundgraph::SoundGraph, soundgraphid::SoundGraphId, soundgraphtopology::SoundGraphTopology,
+        soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
+        soundprocessor::SoundProcessorId,
+    },
 };
 
 use super::{
-    numbergraphui::NumberGraphUi, numbergraphuistate::SoundNumberInputUiCollection,
-    soundnumberinputui::SoundNumberInputFocus, temporallayout::TemporalLayout,
+    numbergraphui::NumberGraphUi,
+    numbergraphuistate::{NumberObjectUiStates, SoundNumberInputUiCollection},
+    soundnumberinputui::SoundNumberInputFocus,
+    soundobjectuistate::SoundObjectUiStates,
+    temporallayout::TemporalLayout,
     ui_factory::UiFactory,
 };
 
@@ -123,7 +132,9 @@ impl KeyboardFocusState {
         soundgraph: &mut SoundGraph,
         temporal_layout: &TemporalLayout,
         number_graph_uis: &mut SoundNumberInputUiCollection,
+        object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
+        object_ui_states: &mut SoundObjectUiStates,
     ) {
         ui.input_mut(|i| {
             //  preemptively avoid some unnecessary computation
@@ -139,9 +150,17 @@ impl KeyboardFocusState {
 
         if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
             let (ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
+            let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
             soundgraph
                 .edit_number_input(*niid, |numbergraph| {
-                    ui_presentation.handle_keypress(ui, ni_focus, numbergraph, ui_factory);
+                    ui_presentation.handle_keypress(
+                        ui,
+                        ni_focus,
+                        numbergraph,
+                        object_factory,
+                        ui_factory,
+                        object_ui_states,
+                    );
                 })
                 .unwrap();
         }

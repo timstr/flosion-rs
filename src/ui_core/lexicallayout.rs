@@ -4,6 +4,7 @@ use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::core::{
+    graph::objectfactory::ObjectFactory,
     number::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphdata::NumberTarget,
@@ -16,7 +17,7 @@ use crate::core::{
 use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
-    numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
+    numbergraphuistate::{AnyNumberObjectUiData, NumberGraphUiState, NumberObjectUiStates},
     soundnumberinputui::{SoundNumberInputFocus, SpatialGraphInputReference},
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
@@ -84,6 +85,10 @@ impl ASTPath {
                 return;
             }
         }
+    }
+
+    fn go_into(&mut self, index: usize) {
+        self.steps.push(index);
     }
 
     fn clear(&mut self) {
@@ -431,6 +436,36 @@ impl InternalASTNode {
     }
 }
 
+fn make_internal_node(
+    number_source_id: NumberSourceId,
+    ui_data: &AnyNumberObjectUiData,
+    arguments: Vec<ASTNode>,
+) -> InternalASTNode {
+    let value = match ui_data.layout() {
+        NumberSourceLayout::Prefix => {
+            assert_eq!(arguments.len(), 1);
+            let mut args = arguments.into_iter();
+            InternalASTNodeValue::Prefix(number_source_id, args.next().unwrap())
+        }
+        NumberSourceLayout::Infix => {
+            assert_eq!(arguments.len(), 2);
+            let mut args = arguments.into_iter();
+            InternalASTNodeValue::Infix(
+                args.next().unwrap(),
+                number_source_id,
+                args.next().unwrap(),
+            )
+        }
+        NumberSourceLayout::Postfix => {
+            assert_eq!(arguments.len(), 1);
+            let mut args = arguments.into_iter();
+            InternalASTNodeValue::Postfix(args.next().unwrap(), number_source_id)
+        }
+        NumberSourceLayout::Function => InternalASTNodeValue::Function(number_source_id, arguments),
+    };
+    InternalASTNode::new(value)
+}
+
 pub(super) struct LexicalLayoutCursor {
     line: usize,
     path: ASTPath,
@@ -448,6 +483,62 @@ impl LexicalLayoutCursor {
 struct VariableDefinition {
     name: String,
     value: ASTNode,
+}
+
+fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
+    match key {
+        egui::Key::Minus => {
+            if !modifiers.shift {
+                Some('-')
+            } else {
+                None
+            }
+        }
+        egui::Key::PlusEquals => {
+            if modifiers.shift {
+                Some('+')
+            } else {
+                None
+            }
+        }
+        egui::Key::Num0 => Some('0'),
+        egui::Key::Num1 => Some('1'),
+        egui::Key::Num2 => Some('2'),
+        egui::Key::Num3 => Some('3'),
+        egui::Key::Num4 => Some('4'),
+        egui::Key::Num5 => Some('5'),
+        egui::Key::Num6 => Some('6'),
+        egui::Key::Num7 => Some('7'),
+        egui::Key::Num8 => Some('8'),
+        egui::Key::Num9 => Some('9'),
+        egui::Key::A => Some('a'),
+        egui::Key::B => Some('b'),
+        egui::Key::C => Some('c'),
+        egui::Key::D => Some('d'),
+        egui::Key::E => Some('e'),
+        egui::Key::F => Some('f'),
+        egui::Key::G => Some('g'),
+        egui::Key::H => Some('h'),
+        egui::Key::I => Some('i'),
+        egui::Key::J => Some('j'),
+        egui::Key::K => Some('k'),
+        egui::Key::L => Some('l'),
+        egui::Key::M => Some('m'),
+        egui::Key::N => Some('n'),
+        egui::Key::O => Some('o'),
+        egui::Key::P => Some('p'),
+        egui::Key::Q => Some('q'),
+        egui::Key::R => Some('r'),
+        egui::Key::S => Some('s'),
+        egui::Key::T => Some('t'),
+        egui::Key::U => Some('u'),
+        egui::Key::V => Some('v'),
+        egui::Key::W => Some('w'),
+        egui::Key::X => Some('x'),
+        egui::Key::Y => Some('y'),
+        egui::Key::Z => Some('z'),
+        _ => None,
+    }
 }
 
 pub(super) struct LexicalLayout {
@@ -488,8 +579,6 @@ impl LexicalLayout {
 
             let create_new_variable = topo.number_target_destinations(target).count() >= 2;
 
-            let layout = object_ui_states.get_object_data(nsid).layout();
-
             let arguments: Vec<ASTNode> = topo
                 .number_source(nsid)
                 .unwrap()
@@ -503,25 +592,7 @@ impl LexicalLayout {
                 })
                 .collect();
 
-            let value = match layout {
-                NumberSourceLayout::Prefix => {
-                    assert_eq!(arguments.len(), 1);
-                    let mut args = arguments.into_iter();
-                    InternalASTNodeValue::Prefix(nsid, args.next().unwrap())
-                }
-                NumberSourceLayout::Infix => {
-                    assert_eq!(arguments.len(), 2);
-                    let mut args = arguments.into_iter();
-                    InternalASTNodeValue::Infix(args.next().unwrap(), nsid, args.next().unwrap())
-                }
-                NumberSourceLayout::Postfix => {
-                    assert_eq!(arguments.len(), 1);
-                    let mut args = arguments.into_iter();
-                    InternalASTNodeValue::Postfix(args.next().unwrap(), nsid)
-                }
-                NumberSourceLayout::Function => InternalASTNodeValue::Function(nsid, arguments),
-            };
-            let node = InternalASTNode::new(value);
+            let node = make_internal_node(nsid, object_ui_states.get_object_data(nsid), arguments);
 
             if create_new_variable {
                 let new_variable_name = format!("x{}", variable_assignments.len());
@@ -963,7 +1034,9 @@ impl LexicalLayout {
         ui: &egui::Ui,
         focus: &mut SoundNumberInputFocus,
         numbergraph: &mut NumberGraph,
+        object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
+        object_ui_states: &mut NumberObjectUiStates,
     ) {
         // TODO: consider filtering egui's InputState's vec of inputs
         // and consuming key presses from there
@@ -989,17 +1062,18 @@ impl LexicalLayout {
                 ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
 
             if pressed_delete {
-                self.delete_at_cursor(focus.cursor_mut(), numbergraph);
+                self.delete_from_numbergraph_at_cursor(focus.cursor_mut(), numbergraph);
             }
         }
 
-        let pressed_space =
-            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Space));
-
-        if pressed_space {
-            *focus.summon_widget_state_mut() =
-                Some(SummonWidgetState::new(ui.cursor().left_top(), ui_factory));
-        }
+        self.handle_summon_widget(
+            ui,
+            focus,
+            numbergraph,
+            object_factory,
+            ui_factory,
+            object_ui_states,
+        );
 
         // TODO: create a summon widget similar to that used in flosion_ui.
         // start typing to gather a list of candidate number sources.
@@ -1036,6 +1110,115 @@ impl LexicalLayout {
         // "2 "             -> sin(x + (2 * b))^(1/2)
     }
 
+    fn handle_summon_widget(
+        &mut self,
+        ui: &egui::Ui,
+        focus: &mut SoundNumberInputFocus,
+        numbergraph: &mut NumberGraph,
+        object_factory: &ObjectFactory<NumberGraph>,
+        ui_factory: &UiFactory<NumberGraphUi>,
+        object_ui_states: &mut NumberObjectUiStates,
+    ) {
+        let pressed_space =
+            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Space));
+
+        let algebraic_keys_pressed = ui.input_mut(|input| {
+            let mut out_chars = Vec::new();
+            input.events = input
+                .events
+                .iter()
+                .filter(|e| {
+                    if let egui::Event::Key {
+                        key,
+                        pressed,
+                        repeat: _,
+                        modifiers,
+                    } = e
+                    {
+                        if *pressed {
+                            if let Some(ch) = algebraic_key(*key, *modifiers) {
+                                out_chars.push(ch);
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                })
+                .cloned()
+                .collect();
+            // let Some(idx) = idx else {
+            //     return None;
+            // };
+            // input.events.remove(idx);
+            out_chars
+        });
+
+        if focus.summon_widget_state_mut().is_none() {
+            if pressed_space || !algebraic_keys_pressed.is_empty() {
+                //  open summon widget when space is pressed
+                let node_at_cursor = self.get_node_at_cursor(&focus.cursor());
+                let mut widget_state =
+                    SummonWidgetState::new(node_at_cursor.rect().center_bottom(), ui_factory);
+                let s = String::from_iter(algebraic_keys_pressed);
+                println!("You typed {}", s);
+                widget_state.set_text(s);
+
+                *focus.summon_widget_state_mut() = Some(widget_state);
+            }
+        }
+
+        if let Some(summon_widget_state) = focus.summon_widget_state_mut() {
+            if summon_widget_state.finalized() {
+                if summon_widget_state.selected_type().is_some() {
+                    let (type_name, args) = summon_widget_state.parse_selected();
+                    let new_object = object_factory.create_from_args(type_name, numbergraph, &args);
+
+                    let new_object = match new_object {
+                        Ok(o) => o,
+                        Err(_) => {
+                            println!("Failed to create number object of type {}", type_name);
+                            return;
+                        }
+                    };
+
+                    let new_ui_state = ui_factory.create_state_from_args(&new_object, &args);
+
+                    let num_inputs = numbergraph
+                        .topology()
+                        .number_source(new_object.id())
+                        .unwrap()
+                        .number_inputs()
+                        .len();
+                    let child_nodes: Vec<ASTNode> = (0..num_inputs)
+                        .map(|_| ASTNode::new(ASTNodeValue::Empty))
+                        .collect();
+                    let internal_node =
+                        make_internal_node(new_object.id(), &new_ui_state, child_nodes);
+                    let node = ASTNode::new(ASTNodeValue::Internal(Box::new(internal_node)));
+
+                    let layout = new_ui_state.layout();
+
+                    object_ui_states.set_object_data(new_object.id(), new_ui_state);
+
+                    self.set_node_at_cursor(focus.cursor(), node);
+
+                    let cursor = focus.cursor_mut();
+                    match layout {
+                        NumberSourceLayout::Prefix => cursor.path.go_into(0),
+                        NumberSourceLayout::Infix => cursor.path.go_into(0),
+                        NumberSourceLayout::Postfix => cursor.path.go_into(0),
+                        NumberSourceLayout::Function => {
+                            if num_inputs > 0 {
+                                cursor.path.go_into(0);
+                            }
+                        }
+                    }
+                }
+                *focus.summon_widget_state_mut() = None;
+            }
+        }
+    }
+
     fn get_node_at_cursor(&self, cursor: &LexicalLayoutCursor) -> &ASTNode {
         if cursor.line < self.variable_definitions.len() {
             self.variable_definitions[cursor.line]
@@ -1061,7 +1244,11 @@ impl LexicalLayout {
         }
     }
 
-    fn delete_at_cursor(&mut self, cursor: &LexicalLayoutCursor, numbergraph: &mut NumberGraph) {
+    fn delete_from_numbergraph_at_cursor(
+        &mut self,
+        cursor: &LexicalLayoutCursor,
+        numbergraph: &mut NumberGraph,
+    ) {
         if self.get_node_at_cursor(cursor).is_empty() {
             return;
         }
@@ -1093,6 +1280,11 @@ impl LexicalLayout {
         self.set_node_at_cursor(cursor, ASTNode::new(ASTNodeValue::Empty));
 
         // TODO: remove any unreferenced number graph inputs
+    }
+
+    fn insert_to_numbergraph_at_cursor(&mut self, cursor: &mut LexicalLayoutCursor) {
+        // TODO
+        todo!()
     }
 
     fn delete_internal_node_from_graph(

@@ -468,7 +468,7 @@ impl FlosionApp {
             ui.add(SummonWidget::new(summon_state));
         }
         if let Some(s) = &self.summon_state {
-            if s.ready() {
+            if s.finalized() {
                 if s.selected_type().is_some() {
                     let (type_name, args) = s.parse_selected();
                     // TODO: how to distinguish args for ui from args for object, if ever needed?
@@ -811,8 +811,13 @@ impl eframe::App for FlosionApp {
             if let Some(drag_data) = self.ui_state.take_dropped_nested_processor() {
                 self.handle_dropped_processor(ui, drag_data);
             }
-            self.ui_state
-                .handle_keyboard_focus(ui, &mut self.graph, &self.number_ui_factory);
+            self.ui_state.handle_keyboard_focus(
+                ui,
+                &mut self.graph,
+                &self.number_object_factory,
+                &self.number_ui_factory,
+                &mut self.object_states,
+            );
 
             Self::draw_selection_rect(ui, &self.selection_area);
 

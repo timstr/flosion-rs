@@ -114,7 +114,7 @@ impl<'a> SoundGraphUiContext<'a> {
         &self,
         input_id: SoundNumberInputId,
     ) -> NumberGraphUiContext {
-        let object_states = self.object_states.number_graph_object_states(input_id);
+        let object_states = self.object_states.number_graph_object_state(input_id);
         let topology = self
             .topology
             .number_input(input_id)

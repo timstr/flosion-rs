@@ -265,10 +265,17 @@ impl SoundObjectUiStates {
         }
     }
 
-    pub(super) fn number_graph_object_states(
+    pub(super) fn number_graph_object_state(
         &self,
         input_id: SoundNumberInputId,
     ) -> &NumberObjectUiStates {
         self.number_graph_object_states.get(&input_id).unwrap()
+    }
+
+    pub(super) fn number_graph_object_state_mut(
+        &mut self,
+        input_id: SoundNumberInputId,
+    ) -> &mut NumberObjectUiStates {
+        self.number_graph_object_states.get_mut(&input_id).unwrap()
     }
 }

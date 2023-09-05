@@ -1,6 +1,7 @@
 use eframe::egui;
 
 use crate::core::{
+    graph::objectfactory::ObjectFactory,
     number::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphtopology::NumberGraphTopology,
@@ -27,6 +28,10 @@ impl SoundNumberInputFocus {
             cursor: LexicalLayoutCursor::new(),
             summon_widget_state: None,
         }
+    }
+
+    pub(super) fn cursor(&self) -> &LexicalLayoutCursor {
+        &self.cursor
     }
 
     pub(super) fn cursor_mut(&mut self) -> &mut LexicalLayoutCursor {
@@ -70,10 +75,18 @@ impl SoundNumberInputPresentation {
         ui: &egui::Ui,
         focus: &mut SoundNumberInputFocus,
         numbergraph: &mut NumberGraph,
+        object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
+        object_ui_states: &mut NumberObjectUiStates,
     ) {
-        self.lexical_layout
-            .handle_keypress(ui, focus, numbergraph, ui_factory)
+        self.lexical_layout.handle_keypress(
+            ui,
+            focus,
+            numbergraph,
+            object_factory,
+            ui_factory,
+            object_ui_states,
+        )
     }
 }
 

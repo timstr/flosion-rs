@@ -36,7 +36,7 @@ pub(super) struct SummonWidgetState {
     position: egui::Pos2,
     text: String,
     newly_created: bool,
-    ready: bool,
+    finalized: bool,
     selected_type: Option<String>,
     object_scores: Vec<(MatchingObject, f32)>,
     focus_object_index: Option<usize>,
@@ -76,15 +76,24 @@ impl SummonWidgetState {
             position,
             text: String::new(),
             newly_created: true,
-            ready: false,
+            finalized: false,
             selected_type: None,
             object_scores,
             focus_object_index: None,
         }
     }
 
-    pub(super) fn ready(&self) -> bool {
-        self.ready
+    pub(super) fn finalized(&self) -> bool {
+        self.finalized
+    }
+
+    pub(super) fn make_finalized(&mut self) {
+        self.finalized = true;
+    }
+
+    pub(super) fn set_text(&mut self, s: String) {
+        self.text = s;
+        self.update_matches();
     }
 
     pub(super) fn selected_type(&self) -> Option<&str> {
@@ -176,24 +185,27 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                     self.state.focus_object_index = new_focus_object_index;
                 }
 
-                let t = ui.text_edit_singleline(&mut self.state.text);
-                if self.state.newly_created {
-                    t.request_focus();
-                    self.state.newly_created = false;
-                }
+                let textedit = egui::TextEdit::singleline(&mut self.state.text)
+                    .cursor_at_end(true)
+                    .lock_focus(true);
+                let t = textedit.ui(ui);
+                t.request_focus();
                 if t.changed() {
                     self.state.update_matches();
                 }
-                if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                    self.state.ready = true;
+                if ui.input_mut(|i| {
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                        || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
+                }) {
+                    self.state.finalized = true;
                     self.state.selected_type = self
                         .state
                         .object_scores
                         .get(0)
                         .map(|x| x.0.object_type_str.clone());
                 }
-                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                    self.state.ready = true;
+                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+                    self.state.finalized = true;
                 }
                 if t.gained_focus() {
                     self.state.focus_object_index = None;
@@ -247,7 +259,7 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                         let r = ui.add(egui::Label::new(layout_job).sense(egui::Sense::click()));
                         if r.clicked() {
                             self.state.selected_type = Some(object.object_type_str.clone());
-                            self.state.ready = true;
+                            self.state.finalized = true;
                         }
                         if r.hovered() {
                             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);

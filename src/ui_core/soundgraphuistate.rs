@@ -2,21 +2,25 @@ use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
-use crate::core::sound::{
-    soundedit::{SoundEdit, SoundNumberEdit},
-    soundgraph::SoundGraph,
-    soundgraphid::{SoundGraphId, SoundObjectId},
-    soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::find_error,
-    soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId,
-    soundprocessor::SoundProcessorId,
+use crate::core::{
+    graph::objectfactory::ObjectFactory,
+    number::numbergraph::NumberGraph,
+    sound::{
+        soundedit::{SoundEdit, SoundNumberEdit},
+        soundgraph::SoundGraph,
+        soundgraphid::{SoundGraphId, SoundObjectId},
+        soundgraphtopology::SoundGraphTopology,
+        soundgraphvalidation::find_error,
+        soundinput::SoundInputId,
+        soundnumberinput::SoundNumberInputId,
+        soundprocessor::SoundProcessorId,
+    },
 };
 
 use super::{
     keyboardfocus::KeyboardFocusState,
     numbergraphui::NumberGraphUi,
-    numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
+    numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
     soundnumberinputui::{SoundNumberInputFocus, SoundNumberInputPresentation},
     soundobjectuistate::SoundObjectUiStates,
@@ -523,7 +527,9 @@ impl SoundGraphUiState {
         &mut self,
         ui: &egui::Ui,
         soundgraph: &mut SoundGraph,
+        number_object_factory: &ObjectFactory<NumberGraph>,
         number_ui_factory: &UiFactory<NumberGraphUi>,
+        object_ui_states: &mut SoundObjectUiStates,
     ) {
         if let UiMode::UsingKeyboardNav(kbd) = &mut self.mode {
             kbd.handle_keyboard_focus(
@@ -531,7 +537,9 @@ impl SoundGraphUiState {
                 soundgraph,
                 &self.temporal_layout,
                 &mut self.number_input_uis,
+                number_object_factory,
                 number_ui_factory,
+                object_ui_states,
             );
         };
     }
@@ -619,7 +627,7 @@ impl SoundGraphUiState {
                 let number_input_ids = topo.sound_processor(spid).unwrap().number_inputs();
                 for niid in number_input_ids {
                     let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
-                    let states = object_ui_states.number_graph_object_states(*niid);
+                    let states = object_ui_states.number_graph_object_state(*niid);
                     self.number_input_uis.set_ui_data(
                         *niid,
                         NumberGraphUiState::new(),
