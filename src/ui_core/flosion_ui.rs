@@ -445,7 +445,7 @@ impl FlosionApp {
         let pointer_pos = bg_response.hover_pos();
         let mut open_summon_widget = false;
         if let Some(p) = pointer_pos {
-            if ui.input(|i| i.key_pressed(egui::Key::Tab)) {
+            if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)) {
                 if ui.ctx().layer_id_at(p) == Some(bg_id) {
                     open_summon_widget = true;
                 }

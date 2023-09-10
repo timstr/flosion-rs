@@ -162,13 +162,17 @@ impl<'a> egui::Widget for SummonWidget<'a> {
                     if num_objects == 0 {
                         new_focus_object_index = None;
                     } else {
-                        if ui.input(|i| i.key_pressed(egui::Key::ArrowDown)) {
+                        if ui.input_mut(|i| {
+                            i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)
+                        }) {
                             new_focus_object_index = match self.state.focus_object_index {
                                 None => Some(0),
                                 Some(i) => Some((i + 1).min(self.state.object_scores.len() - 1)),
                             };
                         }
-                        if ui.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
+                        if ui
+                            .input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp))
+                        {
                             new_focus_object_index = match self.state.focus_object_index {
                                 None => None,
                                 Some(i) => {

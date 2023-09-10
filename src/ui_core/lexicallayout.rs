@@ -91,6 +91,10 @@ impl ASTPath {
         self.steps.push(index);
     }
 
+    fn go_out(&mut self) {
+        self.steps.pop();
+    }
+
     fn clear(&mut self) {
         self.steps.clear();
     }
@@ -206,6 +210,12 @@ impl ASTNode {
     fn num_children(&self) -> usize {
         self.internal_node()
             .and_then(|n| Some(n.num_children()))
+            .unwrap_or(0)
+    }
+
+    fn num_nonempty_children(&self) -> usize {
+        self.internal_node()
+            .and_then(|n| Some(n.num_nonempty_children()))
             .unwrap_or(0)
     }
 
@@ -352,6 +362,22 @@ impl InternalASTNode {
             InternalASTNodeValue::Infix(_, _, _) => 2,
             InternalASTNodeValue::Postfix(_, _) => 1,
             InternalASTNodeValue::Function(_, c) => c.len(),
+        }
+    }
+
+    fn num_nonempty_children(&self) -> usize {
+        let count = |child: &ASTNode| {
+            if child.is_empty() {
+                0
+            } else {
+                1
+            }
+        };
+        match &self.value {
+            InternalASTNodeValue::Prefix(_, c) => count(c),
+            InternalASTNodeValue::Infix(c1, _, c2) => count(c1) + count(c2),
+            InternalASTNodeValue::Postfix(c, _) => count(c),
+            InternalASTNodeValue::Function(_, cs) => cs.iter().map(count).sum(),
         }
     }
 
@@ -970,10 +996,6 @@ impl LexicalLayout {
     }
 
     fn flashing_highlight_color(ui: &mut egui::Ui) -> egui::Color32 {
-        // TODO: why does this cause an apparent memory leak?
-        // Note that request_repaint() causes the entire UI to continuous
-        // re-run, so the leak could be in many places.
-        // ui.ctx().request_repaint();
         let t = ui.input(|i| i.time);
         let a = (((t - t.floor()) * 2.0 * std::f64::consts::TAU).sin() * 16.0 + 64.0) as u8;
         egui::Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, a)
@@ -1200,7 +1222,7 @@ impl LexicalLayout {
 
                     object_ui_states.set_object_data(new_object.id(), new_ui_state);
 
-                    self.set_node_at_cursor(focus.cursor(), node);
+                    self.insert_to_numbergraph_at_cursor(focus.cursor_mut(), node, numbergraph);
 
                     let cursor = focus.cursor_mut();
                     match layout {
@@ -1216,6 +1238,22 @@ impl LexicalLayout {
                 }
                 *focus.summon_widget_state_mut() = None;
             }
+        }
+    }
+
+    fn get_cursor_root(&self, cursor: &LexicalLayoutCursor) -> Option<ASTRoot> {
+        if cursor.path.at_beginning() {
+            if cursor.line < self.variable_definitions.len() {
+                Some(ASTRoot::VariableDefinition(
+                    &self.variable_definitions[cursor.line],
+                ))
+            } else if cursor.line == self.variable_definitions.len() {
+                Some(ASTRoot::FinalExpression)
+            } else {
+                panic!("Cursor out of range")
+            }
+        } else {
+            None
         }
     }
 
@@ -1253,15 +1291,13 @@ impl LexicalLayout {
             return;
         }
 
-        if cursor.path.at_beginning() {
-            if cursor.line < self.variable_definitions.len() {
-                // Cursor points to definition of a variable
-                self.disconnect_each_variable_use(
-                    &self.variable_definitions[cursor.line].name,
-                    numbergraph,
-                );
-            } else if cursor.line == self.variable_definitions.len() {
-                // cursor points to final expression
+        // If the cursor is pointing at a variable definition or the final expression,
+        // disconnect those
+        match self.get_cursor_root(cursor) {
+            Some(ASTRoot::VariableDefinition(var_def)) => {
+                self.disconnect_each_variable_use(&var_def.name, numbergraph);
+            }
+            Some(ASTRoot::FinalExpression) => {
                 let graph_outputs = numbergraph.topology().graph_outputs();
                 debug_assert_eq!(graph_outputs.len(), 1);
                 let graph_output = graph_outputs.first().unwrap();
@@ -1269,10 +1305,10 @@ impl LexicalLayout {
                 numbergraph
                     .disconnect_graph_output(graph_output.id())
                     .unwrap();
-            } else {
-                panic!("Invalid line number");
             }
+            None => (),
         }
+
         let node = self.get_node_at_cursor(cursor);
         if let Some(internal_node) = node.internal_node() {
             self.delete_internal_node_from_graph(internal_node, numbergraph);
@@ -1282,9 +1318,58 @@ impl LexicalLayout {
         // TODO: remove any unreferenced number graph inputs
     }
 
-    fn insert_to_numbergraph_at_cursor(&mut self, cursor: &mut LexicalLayoutCursor) {
-        // TODO
-        todo!()
+    fn insert_to_numbergraph_at_cursor(
+        &mut self,
+        cursor: &mut LexicalLayoutCursor,
+        node: ASTNode,
+        numbergraph: &mut NumberGraph,
+    ) {
+        debug_assert_eq!(node.num_nonempty_children(), 0);
+
+        // TODO: allow inserting operators in-place
+        self.delete_from_numbergraph_at_cursor(cursor, numbergraph);
+
+        if let Some(target) = node.direct_target() {
+            match self.get_cursor_root(cursor) {
+                Some(ASTRoot::VariableDefinition(var_def)) => {
+                    // if the cursor points to a variable definition, reconnect each use
+                    self.connect_each_variable_use(&var_def.name, target, numbergraph);
+                }
+                Some(ASTRoot::FinalExpression) => {
+                    // if the cursor points to the final expression, reconnect
+                    // the graph output
+                    let graph_outputs = numbergraph.topology().graph_outputs();
+                    debug_assert_eq!(graph_outputs.len(), 1);
+                    let graph_output = graph_outputs.first().unwrap();
+                    debug_assert_eq!(self.final_expression.direct_target(), None);
+                    numbergraph
+                        .connect_graph_output(graph_output.id(), target)
+                        .unwrap();
+                }
+                None => {
+                    // if the cursor points to an ordinary internal node, reconnect
+                    // just its parent
+                    let mut cursor_to_parent = LexicalLayoutCursor {
+                        line: cursor.line,
+                        path: cursor.path.clone(),
+                    };
+                    cursor_to_parent.path.go_out();
+                    let parent_node = self.get_node_at_cursor(&cursor_to_parent);
+                    let ASTNodeValue::Internal(parent_node) = parent_node.value() else {
+                        panic!()
+                    };
+                    let child_index = *cursor.path.steps().last().unwrap();
+                    let parent_nsid = parent_node.number_source_id();
+                    let parent_ns = numbergraph.topology().number_source(parent_nsid).unwrap();
+                    let parent_inputs = parent_ns.number_inputs();
+                    debug_assert_eq!(parent_inputs.len(), parent_node.num_children());
+                    let input_id = parent_inputs[child_index];
+                    numbergraph.connect_number_input(input_id, target).unwrap();
+                }
+            }
+        }
+
+        self.set_node_at_cursor(cursor, node);
     }
 
     fn delete_internal_node_from_graph(
@@ -1349,8 +1434,9 @@ impl LexicalLayout {
             }
             match path.parent_node() {
                 ASTNodeParent::VariableDefinition(var_def) => {
-                    // Nothing to do
-                    debug_assert!(var_def.name != name);
+                    debug_assert_ne!(var_def.name, name);
+                    // FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCK aliasing
+                    panic!();
                 }
                 ASTNodeParent::FinalExpression => {
                     let outputs = numbergraph.topology().graph_outputs();
@@ -1360,12 +1446,54 @@ impl LexicalLayout {
                 }
                 ASTNodeParent::InternalNode(internal_node, child_index) => {
                     let nsid = internal_node.number_source_id();
-                    let niid = numbergraph
+                    let number_inputs = numbergraph
                         .topology()
                         .number_source(nsid)
                         .unwrap()
-                        .number_inputs()[child_index];
+                        .number_inputs();
+                    debug_assert_eq!(number_inputs.len(), internal_node.num_children());
+                    let niid = number_inputs[child_index];
                     numbergraph.disconnect_number_input(niid).unwrap();
+                }
+            }
+        });
+    }
+
+    fn connect_each_variable_use(
+        &self,
+        name: &str,
+        target: NumberTarget,
+        numbergraph: &mut NumberGraph,
+    ) {
+        self.visit(|node, path| {
+            let ASTNodeValue::Variable(var_name) = &node.value else {
+                return;
+            };
+            if var_name != name {
+                return;
+            }
+            match path.parent_node() {
+                ASTNodeParent::VariableDefinition(var_def) => {
+                    debug_assert_ne!(var_def.name, name);
+                    // FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCK aliasing
+                    panic!()
+                }
+                ASTNodeParent::FinalExpression => {
+                    let outputs = numbergraph.topology().graph_outputs();
+                    debug_assert_eq!(outputs.len(), 1);
+                    let goid = outputs[0].id();
+                    numbergraph.connect_graph_output(goid, target).unwrap();
+                }
+                ASTNodeParent::InternalNode(internal_node, child_index) => {
+                    let nsid = internal_node.number_source_id();
+                    let number_inputs = numbergraph
+                        .topology()
+                        .number_source(nsid)
+                        .unwrap()
+                        .number_inputs();
+                    debug_assert_eq!(number_inputs.len(), internal_node.num_children());
+                    let niid = number_inputs[child_index];
+                    numbergraph.connect_number_input(niid, target).unwrap();
                 }
             }
         });

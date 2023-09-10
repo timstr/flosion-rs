@@ -137,7 +137,8 @@ impl KeyboardFocusState {
         object_ui_states: &mut SoundObjectUiStates,
     ) {
         ui.input_mut(|i| {
-            //  preemptively avoid some unnecessary computation
+            //  preemptively avoid some unnecessary computation.
+            // These keys will be consumed in handle_single_keyboard_event
             if !(i.key_pressed(egui::Key::ArrowUp)
                 || i.key_pressed(egui::Key::ArrowDown)
                 || i.key_pressed(egui::Key::Enter)
@@ -149,7 +150,7 @@ impl KeyboardFocusState {
         });
 
         if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
-            let (ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
+            let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
             soundgraph
                 .edit_number_input(*niid, |numbergraph| {
