@@ -6,7 +6,10 @@ use std::{
 
 use crate::{
     core::{
-        graph::{graphobject::ObjectInitialization, objectfactory::ObjectFactory},
+        graph::{
+            graphobject::{ObjectInitialization, ObjectType},
+            objectfactory::ObjectFactory,
+        },
         number::{numbergraph::NumberGraph, numbergraphdata::NumberTarget},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
@@ -33,7 +36,7 @@ use super::{
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuistate::{DroppingProcessorData, SelectionChange, SoundGraphUiState},
     soundobjectuistate::SoundObjectUiStates,
-    summon_widget::{SummonWidget, SummonWidgetState},
+    summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
 };
 
@@ -50,7 +53,7 @@ pub struct FlosionApp {
     number_ui_factory: UiFactory<NumberGraphUi>,
     ui_state: SoundGraphUiState,
     object_states: SoundObjectUiStates,
-    summon_state: Option<SummonWidgetState>,
+    summon_state: Option<SummonWidgetState<ObjectType>>,
     selection_area: Option<SelectionState>,
     known_object_ids: HashSet<SoundObjectId>,
 }
@@ -441,6 +444,17 @@ impl FlosionApp {
         }
     }
 
+    fn build_summon_widget(
+        position: egui::Pos2,
+        factory: &UiFactory<SoundGraphUi>,
+    ) -> SummonWidgetState<ObjectType> {
+        let mut builder = SummonWidgetStateBuilder::new(position);
+        for object_type in factory.all_object_types() {
+            builder.add_basic_name(object_type.name().to_string(), object_type);
+        }
+        builder.build()
+    }
+
     fn handle_summon_widget(&mut self, ui: &mut Ui, bg_response: &Response, bg_id: egui::LayerId) {
         let pointer_pos = bg_response.hover_pos();
         let mut open_summon_widget = false;
@@ -458,7 +472,7 @@ impl FlosionApp {
         }
 
         if open_summon_widget && self.summon_state.is_none() {
-            self.summon_state = Some(SummonWidgetState::new(
+            self.summon_state = Some(Self::build_summon_widget(
                 pointer_pos.unwrap(),
                 &self.ui_factory,
             ));
@@ -468,31 +482,26 @@ impl FlosionApp {
             ui.add(SummonWidget::new(summon_state));
         }
         if let Some(s) = &self.summon_state {
-            if s.finalized() {
-                if s.selected_type().is_some() {
-                    let (type_name, args) = s.parse_selected();
-                    // TODO: how to distinguish args for ui from args for object, if ever needed?
-                    // See also note in Constant::new
-                    let new_object =
-                        self.object_factory
-                            .create_from_args(type_name, &mut self.graph, &args);
-                    let new_object = match new_object {
-                        Ok(o) => o,
-                        Err(_) => {
-                            println!("Failed to create an object of type {}", type_name);
-                            return;
-                        }
-                    };
-                    let new_state = self.ui_factory.create_state_from_args(&new_object, &args);
-                    let p = s.position();
-                    self.ui_state
-                        .object_positions_mut()
-                        .track_object_location(new_object.id(), egui::Rect::from_two_pos(p, p));
-                    self.object_states
-                        .set_object_data(new_object.id(), new_state);
-                    self.ui_state.stop_selecting();
-                    self.ui_state.select_object(new_object.id());
-                }
+            if let Some(choice) = s.final_choice() {
+                let new_object = self
+                    .object_factory
+                    .create_default(choice.name(), &mut self.graph);
+                let new_object = match new_object {
+                    Ok(o) => o,
+                    Err(_) => {
+                        println!("Failed to create an object of type {}", choice.name());
+                        return;
+                    }
+                };
+                let new_state = self.ui_factory.create_default_state(&new_object);
+                let p = s.position();
+                self.ui_state
+                    .object_positions_mut()
+                    .track_object_location(new_object.id(), egui::Rect::from_two_pos(p, p));
+                self.object_states
+                    .set_object_data(new_object.id(), new_state);
+                self.ui_state.stop_selecting();
+                self.ui_state.select_object(new_object.id());
                 self.summon_state = None;
             }
         }

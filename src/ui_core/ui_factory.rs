@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use eframe::egui;
 use serialization::Deserializer;
 
-use crate::core::{
-    arguments::ParsedArguments,
-    graph::graphobject::{GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization},
+use crate::core::graph::graphobject::{
+    GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
 };
 
 use super::{
@@ -18,7 +17,7 @@ struct ObjectData<G: GraphUi> {
 }
 
 pub struct UiFactory<G: GraphUi> {
-    mapping: HashMap<&'static str, ObjectData<G>>,
+    mapping: HashMap<ObjectType, ObjectData<G>>,
 }
 
 impl<G: GraphUi> UiFactory<G> {
@@ -29,9 +28,9 @@ impl<G: GraphUi> UiFactory<G> {
     }
 
     pub fn register<T: ObjectUi<GraphUi = G>>(&mut self) {
-        let name = <T::HandleType as ObjectHandle<G::Graph>>::ObjectType::get_type().name();
+        let object_type = <T::HandleType as ObjectHandle<G::Graph>>::ObjectType::get_type();
         self.mapping.insert(
-            name,
+            object_type,
             ObjectData {
                 ui: Box::new(T::default()),
             },
@@ -64,12 +63,12 @@ impl<G: GraphUi> UiFactory<G> {
     //     );
     // }
 
-    pub fn all_object_types(&self) -> impl Iterator<Item = &str> {
+    pub fn all_object_types<'a>(&'a self) -> impl 'a + Iterator<Item = ObjectType> {
         self.mapping.keys().cloned()
     }
 
-    pub fn get_object_ui(&self, object_type_str: &str) -> &dyn AnyObjectUi<G> {
-        &*self.mapping.get(object_type_str).unwrap().ui
+    pub fn get_object_ui(&self, object_type: ObjectType) -> &dyn AnyObjectUi<G> {
+        &*self.mapping.get(&object_type).unwrap().ui
     }
 
     pub fn ui(
@@ -79,16 +78,16 @@ impl<G: GraphUi> UiFactory<G> {
         ui: &mut egui::Ui,
         ctx: &G::Context<'_>,
     ) {
-        let name = object.get_type().name();
+        let object_type = object.get_type();
         let id = object.id();
-        match self.mapping.get(name) {
+        match self.mapping.get(&object_type) {
             Some(data) => {
                 let state = ctx.get_object_ui_data(id);
                 data.ui.apply(object, state, graph_state, ui, ctx);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",
-                name
+                object_type.name()
             ),
         }
     }
@@ -98,27 +97,18 @@ impl<G: GraphUi> UiFactory<G> {
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
     ) -> Result<G::ObjectUiData, ()> {
-        let name = object.get_type().name();
-        match self.mapping.get(name) {
+        let object_type = object.get_type();
+        match self.mapping.get(&object_type) {
             Some(data) => data.ui.make_ui_state(object.id(), object, init),
             None => panic!(
                 "Tried to create ui state for an object of unrecognized type \"{}\"",
-                name
+                object_type.name()
             ),
         }
     }
 
     pub fn create_default_state(&self, object: &GraphObjectHandle<G::Graph>) -> G::ObjectUiData {
         self.create_state_impl(object, ObjectInitialization::Default)
-            .unwrap()
-    }
-
-    pub fn create_state_from_args(
-        &self,
-        object: &GraphObjectHandle<G::Graph>,
-        args: &ParsedArguments,
-    ) -> G::ObjectUiData {
-        self.create_state_impl(object, ObjectInitialization::Args(args))
             .unwrap()
     }
 

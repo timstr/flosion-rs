@@ -3,10 +3,7 @@ use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
-    core::{
-        arguments::{ArgumentList, ArgumentValue},
-        number::numbersource::NumberSourceHandle,
-    },
+    core::number::numbersource::NumberSourceHandle,
     objects::functions::*,
     ui_core::{
         graph_ui::ObjectUiState,
@@ -36,13 +33,9 @@ impl ObjectUi for ConstantUi {
         _data: NumberObjectUiData<()>,
     ) {
         // TODO: add ui state for custom name
-        NumberSourceUi::new_unnamed(constant.id()).show(ui, ctx, ui_state);
-    }
-
-    fn arguments(&self) -> ArgumentList {
-        let mut args = ArgumentList::new();
-        args.add("value", ArgumentValue::Float(0.0));
-        args
+        // NumberSourceUi::new_unnamed(constant.id()).show(ui, ctx, ui_state);
+        NumberSourceUi::new_named(constant.id(), format!("{}", constant.value()))
+            .show(ui, ctx, ui_state);
     }
 }
 
@@ -108,26 +101,13 @@ impl ObjectUi for VariableUi {
         });
     }
 
-    fn arguments(&self) -> ArgumentList {
-        let mut args = ArgumentList::new();
-        args.add("value", ArgumentValue::Float(0.0));
-        args.add("min", ArgumentValue::Float(0.0));
-        args.add("max", ArgumentValue::Float(1.0));
-        args.add("name", ArgumentValue::String("Constant".to_string()));
-        args
-    }
-
     fn make_ui_state(
         &self,
         object: &NumberSourceHandle<Variable>,
         init: UiInitialization,
     ) -> (Self::StateType, NumberSourceLayout) {
         let state = match init {
-            UiInitialization::Args(args) => VariableUiState {
-                min_value: args.get("min").as_float().unwrap(),
-                max_value: args.get("max").as_float().unwrap(),
-                name: args.get("name").as_string().unwrap().to_string(),
-            },
+            // TODO: add back initialization from some kind of arguments
             UiInitialization::Default => {
                 let v = object.get_value();
                 VariableUiState {
@@ -158,7 +138,8 @@ macro_rules! unary_number_source_ui {
                 ctx: &NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name).show(ui, ctx, ui_state);
+                NumberSourceUi::new_named(object.id(), $display_name.to_string())
+                    .show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -193,7 +174,8 @@ macro_rules! binary_number_source_ui {
                 ctx: &NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name).show(ui, ctx, ui_state);
+                NumberSourceUi::new_named(object.id(), $display_name.to_string())
+                    .show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {
@@ -228,7 +210,8 @@ macro_rules! ternary_number_source_ui {
                 ctx: &NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name).show(ui, ctx, ui_state);
+                NumberSourceUi::new_named(object.id(), $display_name.to_string())
+                    .show(ui, ctx, ui_state);
             }
 
             fn aliases(&self) -> &'static [&'static str] {

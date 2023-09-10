@@ -456,3 +456,10 @@ pub(crate) fn validate_sound_number_connection(
         None => Ok(()),
     }
 }
+
+pub(crate) fn available_sound_number_sources(
+    topology: &SoundGraphTopology,
+    input_id: SoundNumberInputId,
+) -> Vec<SoundNumberSourceId> {
+    todo!()
+}

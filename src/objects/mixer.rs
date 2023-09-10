@@ -44,10 +44,10 @@ impl DynamicSoundProcessor for Mixer {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_inputs: usize = match _init {
-            ObjectInitialization::Args(_) => {
-                // TODO: add argument
-                2
-            }
+            // ObjectInitialization::Args(_) => {
+            //     // TODO: add argument
+            //     2
+            // }
             ObjectInitialization::Archive(mut a) => a.u8()? as usize,
             ObjectInitialization::Default => 2,
         };

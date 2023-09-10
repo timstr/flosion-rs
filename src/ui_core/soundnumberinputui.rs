@@ -1,12 +1,12 @@
 use eframe::egui;
 
 use crate::core::{
-    graph::objectfactory::ObjectFactory,
+    graph::{graphobject::ObjectType, objectfactory::ObjectFactory},
     number::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphtopology::NumberGraphTopology,
     },
-    sound::soundnumberinput::SoundNumberInputId,
+    sound::{soundnumberinput::SoundNumberInputId, soundnumbersource::SoundNumberSourceId},
 };
 
 use super::{
@@ -17,9 +17,16 @@ use super::{
     summon_widget::SummonWidgetState,
     ui_factory::UiFactory,
 };
+
+#[derive(Copy, Clone)]
+pub(super) enum NumberSummonValue {
+    NumberSourceType(ObjectType),
+    SoundNumberSource(SoundNumberSourceId),
+}
+
 pub(super) struct SoundNumberInputFocus {
     cursor: LexicalLayoutCursor,
-    summon_widget_state: Option<SummonWidgetState>,
+    summon_widget_state: Option<SummonWidgetState<NumberSummonValue>>,
 }
 
 impl SoundNumberInputFocus {
@@ -38,7 +45,9 @@ impl SoundNumberInputFocus {
         &mut self.cursor
     }
 
-    pub(super) fn summon_widget_state_mut(&mut self) -> &mut Option<SummonWidgetState> {
+    pub(super) fn summon_widget_state_mut(
+        &mut self,
+    ) -> &mut Option<SummonWidgetState<NumberSummonValue>> {
         &mut self.summon_widget_state
     }
 }

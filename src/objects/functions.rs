@@ -15,10 +15,16 @@ pub struct Constant {
     value: f32,
 }
 
+impl Constant {
+    pub fn value(&self) -> f32 {
+        self.value
+    }
+}
+
 impl PureNumberSource for Constant {
     fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
-            ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
+            // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
             ObjectInitialization::Archive(mut d) => d.f32()?,
             ObjectInitialization::Default => 0.0,
         };
@@ -60,9 +66,7 @@ impl Variable {
 impl PureNumberSource for Variable {
     fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
-            // TODO: I don't like the hidden dependency on ConstantUi right here
-            // for the argument name
-            ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
+            // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
             ObjectInitialization::Archive(mut d) => d.f32()?,
             ObjectInitialization::Default => 0.0,
         };

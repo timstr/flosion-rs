@@ -2,8 +2,6 @@ use std::{any::Any, sync::Arc};
 
 use serialization::{Deserializer, Serializer};
 
-use crate::core::arguments::ParsedArguments;
-
 use super::graph::Graph;
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash)]
@@ -77,7 +75,6 @@ pub trait ObjectHandle<G: Graph>: Sized {
 }
 
 pub enum ObjectInitialization<'a> {
-    Args(&'a ParsedArguments),
     Archive(Deserializer<'a>),
     Default,
 }

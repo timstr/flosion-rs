@@ -402,8 +402,6 @@ impl SoundGraph {
         input_id: SoundNumberInputId,
         f: F,
     ) -> Result<(), SoundError> {
-        // TODO: do nothing if nothing changed!!! How to do?
-        // panic!()
         self.try_make_change(|topo| {
             let number_input = topo
                 .number_input_mut(input_id)
@@ -453,10 +451,6 @@ impl SoundGraph {
         &mut self,
         f: F,
     ) -> Result<(), SoundError> {
-        // TODO: add a separate flush() or commit() method that
-        // sends updates to the sound engine on an opt-in basis,
-        // e.g. at most once per UI update, rather than sending
-        // an update for every smallest change
         debug_assert_eq!(find_error(&self.local_topology), None);
         let prev_topology = self.local_topology.clone();
         let res = f(&mut self.local_topology);

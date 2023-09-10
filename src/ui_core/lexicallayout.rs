@@ -3,23 +3,29 @@ use std::cell::Cell;
 use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
-use crate::core::{
-    graph::objectfactory::ObjectFactory,
-    number::{
-        numbergraph::{NumberGraph, NumberGraphInputId},
-        numbergraphdata::NumberTarget,
-        numbergraphtopology::NumberGraphTopology,
-        numbersource::NumberSourceId,
+use crate::{
+    core::{
+        graph::{
+            graphobject::{ObjectType, WithObjectType},
+            objectfactory::ObjectFactory,
+        },
+        number::{
+            numbergraph::{NumberGraph, NumberGraphInputId},
+            numbergraphdata::NumberTarget,
+            numbergraphtopology::NumberGraphTopology,
+            numbersource::NumberSourceId,
+        },
+        uniqueid::UniqueId,
     },
-    uniqueid::UniqueId,
+    objects::functions::Constant,
 };
 
 use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{AnyNumberObjectUiData, NumberGraphUiState, NumberObjectUiStates},
-    soundnumberinputui::{SoundNumberInputFocus, SpatialGraphInputReference},
-    summon_widget::{SummonWidget, SummonWidgetState},
+    soundnumberinputui::{NumberSummonValue, SoundNumberInputFocus, SpatialGraphInputReference},
+    summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
 };
 
@@ -136,7 +142,7 @@ impl<'a> ASTPathBuilder<'a> {
 
     fn build(&self) -> ASTPath {
         fn helper(builder: &ASTPathBuilder, vec: &mut Vec<usize>) {
-            if let ASTPathBuilder::ChildOf(parent_path, parent_node, child_index) = builder {
+            if let ASTPathBuilder::ChildOf(parent_path, _parent_node, child_index) = builder {
                 helper(parent_path, vec);
                 vec.push(*child_index);
             }
@@ -151,7 +157,7 @@ impl<'a> ASTPathBuilder<'a> {
         fn helper(builder: &ASTPathBuilder, steps: &[usize]) -> bool {
             match builder {
                 ASTPathBuilder::Root(_) => steps.is_empty(),
-                ASTPathBuilder::ChildOf(parent_path, parent_node, child_index) => {
+                ASTPathBuilder::ChildOf(parent_path, _parent_node, child_index) => {
                     let Some((last_step, other_steps)) = steps.split_last() else {
                         return false;
                     };
@@ -985,8 +991,8 @@ impl LexicalLayout {
             .unwrap()
             .instance_arc()
             .as_graph_object();
-        let type_str = graph_object.get_type().name();
-        let object_ui = ctx.ui_factory().get_object_ui(type_str);
+        let object_type = graph_object.get_type();
+        let object_ui = ctx.ui_factory().get_object_ui(object_type);
         let object_state = ctx.object_ui_states().get_object_data(id);
         ui.horizontal_centered(|ui| {
             object_ui.apply(&graph_object, &object_state, graph_state, ui, ctx);
@@ -1132,6 +1138,31 @@ impl LexicalLayout {
         // "2 "             -> sin(x + (2 * b))^(1/2)
     }
 
+    fn build_summon_widget(
+        position: egui::Pos2,
+        ui_factory: &UiFactory<NumberGraphUi>,
+    ) -> SummonWidgetState<NumberSummonValue> {
+        let mut builder = SummonWidgetStateBuilder::new(position);
+        for object_type in ui_factory.all_object_types() {
+            builder.add_basic_name(
+                object_type.name().to_string(),
+                NumberSummonValue::NumberSourceType(object_type),
+            );
+        }
+
+        // TODO: find all sound number sources in scope and add them as names
+
+        // TODO: move this to the object ui after testing
+        builder.add_pattern("constant".to_string(), |s| {
+            // TODO: actually use the parsed value as part of initializing the constant
+            // This should probably be done with a per-object/ui initialization type
+            s.parse::<f32>()
+                .ok()
+                .and(Some(NumberSummonValue::NumberSourceType(Constant::TYPE)))
+        });
+        builder.build()
+    }
+
     fn handle_summon_widget(
         &mut self,
         ui: &egui::Ui,
@@ -1141,8 +1172,10 @@ impl LexicalLayout {
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
     ) {
-        let pressed_space =
-            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Space));
+        let pressed_space_or_tab = ui.input_mut(|i| {
+            i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
+                || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
+        });
 
         let algebraic_keys_pressed = ui.input_mut(|input| {
             let mut out_chars = Vec::new();
@@ -1168,21 +1201,16 @@ impl LexicalLayout {
                 })
                 .cloned()
                 .collect();
-            // let Some(idx) = idx else {
-            //     return None;
-            // };
-            // input.events.remove(idx);
             out_chars
         });
 
         if focus.summon_widget_state_mut().is_none() {
-            if pressed_space || !algebraic_keys_pressed.is_empty() {
-                //  open summon widget when space is pressed
+            if pressed_space_or_tab || !algebraic_keys_pressed.is_empty() {
+                //  open summon widget when space/tab is pressed
                 let node_at_cursor = self.get_node_at_cursor(&focus.cursor());
                 let mut widget_state =
-                    SummonWidgetState::new(node_at_cursor.rect().center_bottom(), ui_factory);
+                    Self::build_summon_widget(node_at_cursor.rect().center_bottom(), ui_factory);
                 let s = String::from_iter(algebraic_keys_pressed);
-                println!("You typed {}", s);
                 widget_state.set_text(s);
 
                 *focus.summon_widget_state_mut() = Some(widget_state);
@@ -1190,55 +1218,89 @@ impl LexicalLayout {
         }
 
         if let Some(summon_widget_state) = focus.summon_widget_state_mut() {
-            if summon_widget_state.finalized() {
-                if summon_widget_state.selected_type().is_some() {
-                    let (type_name, args) = summon_widget_state.parse_selected();
-                    let new_object = object_factory.create_from_args(type_name, numbergraph, &args);
+            if let Some(choice) = summon_widget_state.final_choice() {
+                match choice {
+                    NumberSummonValue::NumberSourceType(ns_type) => {
+                        let (node, layout) = self
+                            .create_new_number_source_from_type(
+                                ns_type,
+                                object_factory,
+                                ui_factory,
+                                object_ui_states,
+                                numbergraph,
+                            )
+                            .unwrap();
 
-                    let new_object = match new_object {
-                        Ok(o) => o,
-                        Err(_) => {
-                            println!("Failed to create number object of type {}", type_name);
-                            return;
-                        }
-                    };
+                        let num_children = node.num_children();
+                        self.insert_to_numbergraph_at_cursor(focus.cursor_mut(), node, numbergraph);
 
-                    let new_ui_state = ui_factory.create_state_from_args(&new_object, &args);
-
-                    let num_inputs = numbergraph
-                        .topology()
-                        .number_source(new_object.id())
-                        .unwrap()
-                        .number_inputs()
-                        .len();
-                    let child_nodes: Vec<ASTNode> = (0..num_inputs)
-                        .map(|_| ASTNode::new(ASTNodeValue::Empty))
-                        .collect();
-                    let internal_node =
-                        make_internal_node(new_object.id(), &new_ui_state, child_nodes);
-                    let node = ASTNode::new(ASTNodeValue::Internal(Box::new(internal_node)));
-
-                    let layout = new_ui_state.layout();
-
-                    object_ui_states.set_object_data(new_object.id(), new_ui_state);
-
-                    self.insert_to_numbergraph_at_cursor(focus.cursor_mut(), node, numbergraph);
-
-                    let cursor = focus.cursor_mut();
-                    match layout {
-                        NumberSourceLayout::Prefix => cursor.path.go_into(0),
-                        NumberSourceLayout::Infix => cursor.path.go_into(0),
-                        NumberSourceLayout::Postfix => cursor.path.go_into(0),
-                        NumberSourceLayout::Function => {
-                            if num_inputs > 0 {
-                                cursor.path.go_into(0);
+                        let cursor = focus.cursor_mut();
+                        match layout {
+                            NumberSourceLayout::Prefix => cursor.path.go_into(0),
+                            NumberSourceLayout::Infix => cursor.path.go_into(0),
+                            NumberSourceLayout::Postfix => cursor.path.go_into(0),
+                            NumberSourceLayout::Function => {
+                                if num_children > 0 {
+                                    cursor.path.go_into(0);
+                                }
                             }
                         }
                     }
-                }
+                    NumberSummonValue::SoundNumberSource(snsid) => {
+                        // TODO:
+                        // - add a graph input for the source if one doesn't already exist
+                        // - create a new node with the corresponding graph input
+                        // - GIVE GRAPH INPUT NODES A HUMAN-READABLE NAME
+                        //    - name of the number source for sound number sources
+                        //    - user-defined argument name for later top-level number graph definitions
+                        // - insert the node to the AST and graph
+                        todo!()
+                    }
+                };
                 *focus.summon_widget_state_mut() = None;
             }
         }
+    }
+
+    fn create_new_number_source_from_type(
+        &self,
+        ns_type: ObjectType,
+        object_factory: &ObjectFactory<NumberGraph>,
+        ui_factory: &UiFactory<NumberGraphUi>,
+        object_ui_states: &mut NumberObjectUiStates,
+        numbergraph: &mut NumberGraph,
+    ) -> Result<(ASTNode, NumberSourceLayout), String> {
+        let new_object = object_factory.create_default(ns_type.name(), numbergraph);
+
+        let new_object = match new_object {
+            Ok(o) => o,
+            Err(_) => {
+                return Err(format!(
+                    "Failed to create number object of type {}",
+                    ns_type.name()
+                ));
+            }
+        };
+
+        let new_ui_state = ui_factory.create_default_state(&new_object);
+
+        let num_inputs = numbergraph
+            .topology()
+            .number_source(new_object.id())
+            .unwrap()
+            .number_inputs()
+            .len();
+        let child_nodes: Vec<ASTNode> = (0..num_inputs)
+            .map(|_| ASTNode::new(ASTNodeValue::Empty))
+            .collect();
+        let internal_node = make_internal_node(new_object.id(), &new_ui_state, child_nodes);
+        let node = ASTNode::new(ASTNodeValue::Internal(Box::new(internal_node)));
+
+        let layout = new_ui_state.layout();
+
+        object_ui_states.set_object_data(new_object.id(), new_ui_state);
+
+        Ok((node, layout))
     }
 
     fn get_cursor_root(&self, cursor: &LexicalLayoutCursor) -> Option<ASTRoot> {
@@ -1476,7 +1538,7 @@ impl LexicalLayout {
                 ASTNodeParent::VariableDefinition(var_def) => {
                     debug_assert_ne!(var_def.name, name);
                     // FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCK aliasing
-                    panic!()
+                    panic!();
                 }
                 ASTNodeParent::FinalExpression => {
                     let outputs = numbergraph.topology().graph_outputs();
@@ -1513,5 +1575,6 @@ impl LexicalLayout {
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
         // TODO: check whether anything was removed, update the layout somehow.
         // This might be a lot of work and should only be done conservatively
+        // But HEY we can do conservative updates now thanks to revision hashes
     }
 }

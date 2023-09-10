@@ -6,11 +6,11 @@ use super::{numbergraphuicontext::NumberGraphUiContext, numbergraphuistate::Numb
 
 pub struct NumberSourceUi {
     source_id: NumberSourceId,
-    label: Option<&'static str>,
+    label: Option<String>,
 }
 
 impl NumberSourceUi {
-    pub fn new_named(source_id: NumberSourceId, label: &'static str) -> NumberSourceUi {
+    pub fn new_named(source_id: NumberSourceId, label: String) -> NumberSourceUi {
         NumberSourceUi {
             source_id,
             label: Some(label),

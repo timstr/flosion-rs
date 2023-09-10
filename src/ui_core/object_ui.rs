@@ -5,12 +5,9 @@ use eframe::{
 use rand::{thread_rng, Rng};
 use serialization::{Deserializer, Serializable, Serializer};
 
-use crate::core::{
-    arguments::{ArgumentList, ParsedArguments},
-    graph::{
-        graph::Graph,
-        graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
-    },
+use crate::core::graph::{
+    graph::Graph,
+    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
 };
 
 use super::graph_ui::{GraphUi, ObjectUiData, ObjectUiState};
@@ -49,8 +46,7 @@ pub fn random_object_color() -> egui::Color32 {
     color.into()
 }
 
-pub enum UiInitialization<'a> {
-    Args(&'a ParsedArguments),
+pub enum UiInitialization {
     Default,
 }
 
@@ -76,10 +72,6 @@ pub trait ObjectUi: 'static + Default {
         &[]
     }
 
-    fn arguments(&self) -> ArgumentList {
-        ArgumentList::new()
-    }
-
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
@@ -103,8 +95,6 @@ pub trait AnyObjectUi<G: GraphUi> {
     );
 
     fn aliases(&self) -> &'static [&'static str];
-
-    fn arguments(&self) -> ArgumentList;
 
     fn make_ui_state(
         &self,
@@ -133,20 +123,14 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
         self.aliases()
     }
 
-    fn arguments(&self) -> ArgumentList {
-        self.arguments()
-    }
-
     fn make_ui_state(
         &self,
         id: <G::Graph as Graph>::ObjectId,
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
     ) -> Result<G::ObjectUiData, ()> {
-        // let dc_object = downcast_object_ref::<T>(object.instance());
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let (state, required_data) = match init {
-            ObjectInitialization::Args(a) => self.make_ui_state(&handle, UiInitialization::Args(a)),
             ObjectInitialization::Archive(mut a) => (
                 T::StateType::deserialize(&mut a)?,
                 Serializable::deserialize(&mut a)?,
