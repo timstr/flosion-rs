@@ -148,11 +148,11 @@ impl KeyboardFocusState {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
             soundgraph
-                .edit_number_input(*niid, |numbergraph| {
+                .edit_number_input(*niid, |numberinputdata| {
                     ui_presentation.handle_keypress(
                         ui,
                         ni_focus,
-                        numbergraph,
+                        numberinputdata,
                         object_factory,
                         ui_factory,
                         object_ui_states,

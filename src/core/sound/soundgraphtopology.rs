@@ -104,25 +104,30 @@ impl SoundGraphTopology {
     ) -> impl 'a + Iterator<Item = (SoundNumberInputId, SoundNumberSourceId)> {
         self.number_inputs.values().flat_map(move |ni_data| {
             let id = id;
-            ni_data.targets().iter().filter_map(move |target_ns| {
-                let target_ns_owner = self.number_source(*target_ns).unwrap().owner();
-                let target_part = match target_ns_owner {
-                    SoundNumberSourceOwner::SoundProcessor(spid) => {
-                        SoundConnectionPart::Processor(spid)
+            ni_data
+                .target_mapping()
+                .values()
+                .filter_map(move |target_ns| {
+                    let target_ns_owner = self.number_source(*target_ns).unwrap().owner();
+                    let target_part = match target_ns_owner {
+                        SoundNumberSourceOwner::SoundProcessor(spid) => {
+                            SoundConnectionPart::Processor(spid)
+                        }
+                        SoundNumberSourceOwner::SoundInput(siid) => {
+                            SoundConnectionPart::Input(siid)
+                        }
+                    };
+                    if self.depends_on(target_part, SoundConnectionPart::Input(id))
+                        && self.depends_on(
+                            SoundConnectionPart::Input(id),
+                            SoundConnectionPart::Processor(ni_data.owner()),
+                        )
+                    {
+                        Some((ni_data.id(), *target_ns))
+                    } else {
+                        None
                     }
-                    SoundNumberSourceOwner::SoundInput(siid) => SoundConnectionPart::Input(siid),
-                };
-                if self.depends_on(target_part, SoundConnectionPart::Input(id))
-                    && self.depends_on(
-                        SoundConnectionPart::Input(id),
-                        SoundConnectionPart::Processor(ni_data.owner()),
-                    )
-                {
-                    Some((ni_data.id(), *target_ns))
-                } else {
-                    None
-                }
-            })
+                })
         })
     }
 
@@ -204,12 +209,6 @@ impl SoundGraphTopology {
             SoundNumberEdit::RemoveNumberSource(id, owner) => self.remove_number_source(id, owner),
             SoundNumberEdit::AddNumberInput(data) => self.add_number_input(data),
             SoundNumberEdit::RemoveNumberInput(id, owner) => self.remove_number_input(id, owner),
-            SoundNumberEdit::ConnectNumberInput(niid, nsid) => {
-                self.connect_number_input(niid, nsid)
-            }
-            SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
-                self.disconnect_number_input(niid, nsid)
-            }
         }
     }
 
@@ -310,10 +309,12 @@ impl SoundGraphTopology {
         source_id: SoundNumberSourceId,
         owner: SoundNumberSourceOwner,
     ) {
-        debug_assert!(self
-            .number_inputs
-            .values()
-            .all(|ns| !ns.targets().contains(&source_id)));
+        // remove the number source from any number inputs that use it
+        for ni_data in self.number_inputs.values_mut() {
+            if let Some(giid) = ni_data.target_graph_input(source_id) {
+                ni_data.remove_target(source_id);
+            }
+        }
 
         // remove the number source from its owner, if any
         match owner {
@@ -353,20 +354,14 @@ impl SoundGraphTopology {
         self.number_inputs.remove(&id);
     }
 
-    fn connect_number_input(
+    pub fn disconnect_number_input(
         &mut self,
         input_id: SoundNumberInputId,
         source_id: SoundNumberSourceId,
     ) {
-        debug_assert!(self.number_sources.contains_key(&source_id));
-        let input_data = self.number_inputs.get_mut(&input_id).unwrap();
-
-        input_data.add_target(source_id);
-    }
-
-    fn disconnect_number_input(&mut self, input_id: SoundNumberInputId, nsid: SoundNumberSourceId) {
-        let input_data = self.number_inputs.get_mut(&input_id).unwrap();
-        input_data.remove_target(nsid).unwrap();
+        self.number_input_mut(input_id)
+            .unwrap()
+            .remove_target(source_id);
     }
 
     fn depends_on(&self, part: SoundConnectionPart, other_part: SoundConnectionPart) -> bool {

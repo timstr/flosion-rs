@@ -617,13 +617,13 @@ impl<'ctx> CodeGen<'ctx> {
         let number_topo = sg_number_input_data.number_graph().topology();
 
         // pre-compile all number graph inputs
-        for (snsid, giid) in sg_number_input_data.input_mapping() {
+        for (giid, snsid) in sg_number_input_data.target_mapping() {
             let value = topology
-                .number_source(snsid)
+                .number_source(*snsid)
                 .unwrap()
                 .instance()
                 .compile(&mut self);
-            self.assign_target(NumberTarget::GraphInput(giid), value);
+            self.assign_target(NumberTarget::GraphInput(*giid), value);
         }
 
         // TODO: add support for multiple outputs

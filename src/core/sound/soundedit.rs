@@ -4,9 +4,7 @@ use super::{
     },
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::{
-        validate_sound_connection, validate_sound_disconnection, validate_sound_number_connection,
-    },
+    soundgraphvalidation::{validate_sound_connection, validate_sound_disconnection},
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
     soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
@@ -39,8 +37,6 @@ pub(crate) enum SoundNumberEdit {
     RemoveNumberSource(SoundNumberSourceId, SoundNumberSourceOwner),
     AddNumberInput(SoundNumberInputData),
     RemoveNumberInput(SoundNumberInputId, SoundProcessorId),
-    ConnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
-    DisconnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
 }
 
 impl SoundEdit {
@@ -229,8 +225,6 @@ impl SoundNumberEdit {
             SoundNumberEdit::RemoveNumberSource(_, _) => "RemoveNumberSource",
             SoundNumberEdit::AddNumberInput(_) => "AddNumberInput",
             SoundNumberEdit::RemoveNumberInput(_, _) => "RemoveNumberInput",
-            SoundNumberEdit::ConnectNumberInput(_, _) => "ConnectNumberInput",
-            SoundNumberEdit::DisconnectNumberInput(_, _) => "DisconnectNumberInput",
         }
     }
 
@@ -291,7 +285,7 @@ impl SoundNumberEdit {
 
                 // the source must not be connected to any inputs
                 for ni in topo.number_inputs().values() {
-                    if ni.targets().contains(nsid) {
+                    if ni.target_graph_input(*nsid).is_some() {
                         return Some(SoundError::BadNumberSourceCleanup(*nsid));
                     }
                 }
@@ -308,7 +302,7 @@ impl SoundNumberEdit {
                 }
 
                 // the input must not be connected
-                if !data.targets().is_empty() {
+                if !data.target_mapping().is_empty() {
                     return Some(SoundError::BadNumberInputInit(data.id()));
                 }
             }
@@ -332,49 +326,8 @@ impl SoundNumberEdit {
                 }
 
                 // the number input must not be connected
-                if !data.targets().is_empty() {
+                if !data.target_mapping().is_empty() {
                     return Some(SoundError::BadNumberInputCleanup(*niid));
-                }
-            }
-            SoundNumberEdit::ConnectNumberInput(niid, nsid) => {
-                // the number input must exist
-                if topo.number_input(*niid).is_none() {
-                    return Some(SoundError::NumberInputNotFound(*niid));
-                }
-
-                // the number source must exist
-                if topo.number_source(*nsid).is_none() {
-                    return Some(SoundError::NumberSourceNotFound(*nsid));
-                }
-
-                // the number input must be vacant
-                if topo.number_input(*niid).unwrap().targets().contains(nsid) {
-                    return Some(
-                        SoundError::NumberInputAlreadyConnected {
-                            input_id: *niid,
-                            target: *nsid,
-                        }
-                        .into(),
-                    );
-                }
-
-                // the connection must be legal
-                if let Err(e) = validate_sound_number_connection(topo, *niid, *nsid) {
-                    return Some(e);
-                }
-            }
-            SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
-                // the number input must exist
-                let Some(data) = topo.number_input(*niid) else {
-                    return Some(SoundError::NumberInputNotFound(*niid).into());
-                };
-
-                // the number input must be occupied
-                if !data.targets().contains(nsid) {
-                    return Some(SoundError::NumberInputNotConnected {
-                        input_id: *niid,
-                        target: *nsid,
-                    });
                 }
             }
         }

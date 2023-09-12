@@ -1,6 +1,7 @@
 use super::{
     path::SoundPath,
-    soundedit::{SoundEdit, SoundNumberEdit},
+    soundedit::SoundEdit,
+    soundgraphdata::SoundNumberInputData,
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
@@ -199,7 +200,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
 
     for ni in topology.number_inputs().values() {
         // for all number inputs
-        for nsid in ni.targets() {
+        for nsid in ni.target_mapping().values() {
             // its targets must exist
             if topology.number_sources().get(nsid).is_none() {
                 panic!(
@@ -397,7 +398,7 @@ pub(super) fn find_invalid_number_connections(
     let mut bad_connections: Vec<(SoundNumberSourceId, SoundNumberInputId)> = Vec::new();
 
     for (niid, ni) in topology.number_inputs() {
-        for target in ni.targets() {
+        for target in ni.target_mapping().values() {
             let target_owner = topology.number_source(*target).unwrap().owner();
             let depends = match target_owner {
                 SoundNumberSourceOwner::SoundProcessor(spid) => {
@@ -448,18 +449,44 @@ pub(crate) fn validate_sound_number_connection(
     input_id: SoundNumberInputId,
     source_id: SoundNumberSourceId,
 ) -> Result<(), SoundError> {
-    // Lazy approach: duplicate the topology, make the edit, and see what happens
-    let mut topo = topology.clone();
-    topo.make_sound_number_edit(SoundNumberEdit::ConnectNumberInput(input_id, source_id));
-    match find_error(&topo) {
-        Some(e) => Err(e),
-        None => Ok(()),
+    todo!()
+}
+
+// Returns true iff the target processor is always indirectly evaluated by the source processor
+// whenever it is evaluated
+// TODO: consider renaming to processor_always_depends_on_processor
+pub(crate) fn processor_is_in_scope(
+    topology: &SoundGraphTopology,
+    source_processor_id: SoundProcessorId,
+    target_processor_id: SoundProcessorId,
+) -> bool {
+    if source_processor_id == target_processor_id {
+        return true;
     }
+
+    for target_input in topology.sound_processor_targets(source_processor_id) {
+        let proc_id = topology.sound_input(target_input).unwrap().owner();
+        if !processor_is_in_scope(topology, proc_id, target_processor_id) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 pub(crate) fn available_sound_number_sources(
     topology: &SoundGraphTopology,
     input_id: SoundNumberInputId,
 ) -> Vec<SoundNumberSourceId> {
-    todo!()
+    let parent_processor = topology.number_input(input_id).unwrap().owner();
+
+    let mut sources = Vec::new();
+    for spid in topology.sound_processors().keys() {
+        if processor_is_in_scope(topology, *spid, parent_processor) {
+            for nsid in topology.sound_processor(*spid).unwrap().number_sources() {
+                sources.push(*nsid);
+            }
+        }
+    }
+    sources
 }

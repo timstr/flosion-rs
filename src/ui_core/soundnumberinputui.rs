@@ -6,7 +6,10 @@ use crate::core::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphtopology::NumberGraphTopology,
     },
-    sound::{soundnumberinput::SoundNumberInputId, soundnumbersource::SoundNumberSourceId},
+    sound::{
+        soundgraphdata::SoundNumberInputData, soundnumberinput::SoundNumberInputId,
+        soundnumbersource::SoundNumberSourceId,
+    },
 };
 
 use super::{
@@ -83,15 +86,16 @@ impl SoundNumberInputPresentation {
         &mut self,
         ui: &egui::Ui,
         focus: &mut SoundNumberInputFocus,
-        numbergraph: &mut NumberGraph,
+        numberinputdata: &mut SoundNumberInputData,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
     ) {
+        // TODO: combine available sound number sources and their names right here
         self.lexical_layout.handle_keypress(
             ui,
             focus,
-            numbergraph,
+            numberinputdata,
             object_factory,
             ui_factory,
             object_ui_states,

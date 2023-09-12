@@ -1,11 +1,7 @@
-use std::{hash::Hasher, sync::Arc};
+use std::{collections::HashMap, hash::Hasher, sync::Arc};
 
 use crate::core::{
-    number::{
-        numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
-        numbergrapherror::NumberError,
-        numbergraphtopology::NumberGraphTopology,
-    },
+    number::numbergraph::{NumberGraph, NumberGraphInputId},
     revision::Revision,
     uniqueid::UniqueId,
 };
@@ -183,9 +179,9 @@ impl Revision for SoundProcessorData {
 }
 
 #[derive(Clone)]
-pub(crate) struct SoundNumberInputData {
+pub struct SoundNumberInputData {
     id: SoundNumberInputId,
-    targets: Vec<SoundNumberSourceId>,
+    target_mapping: HashMap<NumberGraphInputId, SoundNumberSourceId>,
     number_graph: NumberGraph,
     owner: SoundProcessorId,
 }
@@ -199,7 +195,7 @@ impl SoundNumberInputData {
 
         Self {
             id,
-            targets: Vec::new(),
+            target_mapping: HashMap::new(),
             number_graph,
             owner,
         }
@@ -209,75 +205,50 @@ impl SoundNumberInputData {
         self.id
     }
 
-    pub(crate) fn targets(&self) -> &[SoundNumberSourceId] {
-        &self.targets
+    pub(crate) fn target_mapping(&self) -> &HashMap<NumberGraphInputId, SoundNumberSourceId> {
+        &self.target_mapping
     }
 
-    pub(super) fn add_target(&mut self, target: SoundNumberSourceId) {
-        debug_assert_eq!(self.targets.iter().filter(|t| **t == target).count(), 0);
-        self.targets.push(target);
-        self.number_graph.add_graph_input();
-    }
-
-    pub(super) fn remove_target(&mut self, target: SoundNumberSourceId) -> Result<(), NumberError> {
-        // TODO: consider something nicer than assuming that number graph
-        // inputs and sound number source targets always match up 1:1
-        debug_assert_eq!(self.targets.iter().filter(|t| **t == target).count(), 1);
-        let i = self.targets.iter().position(|t| *t == target).unwrap();
-        self.targets.remove(i);
-        let niid = self.number_graph.topology().graph_inputs()[i];
-        self.number_graph.remove_graph_input(niid)
-    }
+    // pub(crate) fn target_mapping_mut(
+    //     &mut self,
+    // ) -> &mut HashMap<NumberGraphInputId, SoundNumberSourceId> {
+    //     &mut self.target_mapping
+    // }
 
     pub(crate) fn number_graph(&self) -> &NumberGraph {
         &self.number_graph
     }
 
-    pub(crate) fn edit_number_graph<F: FnOnce(&mut NumberGraph)>(&mut self, f: F) {
-        // TODO: find a more structurally elegant way to disallow modifying graph inputs
-        // and outputs when editing the internals of the number graph.
-        // In other words, consider making graph inputs and outputs be exposed
-        // through a separate interface
-        let get_input_and_output_ids = |topo: &NumberGraphTopology| {
-            let input_ids: Vec<NumberGraphInputId> = topo.graph_inputs().to_vec();
-            let output_ids: Vec<NumberGraphOutputId> =
-                topo.graph_outputs().iter().map(|x| x.id()).collect();
-            (input_ids, output_ids)
-        };
-
-        let (original_input_ids, original_output_ids) =
-            get_input_and_output_ids(self.number_graph.topology());
-
-        f(&mut self.number_graph);
-
-        let (input_ids, output_ids) = get_input_and_output_ids(self.number_graph.topology());
-
-        debug_assert_eq!(original_input_ids, input_ids);
-        debug_assert_eq!(original_output_ids, output_ids);
+    pub(crate) fn number_graph_mut(&mut self) -> &mut NumberGraph {
+        &mut self.number_graph
     }
 
-    pub(crate) fn input_mapping<'a>(
-        &'a self,
-    ) -> impl 'a + Iterator<Item = (SoundNumberSourceId, NumberGraphInputId)> {
-        let number_topo = self.number_graph.topology();
-        debug_assert_eq!(self.targets.len(), number_topo.graph_inputs().len());
-        self.targets
-            .iter()
-            .cloned()
-            .zip(number_topo.graph_inputs().iter().cloned())
+    pub(crate) fn graph_input_target(&self, id: NumberGraphInputId) -> Option<SoundNumberSourceId> {
+        self.target_mapping.get(&id).cloned()
     }
 
-    pub(crate) fn graph_input_to_target(
-        &self,
-        input_id: NumberGraphInputId,
-    ) -> SoundNumberSourceId {
-        self.targets[self
-            .number_graph
-            .topology()
-            .graph_inputs()
-            .iter()
-            .position(|i| *i == input_id)
-            .unwrap()]
+    pub(crate) fn target_graph_input(&self, id: SoundNumberSourceId) -> Option<NumberGraphInputId> {
+        for (giid, nsid) in &self.target_mapping {
+            if *nsid == id {
+                return Some(*giid);
+            }
+        }
+        None
+    }
+
+    pub(crate) fn add_target(&mut self, source_id: SoundNumberSourceId) -> NumberGraphInputId {
+        if let Some(giid) = self.target_graph_input(source_id) {
+            return giid;
+        }
+        let giid = self.number_graph.add_graph_input();
+        let prev = self.target_mapping.insert(giid, source_id);
+        debug_assert_eq!(prev, None);
+        giid
+    }
+
+    pub(crate) fn remove_target(&mut self, source_id: SoundNumberSourceId) {
+        let giid = self.target_graph_input(source_id).unwrap();
+        self.number_graph.remove_graph_input(giid).unwrap();
     }
 
     pub(crate) fn owner(&self) -> SoundProcessorId {
@@ -289,10 +260,12 @@ impl Revision for SoundNumberInputData {
     fn get_revision(&self) -> u64 {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
-        hasher.write_usize(self.targets.len());
-        for t in &self.targets {
-            hasher.write_usize(t.value());
+        let items_hash: u64 = 0;
+        for (giid, nsid) in &self.target_mapping {
+            hasher.write_usize(giid.value());
+            hasher.write_usize(nsid.value());
         }
+        hasher.write_u64(items_hash);
         hasher.write_u64(self.number_graph.topology().get_revision());
         hasher.write_usize(self.owner.value());
         hasher.finish()

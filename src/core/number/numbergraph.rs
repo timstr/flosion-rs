@@ -124,7 +124,7 @@ impl NumberGraph {
         id: NumberGraphOutputId,
     ) -> Result<(), NumberError> {
         let mut edits = Vec::new();
-        let Some(data) = self.topology.graph_output(id) else{
+        let Some(data) = self.topology.graph_output(id) else {
             return Err(NumberError::GraphOutputNotFound(id));
         };
         if data.target().is_some() {

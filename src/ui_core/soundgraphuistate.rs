@@ -6,7 +6,7 @@ use crate::core::{
     graph::objectfactory::ObjectFactory,
     number::numbergraph::NumberGraph,
     sound::{
-        soundedit::{SoundEdit, SoundNumberEdit},
+        soundedit::SoundEdit,
         soundgraph::SoundGraph,
         soundgraphid::{SoundGraphId, SoundObjectId},
         soundgraphtopology::SoundGraphTopology,
@@ -242,8 +242,7 @@ impl SoundGraphUiState {
                 continue;
             }
             for (niid, nsid) in original_topo.number_connection_crossings(si_data.id()) {
-                topo_disconnected
-                    .make_sound_number_edit(SoundNumberEdit::DisconnectNumberInput(niid, nsid));
+                topo_disconnected.disconnect_number_input(niid, nsid)
             }
             topo_disconnected.make_sound_edit(SoundEdit::DisconnectSoundInput(si_data.id()));
         }

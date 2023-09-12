@@ -88,10 +88,9 @@ impl FlosionApp {
             //    how they merely provide access to numeric data for the
             //    number graph internals to do anything with
             graph
-                .connect_number_input(wavgen.amplitude.id(), wavgen.phase.id())
-                .unwrap();
-            graph
-                .edit_number_input(wavgen.amplitude.id(), |numbergraph| {
+                .edit_number_input(wavgen.amplitude.id(), |numberinputdata| {
+                    let wavgen_phase_giid = numberinputdata.add_target(wavgen.phase.id());
+                    let numbergraph = numberinputdata.number_graph_mut();
                     let saw = numbergraph
                         .add_number_source::<SawWave>(ObjectInitialization::Default)
                         .unwrap();
@@ -152,32 +151,30 @@ impl FlosionApp {
                         )
                         .unwrap();
 
-                    // brutal. Would be way nicer if "wavgen.phase" appeared here somehow rather than
-                    // a shot in the dark like index 0
                     numbergraph
                         .connect_number_input(
                             multiply.input_2.id(),
-                            NumberTarget::GraphInput(numbergraph.topology().graph_inputs()[0]),
+                            NumberTarget::GraphInput(wavgen_phase_giid),
                         )
                         .unwrap();
                 })
                 .unwrap();
             graph
-                .connect_number_input(wavgen.frequency.id(), ensemble.voice_frequency.id())
-                .unwrap();
-            graph
-                .edit_number_input(wavgen.frequency.id(), |numbergraph| {
+                .edit_number_input(wavgen.frequency.id(), |numberinputdata| {
+                    let voice_freq_giid = numberinputdata.add_target(ensemble.voice_frequency.id());
                     // brutal
+                    let numbergraph = numberinputdata.number_graph_mut();
                     numbergraph
                         .connect_graph_output(
                             numbergraph.topology().graph_outputs()[0].id(),
-                            NumberTarget::GraphInput(numbergraph.topology().graph_inputs()[0]),
+                            NumberTarget::GraphInput(voice_freq_giid),
                         )
                         .unwrap();
                 })
                 .unwrap();
             graph
-                .edit_number_input(ensemble.frequency_in.id(), |numbergraph| {
+                .edit_number_input(ensemble.frequency_in.id(), |numberinputdata| {
+                    let numbergraph = numberinputdata.number_graph_mut();
                     let variable = numbergraph
                         .add_number_source::<Variable>(ObjectInitialization::Default)
                         .unwrap();

@@ -72,7 +72,7 @@ impl SoundNumberInputUiCollection {
 pub struct AnyNumberObjectUiData {
     id: NumberSourceId,
     state: RefCell<Box<dyn AnyObjectUiState>>,
-    layout: NumberSourceLayout, // DO NOT REMOVE
+    layout: NumberSourceLayout,
 }
 
 impl AnyNumberObjectUiData {

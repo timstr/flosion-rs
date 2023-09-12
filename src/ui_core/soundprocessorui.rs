@@ -551,7 +551,8 @@ impl ProcessorUi {
                     .topology()
                     .number_input(*number_input_id)
                     .unwrap()
-                    .graph_input_to_target(graph_input.input_id());
+                    .graph_input_target(graph_input.input_id())
+                    .unwrap();
                 let target_processor = match ctx
                     .topology()
                     .number_source(target_number_source)

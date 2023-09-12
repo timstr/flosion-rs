@@ -15,6 +15,7 @@ use crate::{
             numbergraphtopology::NumberGraphTopology,
             numbersource::NumberSourceId,
         },
+        sound::soundgraphdata::SoundNumberInputData,
         uniqueid::UniqueId,
     },
     objects::functions::Constant,
@@ -1061,7 +1062,7 @@ impl LexicalLayout {
         &mut self,
         ui: &egui::Ui,
         focus: &mut SoundNumberInputFocus,
-        numbergraph: &mut NumberGraph,
+        numberinputdata: &mut SoundNumberInputData,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
@@ -1090,14 +1091,17 @@ impl LexicalLayout {
                 ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
 
             if pressed_delete {
-                self.delete_from_numbergraph_at_cursor(focus.cursor_mut(), numbergraph);
+                self.delete_from_numbergraph_at_cursor(
+                    focus.cursor_mut(),
+                    numberinputdata.number_graph_mut(),
+                );
             }
         }
 
         self.handle_summon_widget(
             ui,
             focus,
-            numbergraph,
+            numberinputdata,
             object_factory,
             ui_factory,
             object_ui_states,
@@ -1150,7 +1154,7 @@ impl LexicalLayout {
             );
         }
 
-        // TODO: find all sound number sources in scope and add them as names
+        // TODO: add sound number sources
 
         // TODO: move this to the object ui after testing
         builder.add_pattern("constant".to_string(), |s| {
@@ -1167,7 +1171,7 @@ impl LexicalLayout {
         &mut self,
         ui: &egui::Ui,
         focus: &mut SoundNumberInputFocus,
-        numbergraph: &mut NumberGraph,
+        numberinputdata: &mut SoundNumberInputData,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
@@ -1227,12 +1231,16 @@ impl LexicalLayout {
                                 object_factory,
                                 ui_factory,
                                 object_ui_states,
-                                numbergraph,
+                                numberinputdata.number_graph_mut(),
                             )
                             .unwrap();
 
                         let num_children = node.num_children();
-                        self.insert_to_numbergraph_at_cursor(focus.cursor_mut(), node, numbergraph);
+                        self.insert_to_numbergraph_at_cursor(
+                            focus.cursor_mut(),
+                            node,
+                            numberinputdata.number_graph_mut(),
+                        );
 
                         let cursor = focus.cursor_mut();
                         match layout {
@@ -1247,6 +1255,13 @@ impl LexicalLayout {
                         }
                     }
                     NumberSummonValue::SoundNumberSource(snsid) => {
+                        let giid = numberinputdata.add_target(snsid);
+                        let node = ASTNode::new(ASTNodeValue::GraphInput(giid));
+                        self.insert_to_numbergraph_at_cursor(
+                            focus.cursor_mut(),
+                            node,
+                            numberinputdata.number_graph_mut(),
+                        );
                         // TODO:
                         // - add a graph input for the source if one doesn't already exist
                         // - create a new node with the corresponding graph input

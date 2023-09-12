@@ -13,14 +13,13 @@ use thread_priority::{set_current_thread_priority, ThreadPriority};
 use crate::core::{
     engine::soundengine::{create_sound_engine, StopButton},
     graph::{graph::Graph, graphobject::ObjectInitialization},
-    number::numbergraph::NumberGraph,
     revision::Revision,
     uniqueid::IdGenerator,
 };
 
 use super::{
     soundedit::{SoundEdit, SoundNumberEdit},
-    soundgraphdata::SoundProcessorData,
+    soundgraphdata::{SoundNumberInputData, SoundProcessorData},
     soundgraphedit::SoundGraphEdit,
     soundgrapherror::SoundError,
     soundgraphid::SoundObjectId,
@@ -98,23 +97,6 @@ impl SoundGraphClosure {
         let data = topology.sound_input(id).unwrap();
         if let Some(spid) = data.target() {
             if self.sound_processors.contains(&spid) {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn includes_number_connection(
-        &self,
-        id: SoundNumberInputId,
-        topology: &SoundGraphTopology,
-    ) -> bool {
-        if self.number_inputs.contains(&id) {
-            return true;
-        }
-        let data = topology.number_input(id).unwrap();
-        for spid in data.targets() {
-            if self.number_sources.contains(spid) {
                 return true;
             }
         }
@@ -287,28 +269,15 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn connect_number_input(
-        &mut self,
-        input_id: SoundNumberInputId,
-        source_id: SoundNumberSourceId,
-    ) -> Result<(), SoundError> {
-        let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::ConnectNumberInput(
-            input_id, source_id,
-        )));
-        self.try_make_edits(edit_queue)
-    }
-
     pub fn disconnect_number_input(
         &mut self,
         input_id: SoundNumberInputId,
         source_id: SoundNumberSourceId,
     ) -> Result<(), SoundError> {
-        let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::Number(
-            SoundNumberEdit::DisconnectNumberInput(input_id, source_id),
-        ));
-        self.try_make_edits(edit_queue)
+        self.try_make_change(|topo| {
+            topo.disconnect_number_input(input_id, source_id);
+            Ok(())
+        })
     }
 
     pub fn remove_sound_processor(&mut self, id: SoundProcessorId) -> Result<(), SoundError> {
@@ -327,17 +296,6 @@ impl SoundGraph {
         let closure = closure;
 
         let mut edit_queue = Vec::new();
-
-        // find all number connections involving these objects and disconnect them
-        for ni in self.local_topology.number_inputs().values() {
-            for target in ni.targets() {
-                if closure.includes_number_connection(ni.id(), &self.local_topology) {
-                    edit_queue.push(SoundGraphEdit::Number(
-                        SoundNumberEdit::DisconnectNumberInput(ni.id(), *target),
-                    ));
-                }
-            }
-        }
 
         // find all sound connections involving these objects and disconnect them
         for si in self.local_topology.sound_inputs().values() {
@@ -397,7 +355,7 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn edit_number_input<F: FnOnce(&mut NumberGraph)>(
+    pub fn edit_number_input<F: FnOnce(&mut SoundNumberInputData)>(
         &mut self,
         input_id: SoundNumberInputId,
         f: F,
@@ -407,7 +365,7 @@ impl SoundGraph {
                 .number_input_mut(input_id)
                 .ok_or_else(|| SoundError::NumberInputNotFound(input_id))?;
 
-            number_input.edit_number_graph(f);
+            f(number_input);
 
             Ok(())
         })
