@@ -5,6 +5,8 @@ use crate::core::{
     sound::{
         soundgraphid::{SoundGraphId, SoundObjectId},
         soundgraphtopology::SoundGraphTopology,
+        soundgraphvalidation::available_sound_number_sources,
+        soundnumbersource::SoundNumberSourceId,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -23,13 +25,18 @@ pub struct TopLevelLayout {
 
 pub struct TemporalLayout {
     top_level_objects: HashMap<SoundObjectId, TopLevelLayout>,
+    available_number_sources: HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>>,
+    number_source_names: HashMap<SoundNumberSourceId, String>,
 }
+
 impl TemporalLayout {
     const DEFAULT_WIDTH: usize = 600;
 
     pub(crate) fn new() -> TemporalLayout {
         TemporalLayout {
             top_level_objects: HashMap::new(),
+            available_number_sources: HashMap::new(),
+            number_source_names: HashMap::new(),
         }
     }
 
@@ -104,9 +111,13 @@ impl TemporalLayout {
         }
     }
 
-    pub(crate) fn retain(&mut self, remaining_ids: &HashSet<SoundGraphId>) {
+    pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         self.top_level_objects
-            .retain(|k, _v| remaining_ids.contains(&(*k).into()));
+            .retain(|k, _v| topo.contains((*k).into()));
+
+        self.available_number_sources = available_sound_number_sources(topo);
+        self.number_source_names
+            .retain(|k, _v| topo.contains((*k).into()));
     }
 
     pub(crate) fn find_root_processor(
@@ -172,5 +183,20 @@ impl TemporalLayout {
         let mut items = Vec::new();
         visitor(spid, self, topo, &mut items);
         items
+    }
+
+    pub(super) fn available_number_sources(
+        &self,
+        processor_id: SoundProcessorId,
+    ) -> &HashSet<SoundNumberSourceId> {
+        self.available_number_sources.get(&processor_id).unwrap()
+    }
+
+    pub(super) fn record_number_source_name(&mut self, id: SoundNumberSourceId, name: String) {
+        self.number_source_names.insert(id, name);
+    }
+
+    pub(super) fn number_source_name(&self, id: SoundNumberSourceId) -> Option<&str> {
+        self.number_source_names.get(&id).map(|s| s.as_str())
     }
 }

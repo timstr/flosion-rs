@@ -8,7 +8,7 @@ use crate::core::{
     },
     sound::{
         soundgraphdata::SoundNumberInputData, soundnumberinput::SoundNumberInputId,
-        soundnumbersource::SoundNumberSourceId,
+        soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -18,6 +18,7 @@ use super::{
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
     summon_widget::SummonWidgetState,
+    temporallayout::TemporalLayout,
     ui_factory::UiFactory,
 };
 
@@ -64,9 +65,16 @@ impl SoundNumberInputPresentation {
     pub(super) fn new(
         topology: &NumberGraphTopology,
         object_ui_states: &NumberObjectUiStates,
+        sound_number_input_id: SoundNumberInputId,
+        parent_processor_id: SoundProcessorId,
     ) -> SoundNumberInputPresentation {
         SoundNumberInputPresentation {
-            lexical_layout: LexicalLayout::generate(topology, object_ui_states),
+            lexical_layout: LexicalLayout::generate(
+                topology,
+                object_ui_states,
+                sound_number_input_id,
+                parent_processor_id,
+            ),
         }
     }
 
@@ -90,6 +98,7 @@ impl SoundNumberInputPresentation {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
+        temporal_layout: &TemporalLayout,
     ) {
         // TODO: combine available sound number sources and their names right here
         self.lexical_layout.handle_keypress(
@@ -99,6 +108,7 @@ impl SoundNumberInputPresentation {
             object_factory,
             ui_factory,
             object_ui_states,
+            temporal_layout,
         )
     }
 }

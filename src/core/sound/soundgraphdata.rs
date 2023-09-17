@@ -206,6 +206,14 @@ impl SoundNumberInputData {
     }
 
     pub(crate) fn target_mapping(&self) -> &HashMap<NumberGraphInputId, SoundNumberSourceId> {
+        debug_assert_eq!(
+            self.target_mapping
+                .keys()
+                .cloned()
+                .collect::<Vec<NumberGraphInputId>>(),
+            self.number_graph.topology().graph_inputs(),
+            "Number graph inputs were modified without number input mapping"
+        );
         &self.target_mapping
     }
 
@@ -224,10 +232,26 @@ impl SoundNumberInputData {
     }
 
     pub(crate) fn graph_input_target(&self, id: NumberGraphInputId) -> Option<SoundNumberSourceId> {
+        debug_assert_eq!(
+            self.target_mapping
+                .keys()
+                .cloned()
+                .collect::<Vec<NumberGraphInputId>>(),
+            self.number_graph.topology().graph_inputs(),
+            "Number graph inputs were modified without number input mapping"
+        );
         self.target_mapping.get(&id).cloned()
     }
 
     pub(crate) fn target_graph_input(&self, id: SoundNumberSourceId) -> Option<NumberGraphInputId> {
+        debug_assert_eq!(
+            self.target_mapping
+                .keys()
+                .cloned()
+                .collect::<Vec<NumberGraphInputId>>(),
+            self.number_graph.topology().graph_inputs(),
+            "Number graph inputs were modified without number input mapping"
+        );
         for (giid, nsid) in &self.target_mapping {
             if *nsid == id {
                 return Some(*giid);
@@ -238,11 +262,14 @@ impl SoundNumberInputData {
 
     pub(crate) fn add_target(&mut self, source_id: SoundNumberSourceId) -> NumberGraphInputId {
         if let Some(giid) = self.target_graph_input(source_id) {
+            println!("Graph input already exists");
             return giid;
         }
+        println!("Adding new graph input");
         let giid = self.number_graph.add_graph_input();
         let prev = self.target_mapping.insert(giid, source_id);
         debug_assert_eq!(prev, None);
+        debug_assert!(self.number_graph.topology().graph_inputs().contains(&giid));
         giid
     }
 

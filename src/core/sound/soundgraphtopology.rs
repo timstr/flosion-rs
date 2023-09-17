@@ -364,6 +364,15 @@ impl SoundGraphTopology {
             .remove_target(source_id);
     }
 
+    pub fn contains(&self, graph_id: SoundGraphId) -> bool {
+        match graph_id {
+            SoundGraphId::SoundInput(siid) => self.sound_inputs.contains_key(&siid),
+            SoundGraphId::SoundProcessor(spid) => self.sound_processors.contains_key(&spid),
+            SoundGraphId::SoundNumberInput(niid) => self.number_inputs.contains_key(&niid),
+            SoundGraphId::SoundNumberSource(nsid) => self.number_sources.contains_key(&nsid),
+        }
+    }
+
     fn depends_on(&self, part: SoundConnectionPart, other_part: SoundConnectionPart) -> bool {
         if part == other_part {
             return true;

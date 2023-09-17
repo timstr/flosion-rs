@@ -1,7 +1,8 @@
+use std::collections::{HashMap, HashSet};
+
 use super::{
     path::SoundPath,
     soundedit::SoundEdit,
-    soundgraphdata::SoundNumberInputData,
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
@@ -476,17 +477,96 @@ pub(crate) fn processor_is_in_scope(
 
 pub(crate) fn available_sound_number_sources(
     topology: &SoundGraphTopology,
-    input_id: SoundNumberInputId,
-) -> Vec<SoundNumberSourceId> {
-    let parent_processor = topology.number_input(input_id).unwrap().owner();
-
-    let mut sources = Vec::new();
-    for spid in topology.sound_processors().keys() {
-        if processor_is_in_scope(topology, *spid, parent_processor) {
-            for nsid in topology.sound_processor(*spid).unwrap().number_sources() {
-                sources.push(*nsid);
-            }
+) -> HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>> {
+    let mut cached_proc_sources: HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>> =
+        HashMap::new();
+    for proc_data in topology.sound_processors().values() {
+        if proc_data.instance().is_static() {
+            cached_proc_sources.insert(
+                proc_data.id(),
+                proc_data.number_sources().iter().cloned().collect(),
+            );
         }
     }
-    sources
+
+    let all_targets_cached_for =
+        |processor_id: SoundProcessorId,
+         cache: &HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>>| {
+            topology
+                .sound_processor_targets(processor_id)
+                .all(|target_siid| {
+                    let parent_sp = topology.sound_input(target_siid).unwrap().owner();
+                    cache.contains_key(&parent_sp)
+                })
+        };
+
+    let sound_input_number_sources =
+        |input_id: SoundInputId,
+         cache: &HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>>|
+         -> HashSet<SoundNumberSourceId> {
+            let input_data = topology.sound_input(input_id).unwrap();
+            let mut sources = cache
+                .get(&input_data.owner())
+                .expect("Processor number sources should have been cached")
+                .clone();
+            for nsid in input_data.number_sources() {
+                sources.insert(*nsid);
+            }
+            sources
+        };
+
+    loop {
+        let next_proc_id = topology
+            .sound_processors()
+            .values()
+            .filter_map(|proc_data| {
+                // don't revisit processors that are already cached
+                if cached_proc_sources.contains_key(&proc_data.id()) {
+                    return None;
+                }
+                // visit processors for which all targets are cached
+                if all_targets_cached_for(proc_data.id(), &cached_proc_sources) {
+                    Some(proc_data.id())
+                } else {
+                    None
+                }
+            })
+            .next();
+
+        let Some(next_proc_id) = next_proc_id else {
+            // All done!
+            break;
+        };
+
+        let mut available_sources: Option<HashSet<SoundNumberSourceId>> = None;
+
+        // Available upstream sources are the intersection of all those
+        // available via each destination sound input
+        for target_input in topology.sound_processor_targets(next_proc_id) {
+            let target_input_sources =
+                sound_input_number_sources(target_input, &cached_proc_sources);
+            if let Some(sources) = available_sources.as_mut() {
+                *sources = sources
+                    .intersection(&target_input_sources)
+                    .cloned()
+                    .collect();
+            } else {
+                available_sources = Some(target_input_sources);
+            }
+        }
+
+        let mut available_sources = available_sources.unwrap_or_else(HashSet::new);
+
+        for nsid in topology
+            .sound_processor(next_proc_id)
+            .unwrap()
+            .number_sources()
+        {
+            available_sources.insert(*nsid);
+        }
+
+        cached_proc_sources.insert(next_proc_id, available_sources);
+    }
+
+    cached_proc_sources
 }

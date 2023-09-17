@@ -4,7 +4,7 @@ use crate::core::{
     sound::{
         soundinput::{InputOptions, SoundInputId},
         soundnumberinput::SoundNumberInputId,
-        soundnumbersource::SoundNumberSourceOwner,
+        soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
         soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
@@ -20,6 +20,7 @@ pub struct ProcessorUi {
     label: &'static str,
     color: egui::Color32,
     number_inputs: Vec<(SoundNumberInputId, &'static str)>,
+    number_sources: Vec<(SoundNumberSourceId, &'static str)>,
     sound_inputs: Vec<SoundInputId>,
 }
 
@@ -36,6 +37,7 @@ impl ProcessorUi {
             label,
             color,
             number_inputs: Vec::new(),
+            number_sources: Vec::new(),
             sound_inputs: Vec::new(),
         }
     }
@@ -47,6 +49,15 @@ impl ProcessorUi {
 
     pub fn add_number_input(mut self, input_id: SoundNumberInputId, label: &'static str) -> Self {
         self.number_inputs.push((input_id, label));
+        self
+    }
+
+    pub fn add_number_source(
+        mut self,
+        source_id: SoundNumberSourceId,
+        label: &'static str,
+    ) -> Self {
+        self.number_sources.push((source_id, label));
         self
     }
 
@@ -68,6 +79,44 @@ impl ProcessorUi {
         ui_state: &mut SoundGraphUiState,
         add_contents: F,
     ) {
+        for (nsid, name) in &self.number_sources {
+            ui_state
+                .temporal_layout_mut()
+                .record_number_source_name(*nsid, name.to_string());
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            let proc_data = ctx.topology().sound_processor(self.processor_id).unwrap();
+            let missing_name = |id: SoundNumberSourceId| {
+                self.number_sources.iter().find(|(i, _)| *i == id).is_none()
+            };
+            let processor_type_name = proc_data.instance_arc().as_graph_object().get_type().name();
+            for nsid in proc_data.number_sources() {
+                if missing_name(*nsid) {
+                    println!(
+                        "Warning: number source {} on processor {} ({}) is missing a name",
+                        nsid.value(),
+                        self.processor_id.value(),
+                        processor_type_name
+                    );
+                }
+            }
+            for siid in proc_data.sound_inputs() {
+                for nsid in ctx.topology().sound_input(*siid).unwrap().number_sources() {
+                    if missing_name(*nsid) {
+                        println!(
+                            "Warning: number source {} on sound input {} on processor {} ({}) is missing a name",
+                            nsid.value(),
+                            siid.value(),
+                            self.processor_id.value(),
+                            processor_type_name
+                        );
+                    }
+                }
+            }
+        }
+
         let response = if ctx.is_top_level() {
             // If the object is top-level, draw it in a new egui::Area,
             // which can be independently clicked and dragged and moved
@@ -92,7 +141,7 @@ impl ProcessorUi {
             let r = area.show(ui.ctx(), |ui| {
                 let r = self.show_with_impl(ui, ctx, ui_state, add_contents);
 
-                self.draw_wires(self.processor_id, ui, ctx, ui_state);
+                self.draw_wires(ui, ctx, ui_state);
 
                 r
             });
@@ -532,7 +581,6 @@ impl ProcessorUi {
 
     fn draw_wires(
         &self,
-        processor_id: SoundProcessorId,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
@@ -540,13 +588,7 @@ impl ProcessorUi {
         let references = ctx.number_graph_input_references().borrow();
 
         for (number_input_id, graph_input_references) in references.iter() {
-            let top_of_number_input = ui_state
-                .object_positions()
-                .get_sound_number_input_location(*number_input_id)
-                .unwrap()
-                .rect()
-                .top();
-            for (i, graph_input) in graph_input_references.iter().enumerate() {
+            for graph_input in graph_input_references.iter() {
                 let target_number_source = ctx
                     .topology()
                     .number_input(*number_input_id)

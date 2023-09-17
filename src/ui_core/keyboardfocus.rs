@@ -141,6 +141,7 @@ impl KeyboardFocusState {
             {
                 return;
             }
+
             while self.handle_single_keyboard_event(soundgraph.topology(), temporal_layout, i) {}
         });
 
@@ -156,6 +157,7 @@ impl KeyboardFocusState {
                         object_factory,
                         ui_factory,
                         object_ui_states,
+                        temporal_layout,
                     );
                 })
                 .unwrap();

@@ -15,7 +15,10 @@ use crate::{
             numbergraphtopology::NumberGraphTopology,
             numbersource::NumberSourceId,
         },
-        sound::soundgraphdata::SoundNumberInputData,
+        sound::{
+            soundgraphdata::SoundNumberInputData, soundnumberinput::SoundNumberInputId,
+            soundprocessor::SoundProcessorId,
+        },
         uniqueid::UniqueId,
     },
     objects::functions::Constant,
@@ -27,6 +30,7 @@ use super::{
     numbergraphuistate::{AnyNumberObjectUiData, NumberGraphUiState, NumberObjectUiStates},
     soundnumberinputui::{NumberSummonValue, SoundNumberInputFocus, SpatialGraphInputReference},
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
+    temporallayout::TemporalLayout,
     ui_factory::UiFactory,
 };
 
@@ -577,12 +581,17 @@ fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
 pub(super) struct LexicalLayout {
     variable_definitions: Vec<VariableDefinition>,
     final_expression: ASTNode,
+    // TODO: generalize these to support top level number graphs
+    sound_number_input_id: SoundNumberInputId,
+    parent_sound_processor_id: SoundProcessorId,
 }
 
 impl LexicalLayout {
     pub(super) fn generate(
         topo: &NumberGraphTopology,
         object_ui_states: &NumberObjectUiStates,
+        sound_number_input_id: SoundNumberInputId,
+        parent_sound_processor_id: SoundProcessorId,
     ) -> LexicalLayout {
         let outputs = topo.graph_outputs();
         assert_eq!(outputs.len(), 1);
@@ -647,6 +656,8 @@ impl LexicalLayout {
         LexicalLayout {
             variable_definitions: variable_assignments,
             final_expression,
+            sound_number_input_id,
+            parent_sound_processor_id,
         }
     }
 
@@ -1066,6 +1077,7 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
+        temporal_layout: &TemporalLayout,
     ) {
         // TODO: consider filtering egui's InputState's vec of inputs
         // and consuming key presses from there
@@ -1105,6 +1117,7 @@ impl LexicalLayout {
             object_factory,
             ui_factory,
             object_ui_states,
+            temporal_layout,
         );
 
         // TODO: create a summon widget similar to that used in flosion_ui.
@@ -1143,8 +1156,10 @@ impl LexicalLayout {
     }
 
     fn build_summon_widget(
+        &self,
         position: egui::Pos2,
         ui_factory: &UiFactory<NumberGraphUi>,
+        temporal_layout: &TemporalLayout,
     ) -> SummonWidgetState<NumberSummonValue> {
         let mut builder = SummonWidgetStateBuilder::new(position);
         for object_type in ui_factory.all_object_types() {
@@ -1154,7 +1169,17 @@ impl LexicalLayout {
             );
         }
 
-        // TODO: add sound number sources
+        for snsid in temporal_layout.available_number_sources(self.parent_sound_processor_id) {
+            // TODO: give this a meaningful name
+            let ns_name = format!(
+                "soundprocessor???.{}",
+                temporal_layout
+                    .number_source_name(*snsid)
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| format!("#{}", snsid.value()))
+            );
+            builder.add_basic_name(ns_name, NumberSummonValue::SoundNumberSource(*snsid));
+        }
 
         // TODO: move this to the object ui after testing
         builder.add_pattern("constant".to_string(), |s| {
@@ -1175,6 +1200,7 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
+        temporal_layout: &TemporalLayout,
     ) {
         let pressed_space_or_tab = ui.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
@@ -1212,8 +1238,11 @@ impl LexicalLayout {
             if pressed_space_or_tab || !algebraic_keys_pressed.is_empty() {
                 //  open summon widget when space/tab is pressed
                 let node_at_cursor = self.get_node_at_cursor(&focus.cursor());
-                let mut widget_state =
-                    Self::build_summon_widget(node_at_cursor.rect().center_bottom(), ui_factory);
+                let mut widget_state = self.build_summon_widget(
+                    node_at_cursor.rect().center_bottom(),
+                    ui_factory,
+                    temporal_layout,
+                );
                 let s = String::from_iter(algebraic_keys_pressed);
                 widget_state.set_text(s);
 
@@ -1255,21 +1284,42 @@ impl LexicalLayout {
                         }
                     }
                     NumberSummonValue::SoundNumberSource(snsid) => {
+                        println!("Graph inputs in use BEFORE:");
+                        for giid in numberinputdata.number_graph().topology().graph_inputs() {
+                            let mapped_nsid = numberinputdata.graph_input_target(*giid).unwrap();
+                            let ns_name = temporal_layout.number_source_name(mapped_nsid).unwrap();
+                            println!(
+                                "    {} -> #{} {}",
+                                giid.value(),
+                                mapped_nsid.value(),
+                                ns_name
+                            );
+                        }
+                        println!("---");
                         let giid = numberinputdata.add_target(snsid);
+                        println!("Graph inputs in use AFTER:");
+                        for giid in numberinputdata.number_graph().topology().graph_inputs() {
+                            let mapped_nsid = numberinputdata.graph_input_target(*giid).unwrap();
+                            let ns_name = temporal_layout.number_source_name(mapped_nsid).unwrap();
+                            println!(
+                                "    {} -> #{} {}",
+                                giid.value(),
+                                mapped_nsid.value(),
+                                ns_name
+                            );
+                        }
+                        println!("---");
+                        debug_assert!(numberinputdata
+                            .number_graph()
+                            .topology()
+                            .graph_inputs()
+                            .contains(&giid));
                         let node = ASTNode::new(ASTNodeValue::GraphInput(giid));
                         self.insert_to_numbergraph_at_cursor(
                             focus.cursor_mut(),
                             node,
                             numberinputdata.number_graph_mut(),
                         );
-                        // TODO:
-                        // - add a graph input for the source if one doesn't already exist
-                        // - create a new node with the corresponding graph input
-                        // - GIVE GRAPH INPUT NODES A HUMAN-READABLE NAME
-                        //    - name of the number source for sound number sources
-                        //    - user-defined argument name for later top-level number graph definitions
-                        // - insert the node to the AST and graph
-                        todo!()
                     }
                 };
                 *focus.summon_widget_state_mut() = None;
@@ -1392,7 +1442,7 @@ impl LexicalLayout {
         }
         self.set_node_at_cursor(cursor, ASTNode::new(ASTNodeValue::Empty));
 
-        // TODO: remove any unreferenced number graph inputs
+        self.remove_unreferenced_graph_inputs(numbergraph);
     }
 
     fn insert_to_numbergraph_at_cursor(
@@ -1576,6 +1626,69 @@ impl LexicalLayout {
         });
     }
 
+    fn remove_unreferenced_graph_inputs(&self, numbergraph: &mut NumberGraph) {
+        let mut referenced_graph_inputs = Vec::<NumberGraphInputId>::new();
+
+        self.visit(|node, _path| {
+            if let ASTNodeValue::GraphInput(giid) = node.value() {
+                if !referenced_graph_inputs.contains(&giid) {
+                    referenced_graph_inputs.push(*giid);
+                }
+            }
+        });
+
+        debug_assert!((|| {
+            for giid in &referenced_graph_inputs {
+                if !numbergraph.topology().graph_inputs().contains(giid) {
+                    return false;
+                }
+            }
+            true
+        })());
+
+        let all_graph_inputs = numbergraph.topology().graph_inputs().to_vec();
+        for giid in all_graph_inputs {
+            if !referenced_graph_inputs.contains(&giid) {
+                debug_assert_eq!(
+                    numbergraph
+                        .topology()
+                        .number_target_destinations(NumberTarget::GraphInput(giid))
+                        .count(),
+                    0
+                );
+                // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa
+                // this leaves a dangling entry in the SoundNumberInputData's
+                // mapping. BUT, LexicalLayout shouldn't care about the details
+                // of SoundNumberInputData since it should work generically for
+                // any numbergraph alone (to allow for later top-level number graphs)
+                // Removing graph inputs is easy enough (just have the SoundNumberInputData
+                // detect and remove its own surplus mapping entry) but adding a new
+                // mapping entry is tricky since the SoundNumberInputData can't know
+                // which SoundNumberSource it's supposed to be connected to afterwards.
+                // Does this imply that some kind of hook/callback is needed to add
+                // custom functionality when a number graph input is added via the
+                // summon widget? In principle, the summon widget is a great place
+                // for this kind of thing since 1) its entries already must differ
+                // for sound number inputs in order to account for external sound
+                // number sources and 2) this would allow for other functions to
+                // be called when a summon widget entry is chosen which might prove
+                // useful. For example, in top level number graphs, the same kind
+                // of function could add a new named parameter
+                // --------------
+                // TODO:
+                // - remove all references to SoundNumberInputId from LexicalLayout
+                // - add a mechanism to LexicalLayout to define a custom summon
+                //   widget entry with a custom callback function
+                // - use that mechanism in SoundNumberInputUi to add sound number
+                //   sources by name to the LexicalLayout's summon widget choices,
+                //   make sure that results in new graph inputs being added and
+                //   existing graph inputs being reused in agreement with the
+                //   SoundNumberInputData's current mapping
+                numbergraph.remove_graph_input(giid).unwrap();
+            }
+        }
+    }
+
     fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, mut f: F) {
         for vardef in &self.variable_definitions {
             vardef.value.visit(
@@ -1589,7 +1702,5 @@ impl LexicalLayout {
 
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
         // TODO: check whether anything was removed, update the layout somehow.
-        // This might be a lot of work and should only be done conservatively
-        // But HEY we can do conservative updates now thanks to revision hashes
     }
 }

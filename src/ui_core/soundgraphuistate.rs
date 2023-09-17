@@ -463,7 +463,7 @@ impl SoundGraphUiState {
         topo: &SoundGraphTopology,
     ) {
         self.object_positions.retain(remaining_ids);
-        self.temporal_layout.retain(remaining_ids);
+        self.temporal_layout.cleanup(topo);
 
         match &mut self.mode {
             UiMode::Selecting(s) => {
@@ -630,7 +630,7 @@ impl SoundGraphUiState {
                     self.number_input_uis.set_ui_data(
                         *niid,
                         NumberGraphUiState::new(),
-                        SoundNumberInputPresentation::new(number_topo, states),
+                        SoundNumberInputPresentation::new(number_topo, states, *niid, spid),
                     );
                 }
             }
