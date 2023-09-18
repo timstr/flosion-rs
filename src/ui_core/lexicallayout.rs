@@ -15,10 +15,6 @@ use crate::{
             numbergraphtopology::NumberGraphTopology,
             numbersource::NumberSourceId,
         },
-        sound::{
-            soundgraphdata::SoundNumberInputData, soundnumberinput::SoundNumberInputId,
-            soundprocessor::SoundProcessorId,
-        },
         uniqueid::UniqueId,
     },
     objects::functions::Constant,
@@ -28,9 +24,8 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{AnyNumberObjectUiData, NumberGraphUiState, NumberObjectUiStates},
-    soundnumberinputui::{NumberSummonValue, SoundNumberInputFocus, SpatialGraphInputReference},
+    soundnumberinputui::NumberSummonValue,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
-    temporallayout::TemporalLayout,
     ui_factory::UiFactory,
 };
 
@@ -253,14 +248,6 @@ impl ASTNode {
         }
     }
 
-    fn count_graph_inputs(&self) -> usize {
-        match &self.value {
-            ASTNodeValue::Internal(n) => n.count_graph_inputs(),
-            ASTNodeValue::GraphInput(_) => 1,
-            _ => 0,
-        }
-    }
-
     pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
         if path.is_empty() {
             self
@@ -332,6 +319,34 @@ pub enum NumberSourceLayout {
     Infix,
     Postfix,
     Function,
+}
+
+pub(super) struct LexicalLayoutFocus {
+    cursor: LexicalLayoutCursor,
+    summon_widget_state: Option<SummonWidgetState<NumberSummonValue>>,
+}
+
+impl LexicalLayoutFocus {
+    pub(super) fn new() -> LexicalLayoutFocus {
+        LexicalLayoutFocus {
+            cursor: LexicalLayoutCursor::new(),
+            summon_widget_state: None,
+        }
+    }
+
+    pub(super) fn cursor(&self) -> &LexicalLayoutCursor {
+        &self.cursor
+    }
+
+    pub(super) fn cursor_mut(&mut self) -> &mut LexicalLayoutCursor {
+        &mut self.cursor
+    }
+
+    pub(super) fn summon_widget_state_mut(
+        &mut self,
+    ) -> &mut Option<SummonWidgetState<NumberSummonValue>> {
+        &mut self.summon_widget_state
+    }
 }
 
 pub(super) enum InternalASTNodeValue {
@@ -410,19 +425,6 @@ impl InternalASTNode {
             InternalASTNodeValue::Infix(c1, _, c2) => c1.is_over(p) || c2.is_over(p),
             InternalASTNodeValue::Postfix(c, _) => c.is_over(p),
             InternalASTNodeValue::Function(_, cs) => cs.iter().any(|c| c.is_over(p)),
-        }
-    }
-
-    fn count_graph_inputs(&self) -> usize {
-        match &self.value {
-            InternalASTNodeValue::Prefix(_, c) => c.count_graph_inputs(),
-            InternalASTNodeValue::Infix(c1, _, c2) => {
-                c1.count_graph_inputs() + c2.count_graph_inputs()
-            }
-            InternalASTNodeValue::Postfix(c, _) => c.count_graph_inputs(),
-            InternalASTNodeValue::Function(_, cs) => {
-                cs.iter().map(|c| c.count_graph_inputs()).sum()
-            }
         }
     }
 
@@ -581,17 +583,12 @@ fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
 pub(super) struct LexicalLayout {
     variable_definitions: Vec<VariableDefinition>,
     final_expression: ASTNode,
-    // TODO: generalize these to support top level number graphs
-    sound_number_input_id: SoundNumberInputId,
-    parent_sound_processor_id: SoundProcessorId,
 }
 
 impl LexicalLayout {
     pub(super) fn generate(
         topo: &NumberGraphTopology,
         object_ui_states: &NumberObjectUiStates,
-        sound_number_input_id: SoundNumberInputId,
-        parent_sound_processor_id: SoundProcessorId,
     ) -> LexicalLayout {
         let outputs = topo.graph_outputs();
         assert_eq!(outputs.len(), 1);
@@ -656,8 +653,6 @@ impl LexicalLayout {
         LexicalLayout {
             variable_definitions: variable_assignments,
             final_expression,
-            sound_number_input_id,
-            parent_sound_processor_id,
         }
     }
 
@@ -667,12 +662,11 @@ impl LexicalLayout {
         result_label: &str,
         graph_state: &mut NumberGraphUiState,
         ctx: &NumberGraphUiContext,
-        mut focus: Option<&mut SoundNumberInputFocus>,
-    ) -> Vec<SpatialGraphInputReference> {
+        mut focus: Option<&mut LexicalLayoutFocus>,
+    ) {
         let variable_definitions = &self.variable_definitions;
         let num_variable_definitions = variable_definitions.len();
         let final_expression = &self.final_expression;
-        let mut graph_input_references = Vec::new();
 
         let mut cursor = focus.as_mut().and_then(|f| Some(f.cursor_mut()));
 
@@ -682,10 +676,9 @@ impl LexicalLayout {
                 Self::show_line(
                     ui,
                     &var_def.value,
-                    &mut graph_input_references,
                     &mut cursor,
                     line_number,
-                    |ui, graph_input_references, cursor, node| {
+                    |ui, cursor, node| {
                         ui.horizontal(|ui| {
                             // TODO: make this and other text pretty
                             ui.label(format!("{} = ", var_def.name));
@@ -696,7 +689,6 @@ impl LexicalLayout {
                                 ctx,
                                 ASTPathBuilder::Root(ASTRoot::VariableDefinition(var_def)),
                                 cursor,
-                                graph_input_references,
                             );
                             ui.label(",");
                         });
@@ -710,10 +702,9 @@ impl LexicalLayout {
             Self::show_line(
                 ui,
                 final_expression,
-                &mut graph_input_references,
                 &mut cursor,
                 line_number,
-                |ui, graph_input_references, cursor, node| {
+                |ui, cursor, node| {
                     ui.horizontal(|ui| {
                         ui.label(format!("{} = ", result_label));
                         Self::show_child_ast_node(
@@ -723,7 +714,6 @@ impl LexicalLayout {
                             ctx,
                             ASTPathBuilder::Root(ASTRoot::FinalExpression),
                             cursor,
-                            graph_input_references,
                         );
                         ui.label(".");
                     });
@@ -739,28 +729,15 @@ impl LexicalLayout {
             ui.add(summon_widget);
             // TODO: ?
         }
-
-        graph_input_references
     }
 
-    fn show_line<
-        F: FnOnce(&mut egui::Ui, &mut Vec<SpatialGraphInputReference>, &mut Option<ASTPath>, &ASTNode),
-    >(
+    fn show_line<F: FnOnce(&mut egui::Ui, &mut Option<ASTPath>, &ASTNode)>(
         ui: &mut egui::Ui,
         node: &ASTNode,
-        graph_input_references: &mut Vec<SpatialGraphInputReference>,
         cursor: &mut Option<&mut LexicalLayoutCursor>,
         line_number: usize,
         add_contents: F,
     ) {
-        // TODO: share this with soundprocessorui
-        let input_reference_height = 5.0;
-
-        let num_graph_inputs = node.count_graph_inputs();
-        let num_inputs_before = graph_input_references.len();
-        let top_of_line = ui.cursor().top();
-        ui.add_space(input_reference_height * num_graph_inputs as f32);
-
         let mut cursor_path = if let Some(cursor) = cursor {
             if cursor.line == line_number {
                 Some(cursor.path.clone())
@@ -771,7 +748,7 @@ impl LexicalLayout {
             None
         };
 
-        add_contents(ui, graph_input_references, &mut cursor_path, node);
+        add_contents(ui, &mut cursor_path, node);
 
         if let Some(mut path) = cursor_path {
             if let Some(cursor) = cursor {
@@ -795,13 +772,6 @@ impl LexicalLayout {
                 };
             }
         }
-
-        let num_inputs_after = graph_input_references.len();
-        debug_assert_eq!(num_inputs_before + num_graph_inputs, num_inputs_after);
-        let new_references = &mut graph_input_references[num_inputs_before..];
-        for (i, new_ref) in new_references.iter_mut().enumerate() {
-            new_ref.location_mut().y = top_of_line + (i as f32) * input_reference_height;
-        }
     }
 
     fn show_child_ast_node(
@@ -811,7 +781,6 @@ impl LexicalLayout {
         ctx: &NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
-        graph_input_references: &mut Vec<SpatialGraphInputReference>,
     ) {
         let hovering = ui
             .input(|i| i.pointer.hover_pos())
@@ -825,15 +794,7 @@ impl LexicalLayout {
                     r.rect
                 }
                 ASTNodeValue::Internal(n) => {
-                    let r = Self::show_internal_node(
-                        ui,
-                        n,
-                        graph_state,
-                        ctx,
-                        path,
-                        cursor,
-                        graph_input_references,
-                    );
+                    let r = Self::show_internal_node(ui, n, graph_state, ctx, path, cursor);
                     r.rect
                 }
                 ASTNodeValue::Variable(name) => {
@@ -851,8 +812,6 @@ impl LexicalLayout {
                             egui::RichText::new(name).code().color(egui::Color32::WHITE),
                         ))
                         .rect;
-                    graph_input_references
-                        .push(SpatialGraphInputReference::new(*giid, r.center_top()));
                     r
                 }
             };
@@ -867,7 +826,6 @@ impl LexicalLayout {
         ctx: &NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
-        graph_input_references: &mut Vec<SpatialGraphInputReference>,
     ) -> egui::Response {
         let styled_text = |ui: &mut egui::Ui, s: String| -> egui::Response {
             let text = egui::RichText::new(s).code().color(egui::Color32::WHITE);
@@ -891,7 +849,6 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 0),
                         cursor,
-                        graph_input_references,
                     );
                     r
                 }
@@ -903,7 +860,6 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 0),
                         cursor,
-                        graph_input_references,
                     );
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
                         Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
@@ -915,7 +871,6 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 1),
                         cursor,
-                        graph_input_references,
                     );
                     r
                 }
@@ -927,7 +882,6 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 0),
                         cursor,
-                        graph_input_references,
                     );
                     Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
                         Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
@@ -963,7 +917,6 @@ impl LexicalLayout {
                                             ctx,
                                             path.push(node, i),
                                             cursor,
-                                            graph_input_references,
                                         );
                                         styled_text(ui, ",".to_string());
                                     }
@@ -974,7 +927,6 @@ impl LexicalLayout {
                                         ctx,
                                         path.push(node, other_exprs.len()),
                                         cursor,
-                                        graph_input_references,
                                     );
                                 }
                                 styled_text(ui, ")".to_string());
@@ -1072,12 +1024,11 @@ impl LexicalLayout {
     pub(super) fn handle_keypress(
         &mut self,
         ui: &egui::Ui,
-        focus: &mut SoundNumberInputFocus,
-        numberinputdata: &mut SoundNumberInputData,
+        focus: &mut LexicalLayoutFocus,
+        numbergraph: &mut NumberGraph,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
-        temporal_layout: &TemporalLayout,
     ) {
         // TODO: consider filtering egui's InputState's vec of inputs
         // and consuming key presses from there
@@ -1103,21 +1054,17 @@ impl LexicalLayout {
                 ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
 
             if pressed_delete {
-                self.delete_from_numbergraph_at_cursor(
-                    focus.cursor_mut(),
-                    numberinputdata.number_graph_mut(),
-                );
+                self.delete_from_numbergraph_at_cursor(focus.cursor_mut(), numbergraph);
             }
         }
 
         self.handle_summon_widget(
             ui,
             focus,
-            numberinputdata,
+            numbergraph,
             object_factory,
             ui_factory,
             object_ui_states,
-            temporal_layout,
         );
 
         // TODO: create a summon widget similar to that used in flosion_ui.
@@ -1159,7 +1106,6 @@ impl LexicalLayout {
         &self,
         position: egui::Pos2,
         ui_factory: &UiFactory<NumberGraphUi>,
-        temporal_layout: &TemporalLayout,
     ) -> SummonWidgetState<NumberSummonValue> {
         let mut builder = SummonWidgetStateBuilder::new(position);
         for object_type in ui_factory.all_object_types() {
@@ -1167,18 +1113,6 @@ impl LexicalLayout {
                 object_type.name().to_string(),
                 NumberSummonValue::NumberSourceType(object_type),
             );
-        }
-
-        for snsid in temporal_layout.available_number_sources(self.parent_sound_processor_id) {
-            // TODO: give this a meaningful name
-            let ns_name = format!(
-                "soundprocessor???.{}",
-                temporal_layout
-                    .number_source_name(*snsid)
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("#{}", snsid.value()))
-            );
-            builder.add_basic_name(ns_name, NumberSummonValue::SoundNumberSource(*snsid));
         }
 
         // TODO: move this to the object ui after testing
@@ -1195,12 +1129,11 @@ impl LexicalLayout {
     fn handle_summon_widget(
         &mut self,
         ui: &egui::Ui,
-        focus: &mut SoundNumberInputFocus,
-        numberinputdata: &mut SoundNumberInputData,
+        focus: &mut LexicalLayoutFocus,
+        numbergraph: &mut NumberGraph,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
-        temporal_layout: &TemporalLayout,
     ) {
         let pressed_space_or_tab = ui.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
@@ -1238,11 +1171,8 @@ impl LexicalLayout {
             if pressed_space_or_tab || !algebraic_keys_pressed.is_empty() {
                 //  open summon widget when space/tab is pressed
                 let node_at_cursor = self.get_node_at_cursor(&focus.cursor());
-                let mut widget_state = self.build_summon_widget(
-                    node_at_cursor.rect().center_bottom(),
-                    ui_factory,
-                    temporal_layout,
-                );
+                let mut widget_state =
+                    self.build_summon_widget(node_at_cursor.rect().center_bottom(), ui_factory);
                 let s = String::from_iter(algebraic_keys_pressed);
                 widget_state.set_text(s);
 
@@ -1260,16 +1190,12 @@ impl LexicalLayout {
                                 object_factory,
                                 ui_factory,
                                 object_ui_states,
-                                numberinputdata.number_graph_mut(),
+                                numbergraph,
                             )
                             .unwrap();
 
                         let num_children = node.num_children();
-                        self.insert_to_numbergraph_at_cursor(
-                            focus.cursor_mut(),
-                            node,
-                            numberinputdata.number_graph_mut(),
-                        );
+                        self.insert_to_numbergraph_at_cursor(focus.cursor_mut(), node, numbergraph);
 
                         let cursor = focus.cursor_mut();
                         match layout {
@@ -1284,42 +1210,7 @@ impl LexicalLayout {
                         }
                     }
                     NumberSummonValue::SoundNumberSource(snsid) => {
-                        println!("Graph inputs in use BEFORE:");
-                        for giid in numberinputdata.number_graph().topology().graph_inputs() {
-                            let mapped_nsid = numberinputdata.graph_input_target(*giid).unwrap();
-                            let ns_name = temporal_layout.number_source_name(mapped_nsid).unwrap();
-                            println!(
-                                "    {} -> #{} {}",
-                                giid.value(),
-                                mapped_nsid.value(),
-                                ns_name
-                            );
-                        }
-                        println!("---");
-                        let giid = numberinputdata.add_target(snsid);
-                        println!("Graph inputs in use AFTER:");
-                        for giid in numberinputdata.number_graph().topology().graph_inputs() {
-                            let mapped_nsid = numberinputdata.graph_input_target(*giid).unwrap();
-                            let ns_name = temporal_layout.number_source_name(mapped_nsid).unwrap();
-                            println!(
-                                "    {} -> #{} {}",
-                                giid.value(),
-                                mapped_nsid.value(),
-                                ns_name
-                            );
-                        }
-                        println!("---");
-                        debug_assert!(numberinputdata
-                            .number_graph()
-                            .topology()
-                            .graph_inputs()
-                            .contains(&giid));
-                        let node = ASTNode::new(ASTNodeValue::GraphInput(giid));
-                        self.insert_to_numbergraph_at_cursor(
-                            focus.cursor_mut(),
-                            node,
-                            numberinputdata.number_graph_mut(),
-                        );
+                        todo!("TODO: handle this OUTSIDE of lexical layout")
                     }
                 };
                 *focus.summon_widget_state_mut() = None;

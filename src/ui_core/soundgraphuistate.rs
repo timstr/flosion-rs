@@ -19,10 +19,11 @@ use crate::core::{
 
 use super::{
     keyboardfocus::KeyboardFocusState,
+    lexicallayout::LexicalLayoutFocus,
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
-    soundnumberinputui::{SoundNumberInputFocus, SoundNumberInputPresentation},
+    soundnumberinputui::SoundNumberInputPresentation,
     soundobjectuistate::SoundObjectUiStates,
     temporallayout::TemporalLayout,
     ui_factory::UiFactory,
@@ -643,7 +644,7 @@ impl SoundGraphUiState {
     ) -> (
         &mut NumberGraphUiState,
         &mut SoundNumberInputPresentation,
-        Option<&mut SoundNumberInputFocus>,
+        Option<&mut LexicalLayoutFocus>,
     ) {
         let (ui_state, presentation) = self.number_input_uis.get_mut(input_id).unwrap();
         let focus = match &mut self.mode {

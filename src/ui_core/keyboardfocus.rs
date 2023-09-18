@@ -11,8 +11,8 @@ use crate::core::{
 };
 
 use super::{
-    numbergraphui::NumberGraphUi, numbergraphuistate::SoundNumberInputUiCollection,
-    soundnumberinputui::SoundNumberInputFocus, soundobjectuistate::SoundObjectUiStates,
+    lexicallayout::LexicalLayoutFocus, numbergraphui::NumberGraphUi,
+    numbergraphuistate::SoundNumberInputUiCollection, soundobjectuistate::SoundObjectUiStates,
     temporallayout::TemporalLayout, ui_factory::UiFactory,
 };
 
@@ -20,7 +20,7 @@ pub(super) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
     AroundSoundInput(SoundInputId),
     AroundSoundNumberInput(SoundNumberInputId),
-    InsideSoundNumberInput(SoundNumberInputId, SoundNumberInputFocus),
+    InsideSoundNumberInput(SoundNumberInputId, LexicalLayoutFocus),
 }
 
 impl KeyboardFocusState {
@@ -40,7 +40,7 @@ impl KeyboardFocusState {
     pub(super) fn sound_number_input_focus(
         &mut self,
         id: SoundNumberInputId,
-    ) -> Option<&mut SoundNumberInputFocus> {
+    ) -> Option<&mut LexicalLayoutFocus> {
         match self {
             KeyboardFocusState::InsideSoundNumberInput(snid, focus) => {
                 if *snid == id {
@@ -102,7 +102,7 @@ impl KeyboardFocusState {
         if let KeyboardFocusState::AroundSoundNumberInput(niid) = self {
             if input.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
                 *self =
-                    KeyboardFocusState::InsideSoundNumberInput(*niid, SoundNumberInputFocus::new());
+                    KeyboardFocusState::InsideSoundNumberInput(*niid, LexicalLayoutFocus::new());
                 return true;
             }
         }

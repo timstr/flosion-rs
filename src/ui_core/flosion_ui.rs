@@ -92,113 +92,101 @@ impl FlosionApp {
             graph
                 .edit_number_input(wavgen.amplitude.id(), |numberinputdata| {
                     let wavgen_phase_giid = numberinputdata.add_target(wavgen.phase.id());
-                    numberinputdata.edit_number_graph(|numbergraph| {
-                        let saw = numbergraph
-                            .add_number_source::<SawWave>(ObjectInitialization::Default)
-                            .unwrap();
-                        // brutal
-                        numbergraph
-                            .connect_graph_output(
-                                numbergraph.topology().graph_outputs()[0].id(),
-                                NumberTarget::Source(saw.id()),
-                            )
-                            .unwrap();
-                        let variable = numbergraph
-                            .add_number_source::<Variable>(ObjectInitialization::Default)
-                            .unwrap();
-                        variable.set_value(1.0);
+                    let numbergraph = numberinputdata.number_graph_mut();
+                    let saw = numbergraph
+                        .add_number_source::<SawWave>(ObjectInitialization::Default)
+                        .unwrap();
+                    // brutal
+                    numbergraph
+                        .connect_graph_output(
+                            numbergraph.topology().graph_outputs()[0].id(),
+                            NumberTarget::Source(saw.id()),
+                        )
+                        .unwrap();
+                    let variable = numbergraph
+                        .add_number_source::<Variable>(ObjectInitialization::Default)
+                        .unwrap();
+                    variable.set_value(1.0);
 
-                        let add1 = numbergraph
-                            .add_number_source::<Add>(ObjectInitialization::Default)
-                            .unwrap();
+                    let add1 = numbergraph
+                        .add_number_source::<Add>(ObjectInitialization::Default)
+                        .unwrap();
 
-                        let add2 = numbergraph
-                            .add_number_source::<Add>(ObjectInitialization::Default)
-                            .unwrap();
+                    let add2 = numbergraph
+                        .add_number_source::<Add>(ObjectInitialization::Default)
+                        .unwrap();
 
-                        let multiply = numbergraph
-                            .add_number_source::<Multiply>(ObjectInitialization::Default)
-                            .unwrap();
+                    let multiply = numbergraph
+                        .add_number_source::<Multiply>(ObjectInitialization::Default)
+                        .unwrap();
 
-                        numbergraph
-                            .connect_number_input(
-                                saw.input.id(),
-                                NumberTarget::Source(multiply.id()),
-                            )
-                            .unwrap();
+                    numbergraph
+                        .connect_number_input(saw.input.id(), NumberTarget::Source(multiply.id()))
+                        .unwrap();
 
-                        numbergraph
-                            .connect_number_input(
-                                multiply.input_1.id(),
-                                NumberTarget::Source(add2.id()),
-                            )
-                            .unwrap();
+                    numbergraph
+                        .connect_number_input(
+                            multiply.input_1.id(),
+                            NumberTarget::Source(add2.id()),
+                        )
+                        .unwrap();
 
-                        numbergraph
-                            .connect_number_input(
-                                add2.input_1.id(),
-                                NumberTarget::Source(add1.id()),
-                            )
-                            .unwrap();
+                    numbergraph
+                        .connect_number_input(add2.input_1.id(), NumberTarget::Source(add1.id()))
+                        .unwrap();
 
-                        numbergraph
-                            .connect_number_input(
-                                add2.input_2.id(),
-                                NumberTarget::Source(add1.id()),
-                            )
-                            .unwrap();
+                    numbergraph
+                        .connect_number_input(add2.input_2.id(), NumberTarget::Source(add1.id()))
+                        .unwrap();
 
-                        numbergraph
-                            .connect_number_input(
-                                add1.input_1.id(),
-                                NumberTarget::Source(variable.id()),
-                            )
-                            .unwrap();
+                    numbergraph
+                        .connect_number_input(
+                            add1.input_1.id(),
+                            NumberTarget::Source(variable.id()),
+                        )
+                        .unwrap();
 
-                        numbergraph
-                            .connect_number_input(
-                                add1.input_2.id(),
-                                NumberTarget::Source(variable.id()),
-                            )
-                            .unwrap();
+                    numbergraph
+                        .connect_number_input(
+                            add1.input_2.id(),
+                            NumberTarget::Source(variable.id()),
+                        )
+                        .unwrap();
 
-                        numbergraph
-                            .connect_number_input(
-                                multiply.input_2.id(),
-                                NumberTarget::GraphInput(wavgen_phase_giid),
-                            )
-                            .unwrap();
-                    })
+                    numbergraph
+                        .connect_number_input(
+                            multiply.input_2.id(),
+                            NumberTarget::GraphInput(wavgen_phase_giid),
+                        )
+                        .unwrap();
                 })
                 .unwrap();
             graph
                 .edit_number_input(wavgen.frequency.id(), |numberinputdata| {
                     let voice_freq_giid = numberinputdata.add_target(ensemble.voice_frequency.id());
-                    numberinputdata.edit_number_graph(|numbergraph| {
-                        // brutal
-                        numbergraph
-                            .connect_graph_output(
-                                numbergraph.topology().graph_outputs()[0].id(),
-                                NumberTarget::GraphInput(voice_freq_giid),
-                            )
-                            .unwrap();
-                    });
+                    let numbergraph = numberinputdata.number_graph_mut();
+                    // brutal
+                    numbergraph
+                        .connect_graph_output(
+                            numbergraph.topology().graph_outputs()[0].id(),
+                            NumberTarget::GraphInput(voice_freq_giid),
+                        )
+                        .unwrap();
                 })
                 .unwrap();
             graph
                 .edit_number_input(ensemble.frequency_in.id(), |numberinputdata| {
-                    numberinputdata.edit_number_graph(|numbergraph| {
-                        let variable = numbergraph
-                            .add_number_source::<Variable>(ObjectInitialization::Default)
-                            .unwrap();
-                        variable.set_value(60.0);
-                        numbergraph
-                            .connect_graph_output(
-                                numbergraph.topology().graph_outputs()[0].id(),
-                                NumberTarget::Source(variable.id()),
-                            )
-                            .unwrap();
-                    });
+                    let numbergraph = numberinputdata.number_graph_mut();
+                    let variable = numbergraph
+                        .add_number_source::<Variable>(ObjectInitialization::Default)
+                        .unwrap();
+                    variable.set_value(60.0);
+                    numbergraph
+                        .connect_graph_output(
+                            numbergraph.topology().graph_outputs()[0].id(),
+                            NumberTarget::Source(variable.id()),
+                        )
+                        .unwrap();
                 })
                 .unwrap();
 
