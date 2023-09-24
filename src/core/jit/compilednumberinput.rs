@@ -15,7 +15,7 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 );
 
 struct CompiledNumberInputData<'ctx> {
-    execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
+    _execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
     function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
     atomic_captures: Vec<Arc<AtomicF32>>,
 }
@@ -36,7 +36,7 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
         atomic_captures: Vec<Arc<AtomicF32>>,
     ) -> CompiledNumberInputData<'inkwell_ctx> {
         CompiledNumberInputData {
-            execution_engine: SendWrapper::new(execution_engine),
+            _execution_engine: SendWrapper::new(execution_engine),
             function: SendWrapper::new(function),
             atomic_captures,
         }

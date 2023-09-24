@@ -1,4 +1,8 @@
-use std::{collections::HashMap, hash::Hasher, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hasher,
+    sync::Arc,
+};
 
 use crate::core::{
     number::numbergraph::{NumberGraph, NumberGraphInputId},
@@ -210,8 +214,13 @@ impl SoundNumberInputData {
             self.target_mapping
                 .keys()
                 .cloned()
-                .collect::<Vec<NumberGraphInputId>>(),
-            self.number_graph.topology().graph_inputs(),
+                .collect::<HashSet<NumberGraphInputId>>(),
+            self.number_graph
+                .topology()
+                .graph_inputs()
+                .iter()
+                .cloned()
+                .collect(),
             "Number graph inputs were modified without number input mapping"
         );
         &self.target_mapping
@@ -236,8 +245,13 @@ impl SoundNumberInputData {
             self.target_mapping
                 .keys()
                 .cloned()
-                .collect::<Vec<NumberGraphInputId>>(),
-            self.number_graph.topology().graph_inputs(),
+                .collect::<HashSet<NumberGraphInputId>>(),
+            self.number_graph
+                .topology()
+                .graph_inputs()
+                .iter()
+                .cloned()
+                .collect(),
             "Number graph inputs were modified without number input mapping"
         );
         self.target_mapping.get(&id).cloned()
@@ -248,8 +262,13 @@ impl SoundNumberInputData {
             self.target_mapping
                 .keys()
                 .cloned()
-                .collect::<Vec<NumberGraphInputId>>(),
-            self.number_graph.topology().graph_inputs(),
+                .collect::<HashSet<NumberGraphInputId>>(),
+            self.number_graph
+                .topology()
+                .graph_inputs()
+                .iter()
+                .cloned()
+                .collect(),
             "Number graph inputs were modified without number input mapping"
         );
         for (giid, nsid) in &self.target_mapping {
@@ -262,10 +281,8 @@ impl SoundNumberInputData {
 
     pub(crate) fn add_target(&mut self, source_id: SoundNumberSourceId) -> NumberGraphInputId {
         if let Some(giid) = self.target_graph_input(source_id) {
-            println!("Graph input already exists");
             return giid;
         }
-        println!("Adding new graph input");
         let giid = self.number_graph.add_graph_input();
         let prev = self.target_mapping.insert(giid, source_id);
         debug_assert_eq!(prev, None);

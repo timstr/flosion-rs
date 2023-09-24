@@ -6,32 +6,31 @@ use parking_lot::Mutex;
 
 use crate::{
     core::{
-        compilednumberinput::CompiledNumberInputNode,
-        context::Context,
-        graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-        numberinput::{NumberInputHandle, NumberInputId},
-        numberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        engine::{nodegen::NodeGen, scratcharena::ScratchArena},
+        graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        jit::codegen::CodeGen,
+        number::{numbergraphdata::NumberTarget, numbersource::PureNumberSource},
+        sound::{
+            context::Context,
+            soundedit::SoundEdit,
+            soundgraphdata::SoundProcessorData,
+            soundgraphtopology::SoundGraphTopology,
+            soundinput::SoundInputId,
+            soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
+            soundnumberinputnode::{
+                SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+                SoundNumberInputNodeVisitorMut,
+            },
+            soundnumbersource::{SoundNumberSourceHandle, SoundNumberSourceId},
+            soundprocessor::{
+                DynamicSoundProcessor, DynamicSoundProcessorWithId, SoundProcessorId,
+                StateAndTiming, StreamStatus,
+            },
+            soundprocessortools::SoundProcessorTools,
+            state::State,
         },
-        numbersource::{
-            NumberSourceHandle, NumberSourceId, NumberSourceOwner, NumberVisibility,
-            PureNumberSource, PureNumberSourceWithId,
-        },
-        numbersourcetools::NumberSourceTools,
-        scratcharena::ScratchArena,
         soundchunk::SoundChunk,
-        soundgraphdata::{SoundNumberSourceData, SoundProcessorData},
-        soundgraphedit::SoundGraphEdit,
-        soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId,
-        soundprocessor::{
-            DynamicSoundProcessor, DynamicSoundProcessorWithId, SoundProcessorId, StateAndTiming,
-            StreamStatus,
-        },
-        soundprocessortools::SoundProcessorTools,
-        state::State,
-        uniqueid::IdGenerator,
+        uniqueid::{IdGenerator, UniqueId},
     },
     objects::functions::*,
 };
@@ -41,11 +40,11 @@ const TEST_ARRAY_SIZE: usize = 1024;
 const MAX_NUM_INPUTS: usize = 3;
 
 struct TestSoundProcessor {
-    number_input: NumberInputHandle,
+    number_input: SoundNumberInputHandle,
     input_values: Mutex<[[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]>,
-    number_source_0: NumberSourceHandle,
-    number_source_1: NumberSourceHandle,
-    number_source_2: NumberSourceHandle,
+    number_source_0: SoundNumberSourceHandle,
+    number_source_1: SoundNumberSourceHandle,
+    number_source_2: SoundNumberSourceHandle,
 }
 
 struct TestNumberInput<'ctx> {
@@ -90,33 +89,24 @@ impl DynamicSoundProcessor for TestSoundProcessor {
         Ok(TestSoundProcessor {
             number_input: tools.add_number_input(0.0),
             input_values: Mutex::new([[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]),
-            number_source_0: tools.add_processor_array_number_source(
-                |data| {
-                    &data
-                        .downcast_if::<TestSoundProcessorState>()
-                        .unwrap()
-                        .values[0]
-                },
-                NumberVisibility::Public,
-            ),
-            number_source_1: tools.add_processor_array_number_source(
-                |data| {
-                    &data
-                        .downcast_if::<TestSoundProcessorState>()
-                        .unwrap()
-                        .values[1]
-                },
-                NumberVisibility::Public,
-            ),
-            number_source_2: tools.add_processor_array_number_source(
-                |data| {
-                    &data
-                        .downcast_if::<TestSoundProcessorState>()
-                        .unwrap()
-                        .values[2]
-                },
-                NumberVisibility::Public,
-            ),
+            number_source_0: tools.add_processor_array_number_source(|data| {
+                &data
+                    .downcast_if::<TestSoundProcessorState>()
+                    .unwrap()
+                    .values[0]
+            }),
+            number_source_1: tools.add_processor_array_number_source(|data| {
+                &data
+                    .downcast_if::<TestSoundProcessorState>()
+                    .unwrap()
+                    .values[1]
+            }),
+            number_source_2: tools.add_processor_array_number_source(|data| {
+                &data
+                    .downcast_if::<TestSoundProcessorState>()
+                    .unwrap()
+                    .values[2]
+            }),
         })
     }
 
@@ -124,10 +114,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
         &()
     }
 
-    fn make_number_inputs<'ctx>(
-        &self,
-        context: &'ctx inkwell::context::Context,
-    ) -> Self::NumberInputType<'ctx> {
+    fn make_number_inputs<'ctx>(&self, context: &NodeGen<'_, 'ctx>) -> Self::NumberInputType<'ctx> {
         TestNumberInput {
             input: self.number_input.make_node(context),
         }
@@ -183,11 +170,10 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
 
     let mut spidgen = IdGenerator::<SoundProcessorId>::new();
     let mut siidgen = IdGenerator::<SoundInputId>::new();
-    let mut nsidgen = IdGenerator::<NumberSourceId>::new();
-    let mut niidgen = IdGenerator::<NumberInputId>::new();
+    let mut nsidgen = IdGenerator::<SoundNumberSourceId>::new();
+    let mut niidgen = IdGenerator::<SoundNumberInputId>::new();
 
     let test_spid = spidgen.next_id();
-    let test_nsid = nsidgen.next_id();
 
     // for stuff added via number source tools or sound processor tools
     let mut edit_queue = Vec::new();
@@ -208,78 +194,72 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     let sp_instance_2 = Arc::clone(&sp_instance);
 
     // add sound processor to topology
-    topo.make_edit(SoundGraphEdit::AddSoundProcessor(SoundProcessorData::new(
+    topo.make_sound_edit(SoundEdit::AddSoundProcessor(SoundProcessorData::new(
         sp_instance_2,
-    )));
-
-    // create source being tested
-    let tools = NumberSourceTools::new(
-        test_nsid,
-        &mut niidgen,
-        &mut edit_queue,
-        NumberVisibility::Public,
-    );
-    let init = ObjectInitialization::Default;
-    let ns_instance = Arc::new(PureNumberSourceWithId::new(
-        T::new(tools, init).unwrap(),
-        test_nsid,
-        NumberSourceOwner::Nothing,
-        NumberVisibility::Public,
-    ));
-    let ns_instance_2 = Arc::clone(&ns_instance);
-
-    // add number source to topology
-    topo.make_edit(SoundGraphEdit::AddNumberSource(SoundNumberSourceData::new(
-        NumberSourceId::new(1),
-        ns_instance_2,
-        NumberSourceOwner::Nothing,
-        NumberVisibility::Public,
     )));
 
     // flush other edits to topology
     for edit in edit_queue {
-        topo.make_edit(edit);
+        topo.make_sound_graph_edit(edit);
     }
 
-    // connect number source's inputs to test values
-    let ns_inputs = topo
-        .number_source(ns_instance.id())
-        .unwrap()
-        .inputs()
-        .clone();
+    {
+        let number_input_data = topo
+            .number_input_mut(sp_instance.number_input.id())
+            .unwrap();
 
-    topo.make_edit(SoundGraphEdit::ConnectNumberInput(
-        ns_inputs[0],
-        sp_instance.number_source_0.id(),
-    ));
-    if ns_inputs.len() >= 2 {
-        topo.make_edit(SoundGraphEdit::ConnectNumberInput(
-            ns_inputs[1],
-            sp_instance.number_source_1.id(),
-        ));
-    }
-    if ns_inputs.len() >= 3 {
-        topo.make_edit(SoundGraphEdit::ConnectNumberInput(
-            ns_inputs[2],
-            sp_instance.number_source_2.id(),
-        ));
-    }
+        let giid0 = number_input_data.add_target(sp_instance.number_source_0.id());
+        let giid1 = number_input_data.add_target(sp_instance.number_source_1.id());
+        let giid2 = number_input_data.add_target(sp_instance.number_source_2.id());
 
-    // connect sound processor's input to number source being tested
-    topo.make_edit(SoundGraphEdit::ConnectNumberInput(
-        sp_instance.number_input.id(),
-        ns_instance.id(),
-    ));
+        let number_graph = number_input_data.number_graph_mut();
+
+        let ns_handle = number_graph
+            .add_number_source::<T>(ObjectInitialization::Default)
+            .unwrap();
+
+        let input_ids = number_graph
+            .topology()
+            .number_source(ns_handle.id())
+            .unwrap()
+            .number_inputs()
+            .to_vec();
+
+        for (niid, giid) in input_ids.into_iter().zip(
+            [giid0, giid1, giid2]
+                .into_iter()
+                .map(Some)
+                .chain(std::iter::repeat(None)),
+        ) {
+            if let Some(giid) = giid {
+                number_graph
+                    .connect_number_input(niid, NumberTarget::GraphInput(giid))
+                    .unwrap();
+            } else {
+                panic!("A number source has more than three inputs and not all are being tested");
+            }
+        }
+
+        number_graph
+            .connect_graph_output(
+                number_graph.topology().graph_outputs()[0].id(),
+                NumberTarget::Source(ns_handle.id()),
+            )
+            .unwrap();
+    }
 
     //------------------------
 
     let inkwell_context = inkwell::context::Context::create();
 
-    let compiled_input =
-        CompiledNumberInputNode::compile(sp_instance.number_input.id(), &topo, &inkwell_context);
+    let codegen = CodeGen::new(&inkwell_context);
+
+    let compiled_input = codegen.compile_number_input(sp_instance.number_input.id(), &topo);
+
+    let compiled_function = compiled_input.make_function();
 
     let scratch_space = ScratchArena::new();
-    let context = Context::new(SoundProcessorId::new(1), &topo, &scratch_space);
+    let context = Context::new(SoundProcessorId::new(1), &scratch_space);
 
     //------------------------
 
@@ -326,7 +306,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
 
     // test compiled evaluation
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];
-    compiled_input.eval(&mut actual_values_compiled, &context);
+    compiled_function.eval(&mut actual_values_compiled, &context);
 
     for (expected, actual) in expected_values
         .into_iter()
