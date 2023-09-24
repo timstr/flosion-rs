@@ -11,7 +11,7 @@ use crate::core::{
 };
 
 use super::{
-    lexicallayout::LexicalLayoutFocus, numbergraphui::NumberGraphUi,
+    lexicallayout::lexicallayout::LexicalLayoutFocus, numbergraphui::NumberGraphUi,
     numbergraphuistate::SoundNumberInputUiCollection, soundobjectuistate::SoundObjectUiStates,
     temporallayout::TemporalLayout, ui_factory::UiFactory,
 };

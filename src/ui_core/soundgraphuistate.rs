@@ -19,7 +19,7 @@ use crate::core::{
 
 use super::{
     keyboardfocus::KeyboardFocusState,
-    lexicallayout::LexicalLayoutFocus,
+    lexicallayout::lexicallayout::LexicalLayoutFocus,
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
@@ -631,7 +631,7 @@ impl SoundGraphUiState {
                     self.number_input_uis.set_ui_data(
                         *niid,
                         NumberGraphUiState::new(),
-                        SoundNumberInputPresentation::new(number_topo, states, *niid, spid),
+                        SoundNumberInputPresentation::new(number_topo, states),
                     );
                 }
             }

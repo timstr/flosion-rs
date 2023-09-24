@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
@@ -10,17 +8,16 @@ use crate::{
             objectfactory::ObjectFactory,
         },
         number::{
-            numbergraph::{NumberGraph, NumberGraphInputId},
-            numbergraphdata::NumberTarget,
-            numbergraphtopology::NumberGraphTopology,
-            numbersource::NumberSourceId,
+            numbergraph::NumberGraph, numbergraphdata::NumberTarget,
+            numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
         },
         uniqueid::UniqueId,
     },
     objects::functions::Constant,
+    ui_core::lexicallayout::ast::{ASTNodeValue, InternalASTNodeValue},
 };
 
-use super::{
+use crate::ui_core::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{AnyNumberObjectUiData, NumberGraphUiState, NumberObjectUiStates},
@@ -29,262 +26,10 @@ use super::{
     ui_factory::UiFactory,
 };
 
-#[derive(Clone)]
-pub(super) struct ASTPath {
-    steps: Vec<usize>,
-}
-
-impl ASTPath {
-    pub(super) fn new(steps: Vec<usize>) -> ASTPath {
-        ASTPath { steps }
-    }
-
-    fn at_beginning(&self) -> bool {
-        self.steps.is_empty()
-    }
-
-    pub(super) fn steps(&self) -> &[usize] {
-        &self.steps
-    }
-
-    pub(super) fn go_left(&mut self, tree: &ASTNode) {
-        let Some(last_step) = self.steps.pop() else {
-            return;
-        };
-        if last_step > 0 {
-            self.steps.push(last_step - 1);
-            loop {
-                let node = tree.get_along_path(&self.steps);
-                let num_children = node.num_children();
-                if num_children > 0 {
-                    self.steps.push(num_children - 1);
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-
-    pub(super) fn go_right(&mut self, tree: &ASTNode) {
-        if tree.get_along_path(&self.steps).num_children() > 0 {
-            self.steps.push(0);
-            return;
-        }
-        loop {
-            let Some(last_step) = self.steps.pop() else {
-                break;
-            };
-            let parent = tree.get_along_path(&self.steps);
-            let num_siblings = parent.num_children();
-            let next_step = last_step + 1;
-            if next_step < num_siblings {
-                self.steps.push(next_step);
-                return;
-            }
-        }
-        loop {
-            let node = tree.get_along_path(&self.steps);
-            let num_children = node.num_children();
-            if num_children > 0 {
-                self.steps.push(num_children - 1);
-            } else {
-                return;
-            }
-        }
-    }
-
-    fn go_into(&mut self, index: usize) {
-        self.steps.push(index);
-    }
-
-    fn go_out(&mut self) {
-        self.steps.pop();
-    }
-
-    fn clear(&mut self) {
-        self.steps.clear();
-    }
-}
-
-#[derive(Copy, Clone)]
-enum ASTRoot<'a> {
-    VariableDefinition(&'a VariableDefinition),
-    FinalExpression,
-}
-
-#[derive(Copy, Clone)]
-enum ASTNodeParent<'a> {
-    VariableDefinition(&'a VariableDefinition),
-    FinalExpression,
-    InternalNode(&'a InternalASTNode, usize),
-}
-
-#[derive(Clone, Copy)]
-enum ASTPathBuilder<'a> {
-    Root(ASTRoot<'a>),
-    ChildOf(&'a ASTPathBuilder<'a>, &'a InternalASTNode, usize),
-}
-
-impl<'a> ASTPathBuilder<'a> {
-    fn parent_node(&self) -> ASTNodeParent {
-        match self {
-            ASTPathBuilder::Root(ASTRoot::VariableDefinition(v)) => {
-                ASTNodeParent::VariableDefinition(v)
-            }
-            ASTPathBuilder::Root(ASTRoot::FinalExpression) => ASTNodeParent::FinalExpression,
-            ASTPathBuilder::ChildOf(_, n, i) => ASTNodeParent::InternalNode(n, *i),
-        }
-    }
-
-    fn push(&'a self, parent: &'a InternalASTNode, child_index: usize) -> ASTPathBuilder<'a> {
-        ASTPathBuilder::ChildOf(self, parent, child_index)
-    }
-
-    fn build(&self) -> ASTPath {
-        fn helper(builder: &ASTPathBuilder, vec: &mut Vec<usize>) {
-            if let ASTPathBuilder::ChildOf(parent_path, _parent_node, child_index) = builder {
-                helper(parent_path, vec);
-                vec.push(*child_index);
-            }
-        }
-
-        let mut steps = Vec::new();
-        helper(self, &mut steps);
-        ASTPath { steps }
-    }
-
-    fn matches_path(&self, path: &ASTPath) -> bool {
-        fn helper(builder: &ASTPathBuilder, steps: &[usize]) -> bool {
-            match builder {
-                ASTPathBuilder::Root(_) => steps.is_empty(),
-                ASTPathBuilder::ChildOf(parent_path, _parent_node, child_index) => {
-                    let Some((last_step, other_steps)) = steps.split_last() else {
-                        return false;
-                    };
-                    if last_step != child_index {
-                        return false;
-                    }
-                    helper(parent_path, other_steps)
-                }
-            }
-        }
-
-        helper(self, &path.steps)
-    }
-}
-
-pub(super) enum ASTNodeValue {
-    Empty,
-    Internal(Box<InternalASTNode>),
-    Variable(String),
-    GraphInput(NumberGraphInputId),
-}
-
-pub(super) struct ASTNode {
-    value: ASTNodeValue,
-    rect: Cell<egui::Rect>,
-}
-
-impl ASTNode {
-    pub(super) fn new(value: ASTNodeValue) -> ASTNode {
-        ASTNode {
-            value,
-            rect: Cell::new(egui::Rect::NOTHING),
-        }
-    }
-
-    pub(super) fn value(&self) -> &ASTNodeValue {
-        &self.value
-    }
-
-    fn direct_target(&self) -> Option<NumberTarget> {
-        match &self.value {
-            ASTNodeValue::Empty => None,
-            ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
-            ASTNodeValue::Variable(_) => None,
-            ASTNodeValue::GraphInput(giid) => Some((*giid).into()),
-        }
-    }
-
-    fn internal_node(&self) -> Option<&InternalASTNode> {
-        match &self.value {
-            ASTNodeValue::Internal(n) => Some(&*n),
-            _ => None,
-        }
-    }
-
-    fn num_children(&self) -> usize {
-        self.internal_node()
-            .and_then(|n| Some(n.num_children()))
-            .unwrap_or(0)
-    }
-
-    fn num_nonempty_children(&self) -> usize {
-        self.internal_node()
-            .and_then(|n| Some(n.num_nonempty_children()))
-            .unwrap_or(0)
-    }
-
-    fn rect(&self) -> egui::Rect {
-        self.rect.get()
-    }
-
-    fn set_rect(&self, rect: egui::Rect) {
-        self.rect.set(rect);
-    }
-
-    fn is_over(&self, p: egui::Pos2) -> bool {
-        self.rect().contains(p)
-    }
-
-    fn is_directly_over(&self, p: egui::Pos2) -> bool {
-        if !self.is_over(p) {
-            return false;
-        }
-        if let ASTNodeValue::Internal(n) = &self.value {
-            !(n.over_self(p) || n.over_children(p))
-        } else {
-            false
-        }
-    }
-
-    pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
-        if path.is_empty() {
-            self
-        } else {
-            let ASTNodeValue::Internal(node) = &self.value else {
-                panic!()
-            };
-            node.get_along_path(path)
-        }
-    }
-
-    fn set_along_path(&mut self, path: &[usize], value: ASTNode) {
-        if path.is_empty() {
-            *self = value;
-        } else {
-            let ASTNodeValue::Internal(node) = &mut self.value else {
-                panic!();
-            };
-            node.set_along_path(path, value);
-        }
-    }
-
-    fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, path: ASTPathBuilder, f: &mut F) {
-        f(self, path);
-        if let ASTNodeValue::Internal(node) = &self.value {
-            node.visit(path, f);
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        if let ASTNodeValue::Empty = &self.value {
-            true
-        } else {
-            false
-        }
-    }
-}
+use super::{
+    ast::{ASTNode, ASTPath, ASTPathBuilder, ASTRoot, InternalASTNode, VariableDefinition},
+    edits::{delete_from_numbergraph_at_cursor, insert_to_numbergraph_at_cursor},
+};
 
 impl Default for NumberSourceLayout {
     fn default() -> Self {
@@ -321,13 +66,13 @@ pub enum NumberSourceLayout {
     Function,
 }
 
-pub(super) struct LexicalLayoutFocus {
+pub(crate) struct LexicalLayoutFocus {
     cursor: LexicalLayoutCursor,
     summon_widget_state: Option<SummonWidgetState<NumberSummonValue>>,
 }
 
 impl LexicalLayoutFocus {
-    pub(super) fn new() -> LexicalLayoutFocus {
+    pub(crate) fn new() -> LexicalLayoutFocus {
         LexicalLayoutFocus {
             cursor: LexicalLayoutCursor::new(),
             summon_widget_state: None,
@@ -346,132 +91,6 @@ impl LexicalLayoutFocus {
         &mut self,
     ) -> &mut Option<SummonWidgetState<NumberSummonValue>> {
         &mut self.summon_widget_state
-    }
-}
-
-pub(super) enum InternalASTNodeValue {
-    Prefix(NumberSourceId, ASTNode),
-    Infix(ASTNode, NumberSourceId, ASTNode),
-    Postfix(ASTNode, NumberSourceId),
-    Function(NumberSourceId, Vec<ASTNode>),
-}
-
-pub(super) struct InternalASTNode {
-    value: InternalASTNodeValue,
-    self_rect: Cell<egui::Rect>,
-}
-
-impl InternalASTNode {
-    pub(super) fn new(value: InternalASTNodeValue) -> InternalASTNode {
-        InternalASTNode {
-            value,
-            self_rect: Cell::new(egui::Rect::NOTHING),
-        }
-    }
-
-    pub(super) fn value(&self) -> &InternalASTNodeValue {
-        &self.value
-    }
-
-    fn number_source_id(&self) -> NumberSourceId {
-        match &self.value {
-            InternalASTNodeValue::Prefix(id, _) => *id,
-            InternalASTNodeValue::Infix(_, id, _) => *id,
-            InternalASTNodeValue::Postfix(_, id) => *id,
-            InternalASTNodeValue::Function(id, _) => *id,
-        }
-    }
-
-    fn num_children(&self) -> usize {
-        match &self.value {
-            InternalASTNodeValue::Prefix(_, _) => 1,
-            InternalASTNodeValue::Infix(_, _, _) => 2,
-            InternalASTNodeValue::Postfix(_, _) => 1,
-            InternalASTNodeValue::Function(_, c) => c.len(),
-        }
-    }
-
-    fn num_nonempty_children(&self) -> usize {
-        let count = |child: &ASTNode| {
-            if child.is_empty() {
-                0
-            } else {
-                1
-            }
-        };
-        match &self.value {
-            InternalASTNodeValue::Prefix(_, c) => count(c),
-            InternalASTNodeValue::Infix(c1, _, c2) => count(c1) + count(c2),
-            InternalASTNodeValue::Postfix(c, _) => count(c),
-            InternalASTNodeValue::Function(_, cs) => cs.iter().map(count).sum(),
-        }
-    }
-
-    fn self_rect(&self) -> egui::Rect {
-        self.self_rect.get()
-    }
-
-    fn set_self_rect(&self, rect: egui::Rect) {
-        self.self_rect.set(rect);
-    }
-
-    fn over_self(&self, p: egui::Pos2) -> bool {
-        self.self_rect().contains(p)
-    }
-
-    fn over_children(&self, p: egui::Pos2) -> bool {
-        match &self.value {
-            InternalASTNodeValue::Prefix(_, c) => c.is_over(p),
-            InternalASTNodeValue::Infix(c1, _, c2) => c1.is_over(p) || c2.is_over(p),
-            InternalASTNodeValue::Postfix(c, _) => c.is_over(p),
-            InternalASTNodeValue::Function(_, cs) => cs.iter().any(|c| c.is_over(p)),
-        }
-    }
-
-    pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
-        let Some((next_step, rest_of_path)) = path.split_first() else {
-            panic!("Empty paths can only be passed to ASTNode, not InternalASTNode");
-        };
-        let child_node = match (next_step, &self.value) {
-            (0, InternalASTNodeValue::Prefix(_, c)) => c,
-            (0, InternalASTNodeValue::Infix(c, _, _)) => c,
-            (1, InternalASTNodeValue::Infix(_, _, c)) => c,
-            (0, InternalASTNodeValue::Postfix(c, _)) => c,
-            (i, InternalASTNodeValue::Function(_, cs)) => &cs[*i],
-            _ => panic!("Invalid child index"),
-        };
-        child_node.get_along_path(rest_of_path)
-    }
-
-    fn set_along_path(&mut self, path: &[usize], value: ASTNode) {
-        let Some((next_step, rest_of_path)) = path.split_first() else {
-            panic!("Empty paths can only be passed to ASTNode, not InternalASTNode");
-        };
-        let child_node = match (next_step, &mut self.value) {
-            (0, InternalASTNodeValue::Prefix(_, c)) => c,
-            (0, InternalASTNodeValue::Infix(c, _, _)) => c,
-            (1, InternalASTNodeValue::Infix(_, _, c)) => c,
-            (0, InternalASTNodeValue::Postfix(c, _)) => c,
-            (i, InternalASTNodeValue::Function(_, cs)) => &mut cs[*i],
-            _ => panic!("Invalid child index"),
-        };
-        child_node.set_along_path(rest_of_path, value);
-    }
-
-    fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, path: ASTPathBuilder, f: &mut F) {
-        match &self.value {
-            InternalASTNodeValue::Prefix(_, c) => c.visit(path.push(self, 0), f),
-            InternalASTNodeValue::Infix(c1, _, c2) => {
-                c1.visit(path.push(self, 0), f);
-                c2.visit(path.push(self, 1), f)
-            }
-            InternalASTNodeValue::Postfix(c, _) => c.visit(path.push(self, 0), f),
-            InternalASTNodeValue::Function(_, cs) => {
-                for (i, c) in cs.iter().enumerate() {
-                    c.visit(path.push(self, i), f);
-                }
-            }
-        }
     }
 }
 
@@ -505,6 +124,7 @@ fn make_internal_node(
     InternalASTNode::new(value)
 }
 
+#[derive(Clone)]
 pub(super) struct LexicalLayoutCursor {
     line: usize,
     path: ASTPath,
@@ -517,11 +137,14 @@ impl LexicalLayoutCursor {
             path: ASTPath::new(Vec::new()),
         }
     }
-}
 
-struct VariableDefinition {
-    name: String,
-    value: ASTNode,
+    pub(super) fn path(&self) -> &ASTPath {
+        &self.path
+    }
+
+    pub(super) fn path_mut(&mut self) -> &mut ASTPath {
+        &mut self.path
+    }
 }
 
 fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
@@ -580,13 +203,13 @@ fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
     }
 }
 
-pub(super) struct LexicalLayout {
+pub(crate) struct LexicalLayout {
     variable_definitions: Vec<VariableDefinition>,
     final_expression: ASTNode,
 }
 
 impl LexicalLayout {
-    pub(super) fn generate(
+    pub(crate) fn generate(
         topo: &NumberGraphTopology,
         object_ui_states: &NumberObjectUiStates,
     ) -> LexicalLayout {
@@ -611,9 +234,9 @@ impl LexicalLayout {
 
             if let Some(existing_variable) = variable_assignments
                 .iter()
-                .find(|va| va.value.direct_target() == Some(target))
+                .find(|va| va.value().direct_target() == Some(target))
             {
-                return ASTNode::new(ASTNodeValue::Variable(existing_variable.name.clone()));
+                return ASTNode::new(ASTNodeValue::Variable(existing_variable.name().to_string()));
             }
 
             let create_new_variable = topo.number_target_destinations(target).count() >= 2;
@@ -635,10 +258,10 @@ impl LexicalLayout {
 
             if create_new_variable {
                 let new_variable_name = format!("x{}", variable_assignments.len());
-                variable_assignments.push(VariableDefinition {
-                    name: new_variable_name.clone(),
-                    value: ASTNode::new(ASTNodeValue::Internal(Box::new(node))),
-                });
+                variable_assignments.push(VariableDefinition::new(
+                    new_variable_name.clone(),
+                    ASTNode::new(ASTNodeValue::Internal(Box::new(node))),
+                ));
                 ASTNode::new(ASTNodeValue::Variable(new_variable_name))
             } else {
                 ASTNode::new(ASTNodeValue::Internal(Box::new(node)))
@@ -656,7 +279,11 @@ impl LexicalLayout {
         }
     }
 
-    pub(super) fn show(
+    pub(super) fn final_expression(&self) -> &ASTNode {
+        &self.final_expression
+    }
+
+    pub(crate) fn show(
         &mut self,
         ui: &mut egui::Ui,
         result_label: &str,
@@ -675,13 +302,13 @@ impl LexicalLayout {
                 let line_number = i;
                 Self::show_line(
                     ui,
-                    &var_def.value,
+                    var_def.value(),
                     &mut cursor,
                     line_number,
                     |ui, cursor, node| {
                         ui.horizontal(|ui| {
                             // TODO: make this and other text pretty
-                            ui.label(format!("{} = ", var_def.name));
+                            ui.label(format!("{} = ", var_def.name()));
                             Self::show_child_ast_node(
                                 ui,
                                 node,
@@ -787,7 +414,7 @@ impl LexicalLayout {
             .and_then(|p| Some(node.is_directly_over(p)))
             .unwrap_or(false);
         Self::with_cursor(ui, path, cursor, hovering, |ui, cursor| {
-            let rect = match &node.value {
+            let rect = match node.value() {
                 ASTNodeValue::Empty => {
                     // TODO: show cursor?
                     let r = ui.label("???");
@@ -837,7 +464,7 @@ impl LexicalLayout {
                 .input(|i| i.pointer.hover_pos())
                 .and_then(|p| Some(node.over_self(p)))
                 .unwrap_or(false);
-            let own_rect = match &node.value {
+            let own_rect = match &node.value() {
                 InternalASTNodeValue::Prefix(nsid, expr) => {
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
                         Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
@@ -1021,7 +648,7 @@ impl LexicalLayout {
         ret
     }
 
-    pub(super) fn handle_keypress(
+    pub(crate) fn handle_keypress(
         &mut self,
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
@@ -1054,7 +681,7 @@ impl LexicalLayout {
                 ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
 
             if pressed_delete {
-                self.delete_from_numbergraph_at_cursor(focus.cursor_mut(), numbergraph);
+                delete_from_numbergraph_at_cursor(self, focus.cursor_mut(), numbergraph);
             }
         }
 
@@ -1195,7 +822,12 @@ impl LexicalLayout {
                             .unwrap();
 
                         let num_children = node.num_children();
-                        self.insert_to_numbergraph_at_cursor(focus.cursor_mut(), node, numbergraph);
+                        insert_to_numbergraph_at_cursor(
+                            self,
+                            focus.cursor_mut(),
+                            node,
+                            numbergraph,
+                        );
 
                         let cursor = focus.cursor_mut();
                         match layout {
@@ -1259,7 +891,7 @@ impl LexicalLayout {
         Ok((node, layout))
     }
 
-    fn get_cursor_root(&self, cursor: &LexicalLayoutCursor) -> Option<ASTRoot> {
+    pub(super) fn get_cursor_root(&self, cursor: &LexicalLayoutCursor) -> Option<ASTRoot> {
         if cursor.path.at_beginning() {
             if cursor.line < self.variable_definitions.len() {
                 Some(ASTRoot::VariableDefinition(
@@ -1275,10 +907,10 @@ impl LexicalLayout {
         }
     }
 
-    fn get_node_at_cursor(&self, cursor: &LexicalLayoutCursor) -> &ASTNode {
+    pub(super) fn get_node_at_cursor(&self, cursor: &LexicalLayoutCursor) -> &ASTNode {
         if cursor.line < self.variable_definitions.len() {
             self.variable_definitions[cursor.line]
-                .value
+                .value()
                 .get_along_path(cursor.path.steps())
         } else if cursor.line == self.variable_definitions.len() {
             self.final_expression.get_along_path(cursor.path.steps())
@@ -1287,10 +919,10 @@ impl LexicalLayout {
         }
     }
 
-    fn set_node_at_cursor(&mut self, cursor: &LexicalLayoutCursor, value: ASTNode) {
+    pub(super) fn set_node_at_cursor(&mut self, cursor: &LexicalLayoutCursor, value: ASTNode) {
         if cursor.line < self.variable_definitions.len() {
             self.variable_definitions[cursor.line]
-                .value
+                .value_mut()
                 .set_along_path(cursor.path.steps(), value);
         } else if cursor.line == self.variable_definitions.len() {
             self.final_expression
@@ -1300,289 +932,9 @@ impl LexicalLayout {
         }
     }
 
-    fn delete_from_numbergraph_at_cursor(
-        &mut self,
-        cursor: &LexicalLayoutCursor,
-        numbergraph: &mut NumberGraph,
-    ) {
-        if self.get_node_at_cursor(cursor).is_empty() {
-            return;
-        }
-
-        // If the cursor is pointing at a variable definition or the final expression,
-        // disconnect those
-        match self.get_cursor_root(cursor) {
-            Some(ASTRoot::VariableDefinition(var_def)) => {
-                self.disconnect_each_variable_use(&var_def.name, numbergraph);
-            }
-            Some(ASTRoot::FinalExpression) => {
-                let graph_outputs = numbergraph.topology().graph_outputs();
-                debug_assert_eq!(graph_outputs.len(), 1);
-                let graph_output = graph_outputs.first().unwrap();
-                debug_assert_eq!(self.final_expression.direct_target(), graph_output.target());
-                numbergraph
-                    .disconnect_graph_output(graph_output.id())
-                    .unwrap();
-            }
-            None => (),
-        }
-
-        let node = self.get_node_at_cursor(cursor);
-        if let Some(internal_node) = node.internal_node() {
-            self.delete_internal_node_from_graph(internal_node, numbergraph);
-        }
-        self.set_node_at_cursor(cursor, ASTNode::new(ASTNodeValue::Empty));
-
-        self.remove_unreferenced_graph_inputs(numbergraph);
-    }
-
-    fn insert_to_numbergraph_at_cursor(
-        &mut self,
-        cursor: &mut LexicalLayoutCursor,
-        node: ASTNode,
-        numbergraph: &mut NumberGraph,
-    ) {
-        debug_assert_eq!(node.num_nonempty_children(), 0);
-
-        // TODO: allow inserting operators in-place
-        self.delete_from_numbergraph_at_cursor(cursor, numbergraph);
-
-        if let Some(target) = node.direct_target() {
-            match self.get_cursor_root(cursor) {
-                Some(ASTRoot::VariableDefinition(var_def)) => {
-                    // if the cursor points to a variable definition, reconnect each use
-                    self.connect_each_variable_use(&var_def.name, target, numbergraph);
-                }
-                Some(ASTRoot::FinalExpression) => {
-                    // if the cursor points to the final expression, reconnect
-                    // the graph output
-                    let graph_outputs = numbergraph.topology().graph_outputs();
-                    debug_assert_eq!(graph_outputs.len(), 1);
-                    let graph_output = graph_outputs.first().unwrap();
-                    debug_assert_eq!(self.final_expression.direct_target(), None);
-                    numbergraph
-                        .connect_graph_output(graph_output.id(), target)
-                        .unwrap();
-                }
-                None => {
-                    // if the cursor points to an ordinary internal node, reconnect
-                    // just its parent
-                    let mut cursor_to_parent = LexicalLayoutCursor {
-                        line: cursor.line,
-                        path: cursor.path.clone(),
-                    };
-                    cursor_to_parent.path.go_out();
-                    let parent_node = self.get_node_at_cursor(&cursor_to_parent);
-                    let ASTNodeValue::Internal(parent_node) = parent_node.value() else {
-                        panic!()
-                    };
-                    let child_index = *cursor.path.steps().last().unwrap();
-                    let parent_nsid = parent_node.number_source_id();
-                    let parent_ns = numbergraph.topology().number_source(parent_nsid).unwrap();
-                    let parent_inputs = parent_ns.number_inputs();
-                    debug_assert_eq!(parent_inputs.len(), parent_node.num_children());
-                    let input_id = parent_inputs[child_index];
-                    numbergraph.connect_number_input(input_id, target).unwrap();
-                }
-            }
-        }
-
-        self.set_node_at_cursor(cursor, node);
-    }
-
-    fn delete_internal_node_from_graph(
-        &self,
-        node: &InternalASTNode,
-        numbergraph: &mut NumberGraph,
-    ) {
-        let nsid = node.number_source_id();
-        let mut dsts = numbergraph
-            .topology()
-            .number_target_destinations(NumberTarget::Source(nsid));
-        let dst = dsts.next();
-        // There should only be one thing connected to the number source at this point
-        debug_assert!(dsts.next().is_none());
-        std::mem::drop(dsts);
-        if let Some(dst) = dst {
-            numbergraph.disconnect_destination(dst).unwrap();
-        };
-
-        fn visit_node(node: &ASTNode, numbergraph: &mut NumberGraph) {
-            if let Some(internal_node) = node.internal_node() {
-                visitor_internal_node(internal_node, numbergraph);
-            }
-        }
-
-        fn visitor_internal_node(node: &InternalASTNode, numbergraph: &mut NumberGraph) {
-            let nsid = node.number_source_id();
-
-            // Recursively delete any number sources corresponding to direct AST children
-            match node.value() {
-                InternalASTNodeValue::Prefix(_, c) => {
-                    visit_node(c, numbergraph);
-                }
-                InternalASTNodeValue::Infix(c1, _, c2) => {
-                    visit_node(c1, numbergraph);
-                    visit_node(c2, numbergraph);
-                }
-                InternalASTNodeValue::Postfix(c, _) => {
-                    visit_node(c, numbergraph);
-                }
-                InternalASTNodeValue::Function(_, cs) => {
-                    for c in cs {
-                        visit_node(c, numbergraph);
-                    }
-                }
-            }
-
-            // Delete the number source itself
-            numbergraph.remove_number_source(nsid).unwrap();
-        }
-
-        visitor_internal_node(node, numbergraph);
-    }
-
-    fn disconnect_each_variable_use(&self, name: &str, numbergraph: &mut NumberGraph) {
-        self.visit(|node, path| {
-            let ASTNodeValue::Variable(var_name) = &node.value else {
-                return;
-            };
-            if var_name != name {
-                return;
-            }
-            match path.parent_node() {
-                ASTNodeParent::VariableDefinition(var_def) => {
-                    debug_assert_ne!(var_def.name, name);
-                    // FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCK aliasing
-                    panic!();
-                }
-                ASTNodeParent::FinalExpression => {
-                    let outputs = numbergraph.topology().graph_outputs();
-                    debug_assert_eq!(outputs.len(), 1);
-                    let goid = outputs[0].id();
-                    numbergraph.disconnect_graph_output(goid).unwrap();
-                }
-                ASTNodeParent::InternalNode(internal_node, child_index) => {
-                    let nsid = internal_node.number_source_id();
-                    let number_inputs = numbergraph
-                        .topology()
-                        .number_source(nsid)
-                        .unwrap()
-                        .number_inputs();
-                    debug_assert_eq!(number_inputs.len(), internal_node.num_children());
-                    let niid = number_inputs[child_index];
-                    numbergraph.disconnect_number_input(niid).unwrap();
-                }
-            }
-        });
-    }
-
-    fn connect_each_variable_use(
-        &self,
-        name: &str,
-        target: NumberTarget,
-        numbergraph: &mut NumberGraph,
-    ) {
-        self.visit(|node, path| {
-            let ASTNodeValue::Variable(var_name) = &node.value else {
-                return;
-            };
-            if var_name != name {
-                return;
-            }
-            match path.parent_node() {
-                ASTNodeParent::VariableDefinition(var_def) => {
-                    debug_assert_ne!(var_def.name, name);
-                    // FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCK aliasing
-                    panic!();
-                }
-                ASTNodeParent::FinalExpression => {
-                    let outputs = numbergraph.topology().graph_outputs();
-                    debug_assert_eq!(outputs.len(), 1);
-                    let goid = outputs[0].id();
-                    numbergraph.connect_graph_output(goid, target).unwrap();
-                }
-                ASTNodeParent::InternalNode(internal_node, child_index) => {
-                    let nsid = internal_node.number_source_id();
-                    let number_inputs = numbergraph
-                        .topology()
-                        .number_source(nsid)
-                        .unwrap()
-                        .number_inputs();
-                    debug_assert_eq!(number_inputs.len(), internal_node.num_children());
-                    let niid = number_inputs[child_index];
-                    numbergraph.connect_number_input(niid, target).unwrap();
-                }
-            }
-        });
-    }
-
-    fn remove_unreferenced_graph_inputs(&self, numbergraph: &mut NumberGraph) {
-        let mut referenced_graph_inputs = Vec::<NumberGraphInputId>::new();
-
-        self.visit(|node, _path| {
-            if let ASTNodeValue::GraphInput(giid) = node.value() {
-                if !referenced_graph_inputs.contains(&giid) {
-                    referenced_graph_inputs.push(*giid);
-                }
-            }
-        });
-
-        debug_assert!((|| {
-            for giid in &referenced_graph_inputs {
-                if !numbergraph.topology().graph_inputs().contains(giid) {
-                    return false;
-                }
-            }
-            true
-        })());
-
-        let all_graph_inputs = numbergraph.topology().graph_inputs().to_vec();
-        for giid in all_graph_inputs {
-            if !referenced_graph_inputs.contains(&giid) {
-                debug_assert_eq!(
-                    numbergraph
-                        .topology()
-                        .number_target_destinations(NumberTarget::GraphInput(giid))
-                        .count(),
-                    0
-                );
-                // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa
-                // this leaves a dangling entry in the SoundNumberInputData's
-                // mapping. BUT, LexicalLayout shouldn't care about the details
-                // of SoundNumberInputData since it should work generically for
-                // any numbergraph alone (to allow for later top-level number graphs)
-                // Removing graph inputs is easy enough (just have the SoundNumberInputData
-                // detect and remove its own surplus mapping entry) but adding a new
-                // mapping entry is tricky since the SoundNumberInputData can't know
-                // which SoundNumberSource it's supposed to be connected to afterwards.
-                // Does this imply that some kind of hook/callback is needed to add
-                // custom functionality when a number graph input is added via the
-                // summon widget? In principle, the summon widget is a great place
-                // for this kind of thing since 1) its entries already must differ
-                // for sound number inputs in order to account for external sound
-                // number sources and 2) this would allow for other functions to
-                // be called when a summon widget entry is chosen which might prove
-                // useful. For example, in top level number graphs, the same kind
-                // of function could add a new named parameter
-                // --------------
-                // TODO:
-                // - remove all references to SoundNumberInputId from LexicalLayout
-                // - add a mechanism to LexicalLayout to define a custom summon
-                //   widget entry with a custom callback function
-                // - use that mechanism in SoundNumberInputUi to add sound number
-                //   sources by name to the LexicalLayout's summon widget choices,
-                //   make sure that results in new graph inputs being added and
-                //   existing graph inputs being reused in agreement with the
-                //   SoundNumberInputData's current mapping
-                numbergraph.remove_graph_input(giid).unwrap();
-            }
-        }
-    }
-
-    fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, mut f: F) {
+    pub(super) fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, mut f: F) {
         for vardef in &self.variable_definitions {
-            vardef.value.visit(
+            vardef.value().visit(
                 ASTPathBuilder::Root(ASTRoot::VariableDefinition(vardef)),
                 &mut f,
             );
@@ -1591,7 +943,7 @@ impl LexicalLayout {
             .visit(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
     }
 
-    pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
+    pub(crate) fn cleanup(&mut self, topology: &NumberGraphTopology) {
         // TODO: check whether anything was removed, update the layout somehow.
     }
 }

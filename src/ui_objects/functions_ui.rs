@@ -7,7 +7,7 @@ use crate::{
     objects::functions::*,
     ui_core::{
         graph_ui::ObjectUiState,
-        lexicallayout::NumberSourceLayout,
+        lexicallayout::lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
         numbergraphuicontext::NumberGraphUiContext,
         numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},

@@ -8,12 +8,12 @@ use crate::core::{
     },
     sound::{
         soundgraphdata::SoundNumberInputData, soundnumberinput::SoundNumberInputId,
-        soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
+        soundnumbersource::SoundNumberSourceId,
     },
 };
 
 use super::{
-    lexicallayout::{LexicalLayout, LexicalLayoutFocus},
+    lexicallayout::lexicallayout::{LexicalLayout, LexicalLayoutFocus},
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
@@ -36,8 +36,6 @@ impl SoundNumberInputPresentation {
     pub(super) fn new(
         topology: &NumberGraphTopology,
         object_ui_states: &NumberObjectUiStates,
-        sound_number_input_id: SoundNumberInputId,
-        parent_processor_id: SoundProcessorId,
     ) -> SoundNumberInputPresentation {
         SoundNumberInputPresentation {
             lexical_layout: LexicalLayout::generate(topology, object_ui_states),
