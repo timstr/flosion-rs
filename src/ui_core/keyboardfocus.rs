@@ -12,6 +12,7 @@ use crate::core::{
 
 use super::{
     lexicallayout::lexicallayout::LexicalLayoutFocus, numbergraphui::NumberGraphUi,
+    numbergraphuicontext::OuterSoundNumberInputContext,
     numbergraphuistate::SoundNumberInputUiCollection, soundobjectuistate::SoundObjectUiStates,
     temporallayout::TemporalLayout, ui_factory::UiFactory,
 };
@@ -148,6 +149,11 @@ impl KeyboardFocusState {
         if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
+            let outer_context = OuterSoundNumberInputContext::new(
+                *niid,
+                soundgraph.topology().number_input(*niid).unwrap().owner(),
+                temporal_layout,
+            );
             soundgraph
                 .edit_number_input(*niid, |numberinputdata| {
                     ui_presentation.handle_keypress(
@@ -157,7 +163,7 @@ impl KeyboardFocusState {
                         object_factory,
                         ui_factory,
                         object_ui_states,
-                        temporal_layout,
+                        outer_context.into(),
                     );
                 })
                 .unwrap();

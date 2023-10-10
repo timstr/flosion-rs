@@ -544,7 +544,7 @@ impl ProcessorUi {
 
             let input_ui = SoundNumberInputUi::new(input_id);
 
-            let number_ctx = ctx.number_graph_ui_context(input_id);
+            let number_ctx = ctx.number_graph_ui_context(input_id, ui_state.temporal_layout());
 
             let (number_ui_state, presentation, focus) = ui_state.number_graph_ui(input_id);
 

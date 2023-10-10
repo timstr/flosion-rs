@@ -3,32 +3,31 @@ use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
-        graph::{
-            graphobject::{ObjectType, WithObjectType},
-            objectfactory::ObjectFactory,
-        },
+        graph::{graphobject::ObjectType, objectfactory::ObjectFactory},
         number::{
             numbergraph::NumberGraph, numbergraphdata::NumberTarget,
             numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
         },
         uniqueid::UniqueId,
     },
-    objects::functions::Constant,
-    ui_core::lexicallayout::ast::{ASTNodeValue, InternalASTNodeValue},
+    ui_core::{
+        lexicallayout::ast::{ASTNodeValue, InternalASTNodeValue},
+        numbergraphuicontext::OuterNumberGraphUiContext,
+    },
 };
 
 use crate::ui_core::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::NumberGraphUiContext,
     numbergraphuistate::{AnyNumberObjectUiData, NumberGraphUiState, NumberObjectUiStates},
-    soundnumberinputui::NumberSummonValue,
-    summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
+    summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
 };
 
 use super::{
     ast::{ASTNode, ASTPath, ASTPathBuilder, ASTRoot, InternalASTNode, VariableDefinition},
     edits::{delete_from_numbergraph_at_cursor, insert_to_numbergraph_at_cursor},
+    summon::{build_summon_widget_for_sound_number_input, NumberSummonValue},
 };
 
 impl Default for NumberSourceLayout {
@@ -656,6 +655,7 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
+        outer_context: OuterNumberGraphUiContext,
     ) {
         // TODO: consider filtering egui's InputState's vec of inputs
         // and consuming key presses from there
@@ -692,6 +692,7 @@ impl LexicalLayout {
             object_factory,
             ui_factory,
             object_ui_states,
+            outer_context,
         );
 
         // TODO: create a summon widget similar to that used in flosion_ui.
@@ -729,30 +730,6 @@ impl LexicalLayout {
         // "2 "             -> sin(x + (2 * b))^(1/2)
     }
 
-    fn build_summon_widget(
-        &self,
-        position: egui::Pos2,
-        ui_factory: &UiFactory<NumberGraphUi>,
-    ) -> SummonWidgetState<NumberSummonValue> {
-        let mut builder = SummonWidgetStateBuilder::new(position);
-        for object_type in ui_factory.all_object_types() {
-            builder.add_basic_name(
-                object_type.name().to_string(),
-                NumberSummonValue::NumberSourceType(object_type),
-            );
-        }
-
-        // TODO: move this to the object ui after testing
-        builder.add_pattern("constant".to_string(), |s| {
-            // TODO: actually use the parsed value as part of initializing the constant
-            // This should probably be done with a per-object/ui initialization type
-            s.parse::<f32>()
-                .ok()
-                .and(Some(NumberSummonValue::NumberSourceType(Constant::TYPE)))
-        });
-        builder.build()
-    }
-
     fn handle_summon_widget(
         &mut self,
         ui: &egui::Ui,
@@ -761,6 +738,7 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
+        outer_context: OuterNumberGraphUiContext,
     ) {
         let pressed_space_or_tab = ui.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
@@ -798,8 +776,16 @@ impl LexicalLayout {
             if pressed_space_or_tab || !algebraic_keys_pressed.is_empty() {
                 //  open summon widget when space/tab is pressed
                 let node_at_cursor = self.get_node_at_cursor(&focus.cursor());
-                let mut widget_state =
-                    self.build_summon_widget(node_at_cursor.rect().center_bottom(), ui_factory);
+                let mut widget_state = match outer_context {
+                    OuterNumberGraphUiContext::SoundNumberInput(sni_ctx) => {
+                        build_summon_widget_for_sound_number_input(
+                            node_at_cursor.rect().center_bottom(),
+                            ui_factory,
+                            sni_ctx.parent_sound_processor_id(),
+                            sni_ctx.temporal_layout(),
+                        )
+                    }
+                };
                 let s = String::from_iter(algebraic_keys_pressed);
                 widget_state.set_text(s);
 
@@ -842,7 +828,21 @@ impl LexicalLayout {
                         }
                     }
                     NumberSummonValue::SoundNumberSource(snsid) => {
-                        todo!("TODO: handle this OUTSIDE of lexical layout")
+                        let outer_context = match outer_context {
+                            OuterNumberGraphUiContext::SoundNumberInput(ctx) => ctx,
+                        };
+                        // Uhhhhh how to modify soundnumberinputdata right here?
+                        // pass it via the outer context as a mutable reference?
+                        // No, that would disallow mutable access to the numbergraph
+                        // within. Maybe encapsulate the mapping separately and pass
+                        // that via mutable reference?
+                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                        todo!()
                     }
                 };
                 *focus.summon_widget_state_mut() = None;

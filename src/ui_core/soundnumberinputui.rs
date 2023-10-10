@@ -1,31 +1,21 @@
 use eframe::egui;
 
 use crate::core::{
-    graph::{graphobject::ObjectType, objectfactory::ObjectFactory},
+    graph::objectfactory::ObjectFactory,
     number::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphtopology::NumberGraphTopology,
     },
-    sound::{
-        soundgraphdata::SoundNumberInputData, soundnumberinput::SoundNumberInputId,
-        soundnumbersource::SoundNumberSourceId,
-    },
+    sound::{soundgraphdata::SoundNumberInputData, soundnumberinput::SoundNumberInputId},
 };
 
 use super::{
     lexicallayout::lexicallayout::{LexicalLayout, LexicalLayoutFocus},
     numbergraphui::NumberGraphUi,
-    numbergraphuicontext::NumberGraphUiContext,
+    numbergraphuicontext::{NumberGraphUiContext, OuterNumberGraphUiContext},
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
-    temporallayout::TemporalLayout,
     ui_factory::UiFactory,
 };
-
-#[derive(Copy, Clone)]
-pub(super) enum NumberSummonValue {
-    NumberSourceType(ObjectType),
-    SoundNumberSource(SoundNumberSourceId),
-}
 
 // TODO: add other presentations (e.g. plot, DAG maybe) and allow non-destructively switching between them
 pub(super) struct SoundNumberInputPresentation {
@@ -62,7 +52,7 @@ impl SoundNumberInputPresentation {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
-        temporal_layout: &TemporalLayout,
+        outer_context: OuterNumberGraphUiContext,
     ) {
         // TODO: combine available sound number sources and their names right here
         // - The lexical layout should accept a list of custom entries with names
@@ -108,6 +98,7 @@ impl SoundNumberInputPresentation {
             object_factory,
             ui_factory,
             object_ui_states,
+            outer_context,
         )
     }
 }

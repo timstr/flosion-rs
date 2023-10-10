@@ -256,7 +256,7 @@ fn remove_unreferenced_graph_inputs(layout: &LexicalLayout, numbergraph: &mut Nu
             // this leaves a dangling entry in the SoundNumberInputData's
             // mapping. BUT, LexicalLayout shouldn't care about the details
             // of SoundNumberInputData since it should work generically for
-            // any numbergraph alone (to allow for later top-level number graphs)
+            // any numbergraph alone (to allow for later top-level number graphs).
             // Removing graph inputs is easy enough (just have the SoundNumberInputData
             // detect and remove its own surplus mapping entry) but adding a new
             // mapping entry is tricky since the SoundNumberInputData can't know
@@ -279,7 +279,15 @@ fn remove_unreferenced_graph_inputs(layout: &LexicalLayout, numbergraph: &mut Nu
             //   sources by name to the LexicalLayout's summon widget choices,
             //   make sure that results in new graph inputs being added and
             //   existing graph inputs being reused in agreement with the
-            //   SoundNumberInputData's current mapping
+            //   SoundNumberInputData's current mapping.
+            //    - NOTE that the client-defined function passed to the summon
+            //      widget should thus 1) externally connect the sound number
+            //      source to the sound number input, possibly obtaining a new
+            //      number graph input (a mutable reference passed to the function)
+            //      here will help and 2) result in a new graph input being
+            //      added to both the AST and the number graph.
+            // Where to store the name of the number source? Ideally it should
+            // be stored with the LexicalLayout for generality
             numbergraph.remove_graph_input(giid).unwrap();
         }
     }

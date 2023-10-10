@@ -28,6 +28,7 @@ fn score_match(query: &str, content: &str) -> f32 {
 enum SummonRule<T> {
     BasicName(String, T),
     Pattern(String, fn(&str) -> Option<T>),
+    // TODO: name with arguments, arguments with custom completions
 }
 
 impl<T: Copy> SummonRule<T> {
@@ -52,7 +53,6 @@ impl<T: Copy> SummonRule<T> {
         }
     }
 }
-
 struct ScoredRule<T> {
     rule: SummonRule<T>,
     score: f32,

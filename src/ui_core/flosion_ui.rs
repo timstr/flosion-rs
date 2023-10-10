@@ -265,38 +265,30 @@ impl FlosionApp {
         app
     }
 
-    fn draw_all_objects(
-        ui: &mut Ui,
-        factory: &UiFactory<SoundGraphUi>,
-        number_ui_factory: &UiFactory<NumberGraphUi>,
-        graph: &SoundGraph,
-        ui_state: &mut SoundGraphUiState,
-        object_states: &SoundObjectUiStates,
-    ) {
-        // NOTE: ObjectUiStates doesn't technically need to be borrowed mutably
-        // here, but it uses interior mutability with individual object states
-        // and borrowing mutably here increases safety.
-
-        for object in graph.topology().graph_objects() {
-            if let Some(layout) = ui_state
+    fn draw_all_objects(&mut self, ui: &mut Ui) {
+        for object in self.graph.topology().graph_objects() {
+            if let Some(layout) = self
+                .ui_state
                 .temporal_layout()
                 .find_top_level_layout(object.id())
             {
                 let is_top_level = true;
                 let ctx = SoundGraphUiContext::new(
-                    factory,
-                    number_ui_factory,
-                    object_states,
-                    graph.topology(),
+                    &self.ui_factory,
+                    &self.number_object_factory,
+                    &self.number_ui_factory,
+                    &self.object_states,
+                    self.graph.topology(),
                     is_top_level,
                     layout.time_axis,
                     layout.width_pixels as f32,
                     layout.nesting_depth,
                 );
-                factory.ui(&object, ui_state, ui, &ctx);
+                self.ui_factory.ui(&object, &mut self.ui_state, ui, &ctx);
             }
         }
-        ui_state.apply_processor_drag(ui, graph.topology());
+        self.ui_state
+            .apply_processor_drag(ui, self.graph.topology());
     }
 
     fn handle_shortcuts_selection(
@@ -505,6 +497,16 @@ impl FlosionApp {
                 self.summon_state = None;
             }
         }
+    }
+
+    fn handle_keyboard_focus(&mut self, ui: &egui::Ui) {
+        self.ui_state.handle_keyboard_focus(
+            ui,
+            &mut self.graph,
+            &self.number_object_factory,
+            &self.number_ui_factory,
+            &mut self.object_states,
+        );
     }
 
     fn handle_dropped_processor(&mut self, ui: &egui::Ui, data: DroppingProcessorData) {
@@ -801,14 +803,7 @@ impl FlosionApp {
 impl eframe::App for FlosionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            Self::draw_all_objects(
-                ui,
-                &self.ui_factory,
-                &self.number_ui_factory,
-                &self.graph,
-                &mut self.ui_state,
-                &self.object_states,
-            );
+            self.draw_all_objects(ui);
 
             let screen_rect = ui.input(|i| i.screen_rect());
             let bg_response = ui.interact(
@@ -827,13 +822,7 @@ impl eframe::App for FlosionApp {
             if let Some(drag_data) = self.ui_state.take_dropped_nested_processor() {
                 self.handle_dropped_processor(ui, drag_data);
             }
-            self.ui_state.handle_keyboard_focus(
-                ui,
-                &mut self.graph,
-                &self.number_object_factory,
-                &self.number_ui_factory,
-                &mut self.object_states,
-            );
+            self.handle_keyboard_focus(ui);
 
             Self::draw_selection_rect(ui, &self.selection_area);
 

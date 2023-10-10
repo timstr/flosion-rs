@@ -1,24 +1,29 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::core::sound::{
-    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId,
+use crate::core::{
+    graph::objectfactory::ObjectFactory,
+    number::numbergraph::NumberGraph,
+    sound::{
+        soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
+        soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
+    },
 };
 
 use super::{
     graph_ui::GraphUiContext,
     numbergraphui::NumberGraphUi,
-    numbergraphuicontext::NumberGraphUiContext,
+    numbergraphuicontext::{NumberGraphUiContext, OuterSoundNumberInputContext},
     soundgraphui::SoundGraphUi,
     soundnumberinputui::SpatialGraphInputReference,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    temporallayout::TimeAxis,
+    temporallayout::{TemporalLayout, TimeAxis},
     ui_factory::UiFactory,
 };
 
 pub struct SoundGraphUiContext<'a> {
     // TODO: rename ui_factory to sound_ui_factory
     ui_factory: &'a UiFactory<SoundGraphUi>,
+    number_object_factory: &'a ObjectFactory<NumberGraph>,
     number_ui_factory: &'a UiFactory<NumberGraphUi>,
     // TODO: rename object_states to sound_object_states
     object_states: &'a SoundObjectUiStates,
@@ -35,6 +40,7 @@ pub struct SoundGraphUiContext<'a> {
 impl<'a> SoundGraphUiContext<'a> {
     pub(crate) fn new(
         ui_factory: &'a UiFactory<SoundGraphUi>,
+        number_object_factory: &'a ObjectFactory<NumberGraph>,
         number_ui_factory: &'a UiFactory<NumberGraphUi>,
         object_states: &'a SoundObjectUiStates,
         topology: &'a SoundGraphTopology,
@@ -45,6 +51,7 @@ impl<'a> SoundGraphUiContext<'a> {
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
             ui_factory,
+            number_object_factory,
             number_ui_factory,
             object_states,
             topology,
@@ -90,6 +97,7 @@ impl<'a> SoundGraphUiContext<'a> {
     pub(crate) fn nest(&self, input_id: SoundInputId, new_width: f32) -> SoundGraphUiContext {
         SoundGraphUiContext {
             ui_factory: self.ui_factory,
+            number_object_factory: self.number_object_factory,
             number_ui_factory: self.number_ui_factory,
             object_states: self.object_states,
             topology: self.topology,
@@ -113,6 +121,7 @@ impl<'a> SoundGraphUiContext<'a> {
     pub(crate) fn number_graph_ui_context(
         &self,
         input_id: SoundNumberInputId,
+        temporal_layout: &TemporalLayout,
     ) -> NumberGraphUiContext {
         let object_states = self.object_states.number_graph_object_state(input_id);
         let topology = self
@@ -121,6 +130,11 @@ impl<'a> SoundGraphUiContext<'a> {
             .unwrap()
             .number_graph()
             .topology();
+        let sni_ctx = OuterSoundNumberInputContext::new(
+            input_id,
+            self.topology.number_input(input_id).unwrap().owner(),
+            temporal_layout,
+        );
         NumberGraphUiContext::new(&self.number_ui_factory, object_states, topology)
     }
 }
