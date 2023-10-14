@@ -106,6 +106,7 @@ impl SoundGraphTopology {
             let id = id;
             ni_data
                 .target_mapping()
+                .items()
                 .values()
                 .filter_map(move |target_ns| {
                     let target_ns_owner = self.number_source(*target_ns).unwrap().owner();
@@ -311,8 +312,9 @@ impl SoundGraphTopology {
     ) {
         // remove the number source from any number inputs that use it
         for ni_data in self.number_inputs.values_mut() {
-            if let Some(giid) = ni_data.target_graph_input(source_id) {
-                ni_data.remove_target(source_id);
+            let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
+            if let Some(giid) = mapping.target_graph_input(source_id) {
+                mapping.remove_target(source_id, numbergraph);
             }
         }
 
@@ -359,9 +361,9 @@ impl SoundGraphTopology {
         input_id: SoundNumberInputId,
         source_id: SoundNumberSourceId,
     ) {
-        self.number_input_mut(input_id)
-            .unwrap()
-            .remove_target(source_id);
+        let numberinputdata = self.number_input_mut(input_id).unwrap();
+        let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
+        mapping.remove_target(source_id, numbergraph);
     }
 
     pub fn contains(&self, graph_id: SoundGraphId) -> bool {

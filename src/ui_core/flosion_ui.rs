@@ -91,8 +91,8 @@ impl FlosionApp {
             //    number graph internals to do anything with
             graph
                 .edit_number_input(wavgen.amplitude.id(), |numberinputdata| {
-                    let wavgen_phase_giid = numberinputdata.add_target(wavgen.phase.id());
-                    let numbergraph = numberinputdata.number_graph_mut();
+                    let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
+                    let wavgen_phase_giid = mapping.add_target(wavgen.phase.id(), numbergraph);
                     let saw = numbergraph
                         .add_number_source::<SawWave>(ObjectInitialization::Default)
                         .unwrap();
@@ -163,8 +163,9 @@ impl FlosionApp {
                 .unwrap();
             graph
                 .edit_number_input(wavgen.frequency.id(), |numberinputdata| {
-                    let voice_freq_giid = numberinputdata.add_target(ensemble.voice_frequency.id());
-                    let numbergraph = numberinputdata.number_graph_mut();
+                    let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
+                    let voice_freq_giid =
+                        mapping.add_target(ensemble.voice_frequency.id(), numbergraph);
                     // brutal
                     numbergraph
                         .connect_graph_output(

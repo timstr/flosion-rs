@@ -124,16 +124,13 @@ impl<'a> SoundGraphUiContext<'a> {
         temporal_layout: &TemporalLayout,
     ) -> NumberGraphUiContext {
         let object_states = self.object_states.number_graph_object_state(input_id);
-        let topology = self
-            .topology
-            .number_input(input_id)
-            .unwrap()
-            .number_graph()
-            .topology();
+        let number_input_data = self.topology.number_input_mut(input_id).unwrap();
+        let topology = number_input_data.number_graph().topology();
         let sni_ctx = OuterSoundNumberInputContext::new(
             input_id,
             self.topology.number_input(input_id).unwrap().owner(),
             temporal_layout,
+            number_input_data.target_mapping_mut(),
         );
         NumberGraphUiContext::new(&self.number_ui_factory, object_states, topology)
     }

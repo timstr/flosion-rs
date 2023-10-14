@@ -1,6 +1,9 @@
 use crate::core::{
     number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId},
-    sound::{soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId},
+    sound::{
+        soundgraphdata::SoundNumberInputTargetMapping, soundnumberinput::SoundNumberInputId,
+        soundprocessor::SoundProcessorId,
+    },
 };
 
 use super::{
@@ -11,11 +14,11 @@ use super::{
     ui_factory::UiFactory,
 };
 
-#[derive(Clone, Copy)]
 pub(crate) struct OuterSoundNumberInputContext<'a> {
     sound_number_input_id: SoundNumberInputId,
     parent_sound_processor_id: SoundProcessorId,
     temporal_layout: &'a TemporalLayout,
+    input_mapping: &'a mut SoundNumberInputTargetMapping,
 }
 
 impl<'a> OuterSoundNumberInputContext<'a> {
@@ -23,11 +26,13 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         sound_number_input_id: SoundNumberInputId,
         parent_sound_processor_id: SoundProcessorId,
         temporal_layout: &'a TemporalLayout,
+        input_mapping: &'a mut SoundNumberInputTargetMapping,
     ) -> Self {
         Self {
             sound_number_input_id,
             parent_sound_processor_id,
             temporal_layout,
+            input_mapping,
         }
     }
 
@@ -42,9 +47,12 @@ impl<'a> OuterSoundNumberInputContext<'a> {
     pub(super) fn temporal_layout(&self) -> &TemporalLayout {
         self.temporal_layout
     }
+
+    pub(super) fn input_mapping(&mut self) -> &mut SoundNumberInputTargetMapping {
+        self.input_mapping
+    }
 }
 
-#[derive(Clone, Copy)]
 pub(crate) enum OuterNumberGraphUiContext<'a> {
     // TODO: top level number graph/function also
     SoundNumberInput(OuterSoundNumberInputContext<'a>),

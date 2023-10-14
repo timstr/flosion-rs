@@ -617,7 +617,7 @@ impl<'ctx> CodeGen<'ctx> {
         let number_topo = sg_number_input_data.number_graph().topology();
 
         // pre-compile all number graph inputs
-        for (giid, snsid) in sg_number_input_data.target_mapping() {
+        for (giid, snsid) in sg_number_input_data.target_mapping().items() {
             let value = topology
                 .number_source(*snsid)
                 .unwrap()

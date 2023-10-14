@@ -30,7 +30,7 @@ use crate::{
             state::State,
         },
         soundchunk::SoundChunk,
-        uniqueid::{IdGenerator, UniqueId},
+        uniqueid::IdGenerator,
     },
     objects::functions::*,
 };
@@ -208,11 +208,11 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
             .number_input_mut(sp_instance.number_input.id())
             .unwrap();
 
-        let giid0 = number_input_data.add_target(sp_instance.number_source_0.id());
-        let giid1 = number_input_data.add_target(sp_instance.number_source_1.id());
-        let giid2 = number_input_data.add_target(sp_instance.number_source_2.id());
+        let (number_graph, mapping) = number_input_data.number_graph_and_mapping_mut();
 
-        let number_graph = number_input_data.number_graph_mut();
+        let giid0 = mapping.add_target(sp_instance.number_source_0.id(), number_graph);
+        let giid1 = mapping.add_target(sp_instance.number_source_1.id(), number_graph);
+        let giid2 = mapping.add_target(sp_instance.number_source_2.id(), number_graph);
 
         let ns_handle = number_graph
             .add_number_source::<T>(ObjectInitialization::Default)

@@ -285,7 +285,7 @@ impl SoundNumberEdit {
 
                 // the source must not be connected to any inputs
                 for ni in topo.number_inputs().values() {
-                    if ni.target_graph_input(*nsid).is_some() {
+                    if ni.target_mapping().target_graph_input(*nsid).is_some() {
                         return Some(SoundError::BadNumberSourceCleanup(*nsid));
                     }
                 }
@@ -302,7 +302,7 @@ impl SoundNumberEdit {
                 }
 
                 // the input must not be connected
-                if !data.target_mapping().is_empty() {
+                if !data.target_mapping().items().is_empty() {
                     return Some(SoundError::BadNumberInputInit(data.id()));
                 }
             }
@@ -326,7 +326,7 @@ impl SoundNumberEdit {
                 }
 
                 // the number input must not be connected
-                if !data.target_mapping().is_empty() {
+                if !data.target_mapping().items().is_empty() {
                     return Some(SoundError::BadNumberInputCleanup(*niid));
                 }
             }

@@ -655,7 +655,7 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
-        outer_context: OuterNumberGraphUiContext,
+        outer_context: &mut OuterNumberGraphUiContext,
     ) {
         // TODO: consider filtering egui's InputState's vec of inputs
         // and consuming key presses from there
@@ -738,7 +738,7 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
-        outer_context: OuterNumberGraphUiContext,
+        outer_context: &mut OuterNumberGraphUiContext,
     ) {
         let pressed_space_or_tab = ui.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
@@ -836,12 +836,6 @@ impl LexicalLayout {
                         // No, that would disallow mutable access to the numbergraph
                         // within. Maybe encapsulate the mapping separately and pass
                         // that via mutable reference?
-                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                         todo!()
                     }
                 };

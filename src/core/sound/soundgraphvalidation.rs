@@ -201,7 +201,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
 
     for ni in topology.number_inputs().values() {
         // for all number inputs
-        for nsid in ni.target_mapping().values() {
+        for nsid in ni.target_mapping().items().values() {
             // its targets must exist
             if topology.number_sources().get(nsid).is_none() {
                 panic!(
@@ -399,7 +399,7 @@ pub(super) fn find_invalid_number_connections(
     let mut bad_connections: Vec<(SoundNumberSourceId, SoundNumberInputId)> = Vec::new();
 
     for (niid, ni) in topology.number_inputs() {
-        for target in ni.target_mapping().values() {
+        for target in ni.target_mapping().items().values() {
             let target_owner = topology.number_source(*target).unwrap().owner();
             let depends = match target_owner {
                 SoundNumberSourceOwner::SoundProcessor(spid) => {
