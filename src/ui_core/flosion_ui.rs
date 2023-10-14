@@ -7,7 +7,7 @@ use std::{
 use crate::{
     core::{
         graph::{
-            graphobject::{ObjectInitialization, ObjectType},
+            graphobject::{GraphObjectHandle, ObjectInitialization, ObjectType},
             objectfactory::ObjectFactory,
         },
         number::{numbergraph::NumberGraph, numbergraphdata::NumberTarget},
@@ -267,25 +267,28 @@ impl FlosionApp {
     }
 
     fn draw_all_objects(&mut self, ui: &mut Ui) {
-        for object in self.graph.topology().graph_objects() {
+        let graph_objects: Vec<GraphObjectHandle<SoundGraph>> =
+            self.graph.topology().graph_objects().collect();
+        for object in graph_objects {
             if let Some(layout) = self
                 .ui_state
                 .temporal_layout()
                 .find_top_level_layout(object.id())
             {
                 let is_top_level = true;
-                let ctx = SoundGraphUiContext::new(
+                let mut ctx = SoundGraphUiContext::new(
                     &self.ui_factory,
                     &self.number_object_factory,
                     &self.number_ui_factory,
                     &self.object_states,
-                    self.graph.topology(),
+                    &mut self.graph,
                     is_top_level,
                     layout.time_axis,
                     layout.width_pixels as f32,
                     layout.nesting_depth,
                 );
-                self.ui_factory.ui(&object, &mut self.ui_state, ui, &ctx);
+                self.ui_factory
+                    .ui(&object, &mut self.ui_state, ui, &mut ctx);
             }
         }
         self.ui_state

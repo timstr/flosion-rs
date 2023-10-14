@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
@@ -253,7 +255,8 @@ impl LexicalLayout {
                 })
                 .collect();
 
-            let node = make_internal_node(nsid, object_ui_states.get_object_data(nsid), arguments);
+            let node =
+                make_internal_node(nsid, &*object_ui_states.get_object_data(nsid), arguments);
 
             if create_new_variable {
                 let new_variable_name = format!("x{}", variable_assignments.len());
@@ -287,7 +290,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         result_label: &str,
         graph_state: &mut NumberGraphUiState,
-        ctx: &NumberGraphUiContext,
+        ctx: &mut NumberGraphUiContext,
         mut focus: Option<&mut LexicalLayoutFocus>,
     ) {
         let variable_definitions = &self.variable_definitions;
@@ -404,7 +407,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         node: &ASTNode,
         graph_state: &mut NumberGraphUiState,
-        ctx: &NumberGraphUiContext,
+        ctx: &mut NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
     ) {
@@ -449,7 +452,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         node: &InternalASTNode,
         graph_state: &mut NumberGraphUiState,
-        ctx: &NumberGraphUiContext,
+        ctx: &mut NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
     ) -> egui::Response {
@@ -573,7 +576,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         id: NumberSourceId,
         graph_state: &mut NumberGraphUiState,
-        ctx: &NumberGraphUiContext,
+        ctx: &mut NumberGraphUiContext,
     ) -> egui::Rect {
         let graph_object = ctx
             .topology()
@@ -681,7 +684,12 @@ impl LexicalLayout {
                 ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
 
             if pressed_delete {
-                delete_from_numbergraph_at_cursor(self, focus.cursor_mut(), numbergraph);
+                delete_from_numbergraph_at_cursor(
+                    self,
+                    focus.cursor_mut(),
+                    numbergraph,
+                    outer_context,
+                );
             }
         }
 
@@ -813,6 +821,7 @@ impl LexicalLayout {
                             focus.cursor_mut(),
                             node,
                             numbergraph,
+                            outer_context,
                         );
 
                         let cursor = focus.cursor_mut();
@@ -831,12 +840,8 @@ impl LexicalLayout {
                         let outer_context = match outer_context {
                             OuterNumberGraphUiContext::SoundNumberInput(ctx) => ctx,
                         };
-                        // Uhhhhh how to modify soundnumberinputdata right here?
-                        // pass it via the outer context as a mutable reference?
-                        // No, that would disallow mutable access to the numbergraph
-                        // within. Maybe encapsulate the mapping separately and pass
-                        // that via mutable reference?
-                        todo!()
+                        todo!();
+                        outer_context.input_mapping(); // TODO: use this
                     }
                 };
                 *focus.summon_widget_state_mut() = None;

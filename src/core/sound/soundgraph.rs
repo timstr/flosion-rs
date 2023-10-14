@@ -355,19 +355,19 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn edit_number_input<F: FnOnce(&mut SoundNumberInputData)>(
+    pub fn edit_number_input<R, F: FnOnce(&mut SoundNumberInputData) -> R>(
         &mut self,
         input_id: SoundNumberInputId,
         f: F,
-    ) -> Result<(), SoundError> {
+    ) -> Result<R, SoundError> {
         self.try_make_change(|topo| {
             let number_input = topo
                 .number_input_mut(input_id)
                 .ok_or_else(|| SoundError::NumberInputNotFound(input_id))?;
 
-            f(number_input);
+            let r = f(number_input);
 
-            Ok(())
+            Ok(r)
         })
     }
 
@@ -405,10 +405,10 @@ impl SoundGraph {
         self.try_make_change(|topo| Self::try_make_edits_locally(topo, edit_queue))
     }
 
-    fn try_make_change<F: FnOnce(&mut SoundGraphTopology) -> Result<(), SoundError>>(
+    fn try_make_change<R, F: FnOnce(&mut SoundGraphTopology) -> Result<R, SoundError>>(
         &mut self,
         f: F,
-    ) -> Result<(), SoundError> {
+    ) -> Result<R, SoundError> {
         debug_assert_eq!(find_error(&self.local_topology), None);
         let prev_topology = self.local_topology.clone();
         let res = f(&mut self.local_topology);

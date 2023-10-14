@@ -1,11 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
+use eframe::egui;
+
 use crate::core::{
-    graph::objectfactory::ObjectFactory,
+    graph::{graphobject::GraphObjectHandle, objectfactory::ObjectFactory},
     number::numbergraph::NumberGraph,
     sound::{
-        soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
+        soundgraph::SoundGraph, soundgrapherror::SoundError, soundgraphid::SoundObjectId,
+        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+        soundnumberinput::SoundNumberInputId,
     },
 };
 
@@ -14,6 +17,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::{NumberGraphUiContext, OuterSoundNumberInputContext},
     soundgraphui::SoundGraphUi,
+    soundgraphuistate::SoundGraphUiState,
     soundnumberinputui::SpatialGraphInputReference,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
     temporallayout::{TemporalLayout, TimeAxis},
@@ -27,7 +31,7 @@ pub struct SoundGraphUiContext<'a> {
     number_ui_factory: &'a UiFactory<NumberGraphUi>,
     // TODO: rename object_states to sound_object_states
     object_states: &'a SoundObjectUiStates,
-    topology: &'a SoundGraphTopology,
+    sound_graph: &'a mut SoundGraph,
     is_top_level: bool,
     time_axis: TimeAxis,
     width: f32,
@@ -43,7 +47,7 @@ impl<'a> SoundGraphUiContext<'a> {
         number_object_factory: &'a ObjectFactory<NumberGraph>,
         number_ui_factory: &'a UiFactory<NumberGraphUi>,
         object_states: &'a SoundObjectUiStates,
-        topology: &'a SoundGraphTopology,
+        sound_graph: &'a mut SoundGraph,
         is_top_level: bool,
         time_axis: TimeAxis,
         width: f32,
@@ -54,7 +58,7 @@ impl<'a> SoundGraphUiContext<'a> {
             number_object_factory,
             number_ui_factory,
             object_states,
-            topology,
+            sound_graph,
             is_top_level,
             time_axis,
             width,
@@ -73,7 +77,11 @@ impl<'a> SoundGraphUiContext<'a> {
     }
 
     pub(crate) fn topology(&self) -> &SoundGraphTopology {
-        self.topology
+        self.sound_graph.topology()
+    }
+
+    pub(crate) fn sound_graph_mut(&mut self) -> &mut SoundGraph {
+        self.sound_graph
     }
 
     pub fn time_axis(&self) -> &TimeAxis {
@@ -94,20 +102,30 @@ impl<'a> SoundGraphUiContext<'a> {
         self.is_top_level
     }
 
-    pub(crate) fn nest(&self, input_id: SoundInputId, new_width: f32) -> SoundGraphUiContext {
-        SoundGraphUiContext {
-            ui_factory: self.ui_factory,
-            number_object_factory: self.number_object_factory,
-            number_ui_factory: self.number_ui_factory,
-            object_states: self.object_states,
-            topology: self.topology,
-            is_top_level: false,
-            time_axis: self.time_axis,
-            width: new_width,
-            nesting_depth: self.nesting_depth - 1,
-            parent_input: Some(input_id),
-            number_graph_input_references: Rc::clone(&self.number_graph_input_references),
-        }
+    pub(crate) fn show_nested_ui(
+        &mut self,
+        input_id: SoundInputId,
+        desired_width: f32,
+        target_graph_object: &GraphObjectHandle<SoundGraph>,
+        ui_state: &mut SoundGraphUiState,
+        ui: &mut egui::Ui,
+    ) {
+        let was_top_level = self.is_top_level;
+        let old_width = self.width;
+        let old_nesting_depth = self.nesting_depth;
+        let old_parent_input = self.parent_input;
+
+        self.is_top_level = false;
+        self.width = desired_width;
+        self.nesting_depth -= 1;
+        self.parent_input = Some(input_id);
+
+        self.ui_factory.ui(target_graph_object, ui_state, ui, self);
+
+        self.is_top_level = was_top_level;
+        self.width = old_width;
+        self.nesting_depth = old_nesting_depth;
+        self.parent_input = old_parent_input;
     }
 
     pub(crate) fn nesting_depth(&self) -> usize {
@@ -118,28 +136,39 @@ impl<'a> SoundGraphUiContext<'a> {
         self.parent_input
     }
 
-    pub(crate) fn number_graph_ui_context(
-        &self,
+    pub(crate) fn with_number_graph_ui_context<R, F: FnOnce(&mut NumberGraphUiContext) -> R>(
+        &mut self,
         input_id: SoundNumberInputId,
-        temporal_layout: &TemporalLayout,
-    ) -> NumberGraphUiContext {
+        // temporal_layout: &TemporalLayout,
+        f: F,
+    ) -> Result<R, SoundError> {
+        // TODO: also return mutable reference to numbergraph here?
         let object_states = self.object_states.number_graph_object_state(input_id);
-        let number_input_data = self.topology.number_input_mut(input_id).unwrap();
-        let topology = number_input_data.number_graph().topology();
-        let sni_ctx = OuterSoundNumberInputContext::new(
-            input_id,
-            self.topology.number_input(input_id).unwrap().owner(),
-            temporal_layout,
-            number_input_data.target_mapping_mut(),
-        );
-        NumberGraphUiContext::new(&self.number_ui_factory, object_states, topology)
+        let owner = self.topology().number_input(input_id).unwrap().owner();
+        self.sound_graph
+            .edit_number_input(input_id, |number_input_data| {
+                let (number_graph, target_mapping) =
+                    number_input_data.number_graph_and_mapping_mut();
+                // let sni_ctx = OuterSoundNumberInputContext::new(
+                //     input_id,
+                //     owner,
+                //     temporal_layout,
+                //     target_mapping,
+                // );
+                let mut ctx = NumberGraphUiContext::new(
+                    &self.number_ui_factory,
+                    object_states,
+                    number_graph.topology(),
+                );
+                f(&mut ctx)
+            })
     }
 }
 
 impl<'a> GraphUiContext<'a> for SoundGraphUiContext<'a> {
     type GraphUi = SoundGraphUi;
 
-    fn get_object_ui_data(&self, id: SoundObjectId) -> &AnySoundObjectUiData {
+    fn get_object_ui_data(&self, id: SoundObjectId) -> Rc<AnySoundObjectUiData> {
         self.object_states.get_object_data(id)
     }
 }

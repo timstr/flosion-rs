@@ -66,7 +66,7 @@ impl ProcessorUi {
     pub fn show(
         self,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
     ) {
         self.show_with(ui, ctx, ui_state, |_ui, _ui_state| {});
@@ -75,7 +75,7 @@ impl ProcessorUi {
     pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState)>(
         self,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
         add_contents: F,
     ) {
@@ -232,7 +232,7 @@ impl ProcessorUi {
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState)>(
         &self,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
         add_contents: F,
     ) -> egui::Response {
@@ -353,7 +353,7 @@ impl ProcessorUi {
     fn show_sound_input(
         &self,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         input_id: SoundInputId,
         ui_state: &mut SoundGraphUiState,
         mut props: ProcessorUiProps,
@@ -463,10 +463,19 @@ impl ProcessorUi {
                         let target_processor = ctx.topology().sound_processor(spid).unwrap();
                         let target_graph_object = target_processor.instance_arc().as_graph_object();
 
-                        let inner_ctx = ctx.nest(input_id, desired_width);
+                        ctx.show_nested_ui(
+                            input_id,
+                            desired_width,
+                            &target_graph_object,
+                            ui_state,
+                            ui,
+                        );
 
-                        ctx.ui_factory()
-                            .ui(&target_graph_object, ui_state, ui, &inner_ctx);
+                        // ctx.push_context(input_id, desired_width);
+
+                        // ctx.ui_factory().ui(&target_graph_object, ui_state, ui, ctx);
+
+                        // ctx.pop_context();
                     }
                 })
             }
@@ -527,7 +536,7 @@ impl ProcessorUi {
     fn show_number_input(
         &self,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         input_id: SoundNumberInputId,
         input_label: &'static str,
         ui_state: &mut SoundGraphUiState,
@@ -544,18 +553,23 @@ impl ProcessorUi {
 
             let input_ui = SoundNumberInputUi::new(input_id);
 
-            let number_ctx = ctx.number_graph_ui_context(input_id, ui_state.temporal_layout());
+            // fack
+            // The number input data (number graph and input mapping) should be borrowed mutably here
+            // in order to allow changes via the UI
+            let graph_input_references = ctx
+                .with_number_graph_ui_context(input_id, |number_ctx| {
+                    let (number_ui_state, presentation, focus) = ui_state.number_graph_ui(input_id);
 
-            let (number_ui_state, presentation, focus) = ui_state.number_graph_ui(input_id);
-
-            let graph_input_references = input_ui.show(
-                ui,
-                input_label,
-                number_ui_state,
-                &number_ctx,
-                presentation,
-                focus,
-            );
+                    input_ui.show(
+                        ui,
+                        input_label,
+                        number_ui_state,
+                        number_ctx,
+                        presentation,
+                        focus,
+                    )
+                })
+                .unwrap();
 
             graph_input_references
         });
@@ -582,7 +596,7 @@ impl ProcessorUi {
     fn draw_wires(
         &self,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
     ) {
         let references = ctx.number_graph_input_references().borrow();

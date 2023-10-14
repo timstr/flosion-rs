@@ -61,7 +61,7 @@ pub trait ObjectUi: 'static + Default {
         handle: Self::HandleType,
         graph_state: &mut <Self::GraphUi as GraphUi>::State,
         ui: &mut egui::Ui,
-        ctx: &<Self::GraphUi as GraphUi>::Context<'a>,
+        ctx: &mut <Self::GraphUi as GraphUi>::Context<'a>,
         data: <<Self::GraphUi as GraphUi>::ObjectUiData as ObjectUiData>::ConcreteType<
             'b,
             Self::StateType,
@@ -91,7 +91,7 @@ pub trait AnyObjectUi<G: GraphUi> {
         object_ui_state: &G::ObjectUiData,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
-        ctx: &G::Context<'_>,
+        ctx: &mut G::Context<'_>,
     );
 
     fn aliases(&self) -> &'static [&'static str];
@@ -111,10 +111,10 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
         object_ui_state: &G::ObjectUiData,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
-        ctx: &G::Context<'_>,
+        ctx: &mut G::Context<'_>,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        object_ui_state.downcast_with(graph_state, ctx, |data, graph_state| {
+        object_ui_state.downcast_with(graph_state, ctx, |data, graph_state, ctx| {
             self.ui(handle, graph_state, ui, ctx, data);
         });
     }

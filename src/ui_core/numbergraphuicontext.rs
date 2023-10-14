@@ -1,8 +1,14 @@
+use std::rc::Rc;
+
 use crate::core::{
-    number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId},
+    graph::graphobject::GraphObjectHandle,
+    number::{
+        numbergraph::NumberGraph, numbergraphtopology::NumberGraphTopology,
+        numbersource::NumberSourceId,
+    },
     sound::{
-        soundgraphdata::SoundNumberInputTargetMapping, soundnumberinput::SoundNumberInputId,
-        soundprocessor::SoundProcessorId,
+        soundgraphdata::SoundNumberInputTargetMapping, soundinput::SoundInputId,
+        soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -67,6 +73,7 @@ impl<'a> From<OuterSoundNumberInputContext<'a>> for OuterNumberGraphUiContext<'a
 pub struct NumberGraphUiContext<'a> {
     ui_factory: &'a UiFactory<NumberGraphUi>,
     object_states: &'a NumberObjectUiStates,
+    // TODO: replace with &mut NumberGraph ?
     topology: &'a NumberGraphTopology,
 }
 
@@ -99,7 +106,7 @@ impl<'a> NumberGraphUiContext<'a> {
 impl<'a> GraphUiContext<'a> for NumberGraphUiContext<'a> {
     type GraphUi = NumberGraphUi;
 
-    fn get_object_ui_data(&self, id: NumberSourceId) -> &AnyNumberObjectUiData {
+    fn get_object_ui_data(&self, id: NumberSourceId) -> Rc<AnyNumberObjectUiData> {
         todo!()
     }
 }

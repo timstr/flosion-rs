@@ -1,4 +1,4 @@
-use std::{any::type_name, cell::RefCell, collections::HashMap};
+use std::{any::type_name, cell::RefCell, collections::HashMap, rc::Rc};
 
 use eframe::{egui, epaint::ecolor};
 
@@ -41,11 +41,11 @@ impl ObjectUiData for AnySoundObjectUiData {
 
     fn downcast_with<
         T: ObjectUiState,
-        F: FnOnce(SoundObjectUiData<'_, T>, &mut SoundGraphUiState),
+        F: FnOnce(SoundObjectUiData<'_, T>, &mut SoundGraphUiState, &mut SoundGraphUiContext<'_>),
     >(
         &self,
         ui_state: &mut SoundGraphUiState,
-        ctx: &SoundGraphUiContext<'_>,
+        ctx: &mut SoundGraphUiContext<'_>,
         f: F,
     ) {
         let mut state_mut = self.state.borrow_mut();
@@ -65,7 +65,7 @@ impl ObjectUiData for AnySoundObjectUiData {
         let color = ctx
             .object_states()
             .get_apparent_object_color(self.id, ui_state);
-        f(SoundObjectUiData { state, color }, ui_state);
+        f(SoundObjectUiData { state, color }, ui_state, ctx);
     }
 }
 
@@ -75,7 +75,7 @@ pub struct SoundObjectUiData<'a, T: ObjectUiState> {
 }
 
 pub struct SoundObjectUiStates {
-    data: HashMap<SoundObjectId, AnySoundObjectUiData>,
+    data: HashMap<SoundObjectId, Rc<AnySoundObjectUiData>>,
     number_graph_object_states: HashMap<SoundNumberInputId, NumberObjectUiStates>,
 }
 
@@ -88,11 +88,11 @@ impl SoundObjectUiStates {
     }
 
     pub(super) fn set_object_data(&mut self, id: SoundObjectId, state: AnySoundObjectUiData) {
-        self.data.insert(id, state);
+        self.data.insert(id, Rc::new(state));
     }
 
-    pub(super) fn get_object_data(&self, id: SoundObjectId) -> &AnySoundObjectUiData {
-        self.data.get(&id).unwrap()
+    pub(super) fn get_object_data(&self, id: SoundObjectId) -> Rc<AnySoundObjectUiData> {
+        Rc::clone(self.data.get(&id).unwrap())
     }
 
     pub(super) fn get_object_color(&self, id: SoundObjectId) -> egui::Color32 {
@@ -241,7 +241,7 @@ impl SoundObjectUiStates {
     ) {
         self.data.entry(object_id).or_insert_with(|| {
             let graph_object = topo.graph_object(object_id).unwrap();
-            ui_factory.create_default_state(&graph_object)
+            Rc::new(ui_factory.create_default_state(&graph_object))
         });
         match object_id {
             SoundObjectId::Sound(spid) => {

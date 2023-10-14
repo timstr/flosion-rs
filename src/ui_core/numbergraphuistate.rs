@@ -1,4 +1,4 @@
-use std::{any::type_name, cell::RefCell, collections::HashMap};
+use std::{any::type_name, cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
     number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId},
@@ -98,11 +98,11 @@ impl ObjectUiData for AnyNumberObjectUiData {
 
     fn downcast_with<
         T: ObjectUiState,
-        F: FnOnce(NumberObjectUiData<'_, T>, &mut NumberGraphUiState),
+        F: FnOnce(NumberObjectUiData<'_, T>, &mut NumberGraphUiState, &mut NumberGraphUiContext),
     >(
         &self,
         ui_state: &mut NumberGraphUiState,
-        ctx: &NumberGraphUiContext<'_>,
+        ctx: &mut NumberGraphUiContext<'_>,
         f: F,
     ) {
         let mut state_mut = self.state.borrow_mut();
@@ -120,7 +120,7 @@ impl ObjectUiData for AnyNumberObjectUiData {
         let state_any = state_mut.as_mut_any();
         let state = state_any.downcast_mut::<T>().unwrap();
 
-        f(NumberObjectUiData { state }, ui_state);
+        f(NumberObjectUiData { state }, ui_state, ctx);
     }
 }
 
@@ -130,7 +130,7 @@ pub struct NumberObjectUiData<'a, T: ObjectUiState> {
 }
 
 pub struct NumberObjectUiStates {
-    data: HashMap<NumberSourceId, AnyNumberObjectUiData>,
+    data: HashMap<NumberSourceId, Rc<AnyNumberObjectUiData>>,
 }
 
 impl NumberObjectUiStates {
@@ -141,11 +141,11 @@ impl NumberObjectUiStates {
     }
 
     pub(super) fn set_object_data(&mut self, id: NumberSourceId, state: AnyNumberObjectUiData) {
-        self.data.insert(id, state);
+        self.data.insert(id, Rc::new(state));
     }
 
-    pub(super) fn get_object_data(&self, id: NumberSourceId) -> &AnyNumberObjectUiData {
-        self.data.get(&id).unwrap()
+    pub(super) fn get_object_data(&self, id: NumberSourceId) -> Rc<AnyNumberObjectUiData> {
+        Rc::clone(self.data.get(&id).unwrap())
     }
 
     pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {

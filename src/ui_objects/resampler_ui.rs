@@ -20,7 +20,7 @@ impl ObjectUi for ResamplerUi {
         resampler: DynamicSoundProcessorHandle<Resampler>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(resampler.id(), "Resampler", data.color)

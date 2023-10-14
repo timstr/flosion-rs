@@ -225,6 +225,7 @@ impl SoundNumberInputTargetMapping {
         let giid = numbergraph.add_graph_input();
         let prev = self.mapping.insert(giid, source_id);
         debug_assert_eq!(prev, None);
+        debug_assert!(self.check_invariants(numbergraph.topology()));
         giid
     }
 
@@ -236,6 +237,9 @@ impl SoundNumberInputTargetMapping {
         debug_assert!(self.check_invariants(numbergraph.topology()));
         let giid = self.target_graph_input(source_id).unwrap();
         numbergraph.remove_graph_input(giid).unwrap();
+        let prev = self.mapping.remove(&giid);
+        debug_assert!(prev.is_some());
+        debug_assert!(self.check_invariants(numbergraph.topology()));
     }
 
     fn check_invariants(&self, topology: &NumberGraphTopology) -> bool {

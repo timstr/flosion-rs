@@ -22,7 +22,7 @@ impl ObjectUi for DacUi {
         dac: StaticSoundProcessorHandle<Dac>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(dac.id(), "Dac", data.color)

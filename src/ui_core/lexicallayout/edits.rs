@@ -3,7 +3,9 @@ use crate::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphdata::NumberTarget,
     },
-    ui_core::lexicallayout::ast::InternalASTNodeValue,
+    ui_core::{
+        lexicallayout::ast::InternalASTNodeValue, numbergraphuicontext::OuterNumberGraphUiContext,
+    },
 };
 
 use super::{
@@ -15,6 +17,7 @@ pub(super) fn delete_from_numbergraph_at_cursor(
     layout: &mut LexicalLayout,
     cursor: &LexicalLayoutCursor,
     numbergraph: &mut NumberGraph,
+    outer_context: &mut OuterNumberGraphUiContext,
 ) {
     if layout.get_node_at_cursor(cursor).is_empty() {
         return;
@@ -47,7 +50,7 @@ pub(super) fn delete_from_numbergraph_at_cursor(
     }
     layout.set_node_at_cursor(cursor, ASTNode::new(ASTNodeValue::Empty));
 
-    remove_unreferenced_graph_inputs(layout, numbergraph);
+    remove_unreferenced_graph_inputs(layout, numbergraph, outer_context);
 }
 
 pub(super) fn insert_to_numbergraph_at_cursor(
@@ -55,9 +58,10 @@ pub(super) fn insert_to_numbergraph_at_cursor(
     cursor: &mut LexicalLayoutCursor,
     node: ASTNode,
     numbergraph: &mut NumberGraph,
+    outer_context: &mut OuterNumberGraphUiContext,
 ) {
     // TODO: allow inserting operators in-place
-    delete_from_numbergraph_at_cursor(layout, cursor, numbergraph);
+    delete_from_numbergraph_at_cursor(layout, cursor, numbergraph, outer_context);
 
     if let Some(target) = node.direct_target() {
         match layout.get_cursor_root(cursor) {
@@ -222,7 +226,11 @@ fn connect_each_variable_use(
     });
 }
 
-fn remove_unreferenced_graph_inputs(layout: &LexicalLayout, numbergraph: &mut NumberGraph) {
+fn remove_unreferenced_graph_inputs(
+    layout: &LexicalLayout,
+    numbergraph: &mut NumberGraph,
+    outer_context: &mut OuterNumberGraphUiContext,
+) {
     let mut referenced_graph_inputs = Vec::<NumberGraphInputId>::new();
 
     layout.visit(|node, _path| {
@@ -252,43 +260,13 @@ fn remove_unreferenced_graph_inputs(layout: &LexicalLayout, numbergraph: &mut Nu
                     .count(),
                 0
             );
-            // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaa
-            // this leaves a dangling entry in the SoundNumberInputData's
-            // mapping. BUT, LexicalLayout shouldn't care about the details
-            // of SoundNumberInputData since it should work generically for
-            // any numbergraph alone (to allow for later top-level number graphs).
-            // Removing graph inputs is easy enough (just have the SoundNumberInputData
-            // detect and remove its own surplus mapping entry) but adding a new
-            // mapping entry is tricky since the SoundNumberInputData can't know
-            // which SoundNumberSource it's supposed to be connected to afterwards.
-            // Does this imply that some kind of hook/callback is needed to add
-            // custom functionality when a number graph input is added via the
-            // summon widget? In principle, the summon widget is a great place
-            // for this kind of thing since 1) its entries already must differ
-            // for sound number inputs in order to account for external sound
-            // number sources and 2) this would allow for other functions to
-            // be called when a summon widget entry is chosen which might prove
-            // useful. For example, in top level number graphs, the same kind
-            // of function could add a new named parameter
-            // --------------
-            // TODO:
-            // - remove all references to SoundNumberInputId from LexicalLayout
-            // - add a mechanism to LexicalLayout to define a custom summon
-            //   widget entry with a custom callback function
-            // - use that mechanism in SoundNumberInputUi to add sound number
-            //   sources by name to the LexicalLayout's summon widget choices,
-            //   make sure that results in new graph inputs being added and
-            //   existing graph inputs being reused in agreement with the
-            //   SoundNumberInputData's current mapping.
-            //    - NOTE that the client-defined function passed to the summon
-            //      widget should thus 1) externally connect the sound number
-            //      source to the sound number input, possibly obtaining a new
-            //      number graph input (a mutable reference passed to the function)
-            //      here will help and 2) result in a new graph input being
-            //      added to both the AST and the number graph.
-            // Where to store the name of the number source? Ideally it should
-            // be stored with the LexicalLayout for generality
-            numbergraph.remove_graph_input(giid).unwrap();
+            // numbergraph.remove_graph_input(giid).unwrap();
+            match outer_context {
+                OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
+                    let source_id = ctx.input_mapping().graph_input_target(giid).unwrap();
+                    ctx.input_mapping().remove_target(source_id, numbergraph);
+                }
+            }
         }
     }
 }

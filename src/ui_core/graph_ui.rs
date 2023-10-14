@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, rc::Rc};
 
 use serialization::Serializable;
 
@@ -26,7 +26,7 @@ pub trait GraphUiContext<'a> {
     fn get_object_ui_data(
         &self,
         id: <<Self::GraphUi as GraphUi>::Graph as Graph>::ObjectId,
-    ) -> &<Self::GraphUi as GraphUi>::ObjectUiData;
+    ) -> Rc<<Self::GraphUi as GraphUi>::ObjectUiData>;
 }
 
 pub trait ObjectUiData {
@@ -44,11 +44,15 @@ pub trait ObjectUiData {
 
     fn downcast_with<
         T: ObjectUiState,
-        F: FnOnce(Self::ConcreteType<'_, T>, &mut <Self::GraphUi as GraphUi>::State),
+        F: FnOnce(
+            Self::ConcreteType<'_, T>,
+            &mut <Self::GraphUi as GraphUi>::State,
+            &mut <Self::GraphUi as GraphUi>::Context<'_>,
+        ),
     >(
         &self,
         ui_state: &mut <Self::GraphUi as GraphUi>::State,
-        ctx: &<Self::GraphUi as GraphUi>::Context<'_>,
+        ctx: &mut <Self::GraphUi as GraphUi>::Context<'_>,
         f: F,
     );
 }

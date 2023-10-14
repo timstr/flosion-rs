@@ -23,7 +23,7 @@ impl ObjectUi for WhiteNoiseUi {
         whitenoise: DynamicSoundProcessorHandle<WhiteNoise>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(whitenoise.id(), "WhiteNoise", data.color)

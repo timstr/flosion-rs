@@ -108,7 +108,7 @@ impl SoundNumberInputUi {
         ui: &mut egui::Ui,
         result_label: &str,
         graph_state: &mut NumberGraphUiState,
-        ctx: &NumberGraphUiContext,
+        ctx: &mut NumberGraphUiContext,
         presentation: &mut SoundNumberInputPresentation,
         focus: Option<&mut LexicalLayoutFocus>,
     ) -> Vec<SpatialGraphInputReference> {

@@ -21,7 +21,7 @@ impl ObjectUi for EnsembleUi {
         ensemble: DynamicSoundProcessorHandle<Ensemble>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(ensemble.id(), "Ensemble", data.color)

@@ -27,7 +27,7 @@ impl NumberSourceUi {
     pub fn show(
         self,
         ui: &mut egui::Ui,
-        ctx: &NumberGraphUiContext,
+        ctx: &mut NumberGraphUiContext,
         ui_state: &mut NumberGraphUiState,
     ) {
         self.show_with(ui, ctx, ui_state, |_ui, _ui_state| {});
@@ -36,7 +36,7 @@ impl NumberSourceUi {
     pub fn show_with<F: FnOnce(&mut egui::Ui, &mut NumberGraphUiState)>(
         self,
         ui: &mut egui::Ui,
-        ctx: &NumberGraphUiContext,
+        ctx: &mut NumberGraphUiContext,
         ui_state: &mut NumberGraphUiState,
         add_contents: F,
     ) {

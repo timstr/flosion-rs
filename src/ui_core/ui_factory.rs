@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use eframe::egui;
 use serialization::Deserializer;
@@ -13,7 +13,7 @@ use super::{
 };
 
 struct ObjectData<G: GraphUi> {
-    ui: Box<dyn AnyObjectUi<G>>,
+    ui: Rc<dyn AnyObjectUi<G>>,
 }
 
 pub struct UiFactory<G: GraphUi> {
@@ -32,7 +32,7 @@ impl<G: GraphUi> UiFactory<G> {
         self.mapping.insert(
             object_type,
             ObjectData {
-                ui: Box::new(T::default()),
+                ui: Rc::new(T::default()),
             },
         );
     }
@@ -67,8 +67,8 @@ impl<G: GraphUi> UiFactory<G> {
         self.mapping.keys().cloned()
     }
 
-    pub fn get_object_ui(&self, object_type: ObjectType) -> &dyn AnyObjectUi<G> {
-        &*self.mapping.get(&object_type).unwrap().ui
+    pub fn get_object_ui(&self, object_type: ObjectType) -> Rc<dyn AnyObjectUi<G>> {
+        Rc::clone(&self.mapping.get(&object_type).unwrap().ui)
     }
 
     pub fn ui(
@@ -76,14 +76,14 @@ impl<G: GraphUi> UiFactory<G> {
         object: &GraphObjectHandle<G::Graph>,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
-        ctx: &G::Context<'_>,
+        ctx: &mut G::Context<'_>,
     ) {
         let object_type = object.get_type();
         let id = object.id();
         match self.mapping.get(&object_type) {
             Some(data) => {
                 let state = ctx.get_object_ui_data(id);
-                data.ui.apply(object, state, graph_state, ui, ctx);
+                data.ui.apply(object, &*state, graph_state, ui, ctx);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",

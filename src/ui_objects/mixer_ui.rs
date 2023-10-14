@@ -23,7 +23,7 @@ impl ObjectUi for MixerUi {
         mixer: DynamicSoundProcessorHandle<Mixer>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
     ) {
         let mut objwin = ProcessorUi::new(mixer.id(), "Mixer", data.color);

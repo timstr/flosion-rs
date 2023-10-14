@@ -21,7 +21,7 @@ impl ObjectUi for WaveGeneratorUi {
         wavgen: DynamicSoundProcessorHandle<WaveGenerator>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &SoundGraphUiContext,
+        ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(wavgen.id(), "WaveGenerator", data.color)
