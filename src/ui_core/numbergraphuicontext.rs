@@ -1,14 +1,10 @@
 use std::rc::Rc;
 
 use crate::core::{
-    graph::graphobject::GraphObjectHandle,
-    number::{
-        numbergraph::NumberGraph, numbergraphtopology::NumberGraphTopology,
-        numbersource::NumberSourceId,
-    },
+    number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId},
     sound::{
-        soundgraphdata::SoundNumberInputTargetMapping, soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
+        soundgraphdata::SoundNumberInputTargetMapping, soundnumberinput::SoundNumberInputId,
+        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -107,6 +103,6 @@ impl<'a> GraphUiContext<'a> for NumberGraphUiContext<'a> {
     type GraphUi = NumberGraphUi;
 
     fn get_object_ui_data(&self, id: NumberSourceId) -> Rc<AnyNumberObjectUiData> {
-        todo!()
+        self.object_states.get_object_data(id)
     }
 }

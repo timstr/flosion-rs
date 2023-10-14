@@ -313,7 +313,7 @@ impl SoundGraphTopology {
         // remove the number source from any number inputs that use it
         for ni_data in self.number_inputs.values_mut() {
             let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
-            if let Some(giid) = mapping.target_graph_input(source_id) {
+            if mapping.target_graph_input(source_id).is_some() {
                 mapping.remove_target(source_id, numbergraph);
             }
         }

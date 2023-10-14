@@ -15,12 +15,12 @@ use crate::core::{
 use super::{
     graph_ui::GraphUiContext,
     numbergraphui::NumberGraphUi,
-    numbergraphuicontext::{NumberGraphUiContext, OuterSoundNumberInputContext},
+    numbergraphuicontext::NumberGraphUiContext,
     soundgraphui::SoundGraphUi,
     soundgraphuistate::SoundGraphUiState,
     soundnumberinputui::SpatialGraphInputReference,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    temporallayout::{TemporalLayout, TimeAxis},
+    temporallayout::TimeAxis,
     ui_factory::UiFactory,
 };
 

@@ -3,10 +3,7 @@ use eframe::egui;
 use crate::{
     core::{
         graph::graphobject::{ObjectType, WithObjectType},
-        sound::{
-            soundgraphtopology::SoundGraphTopology, soundnumbersource::SoundNumberSourceId,
-            soundprocessor::SoundProcessorId,
-        },
+        sound::{soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId},
         uniqueid::UniqueId,
     },
     objects::functions::Constant,
