@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
@@ -837,11 +835,27 @@ impl LexicalLayout {
                         }
                     }
                     NumberSummonValue::SoundNumberSource(snsid) => {
-                        let outer_context = match outer_context {
-                            OuterNumberGraphUiContext::SoundNumberInput(ctx) => ctx,
-                        };
-                        todo!();
-                        outer_context.input_mapping(); // TODO: use this
+                        let node;
+                        {
+                            let outer_context = match outer_context {
+                                OuterNumberGraphUiContext::SoundNumberInput(ctx) => ctx,
+                            };
+                            let giid = if let Some(giid) =
+                                outer_context.input_mapping().target_graph_input(snsid)
+                            {
+                                giid
+                            } else {
+                                outer_context.input_mapping().add_target(snsid, numbergraph)
+                            };
+                            node = ASTNode::new(ASTNodeValue::GraphInput(giid));
+                        }
+                        insert_to_numbergraph_at_cursor(
+                            self,
+                            focus.cursor_mut(),
+                            node,
+                            numbergraph,
+                            outer_context,
+                        );
                     }
                 };
                 *focus.summon_widget_state_mut() = None;
