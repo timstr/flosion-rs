@@ -25,10 +25,10 @@ impl ObjectUi for EnsembleUi {
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(ensemble.id(), "Ensemble", data.color)
-            .add_sound_input(ensemble.input.id())
-            .add_number_input(ensemble.frequency_in.id(), "Frequency In")
-            .add_number_input(ensemble.frequency_spread.id(), "Frequency Spread")
-            .add_number_source(ensemble.voice_frequency.id(), "Voice Frequency")
+            .add_sound_input(ensemble.input.id(), "input")
+            .add_number_input(ensemble.frequency_in.id(), "frequency_in")
+            .add_number_input(ensemble.frequency_spread.id(), "frequency_spread")
+            .add_number_source(ensemble.voice_frequency.id(), "voice_frequency")
             .show(ui, ctx, ui_state);
     }
 }

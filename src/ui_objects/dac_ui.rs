@@ -26,8 +26,7 @@ impl ObjectUi for DacUi {
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(dac.id(), "Dac", data.color)
-            // .add_left_peg(dac.input.id(), "Input")
-            .add_sound_input(dac.input.id())
+            .add_sound_input(dac.input.id(), "input")
             .show_with(ui, ctx, ui_state, |ui, _ui_state| {
                 if ui.add(egui::Button::new("Reset").wrap(false)).clicked() {
                     dac.reset();

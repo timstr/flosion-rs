@@ -25,10 +25,10 @@ impl ObjectUi for WaveGeneratorUi {
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(wavgen.id(), "WaveGenerator", data.color)
-            .add_number_input(wavgen.amplitude.id(), "Amplitude")
-            .add_number_input(wavgen.frequency.id(), "Frequency")
-            .add_number_source(wavgen.phase.id(), "Phase")
-            .add_number_source(wavgen.time.id(), "Time")
+            .add_number_input(wavgen.amplitude.id(), "amplitude")
+            .add_number_input(wavgen.frequency.id(), "frequency")
+            .add_number_source(wavgen.phase.id(), "phase")
+            .add_number_source(wavgen.time.id(), "time")
             .show(ui, ctx, ui_state);
     }
 }

@@ -124,6 +124,10 @@ impl SoundGraphUiNames {
         self.number_sources.get_mut(&id).unwrap().name = name.to_string();
     }
 
+    pub(crate) fn record_sound_input_name(&mut self, id: SoundInputId, name: &str) {
+        self.sound_inputs.get_mut(&id).unwrap().name = name.to_string();
+    }
+
     pub(crate) fn combined_number_source_name(&self, id: SoundNumberSourceId) -> String {
         let ns_data = self.number_source(id).unwrap();
         match ns_data.owner() {

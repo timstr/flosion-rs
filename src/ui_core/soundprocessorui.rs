@@ -11,19 +11,17 @@ use crate::core::{
 };
 
 use super::{
-    numbergraphuicontext::{OuterNumberGraphUiContext, OuterSoundNumberInputContext},
-    soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState,
-    soundnumberinputui::SoundNumberInputUi,
+    numbergraphuicontext::OuterNumberGraphUiContext, soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::SoundGraphUiState, soundnumberinputui::SoundNumberInputUi,
 };
 
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
     color: egui::Color32,
-    number_inputs: Vec<(SoundNumberInputId, &'static str)>,
-    number_sources: Vec<(SoundNumberSourceId, &'static str)>,
-    sound_inputs: Vec<SoundInputId>,
+    number_inputs: Vec<(SoundNumberInputId, String)>,
+    number_sources: Vec<(SoundNumberSourceId, String)>,
+    sound_inputs: Vec<(SoundInputId, String)>,
 }
 
 #[derive(Clone, Copy)]
@@ -44,22 +42,26 @@ impl ProcessorUi {
         }
     }
 
-    pub fn add_sound_input(mut self, input_id: SoundInputId) -> Self {
-        self.sound_inputs.push(input_id);
+    pub fn add_sound_input(mut self, input_id: SoundInputId, label: impl Into<String>) -> Self {
+        self.sound_inputs.push((input_id, label.into()));
         self
     }
 
-    pub fn add_number_input(mut self, input_id: SoundNumberInputId, label: &'static str) -> Self {
-        self.number_inputs.push((input_id, label));
+    pub fn add_number_input(
+        mut self,
+        input_id: SoundNumberInputId,
+        label: impl Into<String>,
+    ) -> Self {
+        self.number_inputs.push((input_id, label.into()));
         self
     }
 
     pub fn add_number_source(
         mut self,
         source_id: SoundNumberSourceId,
-        label: &'static str,
+        label: impl Into<String>,
     ) -> Self {
-        self.number_sources.push((source_id, label));
+        self.number_sources.push((source_id, label.into()));
         self
     }
 
@@ -252,10 +254,14 @@ impl ProcessorUi {
 
         let desired_width = ctx.width();
 
+        for (siid, label) in &self.sound_inputs {
+            ui_state.names_mut().record_sound_input_name(*siid, label);
+        }
+
         let r = outer_frame.show(ui, |ui| {
             ui.set_width(desired_width);
             if !self.sound_inputs.is_empty() {
-                for input_id in &self.sound_inputs {
+                for (input_id, _label) in &self.sound_inputs {
                     self.show_sound_input(ui, ctx, *input_id, ui_state, props);
                 }
             }
@@ -538,7 +544,7 @@ impl ProcessorUi {
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         input_id: SoundNumberInputId,
-        input_label: &'static str,
+        input_label: &str,
         ui_state: &mut SoundGraphUiState,
     ) {
         let fill = egui::Color32::from_black_alpha(64);

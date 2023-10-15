@@ -24,8 +24,8 @@ impl ObjectUi for ResamplerUi {
         data: SoundObjectUiData<()>,
     ) {
         ProcessorUi::new(resampler.id(), "Resampler", data.color)
-            .add_sound_input(resampler.input.id())
-            .add_number_input(resampler.speed_ratio.id(), "Speed Ratio")
+            .add_sound_input(resampler.input.id(), "input")
+            .add_number_input(resampler.speed_ratio.id(), "speed")
             .show(ui, ctx, ui_state);
     }
 }
