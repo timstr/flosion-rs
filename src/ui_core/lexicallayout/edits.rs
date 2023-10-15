@@ -264,7 +264,8 @@ fn remove_unreferenced_graph_inputs(
             match outer_context {
                 OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
                     let source_id = ctx.input_mapping().graph_input_target(giid).unwrap();
-                    ctx.input_mapping().remove_target(source_id, numbergraph);
+                    ctx.input_mapping_mut()
+                        .remove_target(source_id, numbergraph);
                 }
             }
         }

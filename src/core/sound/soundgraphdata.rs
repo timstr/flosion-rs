@@ -356,7 +356,7 @@ impl SoundNumberSourceData {
         }
     }
 
-    pub(super) fn id(&self) -> SoundNumberSourceId {
+    pub(crate) fn id(&self) -> SoundNumberSourceId {
         self.id
     }
 

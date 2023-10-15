@@ -111,6 +111,7 @@ impl SoundNumberInputUi {
         ctx: &mut NumberGraphUiContext,
         presentation: &mut SoundNumberInputPresentation,
         focus: Option<&mut LexicalLayoutFocus>,
+        outer_context: &mut OuterNumberGraphUiContext,
     ) -> Vec<SpatialGraphInputReference> {
         // TODO: expandable/collapsible popup window with full layout
         let frame = egui::Frame::default()
@@ -121,9 +122,14 @@ impl SoundNumberInputUi {
         frame
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                presentation
-                    .lexical_layout
-                    .show(ui, result_label, graph_state, ctx, focus)
+                presentation.lexical_layout.show(
+                    ui,
+                    result_label,
+                    graph_state,
+                    ctx,
+                    focus,
+                    outer_context,
+                )
             })
             .inner;
 

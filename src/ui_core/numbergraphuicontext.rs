@@ -1,7 +1,11 @@
 use std::rc::Rc;
 
 use crate::core::{
-    number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId},
+    number::{
+        numbergraph::{NumberGraph, NumberGraphInputId},
+        numbergraphtopology::NumberGraphTopology,
+        numbersource::NumberSourceId,
+    },
     sound::{
         soundgraphdata::SoundNumberInputTargetMapping, soundnumberinput::SoundNumberInputId,
         soundprocessor::SoundProcessorId,
@@ -12,6 +16,7 @@ use super::{
     graph_ui::GraphUiContext,
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{AnyNumberObjectUiData, NumberObjectUiStates},
+    soundgraphuinames::SoundGraphUiNames,
     temporallayout::TemporalLayout,
     ui_factory::UiFactory,
 };
@@ -21,6 +26,7 @@ pub(crate) struct OuterSoundNumberInputContext<'a> {
     parent_sound_processor_id: SoundProcessorId,
     temporal_layout: &'a TemporalLayout,
     input_mapping: &'a mut SoundNumberInputTargetMapping,
+    sound_graph_names: &'a SoundGraphUiNames,
 }
 
 impl<'a> OuterSoundNumberInputContext<'a> {
@@ -29,12 +35,14 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         parent_sound_processor_id: SoundProcessorId,
         temporal_layout: &'a TemporalLayout,
         input_mapping: &'a mut SoundNumberInputTargetMapping,
+        sound_graph_names: &'a SoundGraphUiNames,
     ) -> Self {
         Self {
             sound_number_input_id,
             parent_sound_processor_id,
             temporal_layout,
             input_mapping,
+            sound_graph_names,
         }
     }
 
@@ -50,8 +58,16 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         self.temporal_layout
     }
 
-    pub(super) fn input_mapping(&mut self) -> &mut SoundNumberInputTargetMapping {
+    pub(super) fn input_mapping(&self) -> &SoundNumberInputTargetMapping {
         self.input_mapping
+    }
+
+    pub(super) fn input_mapping_mut(&mut self) -> &mut SoundNumberInputTargetMapping {
+        self.input_mapping
+    }
+
+    pub(crate) fn sound_graph_names(&self) -> &SoundGraphUiNames {
+        self.sound_graph_names
     }
 }
 
@@ -66,23 +82,33 @@ impl<'a> From<OuterSoundNumberInputContext<'a>> for OuterNumberGraphUiContext<'a
     }
 }
 
+impl<'a> OuterNumberGraphUiContext<'a> {
+    pub(crate) fn graph_input_name(&self, input_id: NumberGraphInputId) -> String {
+        match self {
+            OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
+                let nsid = ctx.input_mapping().graph_input_target(input_id).unwrap();
+                ctx.sound_graph_names().combined_number_source_name(nsid)
+            }
+        }
+    }
+}
+
 pub struct NumberGraphUiContext<'a> {
     ui_factory: &'a UiFactory<NumberGraphUi>,
     object_states: &'a NumberObjectUiStates,
-    // TODO: replace with &mut NumberGraph ?
-    topology: &'a NumberGraphTopology,
+    number_graph: &'a mut NumberGraph,
 }
 
 impl<'a> NumberGraphUiContext<'a> {
     pub(super) fn new(
         ui_factory: &'a UiFactory<NumberGraphUi>,
         object_states: &'a NumberObjectUiStates,
-        topology: &'a NumberGraphTopology,
+        number_graph: &'a mut NumberGraph,
     ) -> NumberGraphUiContext<'a> {
         NumberGraphUiContext {
             ui_factory,
             object_states,
-            topology,
+            number_graph,
         }
     }
 
@@ -95,7 +121,7 @@ impl<'a> NumberGraphUiContext<'a> {
     }
 
     pub(super) fn topology(&self) -> &NumberGraphTopology {
-        self.topology
+        self.number_graph.topology()
     }
 }
 

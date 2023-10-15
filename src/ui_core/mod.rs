@@ -11,6 +11,7 @@ pub mod object_ui;
 pub mod object_ui_states;
 pub mod soundgraphui;
 pub mod soundgraphuicontext;
+pub mod soundgraphuinames;
 pub mod soundgraphuistate;
 pub mod soundnumberinputui;
 pub mod soundobjectuistate;

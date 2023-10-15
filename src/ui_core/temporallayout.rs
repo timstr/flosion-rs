@@ -26,7 +26,6 @@ pub struct TopLevelLayout {
 pub struct TemporalLayout {
     top_level_objects: HashMap<SoundObjectId, TopLevelLayout>,
     available_number_sources: HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>>,
-    number_source_names: HashMap<SoundNumberSourceId, String>,
 }
 
 impl TemporalLayout {
@@ -36,7 +35,6 @@ impl TemporalLayout {
         TemporalLayout {
             top_level_objects: HashMap::new(),
             available_number_sources: HashMap::new(),
-            number_source_names: HashMap::new(),
         }
     }
 
@@ -116,8 +114,6 @@ impl TemporalLayout {
             .retain(|k, _v| topo.contains((*k).into()));
 
         self.available_number_sources = available_sound_number_sources(topo);
-        self.number_source_names
-            .retain(|k, _v| topo.contains((*k).into()));
     }
 
     pub(crate) fn find_root_processor(
@@ -190,13 +186,5 @@ impl TemporalLayout {
         processor_id: SoundProcessorId,
     ) -> &HashSet<SoundNumberSourceId> {
         self.available_number_sources.get(&processor_id).unwrap()
-    }
-
-    pub(super) fn record_number_source_name(&mut self, id: SoundNumberSourceId, name: String) {
-        self.number_source_names.insert(id, name);
-    }
-
-    pub(super) fn number_source_name(&self, id: SoundNumberSourceId) -> Option<&str> {
-        self.number_source_names.get(&id).map(|s| s.as_str())
     }
 }

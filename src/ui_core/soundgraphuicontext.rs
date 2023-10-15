@@ -15,12 +15,13 @@ use crate::core::{
 use super::{
     graph_ui::GraphUiContext,
     numbergraphui::NumberGraphUi,
-    numbergraphuicontext::NumberGraphUiContext,
+    numbergraphuicontext::{NumberGraphUiContext, OuterSoundNumberInputContext},
     soundgraphui::SoundGraphUi,
+    soundgraphuinames::SoundGraphUiNames,
     soundgraphuistate::SoundGraphUiState,
     soundnumberinputui::SpatialGraphInputReference,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    temporallayout::TimeAxis,
+    temporallayout::{TemporalLayout, TimeAxis},
     ui_factory::UiFactory,
 };
 
@@ -136,31 +137,32 @@ impl<'a> SoundGraphUiContext<'a> {
         self.parent_input
     }
 
-    pub(crate) fn with_number_graph_ui_context<R, F: FnOnce(&mut NumberGraphUiContext) -> R>(
+    pub(crate) fn with_number_graph_ui_context<
+        R,
+        F: FnOnce(&mut NumberGraphUiContext, OuterSoundNumberInputContext) -> R,
+    >(
         &mut self,
         input_id: SoundNumberInputId,
-        // temporal_layout: &TemporalLayout,
+        temporal_layout: &TemporalLayout,
+        names: &SoundGraphUiNames,
         f: F,
     ) -> Result<R, SoundError> {
-        // TODO: also return mutable reference to numbergraph here?
         let object_states = self.object_states.number_graph_object_state(input_id);
         let owner = self.topology().number_input(input_id).unwrap().owner();
         self.sound_graph
             .edit_number_input(input_id, |number_input_data| {
                 let (number_graph, target_mapping) =
                     number_input_data.number_graph_and_mapping_mut();
-                // let sni_ctx = OuterSoundNumberInputContext::new(
-                //     input_id,
-                //     owner,
-                //     temporal_layout,
-                //     target_mapping,
-                // );
-                let mut ctx = NumberGraphUiContext::new(
-                    &self.number_ui_factory,
-                    object_states,
-                    number_graph.topology(),
+                let sni_ctx = OuterSoundNumberInputContext::new(
+                    input_id,
+                    owner,
+                    temporal_layout,
+                    target_mapping,
+                    names,
                 );
-                f(&mut ctx)
+                let mut ctx =
+                    NumberGraphUiContext::new(&self.number_ui_factory, object_states, number_graph);
+                f(&mut ctx, sni_ctx)
             })
     }
 }

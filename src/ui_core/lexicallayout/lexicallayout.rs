@@ -290,6 +290,7 @@ impl LexicalLayout {
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
         mut focus: Option<&mut LexicalLayoutFocus>,
+        outer_context: &OuterNumberGraphUiContext,
     ) {
         let variable_definitions = &self.variable_definitions;
         let num_variable_definitions = variable_definitions.len();
@@ -316,6 +317,7 @@ impl LexicalLayout {
                                 ctx,
                                 ASTPathBuilder::Root(ASTRoot::VariableDefinition(var_def)),
                                 cursor,
+                                outer_context,
                             );
                             ui.label(",");
                         });
@@ -341,6 +343,7 @@ impl LexicalLayout {
                             ctx,
                             ASTPathBuilder::Root(ASTRoot::FinalExpression),
                             cursor,
+                            outer_context,
                         );
                         ui.label(".");
                     });
@@ -408,6 +411,7 @@ impl LexicalLayout {
         ctx: &mut NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
+        outer_context: &OuterNumberGraphUiContext,
     ) {
         let hovering = ui
             .input(|i| i.pointer.hover_pos())
@@ -421,7 +425,15 @@ impl LexicalLayout {
                     r.rect
                 }
                 ASTNodeValue::Internal(n) => {
-                    let r = Self::show_internal_node(ui, n, graph_state, ctx, path, cursor);
+                    let r = Self::show_internal_node(
+                        ui,
+                        n,
+                        graph_state,
+                        ctx,
+                        path,
+                        cursor,
+                        outer_context,
+                    );
                     r.rect
                 }
                 ASTNodeValue::Variable(name) => {
@@ -433,7 +445,7 @@ impl LexicalLayout {
                     .rect
                 }
                 ASTNodeValue::GraphInput(giid) => {
-                    let name = format!("input{}", giid.value());
+                    let name = outer_context.graph_input_name(*giid);
                     let r = ui
                         .add(egui::Label::new(
                             egui::RichText::new(name).code().color(egui::Color32::WHITE),
@@ -453,6 +465,7 @@ impl LexicalLayout {
         ctx: &mut NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
+        outer_context: &OuterNumberGraphUiContext,
     ) -> egui::Response {
         let styled_text = |ui: &mut egui::Ui, s: String| -> egui::Response {
             let text = egui::RichText::new(s).code().color(egui::Color32::WHITE);
@@ -476,6 +489,7 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 0),
                         cursor,
+                        outer_context,
                     );
                     r
                 }
@@ -487,6 +501,7 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 0),
                         cursor,
+                        outer_context,
                     );
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
                         Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
@@ -498,6 +513,7 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 1),
                         cursor,
+                        outer_context,
                     );
                     r
                 }
@@ -509,6 +525,7 @@ impl LexicalLayout {
                         ctx,
                         path.push(node, 0),
                         cursor,
+                        outer_context,
                     );
                     Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
                         Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
@@ -544,6 +561,7 @@ impl LexicalLayout {
                                             ctx,
                                             path.push(node, i),
                                             cursor,
+                                            outer_context,
                                         );
                                         styled_text(ui, ",".to_string());
                                     }
@@ -554,6 +572,7 @@ impl LexicalLayout {
                                         ctx,
                                         path.push(node, other_exprs.len()),
                                         cursor,
+                                        outer_context,
                                     );
                                 }
                                 styled_text(ui, ")".to_string());
@@ -787,8 +806,7 @@ impl LexicalLayout {
                         build_summon_widget_for_sound_number_input(
                             node_at_cursor.rect().center_bottom(),
                             ui_factory,
-                            sni_ctx.parent_sound_processor_id(),
-                            sni_ctx.temporal_layout(),
+                            sni_ctx,
                         )
                     }
                 };
@@ -845,7 +863,9 @@ impl LexicalLayout {
                             {
                                 giid
                             } else {
-                                outer_context.input_mapping().add_target(snsid, numbergraph)
+                                outer_context
+                                    .input_mapping_mut()
+                                    .add_target(snsid, numbergraph)
                             };
                             node = ASTNode::new(ASTNodeValue::GraphInput(giid));
                         }

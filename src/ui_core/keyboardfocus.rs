@@ -13,8 +13,8 @@ use crate::core::{
 use super::{
     lexicallayout::lexicallayout::LexicalLayoutFocus, numbergraphui::NumberGraphUi,
     numbergraphuicontext::OuterSoundNumberInputContext,
-    numbergraphuistate::SoundNumberInputUiCollection, soundobjectuistate::SoundObjectUiStates,
-    temporallayout::TemporalLayout, ui_factory::UiFactory,
+    numbergraphuistate::SoundNumberInputUiCollection, soundgraphuinames::SoundGraphUiNames,
+    soundobjectuistate::SoundObjectUiStates, temporallayout::TemporalLayout, ui_factory::UiFactory,
 };
 
 pub(super) enum KeyboardFocusState {
@@ -127,6 +127,7 @@ impl KeyboardFocusState {
         ui: &egui::Ui,
         soundgraph: &mut SoundGraph,
         temporal_layout: &TemporalLayout,
+        names: &SoundGraphUiNames,
         number_graph_uis: &mut SoundNumberInputUiCollection,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
@@ -153,8 +154,13 @@ impl KeyboardFocusState {
             soundgraph
                 .edit_number_input(*niid, |numberinputdata| {
                     let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
-                    let outer_context =
-                        OuterSoundNumberInputContext::new(*niid, owner, temporal_layout, mapping);
+                    let outer_context = OuterSoundNumberInputContext::new(
+                        *niid,
+                        owner,
+                        temporal_layout,
+                        mapping,
+                        names,
+                    );
                     ui_presentation.handle_keypress(
                         ui,
                         ni_focus,

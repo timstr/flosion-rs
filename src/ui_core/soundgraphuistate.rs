@@ -23,6 +23,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
+    soundgraphuinames::SoundGraphUiNames,
     soundnumberinputui::SoundNumberInputPresentation,
     soundobjectuistate::SoundObjectUiStates,
     temporallayout::TemporalLayout,
@@ -85,6 +86,7 @@ pub struct SoundGraphUiState {
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
     number_input_uis: SoundNumberInputUiCollection,
+    names: SoundGraphUiNames,
 }
 
 impl SoundGraphUiState {
@@ -96,6 +98,7 @@ impl SoundGraphUiState {
             mode: UiMode::Passive,
             pending_drag: None,
             number_input_uis: SoundNumberInputUiCollection::new(),
+            names: SoundGraphUiNames::new(),
         }
     }
 
@@ -495,6 +498,8 @@ impl SoundGraphUiState {
         self.temporal_layout.regenerate(topo);
 
         self.number_input_uis.cleanup(topo);
+
+        self.names.regenerate(topo);
     }
 
     pub(super) fn selection(&self) -> HashSet<SoundObjectId> {
@@ -543,6 +548,7 @@ impl SoundGraphUiState {
                 ui,
                 soundgraph,
                 &self.temporal_layout,
+                &self.names,
                 &mut self.number_input_uis,
                 number_object_factory,
                 number_ui_factory,
@@ -645,19 +651,35 @@ impl SoundGraphUiState {
         }
     }
 
-    pub(super) fn number_graph_ui(
+    pub(super) fn number_graph_ui_parts(
         &mut self,
         input_id: SoundNumberInputId,
     ) -> (
         &mut NumberGraphUiState,
         &mut SoundNumberInputPresentation,
         Option<&mut LexicalLayoutFocus>,
+        &TemporalLayout,
+        &SoundGraphUiNames,
     ) {
         let (ui_state, presentation) = self.number_input_uis.get_mut(input_id).unwrap();
         let focus = match &mut self.mode {
             UiMode::UsingKeyboardNav(kbd) => kbd.sound_number_input_focus(input_id),
             _ => None,
         };
-        (ui_state, presentation, focus)
+        (
+            ui_state,
+            presentation,
+            focus,
+            &self.temporal_layout,
+            &self.names,
+        )
+    }
+
+    pub(crate) fn names(&self) -> &SoundGraphUiNames {
+        &self.names
+    }
+
+    pub(crate) fn names_mut(&mut self) -> &mut SoundGraphUiNames {
+        &mut self.names
     }
 }

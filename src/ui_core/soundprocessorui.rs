@@ -11,7 +11,9 @@ use crate::core::{
 };
 
 use super::{
-    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+    numbergraphuicontext::{OuterNumberGraphUiContext, OuterSoundNumberInputContext},
+    soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::SoundGraphUiState,
     soundnumberinputui::SoundNumberInputUi,
 };
 
@@ -80,9 +82,7 @@ impl ProcessorUi {
         add_contents: F,
     ) {
         for (nsid, name) in &self.number_sources {
-            ui_state
-                .temporal_layout_mut()
-                .record_number_source_name(*nsid, name.to_string());
+            ui_state.names_mut().record_number_source_name(*nsid, name);
         }
 
         #[cfg(debug_assertions)]
@@ -553,22 +553,27 @@ impl ProcessorUi {
 
             let input_ui = SoundNumberInputUi::new(input_id);
 
-            // fack
-            // The number input data (number graph and input mapping) should be borrowed mutably here
-            // in order to allow changes via the UI
-            let graph_input_references = ctx
-                .with_number_graph_ui_context(input_id, |number_ctx| {
-                    let (number_ui_state, presentation, focus) = ui_state.number_graph_ui(input_id);
+            let (number_ui_state, presentation, focus, temporal_layout, names) =
+                ui_state.number_graph_ui_parts(input_id);
 
-                    input_ui.show(
-                        ui,
-                        input_label,
-                        number_ui_state,
-                        number_ctx,
-                        presentation,
-                        focus,
-                    )
-                })
+            let graph_input_references = ctx
+                .with_number_graph_ui_context(
+                    input_id,
+                    temporal_layout,
+                    names,
+                    |number_ctx, sni_ctx| {
+                        let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
+                        input_ui.show(
+                            ui,
+                            input_label,
+                            number_ui_state,
+                            number_ctx,
+                            presentation,
+                            focus,
+                            &mut outer_ctx,
+                        )
+                    },
+                )
                 .unwrap();
 
             graph_input_references
