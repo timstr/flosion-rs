@@ -297,6 +297,29 @@ impl SoundGraph {
 
         let mut edit_queue = Vec::new();
 
+        // disconnect any number inputs
+        for ni in self.local_topology.number_inputs().values() {
+            for target_ns in ni.target_mapping().items().values() {
+                // uhhhhhhhhhh
+                // the number source to number graph mapping is now controlled by NumberInputData
+                // and there is no edit type corresponding to it.
+                // Mutable access to the sound graph can't be a requirement since sound number sources
+                // will be added to the number graph by LexicalLayout which has mutable access to
+                // a numbergraph contained in the sound graph.
+                // Some options:
+                // - eagerly edit the number input and remove its connections
+                //    -> Bad, subverts the point of edits and breaks rolling back
+                // - have an edit type which modifies the number input
+                //    -> This was tried, it was a royal pain
+                // - add edit types which connect and disconnect sound number sources
+                //    -> This would seem intuitive, since admittedly it's a bit weird
+                //       currently that these connections can be made within a number
+                //       input alone even though they have implications for the sound graph
+                //    -> Uhhhhhhhhhhhhhhhhhhhhhh
+                todo!()
+            }
+        }
+
         // find all sound connections involving these objects and disconnect them
         for si in self.local_topology.sound_inputs().values() {
             if si.target().is_some() {
