@@ -48,7 +48,6 @@ impl SoundNumberInputPresentation {
         &mut self,
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        numbergraph: &mut NumberGraph,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
@@ -57,7 +56,6 @@ impl SoundNumberInputPresentation {
         self.lexical_layout.handle_keypress(
             ui,
             focus,
-            numbergraph,
             object_factory,
             ui_factory,
             object_ui_states,

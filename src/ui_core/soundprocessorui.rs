@@ -562,25 +562,23 @@ impl ProcessorUi {
             let (number_ui_state, presentation, focus, temporal_layout, names) =
                 ui_state.number_graph_ui_parts(input_id);
 
-            let graph_input_references = ctx
-                .with_number_graph_ui_context(
-                    input_id,
-                    temporal_layout,
-                    names,
-                    |number_ctx, sni_ctx| {
-                        let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
-                        input_ui.show(
-                            ui,
-                            input_label,
-                            number_ui_state,
-                            number_ctx,
-                            presentation,
-                            focus,
-                            &mut outer_ctx,
-                        )
-                    },
-                )
-                .unwrap();
+            let graph_input_references = ctx.with_number_graph_ui_context(
+                input_id,
+                temporal_layout,
+                names,
+                |number_ctx, sni_ctx| {
+                    let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
+                    input_ui.show(
+                        ui,
+                        input_label,
+                        number_ui_state,
+                        number_ctx,
+                        presentation,
+                        focus,
+                        &mut outer_ctx,
+                    )
+                },
+            );
 
             graph_input_references
         });

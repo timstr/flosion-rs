@@ -210,6 +210,12 @@ impl SoundGraphTopology {
             SoundNumberEdit::RemoveNumberSource(id, owner) => self.remove_number_source(id, owner),
             SoundNumberEdit::AddNumberInput(data) => self.add_number_input(data),
             SoundNumberEdit::RemoveNumberInput(id, owner) => self.remove_number_input(id, owner),
+            SoundNumberEdit::ConnectNumberInput(niid, nsid) => {
+                self.connect_number_input(niid, nsid)
+            }
+            SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
+                self.disconnect_number_input(niid, nsid)
+            }
         }
     }
 
@@ -354,6 +360,16 @@ impl SoundGraphTopology {
         proc_data.number_inputs_mut().retain(|niid| *niid != id);
 
         self.number_inputs.remove(&id);
+    }
+
+    pub fn connect_number_input(
+        &mut self,
+        input_id: SoundNumberInputId,
+        source_id: SoundNumberSourceId,
+    ) {
+        let numberinputdata = self.number_input_mut(input_id).unwrap();
+        let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
+        mapping.add_target(source_id, numbergraph);
     }
 
     pub fn disconnect_number_input(

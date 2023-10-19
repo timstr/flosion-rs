@@ -8,7 +8,6 @@ use crate::{
             numbergraph::NumberGraph, numbergraphdata::NumberTarget,
             numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
         },
-        uniqueid::UniqueId,
     },
     ui_core::{
         lexicallayout::ast::{ASTNodeValue, InternalASTNodeValue},
@@ -480,7 +479,7 @@ impl LexicalLayout {
             let own_rect = match &node.value() {
                 InternalASTNodeValue::Prefix(nsid, expr) => {
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
+                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
                     });
                     Self::show_child_ast_node(
                         ui,
@@ -504,7 +503,7 @@ impl LexicalLayout {
                         outer_context,
                     );
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
+                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
                     });
                     Self::show_child_ast_node(
                         ui,
@@ -528,13 +527,13 @@ impl LexicalLayout {
                         outer_context,
                     );
                     Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
+                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
                     })
                 }
                 InternalASTNodeValue::Function(nsid, exprs) => {
                     if exprs.is_empty() {
                         Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                            Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
+                            Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
                         })
                     } else {
                         let frame = egui::Frame::default()
@@ -548,7 +547,13 @@ impl LexicalLayout {
                                     cursor,
                                     hovering_over_self,
                                     |ui, _| {
-                                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx)
+                                        Self::show_number_source_ui(
+                                            ui,
+                                            *nsid,
+                                            graph_state,
+                                            ctx,
+                                            outer_context,
+                                        )
                                     },
                                 );
                                 styled_text(ui, "(".to_string());
@@ -594,13 +599,16 @@ impl LexicalLayout {
         id: NumberSourceId,
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
+        outer_context: &OuterNumberGraphUiContext,
     ) -> egui::Rect {
-        let graph_object = ctx
-            .topology()
-            .number_source(id)
-            .unwrap()
-            .instance_arc()
-            .as_graph_object();
+        let graph_object = outer_context.inspect_number_graph(|numbergraph| {
+            numbergraph
+                .topology()
+                .number_source(id)
+                .unwrap()
+                .instance_arc()
+                .as_graph_object()
+        });
         let object_type = graph_object.get_type();
         let object_ui = ctx.ui_factory().get_object_ui(object_type);
         let object_state = ctx.object_ui_states().get_object_data(id);
@@ -671,7 +679,6 @@ impl LexicalLayout {
         &mut self,
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        numbergraph: &mut NumberGraph,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
@@ -701,19 +708,13 @@ impl LexicalLayout {
                 ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
 
             if pressed_delete {
-                delete_from_numbergraph_at_cursor(
-                    self,
-                    focus.cursor_mut(),
-                    numbergraph,
-                    outer_context,
-                );
+                delete_from_numbergraph_at_cursor(self, focus.cursor_mut(), outer_context);
             }
         }
 
         self.handle_summon_widget(
             ui,
             focus,
-            numbergraph,
             object_factory,
             ui_factory,
             object_ui_states,
@@ -759,7 +760,6 @@ impl LexicalLayout {
         &mut self,
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        numbergraph: &mut NumberGraph,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
@@ -827,7 +827,7 @@ impl LexicalLayout {
                                 object_factory,
                                 ui_factory,
                                 object_ui_states,
-                                numbergraph,
+                                outer_context,
                             )
                             .unwrap();
 
@@ -836,7 +836,6 @@ impl LexicalLayout {
                             self,
                             focus.cursor_mut(),
                             node,
-                            numbergraph,
                             outer_context,
                         );
 
@@ -859,13 +858,11 @@ impl LexicalLayout {
                                 OuterNumberGraphUiContext::SoundNumberInput(ctx) => ctx,
                             };
                             let giid = if let Some(giid) =
-                                outer_context.input_mapping().target_graph_input(snsid)
+                                outer_context.find_graph_id_for_number_source(snsid)
                             {
                                 giid
                             } else {
-                                outer_context
-                                    .input_mapping_mut()
-                                    .add_target(snsid, numbergraph)
+                                outer_context.connect_to_number_source(snsid)
                             };
                             node = ASTNode::new(ASTNodeValue::GraphInput(giid));
                         }
@@ -873,7 +870,6 @@ impl LexicalLayout {
                             self,
                             focus.cursor_mut(),
                             node,
-                            numbergraph,
                             outer_context,
                         );
                     }
@@ -889,9 +885,13 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
-        numbergraph: &mut NumberGraph,
+        outer_context: &mut OuterNumberGraphUiContext,
     ) -> Result<(ASTNode, NumberSourceLayout), String> {
-        let new_object = object_factory.create_default(ns_type.name(), numbergraph);
+        let new_object = outer_context
+            .edit_number_graph(|numbergraph| {
+                object_factory.create_default(ns_type.name(), numbergraph)
+            })
+            .unwrap();
 
         let new_object = match new_object {
             Ok(o) => o,
@@ -905,12 +905,14 @@ impl LexicalLayout {
 
         let new_ui_state = ui_factory.create_default_state(&new_object);
 
-        let num_inputs = numbergraph
-            .topology()
-            .number_source(new_object.id())
-            .unwrap()
-            .number_inputs()
-            .len();
+        let num_inputs = outer_context.inspect_number_graph(|numbergraph| {
+            numbergraph
+                .topology()
+                .number_source(new_object.id())
+                .unwrap()
+                .number_inputs()
+                .len()
+        });
         let child_nodes: Vec<ASTNode> = (0..num_inputs)
             .map(|_| ASTNode::new(ASTNodeValue::Empty))
             .collect();

@@ -146,24 +146,18 @@ impl<'a> SoundGraphUiContext<'a> {
         temporal_layout: &TemporalLayout,
         names: &SoundGraphUiNames,
         f: F,
-    ) -> Result<R, SoundError> {
+    ) -> R {
         let object_states = self.object_states.number_graph_object_state(input_id);
         let owner = self.topology().number_input(input_id).unwrap().owner();
-        self.sound_graph
-            .edit_number_input(input_id, |number_input_data| {
-                let (number_graph, target_mapping) =
-                    number_input_data.number_graph_and_mapping_mut();
-                let sni_ctx = OuterSoundNumberInputContext::new(
-                    input_id,
-                    owner,
-                    temporal_layout,
-                    target_mapping,
-                    names,
-                );
-                let mut ctx =
-                    NumberGraphUiContext::new(&self.number_ui_factory, object_states, number_graph);
-                f(&mut ctx, sni_ctx)
-            })
+        let sni_ctx = OuterSoundNumberInputContext::new(
+            input_id,
+            owner,
+            temporal_layout,
+            self.sound_graph,
+            names,
+        );
+        let mut ctx = NumberGraphUiContext::new(&self.number_ui_factory, object_states);
+        f(&mut ctx, sni_ctx)
     }
 }
 

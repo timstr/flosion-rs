@@ -102,6 +102,20 @@ impl SoundGraphClosure {
         }
         false
     }
+
+    fn includes_number_connection(
+        &self,
+        niid: SoundNumberInputId,
+        nsid: SoundNumberSourceId,
+    ) -> bool {
+        if self.number_inputs.contains(&niid) {
+            return true;
+        }
+        if self.number_sources.contains(&nsid) {
+            return true;
+        }
+        false
+    }
 }
 
 pub struct SoundGraph {
@@ -297,26 +311,16 @@ impl SoundGraph {
 
         let mut edit_queue = Vec::new();
 
-        // disconnect any number inputs
+        // TODO: remove any number connections that would be indirectly invalidated?
+
+        // remove number connections
         for ni in self.local_topology.number_inputs().values() {
             for target_ns in ni.target_mapping().items().values() {
-                // uhhhhhhhhhh
-                // the number source to number graph mapping is now controlled by NumberInputData
-                // and there is no edit type corresponding to it.
-                // Mutable access to the sound graph can't be a requirement since sound number sources
-                // will be added to the number graph by LexicalLayout which has mutable access to
-                // a numbergraph contained in the sound graph.
-                // Some options:
-                // - eagerly edit the number input and remove its connections
-                //    -> Bad, subverts the point of edits and breaks rolling back
-                // - have an edit type which modifies the number input
-                //    -> This was tried, it was a royal pain
-                // - add edit types which connect and disconnect sound number sources
-                //    -> This would seem intuitive, since admittedly it's a bit weird
-                //       currently that these connections can be made within a number
-                //       input alone even though they have implications for the sound graph
-                //    -> Uhhhhhhhhhhhhhhhhhhhhhh
-                todo!()
+                if closure.includes_number_connection(ni.id(), *target_ns) {
+                    edit_queue.push(SoundGraphEdit::Number(
+                        SoundNumberEdit::DisconnectNumberInput(ni.id(), *target_ns),
+                    ));
+                }
             }
         }
 

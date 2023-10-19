@@ -631,6 +631,9 @@ impl FlosionApp {
 
     fn delete_selection(ui_state: &mut SoundGraphUiState) {
         let selection: Vec<SoundObjectId> = ui_state.selection().iter().cloned().collect();
+        if selection.is_empty() {
+            return;
+        }
         ui_state.make_change(move |g, _s| {
             g.remove_objects_batch(&selection).unwrap_or_else(|e| {
                 println!("Nope! Can't remove that:\n    {:?}", e);

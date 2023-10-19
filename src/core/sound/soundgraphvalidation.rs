@@ -453,28 +453,6 @@ pub(crate) fn validate_sound_number_connection(
     todo!()
 }
 
-// Returns true iff the target processor is always indirectly evaluated by the source processor
-// whenever it is evaluated
-// TODO: consider renaming to processor_always_depends_on_processor
-pub(crate) fn processor_is_in_scope(
-    topology: &SoundGraphTopology,
-    source_processor_id: SoundProcessorId,
-    target_processor_id: SoundProcessorId,
-) -> bool {
-    if source_processor_id == target_processor_id {
-        return true;
-    }
-
-    for target_input in topology.sound_processor_targets(source_processor_id) {
-        let proc_id = topology.sound_input(target_input).unwrap().owner();
-        if !processor_is_in_scope(topology, proc_id, target_processor_id) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 pub(crate) fn available_sound_number_sources(
     topology: &SoundGraphTopology,
 ) -> HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>> {

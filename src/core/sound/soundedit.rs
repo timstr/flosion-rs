@@ -4,7 +4,9 @@ use super::{
     },
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::{validate_sound_connection, validate_sound_disconnection},
+    soundgraphvalidation::{
+        validate_sound_connection, validate_sound_disconnection, validate_sound_number_connection,
+    },
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
     soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
@@ -37,6 +39,8 @@ pub(crate) enum SoundNumberEdit {
     RemoveNumberSource(SoundNumberSourceId, SoundNumberSourceOwner),
     AddNumberInput(SoundNumberInputData),
     RemoveNumberInput(SoundNumberInputId, SoundProcessorId),
+    ConnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
+    DisconnectNumberInput(SoundNumberInputId, SoundNumberSourceId),
 }
 
 impl SoundEdit {
@@ -225,6 +229,8 @@ impl SoundNumberEdit {
             SoundNumberEdit::RemoveNumberSource(_, _) => "RemoveNumberSource",
             SoundNumberEdit::AddNumberInput(_) => "AddNumberInput",
             SoundNumberEdit::RemoveNumberInput(_, _) => "RemoveNumberInput",
+            SoundNumberEdit::ConnectNumberInput(_, _) => "ConnectNumberInput",
+            SoundNumberEdit::DisconnectNumberInput(_, _) => "DisconnectNumberInput",
         }
     }
 
@@ -328,6 +334,49 @@ impl SoundNumberEdit {
                 // the number input must not be connected
                 if !data.target_mapping().items().is_empty() {
                     return Some(SoundError::BadNumberInputCleanup(*niid));
+                }
+            }
+            SoundNumberEdit::ConnectNumberInput(niid, nsid) => {
+                // The number input must exist
+                let Some(ni_data) = topo.number_input(*niid) else {
+                    return Some(SoundError::NumberInputNotFound(*niid).into());
+                };
+
+                // The number source must exist
+                if topo.number_source(*nsid).is_none() {
+                    return Some(SoundError::NumberSourceNotFound(*nsid));
+                }
+
+                // The number input must not yet be connected to the number source
+                if ni_data.target_mapping().target_graph_input(*nsid).is_some() {
+                    return Some(SoundError::NumberInputAlreadyConnected {
+                        input_id: *niid,
+                        target: *nsid,
+                    });
+                }
+
+                // The number source must always be in scope
+                if let Err(err) = validate_sound_number_connection(topo, *niid, *nsid) {
+                    return Some(err);
+                }
+            }
+            SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
+                // The number input must exist
+                let Some(ni_data) = topo.number_input(*niid) else {
+                    return Some(SoundError::NumberInputNotFound(*niid).into());
+                };
+
+                // The number source must exist
+                if topo.number_source(*nsid).is_none() {
+                    return Some(SoundError::NumberSourceNotFound(*nsid));
+                }
+
+                // The number input must be connected to the number source
+                if ni_data.target_mapping().target_graph_input(*nsid).is_none() {
+                    return Some(SoundError::NumberInputNotConnected {
+                        input_id: *niid,
+                        target: *nsid,
+                    });
                 }
             }
         }

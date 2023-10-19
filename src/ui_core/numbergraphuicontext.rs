@@ -3,12 +3,11 @@ use std::rc::Rc;
 use crate::core::{
     number::{
         numbergraph::{NumberGraph, NumberGraphInputId},
-        numbergraphtopology::NumberGraphTopology,
         numbersource::NumberSourceId,
     },
     sound::{
-        soundgraphdata::SoundNumberInputTargetMapping, soundnumberinput::SoundNumberInputId,
-        soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundgrapherror::SoundError, soundnumberinput::SoundNumberInputId,
+        soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -25,7 +24,7 @@ pub(crate) struct OuterSoundNumberInputContext<'a> {
     sound_number_input_id: SoundNumberInputId,
     parent_sound_processor_id: SoundProcessorId,
     temporal_layout: &'a TemporalLayout,
-    input_mapping: &'a mut SoundNumberInputTargetMapping,
+    sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
 }
 
@@ -34,14 +33,14 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         sound_number_input_id: SoundNumberInputId,
         parent_sound_processor_id: SoundProcessorId,
         temporal_layout: &'a TemporalLayout,
-        input_mapping: &'a mut SoundNumberInputTargetMapping,
+        sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
     ) -> Self {
         Self {
             sound_number_input_id,
             parent_sound_processor_id,
             temporal_layout,
-            input_mapping,
+            sound_graph,
             sound_graph_names,
         }
     }
@@ -58,16 +57,49 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         self.temporal_layout
     }
 
-    pub(super) fn input_mapping(&self) -> &SoundNumberInputTargetMapping {
-        self.input_mapping
+    pub(crate) fn sound_graph(&self) -> &SoundGraph {
+        self.sound_graph
     }
 
-    pub(super) fn input_mapping_mut(&mut self) -> &mut SoundNumberInputTargetMapping {
-        self.input_mapping
+    pub(crate) fn sound_graph_mut(&mut self) -> &mut SoundGraph {
+        self.sound_graph
     }
 
     pub(crate) fn sound_graph_names(&self) -> &SoundGraphUiNames {
         self.sound_graph_names
+    }
+
+    pub(crate) fn find_graph_id_for_number_source(
+        &self,
+        nsid: SoundNumberSourceId,
+    ) -> Option<NumberGraphInputId> {
+        self.sound_graph
+            .topology()
+            .number_input(self.sound_number_input_id)
+            .unwrap()
+            .target_mapping()
+            .target_graph_input(nsid)
+    }
+
+    pub(crate) fn connect_to_number_source(
+        &mut self,
+        nsid: SoundNumberSourceId,
+    ) -> NumberGraphInputId {
+        self.sound_graph
+            .edit_number_input(self.sound_number_input_id, |ni_data| {
+                let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
+                mapping.add_target(nsid, numbergraph)
+            })
+            .unwrap()
+    }
+
+    pub(crate) fn disconnect_from_number_source(&mut self, nsid: SoundNumberSourceId) {
+        self.sound_graph
+            .edit_number_input(self.sound_number_input_id, |ni_data| {
+                let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
+                mapping.remove_target(nsid, numbergraph);
+            })
+            .unwrap();
     }
 }
 
@@ -86,8 +118,54 @@ impl<'a> OuterNumberGraphUiContext<'a> {
     pub(crate) fn graph_input_name(&self, input_id: NumberGraphInputId) -> String {
         match self {
             OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
-                let nsid = ctx.input_mapping().graph_input_target(input_id).unwrap();
+                let nsid = ctx
+                    .sound_graph()
+                    .topology()
+                    .number_input(ctx.sound_number_input_id())
+                    .unwrap()
+                    .target_mapping()
+                    .graph_input_target(input_id)
+                    .unwrap();
                 ctx.sound_graph_names().combined_number_source_name(nsid)
+            }
+        }
+    }
+
+    pub(crate) fn inspect_number_graph<R, F: FnOnce(&NumberGraph) -> R>(&self, f: F) -> R {
+        match self {
+            OuterNumberGraphUiContext::SoundNumberInput(ctx) => f(ctx
+                .sound_graph()
+                .topology()
+                .number_input(ctx.sound_number_input_id())
+                .unwrap()
+                .number_graph()),
+        }
+    }
+
+    pub(crate) fn edit_number_graph<R, F: FnOnce(&mut NumberGraph) -> R>(
+        &mut self,
+        f: F,
+    ) -> Result<R, SoundError> {
+        match self {
+            OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
+                let niid = ctx.sound_number_input_id();
+                ctx.sound_graph_mut()
+                    .edit_number_input(niid, |ni_data| f(ni_data.number_graph_mut()))
+            }
+        }
+    }
+
+    pub(crate) fn remove_graph_input(&mut self, giid: NumberGraphInputId) {
+        match self {
+            OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
+                let niid = ctx.sound_number_input_id();
+                ctx.sound_graph_mut()
+                    .edit_number_input(niid, |ni_data| {
+                        let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
+                        let source_id = mapping.graph_input_target(giid).unwrap();
+                        mapping.remove_target(source_id, numbergraph);
+                    })
+                    .unwrap();
             }
         }
     }
@@ -96,19 +174,16 @@ impl<'a> OuterNumberGraphUiContext<'a> {
 pub struct NumberGraphUiContext<'a> {
     ui_factory: &'a UiFactory<NumberGraphUi>,
     object_states: &'a NumberObjectUiStates,
-    number_graph: &'a mut NumberGraph,
 }
 
 impl<'a> NumberGraphUiContext<'a> {
     pub(super) fn new(
         ui_factory: &'a UiFactory<NumberGraphUi>,
         object_states: &'a NumberObjectUiStates,
-        number_graph: &'a mut NumberGraph,
     ) -> NumberGraphUiContext<'a> {
         NumberGraphUiContext {
             ui_factory,
             object_states,
-            number_graph,
         }
     }
 
@@ -118,10 +193,6 @@ impl<'a> NumberGraphUiContext<'a> {
 
     pub(super) fn object_ui_states(&self) -> &NumberObjectUiStates {
         self.object_states
-    }
-
-    pub(super) fn topology(&self) -> &NumberGraphTopology {
-        self.number_graph.topology()
     }
 }
 

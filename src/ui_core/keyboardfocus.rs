@@ -151,27 +151,16 @@ impl KeyboardFocusState {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
             let owner = soundgraph.topology().number_input(*niid).unwrap().owner();
-            soundgraph
-                .edit_number_input(*niid, |numberinputdata| {
-                    let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
-                    let outer_context = OuterSoundNumberInputContext::new(
-                        *niid,
-                        owner,
-                        temporal_layout,
-                        mapping,
-                        names,
-                    );
-                    ui_presentation.handle_keypress(
-                        ui,
-                        ni_focus,
-                        numbergraph,
-                        object_factory,
-                        ui_factory,
-                        object_ui_states,
-                        &mut outer_context.into(),
-                    );
-                })
-                .unwrap();
+            let outer_context =
+                OuterSoundNumberInputContext::new(*niid, owner, temporal_layout, soundgraph, names);
+            ui_presentation.handle_keypress(
+                ui,
+                ni_focus,
+                object_factory,
+                ui_factory,
+                object_ui_states,
+                &mut outer_context.into(),
+            );
         }
     }
 }
