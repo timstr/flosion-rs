@@ -46,6 +46,7 @@ pub struct VariableUiState {
     min_value: f32,
     max_value: f32,
     name: String,
+    show_settings: bool,
 }
 
 impl Default for VariableUiState {
@@ -53,7 +54,8 @@ impl Default for VariableUiState {
         Self {
             min_value: 0.0,
             max_value: 1.0,
-            name: "Constant".to_string(),
+            name: "Variable".to_string(),
+            show_settings: false,
         }
     }
 }
@@ -70,6 +72,7 @@ impl Serializable for VariableUiState {
             min_value: deserializer.f32()?,
             max_value: deserializer.f32()?,
             name: deserializer.string()?,
+            show_settings: false,
         })
     }
 }
@@ -98,6 +101,16 @@ impl ObjectUi for VariableUi {
             if v != v_old {
                 variable.set_value(v);
             }
+            if ui.add(egui::Button::new("edit")).clicked() {
+                data.state.show_settings = !data.state.show_settings;
+            }
+
+            if data.state.show_settings {
+                ui.label("min");
+                ui.add(egui::DragValue::new(&mut data.state.min_value));
+                ui.label("max");
+                ui.add(egui::DragValue::new(&mut data.state.max_value));
+            }
         });
     }
 
@@ -114,6 +127,7 @@ impl ObjectUi for VariableUi {
                     min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
                     max_value: 2.0 * v.abs(),
                     name: "Variable".to_string(),
+                    show_settings: false,
                 }
             }
         };
