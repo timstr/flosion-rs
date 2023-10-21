@@ -4,23 +4,35 @@ use crate::core::number::numbersource::NumberSourceId;
 
 use super::{numbergraphuicontext::NumberGraphUiContext, numbergraphuistate::NumberGraphUiState};
 
+pub enum DisplayStyle {
+    Framed,
+    Frameless,
+}
+
 pub struct NumberSourceUi {
     source_id: NumberSourceId,
     label: Option<String>,
+    display_style: DisplayStyle,
 }
 
 impl NumberSourceUi {
-    pub fn new_named(source_id: NumberSourceId, label: String) -> NumberSourceUi {
+    pub fn new_named(
+        source_id: NumberSourceId,
+        label: String,
+        display_style: DisplayStyle,
+    ) -> NumberSourceUi {
         NumberSourceUi {
             source_id,
             label: Some(label),
+            display_style,
         }
     }
 
-    pub fn new_unnamed(source_id: NumberSourceId) -> NumberSourceUi {
+    pub fn new_unnamed(source_id: NumberSourceId, display_style: DisplayStyle) -> NumberSourceUi {
         NumberSourceUi {
             source_id,
             label: None,
+            display_style,
         }
     }
 
@@ -40,11 +52,7 @@ impl NumberSourceUi {
         ui_state: &mut NumberGraphUiState,
         add_contents: F,
     ) {
-        let frame = egui::Frame::default()
-            .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 0, 32))
-            .rounding(5.0)
-            .inner_margin(2.0);
-        frame.show(ui, |ui| {
+        let show_impl = |ui: &mut egui::Ui| {
             if let Some(label) = self.label {
                 ui.add(
                     egui::Label::new(
@@ -57,6 +65,17 @@ impl NumberSourceUi {
                 );
             }
             add_contents(ui, ui_state);
-        });
+        };
+
+        match self.display_style {
+            DisplayStyle::Framed => {
+                let frame = egui::Frame::default()
+                    .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 0, 32))
+                    .rounding(5.0)
+                    .inner_margin(2.0);
+                frame.show(ui, show_impl);
+            }
+            DisplayStyle::Frameless => show_impl(ui),
+        }
     }
 }

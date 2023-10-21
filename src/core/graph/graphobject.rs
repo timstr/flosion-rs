@@ -69,9 +69,12 @@ impl<G: Graph> Clone for GraphObjectHandle<G> {
 // Used by ObjectUi to specify the handle type and inner object type
 // that a UI works with
 pub trait ObjectHandle<G: Graph>: Sized {
+    // TODO: consider renaming this
     type ObjectType: GraphObject<G>;
 
     fn from_graph_object(object: GraphObjectHandle<G>) -> Option<Self>;
+
+    fn object_type() -> ObjectType;
 }
 
 pub enum ObjectInitialization<'a> {

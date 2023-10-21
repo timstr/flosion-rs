@@ -67,6 +67,10 @@ impl<G: GraphUi> UiFactory<G> {
         self.mapping.keys().cloned()
     }
 
+    pub fn all_object_uis<'a>(&'a self) -> impl 'a + Iterator<Item = &dyn AnyObjectUi<G>> {
+        self.mapping.values().map(|d| &*d.ui)
+    }
+
     pub fn get_object_ui(&self, object_type: ObjectType) -> Rc<dyn AnyObjectUi<G>> {
         Rc::clone(&self.mapping.get(&object_type).unwrap().ui)
     }

@@ -216,4 +216,8 @@ impl<T: PureNumberSource> ObjectHandle<NumberGraph> for NumberSourceHandle<T> {
     fn from_graph_object(object: GraphObjectHandle<NumberGraph>) -> Option<Self> {
         NumberSourceHandle::from_graph_object(object)
     }
+
+    fn object_type() -> ObjectType {
+        T::TYPE
+    }
 }

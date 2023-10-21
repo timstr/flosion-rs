@@ -1,11 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{
-        graph::graphobject::{ObjectType, WithObjectType},
-        sound::soundnumbersource::SoundNumberSourceId,
-    },
-    objects::functions::Constant,
+    core::{graph::graphobject::ObjectType, sound::soundnumbersource::SoundNumberSourceId},
     ui_core::{
         numbergraphui::NumberGraphUi,
         numbergraphuicontext::OuterSoundNumberInputContext,
@@ -17,6 +13,7 @@ use crate::{
 #[derive(Copy, Clone)]
 pub(super) enum NumberSummonValue {
     NumberSourceType(ObjectType),
+    Constant(f32),
     SoundNumberSource(SoundNumberSourceId),
 }
 
@@ -26,11 +23,13 @@ pub(super) fn build_summon_widget_for_sound_number_input(
     ctx: &OuterSoundNumberInputContext,
 ) -> SummonWidgetState<NumberSummonValue> {
     let mut builder = SummonWidgetStateBuilder::new(position);
-    for object_type in ui_factory.all_object_types() {
-        builder.add_basic_name(
-            object_type.name().to_string(),
-            NumberSummonValue::NumberSourceType(object_type),
-        );
+    for object_ui in ui_factory.all_object_uis() {
+        for name in object_ui.summon_names() {
+            builder.add_basic_name(
+                name.to_string(),
+                NumberSummonValue::NumberSourceType(object_ui.object_type()),
+            );
+        }
     }
 
     for snsid in ctx
@@ -43,13 +42,11 @@ pub(super) fn build_summon_widget_for_sound_number_input(
         );
     }
 
-    // TODO: move this to the object ui after testing
+    // TODO: move this to the object ui after testing?
     builder.add_pattern("constant".to_string(), |s| {
-        // TODO: actually use the parsed value as part of initializing the constant
-        // This should probably be done with a per-object/ui initialization type
         s.parse::<f32>()
             .ok()
-            .and(Some(NumberSummonValue::NumberSourceType(Constant::TYPE)))
+            .and_then(|v| Some(NumberSummonValue::Constant(v)))
     });
     builder.build()
 }

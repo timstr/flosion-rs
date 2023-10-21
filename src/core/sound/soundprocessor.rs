@@ -452,6 +452,10 @@ impl<T: StaticSoundProcessor> ObjectHandle<SoundGraph> for StaticSoundProcessorH
     fn from_graph_object(object: GraphObjectHandle<SoundGraph>) -> Option<Self> {
         StaticSoundProcessorHandle::from_graph_object(object)
     }
+
+    fn object_type() -> ObjectType {
+        T::TYPE
+    }
 }
 
 impl<T: DynamicSoundProcessor> ObjectHandle<SoundGraph> for DynamicSoundProcessorHandle<T> {
@@ -459,6 +463,10 @@ impl<T: DynamicSoundProcessor> ObjectHandle<SoundGraph> for DynamicSoundProcesso
 
     fn from_graph_object(object: GraphObjectHandle<SoundGraph>) -> Option<Self> {
         DynamicSoundProcessorHandle::from_graph_object(object)
+    }
+
+    fn object_type() -> ObjectType {
+        T::TYPE
     }
 }
 

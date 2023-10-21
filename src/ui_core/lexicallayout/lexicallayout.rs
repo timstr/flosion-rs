@@ -3,12 +3,16 @@ use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
-        graph::{graphobject::ObjectType, objectfactory::ObjectFactory},
+        graph::{
+            graphobject::{ObjectType, WithObjectType},
+            objectfactory::ObjectFactory,
+        },
         number::{
             numbergraph::NumberGraph, numbergraphdata::NumberTarget,
             numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
         },
     },
+    objects::functions::Constant,
     ui_core::{
         lexicallayout::ast::{ASTNodeValue, InternalASTNodeValue},
         numbergraphuicontext::OuterNumberGraphUiContext,
@@ -819,38 +823,16 @@ impl LexicalLayout {
 
         if let Some(summon_widget_state) = focus.summon_widget_state_mut() {
             if let Some(choice) = summon_widget_state.final_choice() {
-                match choice {
-                    NumberSummonValue::NumberSourceType(ns_type) => {
-                        let (node, layout) = self
-                            .create_new_number_source_from_type(
-                                ns_type,
-                                object_factory,
-                                ui_factory,
-                                object_ui_states,
-                                outer_context,
-                            )
-                            .unwrap();
-
-                        let num_children = node.num_children();
-                        insert_to_numbergraph_at_cursor(
-                            self,
-                            focus.cursor_mut(),
-                            node,
+                let (new_node, layout) = match choice {
+                    NumberSummonValue::NumberSourceType(ns_type) => self
+                        .create_new_number_source_from_type(
+                            ns_type,
+                            object_factory,
+                            ui_factory,
+                            object_ui_states,
                             outer_context,
-                        );
-
-                        let cursor = focus.cursor_mut();
-                        match layout {
-                            NumberSourceLayout::Prefix => cursor.path.go_into(0),
-                            NumberSourceLayout::Infix => cursor.path.go_into(0),
-                            NumberSourceLayout::Postfix => cursor.path.go_into(0),
-                            NumberSourceLayout::Function => {
-                                if num_children > 0 {
-                                    cursor.path.go_into(0);
-                                }
-                            }
-                        }
-                    }
+                        )
+                        .unwrap(),
                     NumberSummonValue::SoundNumberSource(snsid) => {
                         let node;
                         {
@@ -866,14 +848,35 @@ impl LexicalLayout {
                             };
                             node = ASTNode::new(ASTNodeValue::GraphInput(giid));
                         }
-                        insert_to_numbergraph_at_cursor(
-                            self,
-                            focus.cursor_mut(),
-                            node,
-                            outer_context,
-                        );
+                        (node, NumberSourceLayout::Function)
+                    }
+                    NumberSummonValue::Constant(constant_value) => {
+                        let (node, layout) = self
+                            .create_new_number_source_from_type(
+                                Constant::TYPE,
+                                object_factory,
+                                ui_factory,
+                                object_ui_states,
+                                outer_context,
+                            )
+                            .unwrap();
+                        (node, layout)
                     }
                 };
+                let num_children = new_node.num_children();
+                insert_to_numbergraph_at_cursor(self, focus.cursor_mut(), new_node, outer_context);
+
+                let cursor = focus.cursor_mut();
+                match layout {
+                    NumberSourceLayout::Prefix => cursor.path.go_into(0),
+                    NumberSourceLayout::Infix => cursor.path.go_into(0),
+                    NumberSourceLayout::Postfix => cursor.path.go_into(0),
+                    NumberSourceLayout::Function => {
+                        if num_children > 0 {
+                            cursor.path.go_into(0);
+                        }
+                    }
+                }
                 *focus.summon_widget_state_mut() = None;
             }
         }
@@ -889,6 +892,26 @@ impl LexicalLayout {
     ) -> Result<(ASTNode, NumberSourceLayout), String> {
         let new_object = outer_context
             .edit_number_graph(|numbergraph| {
+                // TODO: add a way to pass named arguments here that lends itself to parsing.
+                // Perhaps named static string constants associated with the obeject and/or its ui?
+                // Values can then be passed in something like a dictionary
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                 object_factory.create_default(ns_type.name(), numbergraph)
             })
             .unwrap();

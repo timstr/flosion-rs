@@ -11,7 +11,7 @@ use crate::{
         numbergraphui::NumberGraphUi,
         numbergraphuicontext::NumberGraphUiContext,
         numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
-        numbersourceui::NumberSourceUi,
+        numbersourceui::{DisplayStyle, NumberSourceUi},
         object_ui::{ObjectUi, UiInitialization},
     },
 };
@@ -34,8 +34,12 @@ impl ObjectUi for ConstantUi {
     ) {
         // TODO: add ui state for custom name
         // NumberSourceUi::new_unnamed(constant.id()).show(ui, ctx, ui_state);
-        NumberSourceUi::new_named(constant.id(), format!("{}", constant.value()))
-            .show(ui, ctx, ui_state);
+        NumberSourceUi::new_named(
+            constant.id(),
+            format!("{}", constant.value()),
+            DisplayStyle::Framed,
+        )
+        .show(ui, ctx, ui_state);
     }
 }
 
@@ -91,27 +95,32 @@ impl ObjectUi for VariableUi {
         ctx: &mut NumberGraphUiContext,
         data: NumberObjectUiData<VariableUiState>,
     ) {
-        NumberSourceUi::new_unnamed(variable.id()).show_with(ui, ctx, ui_state, |ui, _ui_state| {
-            let mut v = variable.get_value();
-            let v_old = v;
-            ui.add(egui::Slider::new(
-                &mut v,
-                data.state.min_value..=data.state.max_value,
-            ));
-            if v != v_old {
-                variable.set_value(v);
-            }
-            if ui.add(egui::Button::new("edit")).clicked() {
-                data.state.show_settings = !data.state.show_settings;
-            }
+        NumberSourceUi::new_unnamed(variable.id(), DisplayStyle::Framed).show_with(
+            ui,
+            ctx,
+            ui_state,
+            |ui, _ui_state| {
+                let mut v = variable.get_value();
+                let v_old = v;
+                ui.add(egui::Slider::new(
+                    &mut v,
+                    data.state.min_value..=data.state.max_value,
+                ));
+                if v != v_old {
+                    variable.set_value(v);
+                }
+                if ui.add(egui::Button::new("edit")).clicked() {
+                    data.state.show_settings = !data.state.show_settings;
+                }
 
-            if data.state.show_settings {
-                ui.label("min");
-                ui.add(egui::DragValue::new(&mut data.state.min_value));
-                ui.label("max");
-                ui.add(egui::DragValue::new(&mut data.state.max_value));
-            }
-        });
+                if data.state.show_settings {
+                    ui.label("min");
+                    ui.add(egui::DragValue::new(&mut data.state.min_value));
+                    ui.label("max");
+                    ui.add(egui::DragValue::new(&mut data.state.max_value));
+                }
+            },
+        );
     }
 
     fn make_ui_state(
@@ -136,7 +145,7 @@ impl ObjectUi for VariableUi {
 }
 
 macro_rules! unary_number_source_ui {
-    ($name: ident, $object: ident, $display_name: literal, $aliases: expr, $layout: expr) => {
+    ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
@@ -152,12 +161,12 @@ macro_rules! unary_number_source_ui {
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name.to_string())
+                NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
             }
 
-            fn aliases(&self) -> &'static [&'static str] {
-                &$aliases
+            fn summon_names(&self) -> &'static [&'static str] {
+                &$summon_names
             }
 
             fn make_ui_state(
@@ -172,7 +181,7 @@ macro_rules! unary_number_source_ui {
 }
 
 macro_rules! binary_number_source_ui {
-    ($name: ident, $object: ident, $display_name: literal, $aliases: expr, $layout: expr) => {
+    ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
@@ -188,12 +197,12 @@ macro_rules! binary_number_source_ui {
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name.to_string())
+                NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
             }
 
-            fn aliases(&self) -> &'static [&'static str] {
-                &$aliases
+            fn summon_names(&self) -> &'static [&'static str] {
+                &$summon_names
             }
 
             fn make_ui_state(
@@ -208,7 +217,7 @@ macro_rules! binary_number_source_ui {
 }
 
 macro_rules! ternary_number_source_ui {
-    ($name: ident, $object: ident, $display_name: literal, $aliases: expr) => {
+    ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
@@ -224,35 +233,154 @@ macro_rules! ternary_number_source_ui {
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name.to_string())
+                NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
             }
 
-            fn aliases(&self) -> &'static [&'static str] {
-                &$aliases
+            fn summon_names(&self) -> &'static [&'static str] {
+                &$summon_names
             }
         }
     };
 }
 
-unary_number_source_ui!(NegateUi, Negate, "Negate", [], NumberSourceLayout::Prefix);
-unary_number_source_ui!(FloorUi, Floor, "Floor", [], NumberSourceLayout::Function);
-unary_number_source_ui!(CeilUi, Ceil, "Ceil", [], NumberSourceLayout::Function);
-unary_number_source_ui!(RoundUi, Round, "Round", [], NumberSourceLayout::Function);
-unary_number_source_ui!(TruncUi, Trunc, "Trunc", [], NumberSourceLayout::Function);
-unary_number_source_ui!(FractUi, Fract, "Fract", [], NumberSourceLayout::Function);
-unary_number_source_ui!(AbsUi, Abs, "Abs", [], NumberSourceLayout::Function);
-unary_number_source_ui!(SignumUi, Signum, "Signum", [], NumberSourceLayout::Function);
-unary_number_source_ui!(ExpUi, Exp, "Exp", [], NumberSourceLayout::Function);
-unary_number_source_ui!(Exp2Ui, Exp2, "Exp2", [], NumberSourceLayout::Function);
-unary_number_source_ui!(Exp10Ui, Exp10, "Exp10", [], NumberSourceLayout::Function);
-unary_number_source_ui!(LogUi, Log, "Log", [], NumberSourceLayout::Function);
-unary_number_source_ui!(Log2Ui, Log2, "Log2", [], NumberSourceLayout::Function);
-unary_number_source_ui!(Log10Ui, Log10, "Log10", [], NumberSourceLayout::Function);
-unary_number_source_ui!(SqrtUi, Sqrt, "Sqrt", [], NumberSourceLayout::Function);
+unary_number_source_ui!(
+    NegateUi,
+    Negate,
+    "Negate",
+    DisplayStyle::Framed,
+    ["negate"],
+    NumberSourceLayout::Prefix
+);
+unary_number_source_ui!(
+    FloorUi,
+    Floor,
+    "Floor",
+    DisplayStyle::Framed,
+    ["floor"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    CeilUi,
+    Ceil,
+    "Ceil",
+    DisplayStyle::Framed,
+    ["ceil"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    RoundUi,
+    Round,
+    "Round",
+    DisplayStyle::Framed,
+    ["round"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    TruncUi,
+    Trunc,
+    "Trunc",
+    DisplayStyle::Framed,
+    ["trunc"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    FractUi,
+    Fract,
+    "Fract",
+    DisplayStyle::Framed,
+    ["fract"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    AbsUi,
+    Abs,
+    "Abs",
+    DisplayStyle::Framed,
+    ["abs"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    SignumUi,
+    Signum,
+    "Signum",
+    DisplayStyle::Framed,
+    ["signum"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    ExpUi,
+    Exp,
+    "Exp",
+    DisplayStyle::Framed,
+    ["exp"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    Exp2Ui,
+    Exp2,
+    "Exp2",
+    DisplayStyle::Framed,
+    ["exp2"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    Exp10Ui,
+    Exp10,
+    "Exp10",
+    DisplayStyle::Framed,
+    ["exp10"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    LogUi,
+    Log,
+    "Log",
+    DisplayStyle::Framed,
+    ["log"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    Log2Ui,
+    Log2,
+    "Log2",
+    DisplayStyle::Framed,
+    ["log2"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    Log10Ui,
+    Log10,
+    "Log10",
+    DisplayStyle::Framed,
+    ["log10"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    SqrtUi,
+    Sqrt,
+    "Sqrt",
+    DisplayStyle::Framed,
+    ["sqrt"],
+    NumberSourceLayout::Function
+);
 // unary_number_source_ui!(CbrtUi, Cbrt, "Cbrt", []);
-unary_number_source_ui!(SinUi, Sin, "Sin", [], NumberSourceLayout::Function);
-unary_number_source_ui!(CosUi, Cos, "Cos", [], NumberSourceLayout::Function);
+unary_number_source_ui!(
+    SinUi,
+    Sin,
+    "Sin",
+    DisplayStyle::Framed,
+    ["sin"],
+    NumberSourceLayout::Function
+);
+unary_number_source_ui!(
+    CosUi,
+    Cos,
+    "Cos",
+    DisplayStyle::Framed,
+    ["cos"],
+    NumberSourceLayout::Function
+);
 // unary_number_source_ui!(TanUi, Tan, "Tan", []);
 // unary_number_source_ui!(AsinUi, Asin, "Asin", []);
 // unary_number_source_ui!(AcosUi, Acos, "Acos", []);
@@ -268,63 +396,92 @@ unary_number_source_ui!(
     SineWaveUi,
     SineWave,
     "SineWave",
-    [],
+    DisplayStyle::Framed,
+    ["sinewave"],
     NumberSourceLayout::Function
 );
 unary_number_source_ui!(
     CosineWaveUi,
     CosineWave,
     "CosineWave",
-    [],
+    DisplayStyle::Framed,
+    ["cosinewave"],
     NumberSourceLayout::Function
 );
 unary_number_source_ui!(
     SquareWaveUi,
     SquareWave,
     "SquareWave",
-    [],
+    DisplayStyle::Framed,
+    ["squarewave"],
     NumberSourceLayout::Function
 );
 unary_number_source_ui!(
     SawWaveUi,
     SawWave,
     "SawWave",
-    [],
+    DisplayStyle::Framed,
+    ["sawwave"],
     NumberSourceLayout::Function
 );
 unary_number_source_ui!(
     TriangleWaveUi,
     TriangleWave,
     "TriangleWave",
-    [],
+    DisplayStyle::Framed,
+    ["trianglewave"],
     NumberSourceLayout::Function
 );
 
-binary_number_source_ui!(AddUi, Add, "Add", ["+", "plus"], NumberSourceLayout::Infix);
+binary_number_source_ui!(
+    AddUi,
+    Add,
+    "+",
+    DisplayStyle::Frameless,
+    ["add", "+", "plus"],
+    NumberSourceLayout::Infix
+);
 binary_number_source_ui!(
     SubtractUi,
     Subtract,
-    "Subtract",
-    ["-", "minus"],
+    "-",
+    DisplayStyle::Frameless,
+    ["subtract", "-", "minus"],
     NumberSourceLayout::Infix
 );
 binary_number_source_ui!(
     MultiplyUi,
     Multiply,
-    "Multiply",
-    ["*", "times"],
+    "*",
+    DisplayStyle::Frameless,
+    ["multiply", "*", "times"],
     NumberSourceLayout::Infix
 );
-binary_number_source_ui!(DivideUi, Divide, "Divide", ["/"], NumberSourceLayout::Infix);
+binary_number_source_ui!(
+    DivideUi,
+    Divide,
+    "/",
+    DisplayStyle::Frameless,
+    ["divide", "/"],
+    NumberSourceLayout::Infix
+);
 // binary_number_source_ui!(HypotUi, Hypot, "Hypot", []);
 binary_number_source_ui!(
     CopysignUi,
     Copysign,
     "Copysign",
-    [],
+    DisplayStyle::Framed,
+    ["copysign"],
     NumberSourceLayout::Function
 );
-binary_number_source_ui!(PowUi, Pow, "Pow", [], NumberSourceLayout::Function);
+binary_number_source_ui!(
+    PowUi,
+    Pow,
+    "^",
+    DisplayStyle::Framed,
+    ["pow", "^"],
+    NumberSourceLayout::Infix
+);
 // binary_number_source_ui!(Atan2Ui, Atan2, "Atan2", []);
 
-ternary_number_source_ui!(LerpUi, Lerp, "Lerp", []);
+ternary_number_source_ui!(LerpUi, Lerp, "Lerp", DisplayStyle::Framed, ["lerp"]);

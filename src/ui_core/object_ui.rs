@@ -7,7 +7,7 @@ use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::core::graph::{
     graph::Graph,
-    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization},
+    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType},
 };
 
 use super::graph_ui::{GraphUi, ObjectUiData, ObjectUiState};
@@ -68,7 +68,7 @@ pub trait ObjectUi: 'static + Default {
         >,
     );
 
-    fn aliases(&self) -> &'static [&'static str] {
+    fn summon_names(&self) -> &'static [&'static str] {
         &[]
     }
 
@@ -94,7 +94,9 @@ pub trait AnyObjectUi<G: GraphUi> {
         ctx: &mut G::Context<'_>,
     );
 
-    fn aliases(&self) -> &'static [&'static str];
+    fn summon_names(&self) -> &'static [&'static str];
+
+    fn object_type(&self) -> ObjectType;
 
     fn make_ui_state(
         &self,
@@ -119,8 +121,12 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
         });
     }
 
-    fn aliases(&self) -> &'static [&'static str] {
-        self.aliases()
+    fn summon_names(&self) -> &'static [&'static str] {
+        self.summon_names()
+    }
+
+    fn object_type(&self) -> ObjectType {
+        <T::HandleType as ObjectHandle<G::Graph>>::object_type()
     }
 
     fn make_ui_state(
