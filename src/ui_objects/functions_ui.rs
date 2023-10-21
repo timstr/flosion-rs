@@ -19,6 +19,10 @@ use crate::{
 #[derive(Default)]
 pub struct ConstantUi {}
 
+impl ConstantUi {
+    // TODO
+}
+
 impl ObjectUi for ConstantUi {
     type GraphUi = NumberGraphUi;
     type HandleType = NumberSourceHandle<Constant>;

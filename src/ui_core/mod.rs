@@ -1,3 +1,4 @@
+pub mod arguments;
 pub mod flosion_ui;
 pub mod graph_ui;
 pub mod keyboardfocus;
