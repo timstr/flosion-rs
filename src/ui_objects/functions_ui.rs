@@ -6,6 +6,7 @@ use crate::{
     core::number::numbersource::NumberSourceHandle,
     objects::functions::*,
     ui_core::{
+        arguments::{AnyArgument, Argument, StringIdentifier},
         graph_ui::ObjectUiState,
         lexicallayout::lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
@@ -20,7 +21,7 @@ use crate::{
 pub struct ConstantUi {}
 
 impl ConstantUi {
-    // TODO
+    pub const NAME: StringIdentifier = StringIdentifier("name");
 }
 
 impl ObjectUi for ConstantUi {
@@ -44,6 +45,10 @@ impl ObjectUi for ConstantUi {
             DisplayStyle::Framed,
         )
         .show(ui, ctx, ui_state);
+    }
+
+    fn summon_arguments(&self) -> &'static [&'static dyn AnyArgument] {
+        &[&ConstantUi::NAME]
     }
 }
 

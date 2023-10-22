@@ -10,7 +10,10 @@ use crate::core::graph::{
     graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType},
 };
 
-use super::graph_ui::{GraphUi, ObjectUiData, ObjectUiState};
+use super::{
+    arguments::{AnyArgument, ArgumentSet},
+    graph_ui::{GraphUi, ObjectUiData, ObjectUiState},
+};
 
 pub struct Color {
     pub color: egui::Color32,
@@ -70,6 +73,10 @@ pub trait ObjectUi: 'static + Default {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &[]
+    }
+
+    fn summon_arguments(&self) -> ArgumentSet {
+        ArgumentSet::new_empty()
     }
 
     fn make_ui_state(
