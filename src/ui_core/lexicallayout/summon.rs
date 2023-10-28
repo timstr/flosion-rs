@@ -25,8 +25,9 @@ pub(super) fn build_summon_widget_for_sound_number_input(
     let mut builder = SummonWidgetStateBuilder::new(position);
     for object_ui in ui_factory.all_object_uis() {
         for name in object_ui.summon_names() {
-            builder.add_basic_name(
+            builder.add_name_with_arguments(
                 name.to_string(),
+                object_ui.summon_arguments(),
                 NumberSummonValue::NumberSourceType(object_ui.object_type()),
             );
         }

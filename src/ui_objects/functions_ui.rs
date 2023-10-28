@@ -6,7 +6,7 @@ use crate::{
     core::number::numbersource::NumberSourceHandle,
     objects::functions::*,
     ui_core::{
-        arguments::{AnyArgument, Argument, StringIdentifier},
+        arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
         graph_ui::ObjectUiState,
         lexicallayout::lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
@@ -21,7 +21,7 @@ use crate::{
 pub struct ConstantUi {}
 
 impl ConstantUi {
-    pub const NAME: StringIdentifier = StringIdentifier("name");
+    pub const ARG_NAME: StringIdentifierArgument = StringIdentifierArgument("name");
 }
 
 impl ObjectUi for ConstantUi {
@@ -47,13 +47,20 @@ impl ObjectUi for ConstantUi {
         .show(ui, ctx, ui_state);
     }
 
-    fn summon_arguments(&self) -> &'static [&'static dyn AnyArgument] {
-        &[&ConstantUi::NAME]
+    fn summon_arguments(&self) -> ArgumentList {
+        ArgumentList::new_empty()
+            .add(&Constant::ARG_VALUE)
+            .add(&ConstantUi::ARG_NAME)
     }
 }
 
 #[derive(Default)]
 pub struct VariableUi {}
+
+impl VariableUi {
+    pub const ARG_NAME: StringIdentifierArgument = StringIdentifierArgument("name");
+    pub const ARG_RANGE: FloatRangeArgument = FloatRangeArgument("range");
+}
 
 pub struct VariableUiState {
     min_value: f32,
@@ -150,6 +157,13 @@ impl ObjectUi for VariableUi {
             }
         };
         (state, NumberSourceLayout::default())
+    }
+
+    fn summon_arguments(&self) -> ArgumentList {
+        ArgumentList::new_empty()
+            .add(&Variable::ARG_VALUE)
+            .add(&VariableUi::ARG_NAME)
+            .add(&VariableUi::ARG_RANGE)
     }
 }
 

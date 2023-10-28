@@ -11,7 +11,7 @@ use crate::core::graph::{
 };
 
 use super::{
-    arguments::{AnyArgument, ArgumentSet},
+    arguments::ArgumentList,
     graph_ui::{GraphUi, ObjectUiData, ObjectUiState},
 };
 
@@ -75,8 +75,8 @@ pub trait ObjectUi: 'static + Default {
         &[]
     }
 
-    fn summon_arguments(&self) -> ArgumentSet {
-        ArgumentSet::new_empty()
+    fn summon_arguments(&self) -> ArgumentList {
+        ArgumentList::new_empty()
     }
 
     fn make_ui_state(
@@ -102,6 +102,8 @@ pub trait AnyObjectUi<G: GraphUi> {
     );
 
     fn summon_names(&self) -> &'static [&'static str];
+
+    fn summon_arguments(&self) -> ArgumentList;
 
     fn object_type(&self) -> ObjectType;
 
@@ -132,6 +134,10 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
         self.summon_names()
     }
 
+    fn summon_arguments(&self) -> ArgumentList {
+        T::summon_arguments(self)
+    }
+
     fn object_type(&self) -> ObjectType {
         <T::HandleType as ObjectHandle<G::Graph>>::object_type()
     }
@@ -149,6 +155,10 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
                 Serializable::deserialize(&mut a)?,
             ),
             ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
+            ObjectInitialization::Arguments(parsed_args) => {
+                // TODO
+                todo!()
+            }
         };
 
         Ok(<G::ObjectUiData as ObjectUiData>::new(

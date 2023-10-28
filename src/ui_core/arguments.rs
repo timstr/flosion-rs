@@ -1,20 +1,56 @@
 use std::any::Any;
 
+struct AnyArgumentValue {
+    value: Box<dyn ArgumentValue>,
+}
+
+impl AnyArgumentValue {
+    fn new<T: ArgumentValue>(value: T) -> AnyArgumentValue {
+        AnyArgumentValue {
+            value: Box::new(value),
+        }
+    }
+}
+
+impl Clone for AnyArgumentValue {
+    fn clone(&self) -> Self {
+        AnyArgumentValue {
+            value: self.value.box_clone(),
+        }
+    }
+}
+
+pub trait ArgumentValue: 'static {
+    fn box_clone(&self) -> Box<dyn ArgumentValue>;
+
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl<T: 'static + Clone> ArgumentValue for T {
+    fn box_clone(&self) -> Box<dyn ArgumentValue> {
+        Box::new(self.clone())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 pub trait Argument {
-    type ValueType: Any;
+    type ValueType: ArgumentValue + Clone;
 
     fn name(&self) -> &'static str;
 
     fn try_parse(s: &str) -> Option<Self::ValueType>;
 }
 
-pub struct StringIdentifier(pub &'static str);
+pub struct StringIdentifierArgument(pub &'static str);
 
-pub struct Float(pub &'static str);
+pub struct FloatArgument(pub &'static str);
 
-pub struct FloatRange(pub &'static str);
+pub struct FloatRangeArgument(pub &'static str);
 
-impl Argument for StringIdentifier {
+impl Argument for StringIdentifierArgument {
     type ValueType = String;
 
     fn name(&self) -> &'static str {
@@ -34,7 +70,7 @@ impl Argument for StringIdentifier {
     }
 }
 
-impl Argument for Float {
+impl Argument for FloatArgument {
     type ValueType = f64;
 
     fn name(&self) -> &'static str {
@@ -46,7 +82,7 @@ impl Argument for Float {
     }
 }
 
-impl Argument for FloatRange {
+impl Argument for FloatRangeArgument {
     type ValueType = std::ops::RangeInclusive<f64>;
 
     fn name(&self) -> &'static str {
@@ -77,7 +113,7 @@ impl Argument for FloatRange {
 pub trait AnyArgument {
     fn name(&self) -> &str;
 
-    fn try_parse(s: &str) -> Option<Box<dyn Any>>;
+    fn try_parse(&self, s: &str) -> Option<AnyArgumentValue>;
 }
 
 impl<T: Argument> AnyArgument for T {
@@ -85,30 +121,36 @@ impl<T: Argument> AnyArgument for T {
         Argument::name(self)
     }
 
-    fn try_parse(s: &str) -> Option<Box<dyn Any>> {
-        Argument::try_parse(s).and_then(Box::new)
+    fn try_parse(&self, s: &str) -> Option<AnyArgumentValue> {
+        if let Some(v) = <T as Argument>::try_parse(s) {
+            Some(AnyArgumentValue::new(v))
+        } else {
+            None
+        }
     }
 }
 
+#[derive(Clone)]
 pub struct ParsedArguments {
-    argument_values: Vec<(&'static str, Box<dyn Any>)>,
+    argument_values: Vec<(&'static str, AnyArgumentValue)>,
 }
 
 impl ParsedArguments {
-    fn new() -> ParsedArguments {
+    pub fn new_empty() -> ParsedArguments {
         ParsedArguments {
             argument_values: Vec::new(),
         }
     }
 
-    fn add(&mut self, name: &'static str, value: Box<dyn Any>) {
-        self.argument_values.push((name, value));
+    fn add<T: ArgumentValue>(&mut self, name: &'static str, value: T) {
+        self.argument_values
+            .push((name, AnyArgumentValue::new(value)));
     }
 
-    pub fn get<T: Argument>(&self, argument: &'static T) -> Option<&T::ValueType> {
-        let val: Option<&dyn Any> = self.argument_values.iter().find_map(|(name, val)| {
+    pub fn get<T: Argument>(&self, argument: &'static T) -> Option<T::ValueType> {
+        let val: Option<&AnyArgumentValue> = self.argument_values.iter().find_map(|(name, val)| {
             if *name == argument.name() {
-                Some(&**val)
+                Some(val)
             } else {
                 None
             }
@@ -117,31 +159,53 @@ impl ParsedArguments {
             // no matching argument found by name
             return None;
         };
-        let Some(val) = val.downcast_ref() else {
+        let Some(val) = val.as_any().downcast_ref::<T::ValueType>() else {
             panic!("Parsed argument has the wrong type");
         };
+        let val: T::ValueType = val.clone();
         Some(val)
     }
 }
 
-pub struct ArgumentSet {
+pub struct ArgumentList {
     arguments: Vec<&'static dyn AnyArgument>,
 }
 
-impl ArgumentSet {
-    pub fn new_empty() -> ArgumentSet {
-        ArgumentSet {
+impl ArgumentList {
+    pub fn new_empty() -> ArgumentList {
+        ArgumentList {
             arguments: Vec::new(),
         }
     }
 
-    pub fn add(mut self, argument: &'static dyn AnyArgument) -> ArgumentSet {
+    pub fn add(mut self, argument: &'static dyn AnyArgument) -> ArgumentList {
         self.arguments.push(argument);
         self
     }
 
-    pub fn parse(terms: Vec<String>) -> ParsedArguments {
-        // let mut parsed_arguments = ParsedArguments
-        todo!()
+    fn try_parse_term(&self, term: &str) -> Option<(&'static str, AnyArgumentValue)> {
+        for arg in &self.arguments {
+            if let Some(v) = arg.try_parse(&term) {
+                return Some((arg.name(), v));
+            }
+        }
+        None
+    }
+
+    pub fn parse(&self, terms: Vec<String>) -> ParsedArguments {
+        let mut parsed_arguments = ParsedArguments::new_empty();
+
+        for term in terms {
+            if let Some((name, value)) = self.try_parse_term(&term) {
+                parsed_arguments.add(name, value);
+            } else {
+                println!(
+                    "ArgumentSet warning: the term \"{}\" was not parsed as \
+                    any argument",
+                    term
+                );
+            }
+        }
+        parsed_arguments
     }
 }

@@ -1,10 +1,13 @@
-use crate::core::{
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::codegen::CodeGen,
-    number::{
-        numberinput::NumberInputHandle, numbersource::PureNumberSource,
-        numbersourcetools::NumberSourceTools,
+use crate::{
+    core::{
+        graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        jit::codegen::CodeGen,
+        number::{
+            numberinput::NumberInputHandle, numbersource::PureNumberSource,
+            numbersourcetools::NumberSourceTools,
+        },
     },
+    ui_core::arguments::FloatArgument,
 };
 use atomic_float::AtomicF32;
 use inkwell::{values::FloatValue, FloatPredicate};
@@ -19,6 +22,8 @@ impl Constant {
     pub fn value(&self) -> f32 {
         self.value
     }
+
+    pub const ARG_VALUE: FloatArgument = FloatArgument("value");
 }
 
 impl PureNumberSource for Constant {
@@ -27,6 +32,9 @@ impl PureNumberSource for Constant {
             // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
             ObjectInitialization::Archive(mut d) => d.f32()?,
             ObjectInitialization::Default => 0.0,
+            ObjectInitialization::Arguments(args) => {
+                args.get(&Constant::ARG_VALUE).unwrap_or(0.0) as f32
+            }
         };
         Ok(Constant { value })
     }
@@ -61,6 +69,8 @@ impl Variable {
     pub fn set_value(&self, value: f32) {
         self.value.store(value, Ordering::SeqCst);
     }
+
+    pub const ARG_VALUE: FloatArgument = FloatArgument("value");
 }
 
 impl PureNumberSource for Variable {
@@ -69,6 +79,9 @@ impl PureNumberSource for Variable {
             // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
             ObjectInitialization::Archive(mut d) => d.f32()?,
             ObjectInitialization::Default => 0.0,
+            ObjectInitialization::Arguments(args) => {
+                args.get(&Variable::ARG_VALUE).unwrap_or(0.0) as f32
+            }
         };
         Ok(Variable {
             value: Arc::new(AtomicF32::new(value)),

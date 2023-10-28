@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serialization::Deserializer;
 
+use crate::ui_core::arguments::ParsedArguments;
+
 use super::{
     graph::Graph,
     graphobject::{GraphObject, GraphObjectHandle, ObjectInitialization},
@@ -91,6 +93,19 @@ impl<G: Graph> ObjectFactory<G> {
         graph: &mut G,
     ) -> Result<GraphObjectHandle<G>, ()> {
         self.create_impl(object_type_str, graph, ObjectInitialization::Default)
+    }
+
+    pub(crate) fn create_from_args(
+        &self,
+        object_type_str: &str,
+        graph: &mut G,
+        arguments: ParsedArguments,
+    ) -> Result<GraphObjectHandle<G>, ()> {
+        self.create_impl(
+            object_type_str,
+            graph,
+            ObjectInitialization::Arguments(arguments),
+        )
     }
 
     pub(crate) fn create_from_archive(

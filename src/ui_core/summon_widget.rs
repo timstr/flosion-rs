@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 
 use eframe::egui;
 
+use super::arguments::{ArgumentList, ParsedArguments};
+
 fn score_match(query: &str, content: &str) -> f32 {
     let mut score: f32 = 0.0;
     let mut qi = query.chars();
@@ -24,11 +26,11 @@ fn score_match(query: &str, content: &str) -> f32 {
     score
 }
 
-#[derive(Eq, PartialEq)]
+// #[derive(Eq, PartialEq)]
 enum SummonRule<T> {
     BasicName(String, T),
     Pattern(String, fn(&str) -> Option<T>),
-    // TODO: name with arguments, arguments with custom completions
+    NameWithArguments(String, ArgumentList, T),
 }
 
 impl<T: Copy> SummonRule<T> {
@@ -36,35 +38,48 @@ impl<T: Copy> SummonRule<T> {
         match self {
             SummonRule::BasicName(name, _) => name,
             SummonRule::Pattern(name, _) => name,
+            SummonRule::NameWithArguments(name, _, _) => name,
         }
     }
 
-    fn evaluate(&self, prompt: &str) -> Option<T> {
+    fn evaluate(&self, prompt: &str) -> Option<(T, ParsedArguments)> {
         match self {
-            SummonRule::BasicName(_, value) => Some(*value),
-            SummonRule::Pattern(_, f) => f(prompt),
+            SummonRule::BasicName(_, value) => Some((*value, ParsedArguments::new_empty())),
+            SummonRule::Pattern(_, f) => {
+                f(prompt).and_then(|v| Some((v, ParsedArguments::new_empty())))
+            }
+            Self::NameWithArguments(_, args, value) => {
+                let terms: Vec<String> = prompt
+                    .split_whitespace()
+                    .skip(1)
+                    .map(str::to_string)
+                    .collect();
+                Some((*value, args.parse(terms)))
+            }
         }
     }
 
-    fn default_value(&self) -> Option<T> {
-        match self {
-            SummonRule::BasicName(_, value) => Some(*value),
-            SummonRule::Pattern(_, _) => None,
-        }
-    }
+    // fn default_value(&self) -> Option<T> {
+    //     match self {
+    //         SummonRule::BasicName(_, value) => Some(*value),
+    //         SummonRule::Pattern(_, _) => None,
+    //         Self::NameWithArguments(_, _, _) => todo!(),
+    //     }
+    // }
 }
 struct ScoredRule<T> {
     rule: SummonRule<T>,
     score: f32,
-    value: Option<T>,
+    value_and_args: Option<(T, ParsedArguments)>,
 }
 
 impl<T: Copy> ScoredRule<T> {
     fn update(&mut self, prompt: &str) {
-        self.value = self.rule.evaluate(prompt);
+        self.value_and_args = self.rule.evaluate(prompt);
         self.score = match &self.rule {
             SummonRule::BasicName(name, _) => score_match(prompt, name),
             SummonRule::Pattern(_, _) => 0.0,
+            SummonRule::NameWithArguments(name, _, _) => score_match(prompt, name),
         }
     }
 }
@@ -91,12 +106,13 @@ impl<T: Copy> Ord for ScoredRule<T> {
             match scored_rule.rule {
                 SummonRule::BasicName(_, _) => 1,
                 SummonRule::Pattern(_, _) => {
-                    if scored_rule.value.is_some() {
+                    if scored_rule.value_and_args.is_some() {
                         0
                     } else {
                         2
                     }
                 }
+                SummonRule::NameWithArguments(_, _, _) => 1,
             }
         };
 
@@ -123,34 +139,10 @@ pub(super) struct SummonWidgetState<T> {
     position: egui::Pos2,
     text: String,
     finalized: bool,
-    current_choice: Option<T>,
+    current_choice: Option<(T, ParsedArguments)>,
     rules: Vec<ScoredRule<T>>,
     focus_index: Option<usize>,
 }
-
-// TYPES OF THINGS THAT COULD BE SUMMONED
-// simple names of graph objects ("dac", "whitenoise", "plus", "sqrt")
-//  -> each of these corresponds to an ObjectType
-// graph object names with arguments ("slider 0 1", "constant 44", "audioclip ~/sounds/bleepbloop.wav")
-//  -> each of these corresponds to an ObjectType plus a list of arguments.
-//     Admittedly, the lack of structure of these arguments is currently a pain point.
-//     Rather than just having to compare string names, it would be better to have a
-//     unique type per object and object ui. But arguments are used literally only by
-//     constant and slider currently so I'll put this off for now.
-// aliases graph objects ("+", "-")
-//  -> each of these corresponds to an ObjectType
-// patterns ("1", "0.1", "2e5")
-//  -> in this case, this corresponds to an ObjectType (e.g constant) plus a custom value that requires parsing
-// names of number sources ("wavegenerator.phase", "ensemble.notefrequency", "dac.time")
-//  -> these correspond to SoundNumberSource instances and are unique to number graphs
-//  -> This also makes more sense if sound sources can be given custom names for disambiguation
-//  -> This also makes more sense if sound number sources are given names in their respective UIs
-
-// names fuzzy-match
-// rules like "12564" for constants either match or don't, but this one is distinct enough to merit putting on top if it matches at all
-// arguments are not considered during matching
-//  -> also who cares about arguments if I'm about to rewrite this to be more general?
-//
 
 pub(super) struct SummonWidgetStateBuilder<T> {
     position: egui::Pos2,
@@ -175,16 +167,27 @@ impl<T: Copy> SummonWidgetStateBuilder<T> {
         self
     }
 
+    pub(super) fn add_name_with_arguments(
+        &mut self,
+        name: String,
+        arguments: ArgumentList,
+        value: T,
+    ) -> &mut Self {
+        self.rules
+            .push(SummonRule::NameWithArguments(name, arguments, value));
+        self
+    }
+
     pub(super) fn build(self) -> SummonWidgetState<T> {
         let mut rules: Vec<ScoredRule<T>> = self
             .rules
             .into_iter()
             .map(|rule| {
-                let value = rule.default_value();
+                let value_and_args = rule.evaluate("");
                 ScoredRule {
                     rule,
                     score: 0.0,
-                    value,
+                    value_and_args,
                 }
             })
             .collect();
@@ -201,9 +204,12 @@ impl<T: Copy> SummonWidgetStateBuilder<T> {
 }
 
 impl<T: Copy> SummonWidgetState<T> {
-    pub(super) fn final_choice(&self) -> Option<T> {
+    pub(super) fn final_choice(&self) -> Option<(&T, &ParsedArguments)> {
         if self.finalized {
             self.current_choice
+                .as_ref()
+                .map(|(a, b)| Some((a, b)))
+                .flatten()
         } else {
             None
         }
@@ -297,7 +303,12 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                         || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
                 }) {
                     self.state.finalized = true;
-                    self.state.current_choice = self.state.rules.get(0).map(|x| x.value).flatten();
+                    self.state.current_choice = self
+                        .state
+                        .rules
+                        .get(0)
+                        .map(|x| x.value_and_args.clone())
+                        .flatten();
                 }
                 if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
                     self.state.finalized = true;
@@ -335,6 +346,7 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                                 match scored_rule.rule {
                                     SummonRule::BasicName(_, _) => "name",
                                     SummonRule::Pattern(_, _) => "pattern",
+                                    SummonRule::NameWithArguments(_, _, _) => "name+args",
                                 },
                                 5.0,
                                 egui::TextFormat {
@@ -347,7 +359,7 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                         let r = ui.add(egui::Label::new(layout_job).sense(egui::Sense::click()));
 
                         if r.clicked() {
-                            self.state.current_choice = scored_rule.value;
+                            self.state.current_choice = scored_rule.value_and_args.clone();
                             self.state.finalized = true;
                         }
                         if r.hovered() {

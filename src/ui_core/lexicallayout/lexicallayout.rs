@@ -14,6 +14,7 @@ use crate::{
     },
     objects::functions::Constant,
     ui_core::{
+        arguments::ParsedArguments,
         lexicallayout::ast::{ASTNodeValue, InternalASTNodeValue},
         numbergraphuicontext::OuterNumberGraphUiContext,
     },
@@ -823,10 +824,12 @@ impl LexicalLayout {
 
         if let Some(summon_widget_state) = focus.summon_widget_state_mut() {
             if let Some(choice) = summon_widget_state.final_choice() {
-                let (new_node, layout) = match choice {
+                let (summon_value, arguments) = choice;
+                let (new_node, layout) = match *summon_value {
                     NumberSummonValue::NumberSourceType(ns_type) => self
                         .create_new_number_source_from_type(
                             ns_type,
+                            arguments,
                             object_factory,
                             ui_factory,
                             object_ui_states,
@@ -854,6 +857,7 @@ impl LexicalLayout {
                         let (node, layout) = self
                             .create_new_number_source_from_type(
                                 Constant::TYPE,
+                                arguments,
                                 object_factory,
                                 ui_factory,
                                 object_ui_states,
@@ -885,6 +889,7 @@ impl LexicalLayout {
     fn create_new_number_source_from_type(
         &self,
         ns_type: ObjectType,
+        arguments: &ParsedArguments,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
@@ -895,23 +900,7 @@ impl LexicalLayout {
                 // TODO: add a way to pass named arguments here that lends itself to parsing.
                 // Perhaps named static string constants associated with the obeject and/or its ui?
                 // Values can then be passed in something like a dictionary
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-                aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                todo!();
                 object_factory.create_default(ns_type.name(), numbergraph)
             })
             .unwrap();

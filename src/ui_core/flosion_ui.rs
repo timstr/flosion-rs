@@ -479,13 +479,14 @@ impl FlosionApp {
         }
         if let Some(s) = &self.summon_state {
             if let Some(choice) = s.final_choice() {
+                let (chosen_type, parsed_args) = choice;
                 let new_object = self
                     .object_factory
-                    .create_default(choice.name(), &mut self.graph);
+                    .create_default(chosen_type.name(), &mut self.graph);
                 let new_object = match new_object {
                     Ok(o) => o,
                     Err(_) => {
-                        println!("Failed to create an object of type {}", choice.name());
+                        println!("Failed to create an object of type {}", chosen_type.name());
                         return;
                     }
                 };
