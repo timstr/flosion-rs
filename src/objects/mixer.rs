@@ -1,16 +1,19 @@
 use serialization::Serializer;
 
-use crate::core::{
-    engine::nodegen::NodeGen,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::Context,
-        soundinput::{InputOptions, SoundInputId},
-        soundinputtypes::{SingleInputList, SingleInputListNode},
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
+use crate::{
+    core::{
+        engine::nodegen::NodeGen,
+        graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        sound::{
+            context::Context,
+            soundinput::{InputOptions, SoundInputId},
+            soundinputtypes::{SingleInputList, SingleInputListNode},
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::SoundChunk,
     },
-    soundchunk::SoundChunk,
+    ui_core::arguments::NaturalNumberArgument,
 };
 
 pub struct Mixer {
@@ -35,6 +38,8 @@ impl Mixer {
     pub fn num_inputs(&self) -> usize {
         self.inputs.length()
     }
+
+    pub const ARG_NUM_INPUTS: NaturalNumberArgument = NaturalNumberArgument("num_inputs");
 }
 
 impl DynamicSoundProcessor for Mixer {
@@ -42,14 +47,11 @@ impl DynamicSoundProcessor for Mixer {
     type SoundInputType = SingleInputList;
     type NumberInputType<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
-        let num_inputs: usize = match _init {
-            // ObjectInitialization::Args(_) => {
-            //     // TODO: add argument
-            //     2
-            // }
+    fn new(mut tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
+        let num_inputs: usize = match init {
             ObjectInitialization::Archive(mut a) => a.u8()? as usize,
             ObjectInitialization::Default => 2,
+            ObjectInitialization::Arguments(args) => args.get(&Mixer::ARG_NUM_INPUTS).unwrap_or(2),
         };
         Ok(Mixer {
             inputs: SingleInputList::new(num_inputs, MIXER_INPUT_OPTIONS, &mut tools),

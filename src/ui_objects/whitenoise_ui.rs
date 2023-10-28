@@ -30,4 +30,8 @@ impl ObjectUi for WhiteNoiseUi {
             // .add_right_peg(whitenoise.id(), "Output")
             .show(ui, ctx, ui_state);
     }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["whitenoise"]
+    }
 }

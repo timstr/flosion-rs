@@ -6,7 +6,7 @@ use crate::{
     core::number::numbersource::NumberSourceHandle,
     objects::functions::*,
     ui_core::{
-        arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
+        arguments::{ArgumentList, FloatRangeArgument, ParsedArguments, StringIdentifierArgument},
         graph_ui::ObjectUiState,
         lexicallayout::lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
@@ -45,6 +45,10 @@ impl ObjectUi for ConstantUi {
             DisplayStyle::Framed,
         )
         .show(ui, ctx, ui_state);
+    }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["constant"]
     }
 
     fn summon_arguments(&self) -> ArgumentList {
@@ -97,7 +101,19 @@ impl Serializable for VariableUiState {
     }
 }
 
-impl ObjectUiState for VariableUiState {}
+impl ObjectUiState for VariableUiState {
+    fn new_from_args(args: &ParsedArguments) -> VariableUiState {
+        let range = args.get(&VariableUi::ARG_RANGE).unwrap_or(0.0..=1.0);
+        VariableUiState {
+            min_value: *range.start() as f32,
+            max_value: *range.end() as f32,
+            name: args
+                .get(&VariableUi::ARG_NAME)
+                .unwrap_or_else(|| "variable".to_string()),
+            show_settings: false,
+        }
+    }
+}
 
 impl ObjectUi for VariableUi {
     type GraphUi = NumberGraphUi;
@@ -157,6 +173,10 @@ impl ObjectUi for VariableUi {
             }
         };
         (state, NumberSourceLayout::default())
+    }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["variable"]
     }
 
     fn summon_arguments(&self) -> ArgumentList {

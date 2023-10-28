@@ -71,9 +71,7 @@ pub trait ObjectUi: 'static + Default {
         >,
     );
 
-    fn summon_names(&self) -> &'static [&'static str] {
-        &[]
-    }
+    fn summon_names(&self) -> &'static [&'static str];
 
     fn summon_arguments(&self) -> ArgumentList {
         ArgumentList::new_empty()

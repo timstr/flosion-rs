@@ -31,4 +31,8 @@ impl ObjectUi for EnsembleUi {
             .add_number_source(ensemble.voice_frequency.id(), "voice_frequency")
             .show(ui, ctx, ui_state);
     }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["ensemble"]
+    }
 }

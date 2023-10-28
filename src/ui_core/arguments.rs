@@ -1,14 +1,18 @@
 use std::any::Any;
 
-struct AnyArgumentValue {
+pub struct AnyArgumentValue {
     value: Box<dyn ArgumentValue>,
 }
 
 impl AnyArgumentValue {
-    fn new<T: ArgumentValue>(value: T) -> AnyArgumentValue {
+    pub fn new<T: ArgumentValue>(value: T) -> AnyArgumentValue {
         AnyArgumentValue {
             value: Box::new(value),
         }
+    }
+
+    fn downcast<T: ArgumentValue + Clone>(&self) -> Option<T> {
+        self.value.as_any().downcast_ref::<T>().cloned()
     }
 }
 
@@ -23,6 +27,8 @@ impl Clone for AnyArgumentValue {
 pub trait ArgumentValue: 'static {
     fn box_clone(&self) -> Box<dyn ArgumentValue>;
 
+    fn eeeeeeeeeeeeeeeeek(&self) -> &str;
+
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -31,8 +37,13 @@ impl<T: 'static + Clone> ArgumentValue for T {
         Box::new(self.clone())
     }
 
+    fn eeeeeeeeeeeeeeeeek(&self) -> &str {
+        std::any::type_name::<T>()
+    }
+
     fn as_any(&self) -> &dyn Any {
-        self
+        let val: &T = self;
+        val
     }
 }
 
@@ -49,6 +60,8 @@ pub struct StringIdentifierArgument(pub &'static str);
 pub struct FloatArgument(pub &'static str);
 
 pub struct FloatRangeArgument(pub &'static str);
+
+pub struct NaturalNumberArgument(pub &'static str);
 
 impl Argument for StringIdentifierArgument {
     type ValueType = String;
@@ -110,6 +123,18 @@ impl Argument for FloatRangeArgument {
     }
 }
 
+impl Argument for NaturalNumberArgument {
+    type ValueType = usize;
+
+    fn name(&self) -> &'static str {
+        self.0
+    }
+
+    fn try_parse(s: &str) -> Option<Self::ValueType> {
+        s.parse::<usize>().ok()
+    }
+}
+
 pub trait AnyArgument {
     fn name(&self) -> &str;
 
@@ -142,9 +167,8 @@ impl ParsedArguments {
         }
     }
 
-    fn add<T: ArgumentValue>(&mut self, name: &'static str, value: T) {
-        self.argument_values
-            .push((name, AnyArgumentValue::new(value)));
+    fn add(&mut self, name: &'static str, value: AnyArgumentValue) {
+        self.argument_values.push((name, value));
     }
 
     pub fn get<T: Argument>(&self, argument: &'static T) -> Option<T::ValueType> {
@@ -159,11 +183,14 @@ impl ParsedArguments {
             // no matching argument found by name
             return None;
         };
-        let Some(val) = val.as_any().downcast_ref::<T::ValueType>() else {
-            panic!("Parsed argument has the wrong type");
-        };
-        let val: T::ValueType = val.clone();
-        Some(val)
+        Some(
+            val.downcast::<T::ValueType>()
+                .expect("Parsed argument has the wrong type"),
+        )
+    }
+
+    pub(super) fn values(&self) -> &[(&'static str, AnyArgumentValue)] {
+        &self.argument_values
     }
 }
 
@@ -183,10 +210,19 @@ impl ArgumentList {
         self
     }
 
-    fn try_parse_term(&self, term: &str) -> Option<(&'static str, AnyArgumentValue)> {
-        for arg in &self.arguments {
+    pub fn arguments(&self) -> &[&dyn AnyArgument] {
+        &self.arguments
+    }
+
+    fn try_parse_term(
+        term: &str,
+        remaining_args: &mut Vec<&'static dyn AnyArgument>,
+    ) -> Option<(&'static str, AnyArgumentValue)> {
+        for (i, arg) in remaining_args.iter().enumerate() {
             if let Some(v) = arg.try_parse(&term) {
-                return Some((arg.name(), v));
+                let name = arg.name();
+                remaining_args.remove(i);
+                return Some((name, v));
             }
         }
         None
@@ -195,8 +231,10 @@ impl ArgumentList {
     pub fn parse(&self, terms: Vec<String>) -> ParsedArguments {
         let mut parsed_arguments = ParsedArguments::new_empty();
 
+        let mut remaining_arguments = self.arguments.clone();
+
         for term in terms {
-            if let Some((name, value)) = self.try_parse_term(&term) {
+            if let Some((name, value)) = Self::try_parse_term(&term, &mut remaining_arguments) {
                 parsed_arguments.add(name, value);
             } else {
                 println!(

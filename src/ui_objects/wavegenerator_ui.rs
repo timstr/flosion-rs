@@ -31,4 +31,8 @@ impl ObjectUi for WaveGeneratorUi {
             .add_number_source(wavgen.time.id(), "time")
             .show(ui, ctx, ui_state);
     }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["wavegenerator"]
+    }
 }

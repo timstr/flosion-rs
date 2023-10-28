@@ -28,4 +28,8 @@ impl ObjectUi for ResamplerUi {
             .add_number_input(resampler.speed_ratio.id(), "speed")
             .show(ui, ctx, ui_state);
     }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["resampler"]
+    }
 }

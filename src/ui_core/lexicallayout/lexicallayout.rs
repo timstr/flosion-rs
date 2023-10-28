@@ -825,7 +825,7 @@ impl LexicalLayout {
         if let Some(summon_widget_state) = focus.summon_widget_state_mut() {
             if let Some(choice) = summon_widget_state.final_choice() {
                 let (summon_value, arguments) = choice;
-                let (new_node, layout) = match *summon_value {
+                let (new_node, layout) = match summon_value {
                     NumberSummonValue::NumberSourceType(ns_type) => self
                         .create_new_number_source_from_type(
                             ns_type,
@@ -889,7 +889,7 @@ impl LexicalLayout {
     fn create_new_number_source_from_type(
         &self,
         ns_type: ObjectType,
-        arguments: &ParsedArguments,
+        arguments: ParsedArguments,
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
@@ -897,11 +897,7 @@ impl LexicalLayout {
     ) -> Result<(ASTNode, NumberSourceLayout), String> {
         let new_object = outer_context
             .edit_number_graph(|numbergraph| {
-                // TODO: add a way to pass named arguments here that lends itself to parsing.
-                // Perhaps named static string constants associated with the obeject and/or its ui?
-                // Values can then be passed in something like a dictionary
-                todo!();
-                object_factory.create_default(ns_type.name(), numbergraph)
+                object_factory.create_from_args(ns_type.name(), numbergraph, arguments)
             })
             .unwrap();
 

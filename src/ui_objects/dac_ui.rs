@@ -33,4 +33,8 @@ impl ObjectUi for DacUi {
                 }
             });
     }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["dac"]
+    }
 }

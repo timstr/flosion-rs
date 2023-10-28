@@ -23,13 +23,21 @@ pub(super) fn build_summon_widget_for_sound_number_input(
     ctx: &OuterSoundNumberInputContext,
 ) -> SummonWidgetState<NumberSummonValue> {
     let mut builder = SummonWidgetStateBuilder::new(position);
+    println!("Summon widget entries:");
     for object_ui in ui_factory.all_object_uis() {
+        println!("  {}", object_ui.object_type().name());
+        println!("    names");
         for name in object_ui.summon_names() {
+            println!("      {}", name);
             builder.add_name_with_arguments(
                 name.to_string(),
                 object_ui.summon_arguments(),
                 NumberSummonValue::NumberSourceType(object_ui.object_type()),
             );
+        }
+        println!("    args");
+        for arg in object_ui.summon_arguments().arguments() {
+            println!("      {}", arg.name());
         }
     }
 

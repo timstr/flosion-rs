@@ -60,4 +60,8 @@ impl ObjectUi for MixerUi {
             });
         });
     }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["mixer"]
+    }
 }

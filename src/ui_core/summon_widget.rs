@@ -204,12 +204,9 @@ impl<T: Copy> SummonWidgetStateBuilder<T> {
 }
 
 impl<T: Copy> SummonWidgetState<T> {
-    pub(super) fn final_choice(&self) -> Option<(&T, &ParsedArguments)> {
+    pub(super) fn final_choice(&self) -> Option<(T, ParsedArguments)> {
         if self.finalized {
-            self.current_choice
-                .as_ref()
-                .map(|(a, b)| Some((a, b)))
-                .flatten()
+            self.current_choice.clone()
         } else {
             None
         }
@@ -333,27 +330,26 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                         );
 
                         // TESTING displaying rule type and score
-                        {
-                            layout_job.append(
-                                &format!("s={}", scored_rule.score),
-                                5.0,
-                                egui::TextFormat {
-                                    color: egui::Color32::GREEN,
-                                    ..Default::default()
-                                },
-                            );
-                            layout_job.append(
-                                match scored_rule.rule {
-                                    SummonRule::BasicName(_, _) => "name",
-                                    SummonRule::Pattern(_, _) => "pattern",
-                                    SummonRule::NameWithArguments(_, _, _) => "name+args",
-                                },
-                                5.0,
-                                egui::TextFormat {
-                                    color: egui::Color32::GREEN,
-                                    ..Default::default()
-                                },
-                            );
+                        layout_job.append(
+                            &format!("s={}", scored_rule.score),
+                            5.0,
+                            egui::TextFormat {
+                                color: egui::Color32::GREEN,
+                                ..Default::default()
+                            },
+                        );
+
+                        if let SummonRule::NameWithArguments(_, args, _) = &scored_rule.rule {
+                            for arg in args.arguments() {
+                                layout_job.append(
+                                    arg.name(),
+                                    5.0,
+                                    egui::TextFormat {
+                                        color: egui::Color32::GREEN,
+                                        ..Default::default()
+                                    },
+                                );
+                            }
                         }
 
                         let r = ui.add(egui::Label::new(layout_job).sense(egui::Sense::click()));

@@ -20,3 +20,6 @@ pub mod soundprocessorui;
 mod summon_widget;
 pub mod temporallayout;
 pub mod ui_factory;
+
+#[cfg(test)]
+mod test;
