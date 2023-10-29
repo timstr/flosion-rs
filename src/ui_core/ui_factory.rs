@@ -8,6 +8,7 @@ use crate::core::graph::graphobject::{
 };
 
 use super::{
+    arguments::ParsedArguments,
     graph_ui::{GraphUi, GraphUiContext},
     object_ui::{AnyObjectUi, ObjectUi},
 };
@@ -122,5 +123,13 @@ impl<G: GraphUi> UiFactory<G> {
         deserializer: Deserializer,
     ) -> Result<G::ObjectUiData, ()> {
         self.create_state_impl(object, ObjectInitialization::Archive(deserializer))
+    }
+
+    pub fn create_state_from_arguments(
+        &self,
+        object: &GraphObjectHandle<G::Graph>,
+        arguments: ParsedArguments,
+    ) -> Result<G::ObjectUiData, ()> {
+        self.create_state_impl(object, ObjectInitialization::Arguments(arguments))
     }
 }

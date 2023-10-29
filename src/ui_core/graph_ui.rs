@@ -4,13 +4,7 @@ use serialization::Serializable;
 
 use crate::core::graph::graph::Graph;
 
-use super::arguments::ParsedArguments;
-
-pub trait ObjectUiState: Any + Default + Serializable {
-    fn new_from_args(_args: &ParsedArguments) -> Self {
-        Self::default()
-    }
-}
+pub trait ObjectUiState: Any + Default + Serializable {}
 
 pub trait GraphUi {
     // the graph type being represented in the ui

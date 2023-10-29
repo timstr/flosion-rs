@@ -11,7 +11,7 @@ use crate::core::graph::{
 };
 
 use super::{
-    arguments::ArgumentList,
+    arguments::{ArgumentList, ParsedArguments},
     graph_ui::{GraphUi, ObjectUiData, ObjectUiState},
 };
 
@@ -51,6 +51,7 @@ pub fn random_object_color() -> egui::Color32 {
 
 pub enum UiInitialization {
     Default,
+    Arguments(ParsedArguments),
 }
 
 pub trait ObjectUi: 'static + Default {
@@ -154,8 +155,7 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
             ),
             ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
             ObjectInitialization::Arguments(parsed_args) => {
-                // TODO
-                todo!()
+                self.make_ui_state(&handle, UiInitialization::Arguments(parsed_args))
             }
         };
 

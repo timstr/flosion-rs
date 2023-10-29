@@ -27,18 +27,12 @@ impl Clone for AnyArgumentValue {
 pub trait ArgumentValue: 'static {
     fn box_clone(&self) -> Box<dyn ArgumentValue>;
 
-    fn eeeeeeeeeeeeeeeeek(&self) -> &str;
-
     fn as_any(&self) -> &dyn Any;
 }
 
 impl<T: 'static + Clone> ArgumentValue for T {
     fn box_clone(&self) -> Box<dyn ArgumentValue> {
         Box::new(self.clone())
-    }
-
-    fn eeeeeeeeeeeeeeeeek(&self) -> &str {
-        std::any::type_name::<T>()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -168,7 +162,38 @@ impl ParsedArguments {
     }
 
     fn add(&mut self, name: &'static str, value: AnyArgumentValue) {
+        if self
+            .argument_values
+            .iter()
+            .find(|(n, _)| *n == name)
+            .is_some()
+        {
+            panic!(
+                "Adding a parsed argument value for name \"{}\" a second time",
+                name
+            );
+        }
         self.argument_values.push((name, value));
+    }
+
+    pub fn add_or_replace<T: Argument>(
+        mut self,
+        argument: &'static T,
+        value: T::ValueType,
+    ) -> Self {
+        if let Some(val) = self.argument_values.iter_mut().find_map(|(name, val)| {
+            if *name == argument.name() {
+                Some(val)
+            } else {
+                None
+            }
+        }) {
+            *val = AnyArgumentValue::new(value);
+        } else {
+            self.argument_values
+                .push((argument.name(), AnyArgumentValue::new(value)));
+        }
+        self
     }
 
     pub fn get<T: Argument>(&self, argument: &'static T) -> Option<T::ValueType> {
@@ -206,6 +231,17 @@ impl ArgumentList {
     }
 
     pub fn add(mut self, argument: &'static dyn AnyArgument) -> ArgumentList {
+        if self
+            .arguments
+            .iter()
+            .find(|a| a.name() == argument.name())
+            .is_some()
+        {
+            panic!(
+                "Adding an argument called \"{}\" to argument list for the second time",
+                argument.name()
+            );
+        }
         self.arguments.push(argument);
         self
     }
@@ -229,6 +265,10 @@ impl ArgumentList {
     }
 
     pub fn parse(&self, terms: Vec<String>) -> ParsedArguments {
+        if self.arguments.is_empty() {
+            return ParsedArguments::new_empty();
+        }
+
         let mut parsed_arguments = ParsedArguments::new_empty();
 
         let mut remaining_arguments = self.arguments.clone();

@@ -857,7 +857,8 @@ impl LexicalLayout {
                         let (node, layout) = self
                             .create_new_number_source_from_type(
                                 Constant::TYPE,
-                                arguments,
+                                arguments
+                                    .add_or_replace(&Constant::ARG_VALUE, constant_value as f64),
                                 object_factory,
                                 ui_factory,
                                 object_ui_states,
@@ -897,7 +898,7 @@ impl LexicalLayout {
     ) -> Result<(ASTNode, NumberSourceLayout), String> {
         let new_object = outer_context
             .edit_number_graph(|numbergraph| {
-                object_factory.create_from_args(ns_type.name(), numbergraph, arguments)
+                object_factory.create_from_args(ns_type.name(), numbergraph, arguments.clone())
             })
             .unwrap();
 
@@ -911,7 +912,9 @@ impl LexicalLayout {
             }
         };
 
-        let new_ui_state = ui_factory.create_default_state(&new_object);
+        let new_ui_state = ui_factory
+            .create_state_from_arguments(&new_object, arguments)
+            .map_err(|e| format!("Failed to create ui state: {:?}", e))?;
 
         let num_inputs = outer_context.inspect_number_graph(|numbergraph| {
             numbergraph

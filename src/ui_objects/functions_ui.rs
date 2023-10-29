@@ -6,7 +6,7 @@ use crate::{
     core::number::numbersource::NumberSourceHandle,
     objects::functions::*,
     ui_core::{
-        arguments::{ArgumentList, FloatRangeArgument, ParsedArguments, StringIdentifierArgument},
+        arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
         graph_ui::ObjectUiState,
         lexicallayout::lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
@@ -101,19 +101,7 @@ impl Serializable for VariableUiState {
     }
 }
 
-impl ObjectUiState for VariableUiState {
-    fn new_from_args(args: &ParsedArguments) -> VariableUiState {
-        let range = args.get(&VariableUi::ARG_RANGE).unwrap_or(0.0..=1.0);
-        VariableUiState {
-            min_value: *range.start() as f32,
-            max_value: *range.end() as f32,
-            name: args
-                .get(&VariableUi::ARG_NAME)
-                .unwrap_or_else(|| "variable".to_string()),
-            show_settings: false,
-        }
-    }
-}
+impl ObjectUiState for VariableUiState {}
 
 impl ObjectUi for VariableUi {
     type GraphUi = NumberGraphUi;
@@ -127,11 +115,8 @@ impl ObjectUi for VariableUi {
         ctx: &mut NumberGraphUiContext,
         data: NumberObjectUiData<VariableUiState>,
     ) {
-        NumberSourceUi::new_unnamed(variable.id(), DisplayStyle::Framed).show_with(
-            ui,
-            ctx,
-            ui_state,
-            |ui, _ui_state| {
+        NumberSourceUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
+            .show_with(ui, ctx, ui_state, |ui, _ui_state| {
                 let mut v = variable.get_value();
                 let v_old = v;
                 ui.add(egui::Slider::new(
@@ -151,8 +136,7 @@ impl ObjectUi for VariableUi {
                     ui.label("max");
                     ui.add(egui::DragValue::new(&mut data.state.max_value));
                 }
-            },
-        );
+            });
     }
 
     fn make_ui_state(
@@ -161,13 +145,40 @@ impl ObjectUi for VariableUi {
         init: UiInitialization,
     ) -> (Self::StateType, NumberSourceLayout) {
         let state = match init {
-            // TODO: add back initialization from some kind of arguments
             UiInitialization::Default => {
                 let v = object.get_value();
                 VariableUiState {
                     min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
                     max_value: 2.0 * v.abs(),
                     name: "Variable".to_string(),
+                    show_settings: false,
+                }
+            }
+            UiInitialization::Arguments(args) => {
+                let value = args.get(&Variable::ARG_VALUE);
+                let range = args.get(&VariableUi::ARG_RANGE);
+                let (value, range) = match (value, range) {
+                    (Some(v), Some(r)) => (v, r),
+                    (None, Some(r)) => (0.5 * (r.start() + r.end()), r),
+                    (Some(v), None) => (
+                        v,
+                        if v == 0.0 {
+                            0.0..=1.0
+                        } else if v < 0.0 {
+                            (2.0 * v)..=(-2.0 * v)
+                        } else {
+                            0.0..=(2.0 * v)
+                        },
+                    ),
+                    (None, None) => (1.0, 0.0..=2.0),
+                };
+                object.set_value(value as f32);
+                VariableUiState {
+                    min_value: *range.start() as f32,
+                    max_value: *range.end() as f32,
+                    name: args
+                        .get(&VariableUi::ARG_NAME)
+                        .unwrap_or_else(|| "Variable".to_string()),
                     show_settings: false,
                 }
             }
