@@ -168,13 +168,6 @@ impl<'ctx> Drop for SoundEngineInterface<'ctx> {
 }
 
 pub(crate) struct SoundEngine<'ctx> {
-    // TODO: add a queue for whatever objects the state graph no longer needs
-    // (e.g. removed sound processors, out-of-date compiled number inputs,
-    // removed sound input targets, etc) which need to be dropped but should
-    // ideally be dropped on a different thread to avoid spending audio
-    // processing deallocating objects. Call it the garbage chute maybe.
-    // Might require a dedicated trait so that Arc<dyn Garbage> or
-    // Box<dyn Garbage> can be sent down the chute.
     keep_running: Arc<AtomicBool>,
     edit_queue: Receiver<StateGraphEdit<'ctx>>,
     deadline_warning_issued: bool,

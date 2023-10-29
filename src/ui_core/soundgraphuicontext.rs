@@ -6,7 +6,7 @@ use crate::core::{
     graph::{graphobject::GraphObjectHandle, objectfactory::ObjectFactory},
     number::numbergraph::NumberGraph,
     sound::{
-        soundgraph::SoundGraph, soundgrapherror::SoundError, soundgraphid::SoundObjectId,
+        soundgraph::SoundGraph, soundgraphid::SoundObjectId,
         soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
         soundnumberinput::SoundNumberInputId,
     },

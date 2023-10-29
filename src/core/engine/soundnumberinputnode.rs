@@ -6,10 +6,8 @@ use crate::core::{
         nodegen::NodeGen,
     },
     jit::{codegen::CodeGen, compilednumberinput::CompiledNumberInputFunction},
-    sound::soundnumberinput::SoundNumberInputId,
+    sound::{context::Context, soundnumberinput::SoundNumberInputId},
 };
-
-use super::context::Context;
 
 pub struct SoundNumberInputNode<'ctx> {
     id: SoundNumberInputId,
@@ -17,7 +15,7 @@ pub struct SoundNumberInputNode<'ctx> {
 }
 
 impl<'ctx> SoundNumberInputNode<'ctx> {
-    pub(super) fn new<'a>(
+    pub(crate) fn new<'a>(
         id: SoundNumberInputId,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> SoundNumberInputNode<'ctx> {

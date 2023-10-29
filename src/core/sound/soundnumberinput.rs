@@ -1,6 +1,9 @@
-use crate::core::{engine::nodegen::NodeGen, uniqueid::UniqueId};
+use crate::core::{
+    engine::{nodegen::NodeGen, soundnumberinputnode::SoundNumberInputNode},
+    uniqueid::UniqueId,
+};
 
-use super::{soundnumberinputnode::SoundNumberInputNode, soundprocessor::SoundProcessorId};
+use super::soundprocessor::SoundProcessorId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SoundNumberInputId(usize);

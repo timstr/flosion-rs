@@ -38,32 +38,6 @@ impl<G: GraphUi> UiFactory<G> {
         );
     }
 
-    // pub fn register_static_sound_processor<T: ObjectUi>(&mut self)
-    // where
-    //     <<T as ObjectUi>::HandleType as ObjectHandle>::Type: StaticSoundProcessor,
-    // {
-    //     let name = <<T as ObjectUi>::HandleType as ObjectHandle>::Type::TYPE.name();
-    //     self.mapping.insert(
-    //         name,
-    //         ObjectData {
-    //             ui: Box::new(T::default()),
-    //         },
-    //     );
-    // }
-
-    // pub fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
-    // where
-    //     <<T as ObjectUi>::HandleType as ObjectHandle>::Type: DynamicSoundProcessor,
-    // {
-    //     let name = <<T as ObjectUi>::HandleType as ObjectHandle>::Type::TYPE.name();
-    //     self.mapping.insert(
-    //         name,
-    //         ObjectData {
-    //             ui: Box::new(T::default()),
-    //         },
-    //     );
-    // }
-
     pub fn all_object_types<'a>(&'a self) -> impl 'a + Iterator<Item = ObjectType> {
         self.mapping.keys().cloned()
     }

@@ -4,12 +4,13 @@ use crate::core::{
     sound::{
         soundgraphdata::SoundProcessorData, soundgraphtopology::SoundGraphTopology,
         soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
-        soundnumberinputnode::SoundNumberInputNode, soundprocessor::SoundProcessorId,
+        soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
 };
 
 use super::{
+    soundnumberinputnode::SoundNumberInputNode,
     stategraph::StateGraph,
     stategraphnode::{
         NodeTargetValue, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,
@@ -48,7 +49,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
     fn check_processor(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
         let Some(proc_data) = self.topology.sound_processors().get(&node.id()) else {
-            println!("state_graph_matches_topology: a sound processor was found which shouldn't exist");
+            println!(
+                "state_graph_matches_topology: a sound processor was found which shouldn't exist"
+            );
             return false;
         };
 

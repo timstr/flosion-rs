@@ -9,6 +9,8 @@ use serialization::Serializer;
 use crate::core::{
     engine::{
         nodegen::NodeGen,
+        soundinputnode::SoundProcessorInput,
+        soundnumberinputnode::SoundNumberInputNodeCollection,
         stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
     },
     graph::graphobject::{
@@ -21,7 +23,6 @@ use crate::core::{
 
 use super::{
     context::Context, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-    soundinputnode::SoundProcessorInput, soundnumberinputnode::SoundNumberInputNodeCollection,
     soundprocessortools::SoundProcessorTools, state::State,
 };
 

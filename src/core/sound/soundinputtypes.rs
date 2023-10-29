@@ -4,14 +4,17 @@ use parking_lot::RwLock;
 
 use crate::core::{
     anydata::AnyData,
-    engine::{nodegen::NodeGen, stategraphnode::NodeTarget},
+    engine::{
+        nodegen::NodeGen,
+        soundinputnode::{SoundInputNode, SoundProcessorInput},
+        stategraphnode::NodeTarget,
+    },
     soundchunk::{SoundChunk, CHUNK_SIZE},
 };
 
 use super::{
     context::Context,
     soundinput::{InputOptions, InputTiming, SoundInputId},
-    soundinputnode::{SoundInputNode, SoundProcessorInput},
     soundprocessor::{ProcessorState, StreamStatus},
     soundprocessortools::SoundProcessorTools,
     state::State,

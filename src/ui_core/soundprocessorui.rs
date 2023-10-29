@@ -476,12 +476,6 @@ impl ProcessorUi {
                             ui_state,
                             ui,
                         );
-
-                        // ctx.push_context(input_id, desired_width);
-
-                        // ctx.ui_factory().ui(&target_graph_object, ui_state, ui, ctx);
-
-                        // ctx.pop_context();
                     }
                 })
             }

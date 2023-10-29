@@ -46,25 +46,6 @@ impl<'a, G: GraphUi> RegistrationHelper<'a, G> {
             .register::<<T::HandleType as ObjectHandle<G::Graph>>::ObjectType>();
         self.ui_factory.register::<T>();
     }
-
-    // fn register_static_sound_processor<T: ObjectUi>(&mut self)
-    // where
-    //     <<T as ObjectUi>::HandleType as ObjectHandle>::Type: StaticSoundProcessor,
-    // {
-    //     self.object_factory
-    //         .register_static_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>(
-    //         );
-    //     self.ui_factory.register_static_sound_processor::<T>();
-    // }
-
-    // fn register_dynamic_sound_processor<T: ObjectUi>(&mut self)
-    // where
-    //     <<T as ObjectUi>::HandleType as ObjectHandle>::Type: DynamicSoundProcessor,
-    // {
-    //     self.object_factory
-    //         .register_dynamic_sound_processor::<<<T as ObjectUi>::HandleType as ObjectHandle>::Type>();
-    //     self.ui_factory.register_dynamic_sound_processor::<T>();
-    // }
 }
 
 pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundGraphUi>) {

@@ -58,14 +58,6 @@ impl<T: Copy> SummonRule<T> {
             }
         }
     }
-
-    // fn default_value(&self) -> Option<T> {
-    //     match self {
-    //         SummonRule::BasicName(_, value) => Some(*value),
-    //         SummonRule::Pattern(_, _) => None,
-    //         Self::NameWithArguments(_, _, _) => todo!(),
-    //     }
-    // }
 }
 struct ScoredRule<T> {
     rule: SummonRule<T>,

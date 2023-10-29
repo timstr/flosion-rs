@@ -13,12 +13,6 @@ struct ObjectData<G: Graph> {
     create: Box<dyn Fn(&mut G, ObjectInitialization) -> Result<GraphObjectHandle<G>, ()>>,
 }
 
-// TODO: share this between number and sound graphs,
-// consider adding a generic parameter for the graph type
-// (SoundGraph vs NumberGraph) and putting the creation
-// code into a trait UHNNNNG but how to avoid issues with
-// theoretically possible multiple conflicting trait implementations?
-
 pub struct ObjectFactory<G: Graph> {
     mapping: HashMap<&'static str, ObjectData<G>>,
 }

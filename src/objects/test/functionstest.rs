@@ -6,7 +6,14 @@ use parking_lot::Mutex;
 
 use crate::{
     core::{
-        engine::{nodegen::NodeGen, scratcharena::ScratchArena},
+        engine::{
+            nodegen::NodeGen,
+            scratcharena::ScratchArena,
+            soundnumberinputnode::{
+                SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+                SoundNumberInputNodeVisitorMut,
+            },
+        },
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         jit::codegen::CodeGen,
         number::{numbergraphdata::NumberTarget, numbersource::PureNumberSource},
@@ -17,10 +24,6 @@ use crate::{
             soundgraphtopology::SoundGraphTopology,
             soundinput::SoundInputId,
             soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
-            soundnumberinputnode::{
-                SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-                SoundNumberInputNodeVisitorMut,
-            },
             soundnumbersource::{SoundNumberSourceHandle, SoundNumberSourceId},
             soundprocessor::{
                 DynamicSoundProcessor, DynamicSoundProcessorWithId, SoundProcessorId,

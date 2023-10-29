@@ -1,9 +1,10 @@
-use crate::core::engine::{
-    nodegen::NodeGen,
-    stategraphnode::{NodeTarget, NodeTargetValue},
+use crate::core::{
+    engine::{
+        nodegen::NodeGen,
+        stategraphnode::{NodeTarget, NodeTargetValue},
+    },
+    sound::soundinput::SoundInputId,
 };
-
-use super::soundinput::SoundInputId;
 
 // TODO: move to core::engine
 

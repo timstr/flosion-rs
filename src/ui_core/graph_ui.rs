@@ -32,6 +32,7 @@ pub trait GraphUiContext<'a> {
 pub trait ObjectUiData {
     type GraphUi: GraphUi;
 
+    // TODO: think of a better name
     type RequiredData: Default + Serializable;
 
     fn new<S: ObjectUiState>(

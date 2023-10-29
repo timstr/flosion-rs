@@ -1,5 +1,11 @@
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::{
+        nodegen::NodeGen,
+        soundnumberinputnode::{
+            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+            SoundNumberInputNodeVisitorMut,
+        },
+    },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
@@ -7,10 +13,6 @@ use crate::core::{
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundnumberinput::SoundNumberInputHandle,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
-        },
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,

@@ -11,11 +11,6 @@ use crate::core::{
     sound::{
         context::Context,
         soundinput::{InputTiming, SoundInputId},
-        soundinputnode::{SoundInputNode, SoundProcessorInput},
-        soundnumberinputnode::{
-            SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
-        },
         soundprocessor::{
             DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, SoundProcessorId,
             StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
@@ -29,6 +24,10 @@ use super::{
     garbage::{Droppable, Garbage, GarbageChute},
     nodegen::NodeGen,
     scratcharena::ScratchArena,
+    soundinputnode::{SoundInputNode, SoundProcessorInput},
+    soundnumberinputnode::{
+        SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor, SoundNumberInputNodeVisitorMut,
+    },
 };
 
 pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {

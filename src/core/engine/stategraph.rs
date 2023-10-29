@@ -1,10 +1,11 @@
 use crate::core::sound::{
-    soundgraphdata::SoundNumberInputData, soundinput::SoundInputId, soundinputnode::SoundInputNode,
+    soundgraphdata::SoundNumberInputData, soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
 };
 
 use super::{
     garbage::{Garbage, GarbageChute},
+    soundinputnode::SoundInputNode,
     stategraphedit::StateGraphEdit,
     stategraphnode::StateGraphNode,
     stategraphnode::{NodeTargetValue, SharedProcessorNode},

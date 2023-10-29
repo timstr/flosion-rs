@@ -36,7 +36,6 @@ use super::{
     soundprocessortools::SoundProcessorTools,
 };
 
-// TODO: only sound number sources and processor number inputs
 struct SoundGraphClosure {
     sound_processors: HashSet<SoundProcessorId>,
     sound_inputs: HashSet<SoundInputId>,
@@ -165,6 +164,8 @@ impl SoundGraph {
                         garbage_disposer.clear();
                         let time_received = Instant::now();
                         let mut issued_late_warning = false;
+                        // handle at most a limited number of topology updates
+                        // to guarantee throughput for the garbage disposer
                         for _ in 0..16 {
                             let topo = match topo_receiver.try_recv() {
                                 Ok((topo, time_sent)) => {
