@@ -16,8 +16,8 @@ use super::{
     functions_ui::{
         AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
         Exp2Ui, ExpUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi, MultiplyUi, NegateUi,
-        PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SquareWaveUi, SubtractUi,
-        TriangleWaveUi, TruncUi, VariableUi,
+        PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi, SquareWaveUi, SubtractUi,
+        TriangleWaveUi, TruncUi,
     },
     mixer_ui::MixerUi,
     resampler_ui::ResamplerUi,
@@ -79,7 +79,7 @@ pub fn all_number_graph_objects() -> (ObjectFactory<NumberGraph>, UiFactory<Numb
     let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     helper.register::<ConstantUi>();
-    helper.register::<VariableUi>();
+    helper.register::<SliderUi>();
 
     helper.register::<NegateUi>();
     helper.register::<FloorUi>();

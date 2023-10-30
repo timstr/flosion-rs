@@ -11,6 +11,7 @@ use crate::{
             numbergraph::NumberGraph, numbergraphdata::NumberTarget,
             numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
         },
+        uniqueid::IdGenerator,
     },
     objects::functions::Constant,
     ui_core::{
@@ -29,7 +30,10 @@ use crate::ui_core::{
 };
 
 use super::{
-    ast::{ASTNode, ASTPath, ASTPathBuilder, ASTRoot, InternalASTNode, VariableDefinition},
+    ast::{
+        find_variable_definition, ASTNode, ASTPath, ASTPathBuilder, ASTRoot, InternalASTNode,
+        VariableDefinition, VariableId,
+    },
     edits::{delete_from_numbergraph_at_cursor, insert_to_numbergraph_at_cursor},
     summon::{build_summon_widget_for_sound_number_input, NumberSummonValue},
 };
@@ -209,6 +213,7 @@ fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
 pub(crate) struct LexicalLayout {
     variable_definitions: Vec<VariableDefinition>,
     final_expression: ASTNode,
+    variable_id_generator: IdGenerator<VariableId>,
 }
 
 impl LexicalLayout {
@@ -222,11 +227,14 @@ impl LexicalLayout {
 
         let mut variable_assignments: Vec<VariableDefinition> = Vec::new();
 
+        let mut variable_id_generator = IdGenerator::<VariableId>::new();
+
         fn visit_target(
             target: NumberTarget,
             variable_assignments: &mut Vec<VariableDefinition>,
             topo: &NumberGraphTopology,
             object_ui_states: &NumberObjectUiStates,
+            variable_id_generator: &mut IdGenerator<VariableId>,
         ) -> ASTNode {
             let nsid = match target {
                 NumberTarget::Source(nsid) => nsid,
@@ -239,7 +247,7 @@ impl LexicalLayout {
                 .iter()
                 .find(|va| va.value().direct_target() == Some(target))
             {
-                return ASTNode::new(ASTNodeValue::Variable(existing_variable.name().to_string()));
+                return ASTNode::new(ASTNodeValue::Variable(existing_variable.id()));
             }
 
             let create_new_variable = topo.number_target_destinations(target).count() >= 2;
@@ -250,9 +258,13 @@ impl LexicalLayout {
                 .number_inputs()
                 .iter()
                 .map(|niid| match topo.number_input(*niid).unwrap().target() {
-                    Some(target) => {
-                        visit_target(target, variable_assignments, topo, object_ui_states)
-                    }
+                    Some(target) => visit_target(
+                        target,
+                        variable_assignments,
+                        topo,
+                        object_ui_states,
+                        variable_id_generator,
+                    ),
                     None => ASTNode::new(ASTNodeValue::Empty),
                 })
                 .collect();
@@ -261,25 +273,34 @@ impl LexicalLayout {
                 make_internal_node(nsid, &*object_ui_states.get_object_data(nsid), arguments);
 
             if create_new_variable {
+                let id = variable_id_generator.next_id();
                 let new_variable_name = format!("x{}", variable_assignments.len());
                 variable_assignments.push(VariableDefinition::new(
+                    id,
                     new_variable_name.clone(),
                     ASTNode::new(ASTNodeValue::Internal(Box::new(node))),
                 ));
-                ASTNode::new(ASTNodeValue::Variable(new_variable_name))
+                ASTNode::new(ASTNodeValue::Variable(id))
             } else {
                 ASTNode::new(ASTNodeValue::Internal(Box::new(node)))
             }
         }
 
         let final_expression = match output.target() {
-            Some(target) => visit_target(target, &mut variable_assignments, topo, object_ui_states),
+            Some(target) => visit_target(
+                target,
+                &mut variable_assignments,
+                topo,
+                object_ui_states,
+                &mut variable_id_generator,
+            ),
             None => ASTNode::new(ASTNodeValue::Empty),
         };
 
         LexicalLayout {
             variable_definitions: variable_assignments,
             final_expression,
+            variable_id_generator,
         }
     }
 
@@ -302,6 +323,8 @@ impl LexicalLayout {
 
         let mut cursor = focus.as_mut().and_then(|f| Some(f.cursor_mut()));
 
+        // TODO: clean this up, way to many redundant arguments being passed around
+
         ui.vertical(|ui| {
             for (i, var_def) in variable_definitions.iter().enumerate() {
                 let line_number = i;
@@ -322,6 +345,7 @@ impl LexicalLayout {
                                 ASTPathBuilder::Root(ASTRoot::VariableDefinition(var_def)),
                                 cursor,
                                 outer_context,
+                                variable_definitions,
                             );
                             ui.label(",");
                         });
@@ -348,6 +372,7 @@ impl LexicalLayout {
                             ASTPathBuilder::Root(ASTRoot::FinalExpression),
                             cursor,
                             outer_context,
+                            variable_definitions,
                         );
                         ui.label(".");
                     });
@@ -416,6 +441,7 @@ impl LexicalLayout {
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
         outer_context: &OuterNumberGraphUiContext,
+        variable_definitions: &[VariableDefinition],
     ) {
         let hovering = ui
             .input(|i| i.pointer.hover_pos())
@@ -437,14 +463,19 @@ impl LexicalLayout {
                         path,
                         cursor,
                         outer_context,
+                        variable_definitions,
                     );
                     r.rect
                 }
-                ASTNodeValue::Variable(name) => {
+                ASTNodeValue::Variable(id) => {
                     ui.add(egui::Label::new(
-                        egui::RichText::new(&*name)
-                            .code()
-                            .color(egui::Color32::WHITE),
+                        egui::RichText::new(
+                            find_variable_definition(*id, variable_definitions)
+                                .unwrap()
+                                .name(),
+                        )
+                        .code()
+                        .color(egui::Color32::WHITE),
                     ))
                     .rect
                 }
@@ -470,11 +501,14 @@ impl LexicalLayout {
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
         outer_context: &OuterNumberGraphUiContext,
+        variable_definitions: &[VariableDefinition],
     ) -> egui::Response {
         let styled_text = |ui: &mut egui::Ui, s: String| -> egui::Response {
             let text = egui::RichText::new(s).code().color(egui::Color32::WHITE);
             ui.add(egui::Label::new(text))
         };
+
+        // TODO: clean this up also
 
         let ir = ui.horizontal_centered(|ui| {
             let hovering_over_self = ui
@@ -494,6 +528,7 @@ impl LexicalLayout {
                         path.push(node, 0),
                         cursor,
                         outer_context,
+                        variable_definitions,
                     );
                     r
                 }
@@ -506,6 +541,7 @@ impl LexicalLayout {
                         path.push(node, 0),
                         cursor,
                         outer_context,
+                        variable_definitions,
                     );
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
                         Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
@@ -518,6 +554,7 @@ impl LexicalLayout {
                         path.push(node, 1),
                         cursor,
                         outer_context,
+                        variable_definitions,
                     );
                     r
                 }
@@ -530,6 +567,7 @@ impl LexicalLayout {
                         path.push(node, 0),
                         cursor,
                         outer_context,
+                        variable_definitions,
                     );
                     Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
                         Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
@@ -572,6 +610,7 @@ impl LexicalLayout {
                                             path.push(node, i),
                                             cursor,
                                             outer_context,
+                                            variable_definitions,
                                         );
                                         styled_text(ui, ",".to_string());
                                     }
@@ -583,6 +622,7 @@ impl LexicalLayout {
                                         path.push(node, other_exprs.len()),
                                         cursor,
                                         outer_context,
+                                        variable_definitions,
                                     );
                                 }
                                 styled_text(ui, ")".to_string());
@@ -989,7 +1029,71 @@ impl LexicalLayout {
             .visit(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
     }
 
-    pub(crate) fn cleanup(&mut self, topology: &NumberGraphTopology) {
-        // TODO: check whether anything was removed, update the layout somehow.
+    pub(crate) fn cleanup(
+        &mut self,
+        topology: &NumberGraphTopology,
+        object_ui_states: &NumberObjectUiStates,
+    ) {
+        fn visitor(
+            node: &mut ASTNode,
+            expected_target: Option<NumberTarget>,
+            variable_definitions: &[VariableDefinition],
+        ) {
+            let actual_target = node.indirect_target(variable_definitions);
+            if expected_target == actual_target {
+                // nice
+
+                if let Some(internal_node) = node.internal_node() {
+                    match internal_node.value() {
+                        // TODO: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                        InternalASTNodeValue::Prefix(_, _) => todo!(),
+                        InternalASTNodeValue::Infix(_, _, _) => todo!(),
+                        InternalASTNodeValue::Postfix(_, _) => todo!(),
+                        InternalASTNodeValue::Function(_, _) => todo!(),
+                    }
+                }
+            }
+            match expected_target {
+                Some(NumberTarget::GraphInput(giid)) => {
+                    *node = ASTNode::new(ASTNodeValue::GraphInput(giid))
+                }
+                Some(NumberTarget::Source(nsid)) => {
+                    // TODO:
+                    // - if an existing (direct) variable definition exists for the source,
+                    //   create a reference to that variable
+                    // - otherwise, if the the number source is already referenced by
+                    //   some other part of the lexical layout, extract a new variable definition
+                    //   and replace both places with a reference to it
+                    // - otherwise, recursively create a new AST node and place it here
+                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                    todo!()
+                }
+                None => {
+                    *node = ASTNode::new(ASTNodeValue::Empty);
+                }
+            }
+
+        }
+
+        let graph_outputs = topology.graph_outputs();
+        assert_eq!(graph_outputs.len(), 1);
+        let graph_output = &graph_outputs[0];
+
+        visitor(
+            &mut self.final_expression,
+            graph_output.target(),
+            &self.variable_definitions,
+        );
     }
 }

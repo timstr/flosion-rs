@@ -2,8 +2,12 @@ use std::cell::Cell;
 
 use eframe::egui;
 
-use crate::core::number::{
-    numbergraph::NumberGraphInputId, numbergraphdata::NumberTarget, numbersource::NumberSourceId,
+use crate::core::{
+    number::{
+        numbergraph::NumberGraphInputId, numbergraphdata::NumberTarget,
+        numbersource::NumberSourceId,
+    },
+    uniqueid::UniqueId,
 };
 
 #[derive(Clone)]
@@ -83,14 +87,44 @@ impl ASTPath {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct VariableId(usize);
+
+impl VariableId {
+    pub(super) fn new(id: usize) -> VariableId {
+        VariableId(id)
+    }
+}
+
+impl Default for VariableId {
+    fn default() -> Self {
+        VariableId(1)
+    }
+}
+
+impl UniqueId for VariableId {
+    fn value(&self) -> usize {
+        self.0
+    }
+
+    fn next(&self) -> Self {
+        VariableId(self.0 + 1)
+    }
+}
+
 pub(crate) struct VariableDefinition {
+    id: VariableId,
     name: String,
     value: ASTNode,
 }
 
 impl VariableDefinition {
-    pub(super) fn new(name: String, value: ASTNode) -> VariableDefinition {
-        VariableDefinition { name, value }
+    pub(super) fn new(id: VariableId, name: String, value: ASTNode) -> VariableDefinition {
+        VariableDefinition { id, name, value }
+    }
+
+    pub(crate) fn id(&self) -> VariableId {
+        self.id
     }
 
     pub(crate) fn name(&self) -> &str {
@@ -104,6 +138,27 @@ impl VariableDefinition {
     pub(crate) fn value_mut(&mut self) -> &mut ASTNode {
         &mut self.value
     }
+}
+
+pub(super) fn find_variable_definition(
+    id: VariableId,
+    definitions: &[VariableDefinition],
+) -> Option<&VariableDefinition> {
+    definitions.iter().find(|defn| defn.id() == id)
+}
+
+// Given a variable id, finds that variable's definition and returns it along
+// with all variable definitions preceding it. Those form the set of variables
+// the the found definition is allowed to refer to.
+pub(super) fn find_variable_definition_and_scope(
+    id: VariableId,
+    definitions: &[VariableDefinition],
+) -> Option<(&VariableDefinition, &[VariableDefinition])> {
+    let i = definitions.iter().position(|defn| defn.id() == id);
+    let Some(i) = i else {
+        return None;
+    };
+    Some((&definitions[i], &definitions[..i]))
 }
 
 #[derive(Copy, Clone)]
@@ -180,7 +235,7 @@ impl<'a> ASTPathBuilder<'a> {
 pub(super) enum ASTNodeValue {
     Empty,
     Internal(Box<InternalASTNode>),
-    Variable(String),
+    Variable(VariableId),
     GraphInput(NumberGraphInputId),
 }
 
@@ -201,12 +256,43 @@ impl ASTNode {
         &self.value
     }
 
+    // The number graph source or graph input that this ASTNode directly corresponds to.
+    // Variables are not looked up and do not correspond directly to a part of the graph.
     pub(super) fn direct_target(&self) -> Option<NumberTarget> {
         match &self.value {
             ASTNodeValue::Empty => None,
             ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
             ASTNodeValue::Variable(_) => None,
             ASTNodeValue::GraphInput(giid) => Some((*giid).into()),
+        }
+    }
+
+    // The number graph source or graph input that this ASTNode indirectly corresponds to.
+    // Variables are looked up recursively in case of aliased definitions.
+    pub(super) fn indirect_target(
+        &self,
+        definitions: &[VariableDefinition],
+    ) -> Option<NumberTarget> {
+        match &self.value {
+            ASTNodeValue::Empty => None,
+            ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
+            ASTNodeValue::Variable(id) => {
+                let (defn, previous_defns) =
+                    find_variable_definition_and_scope(*id, definitions).unwrap();
+                defn.value().indirect_target(previous_defns)
+            }
+            ASTNodeValue::GraphInput(giid) => Some((*giid).into()),
+        }
+    }
+
+    // If the AST node is a reference to a variable, looks up that variable's
+    // definition recursively until a non-variable node is found
+    pub(super) fn dealias<'a>(&'a self, definitions: &'a [VariableDefinition]) -> &'a ASTNode {
+        if let ASTNodeValue::Variable(id) = &self.value {
+            let (defn, prev_defns) = find_variable_definition_and_scope(*id, definitions).unwrap();
+            defn.value().dealias(prev_defns)
+        } else {
+            self
         }
     }
 

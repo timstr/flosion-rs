@@ -59,21 +59,21 @@ impl ObjectUi for ConstantUi {
 }
 
 #[derive(Default)]
-pub struct VariableUi {}
+pub struct SliderUi {}
 
-impl VariableUi {
+impl SliderUi {
     pub const ARG_NAME: StringIdentifierArgument = StringIdentifierArgument("name");
     pub const ARG_RANGE: FloatRangeArgument = FloatRangeArgument("range");
 }
 
-pub struct VariableUiState {
+pub struct SliderUiState {
     min_value: f32,
     max_value: f32,
     name: String,
     show_settings: bool,
 }
 
-impl Default for VariableUiState {
+impl Default for SliderUiState {
     fn default() -> Self {
         Self {
             min_value: 0.0,
@@ -84,7 +84,7 @@ impl Default for VariableUiState {
     }
 }
 
-impl Serializable for VariableUiState {
+impl Serializable for SliderUiState {
     fn serialize(&self, serializer: &mut Serializer) {
         serializer.f32(self.min_value);
         serializer.f32(self.max_value);
@@ -92,7 +92,7 @@ impl Serializable for VariableUiState {
     }
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
-        Ok(VariableUiState {
+        Ok(SliderUiState {
             min_value: deserializer.f32()?,
             max_value: deserializer.f32()?,
             name: deserializer.string()?,
@@ -101,19 +101,19 @@ impl Serializable for VariableUiState {
     }
 }
 
-impl ObjectUiState for VariableUiState {}
+impl ObjectUiState for SliderUiState {}
 
-impl ObjectUi for VariableUi {
+impl ObjectUi for SliderUi {
     type GraphUi = NumberGraphUi;
     type HandleType = NumberSourceHandle<Variable>;
-    type StateType = VariableUiState;
+    type StateType = SliderUiState;
     fn ui(
         &self,
         variable: NumberSourceHandle<Variable>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
-        data: NumberObjectUiData<VariableUiState>,
+        data: NumberObjectUiData<SliderUiState>,
     ) {
         NumberSourceUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
             .show_with(ui, ctx, ui_state, |ui, _ui_state| {
@@ -147,16 +147,16 @@ impl ObjectUi for VariableUi {
         let state = match init {
             UiInitialization::Default => {
                 let v = object.get_value();
-                VariableUiState {
+                SliderUiState {
                     min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
                     max_value: 2.0 * v.abs(),
-                    name: "Variable".to_string(),
+                    name: "".to_string(),
                     show_settings: false,
                 }
             }
             UiInitialization::Arguments(args) => {
                 let value = args.get(&Variable::ARG_VALUE);
-                let range = args.get(&VariableUi::ARG_RANGE);
+                let range = args.get(&SliderUi::ARG_RANGE);
                 let (value, range) = match (value, range) {
                     (Some(v), Some(r)) => (v, r),
                     (None, Some(r)) => (0.5 * (r.start() + r.end()), r),
@@ -173,12 +173,12 @@ impl ObjectUi for VariableUi {
                     (None, None) => (1.0, 0.0..=2.0),
                 };
                 object.set_value(value as f32);
-                VariableUiState {
+                SliderUiState {
                     min_value: *range.start() as f32,
                     max_value: *range.end() as f32,
                     name: args
-                        .get(&VariableUi::ARG_NAME)
-                        .unwrap_or_else(|| "Variable".to_string()),
+                        .get(&SliderUi::ARG_NAME)
+                        .unwrap_or_else(|| "".to_string()),
                     show_settings: false,
                 }
             }
@@ -187,14 +187,14 @@ impl ObjectUi for VariableUi {
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
-        &["variable"]
+        &["slider"]
     }
 
     fn summon_arguments(&self) -> ArgumentList {
         ArgumentList::new_empty()
             .add(&Variable::ARG_VALUE)
-            .add(&VariableUi::ARG_NAME)
-            .add(&VariableUi::ARG_RANGE)
+            .add(&SliderUi::ARG_NAME)
+            .add(&SliderUi::ARG_RANGE)
     }
 }
 

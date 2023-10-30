@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    ast::{ASTNode, ASTNodeParent, ASTNodeValue, ASTRoot, InternalASTNode},
+    ast::{ASTNode, ASTNodeParent, ASTNodeValue, ASTRoot, InternalASTNode, VariableId},
     lexicallayout::{LexicalLayout, LexicalLayoutCursor},
 };
 
@@ -28,7 +28,7 @@ pub(super) fn delete_from_numbergraph_at_cursor(
             // disconnect those
             match layout.get_cursor_root(cursor) {
                 Some(ASTRoot::VariableDefinition(var_def)) => {
-                    disconnect_each_variable_use(layout, var_def.name(), numbergraph);
+                    disconnect_each_variable_use(layout, var_def.id(), numbergraph);
                 }
                 Some(ASTRoot::FinalExpression) => {
                     let graph_outputs = numbergraph.topology().graph_outputs();
@@ -69,7 +69,7 @@ pub(super) fn insert_to_numbergraph_at_cursor(
         match layout.get_cursor_root(cursor) {
             Some(ASTRoot::VariableDefinition(var_def)) => {
                 // if the cursor points to a variable definition, reconnect each use
-                connect_each_variable_use(layout, var_def.name(), target, outer_context);
+                connect_each_variable_use(layout, var_def.id(), target, outer_context);
             }
             Some(ASTRoot::FinalExpression) => {
                 outer_context
@@ -168,19 +168,25 @@ fn delete_internal_node_from_graph(
         .unwrap();
 }
 
-fn disconnect_each_variable_use(layout: &LexicalLayout, name: &str, numbergraph: &mut NumberGraph) {
+fn disconnect_each_variable_use(
+    layout: &LexicalLayout,
+    id: VariableId,
+    numbergraph: &mut NumberGraph,
+) {
     layout.visit(|node, path| {
-        let ASTNodeValue::Variable(var_name) = node.value() else {
+        let ASTNodeValue::Variable(node_id) = node.value() else {
             return;
         };
-        if var_name != name {
+        let node_id = *node_id;
+        if id != node_id {
             return;
         }
+        // The node directly references the variable
         match path.parent_node() {
             ASTNodeParent::VariableDefinition(var_def) => {
-                debug_assert_ne!(var_def.name(), name);
-                // FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCK aliasing
-                panic!();
+                debug_assert_ne!(var_def.id(), id);
+                // The variable is aliased as another variable, disconnect its uses as well
+                disconnect_each_variable_use(layout, var_def.id(), numbergraph);
             }
             ASTNodeParent::FinalExpression => {
                 let outputs = numbergraph.topology().graph_outputs();
@@ -205,46 +211,52 @@ fn disconnect_each_variable_use(layout: &LexicalLayout, name: &str, numbergraph:
 
 fn connect_each_variable_use(
     layout: &LexicalLayout,
-    name: &str,
+    id: VariableId,
     target: NumberTarget,
     outer_context: &mut OuterNumberGraphUiContext,
 ) {
-    outer_context
-        .edit_number_graph(|numbergraph| {
-            layout.visit(|node, path| {
-                let ASTNodeValue::Variable(var_name) = node.value() else {
-                    return;
-                };
-                if var_name != name {
-                    return;
-                }
-                match path.parent_node() {
-                    ASTNodeParent::VariableDefinition(var_def) => {
-                        debug_assert_ne!(var_def.name(), name);
-                        // FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUCK aliasing
-                        panic!();
+    let mut variables_to_disconnect = vec![id];
+
+    while let Some(id) = variables_to_disconnect.pop() {
+        outer_context
+            .edit_number_graph(|numbergraph| {
+                layout.visit(|node, path| {
+                    let ASTNodeValue::Variable(node_id) = node.value() else {
+                        return;
+                    };
+                    let node_id = *node_id;
+                    if node_id != id {
+                        return;
                     }
-                    ASTNodeParent::FinalExpression => {
-                        let outputs = numbergraph.topology().graph_outputs();
-                        debug_assert_eq!(outputs.len(), 1);
-                        let goid = outputs[0].id();
-                        numbergraph.connect_graph_output(goid, target).unwrap();
+                    // The node directly references the variable
+                    match path.parent_node() {
+                        ASTNodeParent::VariableDefinition(var_def) => {
+                            debug_assert_ne!(var_def.id(), id);
+                            // The variable is aliased as another variable, disconnect that one too
+                            variables_to_disconnect.push(var_def.id());
+                        }
+                        ASTNodeParent::FinalExpression => {
+                            let outputs = numbergraph.topology().graph_outputs();
+                            debug_assert_eq!(outputs.len(), 1);
+                            let goid = outputs[0].id();
+                            numbergraph.connect_graph_output(goid, target).unwrap();
+                        }
+                        ASTNodeParent::InternalNode(internal_node, child_index) => {
+                            let nsid = internal_node.number_source_id();
+                            let number_inputs = numbergraph
+                                .topology()
+                                .number_source(nsid)
+                                .unwrap()
+                                .number_inputs();
+                            debug_assert_eq!(number_inputs.len(), internal_node.num_children());
+                            let niid = number_inputs[child_index];
+                            numbergraph.connect_number_input(niid, target).unwrap();
+                        }
                     }
-                    ASTNodeParent::InternalNode(internal_node, child_index) => {
-                        let nsid = internal_node.number_source_id();
-                        let number_inputs = numbergraph
-                            .topology()
-                            .number_source(nsid)
-                            .unwrap()
-                            .number_inputs();
-                        debug_assert_eq!(number_inputs.len(), internal_node.num_children());
-                        let niid = number_inputs[child_index];
-                        numbergraph.connect_number_input(niid, target).unwrap();
-                    }
-                }
-            });
-        })
-        .unwrap();
+                });
+            })
+            .unwrap();
+    }
 }
 
 fn remove_unreferenced_graph_inputs(

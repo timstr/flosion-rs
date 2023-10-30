@@ -321,16 +321,6 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                             },
                         );
 
-                        // TESTING displaying rule type and score
-                        layout_job.append(
-                            &format!("s={}", scored_rule.score),
-                            5.0,
-                            egui::TextFormat {
-                                color: egui::Color32::GREEN,
-                                ..Default::default()
-                            },
-                        );
-
                         if let SummonRule::NameWithArguments(_, args, _) = &scored_rule.rule {
                             for arg in args.arguments() {
                                 layout_job.append(
@@ -338,6 +328,7 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                                     5.0,
                                     egui::TextFormat {
                                         color: egui::Color32::GREEN,
+                                        italics: true,
                                         ..Default::default()
                                     },
                                 );

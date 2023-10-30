@@ -12,6 +12,7 @@ use super::{
     numbergraphuicontext::NumberGraphUiContext,
     object_ui_states::AnyObjectUiState,
     soundnumberinputui::SoundNumberInputPresentation,
+    soundobjectuistate::SoundObjectUiStates,
 };
 
 pub struct NumberGraphUiState {
@@ -46,7 +47,11 @@ impl SoundNumberInputUiCollection {
         self.data.insert(niid, (ui_state, presentation));
     }
 
-    pub(super) fn cleanup(&mut self, topology: &SoundGraphTopology) {
+    pub(super) fn cleanup(
+        &mut self,
+        topology: &SoundGraphTopology,
+        object_ui_states: &SoundObjectUiStates,
+    ) {
         self.data
             .retain(|id, _| topology.number_inputs().contains_key(id));
 
@@ -57,7 +62,10 @@ impl SoundNumberInputUiCollection {
                 .number_graph()
                 .topology();
             ui_state.cleanup(number_topo);
-            presentation.cleanup(number_topo);
+            presentation.cleanup(
+                number_topo,
+                &object_ui_states.number_graph_object_state(*niid),
+            );
         }
     }
 

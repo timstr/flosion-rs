@@ -40,8 +40,12 @@ impl SoundNumberInputPresentation {
         &mut self.lexical_layout
     }
 
-    pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
-        self.lexical_layout.cleanup(topology);
+    pub(super) fn cleanup(
+        &mut self,
+        topology: &NumberGraphTopology,
+        object_ui_states: &NumberObjectUiStates,
+    ) {
+        self.lexical_layout.cleanup(topology, object_ui_states);
     }
 
     pub(super) fn handle_keypress(

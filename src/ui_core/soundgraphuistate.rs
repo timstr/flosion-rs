@@ -465,6 +465,7 @@ impl SoundGraphUiState {
         // TODO: remove this hashset completely here and elsewhere, refer to topology only
         remaining_ids: &HashSet<SoundGraphId>,
         topo: &SoundGraphTopology,
+        object_ui_states: &SoundObjectUiStates,
     ) {
         self.object_positions.retain(remaining_ids);
         self.temporal_layout.cleanup(topo);
@@ -497,7 +498,7 @@ impl SoundGraphUiState {
         // TODO: do this conservatively, e.g. when the topology changes
         self.temporal_layout.regenerate(topo);
 
-        self.number_input_uis.cleanup(topo);
+        self.number_input_uis.cleanup(topo, object_ui_states);
 
         self.names.regenerate(topo);
     }

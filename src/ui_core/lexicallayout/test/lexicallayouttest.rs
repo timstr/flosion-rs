@@ -1,7 +1,7 @@
 use crate::{
     core::number::{numbergraph::NumberGraphInputId, numbersource::NumberSourceId},
     ui_core::lexicallayout::ast::{
-        ASTNode, ASTNodeValue, ASTPath, InternalASTNode, InternalASTNodeValue,
+        ASTNode, ASTNodeValue, ASTPath, InternalASTNode, InternalASTNodeValue, VariableId,
     },
 };
 
@@ -14,11 +14,11 @@ fn create_test_ast() -> ASTNode {
                 ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
                     InternalASTNodeValue::Function(
                         NumberSourceId::new(2),
-                        vec![ASTNode::new(ASTNodeValue::Variable("foo".to_string()))],
+                        vec![ASTNode::new(ASTNodeValue::Variable(VariableId::new(1)))],
                     ),
                 )))),
                 ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
-                ASTNode::new(ASTNodeValue::Variable("bar".to_string())),
+                ASTNode::new(ASTNodeValue::Variable(VariableId::new(2))),
             ],
         ),
     ))))
@@ -58,7 +58,7 @@ fn test_get_along_path() {
     );
 
     assert!(match tree.get_along_path(&[1, 0]).value() {
-        ASTNodeValue::Variable(name) => name == "foo",
+        ASTNodeValue::Variable(id) => *id == VariableId::new(1),
         _ => false,
     });
 
@@ -68,7 +68,7 @@ fn test_get_along_path() {
     });
 
     assert!(match tree.get_along_path(&[3]).value() {
-        ASTNodeValue::Variable(name) => name == "bar",
+        ASTNodeValue::Variable(id) => *id == VariableId::new(2),
         _ => false,
     });
 }
