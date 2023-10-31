@@ -94,6 +94,12 @@ impl LexicalLayoutFocus {
         &mut self.cursor
     }
 
+    pub(super) fn summon_widget_state(&self) -> Option<&SummonWidgetState<NumberSummonValue>> {
+        self.summon_widget_state.as_ref()
+    }
+
+    // TODO: return just Option<&mut SummonWidgetState...>,
+    // add separate method to write the option itself
     pub(super) fn summon_widget_state_mut(
         &mut self,
     ) -> &mut Option<SummonWidgetState<NumberSummonValue>> {
@@ -404,7 +410,7 @@ impl LexicalLayout {
         let mut cursor_path = if let Some(focus) = focus {
             let cursor = focus.cursor();
             if cursor.line == line_number {
-                Some(cursor.path.clone())
+                Some(cursor.path().clone())
             } else {
                 None
             }
@@ -752,7 +758,16 @@ impl LexicalLayout {
         // TODO: consider filtering egui's InputState's vec of inputs
         // and consuming key presses from there
 
-        {
+        self.handle_summon_widget(
+            ui,
+            focus,
+            object_factory,
+            ui_factory,
+            object_ui_states,
+            outer_context,
+        );
+
+        if focus.summon_widget_state().is_none() {
             let cursor = focus.cursor_mut();
             let (pressed_up, pressed_down) = ui.input_mut(|i| {
                 (
@@ -762,11 +777,11 @@ impl LexicalLayout {
             });
             if pressed_up {
                 cursor.line = cursor.line.saturating_sub(1);
-                cursor.path.clear();
+                cursor.path_mut().clear();
             }
             if pressed_down {
                 cursor.line = (cursor.line + 1).min(self.variable_definitions.len());
-                cursor.path.clear();
+                cursor.path_mut().clear();
             }
 
             let pressed_delete =
@@ -776,15 +791,6 @@ impl LexicalLayout {
                 delete_from_numbergraph_at_cursor(self, focus.cursor_mut(), outer_context);
             }
         }
-
-        self.handle_summon_widget(
-            ui,
-            focus,
-            object_factory,
-            ui_factory,
-            object_ui_states,
-            outer_context,
-        );
 
         // TODO: create a summon widget similar to that used in flosion_ui.
         // start typing to gather a list of candidate number sources.
@@ -938,12 +944,12 @@ impl LexicalLayout {
 
                 let cursor = focus.cursor_mut();
                 match layout {
-                    NumberSourceLayout::Prefix => cursor.path.go_into(0),
-                    NumberSourceLayout::Infix => cursor.path.go_into(0),
-                    NumberSourceLayout::Postfix => cursor.path.go_into(0),
+                    NumberSourceLayout::Prefix => cursor.path_mut().go_into(0),
+                    NumberSourceLayout::Infix => cursor.path_mut().go_into(0),
+                    NumberSourceLayout::Postfix => cursor.path_mut().go_into(0),
                     NumberSourceLayout::Function => {
                         if num_children > 0 {
-                            cursor.path.go_into(0);
+                            cursor.path_mut().go_into(0);
                         }
                     }
                 }
@@ -1003,7 +1009,7 @@ impl LexicalLayout {
     }
 
     pub(super) fn get_cursor_root(&self, cursor: &LexicalLayoutCursor) -> Option<ASTRoot> {
-        if cursor.path.at_beginning() {
+        if cursor.path().at_beginning() {
             if cursor.line < self.variable_definitions.len() {
                 Some(ASTRoot::VariableDefinition(
                     &self.variable_definitions[cursor.line],
@@ -1022,9 +1028,9 @@ impl LexicalLayout {
         if cursor.line < self.variable_definitions.len() {
             self.variable_definitions[cursor.line]
                 .value()
-                .get_along_path(cursor.path.steps())
+                .get_along_path(cursor.path().steps())
         } else if cursor.line == self.variable_definitions.len() {
-            self.final_expression.get_along_path(cursor.path.steps())
+            self.final_expression.get_along_path(cursor.path().steps())
         } else {
             panic!("Invalid line number")
         }
@@ -1045,10 +1051,10 @@ impl LexicalLayout {
         if cursor.line < self.variable_definitions.len() {
             self.variable_definitions[cursor.line]
                 .value()
-                .find_parent_along_path(cursor.path.steps())
+                .find_parent_along_path(cursor.path().steps())
         } else if cursor.line == self.variable_definitions.len() {
             self.final_expression
-                .find_parent_along_path(cursor.path.steps())
+                .find_parent_along_path(cursor.path().steps())
         } else {
             panic!("Invalid line number")
         }
@@ -1058,10 +1064,10 @@ impl LexicalLayout {
         if cursor.line < self.variable_definitions.len() {
             self.variable_definitions[cursor.line]
                 .value_mut()
-                .set_along_path(cursor.path.steps(), value);
+                .set_along_path(cursor.path().steps(), value);
         } else if cursor.line == self.variable_definitions.len() {
             self.final_expression
-                .set_along_path(cursor.path.steps(), value);
+                .set_along_path(cursor.path().steps(), value);
         } else {
             panic!("Invalid line number")
         }
@@ -1164,7 +1170,7 @@ impl LexicalLayout {
         );
 
         // TODO: after having gathered expected targets for variable definitions,
-        // visit those to
+        // visit those to confirm that they match
 
         // TODO: create variable definitions for any unreferenced number sources
     }

@@ -134,6 +134,7 @@ pub(super) struct SummonWidgetState<T> {
     current_choice: Option<(T, ParsedArguments)>,
     rules: Vec<ScoredRule<T>>,
     focus_index: Option<usize>,
+    just_opened: bool,
 }
 
 pub(super) struct SummonWidgetStateBuilder<T> {
@@ -191,6 +192,7 @@ impl<T: Copy> SummonWidgetStateBuilder<T> {
             current_choice: None,
             rules,
             focus_index: None,
+            just_opened: true,
         }
     }
 }
@@ -256,17 +258,19 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                     if num_rules == 0 {
                         new_focus_index = None;
                     } else {
-                        if ui.input_mut(|i| {
-                            i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown)
-                        }) {
+                        let (pressed_up, pressed_down) = ui.input_mut(|i| {
+                            (
+                                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                            )
+                        });
+                        if pressed_down {
                             new_focus_index = match self.state.focus_index {
                                 None => Some(0),
                                 Some(i) => Some((i + 1).min(num_rules - 1)),
                             };
                         }
-                        if ui
-                            .input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp))
-                        {
+                        if pressed_up {
                             new_focus_index = match self.state.focus_index {
                                 None => None,
                                 Some(i) => {
@@ -279,15 +283,16 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                             };
                         }
                     }
-                    focus_changed = new_focus_index == self.state.focus_index;
+                    focus_changed = new_focus_index != self.state.focus_index;
                     self.state.focus_index = new_focus_index;
                 }
 
-                let textedit = egui::TextEdit::singleline(&mut self.state.text)
-                    .cursor_at_end(true)
-                    .lock_focus(true);
+                let textedit = egui::TextEdit::singleline(&mut self.state.text).cursor_at_end(true);
                 let t = textedit.ui(ui);
-                t.request_focus();
+                if self.state.just_opened {
+                    t.request_focus();
+                    self.state.just_opened = false;
+                }
                 if t.changed() {
                     self.state.update_matches();
                 }
@@ -359,6 +364,12 @@ impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
                         }
                     }
                 });
+
+                // if focus_changed {
+                if let Some(i) = self.state.focus_index {
+                    self.state.current_choice = self.state.rules[i].value_and_args.clone();
+                }
+                // }
             })
             .unwrap();
         r.response
