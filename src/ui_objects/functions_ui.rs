@@ -532,7 +532,7 @@ binary_number_source_ui!(
     PowUi,
     Pow,
     "^",
-    DisplayStyle::Framed,
+    DisplayStyle::Frameless,
     ["pow", "^"],
     NumberSourceLayout::Infix
 );

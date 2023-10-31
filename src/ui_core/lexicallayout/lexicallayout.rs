@@ -476,7 +476,6 @@ impl LexicalLayout {
         Self::with_cursor(ui, path, cursor, hovering, |ui, cursor| {
             let rect = match node.value() {
                 ASTNodeValue::Empty => {
-                    // TODO: show cursor?
                     let r = ui.label("???");
                     r.rect
                 }
@@ -693,6 +692,7 @@ impl LexicalLayout {
     fn flashing_highlight_color(ui: &mut egui::Ui) -> egui::Color32 {
         let t = ui.input(|i| i.time);
         let a = (((t - t.floor()) * 2.0 * std::f64::consts::TAU).sin() * 16.0 + 64.0) as u8;
+        ui.ctx().request_repaint();
         egui::Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, a)
     }
 
@@ -712,8 +712,7 @@ impl LexicalLayout {
             let color = if highlight {
                 Self::flashing_highlight_color(ui)
             } else {
-                // egui::Color32::TRANSPARENT
-                egui::Color32::from_black_alpha(64)
+                egui::Color32::TRANSPARENT
             };
             let frame = egui::Frame::default()
                 .inner_margin(2.0)
@@ -755,9 +754,6 @@ impl LexicalLayout {
         object_ui_states: &mut NumberObjectUiStates,
         outer_context: &mut OuterNumberGraphUiContext,
     ) {
-        // TODO: consider filtering egui's InputState's vec of inputs
-        // and consuming key presses from there
-
         self.handle_summon_widget(
             ui,
             focus,
@@ -791,40 +787,6 @@ impl LexicalLayout {
                 delete_from_numbergraph_at_cursor(self, focus.cursor_mut(), outer_context);
             }
         }
-
-        // TODO: create a summon widget similar to that used in flosion_ui.
-        // start typing to gather a list of candidate number sources.
-        // Ideally the experience should have minimal overhead typing,
-        // e.g. typing something like "sin x + 2 * b" should result in sin(x + (2 * b))
-        // with all intermediate values nicely built up. This might require knowing
-        // operator precedence and doing funny things with the cursor but hopefully not.
-        // Intermediates with cursor:
-        // (no input yet)   -> _
-        //                   ^
-        // "sin "           -> sin(_)
-        //                       ^
-        // "x "             -> sin(x)
-        //                         ^
-        // "+ "             -> sin(x + _)           NOTE: so typing an infix operator nests the selected ast node
-        //                             ^            as the left child and places the cursor on the right child?
-        //
-        // "2 "             -> sin(x + 2)
-        //                             ^
-        // "* "             -> sin(x + (2 * _))     NOTE: operator precedence could be applied here to determine
-        //                                  ^       whether or not to place a node inside or around the parent(s)
-        //
-        // "b "             -> sin(x + (2 * b))
-        //                                  ^
-        //
-        // left a bunch     -> sin(x + (2 * b))     NOTE: could press home also
-        //                     ^
-        // "^ ""            -> sin(x + (2 * b))^_
-        //                                      ^
-        // "1 "             -> sin(x + (2 * b))^1
-        //                                      ^
-        // "/"              -> sin(x + (2 * b))^(1/_)
-        //                                         ^
-        // "2 "             -> sin(x + (2 * b))^(1/2)
     }
 
     fn handle_summon_widget(

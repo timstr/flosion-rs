@@ -70,12 +70,18 @@ impl NumberSourceUi {
         match self.display_style {
             DisplayStyle::Framed => {
                 let frame = egui::Frame::default()
-                    .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 0, 32))
+                    .fill(egui::Color32::from_rgb(0, 128, 0))
                     .rounding(5.0)
                     .inner_margin(2.0);
                 frame.show(ui, show_impl);
             }
-            DisplayStyle::Frameless => show_impl(ui),
+            DisplayStyle::Frameless => {
+                let frame = egui::Frame::default()
+                    .fill(egui::Color32::BLACK)
+                    .rounding(2.0)
+                    .inner_margin(1.0);
+                frame.show(ui, show_impl);
+            }
         }
     }
 }
