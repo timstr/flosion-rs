@@ -99,6 +99,10 @@ impl LexicalLayoutFocus {
     ) -> &mut Option<SummonWidgetState<NumberSummonValue>> {
         &mut self.summon_widget_state
     }
+
+    pub(super) fn close_summon_widget(&mut self) {
+        self.summon_widget_state = None;
+    }
 }
 
 fn make_internal_node(
@@ -321,8 +325,6 @@ impl LexicalLayout {
         let num_variable_definitions = variable_definitions.len();
         let final_expression = &self.final_expression;
 
-        let mut cursor = focus.as_mut().and_then(|f| Some(f.cursor_mut()));
-
         // TODO: clean this up, way to many redundant arguments being passed around
 
         ui.vertical(|ui| {
@@ -331,7 +333,7 @@ impl LexicalLayout {
                 Self::show_line(
                     ui,
                     var_def.value(),
-                    &mut cursor,
+                    &mut focus,
                     line_number,
                     |ui, cursor, node| {
                         ui.horizontal(|ui| {
@@ -359,7 +361,7 @@ impl LexicalLayout {
             Self::show_line(
                 ui,
                 final_expression,
-                &mut cursor,
+                &mut focus,
                 line_number,
                 |ui, cursor, node| {
                     ui.horizontal(|ui| {
@@ -386,7 +388,7 @@ impl LexicalLayout {
                 ui.add(summon_widget);
 
                 if summon_widget_state.was_cancelled() {
-                    *focus.summon_widget_state_mut() = None;
+                    focus.close_summon_widget();
                 }
             }
         }
@@ -395,11 +397,12 @@ impl LexicalLayout {
     fn show_line<F: FnOnce(&mut egui::Ui, &mut Option<ASTPath>, &ASTNode)>(
         ui: &mut egui::Ui,
         node: &ASTNode,
-        cursor: &mut Option<&mut LexicalLayoutCursor>,
+        focus: &mut Option<&mut LexicalLayoutFocus>,
         line_number: usize,
         add_contents: F,
     ) {
-        let mut cursor_path = if let Some(cursor) = cursor {
+        let mut cursor_path = if let Some(focus) = focus {
+            let cursor = focus.cursor();
             if cursor.line == line_number {
                 Some(cursor.path.clone())
             } else {
@@ -412,6 +415,15 @@ impl LexicalLayout {
         add_contents(ui, &mut cursor_path, node);
 
         if let Some(mut path) = cursor_path {
+            let cursor = focus.as_mut().and_then(|f| {
+                let cursor = f.cursor_mut();
+                if cursor.line == line_number {
+                    Some(cursor)
+                } else {
+                    None
+                }
+            });
+
             if let Some(cursor) = cursor {
                 let (pressed_left, pressed_right) = ui.input_mut(|i| {
                     (
@@ -427,10 +439,16 @@ impl LexicalLayout {
                     path.go_right(node);
                 }
 
-                **cursor = LexicalLayoutCursor {
+                *cursor = LexicalLayoutCursor {
                     line: line_number,
                     path,
                 };
+
+                if pressed_left || pressed_right {
+                    if let Some(f) = focus {
+                        f.close_summon_widget();
+                    }
+                }
             }
         }
     }
@@ -929,7 +947,7 @@ impl LexicalLayout {
                         }
                     }
                 }
-                *focus.summon_widget_state_mut() = None;
+                focus.close_summon_widget();
             }
         }
     }
