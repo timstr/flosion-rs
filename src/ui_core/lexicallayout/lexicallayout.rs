@@ -407,6 +407,7 @@ impl LexicalLayout {
         line_number: usize,
         add_contents: F,
     ) {
+        ui.spacing_mut().item_spacing.x = 0.0;
         let mut cursor_path = if let Some(focus) = focus {
             let cursor = focus.cursor();
             if cursor.line == line_number {

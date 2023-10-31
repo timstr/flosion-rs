@@ -474,7 +474,7 @@ unary_number_source_ui!(
     SawWaveUi,
     SawWave,
     "SawWave",
-    DisplayStyle::Framed,
+    DisplayStyle::Frameless,
     ["sawwave"],
     NumberSourceLayout::Function
 );

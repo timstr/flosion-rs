@@ -52,6 +52,7 @@ impl NumberSourceUi {
         ui_state: &mut NumberGraphUiState,
         add_contents: F,
     ) {
+        ui.spacing_mut().item_spacing.x = 3.0;
         let show_impl = |ui: &mut egui::Ui| {
             if let Some(label) = self.label {
                 ui.add(
