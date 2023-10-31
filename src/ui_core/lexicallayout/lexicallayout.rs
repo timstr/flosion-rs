@@ -380,13 +380,15 @@ impl LexicalLayout {
             );
         });
 
-        if let Some(summon_widget_state) = focus
-            .and_then(|f| Some(f.summon_widget_state_mut().as_mut()))
-            .flatten()
-        {
-            let summon_widget = SummonWidget::new(summon_widget_state);
-            ui.add(summon_widget);
-            // TODO: ?
+        if let Some(focus) = focus {
+            if let Some(summon_widget_state) = focus.summon_widget_state_mut().as_mut() {
+                let summon_widget = SummonWidget::new(summon_widget_state);
+                ui.add(summon_widget);
+
+                if summon_widget_state.was_cancelled() {
+                    *focus.summon_widget_state_mut() = None;
+                }
+            }
         }
     }
 
@@ -1005,6 +1007,22 @@ impl LexicalLayout {
         }
     }
 
+    pub(super) fn find_parent_node_at_cursor(
+        &self,
+        cursor: &LexicalLayoutCursor,
+    ) -> Option<(&InternalASTNode, usize)> {
+        if cursor.line < self.variable_definitions.len() {
+            self.variable_definitions[cursor.line]
+                .value()
+                .find_parent_along_path(cursor.path.steps())
+        } else if cursor.line == self.variable_definitions.len() {
+            self.final_expression
+                .find_parent_along_path(cursor.path.steps())
+        } else {
+            panic!("Invalid line number")
+        }
+    }
+
     pub(super) fn set_node_at_cursor(&mut self, cursor: &LexicalLayoutCursor, value: ASTNode) {
         if cursor.line < self.variable_definitions.len() {
             self.variable_definitions[cursor.line]
@@ -1038,52 +1056,69 @@ impl LexicalLayout {
             node: &mut ASTNode,
             expected_target: Option<NumberTarget>,
             variable_definitions: &[VariableDefinition],
+            topo: &NumberGraphTopology,
         ) {
             let actual_target = node.indirect_target(variable_definitions);
             if expected_target == actual_target {
-                // nice
+                // TODO: if the node is a reference to a variable,
+                // note the expected target and use it to visit
+                // the variable definition later
 
-                if let Some(internal_node) = node.internal_node() {
-                    match internal_node.value() {
-                        // TODO: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                        InternalASTNodeValue::Prefix(_, _) => todo!(),
-                        InternalASTNodeValue::Infix(_, _, _) => todo!(),
-                        InternalASTNodeValue::Postfix(_, _) => todo!(),
-                        InternalASTNodeValue::Function(_, _) => todo!(),
+                if let Some(internal_node) = node.internal_node_mut() {
+                    let nsid = internal_node.number_source_id();
+                    let expected_inputs = topo.number_source(nsid).unwrap().number_inputs();
+                    let expected_targets: Vec<Option<NumberTarget>> = expected_inputs
+                        .iter()
+                        .map(|niid| topo.number_input(*niid).unwrap().target())
+                        .collect();
+
+                    if internal_node.num_children() != expected_inputs.len() {
+                        if let InternalASTNodeValue::Function(_, cs) = internal_node.value_mut() {
+                            // see notes below
+                            todo!("Allocate new AST nodes for function arguments")
+                        } else {
+                            panic!("A number source changed number of inputs whose ui doesn't support that");
+                        }
+                    }
+                    match internal_node.value_mut() {
+                        InternalASTNodeValue::Prefix(_, c) => {
+                            visitor(c, expected_targets[0], variable_definitions, topo)
+                        }
+                        InternalASTNodeValue::Infix(c1, _, c2) => {
+                            visitor(c1, expected_targets[0], variable_definitions, topo);
+                            visitor(c2, expected_targets[1], variable_definitions, topo);
+                        }
+                        InternalASTNodeValue::Postfix(c, _) => {
+                            visitor(c, expected_targets[0], variable_definitions, topo)
+                        }
+                        InternalASTNodeValue::Function(_, cs) => {
+                            for (c, exp_tgt) in cs.iter_mut().zip(expected_targets) {
+                                visitor(c, exp_tgt, variable_definitions, topo)
+                            }
+                        }
+                    }
+                }
+            } else {
+                // actual node target doesn't match
+                match expected_target {
+                    Some(NumberTarget::GraphInput(giid)) => {
+                        *node = ASTNode::new(ASTNodeValue::GraphInput(giid))
+                    }
+                    Some(NumberTarget::Source(nsid)) => {
+                        // TODO:
+                        // - if an existing (direct) variable definition exists for the source,
+                        //   create a reference to that variable
+                        // - otherwise, if the the number source is already referenced by
+                        //   some other part of the lexical layout, extract a new variable definition
+                        //   and replace both places with a reference to it
+                        // - otherwise, recursively create a new AST node and place it here
+                        todo!("Allocate new ast nodes")
+                    }
+                    None => {
+                        *node = ASTNode::new(ASTNodeValue::Empty);
                     }
                 }
             }
-            match expected_target {
-                Some(NumberTarget::GraphInput(giid)) => {
-                    *node = ASTNode::new(ASTNodeValue::GraphInput(giid))
-                }
-                Some(NumberTarget::Source(nsid)) => {
-                    // TODO:
-                    // - if an existing (direct) variable definition exists for the source,
-                    //   create a reference to that variable
-                    // - otherwise, if the the number source is already referenced by
-                    //   some other part of the lexical layout, extract a new variable definition
-                    //   and replace both places with a reference to it
-                    // - otherwise, recursively create a new AST node and place it here
-                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                    todo!()
-                }
-                None => {
-                    *node = ASTNode::new(ASTNodeValue::Empty);
-                }
-            }
-
         }
 
         let graph_outputs = topology.graph_outputs();
@@ -1094,6 +1129,12 @@ impl LexicalLayout {
             &mut self.final_expression,
             graph_output.target(),
             &self.variable_definitions,
+            topology,
         );
+
+        // TODO: after having gathered expected targets for variable definitions,
+        // visit those to
+
+        // TODO: create variable definitions for any unreferenced number sources
     }
 }

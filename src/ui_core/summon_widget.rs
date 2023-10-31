@@ -204,6 +204,10 @@ impl<T: Copy> SummonWidgetState<T> {
         }
     }
 
+    pub(super) fn was_cancelled(&self) -> bool {
+        self.finalized && self.current_choice.is_none()
+    }
+
     pub(super) fn set_text(&mut self, s: String) {
         self.text = s;
         self.update_matches();

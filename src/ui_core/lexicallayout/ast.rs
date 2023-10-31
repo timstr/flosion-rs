@@ -174,6 +174,8 @@ pub(crate) enum ASTNodeParent<'a> {
     InternalNode(&'a InternalASTNode, usize),
 }
 
+// TODO: rename, this has many uses beyond just building a path
+// and possibly more uses than a path alone
 #[derive(Clone, Copy)]
 pub(crate) enum ASTPathBuilder<'a> {
     Root(ASTRoot<'a>),
@@ -303,6 +305,13 @@ impl ASTNode {
         }
     }
 
+    pub(super) fn internal_node_mut(&mut self) -> Option<&mut InternalASTNode> {
+        match &mut self.value {
+            ASTNodeValue::Internal(n) => Some(&mut *n),
+            _ => None,
+        }
+    }
+
     pub(super) fn num_children(&self) -> usize {
         self.internal_node()
             .and_then(|n| Some(n.num_children()))
@@ -333,24 +342,40 @@ impl ASTNode {
     }
 
     pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
-        if path.is_empty() {
-            self
+        if let Some((head, tail)) = path.split_first() {
+            self.internal_node()
+                .unwrap()
+                .get_child(*head)
+                .get_along_path(tail)
         } else {
-            let ASTNodeValue::Internal(node) = &self.value else {
-                panic!()
-            };
-            node.get_along_path(path)
+            self
         }
     }
 
     pub(super) fn set_along_path(&mut self, path: &[usize], value: ASTNode) {
-        if path.is_empty() {
-            *self = value;
+        if let Some((head, tail)) = path.split_first() {
+            self.internal_node_mut()
+                .unwrap()
+                .get_child_mut(*head)
+                .set_along_path(tail, value)
         } else {
-            let ASTNodeValue::Internal(node) = &mut self.value else {
-                panic!();
-            };
-            node.set_along_path(path, value);
+            *self = value;
+        }
+    }
+
+    pub(super) fn find_parent_along_path(
+        &self,
+        path: &[usize],
+    ) -> Option<(&InternalASTNode, usize)> {
+        if let Some((head, tail)) = path.split_first() {
+            let internal_node = self.internal_node().unwrap();
+            if tail.is_empty() {
+                Some((internal_node, *head))
+            } else {
+                internal_node.get_child(*head).find_parent_along_path(tail)
+            }
+        } else {
+            None
         }
     }
 
@@ -398,6 +423,10 @@ impl InternalASTNode {
         &self.value
     }
 
+    pub(super) fn value_mut(&mut self) -> &mut InternalASTNodeValue {
+        &mut self.value
+    }
+
     pub(super) fn number_source_id(&self) -> NumberSourceId {
         match &self.value {
             InternalASTNodeValue::Prefix(id, _) => *id,
@@ -437,34 +466,26 @@ impl InternalASTNode {
         }
     }
 
-    pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
-        let Some((next_step, rest_of_path)) = path.split_first() else {
-            panic!("Empty paths can only be passed to ASTNode, not InternalASTNode");
-        };
-        let child_node = match (next_step, &self.value) {
+    fn get_child(&self, index: usize) -> &ASTNode {
+        match (index, &self.value) {
             (0, InternalASTNodeValue::Prefix(_, c)) => c,
             (0, InternalASTNodeValue::Infix(c, _, _)) => c,
             (1, InternalASTNodeValue::Infix(_, _, c)) => c,
             (0, InternalASTNodeValue::Postfix(c, _)) => c,
-            (i, InternalASTNodeValue::Function(_, cs)) => &cs[*i],
+            (i, InternalASTNodeValue::Function(_, cs)) => &cs[index],
             _ => panic!("Invalid child index"),
-        };
-        child_node.get_along_path(rest_of_path)
+        }
     }
 
-    fn set_along_path(&mut self, path: &[usize], value: ASTNode) {
-        let Some((next_step, rest_of_path)) = path.split_first() else {
-            panic!("Empty paths can only be passed to ASTNode, not InternalASTNode");
-        };
-        let child_node = match (next_step, &mut self.value) {
+    fn get_child_mut(&mut self, index: usize) -> &mut ASTNode {
+        match (index, &mut self.value) {
             (0, InternalASTNodeValue::Prefix(_, c)) => c,
             (0, InternalASTNodeValue::Infix(c, _, _)) => c,
             (1, InternalASTNodeValue::Infix(_, _, c)) => c,
             (0, InternalASTNodeValue::Postfix(c, _)) => c,
-            (i, InternalASTNodeValue::Function(_, cs)) => &mut cs[*i],
+            (i, InternalASTNodeValue::Function(_, cs)) => &mut cs[index],
             _ => panic!("Invalid child index"),
-        };
-        child_node.set_along_path(rest_of_path, value);
+        }
     }
 
     fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, path: ASTPathBuilder, f: &mut F) {

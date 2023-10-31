@@ -22,35 +22,7 @@ pub(super) fn delete_from_numbergraph_at_cursor(
         return;
     }
 
-    outer_context
-        .edit_number_graph(|numbergraph| {
-            // If the cursor is pointing at a variable definition or the final expression,
-            // disconnect those
-            match layout.get_cursor_root(cursor) {
-                Some(ASTRoot::VariableDefinition(var_def)) => {
-                    disconnect_each_variable_use(layout, var_def.id(), numbergraph);
-                }
-                Some(ASTRoot::FinalExpression) => {
-                    let graph_outputs = numbergraph.topology().graph_outputs();
-                    debug_assert_eq!(graph_outputs.len(), 1);
-                    let graph_output = graph_outputs.first().unwrap();
-                    debug_assert_eq!(
-                        layout.final_expression().direct_target(),
-                        graph_output.target()
-                    );
-                    numbergraph
-                        .disconnect_graph_output(graph_output.id())
-                        .unwrap();
-                }
-                None => (),
-            }
-        })
-        .unwrap();
-
-    let node = layout.get_node_at_cursor(cursor);
-    if let Some(internal_node) = node.internal_node() {
-        delete_internal_node_from_graph(internal_node, outer_context);
-    }
+    delete_internal_node_from_graph(cursor, layout, outer_context);
     layout.set_node_at_cursor(cursor, ASTNode::new(ASTNodeValue::Empty));
 
     remove_unreferenced_graph_inputs(layout, outer_context);
@@ -114,7 +86,8 @@ pub(super) fn insert_to_numbergraph_at_cursor(
 }
 
 fn delete_internal_node_from_graph(
-    node: &InternalASTNode,
+    cursor: &LexicalLayoutCursor,
+    layout: &LexicalLayout,
     outer_context: &mut OuterNumberGraphUiContext,
 ) {
     fn visit_node(node: &ASTNode, numbergraph: &mut NumberGraph) {
@@ -151,19 +124,53 @@ fn delete_internal_node_from_graph(
 
     outer_context
         .edit_number_graph(|numbergraph| {
-            let nsid = node.number_source_id();
-            let mut dsts = numbergraph
-                .topology()
-                .number_target_destinations(NumberTarget::Source(nsid));
-            let dst = dsts.next();
-            // There should only be one thing connected to the number source at this point
-            debug_assert!(dsts.next().is_none());
-            std::mem::drop(dsts);
-            if let Some(dst) = dst {
-                numbergraph.disconnect_destination(dst).unwrap();
-            };
+            // If the cursor is pointing at a variable definition or the final expression,
+            // disconnect those
+            match layout.get_cursor_root(cursor) {
+                Some(ASTRoot::VariableDefinition(var_def)) => {
+                    disconnect_each_variable_use(layout, var_def.id(), numbergraph);
+                }
+                Some(ASTRoot::FinalExpression) => {
+                    let graph_outputs = numbergraph.topology().graph_outputs();
+                    debug_assert_eq!(graph_outputs.len(), 1);
+                    let graph_output = graph_outputs.first().unwrap();
+                    debug_assert_eq!(
+                        layout.final_expression().direct_target(),
+                        graph_output.target()
+                    );
+                    numbergraph
+                        .disconnect_graph_output(graph_output.id())
+                        .unwrap();
+                }
+                None => (),
+            }
 
-            visitor_internal_node(node, numbergraph);
+            // If the node is connected to an internal node, find that node's
+            // number source and disconnect it
+            if let Some((parent_node, child_index)) = layout.find_parent_node_at_cursor(cursor) {
+                let nsid = parent_node.number_source_id();
+                let parent_ns_inputs = numbergraph
+                    .topology()
+                    .number_source(nsid)
+                    .unwrap()
+                    .number_inputs();
+                debug_assert_eq!(parent_ns_inputs.len(), parent_node.num_children());
+                let input = parent_ns_inputs[child_index];
+                if numbergraph
+                    .topology()
+                    .number_input(input)
+                    .unwrap()
+                    .target()
+                    .is_some()
+                {
+                    numbergraph.disconnect_number_input(input).unwrap();
+                }
+            }
+
+            // If the node is an internal node, disconnect and recursively delete it
+            if let Some(internal_node) = layout.get_node_at_cursor(cursor).internal_node() {
+                visitor_internal_node(internal_node, numbergraph);
+            }
         })
         .unwrap();
 }
