@@ -10,17 +10,21 @@ use crate::{
     },
 };
 
+use super::ast::{VariableDefinition, VariableId};
+
 #[derive(Copy, Clone)]
 pub(super) enum NumberSummonValue {
     NumberSourceType(ObjectType),
     Constant(f32),
     SoundNumberSource(SoundNumberSourceId),
+    Variable(VariableId),
 }
 
 pub(super) fn build_summon_widget_for_sound_number_input(
     position: egui::Pos2,
     ui_factory: &UiFactory<NumberGraphUi>,
     ctx: &OuterSoundNumberInputContext,
+    variable_definitions: &[VariableDefinition],
 ) -> SummonWidgetState<NumberSummonValue> {
     let mut builder = SummonWidgetStateBuilder::new(position);
     for object_ui in ui_factory.all_object_uis() {
@@ -40,6 +44,13 @@ pub(super) fn build_summon_widget_for_sound_number_input(
         builder.add_basic_name(
             ctx.sound_graph_names().combined_number_source_name(*snsid),
             NumberSummonValue::SoundNumberSource(*snsid),
+        );
+    }
+
+    for var_defn in variable_definitions {
+        builder.add_basic_name(
+            var_defn.name().to_string(),
+            NumberSummonValue::Variable(var_defn.id()),
         );
     }
 

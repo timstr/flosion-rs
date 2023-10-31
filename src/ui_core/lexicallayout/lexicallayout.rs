@@ -847,13 +847,14 @@ impl LexicalLayout {
         if focus.summon_widget_state_mut().is_none() {
             if pressed_space_or_tab || !algebraic_keys_pressed.is_empty() {
                 //  open summon widget when space/tab is pressed
-                let node_at_cursor = self.get_node_at_cursor(&focus.cursor());
+                let node_at_cursor = self.get_node_at_cursor(focus.cursor());
                 let mut widget_state = match outer_context {
                     OuterNumberGraphUiContext::SoundNumberInput(sni_ctx) => {
                         build_summon_widget_for_sound_number_input(
                             node_at_cursor.rect().center_bottom(),
                             ui_factory,
                             sni_ctx,
+                            self.get_variables_in_scope_at_cursor(focus.cursor()),
                         )
                     }
                 };
@@ -895,6 +896,10 @@ impl LexicalLayout {
                         }
                         (node, NumberSourceLayout::Function)
                     }
+                    NumberSummonValue::Variable(variable_id) => (
+                        ASTNode::new(ASTNodeValue::Variable(variable_id)),
+                        NumberSourceLayout::Function,
+                    ),
                     NumberSummonValue::Constant(constant_value) => {
                         let (node, layout) = self
                             .create_new_number_source_from_type(
@@ -1005,6 +1010,14 @@ impl LexicalLayout {
         } else {
             panic!("Invalid line number")
         }
+    }
+
+    pub(super) fn get_variables_in_scope_at_cursor(
+        &self,
+        cursor: &LexicalLayoutCursor,
+    ) -> &[VariableDefinition] {
+        debug_assert!(cursor.line <= self.variable_definitions.len());
+        &self.variable_definitions[..cursor.line]
     }
 
     pub(super) fn find_parent_node_at_cursor(

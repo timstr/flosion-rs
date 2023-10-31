@@ -37,7 +37,7 @@ pub(super) fn insert_to_numbergraph_at_cursor(
     // TODO: allow inserting operators in-place
     delete_from_numbergraph_at_cursor(layout, cursor, outer_context);
 
-    if let Some(target) = node.direct_target() {
+    if let Some(target) = node.indirect_target(layout.get_variables_in_scope_at_cursor(cursor)) {
         match layout.get_cursor_root(cursor) {
             Some(ASTRoot::VariableDefinition(var_def)) => {
                 // if the cursor points to a variable definition, reconnect each use
@@ -63,13 +63,8 @@ pub(super) fn insert_to_numbergraph_at_cursor(
                 // just its parent
                 outer_context
                     .edit_number_graph(|numbergraph| {
-                        let mut cursor_to_parent = cursor.clone();
-                        cursor_to_parent.path_mut().go_out();
-                        let parent_node = layout.get_node_at_cursor(&cursor_to_parent);
-                        let ASTNodeValue::Internal(parent_node) = parent_node.value() else {
-                            panic!()
-                        };
-                        let child_index = *cursor.path().steps().last().unwrap();
+                        let (parent_node, child_index) =
+                            layout.find_parent_node_at_cursor(cursor).unwrap();
                         let parent_nsid = parent_node.number_source_id();
                         let parent_ns = numbergraph.topology().number_source(parent_nsid).unwrap();
                         let parent_inputs = parent_ns.number_inputs();
