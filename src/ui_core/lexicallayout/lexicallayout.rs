@@ -1,4 +1,4 @@
-use eframe::egui;
+use eframe::{egui, glow::MAX_VARYING_FLOATS};
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
             numbergraph::NumberGraph, numbergraphdata::NumberTarget,
             numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
         },
-        uniqueid::IdGenerator,
+        uniqueid::{IdGenerator, UniqueId},
     },
     objects::functions::Constant,
     ui_core::{
@@ -266,7 +266,7 @@ impl LexicalLayout {
 
             if create_new_variable {
                 let id = variable_id_generator.next_id();
-                let new_variable_name = format!("x{}", variable_assignments.len());
+                let new_variable_name = format!("x{}", id.value());
                 variable_assignments.push(VariableDefinition::new(
                     id,
                     new_variable_name.clone(),
@@ -401,26 +401,25 @@ impl LexicalLayout {
             LineLocation::FinalExpression => (&self.final_expression, ASTRoot::FinalExpression),
         };
 
+        let focused_variable_name_index = focus.as_ref().and_then(|f| {
+            if let LexicalLayoutCursor::AtVariableName(v) = f.cursor() {
+                Some(*v)
+            } else {
+                None
+            }
+        });
+
         ui.horizontal(|ui| {
             match line {
                 LineLocation::VariableDefinition(i) => {
-                    let name_in_focus = focus
-                        .as_ref()
-                        .and_then(|f| {
-                            Some(match f.cursor() {
-                                LexicalLayoutCursor::AtVariableName(i) => {
-                                    line == LineLocation::VariableDefinition(*i)
-                                }
-                                _ => false,
-                            })
-                        })
-                        .unwrap_or(false);
-
                     ui.add(egui::Label::new(
                         egui::RichText::new("let ")
                             .text_style(egui::TextStyle::Monospace)
                             .background_color(egui::Color32::TRANSPARENT),
                     ));
+
+                    let name_in_focus = focused_variable_name_index == Some(i);
+
                     Self::with_flashing_frame(ui, name_in_focus, |ui| {
                         ui.add(egui::Label::new(
                             egui::RichText::new(self.variable_definitions[i].name())
@@ -470,7 +469,6 @@ impl LexicalLayout {
         // Will need to make sure that add_contents writes to it
 
         let Some(focus) = focus.as_mut() else {
-            assert!(cursor_path.is_none());
             return;
         };
 
@@ -828,13 +826,41 @@ impl LexicalLayout {
                 cursor.go_down(self);
             }
 
-            let pressed_delete =
-                ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
+            let (pressed_delete, pressed_enter, pressed_shift_enter) = ui.input_mut(|i| {
+                (
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::Delete),
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),
+                    i.consume_key(egui::Modifiers::SHIFT, egui::Key::Enter),
+                )
+            });
 
             if pressed_delete {
-                // TODO: debug deleting with cursor over variable name
-                delete_from_numbergraph_at_cursor(self, focus.cursor_mut(), outer_context);
+                delete_from_numbergraph_at_cursor(self, cursor, outer_context);
                 remove_unreferenced_graph_inputs(self, outer_context);
+            }
+
+            if pressed_enter || pressed_shift_enter {
+                let new_var_index = match cursor.line() {
+                    LineLocation::VariableDefinition(i) => {
+                        if pressed_shift_enter {
+                            i
+                        } else {
+                            i + 1
+                        }
+                    }
+                    LineLocation::FinalExpression => self.variable_definitions().len(),
+                };
+                let new_var_id = self.variable_id_generator.next_id();
+                let new_var_name = format!("x{}", new_var_id.value());
+                self.variable_definitions.insert(
+                    new_var_index,
+                    VariableDefinition::new(
+                        new_var_id,
+                        new_var_name,
+                        ASTNode::new(ASTNodeValue::Empty),
+                    ),
+                );
+                *cursor = LexicalLayoutCursor::AtVariableName(new_var_index);
             }
         }
 

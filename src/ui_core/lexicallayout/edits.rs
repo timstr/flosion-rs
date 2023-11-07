@@ -59,7 +59,7 @@ pub(super) fn insert_to_numbergraph_at_cursor(
 
     if let Some(target) = node.indirect_target(cursor.get_variables_in_scope(layout)) {
         let (root_node, path) = match cursor.get(layout) {
-            LexicalLayoutCursorValue::AtVariableName(v) => {
+            LexicalLayoutCursorValue::AtVariableName(_) => {
                 panic!("Can't insert over a variable's name")
             }
             LexicalLayoutCursorValue::AtVariableValue(v, p) => {
@@ -343,6 +343,16 @@ fn disconnect_graph_output(layout: &LexicalLayout, numbergraph: &mut NumberGraph
         layout.final_expression().direct_target(),
         graph_output.target()
     );
+    if numbergraph
+        .topology()
+        .graph_output(graph_output.id())
+        .unwrap()
+        .target()
+        .is_none()
+    {
+        // Graph output is already disconnected
+        return;
+    }
     numbergraph
         .disconnect_graph_output(graph_output.id())
         .unwrap();
