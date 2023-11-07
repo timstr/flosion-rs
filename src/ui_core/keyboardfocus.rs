@@ -20,6 +20,7 @@ use super::{
 pub(super) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
     AroundSoundInput(SoundInputId),
+    InsideEmptySoundInput(SoundInputId),
     AroundSoundNumberInput(SoundNumberInputId),
     InsideSoundNumberInput(SoundNumberInputId, LexicalLayoutFocus),
 }
@@ -29,6 +30,7 @@ impl KeyboardFocusState {
         match self {
             KeyboardFocusState::AroundSoundProcessor(spid) => (*spid).into(),
             KeyboardFocusState::AroundSoundInput(siid) => (*siid).into(),
+            KeyboardFocusState::InsideEmptySoundInput(siid) => (*siid).into(),
             KeyboardFocusState::AroundSoundNumberInput(niid) => (*niid).into(),
             KeyboardFocusState::InsideSoundNumberInput(niid, _) => (*niid).into(),
         }
@@ -63,6 +65,12 @@ impl KeyboardFocusState {
         if let KeyboardFocusState::InsideSoundNumberInput(niid, _) = self {
             if input.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
                 *self = KeyboardFocusState::AroundSoundNumberInput(*niid);
+                return true;
+            }
+            return false;
+        } else if let KeyboardFocusState::InsideEmptySoundInput(siid) = self {
+            if input.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+                *self = KeyboardFocusState::AroundSoundInput(*siid);
                 return true;
             }
         } else {
@@ -116,6 +124,8 @@ impl KeyboardFocusState {
                     *self = KeyboardFocusState::AroundSoundProcessor(target_spid);
                     return true;
                 }
+            } else {
+                *self = KeyboardFocusState::InsideEmptySoundInput(*siid);
             }
         }
 

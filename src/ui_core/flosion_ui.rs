@@ -633,7 +633,8 @@ impl FlosionApp {
     }
 
     fn delete_selection(ui_state: &mut SoundGraphUiState) {
-        let selection: Vec<SoundObjectId> = ui_state.selection().iter().cloned().collect();
+        let selection: Vec<SoundObjectId> =
+            ui_state.effective_selection().iter().cloned().collect();
         if selection.is_empty() {
             return;
         }

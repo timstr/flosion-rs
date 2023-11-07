@@ -503,10 +503,18 @@ impl SoundGraphUiState {
         self.names.regenerate(topo);
     }
 
-    pub(super) fn selection(&self) -> HashSet<SoundObjectId> {
+    pub(super) fn effective_selection(&self) -> HashSet<SoundObjectId> {
         // TODO: this is silly, don't clone the selection.
         match &self.mode {
             UiMode::Selecting(s) => s.clone(),
+            UiMode::UsingKeyboardNav(kbd) => match kbd {
+                KeyboardFocusState::AroundSoundProcessor(spid) => {
+                    let mut h = HashSet::new();
+                    h.insert((*spid).into());
+                    h
+                }
+                _ => HashSet::new(),
+            },
             _ => HashSet::new(),
         }
     }
