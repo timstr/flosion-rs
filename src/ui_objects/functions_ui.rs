@@ -435,6 +435,7 @@ unary_number_source_ui!(
     ["cos"],
     NumberSourceLayout::Function
 );
+// TODO
 // unary_number_source_ui!(TanUi, Tan, "Tan", []);
 // unary_number_source_ui!(AsinUi, Asin, "Asin", []);
 // unary_number_source_ui!(AcosUi, Acos, "Acos", []);

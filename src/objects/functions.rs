@@ -106,6 +106,19 @@ impl WithObjectType for Variable {
     const TYPE: ObjectType = ObjectType::new("variable");
 }
 
+// TODO: add Random number source for uniform random values.
+// This could be done efficiently by implementing something like
+// an LFSR with integer state that is persisted between evaluations.
+// This would require:
+//  - Adding persistent data to a compiled number source
+//    (ALREADY NEEDED for stateful number sources)
+//  - Adding first-time initialization of that data when
+//    when things are reset (e.g. to zero or optionally seed the LFSR state)
+//    (Would be useful also in general for stateful number sources)
+//  - LLVM operations on integers (totally ok)
+//  - a more hairy LlvmImplementation that generates arbitrary code and exposes
+//    facilities to reset, save, and restore operations for temporary state (but that's ok too)
+
 enum LlvmImplementation {
     IntrinsicUnary(&'static str),
     IntrinsicBinary(&'static str),

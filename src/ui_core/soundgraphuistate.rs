@@ -660,7 +660,7 @@ impl SoundGraphUiState {
         &mut SoundNumberInputPresentation,
         Option<&mut LexicalLayoutFocus>,
         &TemporalLayout,
-        &SoundGraphUiNames,
+        &mut SoundGraphUiNames,
     ) {
         let (ui_state, presentation) = self.number_input_uis.get_mut(input_id).unwrap();
         let focus = match &mut self.mode {
@@ -672,7 +672,7 @@ impl SoundGraphUiState {
             presentation,
             focus,
             &self.temporal_layout,
-            &self.names,
+            &mut self.names,
         )
     }
 

@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::core::{
     number::{
-        numbergraph::{NumberGraph, NumberGraphInputId},
+        numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
         numbersource::NumberSourceId,
     },
     sound::{
@@ -127,6 +127,23 @@ impl<'a> OuterNumberGraphUiContext<'a> {
                     .graph_input_target(input_id)
                     .unwrap();
                 ctx.sound_graph_names().combined_number_source_name(nsid)
+            }
+        }
+    }
+
+    pub(crate) fn graph_output_name(&self, output_id: NumberGraphOutputId) -> String {
+        match self {
+            OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
+                assert!(self.inspect_number_graph(|g| {
+                    let outputs = g.topology().graph_outputs();
+                    assert_eq!(outputs.len(), 1);
+                    outputs[0].id() == output_id
+                }));
+                ctx.sound_graph_names()
+                    .number_input(ctx.sound_number_input_id())
+                    .unwrap()
+                    .name()
+                    .to_string()
             }
         }
     }

@@ -16,7 +16,11 @@ use crate::{
     objects::functions::Constant,
     ui_core::{
         arguments::ParsedArguments,
-        lexicallayout::ast::{ASTNodeValue, InternalASTNodeValue},
+        lexicallayout::{
+            ast::{ASTNodeValue, InternalASTNodeValue},
+            edits::remove_unreferenced_graph_inputs,
+            validation::lexical_layout_matches_number_graph,
+        },
         numbergraphuicontext::OuterNumberGraphUiContext,
     },
 };
@@ -34,6 +38,7 @@ use super::{
         find_variable_definition, ASTNode, ASTPath, ASTPathBuilder, ASTRoot, InternalASTNode,
         VariableDefinition, VariableId,
     },
+    cursor::{LexicalLayoutCursor, LineLocation},
     edits::{delete_from_numbergraph_at_cursor, insert_to_numbergraph_at_cursor},
     summon::{build_summon_widget_for_sound_number_input, NumberSummonValue},
 };
@@ -81,7 +86,7 @@ pub(crate) struct LexicalLayoutFocus {
 impl LexicalLayoutFocus {
     pub(crate) fn new() -> LexicalLayoutFocus {
         LexicalLayoutFocus {
-            cursor: LexicalLayoutCursor::new(),
+            cursor: LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning()),
             summon_widget_state: None,
         }
     }
@@ -139,29 +144,6 @@ fn make_internal_node(
         NumberSourceLayout::Function => InternalASTNodeValue::Function(number_source_id, arguments),
     };
     InternalASTNode::new(value)
-}
-
-#[derive(Clone)]
-pub(super) struct LexicalLayoutCursor {
-    line: usize,
-    path: ASTPath,
-}
-
-impl LexicalLayoutCursor {
-    pub(super) fn new() -> LexicalLayoutCursor {
-        LexicalLayoutCursor {
-            line: 0,
-            path: ASTPath::new(Vec::new()),
-        }
-    }
-
-    pub(super) fn path(&self) -> &ASTPath {
-        &self.path
-    }
-
-    pub(super) fn path_mut(&mut self) -> &mut ASTPath {
-        &mut self.path
-    }
 }
 
 fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
@@ -307,84 +289,68 @@ impl LexicalLayout {
             None => ASTNode::new(ASTNodeValue::Empty),
         };
 
-        LexicalLayout {
+        let layout = LexicalLayout {
             variable_definitions: variable_assignments,
             final_expression,
             variable_id_generator,
-        }
+        };
+
+        debug_assert!(lexical_layout_matches_number_graph(&layout, topo));
+
+        layout
+    }
+
+    pub(super) fn variable_definitions(&self) -> &[VariableDefinition] {
+        &self.variable_definitions
+    }
+
+    pub(super) fn variable_definitions_mut(&mut self) -> &mut Vec<VariableDefinition> {
+        &mut self.variable_definitions
     }
 
     pub(super) fn final_expression(&self) -> &ASTNode {
         &self.final_expression
     }
 
+    pub(super) fn final_expression_mut(&mut self) -> &mut ASTNode {
+        &mut self.final_expression
+    }
+
     pub(crate) fn show(
         &mut self,
         ui: &mut egui::Ui,
-        result_label: &str,
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
         mut focus: Option<&mut LexicalLayoutFocus>,
         outer_context: &OuterNumberGraphUiContext,
     ) {
+        debug_assert!(outer_context
+            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
+
         let variable_definitions = &self.variable_definitions;
         let num_variable_definitions = variable_definitions.len();
-        let final_expression = &self.final_expression;
-
-        // TODO: clean this up, way to many redundant arguments being passed around
 
         ui.vertical(|ui| {
-            for (i, var_def) in variable_definitions.iter().enumerate() {
-                let line_number = i;
-                Self::show_line(
+            for i in 0..variable_definitions.len() {
+                self.show_line(
                     ui,
-                    var_def.value(),
+                    LineLocation::VariableDefinition(i),
                     &mut focus,
-                    line_number,
-                    |ui, cursor, node| {
-                        ui.horizontal(|ui| {
-                            // TODO: make this and other text pretty
-                            ui.label(format!("{} = ", var_def.name()));
-                            Self::show_child_ast_node(
-                                ui,
-                                node,
-                                graph_state,
-                                ctx,
-                                ASTPathBuilder::Root(ASTRoot::VariableDefinition(var_def)),
-                                cursor,
-                                outer_context,
-                                variable_definitions,
-                            );
-                            ui.label(",");
-                        });
-                    },
+                    graph_state,
+                    ctx,
+                    outer_context,
                 );
             }
             if num_variable_definitions > 0 {
                 ui.separator();
             }
-            let line_number = variable_definitions.len();
-            Self::show_line(
+            self.show_line(
                 ui,
-                final_expression,
+                LineLocation::FinalExpression,
                 &mut focus,
-                line_number,
-                |ui, cursor, node| {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("{} = ", result_label));
-                        Self::show_child_ast_node(
-                            ui,
-                            node,
-                            graph_state,
-                            ctx,
-                            ASTPathBuilder::Root(ASTRoot::FinalExpression),
-                            cursor,
-                            outer_context,
-                            variable_definitions,
-                        );
-                        ui.label(".");
-                    });
-                },
+                graph_state,
+                ctx,
+                outer_context,
             );
         });
 
@@ -398,20 +364,25 @@ impl LexicalLayout {
                 }
             }
         }
+
+        debug_assert!(outer_context
+            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
     }
 
-    fn show_line<F: FnOnce(&mut egui::Ui, &mut Option<ASTPath>, &ASTNode)>(
+    fn show_line(
+        &self,
         ui: &mut egui::Ui,
-        node: &ASTNode,
+        line: LineLocation,
         focus: &mut Option<&mut LexicalLayoutFocus>,
-        line_number: usize,
-        add_contents: F,
+        graph_state: &mut NumberGraphUiState,
+        ctx: &mut NumberGraphUiContext,
+        outer_context: &OuterNumberGraphUiContext,
     ) {
         ui.spacing_mut().item_spacing.x = 0.0;
         let mut cursor_path = if let Some(focus) = focus {
             let cursor = focus.cursor();
-            if cursor.line == line_number {
-                Some(cursor.path().clone())
+            if cursor.line() == line {
+                cursor.path().cloned()
             } else {
                 None
             }
@@ -419,44 +390,110 @@ impl LexicalLayout {
             None
         };
 
-        add_contents(ui, &mut cursor_path, node);
+        let (node, ast_root) = match line {
+            LineLocation::VariableDefinition(i) => {
+                let defn = &self.variable_definitions[i];
+                (
+                    defn.value(),
+                    ASTRoot::VariableDefinition(defn.id(), defn.name()),
+                )
+            }
+            LineLocation::FinalExpression => (&self.final_expression, ASTRoot::FinalExpression),
+        };
 
-        if let Some(mut path) = cursor_path {
-            let cursor = focus.as_mut().and_then(|f| {
-                let cursor = f.cursor_mut();
-                if cursor.line == line_number {
-                    Some(cursor)
-                } else {
-                    None
+        ui.horizontal(|ui| {
+            match line {
+                LineLocation::VariableDefinition(i) => {
+                    let name_in_focus = focus
+                        .as_ref()
+                        .and_then(|f| {
+                            Some(match f.cursor() {
+                                LexicalLayoutCursor::AtVariableName(i) => {
+                                    line == LineLocation::VariableDefinition(*i)
+                                }
+                                _ => false,
+                            })
+                        })
+                        .unwrap_or(false);
+
+                    ui.add(egui::Label::new(
+                        egui::RichText::new("let ")
+                            .text_style(egui::TextStyle::Monospace)
+                            .background_color(egui::Color32::TRANSPARENT),
+                    ));
+                    Self::with_flashing_frame(ui, name_in_focus, |ui| {
+                        ui.add(egui::Label::new(
+                            egui::RichText::new(self.variable_definitions[i].name())
+                                .text_style(egui::TextStyle::Monospace)
+                                .strong()
+                                .background_color(egui::Color32::TRANSPARENT),
+                        ));
+                    });
                 }
-            });
-
-            if let Some(cursor) = cursor {
-                let (pressed_left, pressed_right) = ui.input_mut(|i| {
-                    (
-                        i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft),
-                        i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight),
-                    )
-                });
-
-                if pressed_left {
-                    path.go_left(node);
-                }
-                if pressed_right {
-                    path.go_right(node);
-                }
-
-                *cursor = LexicalLayoutCursor {
-                    line: line_number,
-                    path,
-                };
-
-                if pressed_left || pressed_right {
-                    if let Some(f) = focus {
-                        f.close_summon_widget();
-                    }
+                LineLocation::FinalExpression => {
+                    let output_id = outer_context.inspect_number_graph(|g| {
+                        let outputs = g.topology().graph_outputs();
+                        assert_eq!(outputs.len(), 1);
+                        outputs[0].id()
+                    });
+                    ui.add(egui::Label::new(
+                        egui::RichText::new(outer_context.graph_output_name(output_id))
+                            .text_style(egui::TextStyle::Monospace)
+                            .background_color(egui::Color32::TRANSPARENT),
+                    ));
                 }
             }
+            ui.add(egui::Label::new(
+                egui::RichText::new(" = ")
+                    .text_style(egui::TextStyle::Monospace)
+                    .background_color(egui::Color32::TRANSPARENT),
+            ));
+
+            Self::show_child_ast_node(
+                ui,
+                node,
+                graph_state,
+                ctx,
+                ASTPathBuilder::Root(ast_root),
+                &mut cursor_path,
+                outer_context,
+                &self.variable_definitions,
+            );
+
+            match line {
+                LineLocation::VariableDefinition(_) => ui.label(","),
+                LineLocation::FinalExpression => ui.label("."),
+            };
+        });
+
+        // TODO: focus to this line if the path was written to
+        // Will need to make sure that add_contents writes to it
+
+        let Some(focus) = focus.as_mut() else {
+            assert!(cursor_path.is_none());
+            return;
+        };
+
+        if focus.cursor().line() != line {
+            return;
+        }
+
+        let (pressed_left, pressed_right) = ui.input_mut(|i| {
+            (
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight),
+            )
+        });
+
+        if pressed_left || pressed_right {
+            focus.close_summon_widget();
+        }
+
+        if pressed_left {
+            focus.cursor_mut().go_left(self);
+        }
+        if pressed_right {
+            focus.cursor_mut().go_right(self);
         }
     }
 
@@ -697,6 +734,23 @@ impl LexicalLayout {
         egui::Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, a)
     }
 
+    fn with_flashing_frame<R, F: FnOnce(&mut egui::Ui) -> R>(
+        ui: &mut egui::Ui,
+        highlight: bool,
+        add_contents: F,
+    ) -> egui::InnerResponse<R> {
+        let color = if highlight {
+            Self::flashing_highlight_color(ui)
+        } else {
+            egui::Color32::TRANSPARENT
+        };
+        let frame = egui::Frame::default()
+            .inner_margin(2.0)
+            .fill(color)
+            .stroke(egui::Stroke::new(2.0, color));
+        frame.show(ui, add_contents)
+    }
+
     fn with_cursor<R, F: FnOnce(&mut egui::Ui, &mut Option<ASTPath>) -> R>(
         ui: &mut egui::Ui,
         path: ASTPathBuilder,
@@ -710,16 +764,8 @@ impl LexicalLayout {
             .unwrap_or(false);
         let ret;
         {
-            let color = if highlight {
-                Self::flashing_highlight_color(ui)
-            } else {
-                egui::Color32::TRANSPARENT
-            };
-            let frame = egui::Frame::default()
-                .inner_margin(2.0)
-                .fill(color)
-                .stroke(egui::Stroke::new(2.0, color));
-            let r = frame.show(ui, |ui| add_contents(ui, cursor));
+            let r = Self::with_flashing_frame(ui, highlight, |ui| add_contents(ui, cursor));
+
             ret = r.inner;
 
             let r = r.response.interact(egui::Sense::click_and_drag());
@@ -755,6 +801,9 @@ impl LexicalLayout {
         object_ui_states: &mut NumberObjectUiStates,
         outer_context: &mut OuterNumberGraphUiContext,
     ) {
+        debug_assert!(outer_context
+            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
+
         self.handle_summon_widget(
             ui,
             focus,
@@ -773,21 +822,24 @@ impl LexicalLayout {
                 )
             });
             if pressed_up {
-                cursor.line = cursor.line.saturating_sub(1);
-                cursor.path_mut().clear();
+                cursor.go_up(self);
             }
             if pressed_down {
-                cursor.line = (cursor.line + 1).min(self.variable_definitions.len());
-                cursor.path_mut().clear();
+                cursor.go_down(self);
             }
 
             let pressed_delete =
                 ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete));
 
             if pressed_delete {
+                // TODO: debug deleting with cursor over variable name
                 delete_from_numbergraph_at_cursor(self, focus.cursor_mut(), outer_context);
+                remove_unreferenced_graph_inputs(self, outer_context);
             }
         }
+
+        debug_assert!(outer_context
+            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
     }
 
     fn handle_summon_widget(
@@ -799,6 +851,10 @@ impl LexicalLayout {
         object_ui_states: &mut NumberObjectUiStates,
         outer_context: &mut OuterNumberGraphUiContext,
     ) {
+        if focus.cursor().get_node(self).is_none() {
+            return;
+        }
+
         let pressed_space_or_tab = ui.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
                 || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
@@ -834,27 +890,35 @@ impl LexicalLayout {
         if focus.summon_widget_state_mut().is_none() {
             if pressed_space_or_tab || !algebraic_keys_pressed.is_empty() {
                 //  open summon widget when space/tab is pressed
-                let node_at_cursor = self.get_node_at_cursor(focus.cursor());
-                let mut widget_state = match outer_context {
-                    OuterNumberGraphUiContext::SoundNumberInput(sni_ctx) => {
-                        build_summon_widget_for_sound_number_input(
-                            node_at_cursor.rect().center_bottom(),
-                            ui_factory,
-                            sni_ctx,
-                            self.get_variables_in_scope_at_cursor(focus.cursor()),
-                        )
-                    }
-                };
-                let s = String::from_iter(algebraic_keys_pressed);
-                widget_state.set_text(s);
+                if let Some(node_at_cursor) = focus.cursor().get_node(self) {
+                    let mut widget_state = match outer_context {
+                        OuterNumberGraphUiContext::SoundNumberInput(sni_ctx) => {
+                            build_summon_widget_for_sound_number_input(
+                                node_at_cursor.rect().center_bottom(),
+                                ui_factory,
+                                sni_ctx,
+                                focus.cursor().get_variables_in_scope(self),
+                            )
+                        }
+                    };
+                    let s = String::from_iter(algebraic_keys_pressed);
+                    widget_state.set_text(s);
 
-                *focus.summon_widget_state_mut() = Some(widget_state);
+                    *focus.summon_widget_state_mut() = Some(widget_state);
+                } else {
+                    *focus.summon_widget_state_mut() = None;
+                }
             }
         }
 
         if let Some(summon_widget_state) = focus.summon_widget_state_mut() {
             if let Some(choice) = summon_widget_state.final_choice() {
                 let (summon_value, arguments) = choice;
+
+                debug_assert!(outer_context.inspect_number_graph(|g| {
+                    lexical_layout_matches_number_graph(self, g.topology())
+                }));
+
                 let (new_node, layout) = match summon_value {
                     NumberSummonValue::NumberSourceType(ns_type) => self
                         .create_new_number_source_from_type(
@@ -877,7 +941,8 @@ impl LexicalLayout {
                             {
                                 giid
                             } else {
-                                outer_context.connect_to_number_source(snsid)
+                                let giid = outer_context.connect_to_number_source(snsid);
+                                giid
                             };
                             node = ASTNode::new(ASTNodeValue::GraphInput(giid));
                         }
@@ -905,14 +970,18 @@ impl LexicalLayout {
                 let num_children = new_node.num_children();
                 insert_to_numbergraph_at_cursor(self, focus.cursor_mut(), new_node, outer_context);
 
-                let cursor = focus.cursor_mut();
+                debug_assert!(outer_context.inspect_number_graph(|g| {
+                    lexical_layout_matches_number_graph(self, g.topology())
+                }));
+
+                let cursor_path = focus.cursor_mut().path_mut().unwrap();
                 match layout {
-                    NumberSourceLayout::Prefix => cursor.path_mut().go_into(0),
-                    NumberSourceLayout::Infix => cursor.path_mut().go_into(0),
-                    NumberSourceLayout::Postfix => cursor.path_mut().go_into(0),
+                    NumberSourceLayout::Prefix => cursor_path.go_into(0),
+                    NumberSourceLayout::Infix => cursor_path.go_into(0),
+                    NumberSourceLayout::Postfix => cursor_path.go_into(0),
                     NumberSourceLayout::Function => {
                         if num_children > 0 {
-                            cursor.path_mut().go_into(0);
+                            cursor_path.go_into(0);
                         }
                     }
                 }
@@ -971,80 +1040,27 @@ impl LexicalLayout {
         Ok((node, layout))
     }
 
-    pub(super) fn get_cursor_root(&self, cursor: &LexicalLayoutCursor) -> Option<ASTRoot> {
-        if cursor.path().at_beginning() {
-            if cursor.line < self.variable_definitions.len() {
-                Some(ASTRoot::VariableDefinition(
-                    &self.variable_definitions[cursor.line],
-                ))
-            } else if cursor.line == self.variable_definitions.len() {
-                Some(ASTRoot::FinalExpression)
-            } else {
-                panic!("Cursor out of range")
-            }
-        } else {
-            None
-        }
-    }
-
-    pub(super) fn get_node_at_cursor(&self, cursor: &LexicalLayoutCursor) -> &ASTNode {
-        if cursor.line < self.variable_definitions.len() {
-            self.variable_definitions[cursor.line]
-                .value()
-                .get_along_path(cursor.path().steps())
-        } else if cursor.line == self.variable_definitions.len() {
-            self.final_expression.get_along_path(cursor.path().steps())
-        } else {
-            panic!("Invalid line number")
-        }
-    }
-
-    pub(super) fn get_variables_in_scope_at_cursor(
-        &self,
-        cursor: &LexicalLayoutCursor,
-    ) -> &[VariableDefinition] {
-        debug_assert!(cursor.line <= self.variable_definitions.len());
-        &self.variable_definitions[..cursor.line]
-    }
-
-    pub(super) fn find_parent_node_at_cursor(
-        &self,
-        cursor: &LexicalLayoutCursor,
-    ) -> Option<(&InternalASTNode, usize)> {
-        if cursor.line < self.variable_definitions.len() {
-            self.variable_definitions[cursor.line]
-                .value()
-                .find_parent_along_path(cursor.path().steps())
-        } else if cursor.line == self.variable_definitions.len() {
-            self.final_expression
-                .find_parent_along_path(cursor.path().steps())
-        } else {
-            panic!("Invalid line number")
-        }
-    }
-
-    pub(super) fn set_node_at_cursor(&mut self, cursor: &LexicalLayoutCursor, value: ASTNode) {
-        if cursor.line < self.variable_definitions.len() {
-            self.variable_definitions[cursor.line]
-                .value_mut()
-                .set_along_path(cursor.path().steps(), value);
-        } else if cursor.line == self.variable_definitions.len() {
-            self.final_expression
-                .set_along_path(cursor.path().steps(), value);
-        } else {
-            panic!("Invalid line number")
-        }
-    }
-
     pub(super) fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, mut f: F) {
         for vardef in &self.variable_definitions {
             vardef.value().visit(
-                ASTPathBuilder::Root(ASTRoot::VariableDefinition(vardef)),
+                ASTPathBuilder::Root(ASTRoot::VariableDefinition(vardef.id(), vardef.name())),
                 &mut f,
             );
         }
         self.final_expression
             .visit(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
+    }
+
+    pub(super) fn visit_mut<F: FnMut(&mut ASTNode, ASTPathBuilder)>(&mut self, mut f: F) {
+        for vardef in &mut self.variable_definitions {
+            let VariableDefinition { id, name, value } = vardef;
+            value.visit_mut(
+                ASTPathBuilder::Root(ASTRoot::VariableDefinition(*id, name)),
+                &mut f,
+            );
+        }
+        self.final_expression
+            .visit_mut(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
     }
 
     pub(crate) fn cleanup(
@@ -1064,7 +1080,7 @@ impl LexicalLayout {
                 // note the expected target and use it to visit
                 // the variable definition later
 
-                if let Some(internal_node) = node.internal_node_mut() {
+                if let Some(internal_node) = node.as_internal_node_mut() {
                     let nsid = internal_node.number_source_id();
                     let expected_inputs = topo.number_source(nsid).unwrap().number_inputs();
                     let expected_targets: Vec<Option<NumberTarget>> = expected_inputs

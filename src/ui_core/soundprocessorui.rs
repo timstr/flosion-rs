@@ -556,6 +556,8 @@ impl ProcessorUi {
             let (number_ui_state, presentation, focus, temporal_layout, names) =
                 ui_state.number_graph_ui_parts(input_id);
 
+            names.record_number_input_name(input_id, input_label);
+
             let graph_input_references = ctx.with_number_graph_ui_context(
                 input_id,
                 temporal_layout,
@@ -564,7 +566,6 @@ impl ProcessorUi {
                     let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
                     input_ui.show(
                         ui,
-                        input_label,
                         number_ui_state,
                         number_ctx,
                         presentation,

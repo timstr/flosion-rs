@@ -4,6 +4,7 @@ use crate::core::{
     sound::{
         soundgraphtopology::SoundGraphTopology,
         soundinput::SoundInputId,
+        soundnumberinput::SoundNumberInputId,
         soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
         soundprocessor::SoundProcessorId,
     },
@@ -22,6 +23,16 @@ impl SoundNumberSourceNameData {
 
     pub(crate) fn owner(&self) -> SoundNumberSourceOwner {
         self.owner
+    }
+}
+
+pub(crate) struct SoundNumberInputNameData {
+    name: String,
+}
+
+impl SoundNumberInputNameData {
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -52,6 +63,7 @@ impl SoundProcessorNameData {
 
 pub(crate) struct SoundGraphUiNames {
     number_sources: HashMap<SoundNumberSourceId, SoundNumberSourceNameData>,
+    number_inputs: HashMap<SoundNumberInputId, SoundNumberInputNameData>,
     sound_inputs: HashMap<SoundInputId, SoundInputNameData>,
     sound_processors: HashMap<SoundProcessorId, SoundProcessorNameData>,
 }
@@ -60,6 +72,7 @@ impl SoundGraphUiNames {
     pub(crate) fn new() -> SoundGraphUiNames {
         SoundGraphUiNames {
             number_sources: HashMap::new(),
+            number_inputs: HashMap::new(),
             sound_inputs: HashMap::new(),
             sound_processors: HashMap::new(),
         }
@@ -68,6 +81,8 @@ impl SoundGraphUiNames {
     pub(crate) fn regenerate(&mut self, topology: &SoundGraphTopology) {
         self.number_sources
             .retain(|k, _v| topology.number_source(*k).is_some());
+        self.number_inputs
+            .retain(|k, _v| topology.number_input(*k).is_some());
         self.sound_inputs
             .retain(|k, _v| topology.sound_input(*k).is_some());
         self.sound_processors
@@ -79,6 +94,14 @@ impl SoundGraphUiNames {
                 .or_insert_with(|| SoundNumberSourceNameData {
                     name: format!("number_source_{}", ns_data.id().value()),
                     owner: ns_data.owner(),
+                });
+        }
+
+        for ni_data in topology.number_inputs().values() {
+            self.number_inputs
+                .entry(ni_data.id())
+                .or_insert_with(|| SoundNumberInputNameData {
+                    name: format!("number_input_{}", ni_data.id().value()),
                 });
         }
 
@@ -112,6 +135,10 @@ impl SoundGraphUiNames {
         self.number_sources.get(&id)
     }
 
+    pub(crate) fn number_input(&self, id: SoundNumberInputId) -> Option<&SoundNumberInputNameData> {
+        self.number_inputs.get(&id)
+    }
+
     pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&SoundInputNameData> {
         self.sound_inputs.get(&id)
     }
@@ -126,6 +153,10 @@ impl SoundGraphUiNames {
 
     pub(crate) fn record_sound_input_name(&mut self, id: SoundInputId, name: &str) {
         self.sound_inputs.get_mut(&id).unwrap().name = name.to_string();
+    }
+
+    pub(crate) fn record_number_input_name(&mut self, id: SoundNumberInputId, name: &str) {
+        self.number_inputs.get_mut(&id).unwrap().name = name.to_string();
     }
 
     pub(crate) fn combined_number_source_name(&self, id: SoundNumberSourceId) -> String {

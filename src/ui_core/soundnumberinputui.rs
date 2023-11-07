@@ -108,7 +108,6 @@ impl SoundNumberInputUi {
     pub(super) fn show(
         self,
         ui: &mut egui::Ui,
-        result_label: &str,
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
         presentation: &mut SoundNumberInputPresentation,
@@ -124,14 +123,9 @@ impl SoundNumberInputUi {
         frame
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                presentation.lexical_layout.show(
-                    ui,
-                    result_label,
-                    graph_state,
-                    ctx,
-                    focus,
-                    outer_context,
-                )
+                presentation
+                    .lexical_layout
+                    .show(ui, graph_state, ctx, focus, outer_context)
             })
             .inner;
 

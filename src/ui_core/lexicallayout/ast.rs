@@ -20,8 +20,47 @@ impl ASTPath {
         ASTPath { steps }
     }
 
-    pub(super) fn at_beginning(&self) -> bool {
+    pub(super) fn new_at_beginning() -> ASTPath {
+        ASTPath { steps: Vec::new() }
+    }
+
+    pub(crate) fn new_at_end_of(value: &ASTNode) -> ASTPath {
+        let mut steps = Vec::new();
+        fn visitor(node: &ASTNode, steps: &mut Vec<usize>) {
+            let Some(inode) = node.as_internal_node() else {
+                return;
+            };
+            let n = inode.num_children();
+            if n == 0 {
+                return;
+            }
+            let i = n - 1;
+            steps.push(i);
+            visitor(inode.get_child(i), steps);
+        }
+        visitor(value, &mut steps);
+        ASTPath { steps }
+    }
+
+    pub(super) fn is_at_beginning(&self) -> bool {
         self.steps.is_empty()
+    }
+
+    pub(super) fn is_at_end_of(&self, value: &ASTNode) -> bool {
+        fn visitor(node: &ASTNode, steps: &[usize]) -> bool {
+            let Some((i, next_steps)) = steps.split_first() else {
+                return match node.as_internal_node() {
+                    Some(inode) => inode.num_children() == 0,
+                    None => true,
+                };
+            };
+            let inode = node.as_internal_node().unwrap();
+            if *i + 1 < node.num_children() {
+                return false;
+            }
+            visitor(inode.get_child(*i), next_steps)
+        }
+        visitor(value, self.steps())
     }
 
     pub(super) fn steps(&self) -> &[usize] {
@@ -113,9 +152,9 @@ impl UniqueId for VariableId {
 }
 
 pub(crate) struct VariableDefinition {
-    id: VariableId,
-    name: String,
-    value: ASTNode,
+    pub(super) id: VariableId,
+    pub(super) name: String,
+    pub(super) value: ASTNode,
 }
 
 impl VariableDefinition {
@@ -163,13 +202,13 @@ pub(super) fn find_variable_definition_and_scope(
 
 #[derive(Copy, Clone)]
 pub(crate) enum ASTRoot<'a> {
-    VariableDefinition(&'a VariableDefinition),
+    VariableDefinition(VariableId, &'a str),
     FinalExpression,
 }
 
 #[derive(Copy, Clone)]
 pub(crate) enum ASTNodeParent<'a> {
-    VariableDefinition(&'a VariableDefinition),
+    VariableDefinition(VariableId, &'a str),
     FinalExpression,
     InternalNode(&'a InternalASTNode, usize),
 }
@@ -185,8 +224,8 @@ pub(crate) enum ASTPathBuilder<'a> {
 impl<'a> ASTPathBuilder<'a> {
     pub(super) fn parent_node(&self) -> ASTNodeParent {
         match self {
-            ASTPathBuilder::Root(ASTRoot::VariableDefinition(v)) => {
-                ASTNodeParent::VariableDefinition(v)
+            ASTPathBuilder::Root(ASTRoot::VariableDefinition(id, name)) => {
+                ASTNodeParent::VariableDefinition(*id, name)
             }
             ASTPathBuilder::Root(ASTRoot::FinalExpression) => ASTNodeParent::FinalExpression,
             ASTPathBuilder::ChildOf(_, n, i) => ASTNodeParent::InternalNode(n, *i),
@@ -298,14 +337,14 @@ impl ASTNode {
         }
     }
 
-    pub(super) fn internal_node(&self) -> Option<&InternalASTNode> {
+    pub(super) fn as_internal_node(&self) -> Option<&InternalASTNode> {
         match &self.value {
             ASTNodeValue::Internal(n) => Some(&*n),
             _ => None,
         }
     }
 
-    pub(super) fn internal_node_mut(&mut self) -> Option<&mut InternalASTNode> {
+    pub(super) fn as_internal_node_mut(&mut self) -> Option<&mut InternalASTNode> {
         match &mut self.value {
             ASTNodeValue::Internal(n) => Some(&mut *n),
             _ => None,
@@ -313,7 +352,7 @@ impl ASTNode {
     }
 
     pub(super) fn num_children(&self) -> usize {
-        self.internal_node()
+        self.as_internal_node()
             .and_then(|n| Some(n.num_children()))
             .unwrap_or(0)
     }
@@ -343,7 +382,7 @@ impl ASTNode {
 
     pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
         if let Some((head, tail)) = path.split_first() {
-            self.internal_node()
+            self.as_internal_node()
                 .unwrap()
                 .get_child(*head)
                 .get_along_path(tail)
@@ -354,7 +393,7 @@ impl ASTNode {
 
     pub(super) fn set_along_path(&mut self, path: &[usize], value: ASTNode) {
         if let Some((head, tail)) = path.split_first() {
-            self.internal_node_mut()
+            self.as_internal_node_mut()
                 .unwrap()
                 .get_child_mut(*head)
                 .set_along_path(tail, value)
@@ -368,7 +407,7 @@ impl ASTNode {
         path: &[usize],
     ) -> Option<(&InternalASTNode, usize)> {
         if let Some((head, tail)) = path.split_first() {
-            let internal_node = self.internal_node().unwrap();
+            let internal_node = self.as_internal_node().unwrap();
             if tail.is_empty() {
                 Some((internal_node, *head))
             } else {
@@ -387,6 +426,17 @@ impl ASTNode {
         f(self, path);
         if let ASTNodeValue::Internal(node) = &self.value {
             node.visit(path, f);
+        }
+    }
+
+    pub(super) fn visit_mut<F: FnMut(&mut ASTNode, ASTPathBuilder)>(
+        &mut self,
+        path: ASTPathBuilder,
+        f: &mut F,
+    ) {
+        f(self, path);
+        if let ASTNodeValue::Internal(node) = &mut self.value {
+            node.visit_mut(path, f);
         }
     }
 
@@ -466,24 +516,24 @@ impl InternalASTNode {
         }
     }
 
-    fn get_child(&self, index: usize) -> &ASTNode {
+    pub(super) fn get_child(&self, index: usize) -> &ASTNode {
         match (index, &self.value) {
             (0, InternalASTNodeValue::Prefix(_, c)) => c,
             (0, InternalASTNodeValue::Infix(c, _, _)) => c,
             (1, InternalASTNodeValue::Infix(_, _, c)) => c,
             (0, InternalASTNodeValue::Postfix(c, _)) => c,
-            (i, InternalASTNodeValue::Function(_, cs)) => &cs[index],
+            (i, InternalASTNodeValue::Function(_, cs)) => &cs[i],
             _ => panic!("Invalid child index"),
         }
     }
 
-    fn get_child_mut(&mut self, index: usize) -> &mut ASTNode {
+    pub(super) fn get_child_mut(&mut self, index: usize) -> &mut ASTNode {
         match (index, &mut self.value) {
             (0, InternalASTNodeValue::Prefix(_, c)) => c,
             (0, InternalASTNodeValue::Infix(c, _, _)) => c,
             (1, InternalASTNodeValue::Infix(_, _, c)) => c,
             (0, InternalASTNodeValue::Postfix(c, _)) => c,
-            (i, InternalASTNodeValue::Function(_, cs)) => &mut cs[index],
+            (i, InternalASTNodeValue::Function(_, cs)) => &mut cs[i],
             _ => panic!("Invalid child index"),
         }
     }
@@ -502,5 +552,31 @@ impl InternalASTNode {
                 }
             }
         }
+    }
+
+    fn visit_mut<F: FnMut(&mut ASTNode, ASTPathBuilder)>(
+        &mut self,
+        path: ASTPathBuilder,
+        f: &mut F,
+    ) {
+        // Swap self.value into a temporary in order to allow borrowing self
+        let mut tmp_value = std::mem::replace(
+            &mut self.value,
+            InternalASTNodeValue::Function(NumberSourceId::new(1), Vec::new()),
+        );
+        match &mut tmp_value {
+            InternalASTNodeValue::Prefix(_, c) => c.visit_mut(path.push(self, 0), f),
+            InternalASTNodeValue::Infix(c1, _, c2) => {
+                c1.visit_mut(path.push(self, 0), f);
+                c2.visit_mut(path.push(self, 1), f)
+            }
+            InternalASTNodeValue::Postfix(c, _) => c.visit_mut(path.push(self, 0), f),
+            InternalASTNodeValue::Function(_, cs) => {
+                for (i, c) in cs.iter_mut().enumerate() {
+                    c.visit_mut(path.push(self, i), f);
+                }
+            }
+        }
+        self.value = tmp_value;
     }
 }
