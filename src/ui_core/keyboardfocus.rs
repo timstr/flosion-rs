@@ -11,16 +11,25 @@ use crate::core::{
 };
 
 use super::{
-    lexicallayout::lexicallayout::LexicalLayoutFocus, numbergraphui::NumberGraphUi,
+    lexicallayout::lexicallayout::LexicalLayoutFocus,
+    numbergraphui::NumberGraphUi,
     numbergraphuicontext::OuterSoundNumberInputContext,
-    numbergraphuistate::SoundNumberInputUiCollection, soundgraphuinames::SoundGraphUiNames,
-    soundobjectuistate::SoundObjectUiStates, temporallayout::TemporalLayout, ui_factory::UiFactory,
+    numbergraphuistate::SoundNumberInputUiCollection,
+    object_positions::ObjectPositions,
+    soundgraphui::SoundGraphUi,
+    soundgraphuinames::SoundGraphUiNames,
+    soundgraphuistate::SoundGraphUiState,
+    soundinputsummon::{build_summon_widget_for_sound_input, SoundInputSummonValue},
+    soundobjectuistate::SoundObjectUiStates,
+    summon_widget::SummonWidgetState,
+    temporallayout::TemporalLayout,
+    ui_factory::UiFactory,
 };
 
 pub(super) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
     AroundSoundInput(SoundInputId),
-    InsideEmptySoundInput(SoundInputId),
+    InsideEmptySoundInput(SoundInputId, SummonWidgetState<SoundInputSummonValue>),
     AroundSoundNumberInput(SoundNumberInputId),
     InsideSoundNumberInput(SoundNumberInputId, LexicalLayoutFocus),
 }
@@ -30,7 +39,7 @@ impl KeyboardFocusState {
         match self {
             KeyboardFocusState::AroundSoundProcessor(spid) => (*spid).into(),
             KeyboardFocusState::AroundSoundInput(siid) => (*siid).into(),
-            KeyboardFocusState::InsideEmptySoundInput(siid) => (*siid).into(),
+            KeyboardFocusState::InsideEmptySoundInput(siid, _) => (*siid).into(),
             KeyboardFocusState::AroundSoundNumberInput(niid) => (*niid).into(),
             KeyboardFocusState::InsideSoundNumberInput(niid, _) => (*niid).into(),
         }
@@ -60,6 +69,8 @@ impl KeyboardFocusState {
         &mut self,
         topology: &SoundGraphTopology,
         temporal_layout: &TemporalLayout,
+        object_positions: &ObjectPositions,
+        ui_factory: &UiFactory<SoundGraphUi>,
         input: &mut egui::InputState,
     ) -> bool {
         if let KeyboardFocusState::InsideSoundNumberInput(niid, _) = self {
@@ -68,7 +79,7 @@ impl KeyboardFocusState {
                 return true;
             }
             return false;
-        } else if let KeyboardFocusState::InsideEmptySoundInput(siid) = self {
+        } else if let KeyboardFocusState::InsideEmptySoundInput(siid, _) = self {
             if input.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
                 *self = KeyboardFocusState::AroundSoundInput(*siid);
                 return true;
@@ -125,7 +136,18 @@ impl KeyboardFocusState {
                     return true;
                 }
             } else {
-                *self = KeyboardFocusState::InsideEmptySoundInput(*siid);
+                // input is empty
+                if input.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+                    let position = object_positions
+                        .get_sound_input_location(*siid)
+                        .unwrap()
+                        .rect()
+                        .left_bottom();
+                    *self = KeyboardFocusState::InsideEmptySoundInput(
+                        *siid,
+                        build_summon_widget_for_sound_input(position, ui_factory),
+                    );
+                }
             }
         }
 
@@ -138,9 +160,12 @@ impl KeyboardFocusState {
         soundgraph: &mut SoundGraph,
         temporal_layout: &TemporalLayout,
         names: &SoundGraphUiNames,
+        object_positions: &ObjectPositions,
+        sound_ui_factory: &UiFactory<SoundGraphUi>,
         number_graph_uis: &mut SoundNumberInputUiCollection,
-        object_factory: &ObjectFactory<NumberGraph>,
-        ui_factory: &UiFactory<NumberGraphUi>,
+        number_object_factory: &ObjectFactory<NumberGraph>,
+        number_ui_factory: &UiFactory<NumberGraphUi>,
+        sound_graph_ui_state: &SoundGraphUiState,
         object_ui_states: &mut SoundObjectUiStates,
     ) {
         ui.input_mut(|i| {
@@ -154,21 +179,34 @@ impl KeyboardFocusState {
                 return;
             }
 
-            while self.handle_single_keyboard_event(soundgraph.topology(), temporal_layout, i) {}
+            while self.handle_single_keyboard_event(
+                soundgraph.topology(),
+                temporal_layout,
+                object_positions,
+                sound_ui_factory,
+                i,
+            ) {}
         });
 
         if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
-            let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
+            let number_object_ui_states = object_ui_states.number_graph_object_state(*niid);
             let owner = soundgraph.topology().number_input(*niid).unwrap().owner();
-            let outer_context =
-                OuterSoundNumberInputContext::new(*niid, owner, temporal_layout, soundgraph, names);
+            let outer_context = OuterSoundNumberInputContext::new(
+                *niid,
+                owner,
+                temporal_layout,
+                soundgraph,
+                names,
+                sound_graph_ui_state,
+                object_ui_states,
+            );
             ui_presentation.handle_keypress(
                 ui,
                 ni_focus,
-                object_factory,
-                ui_factory,
-                object_ui_states,
+                number_object_factory,
+                number_ui_factory,
+                &mut number_object_ui_states.borrow_mut(),
                 &mut outer_context.into(),
             );
         }

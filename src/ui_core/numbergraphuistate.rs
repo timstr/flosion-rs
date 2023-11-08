@@ -64,7 +64,7 @@ impl SoundNumberInputUiCollection {
             ui_state.cleanup(number_topo);
             presentation.cleanup(
                 number_topo,
-                &object_ui_states.number_graph_object_state(*niid),
+                &object_ui_states.number_graph_object_state(*niid).borrow(),
             );
         }
     }

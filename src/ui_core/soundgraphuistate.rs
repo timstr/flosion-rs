@@ -23,6 +23,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
+    soundgraphui::SoundGraphUi,
     soundgraphuinames::SoundGraphUiNames,
     soundnumberinputui::SoundNumberInputPresentation,
     soundobjectuistate::SoundObjectUiStates,
@@ -549,6 +550,7 @@ impl SoundGraphUiState {
         ui: &egui::Ui,
         soundgraph: &mut SoundGraph,
         number_object_factory: &ObjectFactory<NumberGraph>,
+        sound_ui_factory: &UiFactory<SoundGraphUi>,
         number_ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut SoundObjectUiStates,
     ) {
@@ -558,10 +560,13 @@ impl SoundGraphUiState {
                 soundgraph,
                 &self.temporal_layout,
                 &self.names,
+                &self.object_positions,
+                sound_ui_factory,
                 &mut self.number_input_uis,
                 number_object_factory,
                 number_ui_factory,
                 object_ui_states,
+                self,
             );
         };
     }
@@ -653,7 +658,7 @@ impl SoundGraphUiState {
                     self.number_input_uis.set_ui_data(
                         *niid,
                         NumberGraphUiState::new(),
-                        SoundNumberInputPresentation::new(number_topo, states),
+                        SoundNumberInputPresentation::new(number_topo, &states.borrow()),
                     );
                 }
             }

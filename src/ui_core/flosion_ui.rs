@@ -50,7 +50,7 @@ pub struct FlosionApp {
     graph: SoundGraph,
     object_factory: ObjectFactory<SoundGraph>,
     number_object_factory: ObjectFactory<NumberGraph>,
-    ui_factory: UiFactory<SoundGraphUi>,
+    sound_ui_factory: UiFactory<SoundGraphUi>,
     number_ui_factory: UiFactory<NumberGraphUi>,
     ui_state: SoundGraphUiState,
     object_states: SoundObjectUiStates,
@@ -246,7 +246,7 @@ impl FlosionApp {
             object_states: SoundObjectUiStates::new(),
             object_factory,
             number_object_factory,
-            ui_factory,
+            sound_ui_factory: ui_factory,
             number_ui_factory,
             summon_state: None,
             selection_area: None,
@@ -277,7 +277,7 @@ impl FlosionApp {
             {
                 let is_top_level = true;
                 let mut ctx = SoundGraphUiContext::new(
-                    &self.ui_factory,
+                    &self.sound_ui_factory,
                     &self.number_object_factory,
                     &self.number_ui_factory,
                     &self.object_states,
@@ -287,7 +287,7 @@ impl FlosionApp {
                     layout.width_pixels as f32,
                     layout.nesting_depth,
                 );
-                self.ui_factory
+                self.sound_ui_factory
                     .ui(&object, &mut self.ui_state, ui, &mut ctx);
             }
         }
@@ -470,7 +470,7 @@ impl FlosionApp {
         if open_summon_widget && self.summon_state.is_none() {
             self.summon_state = Some(Self::build_summon_widget(
                 pointer_pos.unwrap(),
-                &self.ui_factory,
+                &self.sound_ui_factory,
             ));
         }
 
@@ -492,7 +492,7 @@ impl FlosionApp {
                         return;
                     }
                 };
-                let new_state = self.ui_factory.create_default_state(&new_object);
+                let new_state = self.sound_ui_factory.create_default_state(&new_object);
                 let p = s.position();
                 self.ui_state
                     .object_positions_mut()
@@ -511,6 +511,7 @@ impl FlosionApp {
             ui,
             &mut self.graph,
             &self.number_object_factory,
+            &self.sound_ui_factory,
             &self.number_ui_factory,
             &mut self.object_states,
         );
@@ -726,7 +727,7 @@ impl FlosionApp {
                     data,
                     &mut self.graph,
                     &self.object_factory,
-                    &self.ui_factory,
+                    &self.sound_ui_factory,
                 );
                 match res {
                     Ok(object_ids) => self
@@ -759,7 +760,7 @@ impl FlosionApp {
                     &mut self.object_states,
                     &mut self.graph,
                     &self.object_factory,
-                    &self.ui_factory,
+                    &self.sound_ui_factory,
                 ) {
                     return;
                 }
@@ -790,7 +791,7 @@ impl FlosionApp {
                 self.object_states.create_state_for(
                     *object_id,
                     self.graph.topology(),
-                    &self.ui_factory,
+                    &self.sound_ui_factory,
                     &self.number_ui_factory,
                 );
                 self.ui_state.create_state_for(

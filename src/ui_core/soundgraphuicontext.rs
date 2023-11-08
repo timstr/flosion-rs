@@ -145,6 +145,7 @@ impl<'a> SoundGraphUiContext<'a> {
         input_id: SoundNumberInputId,
         temporal_layout: &TemporalLayout,
         names: &SoundGraphUiNames,
+        sound_graph_ui_state: &SoundGraphUiState,
         f: F,
     ) -> R {
         let object_states = self.object_states.number_graph_object_state(input_id);
@@ -155,8 +156,10 @@ impl<'a> SoundGraphUiContext<'a> {
             temporal_layout,
             self.sound_graph,
             names,
+            sound_graph_ui_state,
+            &self.object_states,
         );
-        let mut ctx = NumberGraphUiContext::new(&self.number_ui_factory, object_states);
+        let mut ctx = NumberGraphUiContext::new(&self.number_ui_factory, &object_states.borrow());
         f(&mut ctx, sni_ctx)
     }
 }

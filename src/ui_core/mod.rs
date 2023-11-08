@@ -14,6 +14,7 @@ pub mod soundgraphui;
 pub mod soundgraphuicontext;
 pub mod soundgraphuinames;
 pub mod soundgraphuistate;
+pub mod soundinputsummon;
 pub mod soundnumberinputui;
 pub mod soundobjectuistate;
 pub mod soundprocessorui;

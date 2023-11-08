@@ -1,4 +1,4 @@
-use eframe::{egui, glow::MAX_VARYING_FLOATS};
+use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
@@ -541,11 +541,18 @@ impl LexicalLayout {
                     .rect
                 }
                 ASTNodeValue::GraphInput(giid) => {
+                    let colour = outer_context.graph_input_colour(*giid);
                     let name = outer_context.graph_input_name(*giid);
-                    let r = ui
-                        .add(egui::Label::new(
-                            egui::RichText::new(name).code().color(egui::Color32::WHITE),
-                        ))
+                    let r = egui::Frame::default()
+                        .fill(egui::Color32::from_rgb(0, 128, 0))
+                        .rounding(5.0)
+                        .inner_margin(2.0)
+                        .show(ui, |ui| {
+                            ui.add(egui::Label::new(
+                                egui::RichText::new(name).code().color(egui::Color32::WHITE),
+                            ))
+                        })
+                        .response
                         .rect;
                     r
                 }
@@ -920,7 +927,7 @@ impl LexicalLayout {
                     let mut widget_state = match outer_context {
                         OuterNumberGraphUiContext::SoundNumberInput(sni_ctx) => {
                             build_summon_widget_for_sound_number_input(
-                                node_at_cursor.rect().center_bottom(),
+                                node_at_cursor.rect().left_bottom(),
                                 ui_factory,
                                 sni_ctx,
                                 focus.cursor().get_variables_in_scope(self),

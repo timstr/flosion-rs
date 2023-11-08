@@ -76,7 +76,7 @@ pub struct SoundObjectUiData<'a, T: ObjectUiState> {
 
 pub struct SoundObjectUiStates {
     data: HashMap<SoundObjectId, Rc<AnySoundObjectUiData>>,
-    number_graph_object_states: HashMap<SoundNumberInputId, NumberObjectUiStates>,
+    number_graph_object_states: HashMap<SoundNumberInputId, RefCell<NumberObjectUiStates>>,
 }
 
 impl SoundObjectUiStates {
@@ -122,7 +122,7 @@ impl SoundObjectUiStates {
             .retain(|i, _| topo.number_inputs().contains_key(i));
         for (niid, states) in &mut self.number_graph_object_states {
             let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
-            states.cleanup(number_topo);
+            states.borrow_mut().cleanup(number_topo);
         }
     }
 
@@ -258,7 +258,7 @@ impl SoundObjectUiStates {
                                     number_ui_factory.create_default_state(&graph_object);
                                 states.set_object_data(ns_data.id(), object_state);
                             }
-                            states
+                            RefCell::new(states)
                         });
                 }
             }
@@ -268,14 +268,7 @@ impl SoundObjectUiStates {
     pub(super) fn number_graph_object_state(
         &self,
         input_id: SoundNumberInputId,
-    ) -> &NumberObjectUiStates {
+    ) -> &RefCell<NumberObjectUiStates> {
         self.number_graph_object_states.get(&input_id).unwrap()
-    }
-
-    pub(super) fn number_graph_object_state_mut(
-        &mut self,
-        input_id: SoundNumberInputId,
-    ) -> &mut NumberObjectUiStates {
-        self.number_graph_object_states.get_mut(&input_id).unwrap()
     }
 }

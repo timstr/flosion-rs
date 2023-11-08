@@ -1,13 +1,18 @@
 use std::rc::Rc;
 
+use eframe::egui;
+
 use crate::core::{
     number::{
         numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
         numbersource::NumberSourceId,
     },
     sound::{
-        soundgraph::SoundGraph, soundgrapherror::SoundError, soundnumberinput::SoundNumberInputId,
-        soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph,
+        soundgrapherror::SoundError,
+        soundnumberinput::SoundNumberInputId,
+        soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
+        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -16,6 +21,8 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{AnyNumberObjectUiData, NumberObjectUiStates},
     soundgraphuinames::SoundGraphUiNames,
+    soundgraphuistate::SoundGraphUiState,
+    soundobjectuistate::SoundObjectUiStates,
     temporallayout::TemporalLayout,
     ui_factory::UiFactory,
 };
@@ -26,6 +33,8 @@ pub(crate) struct OuterSoundNumberInputContext<'a> {
     temporal_layout: &'a TemporalLayout,
     sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
+    sound_graph_ui_state: &'a SoundGraphUiState,
+    sound_object_ui_states: &'a SoundObjectUiStates,
 }
 
 impl<'a> OuterSoundNumberInputContext<'a> {
@@ -35,6 +44,8 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         temporal_layout: &'a TemporalLayout,
         sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
+        sound_graph_ui_state: &'a SoundGraphUiState,
+        sound_object_ui_states: &'a SoundObjectUiStates,
     ) -> Self {
         Self {
             sound_number_input_id,
@@ -42,6 +53,8 @@ impl<'a> OuterSoundNumberInputContext<'a> {
             temporal_layout,
             sound_graph,
             sound_graph_names,
+            sound_graph_ui_state,
+            sound_object_ui_states,
         }
     }
 
@@ -144,6 +157,29 @@ impl<'a> OuterNumberGraphUiContext<'a> {
                     .unwrap()
                     .name()
                     .to_string()
+            }
+        }
+    }
+
+    pub(crate) fn graph_input_colour(&self, input_id: NumberGraphInputId) -> egui::Color32 {
+        match self {
+            OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
+                let topo = ctx.sound_graph.topology();
+                let snsid = topo
+                    .number_input(ctx.sound_number_input_id())
+                    .unwrap()
+                    .target_mapping()
+                    .graph_input_target(input_id)
+                    .unwrap();
+                let ni_owner = topo.number_source(snsid).unwrap().owner();
+                let parent_spid = match ni_owner {
+                    SoundNumberSourceOwner::SoundProcessor(spid) => spid,
+                    SoundNumberSourceOwner::SoundInput(siid) => {
+                        topo.sound_input(siid).unwrap().owner()
+                    }
+                };
+                ctx.sound_object_ui_states
+                    .get_apparent_object_color(parent_spid.into(), ctx.sound_graph_ui_state)
             }
         }
     }
