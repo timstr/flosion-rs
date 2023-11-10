@@ -119,13 +119,25 @@ impl SoundNumberInputUi {
             .fill(egui::Color32::BLACK)
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(64)))
             .inner_margin(egui::Margin::same(5.0));
-
+        let rev = match outer_context {
+            OuterNumberGraphUiContext::SoundNumberInput(snictx) => snictx
+                .sound_graph()
+                .topology()
+                .number_input(snictx.sound_number_input_id())
+                .unwrap()
+                .get_revision(),
+        };
         frame
             .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                presentation
-                    .lexical_layout
-                    .show(ui, graph_state, ctx, focus, outer_context)
+                ui.vertical(|ui| {
+                    ui.set_width(ui.available_width());
+                    presentation
+                        .lexical_layout
+                        .show(ui, graph_state, ctx, focus, outer_context);
+                    ui.label(format!("Revision {}", rev.value()));
+                    // TODO: get compiled number input from server cache, plot it as a curve
+                    // Also consider moving this code to LexicalLayout
+                });
             })
             .inner;
 

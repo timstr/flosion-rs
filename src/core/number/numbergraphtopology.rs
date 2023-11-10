@@ -1,6 +1,9 @@
-use std::{collections::HashMap, hash::Hasher};
+use std::hash::Hasher;
 
-use crate::core::{revision::Revision, uniqueid::UniqueId};
+use crate::core::{
+    revision::revision::{Revision, RevisionNumber, Versioned, VersionedHashMap},
+    uniqueid::UniqueId,
+};
 
 use super::{
     numbergraph::{NumberGraphInputId, NumberGraphOutputId},
@@ -14,8 +17,8 @@ use super::{
 
 #[derive(Clone)]
 pub(crate) struct NumberGraphTopology {
-    number_sources: HashMap<NumberSourceId, NumberSourceData>,
-    number_inputs: HashMap<NumberInputId, NumberInputData>,
+    number_sources: VersionedHashMap<NumberSourceId, NumberSourceData>,
+    number_inputs: VersionedHashMap<NumberInputId, NumberInputData>,
     graph_inputs: Vec<NumberGraphInputId>,
     graph_outputs: Vec<NumberGraphOutputData>,
 }
@@ -23,26 +26,26 @@ pub(crate) struct NumberGraphTopology {
 impl NumberGraphTopology {
     pub(crate) fn new() -> NumberGraphTopology {
         NumberGraphTopology {
-            number_sources: HashMap::new(),
-            number_inputs: HashMap::new(),
+            number_sources: VersionedHashMap::new(),
+            number_inputs: VersionedHashMap::new(),
             graph_inputs: Vec::new(),
             graph_outputs: Vec::new(),
         }
     }
 
-    pub(crate) fn number_input(&self, id: NumberInputId) -> Option<&NumberInputData> {
+    pub(crate) fn number_input(&self, id: NumberInputId) -> Option<&Versioned<NumberInputData>> {
         self.number_inputs.get(&id)
     }
 
-    pub(crate) fn number_source(&self, id: NumberSourceId) -> Option<&NumberSourceData> {
+    pub(crate) fn number_source(&self, id: NumberSourceId) -> Option<&Versioned<NumberSourceData>> {
         self.number_sources.get(&id)
     }
 
-    pub(crate) fn number_inputs(&self) -> &HashMap<NumberInputId, NumberInputData> {
+    pub(crate) fn number_inputs(&self) -> &VersionedHashMap<NumberInputId, NumberInputData> {
         &self.number_inputs
     }
 
-    pub(crate) fn number_sources(&self) -> &HashMap<NumberSourceId, NumberSourceData> {
+    pub(crate) fn number_sources(&self) -> &VersionedHashMap<NumberSourceId, NumberSourceData> {
         &self.number_sources
     }
 
@@ -241,18 +244,18 @@ impl NumberGraphTopology {
 }
 
 impl Revision for NumberGraphTopology {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
-        hasher.write_u64(self.number_sources.get_revision());
-        hasher.write_u64(self.number_inputs.get_revision());
+        hasher.write_u64(self.number_sources.get_revision().value());
+        hasher.write_u64(self.number_inputs.get_revision().value());
         hasher.write_usize(self.graph_inputs.len());
         for giid in &self.graph_inputs {
             hasher.write_usize(giid.value());
         }
         hasher.write_usize(self.graph_outputs.len());
         for o in &self.graph_outputs {
-            hasher.write_u64(o.get_revision());
+            hasher.write_u64(o.get_revision().value());
         }
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }

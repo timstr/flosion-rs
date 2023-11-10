@@ -1,6 +1,9 @@
 use std::{hash::Hasher, sync::Arc};
 
-use crate::core::{revision::Revision, uniqueid::UniqueId};
+use crate::core::{
+    revision::revision::{Revision, RevisionNumber},
+    uniqueid::UniqueId,
+};
 
 use super::{
     numbergraph::{NumberGraphInputId, NumberGraphOutputId},
@@ -46,14 +49,14 @@ impl NumberSourceData {
 }
 
 impl Revision for NumberSourceData {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_usize(self.inputs.len());
         for niid in &self.inputs {
             hasher.write_usize(niid.value());
         }
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }
 
@@ -141,13 +144,13 @@ fn hash_optional_target(target: Option<NumberTarget>, hasher: &mut seahash::SeaH
 }
 
 impl Revision for NumberInputData {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hash_optional_target(self.target, &mut hasher);
         hasher.write_usize(self.owner.value());
         hasher.write_u32(self.default_value.to_bits());
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }
 
@@ -185,11 +188,11 @@ impl NumberGraphOutputData {
 }
 
 impl Revision for NumberGraphOutputData {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hash_optional_target(self.target, &mut hasher);
         hasher.write_u32(self.default_value.to_bits());
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }

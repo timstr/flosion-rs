@@ -1,4 +1,4 @@
-use eframe::{egui, glow::MAX_VARYING_FLOATS};
+use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{

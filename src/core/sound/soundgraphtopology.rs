@@ -1,10 +1,8 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hasher,
-};
+use std::{collections::HashSet, hash::Hasher};
 
 use crate::core::{
-    graph::graphobject::GraphObjectHandle, revision::Revision,
+    graph::graphobject::GraphObjectHandle,
+    revision::revision::{Revision, RevisionNumber, Versioned, VersionedHashMap},
     sound::soundnumbersource::SoundNumberSourceOwner,
 };
 
@@ -30,58 +28,73 @@ enum SoundConnectionPart {
 
 #[derive(Clone)]
 pub(crate) struct SoundGraphTopology {
-    sound_processors: HashMap<SoundProcessorId, SoundProcessorData>,
-    sound_inputs: HashMap<SoundInputId, SoundInputData>,
-    number_sources: HashMap<SoundNumberSourceId, SoundNumberSourceData>,
-    number_inputs: HashMap<SoundNumberInputId, SoundNumberInputData>,
+    sound_processors: VersionedHashMap<SoundProcessorId, SoundProcessorData>,
+    sound_inputs: VersionedHashMap<SoundInputId, SoundInputData>,
+    number_sources: VersionedHashMap<SoundNumberSourceId, SoundNumberSourceData>,
+    number_inputs: VersionedHashMap<SoundNumberInputId, SoundNumberInputData>,
 }
 
 impl SoundGraphTopology {
     pub(crate) fn new() -> SoundGraphTopology {
         SoundGraphTopology {
-            sound_processors: HashMap::new(),
-            sound_inputs: HashMap::new(),
-            number_sources: HashMap::new(),
-            number_inputs: HashMap::new(),
+            sound_processors: VersionedHashMap::new(),
+            sound_inputs: VersionedHashMap::new(),
+            number_sources: VersionedHashMap::new(),
+            number_inputs: VersionedHashMap::new(),
         }
     }
 
-    pub(crate) fn sound_processors(&self) -> &HashMap<SoundProcessorId, SoundProcessorData> {
+    pub(crate) fn sound_processors(
+        &self,
+    ) -> &VersionedHashMap<SoundProcessorId, SoundProcessorData> {
         &self.sound_processors
     }
 
-    pub(crate) fn sound_inputs(&self) -> &HashMap<SoundInputId, SoundInputData> {
+    pub(crate) fn sound_inputs(&self) -> &VersionedHashMap<SoundInputId, SoundInputData> {
         &self.sound_inputs
     }
 
-    pub(crate) fn number_sources(&self) -> &HashMap<SoundNumberSourceId, SoundNumberSourceData> {
+    pub(crate) fn number_sources(
+        &self,
+    ) -> &VersionedHashMap<SoundNumberSourceId, SoundNumberSourceData> {
         &self.number_sources
     }
 
-    pub(crate) fn number_inputs(&self) -> &HashMap<SoundNumberInputId, SoundNumberInputData> {
+    pub(crate) fn number_inputs(
+        &self,
+    ) -> &VersionedHashMap<SoundNumberInputId, SoundNumberInputData> {
         &self.number_inputs
     }
 
-    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&SoundProcessorData> {
+    pub(crate) fn sound_processor(
+        &self,
+        id: SoundProcessorId,
+    ) -> Option<&Versioned<SoundProcessorData>> {
         self.sound_processors.get(&id)
     }
 
-    pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&SoundInputData> {
+    pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&Versioned<SoundInputData>> {
         self.sound_inputs.get(&id)
     }
 
-    pub(crate) fn number_source(&self, id: SoundNumberSourceId) -> Option<&SoundNumberSourceData> {
+    pub(crate) fn number_source(
+        &self,
+        id: SoundNumberSourceId,
+    ) -> Option<&Versioned<SoundNumberSourceData>> {
         self.number_sources.get(&id)
     }
 
-    pub(crate) fn number_input(&self, id: SoundNumberInputId) -> Option<&SoundNumberInputData> {
+    pub(crate) fn number_input(
+        &self,
+        id: SoundNumberInputId,
+    ) -> Option<&Versioned<SoundNumberInputData>> {
         self.number_inputs.get(&id)
     }
 
     pub(crate) fn number_input_mut(
         &mut self,
         id: SoundNumberInputId,
-    ) -> Option<&mut SoundNumberInputData> {
+    ) -> Option<&mut Versioned<SoundNumberInputData>> {
         self.number_inputs.get_mut(&id)
     }
 
@@ -416,12 +429,12 @@ impl SoundGraphTopology {
 }
 
 impl Revision for SoundGraphTopology {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
-        hasher.write_u64(self.sound_processors.get_revision());
-        hasher.write_u64(self.sound_inputs.get_revision());
-        hasher.write_u64(self.number_sources.get_revision());
-        hasher.write_u64(self.number_inputs.get_revision());
-        hasher.finish()
+        hasher.write_u64(self.sound_processors.get_revision().value());
+        hasher.write_u64(self.sound_inputs.get_revision().value());
+        hasher.write_u64(self.number_sources.get_revision().value());
+        hasher.write_u64(self.number_inputs.get_revision().value());
+        RevisionNumber::new(hasher.finish())
     }
 }

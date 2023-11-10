@@ -11,7 +11,7 @@ use crate::{
             objectfactory::ObjectFactory,
         },
         number::{numbergraph::NumberGraph, numbergraphdata::NumberTarget},
-        revision::Revision,
+        revision::revision::{Revision, RevisionNumber},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
             soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
@@ -57,7 +57,7 @@ pub struct FlosionApp {
     summon_state: Option<SummonWidgetState<ObjectType>>,
     selection_area: Option<SelectionState>,
     known_object_ids: HashSet<SoundObjectId>,
-    previous_clean_revision: Option<u64>,
+    previous_clean_revision: Option<RevisionNumber>,
 }
 
 impl FlosionApp {

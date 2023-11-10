@@ -9,7 +9,7 @@ use crate::core::{
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphtopology::NumberGraphTopology,
     },
-    revision::Revision,
+    revision::revision::{Revision, RevisionNumber},
     uniqueid::UniqueId,
 };
 
@@ -85,7 +85,7 @@ impl SoundInputData {
 }
 
 impl Revision for SoundInputData {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_u8(match &self.options {
@@ -102,7 +102,7 @@ impl Revision for SoundInputData {
         for nsid in &self.number_sources {
             hasher.write_usize(nsid.value());
         }
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }
 
@@ -164,7 +164,7 @@ impl SoundProcessorData {
 }
 
 impl Revision for SoundProcessorData {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_u8(if self.processor.is_static() { 1 } else { 2 });
@@ -181,7 +181,7 @@ impl Revision for SoundProcessorData {
         for niid in &self.number_inputs {
             hasher.write_usize(niid.value());
         }
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }
 
@@ -321,7 +321,7 @@ impl SoundNumberInputData {
 }
 
 impl Revision for SoundNumberInputData {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         let items_hash: u64 = 0;
@@ -330,9 +330,9 @@ impl Revision for SoundNumberInputData {
             hasher.write_usize(nsid.value());
         }
         hasher.write_u64(items_hash);
-        hasher.write_u64(self.number_graph.topology().get_revision());
+        hasher.write_u64(self.number_graph.topology().get_revision().value());
         hasher.write_usize(self.owner.value());
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }
 
@@ -374,7 +374,7 @@ impl SoundNumberSourceData {
 }
 
 impl Revision for SoundNumberSourceData {
-    fn get_revision(&self) -> u64 {
+    fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         // Do not hash instance
@@ -388,6 +388,6 @@ impl Revision for SoundNumberSourceData {
                 hasher.write_usize(siid.value());
             }
         }
-        hasher.finish()
+        RevisionNumber::new(hasher.finish())
     }
 }

@@ -13,7 +13,7 @@ use thread_priority::{set_current_thread_priority, ThreadPriority};
 use crate::core::{
     engine::soundengine::{create_sound_engine, StopButton},
     graph::{graph::Graph, graphobject::ObjectInitialization},
-    revision::Revision,
+    revision::revision::{Revision, RevisionNumber},
     uniqueid::IdGenerator,
 };
 
@@ -119,7 +119,7 @@ impl SoundGraphClosure {
 
 pub struct SoundGraph {
     local_topology: SoundGraphTopology,
-    last_revision: Option<u64>,
+    last_revision: Option<RevisionNumber>,
 
     engine_interface_thread: Option<JoinHandle<()>>,
     stop_button: StopButton,
@@ -162,13 +162,13 @@ impl SoundGraph {
                 loop {
                     'handle_pending_updates: loop {
                         garbage_disposer.clear();
-                        let time_received = Instant::now();
                         let mut issued_late_warning = false;
                         // handle at most a limited number of topology updates
                         // to guarantee throughput for the garbage disposer
                         for _ in 0..16 {
                             let topo = match topo_receiver.try_recv() {
                                 Ok((topo, time_sent)) => {
+                                    let time_received = Instant::now();
                                     let latency: Duration = time_received - time_sent;
                                     let latency_ms = latency.as_millis();
                                     if latency_ms > 200 && !issued_late_warning {
