@@ -135,6 +135,17 @@ impl SoundNumberInputUi {
                         .lexical_layout
                         .show(ui, graph_state, ctx, focus, outer_context);
                     ui.label(format!("Revision {}", rev.value()));
+                    match outer_context {
+                        OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
+                            let compiled_fn = ctx
+                                .jit_client()
+                                .get_compiled_number_input(ctx.sound_number_input_id(), rev);
+                            match compiled_fn {
+                                Some(f) => ui.label("jit function is ready"),
+                                None => ui.label(".. no jit function yet .."),
+                            }
+                        }
+                    }
                     // TODO: get compiled number input from server cache, plot it as a curve
                     // Also consider moving this code to LexicalLayout
                 });

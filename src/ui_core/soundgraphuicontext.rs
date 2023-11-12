@@ -4,6 +4,7 @@ use eframe::egui;
 
 use crate::core::{
     graph::{graphobject::GraphObjectHandle, objectfactory::ObjectFactory},
+    jit::server::JitClient,
     number::numbergraph::NumberGraph,
     sound::{
         soundgraph::SoundGraph, soundgraphid::SoundObjectId,
@@ -40,6 +41,7 @@ pub struct SoundGraphUiContext<'a> {
     parent_input: Option<SoundInputId>,
     number_graph_input_references:
         Rc<RefCell<Vec<(SoundNumberInputId, Vec<SpatialGraphInputReference>)>>>,
+    jit_client: &'a JitClient,
 }
 
 impl<'a> SoundGraphUiContext<'a> {
@@ -53,6 +55,7 @@ impl<'a> SoundGraphUiContext<'a> {
         time_axis: TimeAxis,
         width: f32,
         nesting_depth: usize,
+        jit_client: &'a JitClient,
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
             ui_factory,
@@ -66,6 +69,7 @@ impl<'a> SoundGraphUiContext<'a> {
             nesting_depth,
             parent_input: None,
             number_graph_input_references: Rc::new(RefCell::new(Vec::new())),
+            jit_client,
         }
     }
 
@@ -136,6 +140,9 @@ impl<'a> SoundGraphUiContext<'a> {
     pub(crate) fn parent_sound_input(&self) -> Option<SoundInputId> {
         self.parent_input
     }
+    pub(crate) fn jit_client(&self) -> &JitClient {
+        self.jit_client
+    }
 
     pub(crate) fn with_number_graph_ui_context<
         R,
@@ -155,6 +162,7 @@ impl<'a> SoundGraphUiContext<'a> {
             temporal_layout,
             self.sound_graph,
             names,
+            self.jit_client,
         );
         let mut ctx = NumberGraphUiContext::new(&self.number_ui_factory, object_states);
         f(&mut ctx, sni_ctx)

@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::core::{
+    jit::server::JitClient,
     number::{
         numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
         numbersource::NumberSourceId,
@@ -26,6 +27,7 @@ pub(crate) struct OuterSoundNumberInputContext<'a> {
     temporal_layout: &'a TemporalLayout,
     sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
+    jit_client: &'a JitClient,
 }
 
 impl<'a> OuterSoundNumberInputContext<'a> {
@@ -35,6 +37,7 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         temporal_layout: &'a TemporalLayout,
         sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
+        jit_client: &'a JitClient,
     ) -> Self {
         Self {
             sound_number_input_id,
@@ -42,6 +45,7 @@ impl<'a> OuterSoundNumberInputContext<'a> {
             temporal_layout,
             sound_graph,
             sound_graph_names,
+            jit_client,
         }
     }
 
@@ -67,6 +71,10 @@ impl<'a> OuterSoundNumberInputContext<'a> {
 
     pub(crate) fn sound_graph_names(&self) -> &SoundGraphUiNames {
         self.sound_graph_names
+    }
+
+    pub(crate) fn jit_client(&self) -> &JitClient {
+        self.jit_client
     }
 
     pub(crate) fn find_graph_id_for_number_source(

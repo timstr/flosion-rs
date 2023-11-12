@@ -143,7 +143,7 @@ impl SoundGraph {
 
             std::thread::scope(|scope| {
                 let (mut engine_interface, engine, garbage_disposer) =
-                    create_sound_engine(&inkwell_context, &stop_button_also);
+                    create_sound_engine(&stop_button_also);
 
                 let audio_thread_handle = scope.spawn(move || {
                     set_current_thread_priority(ThreadPriority::Max).unwrap();
@@ -167,6 +167,8 @@ impl SoundGraph {
                     'handle_pending_updates: loop {
                         garbage_disposer.clear();
                         let mut issued_late_warning = false;
+                        // TODO: should throughput of jit_server be regulated here?
+                        jit_server.serve_pending_requests(engine_interface.current_topology());
                         // handle at most a limited number of topology updates
                         // to guarantee throughput for the garbage disposer
                         for _ in 0..16 {
@@ -195,7 +197,7 @@ impl SoundGraph {
                                     return;
                                 }
                             };
-                            if engine_interface.update(topo).is_err() {
+                            if engine_interface.update(topo, &jit_server).is_err() {
                                 println!(
                                     "Failed to update sound engine, sound engine interface \
                                     thread is exiting"
@@ -203,7 +205,6 @@ impl SoundGraph {
                                 return;
                             }
                         }
-                        jit_server.serve(engine_interface.current_topology());
                     }
 
                     if audio_thread_handle.is_finished() {

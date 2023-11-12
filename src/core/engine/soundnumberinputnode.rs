@@ -5,7 +5,7 @@ use crate::core::{
         garbage::{Garbage, GarbageChute},
         nodegen::NodeGen,
     },
-    jit::{codegen::CodeGen, compilednumberinput::CompiledNumberInputFunction},
+    jit::compilednumberinput::CompiledNumberInputFunction,
     sound::{context::Context, soundnumberinput::SoundNumberInputId},
 };
 
@@ -19,10 +19,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         id: SoundNumberInputId,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> SoundNumberInputNode<'ctx> {
-        // TODO: cache compiled number inputs
-        let codegen = CodeGen::new(nodegen.inkwell_context());
-        let data = codegen.compile_number_input(id, nodegen.topology());
-        let function = data.make_function();
+        let function = nodegen.get_compiled_number_input(id);
         SoundNumberInputNode { id, function }
     }
 

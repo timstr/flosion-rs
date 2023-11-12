@@ -16,8 +16,9 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 
 struct CompiledNumberInputData<'ctx> {
     _execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
-    function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
+    _function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
     _atomic_captures: Vec<Arc<AtomicF32>>,
+    raw_function: EvalNumberInputFunc,
 }
 
 impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
@@ -26,10 +27,17 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
         function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalNumberInputFunc>,
         atomic_captures: Vec<Arc<AtomicF32>>,
     ) -> CompiledNumberInputData<'inkwell_ctx> {
+        // SAFETY: the ExecutionEngine and JitFunction must outlive the
+        // raw function pointer. Storing an Arc to both of those ensures
+        // this. Storing that Arc further inside of a SendWrapper ensures
+        // that the inkwell data can neither be accessed nor dropped on
+        // the audio thread.
+        let raw_function = unsafe { function.as_raw() };
         CompiledNumberInputData {
             _execution_engine: SendWrapper::new(execution_engine),
-            function: SendWrapper::new(function),
+            _function: SendWrapper::new(function),
             _atomic_captures: atomic_captures,
+            raw_function,
         }
     }
 }
@@ -57,14 +65,9 @@ impl<'ctx> CompiledNumberInput<'ctx> {
     }
 
     pub(crate) fn make_function(&self) -> CompiledNumberInputFunction<'ctx> {
-        // SAFETY: the ExecutionEngine and JitFunction must outlive the
-        // raw function pointer. Storing an Arc to both of those ensures
-        // this. Storing that Arc further inside of a SendWrapper ensures
-        // that the inkwell data can neither be accessed nor dropped on
-        // the audio thread.
         CompiledNumberInputFunction {
             data: Arc::clone(&self.data),
-            function: unsafe { self.data.function.as_raw() },
+            function: self.data.raw_function,
         }
     }
 }

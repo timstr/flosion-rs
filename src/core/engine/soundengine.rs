@@ -16,8 +16,9 @@ use super::{
 };
 
 use crate::core::{
-    engine::stategraphvalidation::state_graph_matches_topology, samplefrequency::SAMPLE_FREQUENCY,
-    sound::soundgraphtopology::SoundGraphTopology, soundchunk::CHUNK_SIZE,
+    engine::stategraphvalidation::state_graph_matches_topology, jit::server::JitServer,
+    samplefrequency::SAMPLE_FREQUENCY, sound::soundgraphtopology::SoundGraphTopology,
+    soundchunk::CHUNK_SIZE,
 };
 
 pub(crate) struct StopButton(Arc<AtomicBool>);
@@ -39,7 +40,6 @@ impl Clone for StopButton {
 }
 
 pub(crate) fn create_sound_engine<'ctx>(
-    inkwell_context: &'ctx inkwell::context::Context,
     stop_button: &StopButton,
 ) -> (
     SoundEngineInterface<'ctx>,
@@ -52,7 +52,6 @@ pub(crate) fn create_sound_engine<'ctx>(
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
     let se_interface = SoundEngineInterface {
-        inkwell_context,
         current_topology: SoundGraphTopology::new(),
         keep_running: Arc::clone(&keep_running),
         edit_queue: edit_sender,
@@ -69,14 +68,17 @@ pub(crate) fn create_sound_engine<'ctx>(
 }
 
 pub(crate) struct SoundEngineInterface<'ctx> {
-    inkwell_context: &'ctx inkwell::context::Context,
     current_topology: SoundGraphTopology,
     keep_running: Arc<AtomicBool>,
     edit_queue: SyncSender<StateGraphEdit<'ctx>>,
 }
 
 impl<'ctx> SoundEngineInterface<'ctx> {
-    pub(crate) fn update(&mut self, new_topology: SoundGraphTopology) -> Result<(), ()> {
+    pub(crate) fn update(
+        &mut self,
+        new_topology: SoundGraphTopology,
+        jit_server: &JitServer<'ctx>,
+    ) -> Result<(), ()> {
         let do_it = || -> Result<(), TrySendError<StateGraphEdit<'ctx>>> {
             // topology and state graph should match
             #[cfg(debug_assertions)]
@@ -114,7 +116,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
 
             // Add back static processors with populated inputs
-            let nodegen = NodeGen::new(&new_topology, self.inkwell_context);
+            let nodegen = NodeGen::new(&new_topology, jit_server);
             for proc in new_topology.sound_processors().values() {
                 if proc.instance().is_static() {
                     let node = proc.instance_arc().make_node(&nodegen);

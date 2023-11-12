@@ -4,6 +4,7 @@ use eframe::egui;
 
 use crate::core::{
     graph::objectfactory::ObjectFactory,
+    jit::server::JitClient,
     number::numbergraph::NumberGraph,
     sound::{
         soundedit::SoundEdit,
@@ -551,6 +552,7 @@ impl SoundGraphUiState {
         number_object_factory: &ObjectFactory<NumberGraph>,
         number_ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut SoundObjectUiStates,
+        jit_client: &JitClient,
     ) {
         if let UiMode::UsingKeyboardNav(kbd) = &mut self.mode {
             kbd.handle_keyboard_focus(
@@ -562,6 +564,7 @@ impl SoundGraphUiState {
                 number_object_factory,
                 number_ui_factory,
                 object_ui_states,
+                jit_client,
             );
         };
     }

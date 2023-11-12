@@ -292,6 +292,7 @@ impl FlosionApp {
                     layout.time_axis,
                     layout.width_pixels as f32,
                     layout.nesting_depth,
+                    &self.jit_client,
                 );
                 self.ui_factory
                     .ui(&object, &mut self.ui_state, ui, &mut ctx);
@@ -519,6 +520,7 @@ impl FlosionApp {
             &self.number_object_factory,
             &self.number_ui_factory,
             &mut self.object_states,
+            &self.jit_client,
         );
     }
 

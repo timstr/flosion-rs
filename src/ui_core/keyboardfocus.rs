@@ -2,6 +2,7 @@ use eframe::egui;
 
 use crate::core::{
     graph::objectfactory::ObjectFactory,
+    jit::server::JitClient,
     number::numbergraph::NumberGraph,
     sound::{
         soundgraph::SoundGraph, soundgraphid::SoundGraphId, soundgraphtopology::SoundGraphTopology,
@@ -142,6 +143,7 @@ impl KeyboardFocusState {
         object_factory: &ObjectFactory<NumberGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut SoundObjectUiStates,
+        jit_client: &JitClient,
     ) {
         ui.input_mut(|i| {
             //  preemptively avoid some unnecessary computation.
@@ -161,8 +163,14 @@ impl KeyboardFocusState {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
             let owner = soundgraph.topology().number_input(*niid).unwrap().owner();
-            let outer_context =
-                OuterSoundNumberInputContext::new(*niid, owner, temporal_layout, soundgraph, names);
+            let outer_context = OuterSoundNumberInputContext::new(
+                *niid,
+                owner,
+                temporal_layout,
+                soundgraph,
+                names,
+                jit_client,
+            );
             ui_presentation.handle_keypress(
                 ui,
                 ni_focus,
