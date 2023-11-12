@@ -24,7 +24,7 @@ use crate::core::{
 };
 
 use super::{
-    compilednumberinput::CompiledNumberInputCache,
+    compilednumberinput::CompiledNumberInput,
     types::JitTypes,
     wrappers::{ArrayReadFunc, ScalarReadFunc, WrapperFunctions},
 };
@@ -193,7 +193,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    pub(super) fn finish(self) -> CompiledNumberInputCache<'ctx> {
+    pub(super) fn finish(self) -> CompiledNumberInput<'ctx> {
         if let Err(s) = self.module().verify() {
             let s = s.to_string();
             println!("LLVM failed to verify IR module");
@@ -229,7 +229,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
         };
 
-        CompiledNumberInputCache::new(self.execution_engine, compiled_fn, self.atomic_captures)
+        CompiledNumberInput::new(self.execution_engine, compiled_fn, self.atomic_captures)
     }
 
     fn visit_input(
@@ -611,7 +611,7 @@ impl<'ctx> CodeGen<'ctx> {
         mut self,
         number_input_id: SoundNumberInputId,
         topology: &SoundGraphTopology,
-    ) -> CompiledNumberInputCache<'ctx> {
+    ) -> CompiledNumberInput<'ctx> {
         let sg_number_input_data = topology.number_input(number_input_id).unwrap();
 
         let number_topo = sg_number_input_data.number_graph().topology();

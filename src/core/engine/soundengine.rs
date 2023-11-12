@@ -159,6 +159,10 @@ impl<'ctx> SoundEngineInterface<'ctx> {
 
         Ok(())
     }
+
+    pub(crate) fn current_topology(&self) -> &SoundGraphTopology {
+        &self.current_topology
+    }
 }
 
 impl<'ctx> Drop for SoundEngineInterface<'ctx> {

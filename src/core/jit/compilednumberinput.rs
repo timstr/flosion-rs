@@ -17,16 +17,7 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 struct CompiledNumberInputData<'ctx> {
     _execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
     function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
-    atomic_captures: Vec<Arc<AtomicF32>>,
-}
-
-impl<'ctx> Drop for CompiledNumberInputData<'ctx> {
-    fn drop(&mut self) {
-        // Mainly to silence a warning that atomic_captures is unused.
-        // It is indeed used to guarantee that pointers to the atomics
-        // it may read from stay alive.
-        self.atomic_captures.clear();
-    }
+    _atomic_captures: Vec<Arc<AtomicF32>>,
 }
 
 impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
@@ -38,22 +29,25 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
         CompiledNumberInputData {
             _execution_engine: SendWrapper::new(execution_engine),
             function: SendWrapper::new(function),
-            atomic_captures,
+            _atomic_captures: atomic_captures,
         }
     }
 }
 
-pub(crate) struct CompiledNumberInputCache<'ctx> {
+// Stores the compiled artefact of a number input. Intended to be
+// used to create copies of callable functions, not intended to be
+// invoked directly. See make_function below.
+pub(crate) struct CompiledNumberInput<'ctx> {
     data: Arc<CompiledNumberInputData<'ctx>>,
 }
 
-impl<'ctx> CompiledNumberInputCache<'ctx> {
+impl<'ctx> CompiledNumberInput<'ctx> {
     pub fn new(
         execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
         function: inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>,
         atomic_captures: Vec<Arc<AtomicF32>>,
-    ) -> CompiledNumberInputCache<'ctx> {
-        CompiledNumberInputCache {
+    ) -> CompiledNumberInput<'ctx> {
+        CompiledNumberInput {
             data: Arc::new(CompiledNumberInputData::new(
                 execution_engine,
                 function,

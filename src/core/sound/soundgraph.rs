@@ -13,6 +13,7 @@ use thread_priority::{set_current_thread_priority, ThreadPriority};
 use crate::core::{
     engine::soundengine::{create_sound_engine, StopButton},
     graph::{graph::Graph, graphobject::ObjectInitialization},
+    jit::server::JitServerBuilder,
     revision::revision::{Revision, RevisionNumber},
     uniqueid::IdGenerator,
 };
@@ -132,13 +133,14 @@ pub struct SoundGraph {
 }
 
 impl SoundGraph {
-    pub fn new() -> SoundGraph {
+    pub fn new(jit_server_builder: JitServerBuilder) -> SoundGraph {
         let topo_channel_size = 1024;
         let (topo_sender, topo_receiver) = sync_channel(topo_channel_size);
         let stop_button = StopButton::new();
         let stop_button_also = stop_button.clone();
         let engine_interface_thread = std::thread::spawn(move || {
             let inkwell_context = inkwell::context::Context::create();
+
             std::thread::scope(|scope| {
                 let (mut engine_interface, engine, garbage_disposer) =
                     create_sound_engine(&inkwell_context, &stop_button_also);
@@ -147,6 +149,8 @@ impl SoundGraph {
                     set_current_thread_priority(ThreadPriority::Max).unwrap();
                     engine.run();
                 });
+
+                let jit_server = jit_server_builder.build_server(&inkwell_context);
 
                 // NOTE: both the engine interface and the garbage disposer
                 // deal with LLVM resources and so need to stay on the same
@@ -199,6 +203,7 @@ impl SoundGraph {
                                 return;
                             }
                         }
+                        jit_server.serve(engine_interface.current_topology());
                     }
 
                     if audio_thread_handle.is_finished() {
