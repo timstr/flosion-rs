@@ -38,7 +38,8 @@ pub(super) struct LocalVariables<'ctx> {
     pub(super) loop_counter: IntValue<'ctx>,
     pub(super) dst_ptr: PointerValue<'ctx>,
     pub(super) dst_len: IntValue<'ctx>,
-    pub(super) context_ptr: PointerValue<'ctx>,
+    pub(super) context_1: IntValue<'ctx>,
+    pub(super) context_2: IntValue<'ctx>,
 }
 
 pub struct CodeGen<'ctx> {
@@ -80,8 +81,10 @@ impl<'ctx> CodeGen<'ctx> {
                 types.f32_pointer_type.into(),
                 // usize : length of destination array
                 types.usize_type.into(),
-                // *const () : pointer to context
-                types.pointer_type.into(),
+                // usize : context 1
+                types.usize_type.into(),
+                // usize : context 2
+                types.usize_type.into(),
             ],
             false, // is_var_args
         );
@@ -102,14 +105,19 @@ impl<'ctx> CodeGen<'ctx> {
             .get_nth_param(1)
             .unwrap()
             .into_int_value();
-        let arg_actx_ptr = fn_eval_number_input
+        let arg_ctx_1 = fn_eval_number_input
             .get_nth_param(2)
             .unwrap()
-            .into_pointer_value();
+            .into_int_value();
+        let arg_ctx_2 = fn_eval_number_input
+            .get_nth_param(3)
+            .unwrap()
+            .into_int_value();
 
         arg_f32_dst_ptr.set_name("dst_ptr");
         arg_dst_len.set_name("dst_len");
-        arg_actx_ptr.set_name("audio_ctx");
+        arg_ctx_1.set_name("context_1");
+        arg_ctx_2.set_name("context_2");
 
         let inst_end_of_entry;
         let inst_end_of_loop;
@@ -176,7 +184,8 @@ impl<'ctx> CodeGen<'ctx> {
             loop_counter: v_loop_counter,
             dst_ptr: arg_f32_dst_ptr,
             dst_len: arg_dst_len,
-            context_ptr: arg_actx_ptr,
+            context_1: arg_ctx_1,
+            context_2: arg_ctx_2,
         };
 
         CodeGen {
@@ -307,7 +316,8 @@ impl<'ctx> CodeGen<'ctx> {
             self.wrapper_functions.input_scalar_read_wrapper,
             &[
                 function_addr.into(),
-                self.local_variables.context_ptr.into(),
+                self.local_variables.context_1.into(),
+                self.local_variables.context_2.into(),
                 siid.into(),
             ],
             "si_scalar_fn_retv",
@@ -340,7 +350,8 @@ impl<'ctx> CodeGen<'ctx> {
             self.wrapper_functions.processor_scalar_read_wrapper,
             &[
                 function_addr.into(),
-                self.local_variables.context_ptr.into(),
+                self.local_variables.context_1.into(),
+                self.local_variables.context_2.into(),
                 spid.into(),
             ],
             "sp_scalar_fn_retv",
@@ -373,7 +384,8 @@ impl<'ctx> CodeGen<'ctx> {
             self.wrapper_functions.input_array_read_wrapper,
             &[
                 function_addr.into(),
-                self.local_variables.context_ptr.into(),
+                self.local_variables.context_1.into(),
+                self.local_variables.context_2.into(),
                 siid.into(),
                 self.local_variables.dst_len.into(),
             ],
@@ -417,7 +429,8 @@ impl<'ctx> CodeGen<'ctx> {
             self.wrapper_functions.processor_array_read_wrapper,
             &[
                 function_addr.into(),
-                self.local_variables.context_ptr.into(),
+                self.local_variables.context_1.into(),
+                self.local_variables.context_2.into(),
                 spid.into(),
                 self.local_variables.dst_len.into(),
             ],
@@ -454,7 +467,8 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_call(
             self.wrapper_functions.processor_time_wrapper,
             &[
-                self.local_variables.context_ptr.into(),
+                self.local_variables.context_1.into(),
+                self.local_variables.context_2.into(),
                 spid.into(),
                 ptr_time.into(),
                 ptr_speed.into(),
@@ -496,7 +510,8 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_call(
             self.wrapper_functions.input_time_wrapper,
             &[
-                self.local_variables.context_ptr.into(),
+                self.local_variables.context_1.into(),
+                self.local_variables.context_2.into(),
                 siid.into(),
                 ptr_time.into(),
                 ptr_speed.into(),

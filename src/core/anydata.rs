@@ -10,7 +10,7 @@ impl<'a> AnyData<'a> {
         Self { data }
     }
 
-    pub fn downcast_if<T: 'static>(&self) -> Option<&T> {
+    pub fn downcast_if<T: 'static>(&self) -> Option<&'a T> {
         // TODO: perform an unchecked cast in release mode
         let r = self.data.downcast_ref::<T>();
         debug_assert!(r.is_some());

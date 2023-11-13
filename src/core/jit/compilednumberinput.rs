@@ -5,13 +5,14 @@ use send_wrapper::SendWrapper;
 
 use crate::core::{
     engine::garbage::{Garbage, GarbageChute},
-    sound::context::Context,
+    number::context::{number_context_to_usize_pair, NumberContext},
 };
 
 type EvalNumberInputFunc = unsafe extern "C" fn(
-    *mut f32,  // pointer to destination array
-    usize,     // length of destination array
-    *const (), // pointer to context
+    *mut f32, // pointer to destination array
+    usize,    // length of destination array
+    usize,    // context 1
+    usize,    // context 2
 );
 
 struct CompiledNumberInputData<'ctx> {
@@ -79,10 +80,10 @@ pub(crate) struct CompiledNumberInputFunction<'ctx> {
 }
 
 impl<'ctx> CompiledNumberInputFunction<'ctx> {
-    pub(crate) fn eval(&self, dst: &mut [f32], context: &Context) {
+    pub(crate) fn eval(&self, dst: &mut [f32], context: &dyn NumberContext) {
         unsafe {
-            let context_ptr: *const () = std::mem::transmute_copy(&context);
-            (self.function)(dst.as_mut_ptr(), dst.len(), context_ptr);
+            let (context_1, context_2) = number_context_to_usize_pair(context);
+            (self.function)(dst.as_mut_ptr(), dst.len(), context_1, context_2);
         }
     }
 }
