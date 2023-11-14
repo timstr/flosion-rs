@@ -15,6 +15,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::{NumberGraphUiContext, OuterNumberGraphUiContext},
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
+    numberinputplot::NumberInputPlot,
     ui_factory::UiFactory,
 };
 
@@ -120,14 +121,6 @@ impl SoundNumberInputUi {
             .fill(egui::Color32::BLACK)
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(64)))
             .inner_margin(egui::Margin::same(5.0));
-        let rev = match outer_context {
-            OuterNumberGraphUiContext::SoundNumberInput(snictx) => snictx
-                .sound_graph()
-                .topology()
-                .number_input(snictx.sound_number_input_id())
-                .unwrap()
-                .get_revision(),
-        };
         frame
             .show(ui, |ui| {
                 ui.vertical(|ui| {
@@ -135,55 +128,18 @@ impl SoundNumberInputUi {
                     presentation
                         .lexical_layout
                         .show(ui, graph_state, ctx, focus, outer_context);
-                    ui.label(format!("Revision {}", rev.value()));
                     match outer_context {
                         OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
-                            let compiled_fn = ctx
-                                .jit_client()
-                                .get_compiled_number_input(ctx.sound_number_input_id(), rev);
-                            match compiled_fn {
-                                Some(f) => {
-                                    let height = 20.0;
-                                    let width = ui.available_width();
-                                    let len = width.floor() as usize;
-                                    let number_context = MockNumberContext::new(len);
-                                    let mut dst = Vec::new();
-                                    dst.resize(len, 0.0);
-                                    f.eval(&mut dst, &number_context);
-                                    let dx = width / (len - 1) as f32;
-                                    let (_, rect) = ui.allocate_space(egui::vec2(width, height));
-                                    let painter = ui.painter();
-                                    painter.rect_filled(
-                                        rect,
-                                        egui::Rounding::none(),
-                                        egui::Color32::BLACK,
-                                    );
-                                    for (i, (v0, v1)) in dst.iter().zip(&dst[1..]).enumerate() {
-                                        let x0 = rect.left() + i as f32 * dx;
-                                        let x1 = rect.left() + (i + 1) as f32 * dx;
-                                        let y0 =
-                                            rect.top() + height * (0.5 - v0.clamp(-1.0, 1.0) * 0.5);
-                                        let y1 =
-                                            rect.top() + height * (0.5 - v1.clamp(-1.0, 1.0) * 0.5);
-                                        painter.line_segment(
-                                            [egui::pos2(x0, y0), egui::pos2(x1, y1)],
-                                            egui::Stroke::new(2.0, egui::Color32::WHITE),
-                                        );
-                                    }
-                                    painter.rect_stroke(
-                                        rect,
-                                        egui::Rounding::none(),
-                                        egui::Stroke::new(2.0, egui::Color32::GRAY),
-                                    );
-                                }
-                                None => {
-                                    ui.label(".. no jit function yet ..");
-                                }
-                            }
+                            NumberInputPlot::new().show(
+                                ui,
+                                ctx.jit_client(),
+                                ctx.sound_graph()
+                                    .topology()
+                                    .number_input(ctx.sound_number_input_id())
+                                    .unwrap(),
+                            );
                         }
                     }
-                    // TODO: get compiled number input from server cache, plot it as a curve
-                    // Also consider moving this code to LexicalLayout
                 });
             })
             .inner;

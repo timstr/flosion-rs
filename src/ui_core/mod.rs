@@ -6,6 +6,7 @@ pub mod lexicallayout;
 pub mod numbergraphui;
 pub mod numbergraphuicontext;
 pub mod numbergraphuistate;
+pub mod numberinputplot;
 pub mod numbersourceui;
 pub mod object_positions;
 pub mod object_ui;
