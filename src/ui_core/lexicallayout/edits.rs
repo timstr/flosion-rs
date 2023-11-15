@@ -340,7 +340,9 @@ fn disconnect_graph_output(layout: &LexicalLayout, numbergraph: &mut NumberGraph
     debug_assert_eq!(graph_outputs.len(), 1);
     let graph_output = graph_outputs.first().unwrap();
     debug_assert_eq!(
-        layout.final_expression().direct_target(),
+        layout
+            .final_expression()
+            .indirect_target(layout.variable_definitions()),
         graph_output.target()
     );
     if numbergraph

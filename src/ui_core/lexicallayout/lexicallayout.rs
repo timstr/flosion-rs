@@ -995,6 +995,7 @@ impl LexicalLayout {
                 };
                 let num_children = new_node.num_children();
                 insert_to_numbergraph_at_cursor(self, focus.cursor_mut(), new_node, outer_context);
+                remove_unreferenced_graph_inputs(self, outer_context);
 
                 debug_assert!(outer_context.inspect_number_graph(|g| {
                     lexical_layout_matches_number_graph(self, g.topology())
