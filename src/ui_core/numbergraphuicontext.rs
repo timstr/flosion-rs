@@ -194,12 +194,6 @@ impl<'a> OuterNumberGraphUiContext<'a> {
             }
         }
     }
-
-    pub(crate) fn jit_client(&self) -> &JitClient {
-        match self {
-            OuterNumberGraphUiContext::SoundNumberInput(ctx) => ctx.jit_client(),
-        }
-    }
 }
 
 pub struct NumberGraphUiContext<'a> {

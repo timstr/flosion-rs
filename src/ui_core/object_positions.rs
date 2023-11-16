@@ -56,10 +56,6 @@ impl ObjectPositions {
         &self.objects
     }
 
-    pub(super) fn objects_mut(&mut self) -> &mut HashMap<SoundObjectId, LayoutState> {
-        &mut self.objects
-    }
-
     pub(super) fn track_object_location(&mut self, id: SoundObjectId, rect: egui::Rect) {
         self.objects.insert(id, LayoutState { rect });
     }
@@ -88,19 +84,8 @@ impl ObjectPositions {
         self.processor_rails.get(&id)
     }
 
-    pub(super) fn get_sound_input_locations(&self) -> &HashMap<SoundInputId, LayoutState> {
-        &self.sound_inputs
-    }
-
     pub(super) fn get_sound_input_location(&self, id: SoundInputId) -> Option<&LayoutState> {
         self.sound_inputs.get(&id)
-    }
-
-    pub(super) fn get_sound_number_input_location(
-        &self,
-        id: SoundNumberInputId,
-    ) -> Option<&LayoutState> {
-        self.sound_number_inputs.get(&id)
     }
 
     pub(super) fn move_sound_processor_closure(

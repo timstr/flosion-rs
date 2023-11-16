@@ -214,6 +214,7 @@ impl ParsedArguments {
         )
     }
 
+    #[cfg(test)]
     pub(super) fn values(&self) -> &[(&'static str, AnyArgumentValue)] {
         &self.argument_values
     }

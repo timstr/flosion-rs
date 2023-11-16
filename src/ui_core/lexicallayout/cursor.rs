@@ -1,5 +1,5 @@
 use super::{
-    ast::{ASTNode, ASTPath, InternalASTNode, VariableDefinition},
+    ast::{ASTNode, ASTPath, VariableDefinition},
     lexicallayout::LexicalLayout,
 };
 
@@ -194,21 +194,6 @@ impl LexicalLayoutCursor {
             LexicalLayoutCursor::AtVariableValue(i, _) => &layout.variable_definitions()[..(*i)],
             LexicalLayoutCursor::AtFinalExpression(_) => layout.variable_definitions(),
         }
-    }
-
-    pub(super) fn find_parent_node<'a>(
-        &self,
-        layout: &'a LexicalLayout,
-    ) -> Option<(&'a InternalASTNode, usize)> {
-        let (node, path) = match self {
-            LexicalLayoutCursor::AtVariableName(_) => return None,
-            LexicalLayoutCursor::AtVariableValue(i, p) => {
-                (layout.variable_definitions()[*i].value(), p)
-            }
-            LexicalLayoutCursor::AtFinalExpression(p) => (layout.final_expression(), p),
-        };
-
-        node.find_parent_along_path(path.steps())
     }
 
     pub(super) fn set_node(&self, layout: &mut LexicalLayout, value: ASTNode) {

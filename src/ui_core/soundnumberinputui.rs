@@ -3,7 +3,6 @@ use eframe::egui;
 use crate::core::{
     graph::objectfactory::ObjectFactory,
     number::{
-        context::MockNumberContext,
         numbergraph::{NumberGraph, NumberGraphInputId},
         numbergraphtopology::NumberGraphTopology,
     },
@@ -32,14 +31,6 @@ impl SoundNumberInputPresentation {
         SoundNumberInputPresentation {
             lexical_layout: LexicalLayout::generate(topology, object_ui_states),
         }
-    }
-
-    pub(super) fn lexical_layout(&self) -> &LexicalLayout {
-        &self.lexical_layout
-    }
-
-    pub(super) fn lexical_layout_mut(&mut self) -> &mut LexicalLayout {
-        &mut self.lexical_layout
     }
 
     pub(super) fn cleanup(
@@ -89,10 +80,6 @@ impl SpatialGraphInputReference {
 
     pub(super) fn location(&self) -> egui::Pos2 {
         self.location
-    }
-
-    pub(super) fn location_mut(&mut self) -> &mut egui::Pos2 {
-        &mut self.location
     }
 }
 

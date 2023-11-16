@@ -16,6 +16,7 @@ pub(super) struct ASTPath {
 }
 
 impl ASTPath {
+    #[cfg(test)]
     pub(super) fn new(steps: Vec<usize>) -> ASTPath {
         ASTPath { steps }
     }
@@ -116,20 +117,13 @@ impl ASTPath {
     pub(super) fn go_into(&mut self, index: usize) {
         self.steps.push(index);
     }
-
-    pub(super) fn go_out(&mut self) {
-        self.steps.pop();
-    }
-
-    pub(super) fn clear(&mut self) {
-        self.steps.clear();
-    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct VariableId(usize);
 
 impl VariableId {
+    #[cfg(test)]
     pub(super) fn new(id: usize) -> VariableId {
         VariableId(id)
     }
@@ -326,17 +320,6 @@ impl ASTNode {
         }
     }
 
-    // If the AST node is a reference to a variable, looks up that variable's
-    // definition recursively until a non-variable node is found
-    pub(super) fn dealias<'a>(&'a self, definitions: &'a [VariableDefinition]) -> &'a ASTNode {
-        if let ASTNodeValue::Variable(id) = &self.value {
-            let (defn, prev_defns) = find_variable_definition_and_scope(*id, definitions).unwrap();
-            defn.value().dealias(prev_defns)
-        } else {
-            self
-        }
-    }
-
     pub(super) fn as_internal_node(&self) -> Option<&InternalASTNode> {
         match &self.value {
             ASTNodeValue::Internal(n) => Some(&*n),
@@ -437,14 +420,6 @@ impl ASTNode {
         f(self, path);
         if let ASTNodeValue::Internal(node) = &mut self.value {
             node.visit_mut(path, f);
-        }
-    }
-
-    pub(super) fn is_empty(&self) -> bool {
-        if let ASTNodeValue::Empty = &self.value {
-            true
-        } else {
-            false
         }
     }
 }

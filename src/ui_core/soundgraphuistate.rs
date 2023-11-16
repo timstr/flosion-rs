@@ -687,10 +687,6 @@ impl SoundGraphUiState {
         )
     }
 
-    pub(crate) fn names(&self) -> &SoundGraphUiNames {
-        &self.names
-    }
-
     pub(crate) fn names_mut(&mut self) -> &mut SoundGraphUiNames {
         &mut self.names
     }
