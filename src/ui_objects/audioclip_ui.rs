@@ -1,11 +1,12 @@
 use eframe::egui;
 
 use crate::{
-    core::soundprocessor::DynamicSoundProcessorHandle,
+    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::audioclip::AudioClip,
     ui_core::{
-        graph_ui_state::GraphUiState,
-        object_ui::{ObjectUi, ObjectUiData, ObjectWindow},
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -13,17 +14,27 @@ use crate::{
 pub struct AudioClipUi {}
 
 impl ObjectUi for AudioClipUi {
+    type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<AudioClip>;
     type StateType = ();
     fn ui(
         &self,
         audioclip: DynamicSoundProcessorHandle<AudioClip>,
-        ui_state: &mut GraphUiState,
+        ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        data: ObjectUiData<()>,
+        ctx: &mut SoundGraphUiContext,
+        data: SoundObjectUiData<()>,
+        sound_graph: &mut SoundGraph,
     ) {
-        ObjectWindow::new_sound_processor(audioclip.id(), "AudioClip", data.color)
-            // .add_right_peg(audioclip.id(), "Output")
-            .show(ui.ctx(), ui_state)
+        ProcessorUi::new(audioclip.id(), "AudioClip", data.color).show(
+            ui,
+            ctx,
+            ui_state,
+            sound_graph,
+        );
+    }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["audioclip"]
     }
 }

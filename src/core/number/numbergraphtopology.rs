@@ -162,10 +162,6 @@ impl NumberGraphTopology {
 
     fn add_graph_input(&mut self, input_id: NumberGraphInputId) {
         debug_assert!(!self.graph_inputs.contains(&input_id));
-        println!(
-            "Adding graph input {} to number graph topology",
-            input_id.value()
-        );
         self.graph_inputs.push(input_id);
     }
 

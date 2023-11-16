@@ -2,6 +2,8 @@ use eframe::egui;
 
 use crate::core::{
     sound::{
+        soundgraph::SoundGraph,
+        soundgraphtopology::SoundGraphTopology,
         soundinput::{InputOptions, SoundInputId},
         soundnumberinput::SoundNumberInputId,
         soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
@@ -72,15 +74,23 @@ impl ProcessorUi {
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
+        sound_graph: &mut SoundGraph,
     ) {
-        self.show_with(ui, ctx, ui_state, |_ui, _ui_state| {});
+        self.show_with(
+            ui,
+            ctx,
+            ui_state,
+            sound_graph,
+            |_ui, _ui_state, _sound_graph| {},
+        );
     }
 
-    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState)>(
+    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(
         self,
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
+        sound_graph: &mut SoundGraph,
         add_contents: F,
     ) {
         for (nsid, name) in &self.number_sources {
@@ -89,7 +99,10 @@ impl ProcessorUi {
 
         #[cfg(debug_assertions)]
         {
-            let proc_data = ctx.topology().sound_processor(self.processor_id).unwrap();
+            let proc_data = sound_graph
+                .topology()
+                .sound_processor(self.processor_id)
+                .unwrap();
             let missing_name = |id: SoundNumberSourceId| {
                 self.number_sources.iter().find(|(i, _)| *i == id).is_none()
             };
@@ -105,7 +118,12 @@ impl ProcessorUi {
                 }
             }
             for siid in proc_data.sound_inputs() {
-                for nsid in ctx.topology().sound_input(*siid).unwrap().number_sources() {
+                for nsid in sound_graph
+                    .topology()
+                    .sound_input(*siid)
+                    .unwrap()
+                    .number_sources()
+                {
                     if missing_name(*nsid) {
                         println!(
                             "Warning: number source {} on sound input {} on processor {} ({}) is missing a name",
@@ -141,9 +159,9 @@ impl ProcessorUi {
             }
 
             let r = area.show(ui.ctx(), |ui| {
-                let r = self.show_with_impl(ui, ctx, ui_state, add_contents);
+                let r = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
 
-                self.draw_wires(ui, ctx, ui_state);
+                self.draw_wires(ui, ctx, ui_state, sound_graph.topology());
 
                 r
             });
@@ -158,7 +176,7 @@ impl ProcessorUi {
             // Otherwise, if the object isn't top-level, nest it within the
             // current egui::Ui
 
-            let response = self.show_with_impl(ui, ctx, ui_state, add_contents);
+            let response = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
 
             if ui_state.dragging_processor_data().map(|x| x.processor_id) == Some(self.processor_id)
             {
@@ -231,11 +249,12 @@ impl ProcessorUi {
         (outer_frame, inner_frame)
     }
 
-    fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState)>(
+    fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(
         &self,
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
+        sound_graph: &mut SoundGraph,
         add_contents: F,
     ) -> egui::Response {
         // Clip to the entire screen, not just outside the area
@@ -262,7 +281,7 @@ impl ProcessorUi {
             ui.set_width(desired_width);
             if !self.sound_inputs.is_empty() {
                 for (input_id, _label) in &self.sound_inputs {
-                    self.show_sound_input(ui, ctx, *input_id, ui_state, props);
+                    self.show_sound_input(ui, ctx, *input_id, ui_state, props, sound_graph);
                 }
             }
 
@@ -274,7 +293,14 @@ impl ProcessorUi {
                 |ui| {
                     ui.vertical(|ui| {
                         for (input_id, input_label) in &self.number_inputs {
-                            self.show_number_input(ui, ctx, *input_id, input_label, ui_state);
+                            self.show_number_input(
+                                ui,
+                                ctx,
+                                *input_id,
+                                input_label,
+                                ui_state,
+                                sound_graph,
+                            );
                         }
                         ui.set_width(desired_width);
                         ui.add(
@@ -285,7 +311,7 @@ impl ProcessorUi {
                             )
                             .wrap(false),
                         );
-                        add_contents(ui, ui_state)
+                        add_contents(ui, ui_state, sound_graph)
                     });
                 },
             );
@@ -363,12 +389,13 @@ impl ProcessorUi {
         input_id: SoundInputId,
         ui_state: &mut SoundGraphUiState,
         mut props: ProcessorUiProps,
+        sound_graph: &mut SoundGraph,
     ) {
         let processor_candidacy = ui_state
             .dragging_processor_data()
             .and_then(|d| d.candidate_inputs.get(&input_id));
 
-        let input_data = ctx.topology().sound_input(input_id).unwrap();
+        let input_data = sound_graph.topology().sound_input(input_id).unwrap();
 
         let opts = input_data.options();
 
@@ -466,7 +493,8 @@ impl ProcessorUi {
                         }
                     } else {
                         // draw the processor right above
-                        let target_processor = ctx.topology().sound_processor(spid).unwrap();
+                        let target_processor =
+                            sound_graph.topology().sound_processor(spid).unwrap();
                         let target_graph_object = target_processor.instance_arc().as_graph_object();
 
                         ctx.show_nested_ui(
@@ -475,6 +503,7 @@ impl ProcessorUi {
                             &target_graph_object,
                             ui_state,
                             ui,
+                            sound_graph,
                         );
                     }
                 })
@@ -540,6 +569,7 @@ impl ProcessorUi {
         input_id: SoundNumberInputId,
         input_label: &str,
         ui_state: &mut SoundGraphUiState,
+        sound_graph: &mut SoundGraph,
     ) {
         let fill = egui::Color32::from_black_alpha(64);
 
@@ -562,6 +592,7 @@ impl ProcessorUi {
                 input_id,
                 temporal_layout,
                 names,
+                sound_graph,
                 |number_ctx, sni_ctx| {
                     let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
                     input_ui.show(
@@ -602,27 +633,26 @@ impl ProcessorUi {
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
+        topology: &SoundGraphTopology,
     ) {
         let references = ctx.number_graph_input_references().borrow();
 
         for (number_input_id, graph_input_references) in references.iter() {
             for graph_input in graph_input_references.iter() {
-                let target_number_source = ctx
-                    .topology()
+                let target_number_source = topology
                     .number_input(*number_input_id)
                     .unwrap()
                     .target_mapping()
                     .graph_input_target(graph_input.input_id())
                     .unwrap();
-                let target_processor = match ctx
-                    .topology()
+                let target_processor = match topology
                     .number_source(target_number_source)
                     .unwrap()
                     .owner()
                 {
                     SoundNumberSourceOwner::SoundProcessor(spid) => spid,
                     SoundNumberSourceOwner::SoundInput(siid) => {
-                        ctx.topology().sound_input(siid).unwrap().owner()
+                        topology.sound_input(siid).unwrap().owner()
                     }
                 };
                 let target_rail_location = ui_state

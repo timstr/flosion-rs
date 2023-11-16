@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::soundprocessor::DynamicSoundProcessorHandle,
+    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::mixer::Mixer,
     ui_core::{
         object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
@@ -25,6 +25,7 @@ impl ObjectUi for MixerUi {
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
+        sound_graph: &mut SoundGraph,
     ) {
         let mut objwin = ProcessorUi::new(mixer.id(), "Mixer", data.color);
 
@@ -32,33 +33,38 @@ impl ObjectUi for MixerUi {
             objwin = objwin.add_sound_input(siid, &format!("input{}", i + 1));
         }
 
-        objwin.show_with(ui, ctx, ui_state, |ui, ui_state| {
-            ui.horizontal(|ui| {
-                let last_input = mixer.get_input_ids().into_iter().last();
+        objwin.show_with(
+            ui,
+            ctx,
+            ui_state,
+            sound_graph,
+            |ui, ui_state, sound_graph| {
+                ui.horizontal(|ui| {
+                    let last_input = mixer.get_input_ids().into_iter().last();
 
-                if ui.button("+").clicked() {
-                    let w = mixer.clone();
-                    ui_state.make_change(move |sg, _| {
-                        sg.apply_processor_tools(w.id(), |mut tools| {
-                            w.add_input(&mut tools);
-                        })
-                        .unwrap();
-                    });
-                }
-
-                if let Some(siid) = last_input {
-                    if ui.button("-").clicked() {
+                    if ui.button("+").clicked() {
                         let w = mixer.clone();
-                        ui_state.make_change(move |sg, _| {
-                            sg.apply_processor_tools(w.id(), |mut tools| {
-                                w.remove_input(siid, &mut tools);
+
+                        sound_graph
+                            .with_processor_tools(w.id(), |mut tools| {
+                                w.add_input(&mut tools);
                             })
                             .unwrap();
-                        });
                     }
-                }
-            });
-        });
+
+                    if let Some(siid) = last_input {
+                        if ui.button("-").clicked() {
+                            let w = mixer.clone();
+                            sound_graph
+                                .with_processor_tools(w.id(), |mut tools| {
+                                    w.remove_input(siid, &mut tools);
+                                })
+                                .unwrap();
+                        }
+                    }
+                });
+            },
+        );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {

@@ -11,6 +11,7 @@ use crate::{
 };
 
 use super::{
+    audioclip_ui::AudioClipUi,
     dac_ui::DacUi,
     ensemble_ui::EnsembleUi,
     functions_ui::{
@@ -20,6 +21,7 @@ use super::{
         TriangleWaveUi, TruncUi,
     },
     mixer_ui::MixerUi,
+    recorder_ui::RecorderUi,
     resampler_ui::ResamplerUi,
     wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
@@ -57,11 +59,11 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     // Static sound processors
     helper.register::<DacUi>();
     // helper.register_static_sound_processor::<KeyboardUi>();
-    // helper.register_static_sound_processor::<RecorderUi>();
+    helper.register::<RecorderUi>();
 
     // Dynamic sound processors
     // helper.register_dynamic_sound_processor::<ADSRUi>();
-    // helper.register_dynamic_sound_processor::<AudioClipUi>();
+    helper.register::<AudioClipUi>();
     helper.register::<EnsembleUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register::<MixerUi>();

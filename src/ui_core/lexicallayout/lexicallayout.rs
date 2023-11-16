@@ -322,7 +322,7 @@ impl LexicalLayout {
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
         mut focus: Option<&mut LexicalLayoutFocus>,
-        outer_context: &OuterNumberGraphUiContext,
+        outer_context: &mut OuterNumberGraphUiContext,
     ) {
         debug_assert!(outer_context
             .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
@@ -376,7 +376,7 @@ impl LexicalLayout {
         focus: &mut Option<&mut LexicalLayoutFocus>,
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
-        outer_context: &OuterNumberGraphUiContext,
+        outer_context: &mut OuterNumberGraphUiContext,
     ) {
         ui.spacing_mut().item_spacing.x = 0.0;
         let mut cursor_path = if let Some(focus) = focus {
@@ -502,7 +502,7 @@ impl LexicalLayout {
         ctx: &mut NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
-        outer_context: &OuterNumberGraphUiContext,
+        outer_context: &mut OuterNumberGraphUiContext,
         variable_definitions: &[VariableDefinition],
     ) {
         let hovering = ui
@@ -561,7 +561,7 @@ impl LexicalLayout {
         ctx: &mut NumberGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
-        outer_context: &OuterNumberGraphUiContext,
+        outer_context: &mut OuterNumberGraphUiContext,
         variable_definitions: &[VariableDefinition],
     ) -> egui::Response {
         let styled_text = |ui: &mut egui::Ui, s: String| -> egui::Response {
@@ -705,7 +705,7 @@ impl LexicalLayout {
         id: NumberSourceId,
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
-        outer_context: &OuterNumberGraphUiContext,
+        outer_context: &mut OuterNumberGraphUiContext,
     ) -> egui::Rect {
         let graph_object = outer_context.inspect_number_graph(|numbergraph| {
             numbergraph
@@ -719,7 +719,11 @@ impl LexicalLayout {
         let object_ui = ctx.ui_factory().get_object_ui(object_type);
         let object_state = ctx.object_ui_states().get_object_data(id);
         ui.horizontal_centered(|ui| {
-            object_ui.apply(&graph_object, &object_state, graph_state, ui, ctx);
+            outer_context
+                .edit_number_graph(|g| {
+                    object_ui.apply(&graph_object, &object_state, graph_state, ui, ctx, g);
+                })
+                .unwrap();
         })
         .response
         .rect

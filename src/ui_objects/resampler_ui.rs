@@ -1,5 +1,5 @@
 use crate::{
-    core::sound::soundprocessor::DynamicSoundProcessorHandle,
+    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::resampler::Resampler,
     ui_core::{
         object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
@@ -22,11 +22,12 @@ impl ObjectUi for ResamplerUi {
         ui: &mut eframe::egui::Ui,
         ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
+        sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(resampler.id(), "Resampler", data.color)
             .add_sound_input(resampler.input.id(), "input")
             .add_number_input(resampler.speed_ratio.id(), "speed")
-            .show(ui, ctx, ui_state);
+            .show(ui, ctx, ui_state, sound_graph);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {

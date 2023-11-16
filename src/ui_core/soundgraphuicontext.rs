@@ -7,8 +7,7 @@ use crate::core::{
     jit::server::JitClient,
     number::numbergraph::NumberGraph,
     sound::{
-        soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+        soundgraph::SoundGraph, soundgraphid::SoundObjectId, soundinput::SoundInputId,
         soundnumberinput::SoundNumberInputId,
     },
 };
@@ -31,12 +30,12 @@ pub struct SoundGraphUiContext<'a> {
     number_object_factory: &'a ObjectFactory<NumberGraph>,
     number_ui_factory: &'a UiFactory<NumberGraphUi>,
     sound_object_states: &'a SoundObjectUiStates,
-    sound_graph: &'a mut SoundGraph,
     is_top_level: bool,
     time_axis: TimeAxis,
     width: f32,
     nesting_depth: usize,
     parent_input: Option<SoundInputId>,
+    // TODO: encapsulate
     number_graph_input_references:
         Rc<RefCell<Vec<(SoundNumberInputId, Vec<SpatialGraphInputReference>)>>>,
     jit_client: &'a JitClient,
@@ -48,7 +47,6 @@ impl<'a> SoundGraphUiContext<'a> {
         number_object_factory: &'a ObjectFactory<NumberGraph>,
         number_ui_factory: &'a UiFactory<NumberGraphUi>,
         object_states: &'a SoundObjectUiStates,
-        sound_graph: &'a mut SoundGraph,
         is_top_level: bool,
         time_axis: TimeAxis,
         width: f32,
@@ -60,7 +58,6 @@ impl<'a> SoundGraphUiContext<'a> {
             number_object_factory,
             number_ui_factory,
             sound_object_states: object_states,
-            sound_graph,
             is_top_level,
             time_axis,
             width,
@@ -73,10 +70,6 @@ impl<'a> SoundGraphUiContext<'a> {
 
     pub(crate) fn object_states(&self) -> &SoundObjectUiStates {
         self.sound_object_states
-    }
-
-    pub(crate) fn topology(&self) -> &SoundGraphTopology {
-        self.sound_graph.topology()
     }
 
     pub fn time_axis(&self) -> &TimeAxis {
@@ -104,6 +97,7 @@ impl<'a> SoundGraphUiContext<'a> {
         target_graph_object: &GraphObjectHandle<SoundGraph>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
+        sound_graph: &mut SoundGraph,
     ) {
         let was_top_level = self.is_top_level;
         let old_width = self.width;
@@ -116,7 +110,7 @@ impl<'a> SoundGraphUiContext<'a> {
         self.parent_input = Some(input_id);
 
         self.sound_ui_factory
-            .ui(target_graph_object, ui_state, ui, self);
+            .ui(target_graph_object, ui_state, ui, self, sound_graph);
 
         self.is_top_level = was_top_level;
         self.width = old_width;
@@ -140,15 +134,20 @@ impl<'a> SoundGraphUiContext<'a> {
         input_id: SoundNumberInputId,
         temporal_layout: &TemporalLayout,
         names: &SoundGraphUiNames,
+        sound_graph: &mut SoundGraph,
         f: F,
     ) -> R {
         let object_states = self.sound_object_states.number_graph_object_state(input_id);
-        let owner = self.topology().number_input(input_id).unwrap().owner();
+        let owner = sound_graph
+            .topology()
+            .number_input(input_id)
+            .unwrap()
+            .owner();
         let sni_ctx = OuterSoundNumberInputContext::new(
             input_id,
             owner,
             temporal_layout,
-            self.sound_graph,
+            sound_graph,
             names,
             self.jit_client,
         );

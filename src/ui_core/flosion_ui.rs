@@ -287,7 +287,6 @@ impl FlosionApp {
                     &self.number_object_factory,
                     &self.number_ui_factory,
                     &self.object_states,
-                    &mut self.graph,
                     is_top_level,
                     layout.time_axis,
                     layout.width_pixels as f32,
@@ -295,11 +294,12 @@ impl FlosionApp {
                     &self.jit_client,
                 );
                 self.ui_factory
-                    .ui(&object, &mut self.ui_state, ui, &mut ctx);
+                    .ui(&object, &mut self.ui_state, ui, &mut ctx, &mut self.graph);
             }
         }
         self.ui_state
             .apply_processor_drag(ui, self.graph.topology());
+        self.cleanup();
     }
 
     fn handle_shortcuts_selection(
@@ -640,17 +640,22 @@ impl FlosionApp {
         );
     }
 
-    fn delete_selection(ui_state: &mut SoundGraphUiState) {
-        let selection: Vec<SoundObjectId> =
-            ui_state.effective_selection().iter().cloned().collect();
+    fn delete_selection(&mut self) {
+        let selection: Vec<SoundObjectId> = self
+            .ui_state
+            .effective_selection()
+            .iter()
+            .cloned()
+            .collect();
         if selection.is_empty() {
             return;
         }
-        ui_state.make_change(move |g, _s| {
-            g.remove_objects_batch(&selection).unwrap_or_else(|e| {
+        self.graph
+            .remove_objects_batch(&selection)
+            .unwrap_or_else(|e| {
                 println!("Nope! Can't remove that:\n    {:?}", e);
             });
-        });
+        self.cleanup();
     }
 
     fn serialize(
@@ -725,7 +730,7 @@ impl FlosionApp {
                 {
                     ui.output_mut(|o| o.copied_text = s);
                 }
-                Self::delete_selection(&mut self.ui_state);
+                self.delete_selection();
             }
             egui::Event::Paste(data) => {
                 let res = Self::deserialize(
@@ -772,7 +777,7 @@ impl FlosionApp {
                     return;
                 }
                 if *key == egui::Key::Delete && !modifiers.any() {
-                    Self::delete_selection(&mut self.ui_state);
+                    self.delete_selection();
                     return;
                 }
             }
@@ -781,9 +786,6 @@ impl FlosionApp {
     }
 
     fn cleanup(&mut self) {
-        // TODO: consider making revisions cached using some kind of clever wrapping
-        // type that invalidates the revision number when mutably dereferenced and
-        // caches it when calculated
         let current_revision = self.graph.topology().get_revision();
 
         if self.previous_clean_revision == Some(current_revision) {
@@ -867,8 +869,6 @@ impl eframe::App for FlosionApp {
                 assert!(self.ui_state.check_invariants(self.graph.topology()));
                 assert!(self.object_states.check_invariants(self.graph.topology()));
             }
-
-            self.ui_state.apply_pending_changes(&mut self.graph);
 
             self.graph.flush_updates();
 

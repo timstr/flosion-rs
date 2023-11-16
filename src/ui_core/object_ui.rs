@@ -70,6 +70,7 @@ pub trait ObjectUi: 'static + Default {
             'b,
             Self::StateType,
         >,
+        graph: &mut <Self::GraphUi as GraphUi>::Graph,
     );
 
     fn summon_names(&self) -> &'static [&'static str];
@@ -98,6 +99,7 @@ pub trait AnyObjectUi<G: GraphUi> {
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
         ctx: &mut G::Context<'_>,
+        graph: &mut G::Graph,
     );
 
     fn summon_names(&self) -> &'static [&'static str];
@@ -122,10 +124,11 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
         ctx: &mut G::Context<'_>,
+        graph: &mut G::Graph,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         object_ui_state.downcast_with(graph_state, ctx, |data, graph_state, ctx| {
-            self.ui(handle, graph_state, ui, ctx, data);
+            self.ui(handle, graph_state, ui, ctx, data, graph);
         });
     }
 

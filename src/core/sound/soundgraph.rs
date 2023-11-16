@@ -376,7 +376,7 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
-    pub fn apply_processor_tools<F: FnOnce(SoundProcessorTools)>(
+    pub fn with_processor_tools<F: FnOnce(SoundProcessorTools)>(
         &mut self,
         processor_id: SoundProcessorId,
         f: F,

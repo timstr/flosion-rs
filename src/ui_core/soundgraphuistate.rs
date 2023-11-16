@@ -83,7 +83,6 @@ struct PendingProcessorDrag {
 pub struct SoundGraphUiState {
     object_positions: ObjectPositions,
     temporal_layout: TemporalLayout,
-    pending_changes: Vec<Box<dyn FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> ()>>,
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
     number_input_uis: SoundNumberInputUiCollection,
@@ -95,7 +94,6 @@ impl SoundGraphUiState {
         SoundGraphUiState {
             object_positions: ObjectPositions::new(),
             temporal_layout: TemporalLayout::new(),
-            pending_changes: Vec::new(),
             mode: UiMode::Passive,
             pending_drag: None,
             number_input_uis: SoundNumberInputUiCollection::new(),
@@ -117,13 +115,6 @@ impl SoundGraphUiState {
 
     pub(super) fn temporal_layout_mut(&mut self) -> &mut TemporalLayout {
         &mut self.temporal_layout
-    }
-
-    pub fn make_change<F: FnOnce(&mut SoundGraph, &mut SoundGraphUiState) -> () + 'static>(
-        &mut self,
-        f: F,
-    ) {
-        self.pending_changes.push(Box::new(f));
     }
 
     fn update_mode_from_selection(&mut self) {
@@ -596,15 +587,6 @@ impl SoundGraphUiState {
             UiMode::UsingKeyboardNav(k) => k.item_has_keyboard_focus(id),
             _ => false,
         }
-    }
-
-    pub(super) fn apply_pending_changes(&mut self, graph: &mut SoundGraph) {
-        let mut pending_changes = Vec::new();
-        std::mem::swap(&mut self.pending_changes, &mut pending_changes);
-        for f in pending_changes {
-            f(graph, self);
-        }
-        debug_assert!(self.pending_changes.is_empty());
     }
 
     #[cfg(debug_assertions)]

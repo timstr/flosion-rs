@@ -56,13 +56,14 @@ impl<G: GraphUi> UiFactory<G> {
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
         ctx: &mut G::Context<'_>,
+        graph: &mut G::Graph,
     ) {
         let object_type = object.get_type();
         let id = object.id();
         match self.mapping.get(&object_type) {
             Some(data) => {
                 let state = ctx.get_object_ui_data(id);
-                data.ui.apply(object, &*state, graph_state, ui, ctx);
+                data.ui.apply(object, &*state, graph_state, ui, ctx, graph);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",

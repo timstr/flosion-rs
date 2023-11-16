@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::soundprocessor::DynamicSoundProcessorHandle,
+    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::whitenoise::WhiteNoise,
     ui_core::{
         object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
@@ -25,10 +25,14 @@ impl ObjectUi for WhiteNoiseUi {
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
+        sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(whitenoise.id(), "WhiteNoise", data.color)
-            // .add_right_peg(whitenoise.id(), "Output")
-            .show(ui, ctx, ui_state);
+        ProcessorUi::new(whitenoise.id(), "WhiteNoise", data.color).show(
+            ui,
+            ctx,
+            ui_state,
+            sound_graph,
+        );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {

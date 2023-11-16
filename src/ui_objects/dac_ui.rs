@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::soundprocessor::StaticSoundProcessorHandle,
+    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
     objects::dac::Dac,
     ui_core::{
         object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
@@ -24,14 +24,21 @@ impl ObjectUi for DacUi {
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
+        sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(dac.id(), "Dac", data.color)
             .add_sound_input(dac.input.id(), "input")
-            .show_with(ui, ctx, ui_state, |ui, _ui_state| {
-                if ui.add(egui::Button::new("Reset").wrap(false)).clicked() {
-                    dac.reset();
-                }
-            });
+            .show_with(
+                ui,
+                ctx,
+                ui_state,
+                sound_graph,
+                |ui, _ui_state, _sound_graph| {
+                    if ui.add(egui::Button::new("Reset").wrap(false)).clicked() {
+                        dac.reset();
+                    }
+                },
+            );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
