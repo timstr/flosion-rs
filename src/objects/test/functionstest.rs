@@ -15,7 +15,7 @@ use crate::{
             },
         },
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-        jit::codegen::CodeGen,
+        jit::{codegen::CodeGen, compilednumberinput::Discretization},
         number::{numbergraphdata::NumberTarget, numbersource::PureNumberSource},
         sound::{
             context::Context,
@@ -309,7 +309,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
 
     // test compiled evaluation
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];
-    compiled_function.eval(&mut actual_values_compiled, &context);
+    compiled_function.eval(&mut actual_values_compiled, &context, Discretization::None);
 
     for (expected, actual) in expected_values
         .into_iter()
