@@ -6,11 +6,13 @@ use send_wrapper::SendWrapper;
 use crate::core::{
     engine::garbage::{Garbage, GarbageChute},
     number::context::{number_context_to_usize_pair, NumberContext},
+    samplefrequency::SAMPLE_TIME_STEP,
 };
 
 type EvalNumberInputFunc = unsafe extern "C" fn(
     *mut f32, // pointer to destination array
     usize,    // length of destination array
+    f32,      // time step
     usize,    // context 1
     usize,    // context 2
 );
@@ -79,11 +81,35 @@ pub(crate) struct CompiledNumberInputFunction<'ctx> {
     function: EvalNumberInputFunc,
 }
 
+pub enum Discretization {
+    None,
+    Temporal(f32 /* time step */),
+}
+
+impl Discretization {
+    pub fn samplewise_temporal() -> Discretization {
+        Discretization::Temporal(SAMPLE_TIME_STEP)
+    }
+
+    pub(crate) fn time_step(&self) -> f32 {
+        match self {
+            Discretization::None => 0.0,
+            Discretization::Temporal(dt) => *dt,
+        }
+    }
+}
+
 impl<'ctx> CompiledNumberInputFunction<'ctx> {
-    pub(crate) fn eval(&self, dst: &mut [f32], context: &dyn NumberContext) {
+    pub(crate) fn eval(
+        &self,
+        dst: &mut [f32],
+        context: &dyn NumberContext,
+        discretization: Discretization,
+    ) {
         unsafe {
             let (context_1, context_2) = number_context_to_usize_pair(context);
-            (self.function)(dst.as_mut_ptr(), dst.len(), context_1, context_2);
+            let time_step = discretization.time_step();
+            (self.function)(dst.as_mut_ptr(), dst.len(), time_step, context_1, context_2);
         }
     }
 }

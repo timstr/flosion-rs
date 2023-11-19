@@ -1,9 +1,20 @@
 use eframe::egui;
 
 use crate::core::{
-    jit::server::JitClient, number::context::MockNumberContext, revision::revision::Revision,
+    jit::{compilednumberinput::Discretization, server::JitClient},
+    number::context::MockNumberContext,
+    revision::revision::Revision,
     sound::soundgraphdata::SoundNumberInputData,
 };
+
+use super::temporallayout::TimeAxis;
+
+// TODO: construct this from ProcessorUi's add_number_input method and pass it along
+pub struct NumberInputPlotConfig {
+    // TODO: whether to always plot temporally or w.r.t. an input, e.g. wave generator amplitude vs phase
+    // TODO: whether to fix vertical scaling or automatically infer it
+    // TODO: log versus linear plot?
+}
 
 pub(crate) struct NumberInputPlot {
     // TODO: fields for creating mock context?
@@ -19,22 +30,26 @@ impl NumberInputPlot {
         ui: &mut egui::Ui,
         jit_client: &JitClient,
         ni_data: &SoundNumberInputData,
+        time_axis: TimeAxis,
     ) {
         let compiled_fn =
             jit_client.get_compiled_number_input(ni_data.id(), ni_data.get_revision());
-        // TODO: make this configurable / draggable
+        // TODO: make this configurable / draggable. Where to store such ui state?
         let desired_height = 20.0;
         let (_, rect) = ui.allocate_space(egui::vec2(ui.available_width(), desired_height));
         let painter = ui.painter();
         painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
         match compiled_fn {
             Some(f) => {
-                // TODO: use temporal layout to inform time span
                 let len = rect.width().floor() as usize;
                 let mut dst = Vec::new();
                 dst.resize(len, 0.0);
                 let number_context = MockNumberContext::new(len);
-                f.eval(&mut dst, &number_context);
+                f.eval(
+                    &mut dst,
+                    &number_context,
+                    Discretization::Temporal(time_axis.time_per_x_pixel),
+                );
                 let dx = rect.width() / (len - 1) as f32;
                 for (i, (v0, v1)) in dst.iter().zip(&dst[1..]).enumerate() {
                     let x0 = rect.left() + i as f32 * dx;

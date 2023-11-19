@@ -8,6 +8,7 @@ use crate::core::{
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+    jit::compilednumberinput::Discretization,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::Context,
@@ -98,22 +99,24 @@ impl DynamicSoundProcessor for WaveGenerator {
         context: Context,
     ) -> StreamStatus {
         let prev_phase = *state.phase.last().unwrap();
-        // TODO: mark phase_arr as samplewise temporal
         {
             let mut tmp = context.get_scratch_space(state.phase.len());
-            number_inputs
-                .frequency
-                .eval(&mut tmp, &context.push_processor_state(state));
+            number_inputs.frequency.eval(
+                &mut tmp,
+                Discretization::samplewise_temporal(),
+                &context.push_processor_state(state),
+            );
             numeric::copy(&tmp, &mut state.phase);
         }
         numeric::div_scalar_inplace(&mut state.phase, SAMPLE_FREQUENCY as f32);
         numeric::exclusive_scan_inplace(&mut state.phase, prev_phase, |p1, p2| p1 + p2);
         numeric::apply_unary_inplace(&mut state.phase, |x| x - x.floor());
-        // TODO: mark dst.l as samplewise temporal
 
-        number_inputs
-            .amplitude
-            .eval(&mut dst.l, &context.push_processor_state(state));
+        number_inputs.amplitude.eval(
+            &mut dst.l,
+            Discretization::samplewise_temporal(),
+            &context.push_processor_state(state),
+        );
         numeric::copy(&dst.l, &mut dst.r);
 
         StreamStatus::Playing

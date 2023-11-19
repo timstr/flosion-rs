@@ -124,6 +124,7 @@ impl SoundNumberInputUi {
                                     .topology()
                                     .number_input(ctx.sound_number_input_id())
                                     .unwrap(),
+                                *ctx.time_axis(),
                             );
                         }
                     }

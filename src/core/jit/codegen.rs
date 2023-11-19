@@ -40,6 +40,7 @@ pub(super) struct LocalVariables<'ctx> {
     pub(super) dst_len: IntValue<'ctx>,
     pub(super) context_1: IntValue<'ctx>,
     pub(super) context_2: IntValue<'ctx>,
+    pub(super) time_step: FloatValue<'ctx>,
 }
 
 pub struct CodeGen<'ctx> {
@@ -81,6 +82,8 @@ impl<'ctx> CodeGen<'ctx> {
                 types.f32_pointer_type.into(),
                 // usize : length of destination array
                 types.usize_type.into(),
+                // f32: time step
+                types.f32_type.into(),
                 // usize : context 1
                 types.usize_type.into(),
                 // usize : context 2
@@ -91,6 +94,12 @@ impl<'ctx> CodeGen<'ctx> {
 
         let fn_eval_number_input =
             module.add_function(&function_name, fn_eval_number_input_type, None);
+
+        // TODO: basic blocks for
+        // - start-of-chunk restoration of state
+        // - end-of-chunk persistence of state
+        // - first-time initialization upon reset (e.g. seed PRNG, reset stateful things),
+        //   will probably need an extra boolean to save/restore
 
         let bb_entry = inkwell_context.append_basic_block(fn_eval_number_input, "entry");
         let bb_loop = inkwell_context.append_basic_block(fn_eval_number_input, "loop");
@@ -105,17 +114,22 @@ impl<'ctx> CodeGen<'ctx> {
             .get_nth_param(1)
             .unwrap()
             .into_int_value();
-        let arg_ctx_1 = fn_eval_number_input
+        let arg_time_step = fn_eval_number_input
             .get_nth_param(2)
+            .unwrap()
+            .into_float_value();
+        let arg_ctx_1 = fn_eval_number_input
+            .get_nth_param(3)
             .unwrap()
             .into_int_value();
         let arg_ctx_2 = fn_eval_number_input
-            .get_nth_param(3)
+            .get_nth_param(4)
             .unwrap()
             .into_int_value();
 
         arg_f32_dst_ptr.set_name("dst_ptr");
         arg_dst_len.set_name("dst_len");
+        arg_time_step.set_name("time_step");
         arg_ctx_1.set_name("context_1");
         arg_ctx_2.set_name("context_2");
 
@@ -186,6 +200,7 @@ impl<'ctx> CodeGen<'ctx> {
             dst_len: arg_dst_len,
             context_1: arg_ctx_1,
             context_2: arg_ctx_2,
+            time_step: arg_time_step,
         };
 
         CodeGen {
@@ -480,6 +495,11 @@ impl<'ctx> CodeGen<'ctx> {
             .builder
             .build_load(ptr_speed, "speed")
             .into_float_value();
+        let adjusted_time_step = self.builder.build_float_mul(
+            speed,
+            self.local_variables.time_step,
+            "adjusted_time_step",
+        );
 
         self.builder
             .position_before(&self.instruction_locations.end_of_bb_loop);
@@ -490,9 +510,9 @@ impl<'ctx> CodeGen<'ctx> {
             "index_f",
         );
 
-        let time_offset = self
-            .builder
-            .build_float_mul(index_float, speed, "time_offset");
+        let time_offset =
+            self.builder
+                .build_float_mul(index_float, adjusted_time_step, "time_offset");
         let curr_time = self.builder.build_float_add(time, time_offset, "curr_time");
 
         curr_time
@@ -523,6 +543,11 @@ impl<'ctx> CodeGen<'ctx> {
             .builder
             .build_load(ptr_speed, "speed")
             .into_float_value();
+        let adjusted_time_step = self.builder.build_float_mul(
+            speed,
+            self.local_variables.time_step,
+            "adjusted_time_step",
+        );
 
         self.builder
             .position_before(&self.instruction_locations.end_of_bb_loop);
@@ -533,9 +558,9 @@ impl<'ctx> CodeGen<'ctx> {
             "index_f",
         );
 
-        let time_offset = self
-            .builder
-            .build_float_mul(index_float, speed, "time_offset");
+        let time_offset =
+            self.builder
+                .build_float_mul(index_float, adjusted_time_step, "time_offset");
         let curr_time = self.builder.build_float_add(time, time_offset, "curr_time");
 
         curr_time
@@ -666,9 +691,5 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_store(dst_elem_ptr, final_value);
 
         self.finish()
-    }
-
-    pub(super) fn into_atomic_captures(self) -> Vec<Arc<AtomicF32>> {
-        self.atomic_captures
     }
 }

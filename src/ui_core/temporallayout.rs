@@ -13,7 +13,7 @@ use crate::core::{
 
 #[derive(Clone, Copy)]
 pub struct TimeAxis {
-    pub samples_per_x_pixel: f32,
+    pub time_per_x_pixel: f32,
     // TODO: offset to allow scrolling?
 }
 
@@ -30,6 +30,7 @@ pub struct TemporalLayout {
 
 impl TemporalLayout {
     const DEFAULT_WIDTH: usize = 600;
+    const DEFAULT_DURATION: f32 = 4.0;
 
     pub(crate) fn new() -> TemporalLayout {
         TemporalLayout {
@@ -55,7 +56,7 @@ impl TemporalLayout {
             TopLevelLayout {
                 width_pixels: Self::DEFAULT_WIDTH,
                 time_axis: TimeAxis {
-                    samples_per_x_pixel: SAMPLE_FREQUENCY as f32 / Self::DEFAULT_WIDTH as f32,
+                    time_per_x_pixel: Self::DEFAULT_DURATION / (Self::DEFAULT_WIDTH as f32),
                 },
                 // nesting depth will be recomputed later
                 nesting_depth: 0,

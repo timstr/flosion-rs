@@ -163,6 +163,12 @@ impl KeyboardFocusState {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
             let owner = soundgraph.topology().number_input(*niid).unwrap().owner();
+            let root_processer =
+                temporal_layout.find_root_processor((*niid).into(), soundgraph.topology());
+            let time_axis = temporal_layout
+                .find_top_level_layout(root_processer.into())
+                .unwrap()
+                .time_axis;
             let outer_context = OuterSoundNumberInputContext::new(
                 *niid,
                 owner,
@@ -170,6 +176,7 @@ impl KeyboardFocusState {
                 soundgraph,
                 names,
                 jit_client,
+                time_axis,
             );
             ui_presentation.handle_keypress(
                 ui,

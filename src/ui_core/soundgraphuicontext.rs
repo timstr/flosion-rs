@@ -150,6 +150,7 @@ impl<'a> SoundGraphUiContext<'a> {
             sound_graph,
             names,
             self.jit_client,
+            self.time_axis,
         );
         let mut ctx = NumberGraphUiContext::new(&self.number_ui_factory, object_states);
         f(&mut ctx, sni_ctx)

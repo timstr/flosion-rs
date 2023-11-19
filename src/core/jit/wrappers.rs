@@ -3,7 +3,6 @@ use inkwell::values::FunctionValue;
 use crate::core::{
     anydata::AnyData,
     number::context::{usize_pair_to_number_context, NumberContext},
-    samplefrequency::SAMPLE_FREQUENCY,
     sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId},
 };
 
@@ -94,6 +93,7 @@ pub(super) unsafe extern "C" fn processor_time_wrapper(
     context_1: usize,
     context_2: usize,
     sound_processor_id: usize,
+    time_step: f32,
     ptr_time: *mut f32,
     ptr_speed: *mut f32,
 ) {
@@ -102,7 +102,7 @@ pub(super) unsafe extern "C" fn processor_time_wrapper(
     let spid = SoundProcessorId::new(sound_processor_id);
     let (time, speed) = ctx.get_time_and_speed_at_sound_processor(spid);
     *ptr_time = time;
-    *ptr_speed = speed / SAMPLE_FREQUENCY as f32;
+    *ptr_speed = speed;
 }
 
 pub(super) unsafe extern "C" fn input_time_wrapper(
@@ -117,7 +117,7 @@ pub(super) unsafe extern "C" fn input_time_wrapper(
     let siid = SoundInputId::new(sound_input_id);
     let (time, speed) = ctx.get_time_and_speed_at_sound_input(siid);
     *ptr_time = time;
-    *ptr_speed = speed / SAMPLE_FREQUENCY as f32;
+    *ptr_speed = speed;
 }
 
 pub(super) struct WrapperFunctions<'ctx> {

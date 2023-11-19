@@ -7,6 +7,7 @@ use crate::core::{
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+    jit::compilednumberinput::Discretization,
     sound::{
         context::Context,
         soundinput::InputOptions,
@@ -118,7 +119,11 @@ impl DynamicSoundProcessor for Resampler {
         // TODO: linear interpolation instead of constant,
         // consider storing previous sample in state
         let mut speedratio = context.get_scratch_space(CHUNK_SIZE);
-        number_inputs.speed_ratio.eval(&mut speedratio, &context);
+        number_inputs.speed_ratio.eval(
+            &mut speedratio,
+            Discretization::samplewise_temporal(),
+            &context,
+        );
         for (dst_sample, delta) in dst
             .samples_mut()
             .zip(speedratio.iter().map(|r| r.clamp(0.0, 16.0)))

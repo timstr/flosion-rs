@@ -17,7 +17,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{AnyNumberObjectUiData, NumberObjectUiStates},
     soundgraphuinames::SoundGraphUiNames,
-    temporallayout::TemporalLayout,
+    temporallayout::{TemporalLayout, TimeAxis},
     ui_factory::UiFactory,
 };
 
@@ -28,6 +28,7 @@ pub(crate) struct OuterSoundNumberInputContext<'a> {
     sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
     jit_client: &'a JitClient,
+    time_axis: TimeAxis,
 }
 
 impl<'a> OuterSoundNumberInputContext<'a> {
@@ -38,6 +39,7 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
         jit_client: &'a JitClient,
+        time_axis: TimeAxis,
     ) -> Self {
         Self {
             sound_number_input_id,
@@ -46,6 +48,7 @@ impl<'a> OuterSoundNumberInputContext<'a> {
             sound_graph,
             sound_graph_names,
             jit_client,
+            time_axis,
         }
     }
 
@@ -75,6 +78,10 @@ impl<'a> OuterSoundNumberInputContext<'a> {
 
     pub(crate) fn jit_client(&self) -> &JitClient {
         self.jit_client
+    }
+
+    pub(crate) fn time_axis(&self) -> &TimeAxis {
+        &self.time_axis
     }
 
     pub(crate) fn find_graph_id_for_number_source(

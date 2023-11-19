@@ -5,7 +5,7 @@ use crate::core::{
         garbage::{Garbage, GarbageChute},
         nodegen::NodeGen,
     },
-    jit::compilednumberinput::CompiledNumberInputFunction,
+    jit::compilednumberinput::{CompiledNumberInputFunction, Discretization},
     sound::{context::Context, soundnumberinput::SoundNumberInputId},
 };
 
@@ -36,14 +36,14 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         old_function.toss(garbage_chute);
     }
 
-    pub fn eval(&self, dst: &mut [f32], context: &Context) {
-        self.function.eval(dst, context)
+    pub fn eval(&self, dst: &mut [f32], discretization: Discretization, context: &Context) {
+        self.function.eval(dst, context, discretization)
     }
 
     pub fn eval_scalar(&self, context: &Context) -> f32 {
         let mut dst: f32 = 0.0;
         let s = slice::from_mut(&mut dst);
-        self.eval(s, context);
+        self.eval(s, Discretization::None, context);
         s[0]
     }
 }
