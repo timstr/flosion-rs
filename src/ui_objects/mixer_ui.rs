@@ -30,7 +30,7 @@ impl ObjectUi for MixerUi {
         let mut objwin = ProcessorUi::new(&mixer, "Mixer", data.color);
 
         for (i, siid) in mixer.get_input_ids().into_iter().enumerate() {
-            objwin = objwin.add_sound_input(siid, &format!("input{}", i + 1));
+            objwin = objwin.add_sound_input(siid, &format!("input{}", i + 1), sound_graph);
         }
 
         objwin.show_with(

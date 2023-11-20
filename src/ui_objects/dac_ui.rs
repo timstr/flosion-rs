@@ -27,7 +27,7 @@ impl ObjectUi for DacUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&dac, "Dac", data.color)
-            .add_sound_input(dac.input.id(), "input")
+            .add_sound_input(dac.input.id(), "input", sound_graph)
             .show_with(
                 ui,
                 ctx,

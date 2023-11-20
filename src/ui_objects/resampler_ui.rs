@@ -25,7 +25,7 @@ impl ObjectUi for ResamplerUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&resampler, "Resampler", data.color)
-            .add_sound_input(resampler.input.id(), "input")
+            .add_sound_input(resampler.input.id(), "input", sound_graph)
             .add_number_input(resampler.speed_ratio.id(), "speed", PlotConfig::new())
             .show(ui, ctx, ui_state, sound_graph);
     }

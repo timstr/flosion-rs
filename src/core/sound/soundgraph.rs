@@ -20,7 +20,7 @@ use crate::core::{
 
 use super::{
     soundedit::{SoundEdit, SoundNumberEdit},
-    soundgraphdata::{SoundNumberInputData, SoundNumberSourceData, SoundProcessorData},
+    soundgraphdata::{SoundNumberInputData, SoundProcessorData},
     soundgraphedit::SoundGraphEdit,
     soundgrapherror::SoundError,
     soundgraphid::SoundObjectId,
@@ -28,7 +28,7 @@ use super::{
     soundgraphvalidation::find_error,
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
-    soundnumbersource::{ProcessorTimeNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},
+    soundnumbersource::SoundNumberSourceId,
     soundprocessor::{
         DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
         SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
@@ -231,26 +231,13 @@ impl SoundGraph {
         }
     }
 
-    fn edit_add_processor_time(
-        &mut self,
-        processor_id: SoundProcessorId,
-    ) -> (SoundGraphEdit, SoundNumberSourceId) {
-        let id = self.number_source_idgen.next_id();
-        let instance = Arc::new(ProcessorTimeNumberSource::new(processor_id));
-        let owner = SoundNumberSourceOwner::SoundProcessor(processor_id);
-        let data = SoundNumberSourceData::new(id, instance, owner);
-        (
-            SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(data)),
-            id,
-        )
-    }
-
     pub fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
     ) -> Result<StaticSoundProcessorHandle<T>, ()> {
         let id = self.sound_processor_idgen.next_id();
-        let (add_time, time_nsid) = self.edit_add_processor_time(id);
+        let (add_time, time_nsid) =
+            SoundGraphEdit::add_processor_time(id, &mut self.number_source_idgen);
         let mut edit_queue = Vec::new();
         let processor;
         {
@@ -259,7 +246,7 @@ impl SoundGraph {
             processor = Arc::new(StaticSoundProcessorWithId::new(p, id, time_nsid));
         }
         let processor2 = Arc::clone(&processor);
-        let data = SoundProcessorData::new(processor, time_nsid);
+        let data = SoundProcessorData::new(processor);
         edit_queue.insert(0, SoundGraphEdit::Sound(SoundEdit::AddSoundProcessor(data)));
         edit_queue.insert(1, add_time);
         self.try_make_edits(edit_queue).unwrap();
@@ -271,7 +258,8 @@ impl SoundGraph {
         init: ObjectInitialization,
     ) -> Result<DynamicSoundProcessorHandle<T>, ()> {
         let id = self.sound_processor_idgen.next_id();
-        let (add_time, time_nsid) = self.edit_add_processor_time(id);
+        let (add_time, time_nsid) =
+            SoundGraphEdit::add_processor_time(id, &mut self.number_source_idgen);
         let mut edit_queue = Vec::new();
         let processor;
         {
@@ -280,7 +268,7 @@ impl SoundGraph {
             processor = Arc::new(DynamicSoundProcessorWithId::new(p, id, time_nsid));
         }
         let processor2 = Arc::clone(&processor);
-        let data = SoundProcessorData::new(processor, time_nsid);
+        let data = SoundProcessorData::new(processor);
         edit_queue.insert(0, SoundGraphEdit::Sound(SoundEdit::AddSoundProcessor(data)));
         edit_queue.insert(1, add_time);
         self.try_make_edits(edit_queue).unwrap();

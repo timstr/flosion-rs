@@ -1,7 +1,6 @@
 use eframe::egui;
 
 use crate::core::{
-    graph::graphobject::ObjectHandle,
     sound::{
         soundgraph::SoundGraph,
         soundgraphtopology::SoundGraphTopology,
@@ -25,7 +24,7 @@ pub struct ProcessorUi {
     color: egui::Color32,
     number_inputs: Vec<(SoundNumberInputId, String, PlotConfig)>,
     number_sources: Vec<(SoundNumberSourceId, String)>,
-    sound_inputs: Vec<(SoundInputId, String)>,
+    sound_inputs: Vec<(SoundInputId, String, SoundNumberSourceId)>,
 }
 
 #[derive(Clone, Copy)]
@@ -52,8 +51,18 @@ impl ProcessorUi {
         }
     }
 
-    pub fn add_sound_input(mut self, input_id: SoundInputId, label: impl Into<String>) -> Self {
-        self.sound_inputs.push((input_id, label.into()));
+    pub fn add_sound_input(
+        mut self,
+        input_id: SoundInputId,
+        label: impl Into<String>,
+        sound_graph: &SoundGraph,
+    ) -> Self {
+        let time_snid = sound_graph
+            .topology()
+            .sound_input(input_id)
+            .unwrap()
+            .time_number_source();
+        self.sound_inputs.push((input_id, label.into(), time_snid));
         self
     }
 
@@ -105,6 +114,11 @@ impl ProcessorUi {
         for (nsid, name) in &self.number_sources {
             ui_state.names_mut().record_number_source_name(*nsid, name);
         }
+        for (_, _, time_nsid) in &self.sound_inputs {
+            ui_state
+                .names_mut()
+                .record_number_source_name(*time_nsid, "time");
+        }
 
         #[cfg(debug_assertions)]
         {
@@ -112,9 +126,8 @@ impl ProcessorUi {
                 .topology()
                 .sound_processor(self.processor_id)
                 .unwrap();
-            let missing_name = |id: SoundNumberSourceId| {
-                self.number_sources.iter().find(|(i, _)| *i == id).is_none()
-            };
+            let missing_name =
+                |id: SoundNumberSourceId| ui_state.names().number_source(id).is_none();
             let processor_type_name = proc_data.instance_arc().as_graph_object().get_type().name();
             for nsid in proc_data.number_sources() {
                 if missing_name(*nsid) {
@@ -282,14 +295,14 @@ impl ProcessorUi {
 
         let desired_width = ctx.width();
 
-        for (siid, label) in &self.sound_inputs {
+        for (siid, label, _time_nsid) in &self.sound_inputs {
             ui_state.names_mut().record_sound_input_name(*siid, label);
         }
 
         let r = outer_frame.show(ui, |ui| {
             ui.set_width(desired_width);
             if !self.sound_inputs.is_empty() {
-                for (input_id, _label) in &self.sound_inputs {
+                for (input_id, _label, _time_nsid) in &self.sound_inputs {
                     self.show_sound_input(ui, ctx, *input_id, ui_state, props, sound_graph);
                 }
             }

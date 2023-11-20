@@ -1,9 +1,6 @@
 use crate::core::{
     jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
-    sound::{
-        context::Context, soundinput::SoundInputId, soundnumbersource::SoundNumberSourceId,
-        soundprocessor::SoundProcessorId,
-    },
+    sound::{context::Context, soundinput::SoundInputId, soundprocessor::SoundProcessorId},
 };
 
 pub(crate) trait NumberContext {

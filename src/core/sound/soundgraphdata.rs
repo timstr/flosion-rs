@@ -28,6 +28,7 @@ pub(crate) struct SoundInputData {
     target: Option<SoundProcessorId>,
     owner: SoundProcessorId,
     number_sources: Vec<SoundNumberSourceId>,
+    time_number_source: SoundNumberSourceId,
 }
 
 impl SoundInputData {
@@ -36,6 +37,7 @@ impl SoundInputData {
         options: InputOptions,
         num_keys: usize,
         owner: SoundProcessorId,
+        time_number_source: SoundNumberSourceId,
     ) -> SoundInputData {
         SoundInputData {
             id,
@@ -44,6 +46,7 @@ impl SoundInputData {
             target: None,
             owner,
             number_sources: Vec::new(),
+            time_number_source,
         }
     }
 
@@ -82,6 +85,10 @@ impl SoundInputData {
     pub(crate) fn number_sources_mut(&mut self) -> &mut Vec<SoundNumberSourceId> {
         &mut self.number_sources
     }
+
+    pub(crate) fn time_number_source(&self) -> SoundNumberSourceId {
+        self.time_number_source
+    }
 }
 
 impl Revision for SoundInputData {
@@ -113,21 +120,16 @@ pub(crate) struct SoundProcessorData {
     sound_inputs: Vec<SoundInputId>,
     number_sources: Vec<SoundNumberSourceId>,
     number_inputs: Vec<SoundNumberInputId>,
-    time_number_source: SoundNumberSourceId,
 }
 
 impl SoundProcessorData {
-    pub(crate) fn new(
-        processor: Arc<dyn SoundProcessor>,
-        time_number_source: SoundNumberSourceId,
-    ) -> SoundProcessorData {
+    pub(crate) fn new(processor: Arc<dyn SoundProcessor>) -> SoundProcessorData {
         SoundProcessorData {
             id: processor.id(),
             processor,
             sound_inputs: Vec::new(),
             number_sources: Vec::new(),
             number_inputs: Vec::new(),
-            time_number_source,
         }
     }
 
@@ -165,10 +167,6 @@ impl SoundProcessorData {
 
     pub(crate) fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
         Arc::clone(&self.processor)
-    }
-
-    pub(crate) fn time_number_source(&self) -> SoundNumberSourceId {
-        self.time_number_source
     }
 }
 

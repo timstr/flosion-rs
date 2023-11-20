@@ -1,7 +1,18 @@
+use std::sync::Arc;
+
+use crate::core::uniqueid::IdGenerator;
+
 use super::{
     soundedit::{SoundEdit, SoundNumberEdit},
+    soundgraphdata::SoundNumberSourceData,
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
+    soundinput::SoundInputId,
+    soundnumbersource::{
+        InputTimeNumberSource, ProcessorTimeNumberSource, SoundNumberSourceId,
+        SoundNumberSourceOwner,
+    },
+    soundprocessor::SoundProcessorId,
 };
 
 pub(crate) enum SoundGraphEdit {
@@ -10,6 +21,34 @@ pub(crate) enum SoundGraphEdit {
 }
 
 impl SoundGraphEdit {
+    pub(super) fn add_processor_time(
+        processor_id: SoundProcessorId,
+        number_source_idgen: &mut IdGenerator<SoundNumberSourceId>,
+    ) -> (SoundGraphEdit, SoundNumberSourceId) {
+        let id = number_source_idgen.next_id();
+        let instance = Arc::new(ProcessorTimeNumberSource::new(processor_id));
+        let owner = SoundNumberSourceOwner::SoundProcessor(processor_id);
+        let data = SoundNumberSourceData::new(id, instance, owner);
+        (
+            SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(data)),
+            id,
+        )
+    }
+
+    pub(super) fn add_input_time(
+        input_id: SoundInputId,
+        number_source_idgen: &mut IdGenerator<SoundNumberSourceId>,
+    ) -> (SoundGraphEdit, SoundNumberSourceId) {
+        let id = number_source_idgen.next_id();
+        let instance = Arc::new(InputTimeNumberSource::new(input_id));
+        let owner = SoundNumberSourceOwner::SoundInput(input_id);
+        let data = SoundNumberSourceData::new(id, instance, owner);
+        (
+            SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(data)),
+            id,
+        )
+    }
+
     pub(crate) fn name(&self) -> &'static str {
         match self {
             SoundGraphEdit::Sound(e) => e.name(),

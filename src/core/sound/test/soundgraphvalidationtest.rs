@@ -28,7 +28,6 @@ fn find_error_one_proc() {
             SoundProcessorId::new(1),
             time_nsid,
         )),
-        time_nsid,
     )));
     let e = find_error(&topo);
     assert!(e.is_none());

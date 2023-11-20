@@ -26,7 +26,7 @@ impl ObjectUi for EnsembleUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&ensemble, "Ensemble", data.color)
-            .add_sound_input(ensemble.input.id(), "input")
+            .add_sound_input(ensemble.input.id(), "input", sound_graph)
             .add_number_input(
                 ensemble.frequency_in.id(),
                 "frequency_in",

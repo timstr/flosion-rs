@@ -50,10 +50,12 @@ impl<'a> SoundProcessorTools<'a> {
         num_keys: usize,
     ) -> SoundInputId {
         let id = self.sound_input_idgen.next_id();
+        let (add_time, time_nsid) = SoundGraphEdit::add_input_time(id, self.number_source_idgen);
         let owner = self.processor_id;
-        let data = SoundInputData::new(id, options, num_keys, owner);
+        let data = SoundInputData::new(id, options, num_keys, owner, time_nsid);
         self.edit_queue
             .push(SoundGraphEdit::Sound(SoundEdit::AddSoundInput(data)));
+        self.edit_queue.push(add_time);
         id
     }
 

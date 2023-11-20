@@ -31,7 +31,7 @@ impl ObjectUi for RecorderUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&recorder, "Recorder", data.color)
-            .add_sound_input(recorder.input.id(), "Input")
+            .add_sound_input(recorder.input.id(), "Input", sound_graph)
             .show_with(
                 ui,
                 ctx,
