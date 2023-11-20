@@ -38,7 +38,7 @@ impl ObjectUi for MixerUi {
             ctx,
             ui_state,
             sound_graph,
-            |ui, ui_state, sound_graph| {
+            |ui, _ui_state, sound_graph| {
                 ui.horizontal(|ui| {
                     let last_input = mixer.get_input_ids().into_iter().last();
 

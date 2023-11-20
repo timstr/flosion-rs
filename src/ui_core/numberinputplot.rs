@@ -4,16 +4,49 @@ use crate::core::{
     jit::{compilednumberinput::Discretization, server::JitClient},
     number::context::MockNumberContext,
     revision::revision::Revision,
-    sound::soundgraphdata::SoundNumberInputData,
+    sound::{soundgraphdata::SoundNumberInputData, soundnumbersource::SoundNumberSourceId},
 };
 
 use super::temporallayout::TimeAxis;
 
-// TODO: construct this from ProcessorUi's add_number_input method and pass it along
-pub struct NumberInputPlotConfig {
+enum VerticalRange {
+    Automatic,
+    // TODO: log plots?
+    Linear(std::ops::RangeInclusive<f32>),
+}
+
+enum HorizontalDomain {
+    Temporal,
+    WithRespectTo(SoundNumberSourceId, std::ops::RangeInclusive<f32>),
+}
+
+pub struct PlotConfig {
     // TODO: whether to always plot temporally or w.r.t. an input, e.g. wave generator amplitude vs phase
-    // TODO: whether to fix vertical scaling or automatically infer it
-    // TODO: log versus linear plot?
+    vertical_range: VerticalRange,
+    horizontal_domain: HorizontalDomain,
+}
+
+impl PlotConfig {
+    pub fn new() -> Self {
+        PlotConfig {
+            vertical_range: VerticalRange::Automatic,
+            horizontal_domain: HorizontalDomain::Temporal,
+        }
+    }
+
+    pub fn linear_vertical_range(mut self, range: std::ops::RangeInclusive<f32>) -> Self {
+        self.vertical_range = VerticalRange::Linear(range);
+        self
+    }
+
+    pub fn with_respect_to(
+        mut self,
+        source: SoundNumberSourceId,
+        domain: std::ops::RangeInclusive<f32>,
+    ) -> Self {
+        self.horizontal_domain = HorizontalDomain::WithRespectTo(source, domain);
+        self
+    }
 }
 
 pub(crate) struct NumberInputPlot {
@@ -31,12 +64,21 @@ impl NumberInputPlot {
         jit_client: &JitClient,
         ni_data: &SoundNumberInputData,
         time_axis: TimeAxis,
+        config: &PlotConfig,
     ) {
+        let PlotConfig {
+            vertical_range,
+            horizontal_domain,
+        } = config;
         let compiled_fn =
             jit_client.get_compiled_number_input(ni_data.id(), ni_data.get_revision());
         // TODO: make this configurable / draggable. Where to store such ui state?
-        let desired_height = 20.0;
-        let (_, rect) = ui.allocate_space(egui::vec2(ui.available_width(), desired_height));
+        let desired_height = 30.0;
+        let desired_width = match horizontal_domain {
+            HorizontalDomain::Temporal => ui.available_width(),
+            HorizontalDomain::WithRespectTo(_, _) => 100.0,
+        };
+        let (_, rect) = ui.allocate_space(egui::vec2(desired_width, desired_height));
         let painter = ui.painter();
         painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
         match compiled_fn {
@@ -45,22 +87,59 @@ impl NumberInputPlot {
                 let mut dst = Vec::new();
                 dst.resize(len, 0.0);
                 let number_context = MockNumberContext::new(len);
-                f.eval(
-                    &mut dst,
-                    &number_context,
-                    Discretization::Temporal(time_axis.time_per_x_pixel),
-                );
+
+                let discretization = match horizontal_domain {
+                    HorizontalDomain::Temporal => {
+                        Discretization::Temporal(time_axis.time_per_x_pixel)
+                    }
+                    HorizontalDomain::WithRespectTo(_, _) => Discretization::None,
+                };
+
+                f.eval(&mut dst, &number_context, discretization);
+                let (vmin, vmax) = match vertical_range {
+                    VerticalRange::Automatic => {
+                        let mut vmin = *dst.first().unwrap();
+                        let mut vmax = vmin;
+                        for v in dst.iter().cloned() {
+                            vmin = v.min(vmin);
+                            vmax = v.max(vmax);
+                        }
+                        (vmin, vmax)
+                    }
+                    VerticalRange::Linear(range) => (*range.start(), *range.end()),
+                };
+                debug_assert!(vmax >= vmin);
+                // Range spans at least 1e-3 plus 10% extra
+                let plot_v_range = 1.1 * (vmax - vmin).max(1e-3);
+                let v_middle = 0.5 * (vmin + vmax);
+                let plot_vmin = v_middle - 0.5 * plot_v_range;
                 let dx = rect.width() / (len - 1) as f32;
                 for (i, (v0, v1)) in dst.iter().zip(&dst[1..]).enumerate() {
                     let x0 = rect.left() + i as f32 * dx;
                     let x1 = rect.left() + (i + 1) as f32 * dx;
-                    let y0 = rect.top() + rect.height() * (0.5 - v0.clamp(-1.0, 1.0) * 0.5);
-                    let y1 = rect.top() + rect.height() * (0.5 - v1.clamp(-1.0, 1.0) * 0.5);
+                    let t0 = ((v0 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
+                    let t1 = ((v1 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
+                    let y0 = rect.bottom() - t0 * rect.height();
+                    let y1 = rect.bottom() - t1 * rect.height();
                     painter.line_segment(
                         [egui::pos2(x0, y0), egui::pos2(x1, y1)],
                         egui::Stroke::new(2.0, egui::Color32::WHITE),
                     );
                 }
+                painter.text(
+                    rect.left_top(),
+                    egui::Align2::LEFT_TOP,
+                    format!("{}", vmax),
+                    egui::FontId::monospace(8.0),
+                    egui::Color32::from_white_alpha(128),
+                );
+                painter.text(
+                    rect.left_bottom(),
+                    egui::Align2::LEFT_BOTTOM,
+                    format!("{}", vmin),
+                    egui::FontId::monospace(8.0),
+                    egui::Color32::from_white_alpha(128),
+                );
             }
             None => {
                 let dot_length: f32 = 10.0;

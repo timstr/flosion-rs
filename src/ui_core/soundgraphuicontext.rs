@@ -27,7 +27,7 @@ use super::{
 
 pub struct SoundGraphUiContext<'a> {
     sound_ui_factory: &'a UiFactory<SoundGraphUi>,
-    number_object_factory: &'a ObjectFactory<NumberGraph>,
+    _number_object_factory: &'a ObjectFactory<NumberGraph>,
     number_ui_factory: &'a UiFactory<NumberGraphUi>,
     sound_object_states: &'a SoundObjectUiStates,
     is_top_level: bool,
@@ -55,7 +55,7 @@ impl<'a> SoundGraphUiContext<'a> {
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
             sound_ui_factory: ui_factory,
-            number_object_factory,
+            _number_object_factory: number_object_factory,
             number_ui_factory,
             sound_object_states: object_states,
             is_top_level,

@@ -1,14 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::core::{
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{
-        soundgraphid::{SoundGraphId, SoundObjectId},
-        soundgraphtopology::SoundGraphTopology,
-        soundgraphvalidation::available_sound_number_sources,
-        soundnumbersource::SoundNumberSourceId,
-        soundprocessor::SoundProcessorId,
-    },
+use crate::core::sound::{
+    soundgraphid::{SoundGraphId, SoundObjectId},
+    soundgraphtopology::SoundGraphTopology,
+    soundgraphvalidation::available_sound_number_sources,
+    soundnumbersource::SoundNumberSourceId,
+    soundprocessor::SoundProcessorId,
 };
 
 #[derive(Clone, Copy)]

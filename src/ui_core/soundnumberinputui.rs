@@ -14,7 +14,7 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuicontext::{NumberGraphUiContext, OuterNumberGraphUiContext},
     numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
-    numberinputplot::NumberInputPlot,
+    numberinputplot::{NumberInputPlot, PlotConfig},
     ui_factory::UiFactory,
 };
 
@@ -84,13 +84,13 @@ impl SpatialGraphInputReference {
 }
 
 pub(super) struct SoundNumberInputUi {
-    number_input_id: SoundNumberInputId,
+    _number_input_id: SoundNumberInputId,
 }
 
 impl SoundNumberInputUi {
     pub(super) fn new(id: SoundNumberInputId) -> SoundNumberInputUi {
         SoundNumberInputUi {
-            number_input_id: id,
+            _number_input_id: id,
         }
     }
 
@@ -102,6 +102,7 @@ impl SoundNumberInputUi {
         presentation: &mut SoundNumberInputPresentation,
         focus: Option<&mut LexicalLayoutFocus>,
         outer_context: &mut OuterNumberGraphUiContext,
+        plot_config: &PlotConfig,
     ) -> Vec<SpatialGraphInputReference> {
         // TODO: expandable/collapsible popup window with full layout
         let frame = egui::Frame::default()
@@ -125,6 +126,7 @@ impl SoundNumberInputUi {
                                     .number_input(ctx.sound_number_input_id())
                                     .unwrap(),
                                 *ctx.time_axis(),
+                                plot_config,
                             );
                         }
                     }

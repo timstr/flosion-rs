@@ -13,15 +13,16 @@ use crate::core::{
 };
 
 use super::{
-    numbergraphuicontext::OuterNumberGraphUiContext, soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState, soundnumberinputui::SoundNumberInputUi,
+    numbergraphuicontext::OuterNumberGraphUiContext, numberinputplot::PlotConfig,
+    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+    soundnumberinputui::SoundNumberInputUi,
 };
 
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
     color: egui::Color32,
-    number_inputs: Vec<(SoundNumberInputId, String)>,
+    number_inputs: Vec<(SoundNumberInputId, String, PlotConfig)>,
     number_sources: Vec<(SoundNumberSourceId, String)>,
     sound_inputs: Vec<(SoundInputId, String)>,
 }
@@ -53,8 +54,9 @@ impl ProcessorUi {
         mut self,
         input_id: SoundNumberInputId,
         label: impl Into<String>,
+        config: PlotConfig,
     ) -> Self {
-        self.number_inputs.push((input_id, label.into()));
+        self.number_inputs.push((input_id, label.into(), config));
         self
     }
 
@@ -292,7 +294,7 @@ impl ProcessorUi {
                 inner_frame,
                 |ui| {
                     ui.vertical(|ui| {
-                        for (input_id, input_label) in &self.number_inputs {
+                        for (input_id, input_label, config) in &self.number_inputs {
                             self.show_number_input(
                                 ui,
                                 ctx,
@@ -300,6 +302,7 @@ impl ProcessorUi {
                                 input_label,
                                 ui_state,
                                 sound_graph,
+                                config,
                             );
                         }
                         ui.set_width(desired_width);
@@ -570,6 +573,7 @@ impl ProcessorUi {
         input_label: &str,
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,
+        config: &PlotConfig,
     ) {
         let fill = egui::Color32::from_black_alpha(64);
 
@@ -602,6 +606,7 @@ impl ProcessorUi {
                         presentation,
                         focus,
                         &mut outer_ctx,
+                        config,
                     )
                 },
             );

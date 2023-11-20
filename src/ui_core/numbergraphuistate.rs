@@ -24,7 +24,7 @@ impl NumberGraphUiState {
         NumberGraphUiState {}
     }
 
-    pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {}
+    pub(super) fn cleanup(&mut self) {}
 }
 
 pub(super) struct SoundNumberInputUiCollection {
@@ -61,7 +61,7 @@ impl SoundNumberInputUiCollection {
                 .unwrap()
                 .number_graph()
                 .topology();
-            ui_state.cleanup(number_topo);
+            ui_state.cleanup();
             presentation.cleanup(
                 number_topo,
                 &object_ui_states.number_graph_object_state(*niid),
@@ -78,7 +78,7 @@ impl SoundNumberInputUiCollection {
 }
 
 pub struct AnyNumberObjectUiData {
-    id: NumberSourceId,
+    _id: NumberSourceId,
     state: RefCell<Box<dyn AnyObjectUiState>>,
     layout: NumberSourceLayout,
 }
@@ -96,7 +96,7 @@ impl ObjectUiData for AnyNumberObjectUiData {
 
     fn new<S: ObjectUiState>(id: NumberSourceId, state: S, data: Self::RequiredData) -> Self {
         AnyNumberObjectUiData {
-            id,
+            _id: id,
             state: RefCell::new(Box::new(state)),
             layout: data,
         }

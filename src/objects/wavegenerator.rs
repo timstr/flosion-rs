@@ -62,6 +62,7 @@ impl DynamicSoundProcessor for WaveGenerator {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
+            // TODO: bypass this array entirely?
             phase: tools.add_processor_array_number_source(|state: &AnyData| -> &[f32] {
                 &state.downcast_if::<WaveGeneratorState>().unwrap().phase
             }),

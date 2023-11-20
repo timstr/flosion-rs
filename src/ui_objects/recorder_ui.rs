@@ -37,7 +37,7 @@ impl ObjectUi for RecorderUi {
                 ctx,
                 ui_state,
                 sound_graph,
-                |ui, ui_state, sound_graph| {
+                |ui, _ui_state, sound_graph| {
                     let r = recorder.is_recording();
                     let n = recorder.recording_length();
                     let btn_str = if r {

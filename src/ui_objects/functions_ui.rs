@@ -36,7 +36,7 @@ impl ObjectUi for ConstantUi {
         ui: &mut egui::Ui,
         ctx: &mut NumberGraphUiContext,
         _data: NumberObjectUiData<()>,
-        number_graph: &mut NumberGraph,
+        _number_graph: &mut NumberGraph,
     ) {
         // TODO: add ui state for custom name
         // NumberSourceUi::new_unnamed(constant.id()).show(ui, ctx, ui_state);
@@ -115,7 +115,7 @@ impl ObjectUi for SliderUi {
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
         data: NumberObjectUiData<SliderUiState>,
-        number_graph: &mut NumberGraph,
+        _number_graph: &mut NumberGraph,
     ) {
         NumberSourceUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
             .show_with(ui, ctx, ui_state, |ui, _ui_state| {
@@ -216,7 +216,7 @@ macro_rules! unary_number_source_ui {
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
-                number_graph: &mut NumberGraph,
+                _number_graph: &mut NumberGraph,
             ) {
                 NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
@@ -253,7 +253,7 @@ macro_rules! binary_number_source_ui {
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
-                number_graph: &mut NumberGraph,
+                _number_graph: &mut NumberGraph,
             ) {
                 NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
@@ -290,7 +290,7 @@ macro_rules! ternary_number_source_ui {
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
-                number_graph: &mut NumberGraph,
+                _number_graph: &mut NumberGraph,
             ) {
                 NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);

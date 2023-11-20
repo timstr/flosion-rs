@@ -10,7 +10,7 @@ pub enum DisplayStyle {
 }
 
 pub struct NumberSourceUi {
-    source_id: NumberSourceId,
+    _source_id: NumberSourceId,
     label: Option<String>,
     display_style: DisplayStyle,
 }
@@ -22,7 +22,7 @@ impl NumberSourceUi {
         display_style: DisplayStyle,
     ) -> NumberSourceUi {
         NumberSourceUi {
-            source_id,
+            _source_id: source_id,
             label: Some(label),
             display_style,
         }
@@ -30,7 +30,7 @@ impl NumberSourceUi {
 
     pub fn new_unnamed(source_id: NumberSourceId, display_style: DisplayStyle) -> NumberSourceUi {
         NumberSourceUi {
-            source_id,
+            _source_id: source_id,
             label: None,
             display_style,
         }
@@ -48,7 +48,7 @@ impl NumberSourceUi {
     pub fn show_with<F: FnOnce(&mut egui::Ui, &mut NumberGraphUiState)>(
         self,
         ui: &mut egui::Ui,
-        ctx: &mut NumberGraphUiContext,
+        _ctx: &mut NumberGraphUiContext,
         ui_state: &mut NumberGraphUiState,
         add_contents: F,
     ) {
