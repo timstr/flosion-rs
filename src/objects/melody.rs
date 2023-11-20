@@ -69,7 +69,6 @@ pub struct Melody {
     note_idgen: Mutex<IdGenerator<NoteId>>,
     pub input: KeyedInputQueue<NoteState>,
     pub note_frequency: SoundNumberSourceHandle,
-    pub note_time: SoundNumberSourceHandle,
     _note_length: SoundNumberSourceHandle,
 }
 
@@ -139,7 +138,6 @@ impl DynamicSoundProcessor for Melody {
         let note_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
             state.downcast_if::<NoteState>().unwrap().frequency
         });
-        let note_time = tools.add_input_time(input.id());
         let note_length = tools.add_input_scalar_number_source(input.id(), |state| {
             state.downcast_if::<NoteState>().unwrap().length_seconds
         });
@@ -153,7 +151,6 @@ impl DynamicSoundProcessor for Melody {
             note_idgen: Mutex::new(IdGenerator::new()),
             input,
             note_frequency,
-            note_time,
             _note_length: note_length,
         })
     }

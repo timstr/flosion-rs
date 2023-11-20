@@ -201,7 +201,6 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     // add sound processor to topology
     topo.make_sound_edit(SoundEdit::AddSoundProcessor(SoundProcessorData::new(
         sp_instance_2,
-        time_nsid,
     )));
 
     // flush other edits to topology

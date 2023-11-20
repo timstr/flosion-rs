@@ -142,18 +142,6 @@ impl<'a> SoundProcessorTools<'a> {
         SoundNumberInputHandle::new(id, owner)
     }
 
-    pub fn add_input_time(&mut self, input_id: SoundInputId) -> SoundNumberSourceHandle {
-        let id = self.number_source_idgen.next_id();
-        let instance = Arc::new(InputTimeNumberSource::new(input_id));
-        let owner = SoundNumberSourceOwner::SoundInput(input_id);
-        let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
-                data,
-            )));
-        SoundNumberSourceHandle::new(id)
-    }
-
     pub(super) fn processor_id(&self) -> SoundProcessorId {
         self.processor_id
     }
