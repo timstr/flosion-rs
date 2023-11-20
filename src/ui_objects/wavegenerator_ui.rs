@@ -25,7 +25,7 @@ impl ObjectUi for WaveGeneratorUi {
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(wavgen.id(), "WaveGenerator", data.color)
+        ProcessorUi::new(&wavgen, "WaveGenerator", data.color)
             .add_number_input(
                 wavgen.amplitude.id(),
                 "amplitude",
@@ -35,7 +35,6 @@ impl ObjectUi for WaveGeneratorUi {
             )
             .add_number_input(wavgen.frequency.id(), "frequency", PlotConfig::new())
             .add_number_source(wavgen.phase.id(), "phase")
-            .add_number_source(wavgen.time.id(), "time")
             .show(ui, ctx, ui_state, sound_graph);
     }
 

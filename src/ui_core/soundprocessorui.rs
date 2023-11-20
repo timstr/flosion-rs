@@ -1,13 +1,14 @@
 use eframe::egui;
 
 use crate::core::{
+    graph::graphobject::ObjectHandle,
     sound::{
         soundgraph::SoundGraph,
         soundgraphtopology::SoundGraphTopology,
         soundinput::{InputOptions, SoundInputId},
         soundnumberinput::SoundNumberInputId,
         soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
-        soundprocessor::SoundProcessorId,
+        soundprocessor::{ProcessorHandle, SoundProcessorId},
     },
     uniqueid::UniqueId,
 };
@@ -34,13 +35,19 @@ struct ProcessorUiProps {
 }
 
 impl ProcessorUi {
-    pub fn new(id: SoundProcessorId, label: &'static str, color: egui::Color32) -> ProcessorUi {
+    pub fn new<T: ProcessorHandle>(
+        handle: &T,
+        label: &'static str,
+        color: egui::Color32,
+    ) -> ProcessorUi {
+        let mut number_sources = Vec::new();
+        number_sources.push((handle.time_number_source(), "time".to_string()));
         ProcessorUi {
-            processor_id: id,
+            processor_id: handle.id(),
             label,
             color,
             number_inputs: Vec::new(),
-            number_sources: Vec::new(),
+            number_sources,
             sound_inputs: Vec::new(),
         }
     }

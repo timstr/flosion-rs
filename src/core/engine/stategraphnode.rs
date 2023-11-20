@@ -12,8 +12,9 @@ use crate::core::{
         context::Context,
         soundinput::{InputTiming, SoundInputId},
         soundprocessor::{
-            DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, SoundProcessorId,
-            StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
+            DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, ProcessorTiming,
+            SoundProcessorId, StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId,
+            StreamStatus,
         },
     },
     soundchunk::SoundChunk,
@@ -34,6 +35,7 @@ pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
     processor: Arc<StaticSoundProcessorWithId<T>>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
     number_input: T::NumberInputType<'ctx>,
+    timing: ProcessorTiming,
 }
 
 impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
@@ -58,6 +60,7 @@ impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
             processor,
             sound_input,
             number_input,
+            timing: ProcessorTiming::new(),
         }
     }
 }
@@ -142,12 +145,19 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
     }
 
     fn reset(&mut self) {
-        // Nothing to do. A static processor node cannot be reset.
+        self.timing.reset();
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
-        self.processor
-            .process_audio(&mut self.sound_input, &self.number_input, dst, ctx);
+        T::process_audio(
+            &*self.processor,
+            &self.timing,
+            &mut self.sound_input,
+            &self.number_input,
+            dst,
+            ctx,
+        );
+        self.timing.advance_one_chunk();
         StreamStatus::Playing
     }
 

@@ -27,7 +27,7 @@ impl ObjectUi for WhiteNoiseUi {
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(whitenoise.id(), "WhiteNoise", data.color).show(
+        ProcessorUi::new(&whitenoise, "WhiteNoise", data.color).show(
             ui,
             ctx,
             ui_state,

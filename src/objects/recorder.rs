@@ -10,7 +10,9 @@ use crate::core::{
         context::Context,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::{StaticSoundProcessor, StreamStatus},
+        soundprocessor::{
+            ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
+        },
         soundprocessortools::SoundProcessorTools,
     },
     soundbuffer::SoundBuffer,
@@ -93,7 +95,8 @@ impl StaticSoundProcessor for Recorder {
     }
 
     fn process_audio(
-        &self,
+        recorder: &StaticSoundProcessorWithId<Recorder>,
+        timing: &ProcessorTiming,
         sound_inputs: &mut SingleInputNode,
         _number_inputs: &(),
         dst: &mut SoundChunk,
@@ -102,12 +105,12 @@ impl StaticSoundProcessor for Recorder {
         if sound_inputs.timing().needs_reset() {
             sound_inputs.reset(0);
         }
-        let s = sound_inputs.step(self, dst, &ctx);
-        let recording = self.recording.load(Ordering::Relaxed);
+        let s = sound_inputs.step(timing, dst, &ctx);
+        let recording = recorder.recording.load(Ordering::Relaxed);
         if !recording || s == StreamStatus::Done {
             return;
         }
-        let mut groups = self.recorded_chunk_groups.write();
+        let mut groups = recorder.recorded_chunk_groups.write();
         debug_assert!(groups.len() >= 1);
         let last_group = groups.last_mut().unwrap();
         if last_group.chunks().len() < last_group.chunk_capacity() {

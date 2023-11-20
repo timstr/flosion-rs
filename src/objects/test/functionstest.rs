@@ -177,6 +177,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     let mut niidgen = IdGenerator::<SoundNumberInputId>::new();
 
     let test_spid = spidgen.next_id();
+    let time_nsid = nsidgen.next_id();
 
     // for stuff added via number source tools or sound processor tools
     let mut edit_queue = Vec::new();
@@ -193,12 +194,14 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     let sp_instance = Arc::new(DynamicSoundProcessorWithId::new(
         TestSoundProcessor::new(tools, init).unwrap(),
         test_spid,
+        time_nsid,
     ));
     let sp_instance_2 = Arc::clone(&sp_instance);
 
     // add sound processor to topology
     topo.make_sound_edit(SoundEdit::AddSoundProcessor(SoundProcessorData::new(
         sp_instance_2,
+        time_nsid,
     )));
 
     // flush other edits to topology

@@ -13,7 +13,7 @@ use crate::core::{
         context::Context,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::StaticSoundProcessor,
+        soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
         soundprocessortools::SoundProcessorTools,
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -147,21 +147,22 @@ impl StaticSoundProcessor for Dac {
     }
 
     fn process_audio(
-        &self,
+        dac: &StaticSoundProcessorWithId<Dac>,
+        timing: &ProcessorTiming,
         sound_input: &mut SingleInputNode,
         _number_input: &(),
         _dst: &mut SoundChunk,
         ctx: Context,
     ) {
         if sound_input.timing().needs_reset()
-            || self.shared_data.pending_reset.swap(false, Ordering::SeqCst)
+            || dac.shared_data.pending_reset.swap(false, Ordering::SeqCst)
         {
             sound_input.reset(0);
         }
         let mut ch = SoundChunk::new();
-        sound_input.step(self, &mut ch, &ctx);
+        sound_input.step(timing, &mut ch, &ctx);
 
-        if let Err(e) = self.shared_data.chunk_sender.try_send(ch) {
+        if let Err(e) = dac.shared_data.chunk_sender.try_send(ch) {
             match e {
                 TrySendError::Full(_) => println!("Dac dropped a chunk"),
                 TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),

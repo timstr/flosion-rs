@@ -16,6 +16,7 @@ use super::{
 pub struct SoundNumberSourceId(usize);
 
 impl SoundNumberSourceId {
+    #[cfg(test)]
     pub(crate) fn new(id: usize) -> SoundNumberSourceId {
         SoundNumberSourceId(id)
     }

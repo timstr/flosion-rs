@@ -23,7 +23,7 @@ use crate::core::{
 
 use super::{
     context::Context, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-    soundprocessortools::SoundProcessorTools, state::State,
+    soundnumbersource::SoundNumberSourceId, soundprocessortools::SoundProcessorTools, state::State,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -71,7 +71,8 @@ pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
     ) -> Self::NumberInputType<'ctx>;
 
     fn process_audio<'ctx>(
-        &self,
+        processor: &StaticSoundProcessorWithId<Self>,
+        timing: &ProcessorTiming,
         sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
         number_inputs: &Self::NumberInputType<'ctx>,
         dst: &mut SoundChunk,
@@ -113,15 +114,28 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
+    time_number_source: SoundNumberSourceId,
 }
 
 impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
-    pub(crate) fn new(processor: T, id: SoundProcessorId) -> Self {
-        Self { processor, id }
+    pub(crate) fn new(
+        processor: T,
+        id: SoundProcessorId,
+        time_number_source: SoundNumberSourceId,
+    ) -> Self {
+        Self {
+            processor,
+            id,
+            time_number_source,
+        }
     }
 
     pub fn id(&self) -> SoundProcessorId {
         self.id
+    }
+
+    pub fn time_number_source(&self) -> SoundNumberSourceId {
+        self.time_number_source
     }
 }
 
@@ -140,15 +154,28 @@ impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
 pub struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
+    time_number_source: SoundNumberSourceId,
 }
 
 impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
-    pub(crate) fn new(processor: T, id: SoundProcessorId) -> Self {
-        Self { processor, id }
+    pub(crate) fn new(
+        processor: T,
+        id: SoundProcessorId,
+        time_number_source: SoundNumberSourceId,
+    ) -> Self {
+        Self {
+            processor,
+            id,
+            time_number_source,
+        }
     }
 
     pub fn id(&self) -> SoundProcessorId {
         self.id
+    }
+
+    pub fn time_number_source(&self) -> SoundNumberSourceId {
+        self.time_number_source
     }
 }
 
@@ -321,11 +348,11 @@ pub struct ProcessorTiming {
 
 // TODO: somehow make this available for static processor also?
 impl ProcessorTiming {
-    fn new() -> ProcessorTiming {
+    pub(crate) fn new() -> ProcessorTiming {
         ProcessorTiming { elapsed_chunks: 0 }
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.elapsed_chunks = 0;
     }
 
@@ -352,14 +379,12 @@ pub trait ProcessorState: 'static + Sync + Send {
 
     fn is_static(&self) -> bool;
 
-    fn timing(&self) -> Option<&ProcessorTiming>;
-
-    fn timing_mut(&mut self) -> Option<&mut ProcessorTiming>;
+    fn timing(&self) -> &ProcessorTiming;
 
     fn reset(&mut self);
 }
 
-impl<T: StaticSoundProcessor> ProcessorState for T {
+impl ProcessorState for ProcessorTiming {
     fn state(&self) -> &dyn Any {
         self
     }
@@ -368,16 +393,12 @@ impl<T: StaticSoundProcessor> ProcessorState for T {
         true
     }
 
-    fn timing(&self) -> Option<&ProcessorTiming> {
-        None
-    }
-
-    fn timing_mut(&mut self) -> Option<&mut ProcessorTiming> {
-        None
+    fn timing(&self) -> &ProcessorTiming {
+        self
     }
 
     fn reset(&mut self) {
-        // A static processor can't be reset
+        (self as &mut ProcessorTiming).reset();
     }
 }
 
@@ -390,12 +411,8 @@ impl<T: State> ProcessorState for StateAndTiming<T> {
         false
     }
 
-    fn timing(&self) -> Option<&ProcessorTiming> {
-        Some((self as &StateAndTiming<T>).timing())
-    }
-
-    fn timing_mut(&mut self) -> Option<&mut ProcessorTiming> {
-        Some((self as &mut StateAndTiming<T>).timing_mut())
+    fn timing(&self) -> &ProcessorTiming {
+        (self as &StateAndTiming<T>).timing()
     }
 
     fn reset(&mut self) {
@@ -422,10 +439,6 @@ impl<T: State> StateAndTiming<T> {
 
     pub(super) fn timing(&self) -> &ProcessorTiming {
         &self.timing
-    }
-
-    pub(super) fn timing_mut(&mut self) -> &mut ProcessorTiming {
-        &mut self.timing
     }
 
     pub fn just_started(&self) -> bool {
@@ -539,5 +552,31 @@ impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessor
     fn serialize(&self, serializer: Serializer) {
         let s: &T = &*self;
         s.serialize(serializer);
+    }
+}
+
+pub trait ProcessorHandle {
+    fn id(&self) -> SoundProcessorId;
+
+    fn time_number_source(&self) -> SoundNumberSourceId;
+}
+
+impl<T: StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> {
+    fn id(&self) -> SoundProcessorId {
+        StaticSoundProcessorHandle::id(self)
+    }
+
+    fn time_number_source(&self) -> SoundNumberSourceId {
+        self.instance.time_number_source()
+    }
+}
+
+impl<T: DynamicSoundProcessor> ProcessorHandle for DynamicSoundProcessorHandle<T> {
+    fn id(&self) -> SoundProcessorId {
+        DynamicSoundProcessorHandle::id(self)
+    }
+
+    fn time_number_source(&self) -> SoundNumberSourceId {
+        self.instance.time_number_source()
     }
 }

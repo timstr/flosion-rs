@@ -113,16 +113,21 @@ pub(crate) struct SoundProcessorData {
     sound_inputs: Vec<SoundInputId>,
     number_sources: Vec<SoundNumberSourceId>,
     number_inputs: Vec<SoundNumberInputId>,
+    time_number_source: SoundNumberSourceId,
 }
 
 impl SoundProcessorData {
-    pub(crate) fn new(processor: Arc<dyn SoundProcessor>) -> SoundProcessorData {
+    pub(crate) fn new(
+        processor: Arc<dyn SoundProcessor>,
+        time_number_source: SoundNumberSourceId,
+    ) -> SoundProcessorData {
         SoundProcessorData {
             id: processor.id(),
             processor,
             sound_inputs: Vec::new(),
             number_sources: Vec::new(),
             number_inputs: Vec::new(),
+            time_number_source,
         }
     }
 
@@ -160,6 +165,10 @@ impl SoundProcessorData {
 
     pub(crate) fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
         Arc::clone(&self.processor)
+    }
+
+    pub(crate) fn time_number_source(&self) -> SoundNumberSourceId {
+        self.time_number_source
     }
 }
 
@@ -292,13 +301,6 @@ impl SoundNumberInputData {
             .target_mapping
             .check_invariants(self.number_graph.topology()));
         &self.target_mapping
-    }
-
-    pub(crate) fn target_mapping_mut(&mut self) -> &mut SoundNumberInputTargetMapping {
-        debug_assert!(self
-            .target_mapping
-            .check_invariants(self.number_graph.topology()));
-        &mut self.target_mapping
     }
 
     pub(crate) fn number_graph(&self) -> &NumberGraph {

@@ -13,8 +13,8 @@ use super::{
     soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
     soundnumbersource::{
         ArrayInputNumberSource, ArrayProcessorNumberSource, InputTimeNumberSource,
-        ProcessorTimeNumberSource, ScalarInputNumberSource, ScalarProcessorNumberSource,
-        SoundNumberSourceHandle, SoundNumberSourceId, SoundNumberSourceOwner,
+        ScalarInputNumberSource, ScalarProcessorNumberSource, SoundNumberSourceHandle,
+        SoundNumberSourceId, SoundNumberSourceOwner,
     },
     soundprocessor::SoundProcessorId,
 };
@@ -138,18 +138,6 @@ impl<'a> SoundProcessorTools<'a> {
                 data,
             )));
         SoundNumberInputHandle::new(id, owner)
-    }
-
-    pub fn add_processor_time(&mut self) -> SoundNumberSourceHandle {
-        let id = self.number_source_idgen.next_id();
-        let instance = Arc::new(ProcessorTimeNumberSource::new(self.processor_id));
-        let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
-        let data = SoundNumberSourceData::new(id, instance, owner);
-        self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
-                data,
-            )));
-        SoundNumberSourceHandle::new(id)
     }
 
     pub fn add_input_time(&mut self, input_id: SoundInputId) -> SoundNumberSourceHandle {

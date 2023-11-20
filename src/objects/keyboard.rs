@@ -9,7 +9,7 @@ use crate::core::{
         context::Context,
         soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
         soundnumbersource::SoundNumberSourceHandle,
-        soundprocessor::StaticSoundProcessor,
+        soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
         soundprocessortools::SoundProcessorTools,
         state::State,
     },
@@ -97,13 +97,14 @@ impl StaticSoundProcessor for Keyboard {
     }
 
     fn process_audio<'ctx>(
-        &self,
+        keyboard: &StaticSoundProcessorWithId<Keyboard>,
+        timing: &ProcessorTiming,
         sound_input_node: &mut KeyedInputQueueNode<KeyboardKeyState>,
         _number_inputs: &(),
         dst: &mut SoundChunk,
         context: Context,
     ) {
-        let receiver = self.command_receiver.lock();
+        let receiver = keyboard.command_receiver.lock();
         let reuse = KeyReuse::StopOldStartNew;
         for msg in receiver.try_iter() {
             match msg {
@@ -119,7 +120,7 @@ impl StaticSoundProcessor for Keyboard {
             }
         }
 
-        sound_input_node.step(self, dst, &context);
+        sound_input_node.step(timing, dst, &context);
     }
 }
 

@@ -2,7 +2,8 @@ use crate::core::{
     engine::nodegen::NodeGen,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
-        context::Context, soundprocessor::StaticSoundProcessor,
+        context::Context,
+        soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
         soundprocessortools::SoundProcessorTools,
     },
     soundchunk::SoundChunk,
@@ -37,7 +38,8 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
     }
 
     fn process_audio(
-        &self,
+        _processor: &StaticSoundProcessorWithId<TestStaticSoundProcessor>,
+        _timing: &ProcessorTiming,
         _sound_inputs: &mut (),
         _number_inputs: &(),
         _dst: &mut SoundChunk,

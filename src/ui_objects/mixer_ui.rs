@@ -27,7 +27,7 @@ impl ObjectUi for MixerUi {
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {
-        let mut objwin = ProcessorUi::new(mixer.id(), "Mixer", data.color);
+        let mut objwin = ProcessorUi::new(&mixer, "Mixer", data.color);
 
         for (i, siid) in mixer.get_input_ids().into_iter().enumerate() {
             objwin = objwin.add_sound_input(siid, &format!("input{}", i + 1));

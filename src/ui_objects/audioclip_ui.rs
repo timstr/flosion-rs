@@ -26,12 +26,7 @@ impl ObjectUi for AudioClipUi {
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(audioclip.id(), "AudioClip", data.color).show(
-            ui,
-            ctx,
-            ui_state,
-            sound_graph,
-        );
+        ProcessorUi::new(&audioclip, "AudioClip", data.color).show(ui, ctx, ui_state, sound_graph);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
