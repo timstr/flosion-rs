@@ -3,7 +3,7 @@ use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
-    core::number::{numbergraph::NumberGraph, numbersource::NumberSourceHandle},
+    core::number::{numbergraph::NumberGraph, numbersource::PureNumberSourceHandle},
     objects::functions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
@@ -26,12 +26,12 @@ impl ConstantUi {
 
 impl ObjectUi for ConstantUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = NumberSourceHandle<Constant>;
+    type HandleType = PureNumberSourceHandle<Constant>;
     type StateType = ();
 
     fn ui(
         &self,
-        constant: NumberSourceHandle<Constant>,
+        constant: PureNumberSourceHandle<Constant>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut egui::Ui,
         ctx: &mut NumberGraphUiContext,
@@ -106,11 +106,11 @@ impl ObjectUiState for SliderUiState {}
 
 impl ObjectUi for SliderUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = NumberSourceHandle<Variable>;
+    type HandleType = PureNumberSourceHandle<Variable>;
     type StateType = SliderUiState;
     fn ui(
         &self,
-        variable: NumberSourceHandle<Variable>,
+        variable: PureNumberSourceHandle<Variable>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
@@ -143,7 +143,7 @@ impl ObjectUi for SliderUi {
 
     fn make_ui_state(
         &self,
-        object: &NumberSourceHandle<Variable>,
+        object: &PureNumberSourceHandle<Variable>,
         init: UiInitialization,
     ) -> (Self::StateType, NumberSourceLayout) {
         let state = match init {
@@ -207,11 +207,11 @@ macro_rules! unary_number_source_ui {
 
         impl ObjectUi for $name {
             type GraphUi = NumberGraphUi;
-            type HandleType = NumberSourceHandle<$object>;
+            type HandleType = PureNumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: NumberSourceHandle<$object>,
+                object: PureNumberSourceHandle<$object>,
                 ui_state: &mut NumberGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
@@ -228,7 +228,7 @@ macro_rules! unary_number_source_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &NumberSourceHandle<$object>,
+                _object: &PureNumberSourceHandle<$object>,
                 _init: UiInitialization,
             ) -> (Self::StateType, NumberSourceLayout) {
                 ((), $layout)
@@ -244,11 +244,11 @@ macro_rules! binary_number_source_ui {
 
         impl ObjectUi for $name {
             type GraphUi = NumberGraphUi;
-            type HandleType = NumberSourceHandle<$object>;
+            type HandleType = PureNumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: NumberSourceHandle<$object>,
+                object: PureNumberSourceHandle<$object>,
                 ui_state: &mut NumberGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
@@ -265,7 +265,7 @@ macro_rules! binary_number_source_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &NumberSourceHandle<$object>,
+                _object: &PureNumberSourceHandle<$object>,
                 _init: UiInitialization,
             ) -> (Self::StateType, NumberSourceLayout) {
                 ((), $layout)
@@ -281,11 +281,11 @@ macro_rules! ternary_number_source_ui {
 
         impl ObjectUi for $name {
             type GraphUi = NumberGraphUi;
-            type HandleType = NumberSourceHandle<$object>;
+            type HandleType = PureNumberSourceHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: NumberSourceHandle<$object>,
+                object: PureNumberSourceHandle<$object>,
                 ui_state: &mut NumberGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,

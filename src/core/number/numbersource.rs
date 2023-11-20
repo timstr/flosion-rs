@@ -1,6 +1,6 @@
 use std::{any::type_name, ops::Deref, sync::Arc};
 
-use inkwell::values::FloatValue;
+use inkwell::values::{FloatValue, PointerValue};
 use serialization::Serializer;
 
 use crate::core::{
@@ -39,36 +39,6 @@ impl UniqueId for NumberSourceId {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct NumberConfig {
-    samplewise_temporal: bool,
-    sample_offset: usize,
-}
-
-impl NumberConfig {
-    pub fn samplewise_temporal_at(sample_offset: usize) -> NumberConfig {
-        NumberConfig {
-            samplewise_temporal: true,
-            sample_offset,
-        }
-    }
-
-    pub fn atemporal_at(sample_offset: usize) -> NumberConfig {
-        NumberConfig {
-            samplewise_temporal: false,
-            sample_offset,
-        }
-    }
-
-    pub fn is_samplewise_temporal(&self) -> bool {
-        self.samplewise_temporal
-    }
-
-    pub fn sample_offset(&self) -> usize {
-        self.sample_offset
-    }
-}
-
 // Intended for concrete number source types,
 // hence the new() associated function
 pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
@@ -87,23 +57,28 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
 
 // Intended for type-erased number sources
 pub trait NumberSource: 'static + Sync + Send {
-    fn compile<'ctx>(
+    fn num_variables(&self) -> usize;
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
+
+    fn compile_loop<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
     fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph>;
 }
 
-pub struct NumberSourceWithId<T: PureNumberSource> {
+pub struct PureNumberSourceWithId<T: PureNumberSource> {
     source: T,
     id: NumberSourceId,
 }
 
-impl<T: PureNumberSource> NumberSourceWithId<T> {
-    pub(crate) fn new(source: T, id: NumberSourceId) -> NumberSourceWithId<T> {
-        NumberSourceWithId { source, id }
+impl<T: PureNumberSource> PureNumberSourceWithId<T> {
+    pub(crate) fn new(source: T, id: NumberSourceId) -> PureNumberSourceWithId<T> {
+        PureNumberSourceWithId { source, id }
     }
 
     pub(crate) fn id(&self) -> NumberSourceId {
@@ -111,7 +86,7 @@ impl<T: PureNumberSource> NumberSourceWithId<T> {
     }
 }
 
-impl<T: PureNumberSource> Deref for NumberSourceWithId<T> {
+impl<T: PureNumberSource> Deref for PureNumberSourceWithId<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -119,12 +94,22 @@ impl<T: PureNumberSource> Deref for NumberSourceWithId<T> {
     }
 }
 
-impl<T: PureNumberSource> NumberSource for NumberSourceWithId<T> {
-    fn compile<'ctx>(
+impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
+    fn num_variables(&self) -> usize {
+        0
+    }
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+        Vec::new()
+    }
+
+    fn compile_loop<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx> {
+        debug_assert_eq!(variables.len(), 0);
         self.source.compile(codegen, inputs)
     }
 
@@ -133,7 +118,7 @@ impl<T: PureNumberSource> NumberSource for NumberSourceWithId<T> {
     }
 }
 
-impl<T: PureNumberSource> GraphObject<NumberGraph> for NumberSourceWithId<T> {
+impl<T: PureNumberSource> GraphObject<NumberGraph> for PureNumberSourceWithId<T> {
     fn create(
         graph: &mut NumberGraph,
         init: ObjectInitialization,
@@ -168,19 +153,19 @@ impl<T: PureNumberSource> GraphObject<NumberGraph> for NumberSourceWithId<T> {
     }
 }
 
-pub struct NumberSourceHandle<T: PureNumberSource> {
-    instance: Arc<NumberSourceWithId<T>>,
+pub struct PureNumberSourceHandle<T: PureNumberSource> {
+    instance: Arc<PureNumberSourceWithId<T>>,
 }
 
-impl<T: PureNumberSource> NumberSourceHandle<T> {
-    pub(super) fn new(instance: Arc<NumberSourceWithId<T>>) -> Self {
+impl<T: PureNumberSource> PureNumberSourceHandle<T> {
+    pub(super) fn new(instance: Arc<PureNumberSourceWithId<T>>) -> Self {
         Self { instance }
     }
 
     pub(super) fn from_graph_object(handle: GraphObjectHandle<NumberGraph>) -> Option<Self> {
         let arc_any = handle.into_instance_arc().into_arc_any();
-        match arc_any.downcast::<NumberSourceWithId<T>>() {
-            Ok(obj) => Some(NumberSourceHandle::new(obj)),
+        match arc_any.downcast::<PureNumberSourceWithId<T>>() {
+            Ok(obj) => Some(PureNumberSourceHandle::new(obj)),
             Err(_) => None,
         }
     }
@@ -194,7 +179,7 @@ impl<T: PureNumberSource> NumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> Deref for NumberSourceHandle<T> {
+impl<T: PureNumberSource> Deref for PureNumberSourceHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -202,7 +187,7 @@ impl<T: PureNumberSource> Deref for NumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> Clone for NumberSourceHandle<T> {
+impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
     fn clone(&self) -> Self {
         Self {
             instance: Arc::clone(&self.instance),
@@ -210,14 +195,62 @@ impl<T: PureNumberSource> Clone for NumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> ObjectHandle<NumberGraph> for NumberSourceHandle<T> {
-    type ObjectType = NumberSourceWithId<T>;
+impl<T: PureNumberSource> ObjectHandle<NumberGraph> for PureNumberSourceHandle<T> {
+    type ObjectType = PureNumberSourceWithId<T>;
 
     fn from_graph_object(object: GraphObjectHandle<NumberGraph>) -> Option<Self> {
-        NumberSourceHandle::from_graph_object(object)
+        PureNumberSourceHandle::from_graph_object(object)
     }
 
     fn object_type() -> ObjectType {
         T::TYPE
+    }
+}
+
+pub trait StatefulNumberSource: 'static + Sync + Send + WithObjectType {
+    const NUM_VARIABLES: usize;
+
+    fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
+    where
+        Self: Sized;
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
+
+    fn compile_loop<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
+    ) -> FloatValue<'ctx>;
+
+    fn serialize(&self, _serializer: Serializer) {}
+}
+
+pub struct StatefulNumberSourceWithId<T: StatefulNumberSource> {
+    source: T,
+    id: NumberSourceId,
+}
+
+impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
+    fn num_variables(&self) -> usize {
+        T::NUM_VARIABLES
+    }
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+        self.source.compile_init(codegen)
+    }
+
+    fn compile_loop<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert_eq!(variables.len(), self.num_variables());
+        self.source.compile_loop(codegen, inputs, variables)
+    }
+
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph> {
+        todo!()
     }
 }

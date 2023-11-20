@@ -113,8 +113,12 @@ impl DynamicSoundProcessor for Ensemble {
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
-        let freq_in = number_inputs.frequency_in.eval_scalar(&context);
-        let freq_spread = number_inputs.frequency_spread.eval_scalar(&context);
+        let freq_in = number_inputs
+            .frequency_in
+            .eval_scalar(&context.push_processor_state(state));
+        let freq_spread = number_inputs
+            .frequency_spread
+            .eval_scalar(&context.push_processor_state(state));
         for mut item in sound_inputs.items_mut() {
             let voice_state = item.state_mut();
             if state.just_started() {

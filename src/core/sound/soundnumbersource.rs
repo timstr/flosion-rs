@@ -61,7 +61,7 @@ impl SoundNumberSourceHandle {
         SoundNumberSourceHandle { id }
     }
 
-    pub fn id(&self) -> SoundNumberSourceId {
+    pub(crate) fn id(&self) -> SoundNumberSourceId {
         self.id
     }
 }
@@ -76,7 +76,7 @@ pub(crate) trait SoundNumberSource: 'static + Sync + Send {
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx>;
 }
 
-pub struct ScalarInputNumberSource {
+pub(crate) struct ScalarInputNumberSource {
     function: ScalarReadFunc,
     input_id: SoundInputId,
 }
@@ -93,7 +93,7 @@ impl SoundNumberSource for ScalarInputNumberSource {
     }
 }
 
-pub struct ArrayInputNumberSource {
+pub(crate) struct ArrayInputNumberSource {
     function: ArrayReadFunc,
     input_id: SoundInputId,
 }
@@ -110,7 +110,7 @@ impl SoundNumberSource for ArrayInputNumberSource {
     }
 }
 
-pub struct ScalarProcessorNumberSource {
+pub(crate) struct ScalarProcessorNumberSource {
     function: ScalarReadFunc,
     processor_id: SoundProcessorId,
 }
@@ -133,7 +133,7 @@ impl SoundNumberSource for ScalarProcessorNumberSource {
     }
 }
 
-pub struct ArrayProcessorNumberSource {
+pub(crate) struct ArrayProcessorNumberSource {
     function: ArrayReadFunc,
     processor_id: SoundProcessorId,
 }
@@ -156,7 +156,7 @@ impl SoundNumberSource for ArrayProcessorNumberSource {
     }
 }
 
-pub struct ProcessorTimeNumberSource {
+pub(crate) struct ProcessorTimeNumberSource {
     processor_id: SoundProcessorId,
 }
 
@@ -172,7 +172,7 @@ impl SoundNumberSource for ProcessorTimeNumberSource {
     }
 }
 
-pub struct InputTimeNumberSource {
+pub(crate) struct InputTimeNumberSource {
     input_id: SoundInputId,
 }
 
@@ -185,5 +185,28 @@ impl InputTimeNumberSource {
 impl SoundNumberSource for InputTimeNumberSource {
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_input_time(self.input_id)
+    }
+}
+
+pub(crate) struct DerivedProcessorNumberSource {
+    processor_id: SoundProcessorId,
+    input_source_id: SoundNumberSourceId,
+}
+
+impl DerivedProcessorNumberSource {
+    pub(crate) fn new(
+        processor_id: SoundProcessorId,
+        input_source_id: SoundNumberSourceId,
+    ) -> Self {
+        Self {
+            processor_id,
+            input_source_id,
+        }
+    }
+}
+
+impl SoundNumberSource for DerivedProcessorNumberSource {
+    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
+        todo!()
     }
 }

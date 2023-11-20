@@ -31,6 +31,9 @@ use super::{
 
 pub(super) struct InstructionLocations<'ctx> {
     pub(super) end_of_bb_entry: InstructionValue<'ctx>,
+    pub(super) end_of_init: InstructionValue<'ctx>,
+    pub(super) end_of_load_variables: InstructionValue<'ctx>,
+    pub(super) end_of_store_variables: InstructionValue<'ctx>,
     pub(super) end_of_bb_loop: InstructionValue<'ctx>,
 }
 
@@ -88,6 +91,8 @@ impl<'ctx> CodeGen<'ctx> {
                 types.usize_type.into(),
                 // usize : context 2
                 types.usize_type.into(),
+                // *mut u8: pointer to init flag
+                types.u8_type.into(),
             ],
             false, // is_var_args
         );
@@ -95,14 +100,14 @@ impl<'ctx> CodeGen<'ctx> {
         let fn_eval_number_input =
             module.add_function(&function_name, fn_eval_number_input_type, None);
 
-        // TODO: basic blocks for
-        // - start-of-chunk restoration of state
-        // - end-of-chunk persistence of state
-        // - first-time initialization upon reset (e.g. seed PRNG, reset stateful things),
-        //   will probably need an extra boolean to save/restore
-
         let bb_entry = inkwell_context.append_basic_block(fn_eval_number_input, "entry");
+        let bb_check_init = inkwell_context.append_basic_block(fn_eval_number_input, "check_init");
+        let bb_init = inkwell_context.append_basic_block(fn_eval_number_input, "init");
+        let bb_load_variables =
+            inkwell_context.append_basic_block(fn_eval_number_input, "load_variables");
         let bb_loop = inkwell_context.append_basic_block(fn_eval_number_input, "loop");
+        let bb_store_variables =
+            inkwell_context.append_basic_block(fn_eval_number_input, "store_variables");
         let bb_exit = inkwell_context.append_basic_block(fn_eval_number_input, "exit");
 
         // read arguments
@@ -126,6 +131,10 @@ impl<'ctx> CodeGen<'ctx> {
             .get_nth_param(4)
             .unwrap()
             .into_int_value();
+        let arg_ptr_init_flag = fn_eval_number_input
+            .get_nth_param(5)
+            .unwrap()
+            .into_pointer_value();
 
         arg_f32_dst_ptr.set_name("dst_ptr");
         arg_dst_len.set_name("dst_len");
@@ -134,11 +143,16 @@ impl<'ctx> CodeGen<'ctx> {
         arg_ctx_2.set_name("context_2");
 
         let inst_end_of_entry;
+        let inst_end_of_init;
+        let inst_end_of_load_variables;
         let inst_end_of_loop;
+        let inst_end_of_store_variables;
         let v_loop_counter;
 
+        // entry
         builder.position_at_end(bb_entry);
         {
+            // len_is_zero = dst_len == 0
             let len_is_zero = builder.build_int_compare(
                 inkwell::IntPredicate::EQ,
                 arg_dst_len,
@@ -148,12 +162,55 @@ impl<'ctx> CodeGen<'ctx> {
 
             // array read functions will be inserted here later
 
-            inst_end_of_entry = builder.build_conditional_branch(len_is_zero, bb_exit, bb_loop);
+            // if len == 0 { goto exit } else { goto check_init }
+            inst_end_of_entry =
+                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_init);
         }
 
+        // check_init
+        builder.position_at_end(bb_check_init);
+        {
+            // init_flag = *ptr_init_flag
+            let init_flag = builder
+                .build_load(arg_ptr_init_flag, "init_flag")
+                .into_int_value();
+
+            // was_init = init_flag != 0
+            let was_init = builder.build_int_compare(
+                inkwell::IntPredicate::NE,
+                init_flag,
+                types.u8_type.const_zero(),
+                "was_init",
+            );
+
+            // if was_init { goto load_variables } else { goto init }
+            builder.build_conditional_branch(was_init, bb_load_variables, bb_init);
+        }
+
+        // init
+        builder.position_at_end(bb_init);
+        {
+            // *ptr_init_flag = 1
+            builder.build_store(arg_ptr_init_flag, types.u8_type.const_int(1, false));
+
+            // stateful number source init code will be inserted here
+
+            // goto load_variables
+            inst_end_of_init = builder.build_unconditional_branch(bb_load_variables);
+        }
+
+        // load_variables
+        builder.position_at_end(bb_load_variables);
+        {
+            // stateful number source load code will be inserted here
+
+            // goto loop
+            inst_end_of_load_variables = builder.build_unconditional_branch(bb_loop);
+        }
+
+        // loop
         builder.position_at_end(bb_loop);
         {
-            // if loop_counter >= dst_len { goto exit } else { goto loop_body }
             let phi = builder.build_phi(types.usize_type, "loop_counter");
             v_loop_counter = phi.as_basic_value().into_int_value();
 
@@ -180,10 +237,24 @@ impl<'ctx> CodeGen<'ctx> {
 
             // loop body will be inserted here
 
-            inst_end_of_loop =
-                builder.build_conditional_branch(v_loop_counter_ge_len, bb_exit, bb_loop);
+            // if loop_counter >= dst_len { goto exit } else { goto loop_body }
+            inst_end_of_loop = builder.build_conditional_branch(
+                v_loop_counter_ge_len,
+                bb_store_variables,
+                bb_loop,
+            );
         }
 
+        // store_variables
+        builder.position_at_end(bb_store_variables);
+        {
+            // stateful number source store code will be inserted here
+
+            // goto exit
+            inst_end_of_store_variables = builder.build_unconditional_branch(bb_exit);
+        }
+
+        // exit
         builder.position_at_end(bb_exit);
         {
             builder.build_return(None);
@@ -191,6 +262,9 @@ impl<'ctx> CodeGen<'ctx> {
 
         let instruction_locations = InstructionLocations {
             end_of_bb_entry: inst_end_of_entry,
+            end_of_init: inst_end_of_init,
+            end_of_load_variables: inst_end_of_load_variables,
+            end_of_store_variables: inst_end_of_store_variables,
             end_of_bb_loop: inst_end_of_loop,
         };
 
@@ -292,7 +366,26 @@ impl<'ctx> CodeGen<'ctx> {
                     .iter()
                     .map(|niid| self.visit_input(*niid, topology))
                     .collect();
+
+                self.builder
+                    .position_before(&self.instruction_locations.end_of_init);
+                let init_variable_values = source_data.instance().compile_init(self);
+                // TODO: need argument f32 pointer to start of Vec<f32> containing variables
+                // TODO: also need index of these variables into that vec
+
+                self.builder
+                    .position_before(&self.instruction_locations.end_of_load_variables);
+                // TODO:
+                // stack allocate variables, copy from from flat Vec<f32> to stack variable
+
+                self.builder
+                    .position_before(&self.instruction_locations.end_of_store_variables);
+                // TODO: copy stack variables into flat Vec<f32>
+
+                self.builder
+                    .position_before(&self.instruction_locations.end_of_bb_loop);
                 let v = source_data.instance().compile(self, &input_values);
+
                 self.compiled_targets
                     .insert(NumberTarget::Source(number_source_id), v);
                 v
@@ -670,8 +763,6 @@ impl<'ctx> CodeGen<'ctx> {
         assert_eq!(number_topo.graph_outputs().len(), 1);
         let output_id = number_topo.graph_outputs()[0].id();
 
-        self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
         let output_data = number_topo.graph_output(output_id).unwrap();
         let final_value = match output_data.target() {
             Some(target) => self.visit_target(target, number_topo),

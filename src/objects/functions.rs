@@ -3,14 +3,18 @@ use crate::{
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         jit::codegen::CodeGen,
         number::{
-            numberinput::NumberInputHandle, numbersource::PureNumberSource,
+            numberinput::NumberInputHandle,
+            numbersource::{PureNumberSource, StatefulNumberSource},
             numbersourcetools::NumberSourceTools,
         },
     },
     ui_core::arguments::FloatArgument,
 };
 use atomic_float::AtomicF32;
-use inkwell::{values::FloatValue, FloatPredicate};
+use inkwell::{
+    values::{FloatValue, PointerValue},
+    FloatPredicate,
+};
 use serialization::Serializer;
 use std::sync::{atomic::Ordering, Arc};
 
@@ -104,6 +108,52 @@ impl PureNumberSource for Variable {
 
 impl WithObjectType for Variable {
     const TYPE: ObjectType = ObjectType::new("variable");
+}
+
+pub struct ExponentialApproach {
+    input: NumberInputHandle,
+}
+
+impl StatefulNumberSource for ExponentialApproach {
+    const NUM_VARIABLES: usize = 1;
+
+    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+        Ok(ExponentialApproach {
+            input: tools.add_number_input(0.0),
+        })
+    }
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![codegen.float_type().const_float(0.0)]
+    }
+
+    fn compile_loop<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
+    ) -> FloatValue<'ctx> {
+        debug_assert_eq!(inputs.len(), 1);
+        debug_assert_eq!(variables.len(), 1);
+        let k = codegen.float_type().const_float(0.01);
+        let input = inputs[0];
+        let ptr_val = variables[0];
+        let prev_val = codegen
+            .builder()
+            .build_load(ptr_val, "prev_val")
+            .into_float_value();
+        let diff = codegen.builder().build_float_sub(input, prev_val, "diff");
+        let scaled_diff = codegen.builder().build_float_mul(diff, k, "scaled_diff");
+        let next_val = codegen
+            .builder()
+            .build_float_add(prev_val, scaled_diff, "next_val");
+        codegen.builder().build_store(ptr_val, next_val);
+        next_val
+    }
+}
+
+impl WithObjectType for ExponentialApproach {
+    const TYPE: ObjectType = ObjectType::new("exponentialapproach");
 }
 
 // TODO: add Random number source for uniform random values.

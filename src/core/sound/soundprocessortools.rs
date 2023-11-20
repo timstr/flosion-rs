@@ -12,7 +12,7 @@ use super::{
     soundinput::{InputOptions, SoundInputId},
     soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
     soundnumbersource::{
-        ArrayInputNumberSource, ArrayProcessorNumberSource, InputTimeNumberSource,
+        ArrayInputNumberSource, ArrayProcessorNumberSource, DerivedProcessorNumberSource,
         ScalarInputNumberSource, ScalarProcessorNumberSource, SoundNumberSourceHandle,
         SoundNumberSourceId, SoundNumberSourceOwner,
     },
@@ -122,6 +122,24 @@ impl<'a> SoundProcessorTools<'a> {
     ) -> SoundNumberSourceHandle {
         let id = self.number_source_idgen.next_id();
         let instance = Arc::new(ArrayProcessorNumberSource::new(self.processor_id, function));
+        let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
+        let data = SoundNumberSourceData::new(id, instance, owner);
+        self.edit_queue
+            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
+                data,
+            )));
+        SoundNumberSourceHandle::new(id)
+    }
+
+    pub fn add_derived_processor_number_source(
+        &mut self,
+        input_source_id: SoundNumberSourceId,
+    ) -> SoundNumberSourceHandle {
+        let id = self.number_source_idgen.next_id();
+        let instance = Arc::new(DerivedProcessorNumberSource::new(
+            self.processor_id,
+            input_source_id,
+        ));
         let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
         self.edit_queue
