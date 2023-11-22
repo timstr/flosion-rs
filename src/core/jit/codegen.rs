@@ -14,7 +14,7 @@ use inkwell::{
 use crate::core::{
     number::{
         numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology,
-        numberinput::NumberInputId,
+        numberinput::NumberInputId, numbersource::NumberSourceId,
     },
     sound::{
         soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
@@ -29,9 +29,12 @@ use super::{
     wrappers::{ArrayReadFunc, ScalarReadFunc, WrapperFunctions},
 };
 
+pub(super) const FLAG_NOT_INITIALIZED: u8 = 0;
+pub(super) const FLAG_INITIALIZED: u8 = 0;
+
 pub(super) struct InstructionLocations<'ctx> {
     pub(super) end_of_bb_entry: InstructionValue<'ctx>,
-    pub(super) end_of_init: InstructionValue<'ctx>,
+    pub(super) end_of_init_variables: InstructionValue<'ctx>,
     pub(super) end_of_load_variables: InstructionValue<'ctx>,
     pub(super) end_of_store_variables: InstructionValue<'ctx>,
     pub(super) end_of_bb_loop: InstructionValue<'ctx>,
@@ -44,6 +47,7 @@ pub(super) struct LocalVariables<'ctx> {
     pub(super) context_1: IntValue<'ctx>,
     pub(super) context_2: IntValue<'ctx>,
     pub(super) time_step: FloatValue<'ctx>,
+    pub(super) state: PointerValue<'ctx>,
 }
 
 pub struct CodeGen<'ctx> {
@@ -57,6 +61,8 @@ pub struct CodeGen<'ctx> {
     function_name: String,
     pub(super) atomic_captures: Vec<Arc<AtomicF32>>,
     pub(super) compiled_targets: HashMap<NumberTarget, FloatValue<'ctx>>,
+    num_state_variables: usize,
+    state_array_offsets: Vec<(NumberSourceId, usize)>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -85,14 +91,16 @@ impl<'ctx> CodeGen<'ctx> {
                 types.f32_pointer_type.into(),
                 // usize : length of destination array
                 types.usize_type.into(),
-                // f32: time step
+                // f32 : time step
                 types.f32_type.into(),
                 // usize : context 1
                 types.usize_type.into(),
                 // usize : context 2
                 types.usize_type.into(),
-                // *mut u8: pointer to init flag
-                types.u8_type.into(),
+                // *mut u8 : pointer to init flag
+                types.u8_pointer_type.into(),
+                // *mut f32 : pointer to state
+                types.f32_pointer_type.into(),
             ],
             false, // is_var_args
         );
@@ -102,7 +110,8 @@ impl<'ctx> CodeGen<'ctx> {
 
         let bb_entry = inkwell_context.append_basic_block(fn_eval_number_input, "entry");
         let bb_check_init = inkwell_context.append_basic_block(fn_eval_number_input, "check_init");
-        let bb_init = inkwell_context.append_basic_block(fn_eval_number_input, "init");
+        let bb_init_variables =
+            inkwell_context.append_basic_block(fn_eval_number_input, "init_variables");
         let bb_load_variables =
             inkwell_context.append_basic_block(fn_eval_number_input, "load_variables");
         let bb_loop = inkwell_context.append_basic_block(fn_eval_number_input, "loop");
@@ -135,6 +144,10 @@ impl<'ctx> CodeGen<'ctx> {
             .get_nth_param(5)
             .unwrap()
             .into_pointer_value();
+        let arg_ptr_state = fn_eval_number_input
+            .get_nth_param(6)
+            .unwrap()
+            .into_pointer_value();
 
         arg_f32_dst_ptr.set_name("dst_ptr");
         arg_dst_len.set_name("dst_len");
@@ -143,7 +156,7 @@ impl<'ctx> CodeGen<'ctx> {
         arg_ctx_2.set_name("context_2");
 
         let inst_end_of_entry;
-        let inst_end_of_init;
+        let inst_end_of_init_variables;
         let inst_end_of_load_variables;
         let inst_end_of_loop;
         let inst_end_of_store_variables;
@@ -160,7 +173,7 @@ impl<'ctx> CodeGen<'ctx> {
                 "len_is_zero",
             );
 
-            // array read functions will be inserted here later
+            // array read functions and state pointer offsets will be inserted here later
 
             // if len == 0 { goto exit } else { goto check_init }
             inst_end_of_entry =
@@ -175,28 +188,31 @@ impl<'ctx> CodeGen<'ctx> {
                 .build_load(arg_ptr_init_flag, "init_flag")
                 .into_int_value();
 
-            // was_init = init_flag != 0
+            // was_init = init_flag == FLAG_INITIALIZED
             let was_init = builder.build_int_compare(
-                inkwell::IntPredicate::NE,
+                inkwell::IntPredicate::EQ,
                 init_flag,
-                types.u8_type.const_zero(),
+                types.u8_type.const_int(FLAG_INITIALIZED as u64, false),
                 "was_init",
             );
 
-            // if was_init { goto load_variables } else { goto init }
-            builder.build_conditional_branch(was_init, bb_load_variables, bb_init);
+            // if was_init { goto load_variables } else { goto init_variables }
+            builder.build_conditional_branch(was_init, bb_load_variables, bb_init_variables);
         }
 
-        // init
-        builder.position_at_end(bb_init);
+        // init_variables
+        builder.position_at_end(bb_init_variables);
         {
             // *ptr_init_flag = 1
-            builder.build_store(arg_ptr_init_flag, types.u8_type.const_int(1, false));
+            builder.build_store(
+                arg_ptr_init_flag,
+                types.u8_type.const_int(FLAG_INITIALIZED as u64, false),
+            );
 
             // stateful number source init code will be inserted here
 
-            // goto load_variables
-            inst_end_of_init = builder.build_unconditional_branch(bb_load_variables);
+            // goto loop
+            inst_end_of_init_variables = builder.build_unconditional_branch(bb_loop);
         }
 
         // load_variables
@@ -221,7 +237,8 @@ impl<'ctx> CodeGen<'ctx> {
             );
 
             phi.add_incoming(&[
-                (&types.usize_type.const_zero(), bb_entry),
+                (&types.usize_type.const_zero(), bb_init_variables),
+                (&types.usize_type.const_zero(), bb_load_variables),
                 (&v_loop_counter_inc, bb_loop),
             ]);
 
@@ -262,7 +279,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let instruction_locations = InstructionLocations {
             end_of_bb_entry: inst_end_of_entry,
-            end_of_init: inst_end_of_init,
+            end_of_init_variables: inst_end_of_init_variables,
             end_of_load_variables: inst_end_of_load_variables,
             end_of_store_variables: inst_end_of_store_variables,
             end_of_bb_loop: inst_end_of_loop,
@@ -275,6 +292,7 @@ impl<'ctx> CodeGen<'ctx> {
             context_1: arg_ctx_1,
             context_2: arg_ctx_2,
             time_step: arg_time_step,
+            state: arg_ptr_state,
         };
 
         CodeGen {
@@ -288,6 +306,8 @@ impl<'ctx> CodeGen<'ctx> {
             execution_engine,
             atomic_captures: Vec::new(),
             compiled_targets: HashMap::new(),
+            num_state_variables: 0,
+            state_array_offsets: Vec::new(),
         }
     }
 
@@ -327,7 +347,12 @@ impl<'ctx> CodeGen<'ctx> {
             }
         };
 
-        CompiledNumberInput::new(self.execution_engine, compiled_fn, self.atomic_captures)
+        CompiledNumberInput::new(
+            self.execution_engine,
+            compiled_fn,
+            self.num_state_variables,
+            self.atomic_captures,
+        )
     }
 
     fn visit_input(
@@ -360,6 +385,7 @@ impl<'ctx> CodeGen<'ctx> {
         match target {
             NumberTarget::Source(number_source_id) => {
                 let source_data = topology.number_source(number_source_id).unwrap();
+                let number_source = source_data.instance();
 
                 let input_values: Vec<_> = source_data
                     .number_inputs()
@@ -367,24 +393,86 @@ impl<'ctx> CodeGen<'ctx> {
                     .map(|niid| self.visit_input(*niid, topology))
                     .collect();
 
-                self.builder
-                    .position_before(&self.instruction_locations.end_of_init);
-                let init_variable_values = source_data.instance().compile_init(self);
-                // TODO: need argument f32 pointer to start of Vec<f32> containing variables
-                // TODO: also need index of these variables into that vec
+                let num_variables = number_source.num_variables();
 
-                self.builder
-                    .position_before(&self.instruction_locations.end_of_load_variables);
-                // TODO:
-                // stack allocate variables, copy from from flat Vec<f32> to stack variable
+                let state_variables = if num_variables > 0 {
+                    let base_state_index = self.num_state_variables;
 
-                self.builder
-                    .position_before(&self.instruction_locations.end_of_store_variables);
-                // TODO: copy stack variables into flat Vec<f32>
+                    self.state_array_offsets
+                        .push((number_source_id, self.num_state_variables));
+                    self.num_state_variables += num_variables;
+
+                    // Get pointers to state variables in shared state array
+                    self.builder
+                        .position_before(&self.instruction_locations.end_of_bb_entry);
+                    let state_ptrs: Vec<PointerValue<'ctx>> = (0..num_variables)
+                        .map(|i| {
+                            let ptr_all_states = self.local_variables.state;
+                            let offset = self
+                                .types
+                                .usize_type
+                                .const_int((base_state_index + i) as u64, false);
+
+                            // ptr_state = ptr_all_states + offset
+                            let ptr_state = unsafe {
+                                self.builder
+                                    .build_gep(ptr_all_states, &[offset], "ptr_state")
+                            };
+
+                            ptr_state
+                        })
+                        .collect();
+
+                    // Allocate stack variables for state variables
+                    self.builder
+                        .position_before(&self.instruction_locations.end_of_bb_entry);
+                    let stack_variables: Vec<PointerValue<'ctx>> = (0..num_variables)
+                        .map(|i| {
+                            self.builder.build_alloca(
+                                self.types.f32_type,
+                                &format!("numbersource{}_state{}", number_source_id.value(), i),
+                            )
+                        })
+                        .collect();
+
+                    // During first-time initialization, assign initial values to stack variables
+                    self.builder
+                        .position_before(&self.instruction_locations.end_of_init_variables);
+                    let init_variable_values = number_source.compile_init(self);
+                    debug_assert_eq!(init_variable_values.len(), num_variables);
+                    for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values)
+                    {
+                        self.builder.build_store(*stack_var, init_value);
+                    }
+
+                    // during resume, copy state array values into stack variables
+                    self.builder
+                        .position_before(&self.instruction_locations.end_of_load_variables);
+                    for (stack_var, ptr_state) in stack_variables.iter().zip(&state_ptrs) {
+                        // tmp = *ptr_state
+                        let tmp = self.builder.build_load(*ptr_state, "tmp");
+                        // *stack_var = tmp
+                        self.builder.build_store(*stack_var, tmp);
+                    }
+
+                    // at end of loop, copy stack variables into state array
+                    self.builder
+                        .position_before(&self.instruction_locations.end_of_store_variables);
+                    for (stack_var, ptr_state) in stack_variables.iter().zip(&state_ptrs) {
+                        // tmp = *stack_var
+                        let tmp = self.builder.build_load(*stack_var, "tmp");
+                        // *ptr_state = tmp
+                        self.builder.build_store(*ptr_state, tmp);
+                    }
+
+                    stack_variables
+                } else {
+                    Vec::new()
+                };
 
                 self.builder
                     .position_before(&self.instruction_locations.end_of_bb_loop);
-                let v = source_data.instance().compile(self, &input_values);
+                let v = number_source.compile_loop(self, &input_values, &state_variables);
 
                 self.compiled_targets
                     .insert(NumberTarget::Source(number_source_id), v);
@@ -507,6 +595,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.builder
             .position_before(&self.instruction_locations.end_of_bb_loop);
+
         let array_elem_ptr = unsafe {
             self.builder.build_gep(
                 array_read_retv,
@@ -552,6 +641,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.builder
             .position_before(&self.instruction_locations.end_of_bb_loop);
+
         let array_elem_ptr = unsafe {
             self.builder.build_gep(
                 array_read_retv,
@@ -772,6 +862,10 @@ impl<'ctx> CodeGen<'ctx> {
                 .const_float(output_data.default_value() as f64)
                 .into(),
         };
+
+        self.builder
+            .position_before(&self.instruction_locations.end_of_bb_loop);
+
         let dst_elem_ptr = unsafe {
             self.builder.build_gep(
                 self.local_variables.dst_ptr,

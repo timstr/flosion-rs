@@ -3,7 +3,10 @@ use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
-    core::number::{numbergraph::NumberGraph, numbersource::PureNumberSourceHandle},
+    core::number::{
+        numbergraph::NumberGraph,
+        numbersource::{PureNumberSourceHandle, StatefulNumberSourceHandle},
+    },
     objects::functions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
@@ -128,7 +131,7 @@ impl ObjectUi for SliderUi {
                 if v != v_old {
                     variable.set_value(v);
                 }
-                if ui.add(egui::Button::new("edit")).clicked() {
+                if ui.add(egui::Button::new("...")).clicked() {
                     data.state.show_settings = !data.state.show_settings;
                 }
 
@@ -197,6 +200,36 @@ impl ObjectUi for SliderUi {
             .add(&Variable::ARG_VALUE)
             .add(&SliderUi::ARG_NAME)
             .add(&SliderUi::ARG_RANGE)
+    }
+}
+
+#[derive(Default)]
+pub struct ExponentialApproachUi {}
+
+impl ObjectUi for ExponentialApproachUi {
+    type GraphUi = NumberGraphUi;
+    type HandleType = StatefulNumberSourceHandle<ExponentialApproach>;
+    type StateType = ();
+
+    fn ui<'a, 'b>(
+        &self,
+        handle: StatefulNumberSourceHandle<ExponentialApproach>,
+        ui_state: &mut NumberGraphUiState,
+        ui: &mut eframe::egui::Ui,
+        ctx: &mut NumberGraphUiContext,
+        _data: NumberObjectUiData<()>,
+        _number_graph: &mut NumberGraph,
+    ) {
+        NumberSourceUi::new_named(
+            handle.id(),
+            "ExponentialApproach".to_string(),
+            DisplayStyle::Framed,
+        )
+        .show(ui, ctx, ui_state);
+    }
+
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["exponentialapproach"]
     }
 }
 

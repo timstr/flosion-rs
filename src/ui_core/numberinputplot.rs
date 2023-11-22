@@ -82,7 +82,7 @@ impl NumberInputPlot {
         let painter = ui.painter();
         painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
         match compiled_fn {
-            Some(f) => {
+            Some(mut f) => {
                 let len = rect.width().floor() as usize;
                 let mut dst = Vec::new();
                 dst.resize(len, 0.0);

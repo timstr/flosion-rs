@@ -16,9 +16,9 @@ use super::{
     ensemble_ui::EnsembleUi,
     functions_ui::{
         AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
-        Exp2Ui, ExpUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi, MultiplyUi, NegateUi,
-        PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi, SquareWaveUi, SubtractUi,
-        TriangleWaveUi, TruncUi,
+        Exp2Ui, ExpUi, ExponentialApproachUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi,
+        MultiplyUi, NegateUi, PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi,
+        SquareWaveUi, SubtractUi, TriangleWaveUi, TruncUi,
     },
     mixer_ui::MixerUi,
     recorder_ui::RecorderUi,
@@ -82,6 +82,8 @@ pub fn all_number_graph_objects() -> (ObjectFactory<NumberGraph>, UiFactory<Numb
 
     helper.register::<ConstantUi>();
     helper.register::<SliderUi>();
+
+    helper.register::<ExponentialApproachUi>();
 
     helper.register::<NegateUi>();
     helper.register::<FloorUi>();

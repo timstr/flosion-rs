@@ -150,7 +150,7 @@ impl StaticSoundProcessor for Dac {
         dac: &StaticSoundProcessorWithId<Dac>,
         timing: &ProcessorTiming,
         sound_input: &mut SingleInputNode,
-        _number_input: &(),
+        _number_input: &mut (),
         _dst: &mut SoundChunk,
         ctx: Context,
     ) {

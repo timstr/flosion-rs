@@ -97,7 +97,7 @@ impl StaticSoundProcessor for Keyboard {
         keyboard: &StaticSoundProcessorWithId<Keyboard>,
         timing: &ProcessorTiming,
         sound_input_node: &mut KeyedInputQueueNode<KeyboardKeyState>,
-        _number_inputs: &(),
+        _number_inputs: &mut (),
         dst: &mut SoundChunk,
         context: Context,
     ) {

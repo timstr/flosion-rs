@@ -93,7 +93,7 @@ impl DynamicSoundProcessor for WaveGenerator {
     fn process_audio(
         state: &mut StateAndTiming<WaveGeneratorState>,
         _sound_inputs: &mut (),
-        number_inputs: &WaveGeneratorNumberInputs,
+        number_inputs: &mut WaveGeneratorNumberInputs,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {

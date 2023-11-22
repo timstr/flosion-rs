@@ -132,7 +132,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
     fn process_audio<'ctx>(
         _state: &mut StateAndTiming<Self::StateType>,
         _sound_inputs: &mut (),
-        _number_inputs: &Self::NumberInputType<'ctx>,
+        _number_inputs: &mut Self::NumberInputType<'ctx>,
         _dst: &mut SoundChunk,
         _context: Context,
     ) -> StreamStatus {
@@ -220,7 +220,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
         let giid2 = mapping.add_target(sp_instance.number_source_2.id(), number_graph);
 
         let ns_handle = number_graph
-            .add_number_source::<T>(ObjectInitialization::Default)
+            .add_pure_number_source::<T>(ObjectInitialization::Default)
             .unwrap();
 
         let input_ids = number_graph
@@ -261,7 +261,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
 
     let compiled_input = codegen.compile_number_input(sp_instance.number_input.id(), &topo);
 
-    let compiled_function = compiled_input.make_function();
+    let mut compiled_function = compiled_input.make_function();
 
     let scratch_space = ScratchArena::new();
     let context = Context::new(SoundProcessorId::new(1), &scratch_space);

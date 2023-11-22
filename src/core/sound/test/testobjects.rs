@@ -41,7 +41,7 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
         _processor: &StaticSoundProcessorWithId<TestStaticSoundProcessor>,
         _timing: &ProcessorTiming,
         _sound_inputs: &mut (),
-        _number_inputs: &(),
+        _number_inputs: &mut (),
         _dst: &mut SoundChunk,
         _context: Context,
     ) {

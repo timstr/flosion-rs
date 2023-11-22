@@ -9,18 +9,23 @@ use crate::core::{
     samplefrequency::SAMPLE_TIME_STEP,
 };
 
+use super::codegen::FLAG_NOT_INITIALIZED;
+
 type EvalNumberInputFunc = unsafe extern "C" fn(
     *mut f32, // pointer to destination array
     usize,    // length of destination array
     f32,      // time step
     usize,    // context 1
     usize,    // context 2
+    *mut u8,  // init flag
+    *mut f32, // state variables
 );
 
 struct CompiledNumberInputData<'ctx> {
     _execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
     _function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
     _atomic_captures: Vec<Arc<AtomicF32>>,
+    num_state_variables: usize,
     raw_function: EvalNumberInputFunc,
 }
 
@@ -28,6 +33,7 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
     fn new(
         execution_engine: inkwell::execution_engine::ExecutionEngine<'inkwell_ctx>,
         function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalNumberInputFunc>,
+        num_state_variables: usize,
         atomic_captures: Vec<Arc<AtomicF32>>,
     ) -> CompiledNumberInputData<'inkwell_ctx> {
         // SAFETY: the ExecutionEngine and JitFunction must outlive the
@@ -40,6 +46,7 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
             _execution_engine: SendWrapper::new(execution_engine),
             _function: SendWrapper::new(function),
             _atomic_captures: atomic_captures,
+            num_state_variables,
             raw_function,
         }
     }
@@ -56,29 +63,36 @@ impl<'ctx> CompiledNumberInput<'ctx> {
     pub fn new(
         execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
         function: inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>,
+        num_state_variables: usize,
         atomic_captures: Vec<Arc<AtomicF32>>,
     ) -> CompiledNumberInput<'ctx> {
         CompiledNumberInput {
             data: Arc::new(CompiledNumberInputData::new(
                 execution_engine,
                 function,
+                num_state_variables,
                 atomic_captures,
             )),
         }
     }
 
     pub(crate) fn make_function(&self) -> CompiledNumberInputFunction<'ctx> {
+        let mut state_variables = Vec::new();
+        state_variables.resize(self.data.num_state_variables, 0.0);
         CompiledNumberInputFunction {
             data: Arc::clone(&self.data),
             function: self.data.raw_function,
+            init_flag: FLAG_NOT_INITIALIZED,
+            state_variables,
         }
     }
 }
 
 pub(crate) struct CompiledNumberInputFunction<'ctx> {
-    // TODO: can stateful number source state be stored here???????
     data: Arc<CompiledNumberInputData<'ctx>>,
     function: EvalNumberInputFunc,
+    init_flag: u8,
+    state_variables: Vec<f32>,
 }
 
 pub enum Discretization {
@@ -100,8 +114,12 @@ impl Discretization {
 }
 
 impl<'ctx> CompiledNumberInputFunction<'ctx> {
+    pub(crate) fn reset(&mut self) {
+        self.init_flag = FLAG_NOT_INITIALIZED;
+    }
+
     pub(crate) fn eval(
-        &self,
+        &mut self,
         dst: &mut [f32],
         context: &dyn NumberContext,
         discretization: Discretization,
@@ -109,7 +127,25 @@ impl<'ctx> CompiledNumberInputFunction<'ctx> {
         unsafe {
             let (context_1, context_2) = number_context_to_usize_pair(context);
             let time_step = discretization.time_step();
-            (self.function)(dst.as_mut_ptr(), dst.len(), time_step, context_1, context_2);
+
+            let CompiledNumberInputFunction {
+                data: _,
+                function,
+                init_flag,
+                state_variables,
+            } = self;
+            let ptr_init_flag: *mut u8 = init_flag;
+            let ptr_state_variables: *mut f32 = state_variables.as_mut_ptr();
+
+            function(
+                dst.as_mut_ptr(),
+                dst.len(),
+                time_step,
+                context_1,
+                context_2,
+                ptr_init_flag,
+                ptr_state_variables,
+            );
         }
     }
 }

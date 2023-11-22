@@ -90,7 +90,7 @@ impl DynamicSoundProcessor for AudioClip {
     fn process_audio(
         state: &mut StateAndTiming<AudioClipState>,
         _sound_inputs: &mut Self::SoundInputType,
-        _number_inputs: &(),
+        _number_inputs: &mut (),
         dst: &mut SoundChunk,
         _context: Context,
     ) -> StreamStatus {

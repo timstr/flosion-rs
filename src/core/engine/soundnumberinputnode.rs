@@ -27,6 +27,10 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         self.id
     }
 
+    pub(crate) fn reset(&mut self) {
+        self.function.reset();
+    }
+
     pub(crate) fn update(
         &mut self,
         function: CompiledNumberInputFunction<'ctx>,
@@ -36,11 +40,11 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         old_function.toss(garbage_chute);
     }
 
-    pub fn eval(&self, dst: &mut [f32], discretization: Discretization, context: &Context) {
+    pub fn eval(&mut self, dst: &mut [f32], discretization: Discretization, context: &Context) {
         self.function.eval(dst, context, discretization)
     }
 
-    pub fn eval_scalar(&self, context: &Context) -> f32 {
+    pub fn eval_scalar(&mut self, context: &Context) -> f32 {
         let mut dst: f32 = 0.0;
         let s = slice::from_mut(&mut dst);
         self.eval(s, Discretization::None, context);

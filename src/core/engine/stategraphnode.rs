@@ -27,7 +27,8 @@ use super::{
     scratcharena::ScratchArena,
     soundinputnode::{SoundInputNode, SoundProcessorInput},
     soundnumberinputnode::{
-        SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor, SoundNumberInputNodeVisitorMut,
+        SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
+        SoundNumberInputNodeVisitorMut,
     },
 };
 
@@ -104,13 +105,17 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
         for t in self.sound_input.targets_mut() {
             t.timing_mut().require_reset();
         }
+        self.number_input
+            .visit_number_inputs_mut(&mut |node: &mut SoundNumberInputNode<'ctx>| {
+                node.reset();
+            });
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
         let status = T::process_audio(
             &mut self.state,
             &mut self.sound_input,
-            &self.number_input,
+            &mut self.number_input,
             dst,
             ctx,
         );
@@ -153,7 +158,7 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
             &*self.processor,
             &self.timing,
             &mut self.sound_input,
-            &self.number_input,
+            &mut self.number_input,
             dst,
             ctx,
         );

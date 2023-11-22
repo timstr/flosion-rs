@@ -109,7 +109,7 @@ impl DynamicSoundProcessor for Ensemble {
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut KeyedInputNode<'ctx, VoiceState>,
-        number_inputs: &Self::NumberInputType<'ctx>,
+        number_inputs: &mut Self::NumberInputType<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {

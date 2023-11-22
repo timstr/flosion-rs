@@ -74,7 +74,7 @@ pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
         processor: &StaticSoundProcessorWithId<Self>,
         timing: &ProcessorTiming,
         sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-        number_inputs: &Self::NumberInputType<'ctx>,
+        number_inputs: &mut Self::NumberInputType<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     );
@@ -103,7 +103,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<Self::StateType>,
         sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-        number_inputs: &Self::NumberInputType<'ctx>,
+        number_inputs: &mut Self::NumberInputType<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus;

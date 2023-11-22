@@ -91,7 +91,7 @@ impl DynamicSoundProcessor for Resampler {
     fn process_audio(
         state: &mut StateAndTiming<ResamplerState>,
         sound_inputs: &mut SingleInputNode,
-        number_inputs: &ResamplerNumberInputs,
+        number_inputs: &mut ResamplerNumberInputs,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {

@@ -124,7 +124,7 @@ impl<T: PureNumberSource> GraphObject<NumberGraph> for PureNumberSourceWithId<T>
         init: ObjectInitialization,
     ) -> Result<GraphObjectHandle<NumberGraph>, ()> {
         graph
-            .add_number_source::<T>(init)
+            .add_pure_number_source::<T>(init)
             .map(|h| h.into_graph_object())
     }
 
@@ -231,6 +231,24 @@ pub struct StatefulNumberSourceWithId<T: StatefulNumberSource> {
     id: NumberSourceId,
 }
 
+impl<T: StatefulNumberSource> StatefulNumberSourceWithId<T> {
+    pub(crate) fn new(source: T, id: NumberSourceId) -> StatefulNumberSourceWithId<T> {
+        StatefulNumberSourceWithId { source, id }
+    }
+
+    pub(crate) fn id(&self) -> NumberSourceId {
+        self.id
+    }
+}
+
+impl<T: StatefulNumberSource> Deref for StatefulNumberSourceWithId<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.source
+    }
+}
+
 impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
     fn num_variables(&self) -> usize {
         T::NUM_VARIABLES
@@ -251,6 +269,94 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
     }
 
     fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph> {
-        todo!()
+        GraphObjectHandle::new(self)
+    }
+}
+
+impl<T: StatefulNumberSource> GraphObject<NumberGraph> for StatefulNumberSourceWithId<T> {
+    fn create(
+        graph: &mut NumberGraph,
+        init: ObjectInitialization,
+    ) -> Result<GraphObjectHandle<NumberGraph>, ()> {
+        graph
+            .add_stateful_number_source::<T>(init)
+            .map(|h| h.into_graph_object())
+    }
+
+    fn get_type() -> ObjectType {
+        T::TYPE
+    }
+
+    fn get_dynamic_type(&self) -> ObjectType {
+        T::TYPE
+    }
+
+    fn get_id(&self) -> NumberSourceId {
+        self.id
+    }
+
+    fn into_arc_any(self: Arc<Self>) -> Arc<dyn std::any::Any + Send + Sync> {
+        self
+    }
+
+    fn get_language_type_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
+
+    fn serialize(&self, serializer: Serializer) {
+        (&*self as &T).serialize(serializer);
+    }
+}
+
+pub struct StatefulNumberSourceHandle<T: StatefulNumberSource> {
+    instance: Arc<StatefulNumberSourceWithId<T>>,
+}
+
+impl<T: StatefulNumberSource> StatefulNumberSourceHandle<T> {
+    pub(super) fn new(instance: Arc<StatefulNumberSourceWithId<T>>) -> Self {
+        Self { instance }
+    }
+
+    pub(super) fn from_graph_object(handle: GraphObjectHandle<NumberGraph>) -> Option<Self> {
+        let arc_any = handle.into_instance_arc().into_arc_any();
+        match arc_any.downcast::<StatefulNumberSourceWithId<T>>() {
+            Ok(obj) => Some(StatefulNumberSourceHandle::new(obj)),
+            Err(_) => None,
+        }
+    }
+
+    pub fn id(&self) -> NumberSourceId {
+        self.instance.id()
+    }
+
+    pub fn into_graph_object(self) -> GraphObjectHandle<NumberGraph> {
+        GraphObjectHandle::new(self.instance)
+    }
+}
+impl<T: StatefulNumberSource> Deref for StatefulNumberSourceHandle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.instance
+    }
+}
+
+impl<T: StatefulNumberSource> Clone for StatefulNumberSourceHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: Arc::clone(&self.instance),
+        }
+    }
+}
+
+impl<T: StatefulNumberSource> ObjectHandle<NumberGraph> for StatefulNumberSourceHandle<T> {
+    type ObjectType = StatefulNumberSourceWithId<T>;
+
+    fn from_graph_object(object: GraphObjectHandle<NumberGraph>) -> Option<Self> {
+        StatefulNumberSourceHandle::from_graph_object(object)
+    }
+
+    fn object_type() -> ObjectType {
+        T::TYPE
     }
 }

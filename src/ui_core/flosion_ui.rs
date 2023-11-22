@@ -99,7 +99,7 @@ impl FlosionApp {
                     let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
                     let wavgen_phase_giid = mapping.add_target(wavgen.phase.id(), numbergraph);
                     let saw = numbergraph
-                        .add_number_source::<SawWave>(ObjectInitialization::Default)
+                        .add_pure_number_source::<SawWave>(ObjectInitialization::Default)
                         .unwrap();
                     // brutal
                     numbergraph
@@ -109,20 +109,20 @@ impl FlosionApp {
                         )
                         .unwrap();
                     let variable = numbergraph
-                        .add_number_source::<Variable>(ObjectInitialization::Default)
+                        .add_pure_number_source::<Variable>(ObjectInitialization::Default)
                         .unwrap();
                     variable.set_value(1.0);
 
                     let add1 = numbergraph
-                        .add_number_source::<Add>(ObjectInitialization::Default)
+                        .add_pure_number_source::<Add>(ObjectInitialization::Default)
                         .unwrap();
 
                     let add2 = numbergraph
-                        .add_number_source::<Add>(ObjectInitialization::Default)
+                        .add_pure_number_source::<Add>(ObjectInitialization::Default)
                         .unwrap();
 
                     let multiply = numbergraph
-                        .add_number_source::<Multiply>(ObjectInitialization::Default)
+                        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
                         .unwrap();
 
                     numbergraph
@@ -184,7 +184,7 @@ impl FlosionApp {
                 .edit_number_input(ensemble.frequency_in.id(), |numberinputdata| {
                     let numbergraph = numberinputdata.number_graph_mut();
                     let variable = numbergraph
-                        .add_number_source::<Variable>(ObjectInitialization::Default)
+                        .add_pure_number_source::<Variable>(ObjectInitialization::Default)
                         .unwrap();
                     variable.set_value(60.0);
                     numbergraph

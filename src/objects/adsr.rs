@@ -165,7 +165,7 @@ impl DynamicSoundProcessor for ADSR {
     fn process_audio(
         state: &mut StateAndTiming<ADSRState>,
         sound_input: &mut SingleInputNode,
-        number_input: &ADSRNumberInputs,
+        number_input: &mut ADSRNumberInputs,
         dst: &mut SoundChunk,
         mut context: Context,
     ) -> StreamStatus {

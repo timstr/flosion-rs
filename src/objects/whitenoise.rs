@@ -40,7 +40,7 @@ impl DynamicSoundProcessor for WhiteNoise {
     fn process_audio(
         _state: &mut StateAndTiming<()>,
         _sound_inputs: &mut (),
-        _number_inputs: &(),
+        _number_inputs: &mut (),
         dst: &mut SoundChunk,
         _ctx: Context,
     ) -> StreamStatus {

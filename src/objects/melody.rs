@@ -176,7 +176,7 @@ impl DynamicSoundProcessor for Melody {
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<Self::StateType>,
         sound_input: &mut KeyedInputQueueNode<NoteState>,
-        _number_inputs: &(),
+        _number_inputs: &mut (),
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {

@@ -15,7 +15,10 @@ use super::{
     numbergrapherror::NumberError,
     numbergraphtopology::NumberGraphTopology,
     numberinput::NumberInputId,
-    numbersource::{NumberSourceId, PureNumberSource, PureNumberSourceHandle},
+    numbersource::{
+        NumberSourceId, PureNumberSource, PureNumberSourceHandle, StatefulNumberSource,
+        StatefulNumberSourceHandle, StatefulNumberSourceWithId,
+    },
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -134,7 +137,7 @@ impl NumberGraph {
         self.try_make_edits(edits)
     }
 
-    pub fn add_number_source<T: PureNumberSource>(
+    pub fn add_pure_number_source<T: PureNumberSource>(
         &mut self,
         init: ObjectInitialization,
     ) -> Result<PureNumberSourceHandle<T>, ()> {
@@ -150,6 +153,24 @@ impl NumberGraph {
         edit_queue.insert(0, NumberGraphEdit::AddNumberSource(data));
         self.try_make_edits(edit_queue).unwrap();
         Ok(PureNumberSourceHandle::new(source))
+    }
+
+    pub fn add_stateful_number_source<T: StatefulNumberSource>(
+        &mut self,
+        init: ObjectInitialization,
+    ) -> Result<StatefulNumberSourceHandle<T>, ()> {
+        let id = self.number_source_idgen.next_id();
+        let mut edit_queue = Vec::new();
+        let source;
+        {
+            let tools = NumberSourceTools::new(id, &mut self.number_input_idgen, &mut edit_queue);
+            source = Arc::new(StatefulNumberSourceWithId::new(T::new(tools, init)?, id));
+        }
+        let source2 = Arc::clone(&source);
+        let data = NumberSourceData::new(id, source2);
+        edit_queue.insert(0, NumberGraphEdit::AddNumberSource(data));
+        self.try_make_edits(edit_queue).unwrap();
+        Ok(StatefulNumberSourceHandle::new(source))
     }
 
     pub fn remove_number_source(&mut self, id: NumberSourceId) -> Result<(), NumberError> {
