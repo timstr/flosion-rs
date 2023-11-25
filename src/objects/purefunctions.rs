@@ -3,18 +3,14 @@ use crate::{
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         jit::codegen::CodeGen,
         number::{
-            numberinput::NumberInputHandle,
-            numbersource::{PureNumberSource, StatefulNumberSource},
+            numberinput::NumberInputHandle, numbersource::PureNumberSource,
             numbersourcetools::NumberSourceTools,
         },
     },
     ui_core::arguments::FloatArgument,
 };
 use atomic_float::AtomicF32;
-use inkwell::{
-    values::{FloatValue, PointerValue},
-    FloatPredicate,
-};
+use inkwell::{values::FloatValue, FloatPredicate};
 use serialization::Serializer;
 use std::sync::{atomic::Ordering, Arc};
 

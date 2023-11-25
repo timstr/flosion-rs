@@ -24,10 +24,6 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
         }
     }
 
-    pub(crate) fn topology(&self) -> &SoundGraphTopology {
-        self.topology
-    }
-
     pub(crate) fn get_compiled_number_input(
         &self,
         id: SoundNumberInputId,

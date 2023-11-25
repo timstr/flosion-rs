@@ -93,7 +93,6 @@ pub(super) unsafe extern "C" fn processor_time_wrapper(
     context_1: usize,
     context_2: usize,
     sound_processor_id: usize,
-    time_step: f32,
     ptr_time: *mut f32,
     ptr_speed: *mut f32,
 ) {

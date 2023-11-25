@@ -3,10 +3,7 @@ use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
-    core::number::{
-        numbergraph::NumberGraph,
-        numbersource::{PureNumberSourceHandle, StatefulNumberSourceHandle},
-    },
+    core::number::{numbergraph::NumberGraph, numbersource::PureNumberSourceHandle},
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},

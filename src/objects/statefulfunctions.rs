@@ -10,8 +10,8 @@ use crate::core::{
 };
 
 pub struct ExponentialApproach {
-    input: NumberInputHandle,
-    decay_rate: NumberInputHandle,
+    _input: NumberInputHandle,
+    _decay_rate: NumberInputHandle,
 }
 
 impl StatefulNumberSource for ExponentialApproach {
@@ -19,8 +19,8 @@ impl StatefulNumberSource for ExponentialApproach {
 
     fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ExponentialApproach {
-            input: tools.add_number_input(0.0),
-            decay_rate: tools.add_number_input(0.5),
+            _input: tools.add_number_input(0.0),
+            _decay_rate: tools.add_number_input(0.5),
         })
     }
 
