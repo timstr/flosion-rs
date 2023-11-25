@@ -61,6 +61,9 @@ impl WithObjectType for Constant {
     const TYPE: ObjectType = ObjectType::new("constant");
 }
 
+// Note: Variable isn't strictly speaking "pure" in the mathematical sense,
+// but it is intended to not vary rapidly (e.g. at audio rates) and
+// doesn't need any extra per-number-input state to be stored.
 pub struct Variable {
     value: Arc<AtomicF32>,
 }
@@ -110,64 +113,12 @@ impl WithObjectType for Variable {
     const TYPE: ObjectType = ObjectType::new("variable");
 }
 
-pub struct ExponentialApproach {
-    input: NumberInputHandle,
-}
-
-impl StatefulNumberSource for ExponentialApproach {
-    const NUM_VARIABLES: usize = 1;
-
-    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
-        Ok(ExponentialApproach {
-            input: tools.add_number_input(0.0),
-        })
-    }
-
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![codegen.float_type().const_float(0.0)]
-    }
-
-    fn compile_loop<'ctx>(
-        &self,
-        codegen: &mut CodeGen<'ctx>,
-        inputs: &[FloatValue<'ctx>],
-        variables: &[PointerValue<'ctx>],
-    ) -> FloatValue<'ctx> {
-        debug_assert_eq!(inputs.len(), 1);
-        debug_assert_eq!(variables.len(), 1);
-        let k = codegen.float_type().const_float(0.01);
-        let input = inputs[0];
-        let ptr_val = variables[0];
-        let prev_val = codegen
-            .builder()
-            .build_load(ptr_val, "prev_val")
-            .into_float_value();
-        let diff = codegen.builder().build_float_sub(input, prev_val, "diff");
-        let scaled_diff = codegen.builder().build_float_mul(diff, k, "scaled_diff");
-        let next_val = codegen
-            .builder()
-            .build_float_add(prev_val, scaled_diff, "next_val");
-        codegen.builder().build_store(ptr_val, next_val);
-        next_val
-    }
-}
-
-impl WithObjectType for ExponentialApproach {
-    const TYPE: ObjectType = ObjectType::new("exponentialapproach");
-}
-
-// TODO: add Random number source for uniform random values.
-// This could be done efficiently by implementing something like
-// an LFSR with integer state that is persisted between evaluations.
-// This would require:
-//  - Adding persistent data to a compiled number source
-//    (ALREADY NEEDED for stateful number sources)
-//  - Adding first-time initialization of that data when
-//    when things are reset (e.g. to zero or optionally seed the LFSR state)
-//    (Would be useful also in general for stateful number sources)
-//  - LLVM operations on integers (totally ok)
-//  - a more hairy LlvmImplementation that generates arbitrary code and exposes
-//    facilities to reset, save, and restore operations for temporary state (but that's ok too)
+// TODO: stateful number sources:
+// - linear approach
+// - max
+// - min
+// - random
+// - wrapping integrator
 
 enum LlvmImplementation {
     IntrinsicUnary(&'static str),

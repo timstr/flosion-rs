@@ -13,7 +13,7 @@ use crate::{
         },
         uniqueid::{IdGenerator, UniqueId},
     },
-    objects::functions::Constant,
+    objects::purefunctions::Constant,
     ui_core::{
         arguments::ParsedArguments,
         lexicallayout::{

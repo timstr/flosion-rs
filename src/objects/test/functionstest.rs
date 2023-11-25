@@ -35,7 +35,7 @@ use crate::{
         soundchunk::SoundChunk,
         uniqueid::IdGenerator,
     },
-    objects::functions::*,
+    objects::purefunctions::*,
 };
 
 const TEST_ARRAY_SIZE: usize = 1024;

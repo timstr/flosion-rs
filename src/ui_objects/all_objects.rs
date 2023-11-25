@@ -14,15 +14,16 @@ use super::{
     audioclip_ui::AudioClipUi,
     dac_ui::DacUi,
     ensemble_ui::EnsembleUi,
-    functions_ui::{
-        AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
-        Exp2Ui, ExpUi, ExponentialApproachUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi,
-        MultiplyUi, NegateUi, PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi,
-        SquareWaveUi, SubtractUi, TriangleWaveUi, TruncUi,
-    },
     mixer_ui::MixerUi,
+    pure_function_uis::{
+        AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
+        Exp2Ui, ExpUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi, MultiplyUi, NegateUi,
+        PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi, SquareWaveUi, SubtractUi,
+        TriangleWaveUi, TruncUi,
+    },
     recorder_ui::RecorderUi,
     resampler_ui::ResamplerUi,
+    stateful_function_uis::ExponentialApproachUi,
     wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
 };

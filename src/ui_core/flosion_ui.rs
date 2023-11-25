@@ -21,7 +21,7 @@ use crate::{
     objects::{
         dac::Dac,
         ensemble::Ensemble,
-        functions::{Add, Multiply, SawWave, Variable},
+        purefunctions::{Add, Multiply, SawWave, Variable},
         wavegenerator::WaveGenerator,
     },
     ui_objects::all_objects::{all_number_graph_objects, all_sound_graph_objects},

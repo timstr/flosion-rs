@@ -830,6 +830,10 @@ impl<'ctx> CodeGen<'ctx> {
         load.into_float_value()
     }
 
+    pub fn time_step(&self) -> FloatValue<'ctx> {
+        self.local_variables.time_step
+    }
+
     pub(crate) fn compile_number_input(
         mut self,
         number_input_id: SoundNumberInputId,
