@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use atomic_float::AtomicF32;
 use send_wrapper::SendWrapper;
 
 use crate::core::{
-    engine::garbage::{Garbage, GarbageChute},
+    engine::garbage::{Droppable, Garbage, GarbageChute},
     number::context::{number_context_to_usize_pair, NumberContext},
     samplefrequency::SAMPLE_TIME_STEP,
 };
@@ -24,7 +23,7 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
 struct CompiledNumberInputData<'ctx> {
     _execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
     _function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
-    _atomic_captures: Vec<Arc<AtomicF32>>,
+    _atomic_captures: Vec<Arc<dyn Droppable>>,
     num_state_variables: usize,
     raw_function: EvalNumberInputFunc,
 }
@@ -34,7 +33,7 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
         execution_engine: inkwell::execution_engine::ExecutionEngine<'inkwell_ctx>,
         function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalNumberInputFunc>,
         num_state_variables: usize,
-        atomic_captures: Vec<Arc<AtomicF32>>,
+        atomic_captures: Vec<Arc<dyn Droppable>>,
     ) -> CompiledNumberInputData<'inkwell_ctx> {
         // SAFETY: the ExecutionEngine and JitFunction must outlive the
         // raw function pointer. Storing an Arc to both of those ensures
@@ -64,7 +63,7 @@ impl<'ctx> CompiledNumberInput<'ctx> {
         execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
         function: inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>,
         num_state_variables: usize,
-        atomic_captures: Vec<Arc<AtomicF32>>,
+        atomic_captures: Vec<Arc<dyn Droppable>>,
     ) -> CompiledNumberInput<'ctx> {
         CompiledNumberInput {
             data: Arc::new(CompiledNumberInputData::new(

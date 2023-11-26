@@ -12,6 +12,7 @@ use inkwell::{
 };
 
 use crate::core::{
+    engine::garbage::Droppable,
     number::{
         numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology,
         numberinput::NumberInputId, numbersource::NumberSourceId,
@@ -59,7 +60,7 @@ pub struct CodeGen<'ctx> {
     pub(super) module: Module<'ctx>,
     execution_engine: ExecutionEngine<'ctx>,
     function_name: String,
-    pub(super) atomic_captures: Vec<Arc<AtomicF32>>,
+    pub(super) atomic_captures: Vec<Arc<dyn Droppable>>,
     pub(super) compiled_targets: HashMap<NumberTarget, FloatValue<'ctx>>,
     num_state_variables: usize,
     state_array_offsets: Vec<(NumberSourceId, usize)>,
