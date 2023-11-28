@@ -324,6 +324,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73b5e5f48b927f04e952dedc932f31995a65a0bf65ec971c74436e51bf6e970d"
 
 [[package]]
+name = "atomicslice"
+version = "0.1.0"
+source = "git+https://github.com/timstr/atomicslice?branch=main#4f7325f907629cbc164a6a71eb4c823dc6fb389c"
+
+[[package]]
 name = "atspi"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1049,6 +1054,7 @@ name = "flosion"
 version = "0.1.0"
 dependencies = [
  "atomic_float",
+ "atomicslice",
  "base64",
  "cpal",
  "eframe",

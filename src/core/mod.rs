@@ -1,5 +1,4 @@
 pub(crate) mod anydata;
-pub(crate) mod atomicslice;
 pub mod number;
 pub mod sound;
 // pub mod graphserialization;
