@@ -4,6 +4,8 @@ pub(crate) struct JitTypes<'ctx> {
     pub(crate) void_type: VoidType<'ctx>,
     pub(crate) u8_type: IntType<'ctx>,
     pub(crate) u8_pointer_type: PointerType<'ctx>,
+    pub(crate) u64_type: IntType<'ctx>,
+    pub(crate) u64_pointer_type: PointerType<'ctx>,
     pub(crate) pointer_type: PointerType<'ctx>,
     pub(crate) f32_type: FloatType<'ctx>,
     pub(crate) f32_pointer_type: PointerType<'ctx>,
@@ -21,6 +23,8 @@ impl<'ctx> JitTypes<'ctx> {
         let void_type = inkwell_context.void_type();
         let u8_type = inkwell_context.i8_type();
         let u8_pointer_type = u8_type.ptr_type(address_space);
+        let u64_type = inkwell_context.i64_type();
+        let u64_pointer_type = u64_type.ptr_type(address_space);
         let pointer_type = u8_type.ptr_type(address_space);
         let f32_type = inkwell_context.f32_type();
         let f32_pointer_type = f32_type.ptr_type(address_space);
@@ -30,6 +34,8 @@ impl<'ctx> JitTypes<'ctx> {
             void_type,
             u8_type,
             u8_pointer_type,
+            u64_type,
+            u64_pointer_type,
             pointer_type,
             f32_type,
             f32_pointer_type,

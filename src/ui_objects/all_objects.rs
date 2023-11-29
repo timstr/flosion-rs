@@ -23,6 +23,7 @@ use super::{
     },
     recorder_ui::RecorderUi,
     resampler_ui::ResamplerUi,
+    sampler1d_ui::Sampler1dUi,
     stateful_function_uis::ExponentialApproachUi,
     wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
@@ -85,6 +86,7 @@ pub fn all_number_graph_objects() -> (ObjectFactory<NumberGraph>, UiFactory<Numb
     helper.register::<SliderUi>();
 
     helper.register::<ExponentialApproachUi>();
+    helper.register::<Sampler1dUi>();
 
     helper.register::<NegateUi>();
     helper.register::<FloorUi>();

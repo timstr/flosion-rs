@@ -324,19 +324,26 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         }
 
         // ===========================================================
-        // =           Pre-loop resumption and preparation           =
+        // =                Non-first-time resumption                =
         // ===========================================================
         // copy state array values into stack variables
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_pre_loop);
+            .position_before(&codegen.instruction_locations.end_of_resume);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *ptr_state
             let tmp = codegen.builder().build_load(*ptr_state, "tmp");
             // *stack_var = tmp
             codegen.builder().build_store(*stack_var, tmp);
         }
+
+        // ===========================================================
+        // =           Pre-loop resumption and preparation           =
+        // ===========================================================
         // any custom pre-loop work
+        codegen
+            .builder()
+            .position_before(&codegen.instruction_locations.end_of_pre_loop);
         let compile_state = self.source.compile_pre_loop(codegen);
 
         // ===========================================================

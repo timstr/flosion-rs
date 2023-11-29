@@ -36,6 +36,7 @@ pub(super) const FLAG_INITIALIZED: u8 = 0;
 pub(crate) struct InstructionLocations<'ctx> {
     pub(crate) end_of_entry: InstructionValue<'ctx>,
     pub(crate) end_of_reset: InstructionValue<'ctx>,
+    pub(crate) end_of_resume: InstructionValue<'ctx>,
     pub(crate) end_of_pre_loop: InstructionValue<'ctx>,
     pub(crate) end_of_post_loop: InstructionValue<'ctx>,
     pub(crate) end_of_loop: InstructionValue<'ctx>,
@@ -113,6 +114,7 @@ impl<'ctx> CodeGen<'ctx> {
         let bb_check_reset =
             inkwell_context.append_basic_block(fn_eval_number_input, "check_reset");
         let bb_reset = inkwell_context.append_basic_block(fn_eval_number_input, "reset");
+        let bb_resume = inkwell_context.append_basic_block(fn_eval_number_input, "resume");
         let bb_pre_loop = inkwell_context.append_basic_block(fn_eval_number_input, "pre_loop");
         let bb_loop = inkwell_context.append_basic_block(fn_eval_number_input, "loop");
         let bb_post_loop = inkwell_context.append_basic_block(fn_eval_number_input, "post_loop");
@@ -155,10 +157,12 @@ impl<'ctx> CodeGen<'ctx> {
         arg_ctx_2.set_name("context_2");
 
         let inst_end_of_entry;
-        let inst_end_of_init_variables;
-        let inst_end_of_load_variables;
+        let inst_end_of_reset;
+        let inst_end_of_resume;
+        let inst_end_of_pre_loop;
         let inst_end_of_loop;
-        let inst_end_of_store_variables;
+        let inst_end_of_post_loop;
+
         let v_loop_counter;
 
         // entry
@@ -195,8 +199,8 @@ impl<'ctx> CodeGen<'ctx> {
                 "was_init",
             );
 
-            // if was_init { goto pre_loop } else { goto reset }
-            builder.build_conditional_branch(was_init, bb_pre_loop, bb_reset);
+            // if was_init { goto resume } else { goto reset }
+            builder.build_conditional_branch(was_init, bb_resume, bb_reset);
         }
 
         // reset
@@ -210,17 +214,26 @@ impl<'ctx> CodeGen<'ctx> {
 
             // stateful number source init code will be inserted here
 
-            // goto loop
-            inst_end_of_init_variables = builder.build_unconditional_branch(bb_loop);
+            // goto pre_loop
+            inst_end_of_reset = builder.build_unconditional_branch(bb_pre_loop);
+        }
+
+        // resume
+        builder.position_at_end(bb_resume);
+        {
+            // stateful number source load code will be inserted here
+
+            // goto pre_loop
+            inst_end_of_resume = builder.build_unconditional_branch(bb_pre_loop);
         }
 
         // pre_loop
         builder.position_at_end(bb_pre_loop);
         {
-            // stateful number source load code will be inserted here
+            // stateful number source pre-loop code will be inserted here
 
             // goto loop
-            inst_end_of_load_variables = builder.build_unconditional_branch(bb_loop);
+            inst_end_of_pre_loop = builder.build_unconditional_branch(bb_loop);
         }
 
         // loop
@@ -236,7 +249,6 @@ impl<'ctx> CodeGen<'ctx> {
             );
 
             phi.add_incoming(&[
-                (&types.usize_type.const_zero(), bb_reset),
                 (&types.usize_type.const_zero(), bb_pre_loop),
                 (&v_loop_counter_inc, bb_loop),
             ]);
@@ -261,10 +273,10 @@ impl<'ctx> CodeGen<'ctx> {
         // post_loop
         builder.position_at_end(bb_post_loop);
         {
-            // stateful number source store code will be inserted here
+            // stateful number source store and post-loop code will be inserted here
 
             // goto exit
-            inst_end_of_store_variables = builder.build_unconditional_branch(bb_exit);
+            inst_end_of_post_loop = builder.build_unconditional_branch(bb_exit);
         }
 
         // exit
@@ -275,9 +287,10 @@ impl<'ctx> CodeGen<'ctx> {
 
         let instruction_locations = InstructionLocations {
             end_of_entry: inst_end_of_entry,
-            end_of_reset: inst_end_of_init_variables,
-            end_of_pre_loop: inst_end_of_load_variables,
-            end_of_post_loop: inst_end_of_store_variables,
+            end_of_reset: inst_end_of_reset,
+            end_of_resume: inst_end_of_resume,
+            end_of_pre_loop: inst_end_of_pre_loop,
+            end_of_post_loop: inst_end_of_post_loop,
             end_of_loop: inst_end_of_loop,
         };
 
