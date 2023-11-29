@@ -63,19 +63,6 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
 pub trait NumberSource: 'static + Sync + Send {
     fn num_variables(&self) -> usize;
 
-    // fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
-
-    // fn compile_before_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>);
-
-    // fn compile_after_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>);
-
-    // fn compile_loop<'ctx>(
-    //     &self,
-    //     codegen: &mut CodeGen<'ctx>,
-    //     inputs: &[FloatValue<'ctx>],
-    //     variables: &[PointerValue<'ctx>],
-    // ) -> FloatValue<'ctx>;
-
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
@@ -114,24 +101,6 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
         0
     }
 
-    // fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-    //     Vec::new()
-    // }
-
-    // fn compile_before_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {}
-
-    // fn compile_after_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {}
-
-    // fn compile_loop<'ctx>(
-    //     &self,
-    //     codegen: &mut CodeGen<'ctx>,
-    //     inputs: &[FloatValue<'ctx>],
-    //     variables: &[PointerValue<'ctx>],
-    // ) -> FloatValue<'ctx> {
-    //     debug_assert_eq!(variables.len(), 0);
-    //     self.source.compile(codegen, inputs)
-    // }
-
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
@@ -141,7 +110,7 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
         debug_assert_eq!(variables.len(), 0);
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_bb_loop);
+            .position_before(&codegen.instruction_locations.end_of_loop);
         self.source.compile(codegen, inputs)
     }
 
@@ -322,28 +291,6 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         T::NUM_VARIABLES
     }
 
-    // fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-    //     self.source.compile_init(codegen)
-    // }
-
-    // fn compile_before_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {
-    //     self.source.compile_pre_loop(codegen)
-    // }
-
-    // fn compile_after_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {
-    //     self.source.compile_pre_loop(codegen);
-    // }
-
-    // fn compile_loop<'ctx>(
-    //     &self,
-    //     codegen: &mut CodeGen<'ctx>,
-    //     inputs: &[FloatValue<'ctx>],
-    //     variables: &[PointerValue<'ctx>],
-    // ) -> FloatValue<'ctx> {
-    //     debug_assert_eq!(variables.len(), self.num_variables());
-    //     self.source.compile_loop(codegen, inputs, variables)
-    // }
-
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
@@ -353,7 +300,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         // Allocate stack variables for state variables
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_bb_entry);
+            .position_before(&codegen.instruction_locations.end_of_entry);
         let stack_variables: Vec<PointerValue<'ctx>> = (0..self.num_variables())
             .map(|i| {
                 codegen.builder().build_alloca(
@@ -369,7 +316,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         // assign initial values to stack variables
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_init_variables);
+            .position_before(&codegen.instruction_locations.end_of_reset);
         let init_variable_values = self.compile_init(codegen);
         debug_assert_eq!(init_variable_values.len(), self.num_variables());
         for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
@@ -382,7 +329,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         // copy state array values into stack variables
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_load_variables);
+            .position_before(&codegen.instruction_locations.end_of_pre_loop);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *ptr_state
             let tmp = codegen.builder().build_load(*ptr_state, "tmp");
@@ -398,7 +345,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         // at end of loop, copy stack variables into state array
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_store_variables);
+            .position_before(&codegen.instruction_locations.end_of_post_loop);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *stack_var
             let tmp = codegen.builder().build_load(*stack_var, "tmp");
@@ -413,7 +360,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         // ===========================================================
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_bb_loop);
+            .position_before(&codegen.instruction_locations.end_of_loop);
         let loop_value = self.compile_loop(codegen, inputs, &stack_variables, &compile_state);
 
         loop_value

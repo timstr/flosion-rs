@@ -34,20 +34,11 @@ pub(super) const FLAG_NOT_INITIALIZED: u8 = 0;
 pub(super) const FLAG_INITIALIZED: u8 = 0;
 
 pub(crate) struct InstructionLocations<'ctx> {
-    // TODO: remove bb
-    pub(crate) end_of_bb_entry: InstructionValue<'ctx>,
-
-    // TODO: rename to reset
-    pub(crate) end_of_init_variables: InstructionValue<'ctx>,
-
-    // TODO: rename to pre_loop
-    pub(crate) end_of_load_variables: InstructionValue<'ctx>,
-
-    // TODO: rename to post_loop
-    pub(crate) end_of_store_variables: InstructionValue<'ctx>,
-
-    // TODO: remove bb
-    pub(crate) end_of_bb_loop: InstructionValue<'ctx>,
+    pub(crate) end_of_entry: InstructionValue<'ctx>,
+    pub(crate) end_of_reset: InstructionValue<'ctx>,
+    pub(crate) end_of_pre_loop: InstructionValue<'ctx>,
+    pub(crate) end_of_post_loop: InstructionValue<'ctx>,
+    pub(crate) end_of_loop: InstructionValue<'ctx>,
 }
 
 pub(super) struct LocalVariables<'ctx> {
@@ -119,14 +110,12 @@ impl<'ctx> CodeGen<'ctx> {
             module.add_function(&function_name, fn_eval_number_input_type, None);
 
         let bb_entry = inkwell_context.append_basic_block(fn_eval_number_input, "entry");
-        let bb_check_init = inkwell_context.append_basic_block(fn_eval_number_input, "check_init");
-        let bb_init_variables =
-            inkwell_context.append_basic_block(fn_eval_number_input, "init_variables");
-        let bb_load_variables =
-            inkwell_context.append_basic_block(fn_eval_number_input, "load_variables");
+        let bb_check_reset =
+            inkwell_context.append_basic_block(fn_eval_number_input, "check_reset");
+        let bb_reset = inkwell_context.append_basic_block(fn_eval_number_input, "reset");
+        let bb_pre_loop = inkwell_context.append_basic_block(fn_eval_number_input, "pre_loop");
         let bb_loop = inkwell_context.append_basic_block(fn_eval_number_input, "loop");
-        let bb_store_variables =
-            inkwell_context.append_basic_block(fn_eval_number_input, "store_variables");
+        let bb_post_loop = inkwell_context.append_basic_block(fn_eval_number_input, "post_loop");
         let bb_exit = inkwell_context.append_basic_block(fn_eval_number_input, "exit");
 
         // read arguments
@@ -185,13 +174,13 @@ impl<'ctx> CodeGen<'ctx> {
 
             // array read functions and state pointer offsets will be inserted here later
 
-            // if len == 0 { goto exit } else { goto check_init }
+            // if len == 0 { goto exit } else { goto check_reset }
             inst_end_of_entry =
-                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_init);
+                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_reset);
         }
 
-        // check_init
-        builder.position_at_end(bb_check_init);
+        // check_reset
+        builder.position_at_end(bb_check_reset);
         {
             // init_flag = *ptr_init_flag
             let init_flag = builder
@@ -206,12 +195,12 @@ impl<'ctx> CodeGen<'ctx> {
                 "was_init",
             );
 
-            // if was_init { goto load_variables } else { goto init_variables }
-            builder.build_conditional_branch(was_init, bb_load_variables, bb_init_variables);
+            // if was_init { goto pre_loop } else { goto reset }
+            builder.build_conditional_branch(was_init, bb_pre_loop, bb_reset);
         }
 
-        // init_variables
-        builder.position_at_end(bb_init_variables);
+        // reset
+        builder.position_at_end(bb_reset);
         {
             // *ptr_init_flag = 1
             builder.build_store(
@@ -225,8 +214,8 @@ impl<'ctx> CodeGen<'ctx> {
             inst_end_of_init_variables = builder.build_unconditional_branch(bb_loop);
         }
 
-        // load_variables
-        builder.position_at_end(bb_load_variables);
+        // pre_loop
+        builder.position_at_end(bb_pre_loop);
         {
             // stateful number source load code will be inserted here
 
@@ -247,8 +236,8 @@ impl<'ctx> CodeGen<'ctx> {
             );
 
             phi.add_incoming(&[
-                (&types.usize_type.const_zero(), bb_init_variables),
-                (&types.usize_type.const_zero(), bb_load_variables),
+                (&types.usize_type.const_zero(), bb_reset),
+                (&types.usize_type.const_zero(), bb_pre_loop),
                 (&v_loop_counter_inc, bb_loop),
             ]);
 
@@ -264,16 +253,13 @@ impl<'ctx> CodeGen<'ctx> {
 
             // loop body will be inserted here
 
-            // if loop_counter >= dst_len { goto exit } else { goto loop_body }
-            inst_end_of_loop = builder.build_conditional_branch(
-                v_loop_counter_ge_len,
-                bb_store_variables,
-                bb_loop,
-            );
+            // if loop_counter >= dst_len { goto post_loop } else { goto loop_body }
+            inst_end_of_loop =
+                builder.build_conditional_branch(v_loop_counter_ge_len, bb_post_loop, bb_loop);
         }
 
-        // store_variables
-        builder.position_at_end(bb_store_variables);
+        // post_loop
+        builder.position_at_end(bb_post_loop);
         {
             // stateful number source store code will be inserted here
 
@@ -288,11 +274,11 @@ impl<'ctx> CodeGen<'ctx> {
         }
 
         let instruction_locations = InstructionLocations {
-            end_of_bb_entry: inst_end_of_entry,
-            end_of_init_variables: inst_end_of_init_variables,
-            end_of_load_variables: inst_end_of_load_variables,
-            end_of_store_variables: inst_end_of_store_variables,
-            end_of_bb_loop: inst_end_of_loop,
+            end_of_entry: inst_end_of_entry,
+            end_of_reset: inst_end_of_init_variables,
+            end_of_pre_loop: inst_end_of_load_variables,
+            end_of_post_loop: inst_end_of_store_variables,
+            end_of_loop: inst_end_of_loop,
         };
 
         let local_variables = LocalVariables {
@@ -413,7 +399,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                 // Get pointers to state variables in shared state array
                 self.builder
-                    .position_before(&self.instruction_locations.end_of_bb_entry);
+                    .position_before(&self.instruction_locations.end_of_entry);
                 let state_ptrs: Vec<PointerValue<'ctx>> = (0..num_variables)
                     .map(|i| {
                         let ptr_all_states = self.local_variables.state;
@@ -466,7 +452,7 @@ impl<'ctx> CodeGen<'ctx> {
         function: ScalarReadFunc,
     ) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_entry);
+            .position_before(&self.instruction_locations.end_of_entry);
         let function_addr = self.types.usize_type.const_int(function as u64, false);
         let siid = self
             .types
@@ -489,7 +475,7 @@ impl<'ctx> CodeGen<'ctx> {
             .into_float_value();
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         scalar_read_retv
     }
@@ -500,7 +486,7 @@ impl<'ctx> CodeGen<'ctx> {
         function: ScalarReadFunc,
     ) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_entry);
+            .position_before(&self.instruction_locations.end_of_entry);
         let function_addr = self.types.usize_type.const_int(function as u64, false);
         let spid = self
             .types
@@ -523,7 +509,7 @@ impl<'ctx> CodeGen<'ctx> {
             .into_float_value();
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         scalar_read_retv
     }
@@ -534,7 +520,7 @@ impl<'ctx> CodeGen<'ctx> {
         function: ArrayReadFunc,
     ) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_entry);
+            .position_before(&self.instruction_locations.end_of_entry);
         let function_addr = self.types.usize_type.const_int(function as u64, false);
         let siid = self
             .types
@@ -558,7 +544,7 @@ impl<'ctx> CodeGen<'ctx> {
             .into_pointer_value();
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         let array_elem_ptr = unsafe {
             self.builder.build_gep(
@@ -577,7 +563,7 @@ impl<'ctx> CodeGen<'ctx> {
         function: ArrayReadFunc,
     ) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_entry);
+            .position_before(&self.instruction_locations.end_of_entry);
         let function_addr = self.types.usize_type.const_int(function as u64, false);
         let function_addr =
             self.builder
@@ -604,7 +590,7 @@ impl<'ctx> CodeGen<'ctx> {
             .into_pointer_value();
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         let array_elem_ptr = unsafe {
             self.builder.build_gep(
@@ -619,7 +605,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn build_processor_time(&mut self, processor_id: SoundProcessorId) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_entry);
+            .position_before(&self.instruction_locations.end_of_entry);
         let spid = self
             .types
             .usize_type
@@ -649,7 +635,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         let index_float = self.builder.build_unsigned_int_to_float(
             self.local_variables.loop_counter,
@@ -667,7 +653,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn build_input_time(&mut self, input_id: SoundInputId) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_entry);
+            .position_before(&self.instruction_locations.end_of_entry);
         let siid = self
             .types
             .usize_type
@@ -697,7 +683,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         let index_float = self.builder.build_unsigned_int_to_float(
             self.local_variables.loop_counter,
@@ -774,7 +760,7 @@ impl<'ctx> CodeGen<'ctx> {
         // expected to change during the loop execution and repeated
         // atomic reads would be wasteful
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_entry);
+            .position_before(&self.instruction_locations.end_of_entry);
 
         let ptr_val =
             self.builder
@@ -789,7 +775,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.atomic_captures.push(value);
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         load.into_float_value()
     }
@@ -832,7 +818,7 @@ impl<'ctx> CodeGen<'ctx> {
         };
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_bb_loop);
+            .position_before(&self.instruction_locations.end_of_loop);
 
         let dst_elem_ptr = unsafe {
             self.builder.build_gep(
