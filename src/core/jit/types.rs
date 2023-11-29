@@ -1,13 +1,13 @@
 use inkwell::types::{FloatType, IntType, PointerType, VoidType};
 
-pub(super) struct JitTypes<'ctx> {
-    pub(super) void_type: VoidType<'ctx>,
-    pub(super) u8_type: IntType<'ctx>,
-    pub(super) u8_pointer_type: PointerType<'ctx>,
-    pub(super) pointer_type: PointerType<'ctx>,
-    pub(super) f32_type: FloatType<'ctx>,
-    pub(super) f32_pointer_type: PointerType<'ctx>,
-    pub(super) usize_type: IntType<'ctx>,
+pub(crate) struct JitTypes<'ctx> {
+    pub(crate) void_type: VoidType<'ctx>,
+    pub(crate) u8_type: IntType<'ctx>,
+    pub(crate) u8_pointer_type: PointerType<'ctx>,
+    pub(crate) pointer_type: PointerType<'ctx>,
+    pub(crate) f32_type: FloatType<'ctx>,
+    pub(crate) f32_pointer_type: PointerType<'ctx>,
+    pub(crate) usize_type: IntType<'ctx>,
 }
 
 impl<'ctx> JitTypes<'ctx> {

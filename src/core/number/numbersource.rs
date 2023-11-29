@@ -39,13 +39,15 @@ impl UniqueId for NumberSourceId {
     }
 }
 
-// Intended for concrete number source types,
-// hence the new() associated function
+// A NumberSource whose values are computed as a pure function of the inputs,
+// with no side effects or hidden state. Intended to be used for elementary
+// mathematical functions and easy, closed-form calculations.
 pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 
+    // Generate instructions to compute a value from the given inputs
     fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
@@ -55,17 +57,30 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-// Intended for type-erased number sources
+// A trait representing any time of NumberSource, both
+// pure and stateful. Intended mainly for trait objects
+// and easy grouping of the different types.
 pub trait NumberSource: 'static + Sync + Send {
     fn num_variables(&self) -> usize;
 
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
+    // fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
 
-    fn compile_loop<'ctx>(
+    // fn compile_before_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>);
+
+    // fn compile_after_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>);
+
+    // fn compile_loop<'ctx>(
+    //     &self,
+    //     codegen: &mut CodeGen<'ctx>,
+    //     inputs: &[FloatValue<'ctx>],
+    //     variables: &[PointerValue<'ctx>],
+    // ) -> FloatValue<'ctx>;
+
+    fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
-        variables: &[PointerValue<'ctx>],
+        state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
     fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph>;
@@ -99,17 +114,34 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
         0
     }
 
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-        Vec::new()
-    }
+    // fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    //     Vec::new()
+    // }
 
-    fn compile_loop<'ctx>(
+    // fn compile_before_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {}
+
+    // fn compile_after_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {}
+
+    // fn compile_loop<'ctx>(
+    //     &self,
+    //     codegen: &mut CodeGen<'ctx>,
+    //     inputs: &[FloatValue<'ctx>],
+    //     variables: &[PointerValue<'ctx>],
+    // ) -> FloatValue<'ctx> {
+    //     debug_assert_eq!(variables.len(), 0);
+    //     self.source.compile(codegen, inputs)
+    // }
+
+    fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx> {
         debug_assert_eq!(variables.len(), 0);
+        codegen
+            .builder()
+            .position_before(&codegen.instruction_locations.end_of_bb_loop);
         self.source.compile(codegen, inputs)
     }
 
@@ -207,20 +239,56 @@ impl<T: PureNumberSource> ObjectHandle<NumberGraph> for PureNumberSourceHandle<T
     }
 }
 
+// A NumberSource which might have hidden state and/or might require
+// special build-up and tear-down to be used. This includes calculations
+// involving reccurences, e.g. relying on previous results, as well
+// as data structures that e.g. require locking in order to read safely.
 pub trait StatefulNumberSource: 'static + Sync + Send + WithObjectType {
-    const NUM_VARIABLES: usize;
-
     fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 
+    // The number of additional floating point variables that are
+    // associated with each compiled instance of the number source.
+    // This is allowed to be zero.
+    const NUM_VARIABLES: usize;
+
+    // A type intended to be used to store instruction values and temporary
+    // variables that are to be shared between the pre-loop, loop, and post-loop
+    // phases of the number source's evaluation. For example, a pointer value
+    // pointing to data might be fetched and locked in the pre-loop phase,
+    // dereferenced in the loop phase, and unlocked in the post-loop phase.
+    type CompileState<'ctx>;
+
+    // Generate instructions to produce the initial values of state variables.
+    // This will be run the first time the compiled called after a reset.
+    // The returned vector must have length Self::NUM_VARIABLES
     fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
 
+    // Generate instructions to perform any necessary work prior
+    // to the main body of the compiled function, such as synchronization
+    // (ideally non-blocking) or doing monitoring and statistics
+    fn compile_pre_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Self::CompileState<'ctx>;
+
+    // Generate instructions to perform any necessary work after
+    // the main body of the compiled function, such as synchronization
+    // (ideally non-blocking) or doing monitoring and statistics
+    fn compile_post_loop<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        compile_state: &Self::CompileState<'ctx>,
+    );
+
+    // Generate instructions to compute a value from the given inputs
+
+    // Generate instructions to read and update state variables and produce
+    // each new value from the state variables and input values
     fn compile_loop<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
+        compile_state: &Self::CompileState<'ctx>,
     ) -> FloatValue<'ctx>;
 
     fn serialize(&self, _serializer: Serializer) {}
@@ -254,18 +322,101 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         T::NUM_VARIABLES
     }
 
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-        self.source.compile_init(codegen)
-    }
+    // fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    //     self.source.compile_init(codegen)
+    // }
 
-    fn compile_loop<'ctx>(
+    // fn compile_before_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {
+    //     self.source.compile_pre_loop(codegen)
+    // }
+
+    // fn compile_after_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) {
+    //     self.source.compile_pre_loop(codegen);
+    // }
+
+    // fn compile_loop<'ctx>(
+    //     &self,
+    //     codegen: &mut CodeGen<'ctx>,
+    //     inputs: &[FloatValue<'ctx>],
+    //     variables: &[PointerValue<'ctx>],
+    // ) -> FloatValue<'ctx> {
+    //     debug_assert_eq!(variables.len(), self.num_variables());
+    //     self.source.compile_loop(codegen, inputs, variables)
+    // }
+
+    fn compile<'ctx>(
         &self,
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
-        variables: &[PointerValue<'ctx>],
+        state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx> {
-        debug_assert_eq!(variables.len(), self.num_variables());
-        self.source.compile_loop(codegen, inputs, variables)
+        // Allocate stack variables for state variables
+        codegen
+            .builder()
+            .position_before(&codegen.instruction_locations.end_of_bb_entry);
+        let stack_variables: Vec<PointerValue<'ctx>> = (0..self.num_variables())
+            .map(|i| {
+                codegen.builder().build_alloca(
+                    codegen.types.f32_type,
+                    &format!("numbersource{}_state{}", self.id().value(), i),
+                )
+            })
+            .collect();
+
+        // ===========================================================
+        // =           First-time initialization and reset           =
+        // ===========================================================
+        // assign initial values to stack variables
+        codegen
+            .builder()
+            .position_before(&codegen.instruction_locations.end_of_init_variables);
+        let init_variable_values = self.compile_init(codegen);
+        debug_assert_eq!(init_variable_values.len(), self.num_variables());
+        for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
+            codegen.builder().build_store(*stack_var, init_value);
+        }
+
+        // ===========================================================
+        // =           Pre-loop resumption and preparation           =
+        // ===========================================================
+        // copy state array values into stack variables
+        codegen
+            .builder()
+            .position_before(&codegen.instruction_locations.end_of_load_variables);
+        for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
+            // tmp = *ptr_state
+            let tmp = codegen.builder().build_load(*ptr_state, "tmp");
+            // *stack_var = tmp
+            codegen.builder().build_store(*stack_var, tmp);
+        }
+        // any custom pre-loop work
+        let compile_state = self.source.compile_pre_loop(codegen);
+
+        // ===========================================================
+        // =            Post-loop persisting and tear-down           =
+        // ===========================================================
+        // at end of loop, copy stack variables into state array
+        codegen
+            .builder()
+            .position_before(&codegen.instruction_locations.end_of_store_variables);
+        for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
+            // tmp = *stack_var
+            let tmp = codegen.builder().build_load(*stack_var, "tmp");
+            // *ptr_state = tmp
+            codegen.builder().build_store(*ptr_state, tmp);
+        }
+        // any custom post-loop work
+        self.source.compile_post_loop(codegen, &compile_state);
+
+        // ===========================================================
+        // =                        The loop                         =
+        // ===========================================================
+        codegen
+            .builder()
+            .position_before(&codegen.instruction_locations.end_of_bb_loop);
+        let loop_value = self.compile_loop(codegen, inputs, &stack_variables, &compile_state);
+
+        loop_value
     }
 
     fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph> {

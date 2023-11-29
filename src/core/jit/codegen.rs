@@ -33,12 +33,21 @@ use super::{
 pub(super) const FLAG_NOT_INITIALIZED: u8 = 0;
 pub(super) const FLAG_INITIALIZED: u8 = 0;
 
-pub(super) struct InstructionLocations<'ctx> {
-    pub(super) end_of_bb_entry: InstructionValue<'ctx>,
-    pub(super) end_of_init_variables: InstructionValue<'ctx>,
-    pub(super) end_of_load_variables: InstructionValue<'ctx>,
-    pub(super) end_of_store_variables: InstructionValue<'ctx>,
-    pub(super) end_of_bb_loop: InstructionValue<'ctx>,
+pub(crate) struct InstructionLocations<'ctx> {
+    // TODO: remove bb
+    pub(crate) end_of_bb_entry: InstructionValue<'ctx>,
+
+    // TODO: rename to reset
+    pub(crate) end_of_init_variables: InstructionValue<'ctx>,
+
+    // TODO: rename to pre_loop
+    pub(crate) end_of_load_variables: InstructionValue<'ctx>,
+
+    // TODO: rename to post_loop
+    pub(crate) end_of_store_variables: InstructionValue<'ctx>,
+
+    // TODO: remove bb
+    pub(crate) end_of_bb_loop: InstructionValue<'ctx>,
 }
 
 pub(super) struct LocalVariables<'ctx> {
@@ -52,9 +61,9 @@ pub(super) struct LocalVariables<'ctx> {
 }
 
 pub struct CodeGen<'ctx> {
-    pub(super) instruction_locations: InstructionLocations<'ctx>,
+    pub(crate) instruction_locations: InstructionLocations<'ctx>,
     pub(super) local_variables: LocalVariables<'ctx>,
-    pub(super) types: JitTypes<'ctx>,
+    pub(crate) types: JitTypes<'ctx>,
     pub(super) wrapper_functions: WrapperFunctions<'ctx>,
     pub(super) builder: Builder<'ctx>,
     pub(super) module: Module<'ctx>,
@@ -396,84 +405,38 @@ impl<'ctx> CodeGen<'ctx> {
 
                 let num_variables = number_source.num_variables();
 
-                let state_variables = if num_variables > 0 {
-                    let base_state_index = self.num_state_variables;
+                let base_state_index = self.num_state_variables;
 
-                    self.state_array_offsets
-                        .push((number_source_id, self.num_state_variables));
-                    self.num_state_variables += num_variables;
+                self.state_array_offsets
+                    .push((number_source_id, self.num_state_variables));
+                self.num_state_variables += num_variables;
 
-                    // Get pointers to state variables in shared state array
-                    self.builder
-                        .position_before(&self.instruction_locations.end_of_bb_entry);
-                    let state_ptrs: Vec<PointerValue<'ctx>> = (0..num_variables)
-                        .map(|i| {
-                            let ptr_all_states = self.local_variables.state;
-                            let offset = self
-                                .types
-                                .usize_type
-                                .const_int((base_state_index + i) as u64, false);
-
-                            // ptr_state = ptr_all_states + offset
-                            let ptr_state = unsafe {
-                                self.builder
-                                    .build_gep(ptr_all_states, &[offset], "ptr_state")
-                            };
-
-                            ptr_state
-                        })
-                        .collect();
-
-                    // Allocate stack variables for state variables
-                    self.builder
-                        .position_before(&self.instruction_locations.end_of_bb_entry);
-                    let stack_variables: Vec<PointerValue<'ctx>> = (0..num_variables)
-                        .map(|i| {
-                            self.builder.build_alloca(
-                                self.types.f32_type,
-                                &format!("numbersource{}_state{}", number_source_id.value(), i),
-                            )
-                        })
-                        .collect();
-
-                    // During first-time initialization, assign initial values to stack variables
-                    self.builder
-                        .position_before(&self.instruction_locations.end_of_init_variables);
-                    let init_variable_values = number_source.compile_init(self);
-                    debug_assert_eq!(init_variable_values.len(), num_variables);
-                    for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values)
-                    {
-                        self.builder.build_store(*stack_var, init_value);
-                    }
-
-                    // during resume, copy state array values into stack variables
-                    self.builder
-                        .position_before(&self.instruction_locations.end_of_load_variables);
-                    for (stack_var, ptr_state) in stack_variables.iter().zip(&state_ptrs) {
-                        // tmp = *ptr_state
-                        let tmp = self.builder.build_load(*ptr_state, "tmp");
-                        // *stack_var = tmp
-                        self.builder.build_store(*stack_var, tmp);
-                    }
-
-                    // at end of loop, copy stack variables into state array
-                    self.builder
-                        .position_before(&self.instruction_locations.end_of_store_variables);
-                    for (stack_var, ptr_state) in stack_variables.iter().zip(&state_ptrs) {
-                        // tmp = *stack_var
-                        let tmp = self.builder.build_load(*stack_var, "tmp");
-                        // *ptr_state = tmp
-                        self.builder.build_store(*ptr_state, tmp);
-                    }
-
-                    stack_variables
-                } else {
-                    Vec::new()
-                };
-
+                // Get pointers to state variables in shared state array
                 self.builder
-                    .position_before(&self.instruction_locations.end_of_bb_loop);
-                let v = number_source.compile_loop(self, &input_values, &state_variables);
+                    .position_before(&self.instruction_locations.end_of_bb_entry);
+                let state_ptrs: Vec<PointerValue<'ctx>> = (0..num_variables)
+                    .map(|i| {
+                        let ptr_all_states = self.local_variables.state;
+                        let offset = self
+                            .types
+                            .usize_type
+                            .const_int((base_state_index + i) as u64, false);
+
+                        // ptr_state = ptr_all_states + offset
+                        let ptr_state = unsafe {
+                            self.builder
+                                .build_gep(ptr_all_states, &[offset], "ptr_state")
+                        };
+
+                        ptr_state
+                    })
+                    .collect();
+
+                let v = number_source.compile(self, &input_values, &state_ptrs);
+
+                // self.builder
+                //     .position_before(&self.instruction_locations.end_of_bb_loop);
+                // let v = number_source.compile_loop(self, &input_values, &state_variables);
 
                 self.compiled_targets
                     .insert(NumberTarget::Source(number_source_id), v);

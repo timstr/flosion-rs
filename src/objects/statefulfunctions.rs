@@ -15,8 +15,6 @@ pub struct ExponentialApproach {
 }
 
 impl StatefulNumberSource for ExponentialApproach {
-    const NUM_VARIABLES: usize = 1;
-
     fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ExponentialApproach {
             _input: tools.add_number_input(0.0),
@@ -24,8 +22,20 @@ impl StatefulNumberSource for ExponentialApproach {
         })
     }
 
+    const NUM_VARIABLES: usize = 1;
+
+    type CompileState<'ctx> = ();
+
     fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
+    }
+
+    fn compile_pre_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> () {
+        ()
+    }
+
+    fn compile_post_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>, _compile_state: &()) {
+        ()
     }
 
     fn compile_loop<'ctx>(
@@ -33,6 +43,7 @@ impl StatefulNumberSource for ExponentialApproach {
         codegen: &mut CodeGen<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
+        _compile_state: &(),
     ) -> FloatValue<'ctx> {
         debug_assert_eq!(inputs.len(), 2);
         debug_assert_eq!(variables.len(), 1);
