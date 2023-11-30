@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use atomicslice::AtomicSlice;
 use inkwell::{
-    data_layout,
     values::{FloatValue, IntValue, PointerValue},
     AtomicOrdering, AtomicRMWBinOp, IntPredicate,
 };
+use rand::{thread_rng, Rng};
 use serialization::Serializer;
 
 use crate::core::{
@@ -38,7 +38,8 @@ impl StatefulNumberSource for Sampler1d {
     fn new(mut tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         // TODO: use init
         let mut value = Vec::new();
-        value.resize(256, 0.0);
+        // value.resize(256, 0.0);
+        value.resize_with(16, || thread_rng().gen());
         Ok(Sampler1d {
             input: tools.add_number_input(0.0),
             value: Arc::new(AtomicSlice::new(value)),
@@ -133,10 +134,19 @@ impl StatefulNumberSource for Sampler1d {
             codegen.types.f32_pointer_type,
             "ptr_data",
         );
+        let offset = codegen
+            .builder()
+            .build_select(
+                first_slice_is_active,
+                codegen.types.usize_type.const_zero(),
+                slice_len,
+                "offset",
+            )
+            .into_int_value();
         let ptr_slice = unsafe {
             codegen
                 .builder()
-                .build_gep(ptr_data, &[slice_len], "ptr_slice")
+                .build_gep(ptr_data, &[offset], "ptr_slice")
         };
         Sampler1dCompileState {
             ptr_slice,
@@ -188,18 +198,80 @@ impl StatefulNumberSource for Sampler1d {
     ) -> FloatValue<'ctx> {
         debug_assert_eq!(inputs.len(), 1);
         debug_assert_eq!(variables.len(), 0);
-        // TODO:
-        // interpolate samples in pointer to slice, using input
-        // should probably write a helper for this
-        // assume circular boundary condition for now, maybe
-        // make that configurable in the future
+        // TODO: move this into a codegen helper function
+
+        let input = inputs[0];
+        let floor_input = codegen.build_unary_intrinsic_call("llvm.floor", input);
+        let input_wrapped = codegen
+            .builder()
+            .build_float_sub(input, floor_input, "input_wrapped");
+
+        let index_float = codegen.builder().build_float_mul(
+            input_wrapped,
+            codegen.types.f32_type.const_float(self.value.len() as f64),
+            "index_float",
+        );
+        let index_floor = codegen.build_unary_intrinsic_call("llvm.floor", index_float);
+        let index_ceil = codegen.build_unary_intrinsic_call("llvm.ceil", index_float);
+        let index_fract =
+            codegen
+                .builder()
+                .build_float_sub(index_float, index_floor, "index_fract");
+        let index_floor_int = codegen.builder().build_float_to_unsigned_int(
+            index_floor,
+            codegen.types.usize_type,
+            "index_floor_int",
+        );
+        let index_ceil_int = codegen.builder().build_float_to_unsigned_int(
+            index_ceil,
+            codegen.types.usize_type,
+            "index_ceil_int",
+        );
+        let slice_len = codegen
+            .types
+            .usize_type
+            .const_int(self.value.len() as u64, false);
+        let zero = codegen.types.usize_type.const_zero();
+        let index_floor_int_is_n = codegen.builder().build_int_compare(
+            IntPredicate::EQ,
+            index_floor_int,
+            slice_len,
+            "index_floor_int_is_n",
+        );
+        let index_ceil_int_is_n = codegen.builder().build_int_compare(
+            IntPredicate::EQ,
+            index_ceil_int,
+            slice_len,
+            "index_ceil_int_is_n",
+        );
+        let i0 = codegen
+            .builder()
+            .build_select(index_floor_int_is_n, zero, index_floor_int, "i0")
+            .into_int_value();
+        let i1 = codegen
+            .builder()
+            .build_select(index_ceil_int_is_n, zero, index_ceil_int, "i0")
+            .into_int_value();
 
         let ptr_slice = compile_state.ptr_slice;
-        // HACK: just load first value for now
-        codegen
+
+        let ptr_v0 = unsafe { codegen.builder().build_gep(ptr_slice, &[i0], "ptr_v0") };
+        let ptr_v1 = unsafe { codegen.builder().build_gep(ptr_slice, &[i1], "ptr_v0") };
+        let v0 = codegen
             .builder()
-            .build_load(ptr_slice, "slice0")
-            .into_float_value()
+            .build_load(ptr_v0, "v0")
+            .into_float_value();
+        let v1 = codegen
+            .builder()
+            .build_load(ptr_v1, "v1")
+            .into_float_value();
+        let diff = codegen.builder().build_float_sub(v1, v0, "diff");
+        let scaled_diff = codegen
+            .builder()
+            .build_float_mul(index_fract, diff, "scaled_diff");
+        let v = codegen.builder().build_float_add(v0, scaled_diff, "v");
+
+        v
     }
 }
 
