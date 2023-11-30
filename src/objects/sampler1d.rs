@@ -38,8 +38,7 @@ impl StatefulNumberSource for Sampler1d {
     fn new(mut tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         // TODO: use init
         let mut value = Vec::new();
-        // value.resize(256, 0.0);
-        value.resize_with(16, || thread_rng().gen());
+        value.resize(256, 0.0);
         Ok(Sampler1d {
             input: tools.add_number_input(0.0),
             value: Arc::new(AtomicSlice::new(value)),
