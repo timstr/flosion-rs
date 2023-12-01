@@ -567,6 +567,10 @@ impl FlosionApp {
                 }
             }
 
+            if let Some(spid) = self.graph.topology().sound_input(siid).unwrap().target() {
+                self.graph.disconnect_sound_input(siid).unwrap();
+            }
+
             self.graph
                 .connect_sound_input(siid, data.processor_id)
                 .unwrap();

@@ -1,4 +1,7 @@
-use inkwell::values::{FloatValue, PointerValue};
+use inkwell::{
+    values::{FloatValue, PointerValue},
+    FloatPredicate, IntPredicate,
+};
 
 use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -8,6 +11,102 @@ use crate::core::{
         numbersourcetools::NumberSourceTools,
     },
 };
+
+// TODO: min
+// TODO: max
+// TODO: prev
+// TODO: random (LFSR?)
+// TODO: flip flop
+
+pub struct LinearApproach {
+    _input: NumberInputHandle,
+    _speed: NumberInputHandle,
+}
+
+impl StatefulNumberSource for LinearApproach {
+    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+        Ok(LinearApproach {
+            _input: tools.add_number_input(0.0),
+            _speed: tools.add_number_input(1.0),
+        })
+    }
+
+    const NUM_VARIABLES: usize = 1;
+
+    type CompileState<'ctx> = ();
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![codegen.float_type().const_float(0.0)]
+    }
+
+    fn compile_pre_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> () {
+        ()
+    }
+
+    fn compile_post_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>, _compile_state: &()) {
+        ()
+    }
+
+    fn compile_loop<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
+        _compile_state: &(),
+    ) -> FloatValue<'ctx> {
+        debug_assert_eq!(inputs.len(), 2);
+        debug_assert_eq!(variables.len(), 1);
+        let input = inputs[0];
+        let speed = inputs[1];
+        let variable = variables[0];
+
+        let step_pos = codegen
+            .builder()
+            .build_float_mul(speed, codegen.time_step(), "step_pos");
+        let step_neg = codegen.builder().build_float_neg(step_pos, "step_neg");
+
+        let value = codegen
+            .builder()
+            .build_load(variable, "value")
+            .into_float_value();
+        let value_lt_input = codegen.builder().build_float_compare(
+            FloatPredicate::OLT,
+            value,
+            input,
+            "value_lt_input",
+        );
+        let step = codegen
+            .builder()
+            .build_select(value_lt_input, step_pos, step_neg, "step")
+            .into_float_value();
+        let value_plus_step = codegen
+            .builder()
+            .build_float_add(value, step, "value_plus_step");
+
+        let value_plus_step_lt_input = codegen.builder().build_float_compare(
+            FloatPredicate::OLT,
+            value_plus_step,
+            input,
+            "value_plus_step_lt_input",
+        );
+        let overshoot = codegen.builder().build_int_compare(
+            IntPredicate::NE,
+            value_lt_input,
+            value_plus_step_lt_input,
+            "overshoot",
+        );
+        let new_value = codegen
+            .builder()
+            .build_select(overshoot, input, value_plus_step, "new_value")
+            .into_float_value();
+        codegen.builder().build_store(variable, new_value);
+        new_value
+    }
+}
+
+impl WithObjectType for LinearApproach {
+    const TYPE: ObjectType = ObjectType::new("linearapproach");
+}
 
 pub struct ExponentialApproach {
     _input: NumberInputHandle,
@@ -84,4 +183,120 @@ impl StatefulNumberSource for ExponentialApproach {
 
 impl WithObjectType for ExponentialApproach {
     const TYPE: ObjectType = ObjectType::new("exponentialapproach");
+}
+
+pub struct Integrator {
+    _input: NumberInputHandle,
+}
+
+impl StatefulNumberSource for Integrator {
+    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+        Ok(Integrator {
+            _input: tools.add_number_input(0.0),
+        })
+    }
+
+    const NUM_VARIABLES: usize = 1;
+
+    type CompileState<'ctx> = ();
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![codegen.float_type().const_float(0.0)]
+    }
+
+    fn compile_pre_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> () {
+        ()
+    }
+
+    fn compile_post_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>, _compile_state: &()) {}
+
+    fn compile_loop<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
+        _compile_state: &(),
+    ) -> FloatValue<'ctx> {
+        debug_assert_eq!(inputs.len(), 1);
+        debug_assert_eq!(variables.len(), 1);
+        let input = inputs[0];
+        let input_times_dt =
+            codegen
+                .builder()
+                .build_float_mul(input, codegen.time_step(), "input_times_dt");
+        let variable = variables[0];
+        let prev_value = codegen
+            .builder()
+            .build_load(variable, "prev_value")
+            .into_float_value();
+        let sum = codegen
+            .builder()
+            .build_float_add(input_times_dt, prev_value, "sum");
+        codegen.builder().build_store(variable, sum);
+        sum
+    }
+}
+
+impl WithObjectType for Integrator {
+    const TYPE: ObjectType = ObjectType::new("integrator");
+}
+
+pub struct WrappingIntegrator {
+    _input: NumberInputHandle,
+}
+
+impl StatefulNumberSource for WrappingIntegrator {
+    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+        Ok(WrappingIntegrator {
+            _input: tools.add_number_input(0.0),
+        })
+    }
+
+    const NUM_VARIABLES: usize = 1;
+
+    type CompileState<'ctx> = ();
+
+    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![codegen.float_type().const_float(0.0)]
+    }
+
+    fn compile_pre_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> () {
+        ()
+    }
+
+    fn compile_post_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>, _compile_state: &()) {}
+
+    fn compile_loop<'ctx>(
+        &self,
+        codegen: &mut CodeGen<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+        variables: &[PointerValue<'ctx>],
+        _compile_state: &(),
+    ) -> FloatValue<'ctx> {
+        debug_assert_eq!(inputs.len(), 1);
+        debug_assert_eq!(variables.len(), 1);
+        let input = inputs[0];
+        let input_times_dt =
+            codegen
+                .builder()
+                .build_float_mul(input, codegen.time_step(), "input_times_dt");
+        let variable = variables[0];
+        let prev_value = codegen
+            .builder()
+            .build_load(variable, "prev_value")
+            .into_float_value();
+        let sum = codegen
+            .builder()
+            .build_float_add(input_times_dt, prev_value, "sum");
+        let floor_sum = codegen.build_unary_intrinsic_call("llvm.floor", sum);
+        let fract_sum = codegen
+            .builder()
+            .build_float_sub(sum, floor_sum, "fract_sum");
+        codegen.builder().build_store(variable, fract_sum);
+        fract_sum
+    }
+}
+
+impl WithObjectType for WrappingIntegrator {
+    const TYPE: ObjectType = ObjectType::new("wrappingintegrator");
 }

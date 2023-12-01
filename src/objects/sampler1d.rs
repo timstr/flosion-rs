@@ -5,7 +5,6 @@ use inkwell::{
     values::{FloatValue, IntValue, PointerValue},
     AtomicOrdering, AtomicRMWBinOp, IntPredicate,
 };
-use rand::{thread_rng, Rng};
 use serialization::Serializer;
 
 use crate::core::{

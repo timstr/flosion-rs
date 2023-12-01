@@ -60,5 +60,6 @@ pub(super) fn build_summon_widget_for_sound_number_input(
             .ok()
             .and_then(|v| Some(NumberSummonValue::Constant(v)))
     });
+
     builder.build()
 }

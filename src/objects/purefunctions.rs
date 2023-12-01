@@ -109,13 +109,6 @@ impl WithObjectType for Variable {
     const TYPE: ObjectType = ObjectType::new("variable");
 }
 
-// TODO: stateful number sources:
-// - linear approach
-// - max
-// - min
-// - random
-// - wrapping integrator
-
 enum LlvmImplementation {
     IntrinsicUnary(&'static str),
     IntrinsicBinary(&'static str),
