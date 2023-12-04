@@ -19,7 +19,8 @@ use crate::core::{
     },
     sound::{
         soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
+        soundnumberinput::SoundNumberInputId, soundnumbersource::SoundNumberSourceId,
+        soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
 };
@@ -608,6 +609,52 @@ impl<'ctx> CodeGen<'ctx> {
         let array_elem_ptr = unsafe {
             self.builder.build_gep(
                 array_read_retv,
+                &[self.local_variables.loop_counter],
+                "array_elem_ptr",
+            )
+        };
+        let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
+        array_elem.into_float_value()
+    }
+
+    pub fn build_processor_local_array_read(
+        &mut self,
+        processor_id: SoundProcessorId,
+        source_id: SoundNumberSourceId,
+    ) -> FloatValue<'ctx> {
+        self.builder
+            .position_before(&self.instruction_locations.end_of_entry);
+        let spid = self
+            .types
+            .usize_type
+            .const_int(processor_id.value() as u64, false);
+        let nsid = self
+            .types
+            .usize_type
+            .const_int(source_id.value() as u64, false);
+        let call_site_value = self.builder.build_call(
+            self.wrapper_functions.processor_local_array_read_wrapper,
+            &[
+                self.local_variables.context_1.into(),
+                self.local_variables.context_2.into(),
+                spid.into(),
+                nsid.into(),
+                self.local_variables.dst_len.into(),
+            ],
+            "sp_local_arr_fn_retv",
+        );
+        let local_array_read_retv = call_site_value
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_pointer_value();
+
+        self.builder
+            .position_before(&self.instruction_locations.end_of_loop);
+
+        let array_elem_ptr = unsafe {
+            self.builder.build_gep(
+                local_array_read_retv,
                 &[self.local_variables.loop_counter],
                 "array_elem_ptr",
             )

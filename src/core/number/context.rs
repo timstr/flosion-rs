@@ -1,6 +1,9 @@
 use crate::core::{
     jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
-    sound::{context::Context, soundinput::SoundInputId, soundprocessor::SoundProcessorId},
+    sound::{
+        context::Context, soundinput::SoundInputId, soundnumbersource::SoundNumberSourceId,
+        soundprocessor::SoundProcessorId,
+    },
 };
 
 pub(crate) trait NumberContext {
@@ -18,6 +21,12 @@ pub(crate) trait NumberContext {
         &self,
         id: SoundProcessorId,
         read_fn: ArrayReadFunc,
+    ) -> &[f32];
+
+    fn read_local_array_from_sound_processor(
+        &self,
+        id: SoundProcessorId,
+        source_id: SoundNumberSourceId,
     ) -> &[f32];
 
     fn get_time_and_speed_at_sound_input(&self, id: SoundInputId) -> (f32, f32);
@@ -52,6 +61,14 @@ impl<'ctx> NumberContext for Context<'ctx> {
     ) -> &[f32] {
         let frame = self.find_processor_state(id);
         read_fn(&frame)
+    }
+
+    fn read_local_array_from_sound_processor(
+        &self,
+        id: SoundProcessorId,
+        source_id: SoundNumberSourceId,
+    ) -> &[f32] {
+        self.find_processor_local_array(id, source_id)
     }
 
     fn get_time_and_speed_at_sound_input(&self, id: SoundInputId) -> (f32, f32) {
@@ -97,6 +114,14 @@ impl NumberContext for MockNumberContext {
         &self,
         _id: SoundProcessorId,
         _read_fn: ArrayReadFunc,
+    ) -> &[f32] {
+        &self.shared_array
+    }
+
+    fn read_local_array_from_sound_processor(
+        &self,
+        _id: SoundProcessorId,
+        _source_id: SoundNumberSourceId,
     ) -> &[f32] {
         &self.shared_array
     }

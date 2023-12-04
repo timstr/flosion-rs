@@ -7,7 +7,7 @@ use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
         soundnumbersource::SoundNumberSourceHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
@@ -226,7 +226,7 @@ impl DynamicSoundProcessor for Melody {
             state.current_position -= length_samples;
         }
 
-        sound_input.step(state, dst, &context);
+        sound_input.step(state, dst, &context, LocalArrayList::new());
         StreamStatus::Playing
     }
 }

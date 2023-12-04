@@ -7,19 +7,71 @@ use crate::core::{
 
 use super::{
     soundinput::{InputTiming, SoundInputId},
+    soundnumbersource::SoundNumberSourceId,
     soundprocessor::{ProcessorState, SoundProcessorId},
 };
+
+#[derive(Clone, Copy)]
+struct LocalArray<'a> {
+    array: &'a [f32],
+    number_source_id: SoundNumberSourceId,
+}
+
+#[derive(Clone, Copy)]
+enum LocalArrayListValue<'a> {
+    Empty,
+    Containing(LocalArray<'a>, &'a LocalArrayList<'a>),
+}
+
+#[derive(Clone, Copy)]
+pub struct LocalArrayList<'a> {
+    value: LocalArrayListValue<'a>,
+}
+
+impl<'a> LocalArrayList<'a> {
+    pub fn new() -> LocalArrayList<'a> {
+        LocalArrayList {
+            value: LocalArrayListValue::Empty,
+        }
+    }
+
+    pub fn push(
+        &'a self,
+        array: &'a [f32],
+        number_source_id: SoundNumberSourceId,
+    ) -> LocalArrayList<'a> {
+        LocalArrayList {
+            value: LocalArrayListValue::Containing(
+                LocalArray {
+                    array,
+                    number_source_id,
+                },
+                self,
+            ),
+        }
+    }
+
+    pub fn get(&self, number_source_id: SoundNumberSourceId) -> &'a [f32] {
+        match &self.value {
+            LocalArrayListValue::Empty => {
+                panic!("Attempted to get a LocalArray which was never pushed")
+            }
+            LocalArrayListValue::Containing(local_array, rest_of_list) => {
+                if local_array.number_source_id == number_source_id {
+                    local_array.array
+                } else {
+                    rest_of_list.get(number_source_id)
+                }
+            }
+        }
+    }
+}
 
 pub(crate) struct ProcessorStackFrame<'a> {
     parent: &'a StackFrame<'a>,
     processor_id: SoundProcessorId,
-    data: &'a dyn ProcessorState,
-}
-
-impl<'a> ProcessorStackFrame<'a> {
-    pub(super) fn data(&self) -> &'a dyn ProcessorState {
-        self.data
-    }
+    state: &'a dyn ProcessorState,
+    local_arrays: LocalArrayList<'a>,
 }
 
 pub(crate) struct InputStackFrame<'a> {
@@ -50,16 +102,16 @@ enum StackFrame<'a> {
 }
 
 impl<'a> StackFrame<'a> {
-    fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {
+    fn find_processor_frame(&self, processor_id: SoundProcessorId) -> &ProcessorStackFrame<'a> {
         match self {
             StackFrame::Processor(p) => {
                 if p.processor_id == processor_id {
-                    AnyData::new(p.data().state())
+                    p
                 } else {
-                    p.parent.find_processor_state(processor_id)
+                    p.parent.find_processor_frame(processor_id)
                 }
             }
-            StackFrame::Input(i) => i.parent.find_processor_state(processor_id),
+            StackFrame::Input(i) => i.parent.find_processor_frame(processor_id),
             StackFrame::Root => {
                 panic!("Attempted to find a processor frame which is not in the context call stack")
             }
@@ -89,7 +141,7 @@ impl<'a> StackFrame<'a> {
         match self {
             StackFrame::Processor(p) => {
                 if p.processor_id == processor_id {
-                    (p.data.timing().elapsed_chunks() * CHUNK_SIZE, 1.0)
+                    (p.state.timing().elapsed_chunks() * CHUNK_SIZE, 1.0)
                 } else {
                     p.parent
                         .find_processor_sample_offset_and_time_speed(processor_id)
@@ -111,7 +163,7 @@ impl<'a> StackFrame<'a> {
         match self {
             StackFrame::Processor(p) => {
                 let (o, s) = p.parent.find_input_sample_offset_and_time_speed(input_id);
-                (o + p.data.timing().elapsed_chunks() * CHUNK_SIZE, s)
+                (o + p.state.timing().elapsed_chunks() * CHUNK_SIZE, s)
             }
             StackFrame::Input(i) => {
                 if i.input_id == input_id {
@@ -130,7 +182,6 @@ impl<'a> StackFrame<'a> {
 
 pub struct Context<'a> {
     target_processor_id: Option<SoundProcessorId>,
-    // TODO: delete scratch_space
     scratch_space: &'a ScratchArena,
     stack: StackFrame<'a>,
 }
@@ -169,20 +220,38 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn push_processor_state<T: ProcessorState>(&'a self, state: &'a T) -> Context<'a> {
+    pub fn push_processor_state<T: ProcessorState>(
+        &'a self,
+        state: &'a T,
+        local_arrays: LocalArrayList<'a>,
+    ) -> Context<'a> {
         Context {
             target_processor_id: None,
             stack: StackFrame::Processor(ProcessorStackFrame {
                 parent: &self.stack,
                 processor_id: self.target_processor_id.unwrap(),
-                data: state,
+                state,
+                local_arrays,
             }),
             scratch_space: self.scratch_space,
         }
     }
 
+    pub(crate) fn find_processor_local_array(
+        &self,
+        processor_id: SoundProcessorId,
+        source_id: SoundNumberSourceId,
+    ) -> &'a [f32] {
+        self.stack
+            .find_processor_frame(processor_id)
+            .local_arrays
+            .get(source_id)
+    }
+
     pub(crate) fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {
-        self.stack.find_processor_state(processor_id)
+        let state = self.stack.find_processor_frame(processor_id).state.state();
+        // TODO: remove AnyData
+        AnyData::new(state)
     }
 
     pub fn get_scratch_space(&self, size: usize) -> BorrowedSlice {

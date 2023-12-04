@@ -12,7 +12,7 @@ use super::{
     soundinput::{InputOptions, SoundInputId},
     soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
     soundnumbersource::{
-        ArrayInputNumberSource, ArrayProcessorNumberSource, DerivedProcessorNumberSource,
+        ArrayInputNumberSource, ArrayProcessorNumberSource, ProcessorLocalArrayNumberSource,
         ScalarInputNumberSource, ScalarProcessorNumberSource, SoundNumberSourceHandle,
         SoundNumberSourceId, SoundNumberSourceOwner,
     },
@@ -76,9 +76,7 @@ impl<'a> SoundProcessorTools<'a> {
         let owner = SoundNumberSourceOwner::SoundInput(input_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
         self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
-                data,
-            )));
+            .push(SoundNumberEdit::AddNumberSource(data).into());
         SoundNumberSourceHandle::new(id)
     }
 
@@ -92,9 +90,7 @@ impl<'a> SoundProcessorTools<'a> {
         let owner = SoundNumberSourceOwner::SoundInput(input_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
         self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
-                data,
-            )));
+            .push(SoundNumberEdit::AddNumberSource(data).into());
         SoundNumberSourceHandle::new(id)
     }
 
@@ -110,9 +106,7 @@ impl<'a> SoundProcessorTools<'a> {
         let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
         self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
-                data,
-            )));
+            .push(SoundNumberEdit::AddNumberSource(data).into());
         SoundNumberSourceHandle::new(id)
     }
 
@@ -125,27 +119,17 @@ impl<'a> SoundProcessorTools<'a> {
         let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
         self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
-                data,
-            )));
+            .push(SoundNumberEdit::AddNumberSource(data).into());
         SoundNumberSourceHandle::new(id)
     }
 
-    pub fn add_derived_processor_number_source(
-        &mut self,
-        input_source_id: SoundNumberSourceId,
-    ) -> SoundNumberSourceHandle {
+    pub fn add_local_array_number_source(&mut self) -> SoundNumberSourceHandle {
         let id = self.number_source_idgen.next_id();
-        let instance = Arc::new(DerivedProcessorNumberSource::new(
-            self.processor_id,
-            input_source_id,
-        ));
+        let instance = Arc::new(ProcessorLocalArrayNumberSource::new(id, self.processor_id));
         let owner = SoundNumberSourceOwner::SoundProcessor(self.processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
         self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(
-                data,
-            )));
+            .push(SoundNumberEdit::AddNumberSource(data).into());
         SoundNumberSourceHandle::new(id)
     }
 
@@ -154,9 +138,7 @@ impl<'a> SoundProcessorTools<'a> {
         let owner = self.processor_id;
         let data = SoundNumberInputData::new(id, owner, default_value);
         self.edit_queue
-            .push(SoundGraphEdit::Number(SoundNumberEdit::AddNumberInput(
-                data,
-            )));
+            .push(SoundNumberEdit::AddNumberInput(data).into());
         SoundNumberInputHandle::new(id, owner)
     }
 

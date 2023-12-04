@@ -5,7 +5,7 @@ use crate::{
         engine::nodegen::NodeGen,
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         sound::{
-            context::Context,
+            context::{Context, LocalArrayList},
             soundinput::{InputOptions, SoundInputId},
             soundinputtypes::{SingleInputList, SingleInputListNode},
             soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
@@ -94,7 +94,7 @@ impl DynamicSoundProcessor for Mixer {
             if first_input.timing().needs_reset() {
                 first_input.reset(0);
             }
-            first_input.step(state, dst, &mut context);
+            first_input.step(state, dst, &mut context, LocalArrayList::new());
             all_done = first_input.timing().is_done();
         }
         let mut ch = SoundChunk::new();
@@ -106,7 +106,7 @@ impl DynamicSoundProcessor for Mixer {
                 continue;
             }
             all_done = false;
-            i.step(state, &mut ch, &mut context);
+            i.step(state, &mut ch, &mut context, LocalArrayList::new());
             numeric::add_inplace(&mut dst.l, &ch.l);
             numeric::add_inplace(&mut dst.r, &ch.r);
         }

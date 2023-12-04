@@ -63,7 +63,7 @@ pub trait ObjectUi: 'static + Default {
     fn ui<'a, 'b>(
         &self,
         handle: Self::HandleType,
-        graph_state: &mut <Self::GraphUi as GraphUi>::State,
+        ui_state: &mut <Self::GraphUi as GraphUi>::State,
         ui: &mut egui::Ui,
         ctx: &mut <Self::GraphUi as GraphUi>::Context<'a>,
         data: <<Self::GraphUi as GraphUi>::ObjectUiData as ObjectUiData>::ConcreteType<

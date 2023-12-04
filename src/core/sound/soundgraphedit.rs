@@ -29,10 +29,7 @@ impl SoundGraphEdit {
         let instance = Arc::new(ProcessorTimeNumberSource::new(processor_id));
         let owner = SoundNumberSourceOwner::SoundProcessor(processor_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        (
-            SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(data)),
-            id,
-        )
+        (SoundNumberEdit::AddNumberSource(data).into(), id)
     }
 
     pub(super) fn add_input_time(
@@ -43,10 +40,7 @@ impl SoundGraphEdit {
         let instance = Arc::new(InputTimeNumberSource::new(input_id));
         let owner = SoundNumberSourceOwner::SoundInput(input_id);
         let data = SoundNumberSourceData::new(id, instance, owner);
-        (
-            SoundGraphEdit::Number(SoundNumberEdit::AddNumberSource(data)),
-            id,
-        )
+        (SoundNumberEdit::AddNumberSource(data).into(), id)
     }
 
     pub(crate) fn name(&self) -> &'static str {
@@ -61,5 +55,17 @@ impl SoundGraphEdit {
             SoundGraphEdit::Sound(e) => e.check_preconditions(topology),
             SoundGraphEdit::Number(e) => e.check_preconditions(topology),
         }
+    }
+}
+
+impl From<SoundEdit> for SoundGraphEdit {
+    fn from(value: SoundEdit) -> Self {
+        SoundGraphEdit::Sound(value)
+    }
+}
+
+impl From<SoundNumberEdit> for SoundGraphEdit {
+    fn from(value: SoundNumberEdit) -> Self {
+        SoundGraphEdit::Number(value)
     }
 }

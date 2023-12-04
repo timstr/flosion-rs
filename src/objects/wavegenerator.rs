@@ -11,7 +11,7 @@ use crate::core::{
     jit::compilednumberinput::Discretization,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundnumberinput::SoundNumberInputHandle,
         soundnumbersource::SoundNumberSourceHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
@@ -103,7 +103,7 @@ impl DynamicSoundProcessor for WaveGenerator {
             number_inputs.frequency.eval(
                 &mut tmp,
                 Discretization::samplewise_temporal(),
-                &context.push_processor_state(state),
+                &context.push_processor_state(state, LocalArrayList::new()),
             );
             numeric::copy(&tmp, &mut state.phase);
         }
@@ -114,7 +114,7 @@ impl DynamicSoundProcessor for WaveGenerator {
         number_inputs.amplitude.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
-            &context.push_processor_state(state),
+            &context.push_processor_state(state, LocalArrayList::new()),
         );
         numeric::copy(&dst.l, &mut dst.r);
 

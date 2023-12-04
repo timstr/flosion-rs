@@ -18,7 +18,7 @@ use crate::{
         jit::{codegen::CodeGen, compilednumberinput::Discretization},
         number::{numbergraphdata::NumberTarget, numbersource::PureNumberSource},
         sound::{
-            context::Context,
+            context::{Context, LocalArrayList},
             soundedit::SoundEdit,
             soundgraphdata::SoundProcessorData,
             soundgraphtopology::SoundGraphTopology,
@@ -292,7 +292,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     //------------------------
 
     let sp_state = StateAndTiming::new(sp_instance.make_state());
-    let context = context.push_processor_state(&sp_state);
+    let context = context.push_processor_state(&sp_state, LocalArrayList::new());
 
     let state_from_context = context.find_processor_state(sp_instance.id());
     let state_from_context = state_from_context

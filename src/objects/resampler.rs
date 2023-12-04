@@ -9,7 +9,7 @@ use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compilednumberinput::Discretization,
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundnumberinput::SoundNumberInputHandle,
@@ -99,7 +99,7 @@ impl DynamicSoundProcessor for Resampler {
         if !state.init {
             sound_inputs.reset(0);
             let mut ch = SoundChunk::new();
-            sound_inputs.step(state, &mut ch, &context);
+            sound_inputs.step(state, &mut ch, &context, LocalArrayList::new());
             state.input_chunk = ch;
             state.init = true;
         }
@@ -107,7 +107,7 @@ impl DynamicSoundProcessor for Resampler {
             s.sample_index += 1;
             if s.sample_index >= CHUNK_SIZE {
                 let mut ch: SoundChunk = SoundChunk::new();
-                sound_inputs.step(s, &mut ch, &context);
+                sound_inputs.step(s, &mut ch, &context, LocalArrayList::new());
                 s.input_chunk = ch;
                 s.sample_index = 0;
             }

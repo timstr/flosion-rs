@@ -10,7 +10,7 @@ use crate::core::{
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinput::InputOptions,
         soundinputtypes::{KeyedInput, KeyedInputNode},
         soundnumberinput::SoundNumberInputHandle,
@@ -125,10 +125,10 @@ impl DynamicSoundProcessor for Ensemble {
 
         let freq_in = number_inputs
             .frequency_in
-            .eval_scalar(&context.push_processor_state(state));
+            .eval_scalar(&context.push_processor_state(state, LocalArrayList::new()));
         let freq_spread = number_inputs
             .frequency_spread
-            .eval_scalar(&context.push_processor_state(state));
+            .eval_scalar(&context.push_processor_state(state, LocalArrayList::new()));
         for mut item in sound_inputs.items_mut() {
             let voice_state = item.state_mut();
             if state.just_started() {
@@ -143,7 +143,7 @@ impl DynamicSoundProcessor for Ensemble {
             if item.timing().needs_reset() {
                 item.reset(0);
             }
-            item.step(state, &mut temp_chunk, &context);
+            item.step(state, &mut temp_chunk, &context, LocalArrayList::new());
 
             // TODO: helper tools for mixing
             numeric::mul_scalar_inplace(&mut temp_chunk.l, 0.1);

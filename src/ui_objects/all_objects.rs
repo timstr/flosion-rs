@@ -13,6 +13,7 @@ use crate::{
 use super::{
     audioclip_ui::AudioClipUi,
     dac_ui::DacUi,
+    definitions_ui::DefinitionsUi,
     ensemble_ui::EnsembleUi,
     mixer_ui::MixerUi,
     pure_function_uis::{
@@ -68,6 +69,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     // Dynamic sound processors
     // helper.register_dynamic_sound_processor::<ADSRUi>();
     helper.register::<AudioClipUi>();
+    helper.register::<DefinitionsUi>();
     helper.register::<EnsembleUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register::<MixerUi>();

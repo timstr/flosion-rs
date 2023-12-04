@@ -13,7 +13,7 @@ use crate::core::{
 };
 
 use super::{
-    context::Context,
+    context::{Context, LocalArrayList},
     soundinput::{InputOptions, InputTiming, SoundInputId},
     soundprocessor::{ProcessorState, StreamStatus},
     soundprocessortools::SoundProcessorTools,
@@ -72,9 +72,10 @@ impl<'ctx> SingleInputNode<'ctx> {
         processor_state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
+        local_arrays: LocalArrayList,
     ) -> StreamStatus {
         self.target
-            .step(processor_state, dst, ctx, AnyData::new(&()))
+            .step(processor_state, dst, ctx, AnyData::new(&()), local_arrays)
     }
 
     pub fn reset(&mut self, sample_offset: usize) {
@@ -164,9 +165,15 @@ impl<'a, 'ctx, S: 'static> KeyedInputNodeItem<'a, 'ctx, S> {
         processor_state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
+        local_arrays: LocalArrayList,
     ) -> StreamStatus {
-        self.target
-            .step(processor_state, dst, ctx, AnyData::new(self.state))
+        self.target.step(
+            processor_state,
+            dst,
+            ctx,
+            AnyData::new(self.state),
+            local_arrays,
+        )
     }
 
     pub fn state(&self) -> &S {
@@ -312,9 +319,10 @@ impl<'a, 'ctx> SingleInputListNodeItem<'a, 'ctx> {
         processor_state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
+        local_arrays: LocalArrayList,
     ) -> StreamStatus {
         self.target
-            .step(processor_state, dst, ctx, AnyData::new(&()))
+            .step(processor_state, dst, ctx, AnyData::new(&()), local_arrays)
     }
 
     pub fn reset(&mut self, sample_offset: usize) {
@@ -503,6 +511,7 @@ impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
         processor_state: &T,
         dst: &mut SoundChunk,
         ctx: &Context,
+        local_arrays: LocalArrayList,
     ) -> StreamStatus {
         // TODO: allow per-key chunk sample offsets, store remaining chunk in state
 
@@ -521,7 +530,13 @@ impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
                 }
 
                 let a: &dyn Any = &key_data.state;
-                t.step(processor_state, &mut temp_chunk, ctx, AnyData::new(a));
+                t.step(
+                    processor_state,
+                    &mut temp_chunk,
+                    ctx,
+                    AnyData::new(a),
+                    local_arrays,
+                );
 
                 key_data.age += 1;
                 if t.timing().is_done() {

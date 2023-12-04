@@ -10,7 +10,7 @@ use crate::core::{
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
@@ -160,7 +160,7 @@ impl StaticSoundProcessor for Dac {
             sound_input.reset(0);
         }
         let mut ch = SoundChunk::new();
-        sound_input.step(timing, &mut ch, &ctx);
+        sound_input.step(timing, &mut ch, &ctx, LocalArrayList::new());
 
         if let Err(e) = dac.shared_data.chunk_sender.try_send(ch) {
             match e {

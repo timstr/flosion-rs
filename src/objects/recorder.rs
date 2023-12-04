@@ -7,7 +7,7 @@ use crate::core::{
     engine::nodegen::NodeGen,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundprocessor::{
@@ -105,7 +105,7 @@ impl StaticSoundProcessor for Recorder {
         if sound_inputs.timing().needs_reset() {
             sound_inputs.reset(0);
         }
-        let s = sound_inputs.step(timing, dst, &ctx);
+        let s = sound_inputs.step(timing, dst, &ctx, LocalArrayList::new());
         let recording = recorder.recording.load(Ordering::Relaxed);
         if !recording || s == StreamStatus::Done {
             return;

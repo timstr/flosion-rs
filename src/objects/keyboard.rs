@@ -6,7 +6,7 @@ use crate::core::{
     engine::nodegen::NodeGen,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
         soundnumbersource::SoundNumberSourceHandle,
         soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
@@ -117,7 +117,7 @@ impl StaticSoundProcessor for Keyboard {
             }
         }
 
-        sound_input_node.step(timing, dst, &context);
+        sound_input_node.step(timing, dst, &context, LocalArrayList::new());
     }
 }
 

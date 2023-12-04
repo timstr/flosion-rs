@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 use crate::core::{
     anydata::AnyData,
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinput::{InputTiming, SoundInputId},
         soundprocessor::{
             DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, ProcessorTiming,
@@ -270,8 +270,9 @@ impl<'ctx> UniqueProcessorNode<'ctx> {
         ctx: &Context,
         input_id: SoundInputId,
         input_state: AnyData,
+        local_arrays: LocalArrayList,
     ) -> StreamStatus {
-        let ctx = ctx.push_processor_state(state);
+        let ctx = ctx.push_processor_state(state, local_arrays);
         let ctx = ctx.push_input(Some(self.node.id()), input_id, input_state, timing);
         let status = self.node.process_audio(dst, ctx);
         if status == StreamStatus::Done {
@@ -404,6 +405,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         ctx: &Context,
         input_id: SoundInputId,
         input_state: AnyData,
+        local_arrays: LocalArrayList,
     ) -> StreamStatus {
         let mut data = self.data.write();
         let &mut SharedProcessorNodeData {
@@ -416,7 +418,7 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         if all_used {
             // TODO: this processor state likely can never be read. Skip it?
             // See also note about combining processor and input frames in context.rs
-            let ctx = ctx.push_processor_state(state);
+            let ctx = ctx.push_processor_state(state, local_arrays);
             let ctx = ctx.push_input(Some(self.processor_id), input_id, input_state, timing);
             *stream_status = node.process_audio(cached_output, ctx);
             for (_target, used) in target_inputs.iter_mut() {
@@ -570,6 +572,7 @@ impl<'ctx> NodeTarget<'ctx> {
         dst: &mut SoundChunk,
         ctx: &Context,
         input_state: AnyData,
+        local_arrays: LocalArrayList,
     ) -> StreamStatus {
         debug_assert!(!self.timing.needs_reset());
         if self.timing.is_done() {
@@ -586,6 +589,7 @@ impl<'ctx> NodeTarget<'ctx> {
                 ctx,
                 self.input_id,
                 input_state,
+                local_arrays,
             ),
             NodeTargetValue::Shared(node) => node.step(
                 &mut self.timing,
@@ -594,6 +598,7 @@ impl<'ctx> NodeTarget<'ctx> {
                 ctx,
                 self.input_id,
                 input_state,
+                local_arrays,
             ),
             NodeTargetValue::Empty => {
                 dst.silence();

@@ -16,7 +16,6 @@ use super::{
 pub struct SoundNumberSourceId(usize);
 
 impl SoundNumberSourceId {
-    #[cfg(test)]
     pub(crate) fn new(id: usize) -> SoundNumberSourceId {
         SoundNumberSourceId(id)
     }
@@ -188,25 +187,22 @@ impl SoundNumberSource for InputTimeNumberSource {
     }
 }
 
-pub(crate) struct DerivedProcessorNumberSource {
+pub(crate) struct ProcessorLocalArrayNumberSource {
+    id: SoundNumberSourceId,
     processor_id: SoundProcessorId,
-    input_source_id: SoundNumberSourceId,
 }
 
-impl DerivedProcessorNumberSource {
-    pub(crate) fn new(
+impl ProcessorLocalArrayNumberSource {
+    pub(super) fn new(
+        id: SoundNumberSourceId,
         processor_id: SoundProcessorId,
-        input_source_id: SoundNumberSourceId,
-    ) -> Self {
-        Self {
-            processor_id,
-            input_source_id,
-        }
+    ) -> ProcessorLocalArrayNumberSource {
+        ProcessorLocalArrayNumberSource { id, processor_id }
     }
 }
 
-impl SoundNumberSource for DerivedProcessorNumberSource {
+impl SoundNumberSource for ProcessorLocalArrayNumberSource {
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        todo!()
+        codegen.build_processor_local_array_read(self.processor_id, self.id)
     }
 }

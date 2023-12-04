@@ -9,7 +9,7 @@ use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
-        context::Context,
+        context::{Context, LocalArrayList},
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundnumberinput::SoundNumberInputHandle,
@@ -284,7 +284,7 @@ impl DynamicSoundProcessor for ADSR {
         if sound_input.timing().needs_reset() {
             sound_input.reset(0);
         }
-        sound_input.step(state, dst, &context);
+        sound_input.step(state, dst, &context, LocalArrayList::new());
         numeric::mul_inplace(&mut dst.l, &level);
         numeric::mul_inplace(&mut dst.r, &level);
 

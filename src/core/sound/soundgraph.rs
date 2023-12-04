@@ -330,9 +330,8 @@ impl SoundGraph {
         for ni in self.local_topology.number_inputs().values() {
             for target_ns in ni.target_mapping().items().values() {
                 if closure.includes_number_connection(ni.id(), *target_ns) {
-                    edit_queue.push(SoundGraphEdit::Number(
-                        SoundNumberEdit::DisconnectNumberInput(ni.id(), *target_ns),
-                    ));
+                    edit_queue
+                        .push(SoundNumberEdit::DisconnectNumberInput(ni.id(), *target_ns).into());
                 }
             }
         }
@@ -351,17 +350,13 @@ impl SoundGraph {
         // remove all number inputs
         for niid in &closure.number_inputs {
             let owner = self.local_topology.number_input(*niid).unwrap().owner();
-            edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::RemoveNumberInput(
-                *niid, owner,
-            )));
+            edit_queue.push(SoundNumberEdit::RemoveNumberInput(*niid, owner).into());
         }
 
         // remove all number sources
         for nsid in &closure.number_sources {
             let owner = self.local_topology.number_source(*nsid).unwrap().owner();
-            edit_queue.push(SoundGraphEdit::Number(SoundNumberEdit::RemoveNumberSource(
-                *nsid, owner,
-            )));
+            edit_queue.push(SoundNumberEdit::RemoveNumberSource(*nsid, owner).into());
         }
 
         // remove all sound inputs

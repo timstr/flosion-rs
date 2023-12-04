@@ -2,6 +2,7 @@
 pub mod all_objects;
 pub mod audioclip_ui;
 pub mod dac_ui;
+pub mod definitions_ui;
 pub mod ensemble_ui;
 pub mod pure_function_uis;
 pub mod stateful_function_uis;

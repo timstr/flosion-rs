@@ -3,7 +3,10 @@ use inkwell::values::FunctionValue;
 use crate::core::{
     anydata::AnyData,
     number::context::{usize_pair_to_number_context, NumberContext},
-    sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId},
+    sound::{
+        soundinput::SoundInputId, soundnumbersource::SoundNumberSourceId,
+        soundprocessor::SoundProcessorId,
+    },
 };
 
 use super::types::JitTypes;
@@ -119,11 +122,30 @@ pub(super) unsafe extern "C" fn input_time_wrapper(
     *ptr_speed = speed;
 }
 
+pub(super) unsafe extern "C" fn processor_local_array_read_wrapper(
+    context_1: usize,
+    context_2: usize,
+    sound_processor_id: usize,
+    number_source_id: usize,
+    expected_len: usize,
+) -> *const f32 {
+    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
+    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let spid = SoundProcessorId::new(sound_processor_id);
+    let nsid = SoundNumberSourceId::new(number_source_id);
+    let s = ctx.read_local_array_from_sound_processor(spid, nsid);
+    if s.len() != expected_len {
+        panic!("processor_array_read_wrapper received a slice of incorrect length");
+    }
+    s.as_ptr()
+}
+
 pub(super) struct WrapperFunctions<'ctx> {
     pub(super) processor_scalar_read_wrapper: FunctionValue<'ctx>,
     pub(super) input_scalar_read_wrapper: FunctionValue<'ctx>,
     pub(super) processor_array_read_wrapper: FunctionValue<'ctx>,
     pub(super) input_array_read_wrapper: FunctionValue<'ctx>,
+    pub(super) processor_local_array_read_wrapper: FunctionValue<'ctx>,
     pub(super) processor_time_wrapper: FunctionValue<'ctx>,
     pub(super) input_time_wrapper: FunctionValue<'ctx>,
 }
@@ -180,6 +202,22 @@ impl<'ctx> WrapperFunctions<'ctx> {
             false,
         );
 
+        let fn_local_array_read_wrapper = types.f32_pointer_type.fn_type(
+            &[
+                // context_1
+                types.usize_type.into(),
+                // context_2
+                types.usize_type.into(),
+                // sound_processor_id
+                types.usize_type.into(),
+                // number_source_id
+                types.usize_type.into(),
+                // expected_len
+                types.usize_type.into(),
+            ],
+            false,
+        );
+
         let fn_input_scalar_read_wrapper = module.add_function(
             "input_scalar_read_wrapper",
             fn_scalar_read_wrapper_type,
@@ -207,6 +245,12 @@ impl<'ctx> WrapperFunctions<'ctx> {
         let fn_input_time_wrapper =
             module.add_function("input_time_wrapper", fn_time_wrapper_type, None);
 
+        let fn_proc_local_array_read_wrapper = module.add_function(
+            "processor_local_time_wrapepr",
+            fn_local_array_read_wrapper,
+            None,
+        );
+
         execution_engine.add_global_mapping(
             &fn_input_scalar_read_wrapper,
             input_scalar_read_wrapper as usize,
@@ -226,12 +270,17 @@ impl<'ctx> WrapperFunctions<'ctx> {
         execution_engine
             .add_global_mapping(&fn_processor_time_wrapper, processor_time_wrapper as usize);
         execution_engine.add_global_mapping(&fn_input_time_wrapper, input_time_wrapper as usize);
+        execution_engine.add_global_mapping(
+            &fn_proc_local_array_read_wrapper,
+            processor_local_array_read_wrapper as usize,
+        );
 
         WrapperFunctions {
             processor_scalar_read_wrapper: fn_proc_scalar_read_wrapper,
             input_scalar_read_wrapper: fn_input_scalar_read_wrapper,
             processor_array_read_wrapper: fn_proc_array_read_wrapper,
             input_array_read_wrapper: fn_input_array_read_wrapper,
+            processor_local_array_read_wrapper: fn_proc_local_array_read_wrapper,
             processor_time_wrapper: fn_processor_time_wrapper,
             input_time_wrapper: fn_input_time_wrapper,
         }
