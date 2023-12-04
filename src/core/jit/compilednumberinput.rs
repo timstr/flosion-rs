@@ -4,6 +4,7 @@ use send_wrapper::SendWrapper;
 
 use crate::core::{
     engine::garbage::{Droppable, Garbage, GarbageChute},
+    jit::codegen::FLAG_INITIALIZED,
     number::context::{number_context_to_usize_pair, NumberContext},
     samplefrequency::SAMPLE_TIME_STEP,
 };
@@ -123,6 +124,7 @@ impl<'ctx> CompiledNumberInputFunction<'ctx> {
         context: &dyn NumberContext,
         discretization: Discretization,
     ) {
+        debug_assert!(self.init_flag == FLAG_INITIALIZED || self.init_flag == FLAG_NOT_INITIALIZED);
         unsafe {
             let (context_1, context_2) = number_context_to_usize_pair(context);
             let time_step = discretization.time_step();
@@ -146,6 +148,7 @@ impl<'ctx> CompiledNumberInputFunction<'ctx> {
                 ptr_state_variables,
             );
         }
+        debug_assert_eq!(self.init_flag, FLAG_INITIALIZED);
     }
 }
 

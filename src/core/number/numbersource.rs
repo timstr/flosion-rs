@@ -232,7 +232,7 @@ pub trait StatefulNumberSource: 'static + Sync + Send + WithObjectType {
     // Generate instructions to produce the initial values of state variables.
     // This will be run the first time the compiled called after a reset.
     // The returned vector must have length Self::NUM_VARIABLES
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
+    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
 
     // Generate instructions to perform any necessary work prior
     // to the main body of the compiled function, such as synchronization
@@ -317,7 +317,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         codegen
             .builder()
             .position_before(&codegen.instruction_locations.end_of_reset);
-        let init_variable_values = self.compile_init(codegen);
+        let init_variable_values = self.compile_reset(codegen);
         debug_assert_eq!(init_variable_values.len(), self.num_variables());
         for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
             codegen.builder().build_store(*stack_var, init_value);

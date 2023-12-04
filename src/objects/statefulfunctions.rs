@@ -35,7 +35,7 @@ impl StatefulNumberSource for LinearApproach {
 
     type CompileState<'ctx> = ();
 
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 
@@ -125,7 +125,7 @@ impl StatefulNumberSource for ExponentialApproach {
 
     type CompileState<'ctx> = ();
 
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 
@@ -200,7 +200,7 @@ impl StatefulNumberSource for Integrator {
 
     type CompileState<'ctx> = ();
 
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 
@@ -256,7 +256,7 @@ impl StatefulNumberSource for WrappingIntegrator {
 
     type CompileState<'ctx> = ();
 
-    fn compile_init<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 

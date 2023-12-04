@@ -52,7 +52,7 @@ impl StatefulNumberSource for Sampler1d {
         // TODO
     }
 
-    fn compile_init<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_reset<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![]
     }
 

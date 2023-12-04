@@ -113,6 +113,16 @@ impl DynamicSoundProcessor for Ensemble {
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
+        // TODO: eval_scalar here is the reason that stateful number sources don't work,
+        // since it implies no time discretization.
+        // I want frequency and spread to vary smoothly.
+        // How to do this without bloating keyed input state?
+        // A buffer is needed to store intermediate results, but
+        // how to use those without having to store it between
+        // audio callbacks?
+        // Consider adding a way to use a borrowed slice as part of the state
+        // of an input in the audio context
+
         let freq_in = number_inputs
             .frequency_in
             .eval_scalar(&context.push_processor_state(state));
