@@ -82,7 +82,7 @@ impl NumberInputPlot {
         let painter = ui.painter();
         painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
         match compiled_fn {
-            Some(mut f) => {
+            Some(mut compiled_fn) => {
                 let len = rect.width().floor() as usize;
                 let mut dst = Vec::new();
                 dst.resize(len, 0.0);
@@ -95,20 +95,27 @@ impl NumberInputPlot {
                     HorizontalDomain::WithRespectTo(_, _) => Discretization::None,
                 };
 
-                f.eval(&mut dst, &number_context, discretization);
+                compiled_fn.eval(&mut dst, &number_context, discretization);
+
                 let (vmin, vmax) = match vertical_range {
                     VerticalRange::Automatic => {
-                        let mut vmin = *dst.first().unwrap();
+                        let first_val = *dst.first().unwrap();
+                        let mut vmin = if first_val.is_finite() {
+                            first_val
+                        } else {
+                            0.0
+                        };
                         let mut vmax = vmin;
                         for v in dst.iter().cloned() {
-                            vmin = v.min(vmin);
-                            vmax = v.max(vmax);
+                            if v.is_finite() {
+                                vmin = v.min(vmin);
+                                vmax = v.max(vmax);
+                            }
                         }
                         (vmin, vmax)
                     }
                     VerticalRange::Linear(range) => (*range.start(), *range.end()),
                 };
-                debug_assert!(vmax >= vmin);
                 // Range spans at least 1e-3 plus 10% extra
                 let plot_v_range = 1.1 * (vmax - vmin).max(1e-3);
                 let v_middle = 0.5 * (vmin + vmax);
@@ -117,14 +124,29 @@ impl NumberInputPlot {
                 for (i, (v0, v1)) in dst.iter().zip(&dst[1..]).enumerate() {
                     let x0 = rect.left() + i as f32 * dx;
                     let x1 = rect.left() + (i + 1) as f32 * dx;
-                    let t0 = ((v0 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
-                    let t1 = ((v1 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
-                    let y0 = rect.bottom() - t0 * rect.height();
-                    let y1 = rect.bottom() - t1 * rect.height();
-                    painter.line_segment(
-                        [egui::pos2(x0, y0), egui::pos2(x1, y1)],
-                        egui::Stroke::new(2.0, egui::Color32::WHITE),
-                    );
+                    if v0.is_finite() && v1.is_finite() {
+                        let t0 = ((v0 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
+                        let t1 = ((v1 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
+                        let y0 = rect.bottom() - t0 * rect.height();
+                        let y1 = rect.bottom() - t1 * rect.height();
+                        painter.line_segment(
+                            [egui::pos2(x0, y0), egui::pos2(x1, y1)],
+                            egui::Stroke::new(2.0, egui::Color32::WHITE),
+                        );
+                    } else {
+                        painter.line_segment(
+                            [egui::pos2(x1, rect.top()), egui::pos2(x1, rect.bottom())],
+                            egui::Stroke::new(
+                                2.0,
+                                egui::Color32::from_rgba_unmultiplied(
+                                    255,
+                                    0,
+                                    0,
+                                    if i % 4 == 0 { 255 } else { 64 },
+                                ),
+                            ),
+                        );
+                    }
                 }
                 painter.text(
                     rect.left_top(),
