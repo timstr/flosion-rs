@@ -101,6 +101,16 @@ impl StaticSoundProcessor for Dac {
             let l = c.l[chunk_index];
             let r = c.r[chunk_index];
             chunk_index += 1;
+            let l = if l.is_finite() {
+                l.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            };
+            let r = if r.is_finite() {
+                r.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            };
             (l, r)
         };
 
