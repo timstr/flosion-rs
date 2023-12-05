@@ -268,15 +268,68 @@ impl SoundNumberInputTargetMapping {
 }
 
 #[derive(Clone)]
+pub struct SoundNumberInputScope {
+    processor_state_available: bool,
+    available_local_sources: Vec<SoundNumberSourceId>,
+}
+
+impl SoundNumberInputScope {
+    pub fn without_processor_state() -> SoundNumberInputScope {
+        SoundNumberInputScope {
+            processor_state_available: false,
+            available_local_sources: Vec::new(),
+        }
+    }
+
+    pub fn with_processor_state() -> SoundNumberInputScope {
+        SoundNumberInputScope {
+            processor_state_available: true,
+            available_local_sources: Vec::new(),
+        }
+    }
+
+    pub fn add_local(mut self, id: SoundNumberSourceId) -> SoundNumberInputScope {
+        self.available_local_sources.push(id);
+        self
+    }
+
+    pub(crate) fn processor_state_available(&self) -> bool {
+        self.processor_state_available
+    }
+
+    pub(crate) fn available_local_sources(&self) -> &[SoundNumberSourceId] {
+        &self.available_local_sources
+    }
+}
+
+impl Revision for SoundNumberInputScope {
+    fn get_revision(&self) -> RevisionNumber {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_u8(if self.processor_state_available { 1 } else { 0 });
+        hasher.write_usize(self.available_local_sources.len());
+        for nsid in &self.available_local_sources {
+            hasher.write_usize(nsid.value());
+        }
+        RevisionNumber::new(hasher.finish())
+    }
+}
+
+#[derive(Clone)]
 pub struct SoundNumberInputData {
     id: SoundNumberInputId,
     target_mapping: SoundNumberInputTargetMapping,
     number_graph: NumberGraph,
     owner: SoundProcessorId,
+    scope: SoundNumberInputScope,
 }
 
 impl SoundNumberInputData {
-    pub(crate) fn new(id: SoundNumberInputId, owner: SoundProcessorId, default_value: f32) -> Self {
+    pub(crate) fn new(
+        id: SoundNumberInputId,
+        owner: SoundProcessorId,
+        default_value: f32,
+        scope: SoundNumberInputScope,
+    ) -> Self {
         let mut number_graph = NumberGraph::new();
 
         // HACK: assuming 1 output for now
@@ -287,6 +340,7 @@ impl SoundNumberInputData {
             target_mapping: SoundNumberInputTargetMapping::new(),
             number_graph,
             owner,
+            scope,
         }
     }
 
@@ -318,6 +372,10 @@ impl SoundNumberInputData {
     pub(crate) fn owner(&self) -> SoundProcessorId {
         self.owner
     }
+
+    pub(crate) fn scope(&self) -> &SoundNumberInputScope {
+        &self.scope
+    }
 }
 
 impl Revision for SoundNumberInputData {
@@ -332,6 +390,7 @@ impl Revision for SoundNumberInputData {
         hasher.write_u64(items_hash);
         hasher.write_u64(self.number_graph.topology().get_revision().value());
         hasher.write_usize(self.owner.value());
+        hasher.write_u64(self.scope.get_revision().value());
         RevisionNumber::new(hasher.finish())
     }
 }

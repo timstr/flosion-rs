@@ -51,6 +51,13 @@ impl From<SoundNumberSourceOwner> for SoundGraphId {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SoundNumberSourceOrigin {
+    ProcessorState(SoundProcessorId),
+    InputState(SoundInputId),
+    Local(SoundProcessorId),
+}
+
 pub struct SoundNumberSourceHandle {
     id: SoundNumberSourceId,
 }
@@ -72,9 +79,15 @@ impl SoundNumberSourceHandle {
 // be stored in a separate Arc held by both, and state is always read from the
 // Context's state chain during audio processing
 pub(crate) trait SoundNumberSource: 'static + Sync + Send {
+    // Where does the number source's data come from?
+    fn origin(&self) -> SoundNumberSourceOrigin;
+
+    // Produce JIT instructions that evaluate the number source
+    // at each sample
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx>;
 }
 
+// A SoundNumberSource that reads a scalar from the state of a sound input
 pub(crate) struct ScalarInputNumberSource {
     function: ScalarReadFunc,
     input_id: SoundInputId,
@@ -87,11 +100,16 @@ impl ScalarInputNumberSource {
 }
 
 impl SoundNumberSource for ScalarInputNumberSource {
+    fn origin(&self) -> SoundNumberSourceOrigin {
+        SoundNumberSourceOrigin::InputState(self.input_id)
+    }
+
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_input_scalar_read(self.input_id, self.function)
     }
 }
 
+// A SoundNumberSource that reads an array from the state of a sound input
 pub(crate) struct ArrayInputNumberSource {
     function: ArrayReadFunc,
     input_id: SoundInputId,
@@ -104,11 +122,16 @@ impl ArrayInputNumberSource {
 }
 
 impl SoundNumberSource for ArrayInputNumberSource {
+    fn origin(&self) -> SoundNumberSourceOrigin {
+        SoundNumberSourceOrigin::InputState(self.input_id)
+    }
+
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_input_array_read(self.input_id, self.function)
     }
 }
 
+// A SoundNumberSource that reads a scalar from the state of a sound processor
 pub(crate) struct ScalarProcessorNumberSource {
     function: ScalarReadFunc,
     processor_id: SoundProcessorId,
@@ -127,11 +150,16 @@ impl ScalarProcessorNumberSource {
 }
 
 impl SoundNumberSource for ScalarProcessorNumberSource {
+    fn origin(&self) -> SoundNumberSourceOrigin {
+        SoundNumberSourceOrigin::ProcessorState(self.processor_id)
+    }
+
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_processor_scalar_read(self.processor_id, self.function)
     }
 }
 
+// A SoundNumberSource that reads an array from the state of a sound processor
 pub(crate) struct ArrayProcessorNumberSource {
     function: ArrayReadFunc,
     processor_id: SoundProcessorId,
@@ -150,11 +178,15 @@ impl ArrayProcessorNumberSource {
 }
 
 impl SoundNumberSource for ArrayProcessorNumberSource {
+    fn origin(&self) -> SoundNumberSourceOrigin {
+        SoundNumberSourceOrigin::ProcessorState(self.processor_id)
+    }
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_processor_array_read(self.processor_id, self.function)
     }
 }
 
+// A NumberSource that evaluates the current time at a sound processor
 pub(crate) struct ProcessorTimeNumberSource {
     processor_id: SoundProcessorId,
 }
@@ -166,11 +198,16 @@ impl ProcessorTimeNumberSource {
 }
 
 impl SoundNumberSource for ProcessorTimeNumberSource {
+    fn origin(&self) -> SoundNumberSourceOrigin {
+        SoundNumberSourceOrigin::ProcessorState(self.processor_id)
+    }
+
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_processor_time(self.processor_id)
     }
 }
 
+// A NumberSource that evaluates the current time at a sound input
 pub(crate) struct InputTimeNumberSource {
     input_id: SoundInputId,
 }
@@ -182,11 +219,17 @@ impl InputTimeNumberSource {
 }
 
 impl SoundNumberSource for InputTimeNumberSource {
+    fn origin(&self) -> SoundNumberSourceOrigin {
+        SoundNumberSourceOrigin::InputState(self.input_id)
+    }
+
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_input_time(self.input_id)
     }
 }
 
+// A NumberSource that evaluates an array of data that is local to the
+// sound processor's audio callback function
 pub(crate) struct ProcessorLocalArrayNumberSource {
     id: SoundNumberSourceId,
     processor_id: SoundProcessorId,
@@ -202,6 +245,10 @@ impl ProcessorLocalArrayNumberSource {
 }
 
 impl SoundNumberSource for ProcessorLocalArrayNumberSource {
+    fn origin(&self) -> SoundNumberSourceOrigin {
+        SoundNumberSourceOrigin::Local(self.processor_id)
+    }
+
     fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
         codegen.build_processor_local_array_read(self.processor_id, self.id)
     }

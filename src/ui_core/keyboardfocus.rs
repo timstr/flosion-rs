@@ -21,6 +21,8 @@ use super::{
 pub(super) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
     AroundSoundInput(SoundInputId),
+    // TODO: make sound processors renameable
+    // InSoundProcessorName(SoundInputId)
     InsideEmptySoundInput(SoundInputId),
     AroundSoundNumberInput(SoundNumberInputId),
     InsideSoundNumberInput(SoundNumberInputId, LexicalLayoutFocus),

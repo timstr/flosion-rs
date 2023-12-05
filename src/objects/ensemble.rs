@@ -11,6 +11,7 @@ use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
+        soundgraphdata::SoundNumberInputScope,
         soundinput::InputOptions,
         soundinputtypes::{KeyedInput, KeyedInputNode},
         soundnumberinput::SoundNumberInputHandle,
@@ -82,8 +83,10 @@ impl DynamicSoundProcessor for Ensemble {
         });
         Ok(Ensemble {
             input,
-            frequency_in: tools.add_number_input(250.0),
-            frequency_spread: tools.add_number_input(0.01),
+            frequency_in: tools
+                .add_number_input(250.0, SoundNumberInputScope::with_processor_state()),
+            frequency_spread: tools
+                .add_number_input(0.01, SoundNumberInputScope::with_processor_state()),
             voice_frequency,
         })
     }

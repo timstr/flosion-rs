@@ -20,7 +20,7 @@ use crate::{
         sound::{
             context::{Context, LocalArrayList},
             soundedit::SoundEdit,
-            soundgraphdata::SoundProcessorData,
+            soundgraphdata::{SoundNumberInputScope, SoundProcessorData},
             soundgraphtopology::SoundGraphTopology,
             soundinput::SoundInputId,
             soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
@@ -90,7 +90,8 @@ impl DynamicSoundProcessor for TestSoundProcessor {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(TestSoundProcessor {
-            number_input: tools.add_number_input(0.0),
+            number_input: tools
+                .add_number_input(0.0, SoundNumberInputScope::with_processor_state()),
             input_values: Mutex::new([[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]),
             number_source_0: tools.add_processor_array_number_source(|data| {
                 &data

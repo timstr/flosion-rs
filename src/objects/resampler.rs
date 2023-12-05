@@ -10,6 +10,7 @@ use crate::core::{
     jit::compilednumberinput::Discretization,
     sound::{
         context::{Context, LocalArrayList},
+        soundgraphdata::SoundNumberInputScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundnumberinput::SoundNumberInputHandle,
@@ -62,7 +63,7 @@ impl DynamicSoundProcessor for Resampler {
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Resampler {
             input: SingleInput::new(InputOptions::NonSynchronous, &mut tools),
-            speed_ratio: tools.add_number_input(1.0),
+            speed_ratio: tools.add_number_input(1.0, SoundNumberInputScope::with_processor_state()),
         })
     }
 
@@ -122,7 +123,7 @@ impl DynamicSoundProcessor for Resampler {
         number_inputs.speed_ratio.eval(
             &mut speedratio,
             Discretization::samplewise_temporal(),
-            &context,
+            &context.push_processor_state(state, LocalArrayList::new()),
         );
         for (dst_sample, delta) in dst
             .samples_mut()

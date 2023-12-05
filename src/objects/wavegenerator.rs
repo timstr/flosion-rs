@@ -12,6 +12,7 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::{Context, LocalArrayList},
+        soundgraphdata::SoundNumberInputScope,
         soundnumberinput::SoundNumberInputHandle,
         soundnumbersource::SoundNumberSourceHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
@@ -65,8 +66,8 @@ impl DynamicSoundProcessor for WaveGenerator {
             phase: tools.add_processor_array_number_source(|state: &AnyData| -> &[f32] {
                 &state.downcast_if::<WaveGeneratorState>().unwrap().phase
             }),
-            amplitude: tools.add_number_input(0.0),
-            frequency: tools.add_number_input(250.0),
+            amplitude: tools.add_number_input(0.0, SoundNumberInputScope::with_processor_state()),
+            frequency: tools.add_number_input(250.0, SoundNumberInputScope::with_processor_state()),
         })
     }
 

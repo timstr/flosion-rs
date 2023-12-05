@@ -10,6 +10,7 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::{Context, LocalArrayList},
+        soundgraphdata::SoundNumberInputScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
         soundnumberinput::SoundNumberInputHandle,
@@ -128,10 +129,14 @@ impl DynamicSoundProcessor for ADSR {
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ADSR {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            attack_time: tools.add_number_input(0.01),
-            decay_time: tools.add_number_input(0.2),
-            sustain_level: tools.add_number_input(0.5),
-            release_time: tools.add_number_input(0.25),
+            attack_time: tools
+                .add_number_input(0.01, SoundNumberInputScope::without_processor_state()),
+            decay_time: tools
+                .add_number_input(0.2, SoundNumberInputScope::without_processor_state()),
+            sustain_level: tools
+                .add_number_input(0.5, SoundNumberInputScope::without_processor_state()),
+            release_time: tools
+                .add_number_input(0.25, SoundNumberInputScope::without_processor_state()),
         })
     }
 

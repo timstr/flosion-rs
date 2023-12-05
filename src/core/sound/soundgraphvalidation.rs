@@ -7,7 +7,7 @@ use super::{
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
     soundnumberinput::SoundNumberInputId,
-    soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
+    soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOrigin, SoundNumberSourceOwner},
     soundprocessor::SoundProcessorId,
     state::StateOwner,
 };
@@ -200,9 +200,10 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
     }
 
     for ni in topology.number_inputs().values() {
-        // for all number inputs
+        // for each number input
+
+        // all of its target number sources must exist
         for nsid in ni.target_mapping().items().values() {
-            // its targets must exist
             if topology.number_sources().get(nsid).is_none() {
                 panic!(
                     "The number input {:?} lists number source {:?} as its target, but that \
@@ -212,6 +213,8 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                 );
             }
         }
+
+        // its owner must exist and list it as one of its number inputs
         match topology.sound_processor(ni.owner()) {
             Some(sp) => {
                 if !sp.number_inputs().contains(&ni.id()) {
@@ -230,6 +233,35 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                 ni.id(),
                 ni.owner()
             ),
+        }
+
+        // any number sources listed in its scope must belong to the parent
+        // sound processor and be local number sources
+        for nsid in ni.scope().available_local_sources() {
+            let Some(ns_data) = topology.number_source(*nsid) else {
+                panic!(
+                    "The number input {:?} lists number source {:?} as in its local scope, but \
+                    that number source doesn't exist.",
+                    ni.id(),
+                    nsid
+                );
+            };
+            if ns_data.owner() != SoundNumberSourceOwner::SoundProcessor(ni.owner()) {
+                panic!(
+                    "The number input {:?} lists number source {:?} as in its local scope, but \
+                    that number source doesn't belong to the same sound processor.",
+                    ni.id(),
+                    nsid
+                );
+            }
+            if ns_data.instance().origin() != SoundNumberSourceOrigin::Local(ni.owner()) {
+                panic!(
+                    "The number input {:?} lists number source {:?} as in its local scope, but \
+                    that number source is not a local number source.",
+                    ni.id(),
+                    nsid
+                );
+            }
         }
     }
 

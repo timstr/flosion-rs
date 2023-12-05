@@ -7,7 +7,9 @@ use crate::core::{
 
 use super::{
     soundedit::{SoundEdit, SoundNumberEdit},
-    soundgraphdata::{SoundInputData, SoundNumberInputData, SoundNumberSourceData},
+    soundgraphdata::{
+        SoundInputData, SoundNumberInputData, SoundNumberInputScope, SoundNumberSourceData,
+    },
     soundgraphedit::SoundGraphEdit,
     soundinput::{InputOptions, SoundInputId},
     soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
@@ -133,13 +135,18 @@ impl<'a> SoundProcessorTools<'a> {
         SoundNumberSourceHandle::new(id)
     }
 
-    pub fn add_number_input(&mut self, default_value: f32) -> SoundNumberInputHandle {
+    pub fn add_number_input(
+        &mut self,
+        default_value: f32,
+        scope: SoundNumberInputScope,
+    ) -> SoundNumberInputHandle {
         let id = self.number_input_idgen.next_id();
         let owner = self.processor_id;
-        let data = SoundNumberInputData::new(id, owner, default_value);
+        let data = SoundNumberInputData::new(id, owner, default_value, scope.clone());
         self.edit_queue
             .push(SoundNumberEdit::AddNumberInput(data).into());
-        SoundNumberInputHandle::new(id, owner)
+        // TODO: need a #[cfg(debug_assertions)] guard here to conditionally pass scope
+        SoundNumberInputHandle::new(id, owner, scope)
     }
 
     pub(super) fn processor_id(&self) -> SoundProcessorId {

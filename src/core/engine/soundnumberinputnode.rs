@@ -6,21 +6,42 @@ use crate::core::{
         nodegen::NodeGen,
     },
     jit::compilednumberinput::{CompiledNumberInputFunction, Discretization},
-    sound::{context::Context, soundnumberinput::SoundNumberInputId},
+    sound::{
+        context::Context, soundgraphdata::SoundNumberInputScope,
+        soundnumberinput::SoundNumberInputId,
+    },
 };
 
 pub struct SoundNumberInputNode<'ctx> {
     id: SoundNumberInputId,
     function: CompiledNumberInputFunction<'ctx>,
+
+    #[cfg(debug_assertions)]
+    scope: SoundNumberInputScope,
 }
 
 impl<'ctx> SoundNumberInputNode<'ctx> {
+    #[cfg(not(debug_assertions))]
     pub(crate) fn new<'a>(
         id: SoundNumberInputId,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> SoundNumberInputNode<'ctx> {
         let function = nodegen.get_compiled_number_input(id);
         SoundNumberInputNode { id, function }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn new<'a>(
+        id: SoundNumberInputId,
+        nodegen: &NodeGen<'a, 'ctx>,
+        scope: SoundNumberInputScope,
+    ) -> SoundNumberInputNode<'ctx> {
+        let function = nodegen.get_compiled_number_input(id);
+        SoundNumberInputNode {
+            id,
+            function,
+            scope,
+        }
     }
 
     pub(crate) fn id(&self) -> SoundNumberInputId {
@@ -49,6 +70,11 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         let s = slice::from_mut(&mut dst);
         self.eval(s, Discretization::None, context);
         s[0]
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn scope(&self) -> &SoundNumberInputScope {
+        &self.scope
     }
 }
 
