@@ -145,7 +145,7 @@ impl<'a> SoundProcessorTools<'a> {
         let data = SoundNumberInputData::new(id, owner, default_value, scope.clone());
         self.edit_queue
             .push(SoundNumberEdit::AddNumberInput(data).into());
-        // TODO: need a #[cfg(debug_assertions)] guard here to conditionally pass scope
+
         SoundNumberInputHandle::new(id, owner, scope)
     }
 

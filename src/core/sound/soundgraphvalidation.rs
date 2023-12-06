@@ -487,12 +487,14 @@ pub(crate) fn validate_sound_number_connection(
 
 pub(crate) fn available_sound_number_sources(
     topology: &SoundGraphTopology,
-) -> HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>> {
-    let mut cached_proc_sources: HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>> =
-        HashMap::new();
+) -> HashMap<SoundNumberInputId, HashSet<SoundNumberSourceId>> {
+    let mut available_sources_by_processor: HashMap<
+        SoundProcessorId,
+        HashSet<SoundNumberSourceId>,
+    > = HashMap::new();
     for proc_data in topology.sound_processors().values() {
         if proc_data.instance().is_static() {
-            cached_proc_sources.insert(
+            available_sources_by_processor.insert(
                 proc_data.id(),
                 proc_data.number_sources().iter().cloned().collect(),
             );
@@ -525,17 +527,18 @@ pub(crate) fn available_sound_number_sources(
             sources
         };
 
+    // Cache all processors in topological order
     loop {
         let next_proc_id = topology
             .sound_processors()
             .values()
             .filter_map(|proc_data| {
                 // don't revisit processors that are already cached
-                if cached_proc_sources.contains_key(&proc_data.id()) {
+                if available_sources_by_processor.contains_key(&proc_data.id()) {
                     return None;
                 }
                 // visit processors for which all targets are cached
-                if all_targets_cached_for(proc_data.id(), &cached_proc_sources) {
+                if all_targets_cached_for(proc_data.id(), &available_sources_by_processor) {
                     Some(proc_data.id())
                 } else {
                     None
@@ -554,7 +557,7 @@ pub(crate) fn available_sound_number_sources(
         // available via each destination sound input
         for target_input in topology.sound_processor_targets(next_proc_id) {
             let target_input_sources =
-                sound_input_number_sources(target_input, &cached_proc_sources);
+                sound_input_number_sources(target_input, &available_sources_by_processor);
             if let Some(sources) = available_sources.as_mut() {
                 *sources = sources
                     .intersection(&target_input_sources)
@@ -575,8 +578,45 @@ pub(crate) fn available_sound_number_sources(
             available_sources.insert(*nsid);
         }
 
-        cached_proc_sources.insert(next_proc_id, available_sources);
+        available_sources_by_processor.insert(next_proc_id, available_sources);
     }
 
-    cached_proc_sources
+    let mut available_sources_by_number_input = HashMap::new();
+
+    // Each number input's available sources are those available from the processor minus
+    // any out-of-scope locals
+    for ni_data in topology.number_inputs().values() {
+        let mut available_sources = available_sources_by_processor
+            .get(&ni_data.owner())
+            .unwrap()
+            .clone();
+        let processor_sources = topology
+            .sound_processor(ni_data.owner())
+            .unwrap()
+            .number_sources();
+        for nsid in processor_sources {
+            debug_assert!(available_sources.contains(nsid));
+            let ns_data = topology.number_source(*nsid).unwrap();
+            match ns_data.instance().origin() {
+                SoundNumberSourceOrigin::ProcessorState(spid) => {
+                    debug_assert_eq!(spid, ni_data.owner());
+                    if !ni_data.scope().processor_state_available() {
+                        available_sources.remove(nsid);
+                    }
+                }
+                SoundNumberSourceOrigin::InputState(_) => {
+                    panic!("Processor sound number source can't have a sound input as its origin");
+                }
+                SoundNumberSourceOrigin::Local(spid) => {
+                    debug_assert_eq!(spid, ni_data.owner());
+                    if !ni_data.scope().available_local_sources().contains(nsid) {
+                        available_sources.remove(nsid);
+                    }
+                }
+            }
+        }
+        available_sources_by_number_input.insert(ni_data.id(), available_sources);
+    }
+
+    available_sources_by_number_input
 }

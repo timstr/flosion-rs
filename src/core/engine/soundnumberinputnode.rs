@@ -6,11 +6,11 @@ use crate::core::{
         nodegen::NodeGen,
     },
     jit::compilednumberinput::{CompiledNumberInputFunction, Discretization},
-    sound::{
-        context::Context, soundgraphdata::SoundNumberInputScope,
-        soundnumberinput::SoundNumberInputId,
-    },
+    sound::{context::Context, soundnumberinput::SoundNumberInputId},
 };
+
+#[cfg(debug_assertions)]
+use crate::core::sound::soundgraphdata::SoundNumberInputScope;
 
 pub struct SoundNumberInputNode<'ctx> {
     id: SoundNumberInputId,
@@ -62,6 +62,9 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
     }
 
     pub fn eval(&mut self, dst: &mut [f32], discretization: Discretization, context: &Context) {
+        #[cfg(debug_assertions)]
+        self.validate_context(dst.len(), context);
+
         self.function.eval(dst, context, discretization)
     }
 
@@ -73,8 +76,53 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn scope(&self) -> &SoundNumberInputScope {
-        &self.scope
+    pub(crate) fn validate_context(&self, expected_len: usize, context: &Context) -> bool {
+        use crate::core::{sound::context::StackFrame, uniqueid::UniqueId};
+
+        let stack = context.stack();
+        let StackFrame::Processor(frame) = stack else {
+            println!("Processor state must be pushed onto context when evaluating number input");
+            return false;
+        };
+        let local_arrays = frame.local_arrays().as_vec();
+        for arr in &local_arrays {
+            if !self
+                .scope
+                .available_local_sources()
+                .contains(&arr.number_source_id())
+            {
+                println!(
+                    "A local array was pushed for number source {} which is not marked as being \
+                    in scope.",
+                    arr.number_source_id().value()
+                );
+                return false;
+            }
+            if arr.array().len() != expected_len {
+                println!(
+                    "A local array was pushed for number source {}, but its length of {} doesn't \
+                    match the expected length from the destination array of {}.",
+                    arr.number_source_id().value(),
+                    arr.array().len(),
+                    expected_len
+                );
+                return false;
+            }
+        }
+        for nsid in self.scope.available_local_sources() {
+            if local_arrays
+                .iter()
+                .find(|a| a.number_source_id() == *nsid)
+                .is_none()
+            {
+                println!(
+                    "No local array was pushed for number source {}, which is marked as being in scope.",
+                    nsid.value()
+                );
+                return false;
+            }
+        }
+        true
     }
 }
 

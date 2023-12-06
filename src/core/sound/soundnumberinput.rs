@@ -33,20 +33,11 @@ impl UniqueId for SoundNumberInputId {
 pub struct SoundNumberInputHandle {
     id: SoundNumberInputId,
     owner: SoundProcessorId,
-
-    #[cfg(debug_assertions)]
     scope: SoundNumberInputScope,
 }
 
 impl SoundNumberInputHandle {
-    // TODO: why are these new() functions pub?
-
-    #[cfg(not(debug_assertions))]
-    pub fn new(id: SoundNumberInputId, owner: SoundProcessorId) -> SoundNumberInputHandle {
-        SoundNumberInputHandle { id, owner }
-    }
-
-    #[cfg(debug_assertions)]
+    // TODO: why is this pub?
     pub fn new(
         id: SoundNumberInputId,
         owner: SoundProcessorId,
@@ -70,6 +61,7 @@ impl SoundNumberInputHandle {
 
     #[cfg(debug_assertions)]
     pub fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> SoundNumberInputNode<'ctx> {
-        SoundNumberInputNode::new(self.id, nodegen, self.scope)
+        // Pass scope to enable validation
+        SoundNumberInputNode::new(self.id, nodegen, self.scope.clone())
     }
 }

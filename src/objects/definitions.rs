@@ -56,14 +56,11 @@ impl DynamicSoundProcessor for Definitions {
     type NumberInputType<'ctx> = DefinitionsNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
-        let number_source = tools.add_local_array_number_source();
         Ok(Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            number_input: tools.add_number_input(
-                0.0,
-                SoundNumberInputScope::with_processor_state().add_local(number_source.id()),
-            ),
-            number_source,
+            number_input: tools
+                .add_number_input(0.0, SoundNumberInputScope::with_processor_state()),
+            number_source: tools.add_local_array_number_source(),
         })
     }
 

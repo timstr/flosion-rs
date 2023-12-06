@@ -402,7 +402,11 @@ impl SoundGraph {
 
             let r = f(number_input);
 
-            Ok(r)
+            if let Some(e) = find_error(topo) {
+                Err(e)
+            } else {
+                Ok(r)
+            }
         })
     }
 

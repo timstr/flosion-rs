@@ -4,6 +4,7 @@ use crate::core::sound::{
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::available_sound_number_sources,
+    soundnumberinput::SoundNumberInputId,
     soundnumbersource::SoundNumberSourceId,
     soundprocessor::SoundProcessorId,
 };
@@ -22,7 +23,7 @@ pub struct TopLevelLayout {
 
 pub struct TemporalLayout {
     top_level_objects: HashMap<SoundObjectId, TopLevelLayout>,
-    available_number_sources: HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>>,
+    available_number_sources: HashMap<SoundNumberInputId, HashSet<SoundNumberSourceId>>,
 }
 
 impl TemporalLayout {
@@ -181,8 +182,8 @@ impl TemporalLayout {
 
     pub(super) fn available_number_sources(
         &self,
-        processor_id: SoundProcessorId,
+        input_id: SoundNumberInputId,
     ) -> &HashSet<SoundNumberSourceId> {
-        self.available_number_sources.get(&processor_id).unwrap()
+        self.available_number_sources.get(&input_id).unwrap()
     }
 }

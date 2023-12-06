@@ -15,10 +15,12 @@ use super::{
     stategraphedit::StateGraphEdit,
 };
 
+#[cfg(debug_assertions)]
+use crate::core::engine::stategraphvalidation::state_graph_matches_topology;
+
 use crate::core::{
-    engine::stategraphvalidation::state_graph_matches_topology, jit::server::JitServer,
-    samplefrequency::SAMPLE_FREQUENCY, sound::soundgraphtopology::SoundGraphTopology,
-    soundchunk::CHUNK_SIZE,
+    jit::server::JitServer, samplefrequency::SAMPLE_FREQUENCY,
+    sound::soundgraphtopology::SoundGraphTopology, soundchunk::CHUNK_SIZE,
 };
 
 pub(crate) struct StopButton(Arc<AtomicBool>);

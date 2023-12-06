@@ -1,4 +1,7 @@
-use std::{any::type_name, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
+#[cfg(debug_assertions)]
+use std::any::type_name;
 
 use eframe::{egui, epaint::ecolor};
 

@@ -12,9 +12,19 @@ use super::{
 };
 
 #[derive(Clone, Copy)]
-struct LocalArray<'a> {
+pub(crate) struct LocalArray<'a> {
     array: &'a [f32],
     number_source_id: SoundNumberSourceId,
+}
+
+impl<'a> LocalArray<'a> {
+    pub(crate) fn array(&self) -> &'a [f32] {
+        self.array
+    }
+
+    pub(crate) fn number_source_id(&self) -> SoundNumberSourceId {
+        self.number_source_id
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -65,6 +75,22 @@ impl<'a> LocalArrayList<'a> {
             }
         }
     }
+
+    pub(crate) fn as_vec(&self) -> Vec<LocalArray<'a>> {
+        fn visit<'b>(list: &LocalArrayList<'b>, vec: &mut Vec<LocalArray<'b>>) {
+            match list.value {
+                LocalArrayListValue::Empty => (),
+                LocalArrayListValue::Containing(v, rest) => {
+                    vec.push(v.clone());
+                    visit(rest, vec);
+                }
+            }
+        }
+
+        let mut vec = Vec::new();
+        visit(self, &mut vec);
+        vec
+    }
 }
 
 pub(crate) struct ProcessorStackFrame<'a> {
@@ -72,6 +98,12 @@ pub(crate) struct ProcessorStackFrame<'a> {
     processor_id: SoundProcessorId,
     state: &'a dyn ProcessorState,
     local_arrays: LocalArrayList<'a>,
+}
+
+impl<'a> ProcessorStackFrame<'a> {
+    pub(crate) fn local_arrays(&self) -> &LocalArrayList<'a> {
+        &self.local_arrays
+    }
 }
 
 pub(crate) struct InputStackFrame<'a> {
@@ -95,7 +127,7 @@ impl<'a> InputStackFrame<'a> {
     }
 }
 
-enum StackFrame<'a> {
+pub(crate) enum StackFrame<'a> {
     Processor(ProcessorStackFrame<'a>),
     Input(InputStackFrame<'a>),
     Root,
@@ -196,6 +228,10 @@ impl<'a> Context<'a> {
             scratch_space,
             stack: StackFrame::Root,
         }
+    }
+
+    pub(crate) fn stack(&self) -> &StackFrame<'a> {
+        &self.stack
     }
 
     // TODO: it appears that input states and processor states are always pushed a pair at a time.

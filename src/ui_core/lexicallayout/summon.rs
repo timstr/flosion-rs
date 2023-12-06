@@ -39,7 +39,7 @@ pub(super) fn build_summon_widget_for_sound_number_input(
 
     for snsid in ctx
         .temporal_layout()
-        .available_number_sources(ctx.parent_sound_processor_id())
+        .available_number_sources(ctx.sound_number_input_id())
     {
         builder.add_basic_name(
             ctx.sound_graph_names().combined_number_source_name(*snsid),
