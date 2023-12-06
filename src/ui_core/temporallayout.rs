@@ -172,6 +172,7 @@ impl TemporalLayout {
             for niid in sp_data.number_inputs() {
                 items.push((*niid).into());
             }
+
             items.push(spid.into());
         }
 

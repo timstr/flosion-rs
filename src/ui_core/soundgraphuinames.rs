@@ -147,16 +147,20 @@ impl SoundGraphUiNames {
         self.sound_processors.get(&id)
     }
 
-    pub(crate) fn record_number_source_name(&mut self, id: SoundNumberSourceId, name: &str) {
-        self.number_sources.get_mut(&id).unwrap().name = name.to_string();
+    pub(crate) fn record_number_source_name(&mut self, id: SoundNumberSourceId, name: String) {
+        self.number_sources.get_mut(&id).unwrap().name = name;
     }
 
-    pub(crate) fn record_sound_input_name(&mut self, id: SoundInputId, name: &str) {
-        self.sound_inputs.get_mut(&id).unwrap().name = name.to_string();
+    pub(crate) fn record_sound_input_name(&mut self, id: SoundInputId, name: String) {
+        self.sound_inputs.get_mut(&id).unwrap().name = name;
     }
 
-    pub(crate) fn record_number_input_name(&mut self, id: SoundNumberInputId, name: &str) {
-        self.number_inputs.get_mut(&id).unwrap().name = name.to_string();
+    pub(crate) fn record_sound_processor_name(&mut self, id: SoundProcessorId, name: String) {
+        self.sound_processors.get_mut(&id).unwrap().name = name;
+    }
+
+    pub(crate) fn record_number_input_name(&mut self, id: SoundNumberInputId, name: String) {
+        self.number_inputs.get_mut(&id).unwrap().name = name;
     }
 
     pub(crate) fn combined_number_source_name(&self, id: SoundNumberSourceId) -> String {

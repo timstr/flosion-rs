@@ -518,6 +518,13 @@ impl SoundGraphUiState {
         }
     }
 
+    pub(super) fn keyboard_focus(&self) -> Option<&KeyboardFocusState> {
+        match &self.mode {
+            UiMode::UsingKeyboardNav(kbd) => Some(kbd),
+            _ => None,
+        }
+    }
+
     pub(super) fn is_item_focused(&self, id: SoundGraphId) -> bool {
         match &self.mode {
             UiMode::UsingKeyboardNav(kbd) => kbd.item_has_keyboard_focus(id),

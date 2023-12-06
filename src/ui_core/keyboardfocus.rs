@@ -20,9 +20,8 @@ use super::{
 
 pub(super) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
+    OnSoundProcessorName(SoundProcessorId),
     AroundSoundInput(SoundInputId),
-    // TODO: make sound processors renameable
-    // InSoundProcessorName(SoundInputId)
     InsideEmptySoundInput(SoundInputId),
     AroundSoundNumberInput(SoundNumberInputId),
     InsideSoundNumberInput(SoundNumberInputId, LexicalLayoutFocus),
@@ -32,6 +31,7 @@ impl KeyboardFocusState {
     pub(super) fn graph_id(&self) -> SoundGraphId {
         match self {
             KeyboardFocusState::AroundSoundProcessor(spid) => (*spid).into(),
+            KeyboardFocusState::OnSoundProcessorName(spid) => (*spid).into(),
             KeyboardFocusState::AroundSoundInput(siid) => (*siid).into(),
             KeyboardFocusState::InsideEmptySoundInput(siid) => (*siid).into(),
             KeyboardFocusState::AroundSoundNumberInput(niid) => (*niid).into(),
@@ -76,6 +76,11 @@ impl KeyboardFocusState {
                 *self = KeyboardFocusState::AroundSoundInput(*siid);
                 return true;
             }
+        } else if let KeyboardFocusState::OnSoundProcessorName(spid) = self {
+            if input.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
+                *self = KeyboardFocusState::AroundSoundProcessor(*spid);
+                return true;
+            }
         } else {
             let graph_id = self.graph_id();
             let root_spid = temporal_layout.find_root_processor(graph_id, topology);
@@ -111,25 +116,34 @@ impl KeyboardFocusState {
             }
         }
 
-        if let KeyboardFocusState::AroundSoundNumberInput(niid) = self {
-            if input.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
-                *self =
-                    KeyboardFocusState::InsideSoundNumberInput(*niid, LexicalLayoutFocus::new());
-                return true;
+        match self {
+            KeyboardFocusState::AroundSoundProcessor(spid) => {
+                if input.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+                    *self = KeyboardFocusState::OnSoundProcessorName(*spid);
+                }
             }
-        }
-
-        if let KeyboardFocusState::AroundSoundInput(siid) = self {
-            if let Some(target_spid) = topology.sound_input(*siid).unwrap().target() {
-                if temporal_layout.is_top_level(target_spid.into())
-                    && input.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
-                {
-                    *self = KeyboardFocusState::AroundSoundProcessor(target_spid);
+            KeyboardFocusState::AroundSoundInput(siid) => {
+                if let Some(target_spid) = topology.sound_input(*siid).unwrap().target() {
+                    if temporal_layout.is_top_level(target_spid.into())
+                        && input.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                    {
+                        *self = KeyboardFocusState::AroundSoundProcessor(target_spid);
+                        return true;
+                    }
+                } else {
+                    *self = KeyboardFocusState::InsideEmptySoundInput(*siid);
+                }
+            }
+            KeyboardFocusState::AroundSoundNumberInput(niid) => {
+                if input.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+                    *self = KeyboardFocusState::InsideSoundNumberInput(
+                        *niid,
+                        LexicalLayoutFocus::new(),
+                    );
                     return true;
                 }
-            } else {
-                *self = KeyboardFocusState::InsideEmptySoundInput(*siid);
             }
+            _ => (),
         }
 
         false

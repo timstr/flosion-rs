@@ -13,9 +13,9 @@ use crate::core::{
 };
 
 use super::{
-    numbergraphuicontext::OuterNumberGraphUiContext, numberinputplot::PlotConfig,
-    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
-    soundnumberinputui::SoundNumberInputUi,
+    keyboardfocus::KeyboardFocusState, numbergraphuicontext::OuterNumberGraphUiContext,
+    numberinputplot::PlotConfig, soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::SoundGraphUiState, soundnumberinputui::SoundNumberInputUi,
 };
 
 pub struct ProcessorUi {
@@ -112,12 +112,14 @@ impl ProcessorUi {
         add_contents: F,
     ) {
         for (nsid, name) in &self.number_sources {
-            ui_state.names_mut().record_number_source_name(*nsid, name);
+            ui_state
+                .names_mut()
+                .record_number_source_name(*nsid, name.to_string());
         }
         for (_, _, time_nsid) in &self.sound_inputs {
             ui_state
                 .names_mut()
-                .record_number_source_name(*time_nsid, "time");
+                .record_number_source_name(*time_nsid, "time".to_string());
         }
 
         #[cfg(debug_assertions)]
@@ -296,7 +298,9 @@ impl ProcessorUi {
         let desired_width = ctx.width();
 
         for (siid, label, _time_nsid) in &self.sound_inputs {
-            ui_state.names_mut().record_sound_input_name(*siid, label);
+            ui_state
+                .names_mut()
+                .record_sound_input_name(*siid, label.to_string());
         }
 
         let r = outer_frame.show(ui, |ui| {
@@ -326,14 +330,58 @@ impl ProcessorUi {
                             );
                         }
                         ui.set_width(desired_width);
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(self.label)
-                                    .color(egui::Color32::BLACK)
-                                    .strong(),
-                            )
-                            .wrap(false),
-                        );
+                        let keyboard_focus_on_name = match ui_state.keyboard_focus() {
+                            Some(kbd) => {
+                                if let KeyboardFocusState::OnSoundProcessorName(spid) = kbd {
+                                    *spid == self.processor_id
+                                } else {
+                                    false
+                                }
+                            }
+                            None => false,
+                        };
+
+                        ui.horizontal(|ui| {
+                            ui.spacing();
+                            let name = ui_state
+                                .names()
+                                .sound_processor(self.processor_id)
+                                .unwrap()
+                                .name()
+                                .to_string();
+
+                            if keyboard_focus_on_name {
+                                let mut name = name.clone();
+                                let r = ui.add(egui::TextEdit::singleline(&mut name));
+                                r.request_focus();
+                                if r.changed() {
+                                    ui_state
+                                        .names_mut()
+                                        .record_sound_processor_name(self.processor_id, name);
+                                }
+                                ui.painter().rect_stroke(
+                                    r.rect,
+                                    egui::Rounding::none(),
+                                    egui::Stroke::new(2.0, egui::Color32::YELLOW),
+                                );
+                            } else {
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(&name)
+                                            .color(egui::Color32::BLACK)
+                                            .strong(),
+                                    )
+                                    .wrap(false),
+                                );
+                            }
+                            if !name.to_lowercase().contains(&self.label.to_lowercase()) {
+                                ui.add(egui::Label::new(
+                                    egui::RichText::new(self.label)
+                                        .color(egui::Color32::from_black_alpha(192))
+                                        .italics(),
+                                ));
+                            }
+                        });
                         add_contents(ui, ui_state, sound_graph)
                     });
                 },
@@ -610,7 +658,7 @@ impl ProcessorUi {
             let (number_ui_state, presentation, focus, temporal_layout, names) =
                 ui_state.number_graph_ui_parts(input_id);
 
-            names.record_number_input_name(input_id, input_label);
+            names.record_number_input_name(input_id, input_label.to_string());
 
             let graph_input_references = ctx.with_number_graph_ui_context(
                 input_id,
