@@ -164,6 +164,10 @@ impl VariableDefinition {
         &self.name
     }
 
+    pub(crate) fn name_mut(&mut self) -> &mut String {
+        &mut self.name
+    }
+
     pub(crate) fn value(&self) -> &ASTNode {
         &self.value
     }
@@ -195,14 +199,14 @@ pub(super) fn find_variable_definition_and_scope(
 }
 
 #[derive(Copy, Clone)]
-pub(crate) enum ASTRoot<'a> {
-    VariableDefinition(VariableId, &'a str),
+pub(crate) enum ASTRoot {
+    VariableDefinition(VariableId),
     FinalExpression,
 }
 
 #[derive(Copy, Clone)]
 pub(crate) enum ASTNodeParent<'a> {
-    VariableDefinition(VariableId, &'a str),
+    VariableDefinition(VariableId),
     FinalExpression,
     InternalNode(&'a InternalASTNode, usize),
 }
@@ -211,15 +215,15 @@ pub(crate) enum ASTNodeParent<'a> {
 // and possibly more uses than a path alone
 #[derive(Clone, Copy)]
 pub(crate) enum ASTPathBuilder<'a> {
-    Root(ASTRoot<'a>),
+    Root(ASTRoot),
     ChildOf(&'a ASTPathBuilder<'a>, &'a InternalASTNode, usize),
 }
 
 impl<'a> ASTPathBuilder<'a> {
     pub(super) fn parent_node(&self) -> ASTNodeParent {
         match self {
-            ASTPathBuilder::Root(ASTRoot::VariableDefinition(id, name)) => {
-                ASTNodeParent::VariableDefinition(*id, name)
+            ASTPathBuilder::Root(ASTRoot::VariableDefinition(id)) => {
+                ASTNodeParent::VariableDefinition(*id)
             }
             ASTPathBuilder::Root(ASTRoot::FinalExpression) => ASTNodeParent::FinalExpression,
             ASTPathBuilder::ChildOf(_, n, i) => ASTNodeParent::InternalNode(n, *i),

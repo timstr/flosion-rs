@@ -213,7 +213,7 @@ fn disconnect_each_variable_use(
         }
         // The node directly references the variable
         match path.parent_node() {
-            ASTNodeParent::VariableDefinition(var_id, _name) => {
+            ASTNodeParent::VariableDefinition(var_id) => {
                 debug_assert_ne!(var_id, id);
                 // The variable is aliased as another variable, disconnect its uses as well
                 disconnect_each_variable_use(layout, cursor, var_id, numbergraph);
@@ -260,7 +260,7 @@ fn connect_each_variable_use(
                     }
                     // The node directly references the variable
                     match path.parent_node() {
-                        ASTNodeParent::VariableDefinition(var_id, _name) => {
+                        ASTNodeParent::VariableDefinition(var_id) => {
                             debug_assert_ne!(var_id, id);
                             // The variable is aliased as another variable, disconnect that one too
                             variables_to_connect.push(var_id);

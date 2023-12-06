@@ -327,11 +327,10 @@ impl LexicalLayout {
         debug_assert!(outer_context
             .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
 
-        let variable_definitions = &self.variable_definitions;
-        let num_variable_definitions = variable_definitions.len();
+        let num_variable_definitions = self.variable_definitions.len();
 
         ui.vertical(|ui| {
-            for i in 0..variable_definitions.len() {
+            for i in 0..num_variable_definitions {
                 self.show_line(
                     ui,
                     LineLocation::VariableDefinition(i),
@@ -370,7 +369,7 @@ impl LexicalLayout {
     }
 
     fn show_line(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         line: LineLocation,
         focus: &mut Option<&mut LexicalLayoutFocus>,
@@ -388,17 +387,6 @@ impl LexicalLayout {
             }
         } else {
             None
-        };
-
-        let (node, ast_root) = match line {
-            LineLocation::VariableDefinition(i) => {
-                let defn = &self.variable_definitions[i];
-                (
-                    defn.value(),
-                    ASTRoot::VariableDefinition(defn.id(), defn.name()),
-                )
-            }
-            LineLocation::FinalExpression => (&self.final_expression, ASTRoot::FinalExpression),
         };
 
         let focused_variable_name_index = focus.as_ref().and_then(|f| {
@@ -420,14 +408,28 @@ impl LexicalLayout {
 
                     let name_in_focus = focused_variable_name_index == Some(i);
 
-                    Self::with_flashing_frame(ui, name_in_focus, |ui| {
+                    // Self::with_flashing_frame(ui, name_in_focus, |ui| {
+                    //     ui.add(egui::Label::new(
+                    //         egui::RichText::new(self.variable_definitions[i].name())
+                    //             .text_style(egui::TextStyle::Monospace)
+                    //             .strong()
+                    //             .background_color(egui::Color32::TRANSPARENT),
+                    //     ));
+                    // });
+                    if name_in_focus {
+                        let r = ui.add(
+                            egui::TextEdit::singleline(self.variable_definitions[i].name_mut())
+                                .font(egui::FontSelection::Style(egui::TextStyle::Monospace)),
+                        );
+                        r.request_focus();
+                    } else {
                         ui.add(egui::Label::new(
                             egui::RichText::new(self.variable_definitions[i].name())
                                 .text_style(egui::TextStyle::Monospace)
                                 .strong()
                                 .background_color(egui::Color32::TRANSPARENT),
                         ));
-                    });
+                    }
                 }
                 LineLocation::FinalExpression => {
                     let output_id = outer_context.inspect_number_graph(|g| {
@@ -447,6 +449,14 @@ impl LexicalLayout {
                     .text_style(egui::TextStyle::Monospace)
                     .background_color(egui::Color32::TRANSPARENT),
             ));
+
+            let (node, ast_root) = match line {
+                LineLocation::VariableDefinition(i) => {
+                    let defn = &self.variable_definitions[i];
+                    (defn.value(), ASTRoot::VariableDefinition(defn.id()))
+                }
+                LineLocation::FinalExpression => (&self.final_expression, ASTRoot::FinalExpression),
+            };
 
             Self::show_child_ast_node(
                 ui,
@@ -1074,7 +1084,7 @@ impl LexicalLayout {
     pub(super) fn visit<F: FnMut(&ASTNode, ASTPathBuilder)>(&self, mut f: F) {
         for vardef in &self.variable_definitions {
             vardef.value().visit(
-                ASTPathBuilder::Root(ASTRoot::VariableDefinition(vardef.id(), vardef.name())),
+                ASTPathBuilder::Root(ASTRoot::VariableDefinition(vardef.id())),
                 &mut f,
             );
         }
@@ -1086,7 +1096,7 @@ impl LexicalLayout {
         for vardef in &mut self.variable_definitions {
             let VariableDefinition { id, name, value } = vardef;
             value.visit_mut(
-                ASTPathBuilder::Root(ASTRoot::VariableDefinition(*id, name)),
+                ASTPathBuilder::Root(ASTRoot::VariableDefinition(*id)),
                 &mut f,
             );
         }
