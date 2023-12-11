@@ -91,21 +91,6 @@ impl DynamicSoundProcessor for Definitions {
     ) -> StreamStatus {
         let mut buffer = context.get_scratch_space(CHUNK_SIZE);
 
-        // TODO: fine-grained scoping rules for inside of sound processors.
-        // Currently, the UI is prompting me to add a connection to the
-        // definition's time number source, which panics when evaluated
-        // if I haven't pushed the processor state onto the context.
-        // In other cases, it isn't possible to do this, e.g. because
-        // the processor state is being mutated by the number input itself.
-        // Another problem is that it's currently legal to add a connection
-        // here to the very buffer being evaluated, which will similarly
-        // never be pushed to the context and thus will always panic.
-        // What's a good way to represent how different number inputs have
-        // access to different subsets of the processor's data in a way
-        // that is faithful to common practices? This can and should be
-        // enforced at the SoundGraph level so that attempting to make
-        // a connection which is described as being locally out of scope
-        // will produce an Err result.
         number_inputs.input.eval(
             &mut buffer,
             Discretization::samplewise_temporal(),

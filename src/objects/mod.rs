@@ -10,6 +10,7 @@ pub mod purefunctions;
 pub mod recorder;
 pub mod resampler;
 pub mod sampler1d;
+pub mod scatter;
 pub mod statefulfunctions;
 // pub mod sequencer;
 pub mod wavegenerator;

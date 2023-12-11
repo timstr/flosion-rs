@@ -25,6 +25,7 @@ use super::{
     recorder_ui::RecorderUi,
     resampler_ui::ResamplerUi,
     sampler1d_ui::Sampler1dUi,
+    scatter_ui::ScatterUi,
     stateful_function_uis::{
         ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
     },
@@ -74,6 +75,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register::<MixerUi>();
     helper.register::<ResamplerUi>();
+    helper.register::<ScatterUi>();
     helper.register::<WaveGeneratorUi>();
     helper.register::<WhiteNoiseUi>();
 
