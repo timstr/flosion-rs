@@ -31,6 +31,7 @@ use super::{
     },
     wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
+    writewaveform_ui::WriteWaveformUi,
 };
 
 struct RegistrationHelper<'a, G: GraphUi> {
@@ -78,6 +79,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     helper.register::<ScatterUi>();
     helper.register::<WaveGeneratorUi>();
     helper.register::<WhiteNoiseUi>();
+    helper.register::<WriteWaveformUi>();
 
     (object_factory, ui_factory)
 }

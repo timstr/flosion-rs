@@ -15,6 +15,7 @@ pub mod statefulfunctions;
 // pub mod sequencer;
 pub mod wavegenerator;
 pub mod whitenoise;
+pub mod writewaveform;
 
 #[cfg(test)]
 mod test;
