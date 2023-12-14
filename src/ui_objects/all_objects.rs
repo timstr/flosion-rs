@@ -22,6 +22,7 @@ use super::{
         PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi, SquareWaveUi, SubtractUi,
         TriangleWaveUi, TruncUi,
     },
+    readwritewaveform_ui::ReadWriteWaveformUi,
     recorder_ui::RecorderUi,
     resampler_ui::ResamplerUi,
     sampler1d_ui::Sampler1dUi,
@@ -75,6 +76,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     helper.register::<EnsembleUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register::<MixerUi>();
+    helper.register::<ReadWriteWaveformUi>();
     helper.register::<ResamplerUi>();
     helper.register::<ScatterUi>();
     helper.register::<WaveGeneratorUi>();

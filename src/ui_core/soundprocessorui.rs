@@ -158,6 +158,19 @@ impl ProcessorUi {
                         );
                     }
                 }
+                if self
+                    .sound_inputs
+                    .iter()
+                    .find(|(id, _, _)| *id == *siid)
+                    .is_none()
+                {
+                    println!(
+                        "Warning: sound input {} on proceessor {} ({}) is not listed in the ui",
+                        siid.value(),
+                        self.processor_id.value(),
+                        processor_type_name
+                    )
+                }
             }
         }
 

@@ -7,6 +7,7 @@ pub mod melody;
 pub mod mixer;
 pub mod output;
 pub mod purefunctions;
+pub mod readwritewaveform;
 pub mod recorder;
 pub mod resampler;
 pub mod sampler1d;

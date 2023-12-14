@@ -1,6 +1,6 @@
 use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
-    objects::writewaveform::WriteWaveform,
+    objects::readwritewaveform::ReadWriteWaveform,
     ui_core::{
         numberinputplot::PlotConfig, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
@@ -9,28 +9,31 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct WriteWaveformUi {}
+pub struct ReadWriteWaveformUi {}
 
-impl ObjectUi for WriteWaveformUi {
+impl ObjectUi for ReadWriteWaveformUi {
     type GraphUi = SoundGraphUi;
-    type HandleType = DynamicSoundProcessorHandle<WriteWaveform>;
+    type HandleType = DynamicSoundProcessorHandle<ReadWriteWaveform>;
     type StateType = ();
 
     fn ui(
         &self,
-        ww: DynamicSoundProcessorHandle<WriteWaveform>,
+        rww: DynamicSoundProcessorHandle<ReadWriteWaveform>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&ww, "WriteWaveform", data.color)
-            .add_number_input(ww.waveform.id(), "waveform", PlotConfig::new())
+        ProcessorUi::new(&rww, "ReadWriteWaveform", data.color)
+            .add_sound_input(rww.sound_input.id(), "input", sound_graph)
+            .add_number_source(rww.input_l.id(), "l")
+            .add_number_source(rww.input_r.id(), "r")
+            .add_number_input(rww.waveform.id(), "waveform", PlotConfig::new())
             .show(ui, ctx, ui_state, sound_graph);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
-        &["writewaveform"]
+        &["readwritewaveform"]
     }
 }
