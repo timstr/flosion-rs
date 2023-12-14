@@ -24,24 +24,24 @@ use cpal::{
     SampleRate, StreamConfig, StreamError,
 };
 
-pub struct DacData {
+pub struct OutputData {
     stream_end_barrier: Barrier,
     pending_reset: AtomicBool,
     chunk_sender: SyncSender<SoundChunk>,
 }
 
-pub struct Dac {
+pub struct Output {
     pub input: SingleInput,
-    shared_data: Arc<DacData>,
+    shared_data: Arc<OutputData>,
 }
 
-impl Dac {
+impl Output {
     pub fn reset(&self) {
         self.shared_data.pending_reset.store(true, Ordering::SeqCst);
     }
 }
 
-impl StaticSoundProcessor for Dac {
+impl StaticSoundProcessor for Output {
     type SoundInputType = SingleInput;
     type NumberInputType<'ctx> = ();
 
@@ -83,7 +83,7 @@ impl StaticSoundProcessor for Dac {
 
         let (tx, rx) = sync_channel::<SoundChunk>(0);
 
-        let shared_data = Arc::new(DacData {
+        let shared_data = Arc::new(OutputData {
             chunk_sender: tx,
             pending_reset: AtomicBool::new(false),
             stream_end_barrier: Barrier::new(2),
@@ -139,7 +139,7 @@ impl StaticSoundProcessor for Dac {
             stream.pause().unwrap();
         });
 
-        Ok(Dac {
+        Ok(Output {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             shared_data,
         })
@@ -157,7 +157,7 @@ impl StaticSoundProcessor for Dac {
     }
 
     fn process_audio(
-        dac: &StaticSoundProcessorWithId<Dac>,
+        output: &StaticSoundProcessorWithId<Output>,
         timing: &ProcessorTiming,
         sound_input: &mut SingleInputNode,
         _number_input: &mut (),
@@ -165,22 +165,25 @@ impl StaticSoundProcessor for Dac {
         ctx: Context,
     ) {
         if sound_input.timing().needs_reset()
-            || dac.shared_data.pending_reset.swap(false, Ordering::SeqCst)
+            || output
+                .shared_data
+                .pending_reset
+                .swap(false, Ordering::SeqCst)
         {
             sound_input.reset(0);
         }
         let mut ch = SoundChunk::new();
         sound_input.step(timing, &mut ch, &ctx, LocalArrayList::new());
 
-        if let Err(e) = dac.shared_data.chunk_sender.try_send(ch) {
+        if let Err(e) = output.shared_data.chunk_sender.try_send(ch) {
             match e {
-                TrySendError::Full(_) => println!("Dac dropped a chunk"),
+                TrySendError::Full(_) => println!("Output sound processor dropped a chunk"),
                 TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
             }
         }
     }
 }
 
-impl WithObjectType for Dac {
-    const TYPE: ObjectType = ObjectType::new("dac");
+impl WithObjectType for Output {
+    const TYPE: ObjectType = ObjectType::new("output");
 }

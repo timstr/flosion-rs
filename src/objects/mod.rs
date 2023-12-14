@@ -1,11 +1,11 @@
 pub mod adsr;
 pub mod audioclip;
-pub mod dac;
 pub mod definitions;
 pub mod ensemble;
 pub mod keyboard;
 pub mod melody;
 pub mod mixer;
+pub mod output;
 pub mod purefunctions;
 pub mod recorder;
 pub mod resampler;

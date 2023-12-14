@@ -19,8 +19,8 @@ use crate::{
         },
     },
     objects::{
-        dac::Dac,
         ensemble::Ensemble,
+        output::Output,
         purefunctions::{Add, Multiply, SawWave, Variable},
         wavegenerator::WaveGenerator,
     },
@@ -72,8 +72,8 @@ impl FlosionApp {
 
         // TEST while I figure out how to connect inputs in the ui
         {
-            let dac = graph
-                .add_static_sound_processor::<Dac>(ObjectInitialization::Default)
+            let output = graph
+                .add_static_sound_processor::<Output>(ObjectInitialization::Default)
                 .unwrap();
             let wavgen = graph
                 .add_dynamic_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
@@ -82,7 +82,7 @@ impl FlosionApp {
                 .add_dynamic_sound_processor::<Ensemble>(ObjectInitialization::Default)
                 .unwrap();
             graph
-                .connect_sound_input(dac.input.id(), ensemble.id())
+                .connect_sound_input(output.input.id(), ensemble.id())
                 .unwrap();
             graph
                 .connect_sound_input(ensemble.input.id(), wavgen.id())

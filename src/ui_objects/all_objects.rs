@@ -12,10 +12,10 @@ use crate::{
 
 use super::{
     audioclip_ui::AudioClipUi,
-    dac_ui::DacUi,
     definitions_ui::DefinitionsUi,
     ensemble_ui::EnsembleUi,
     mixer_ui::MixerUi,
+    output_ui::OutputUi,
     pure_function_uis::{
         AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
         Exp2Ui, ExpUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi, MultiplyUi, NegateUi,
@@ -64,7 +64,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     // Static sound processors
-    helper.register::<DacUi>();
+    helper.register::<OutputUi>();
     // helper.register_static_sound_processor::<KeyboardUi>();
     helper.register::<RecorderUi>();
 

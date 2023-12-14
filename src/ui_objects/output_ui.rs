@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
-    objects::dac::Dac,
+    objects::output::Output,
     ui_core::{
         object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
         soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
@@ -11,23 +11,23 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct DacUi {}
+pub struct OutputUi {}
 
-impl ObjectUi for DacUi {
+impl ObjectUi for OutputUi {
     type GraphUi = SoundGraphUi;
-    type HandleType = StaticSoundProcessorHandle<Dac>;
+    type HandleType = StaticSoundProcessorHandle<Output>;
     type StateType = ();
     fn ui(
         &self,
-        dac: StaticSoundProcessorHandle<Dac>,
+        output: StaticSoundProcessorHandle<Output>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&dac, "Dac", data.color)
-            .add_sound_input(dac.input.id(), "input", sound_graph)
+        ProcessorUi::new(&output, "Output", data.color)
+            .add_sound_input(output.input.id(), "input", sound_graph)
             .show_with(
                 ui,
                 ctx,
@@ -35,13 +35,13 @@ impl ObjectUi for DacUi {
                 sound_graph,
                 |ui, _ui_state, _sound_graph| {
                     if ui.add(egui::Button::new("Reset").wrap(false)).clicked() {
-                        dac.reset();
+                        output.reset();
                     }
                 },
             );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
-        &["dac"]
+        &["output"]
     }
 }
