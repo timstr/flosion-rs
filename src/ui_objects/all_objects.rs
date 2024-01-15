@@ -14,6 +14,7 @@ use super::{
     audioclip_ui::AudioClipUi,
     definitions_ui::DefinitionsUi,
     ensemble_ui::EnsembleUi,
+    input_ui::InputUi,
     mixer_ui::MixerUi,
     output_ui::OutputUi,
     pure_function_uis::{
@@ -74,6 +75,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     helper.register::<AudioClipUi>();
     helper.register::<DefinitionsUi>();
     helper.register::<EnsembleUi>();
+    helper.register::<InputUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     helper.register::<MixerUi>();
     helper.register::<ReadWriteWaveformUi>();

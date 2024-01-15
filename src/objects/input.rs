@@ -1,7 +1,13 @@
-use cpal::{
-    traits::{DeviceTrait, HostTrait},
-    SampleRate, StreamConfig,
+use std::sync::{
+    mpsc::{sync_channel, Receiver},
+    Arc, Barrier,
 };
+
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    BufferSize, SampleRate, Stream, StreamConfig,
+};
+use parking_lot::Mutex;
 
 use crate::core::{
     engine::nodegen::NodeGen,
@@ -12,10 +18,22 @@ use crate::core::{
         soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
         soundprocessortools::SoundProcessorTools,
     },
-    soundchunk::SoundChunk,
+    soundchunk::{SoundChunk, CHUNK_SIZE},
 };
 
-pub struct Input {}
+pub struct Input {
+    // TODO: how to do without mutex? In principle, only
+    // the one state graph node corresponding to this
+    // static processor will ever access this.
+    chunk_receiver: Mutex<Receiver<SoundChunk>>,
+    stream_end_barrier: Arc<Barrier>,
+}
+
+impl Drop for Input {
+    fn drop(&mut self) {
+        self.stream_end_barrier.wait();
+    }
+}
 
 impl StaticSoundProcessor for Input {
     type SoundInputType = ();
@@ -34,20 +52,56 @@ impl StaticSoundProcessor for Input {
             .next()
             .expect("No supported input config:?")
             .with_sample_rate(SampleRate(SAMPLE_FREQUENCY as u32));
-        let config = supported_config.into();
-        let stream = device.build_input_stream(
-            &config,
-            |data, _: &cpal::InputCallbackInfo| {
-                // TODO
-                todo!()
-            },
-            |err| {
-                // TODO
-                todo!()
-            },
-        );
+        let mut config: StreamConfig = supported_config.into();
+        config.buffer_size = BufferSize::Fixed(CHUNK_SIZE as u32);
 
-        Ok(Input {})
+        // TODO: stereo???
+        config.channels = 1;
+
+        let mut current_chunk = SoundChunk::new();
+        let mut chunk_cursor: usize = 0;
+
+        let (tx, rx) = sync_channel::<SoundChunk>(0);
+
+        let data_callback = move |data: &[f32], _: &cpal::InputCallbackInfo| {
+            for sample in data {
+                // TODO: stereo???
+                current_chunk.l[chunk_cursor] = *sample;
+                current_chunk.r[chunk_cursor] = *sample;
+                chunk_cursor += 1;
+                if chunk_cursor == CHUNK_SIZE {
+                    chunk_cursor = 0;
+                    if tx.send(current_chunk.clone()).is_err() {
+                        return;
+                    }
+                }
+            }
+        };
+
+        let barrier = Arc::new(Barrier::new(2));
+        let barrier2 = Arc::clone(&barrier);
+
+        // NOTE: Stream is not Send, using a dedicated thread as a workaround
+        std::thread::spawn(move || {
+            println!(
+                "Requesting input audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",
+                config.channels, config.sample_rate.0, config.buffer_size
+            );
+
+            let stream = device
+                .build_input_stream(&config, data_callback, |err| {
+                    panic!("CPAL Input stream encountered an error: {}", err);
+                })
+                .unwrap();
+            stream.play().unwrap();
+            barrier2.wait();
+            stream.pause().unwrap();
+        });
+
+        Ok(Input {
+            chunk_receiver: Mutex::new(rx),
+            stream_end_barrier: barrier,
+        })
     }
 
     fn get_sound_input(&self) -> &() {
@@ -63,13 +117,14 @@ impl StaticSoundProcessor for Input {
 
     fn process_audio<'ctx>(
         processor: &StaticSoundProcessorWithId<Self>,
-        timing: &ProcessorTiming,
-        sound_inputs: &mut (),
-        number_inputs: &mut (),
+        _timing: &ProcessorTiming,
+        _sound_inputs: &mut (),
+        _number_inputs: &mut (),
         dst: &mut SoundChunk,
-        context: Context,
+        _context: Context,
     ) {
-        todo!()
+        let chunk = processor.chunk_receiver.lock().recv().unwrap();
+        *dst = chunk;
     }
 }
 

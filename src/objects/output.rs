@@ -41,6 +41,12 @@ impl Output {
     }
 }
 
+impl Drop for Output {
+    fn drop(&mut self) {
+        self.shared_data.stream_end_barrier.wait();
+    }
+}
+
 impl StaticSoundProcessor for Output {
     type SoundInputType = SingleInput;
     type NumberInputType<'ctx> = ();
@@ -75,11 +81,6 @@ impl StaticSoundProcessor for Output {
         config.channels = 2;
         // config.sample_rate = SampleRate(SAMPLE_FREQUENCY as u32);
         // config.buffer_size = BufferSize::Fixed(CHUNK_SIZE as u32);
-
-        println!(
-            "Requesting audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",
-            config.channels, config.sample_rate.0, config.buffer_size
-        );
 
         let (tx, rx) = sync_channel::<SoundChunk>(0);
 
@@ -130,7 +131,13 @@ impl StaticSoundProcessor for Output {
 
         let shared_data_also = Arc::clone(&shared_data);
 
+        // NOTE: Stream is not Send, using a dedicated thread as a workaround
         std::thread::spawn(move || {
+            println!(
+                "Requesting output audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",
+                config.channels, config.sample_rate.0, config.buffer_size
+            );
+
             let stream = device
                 .build_output_stream(&config, data_callback, err_callback)
                 .unwrap();
