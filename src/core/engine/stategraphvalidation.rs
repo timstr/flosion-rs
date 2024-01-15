@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::core::{
     sound::{
@@ -20,20 +20,35 @@ use super::{
 
 struct Visitor<'a, 'ctx> {
     topology: &'a SoundGraphTopology,
-    visited_shared_nodes: HashSet<*const SharedProcessorNodeData<'ctx>>,
-    visited_static_processors: HashSet<SoundProcessorId>,
+
+    // All shared nodes visited so far, and the processors they correspond to.
+    // Note that all static processor nodes are shared nodes, but dynamic
+    // processor nodes can be shared as well.
+    visited_shared_nodes: HashMap<*const SharedProcessorNodeData<'ctx>, SoundProcessorId>,
+
+    // All static processors visited so far, along with the shared data that
+    // they correspond to
+    visited_static_processors: HashMap<SoundProcessorId, *const SharedProcessorNodeData<'ctx>>,
 }
 
 impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn visit_shared_processor_node(&mut self, node: &SharedProcessorNode<'ctx>) -> bool {
         let data = node.borrow_data();
         let data_ptr: *const SharedProcessorNodeData = &*data;
-        if self.visited_shared_nodes.contains(&data_ptr) {
+
+        if let Some(spid) = self.visited_shared_nodes.get(&data_ptr) {
+            if *spid != node.id() {
+                println!(
+                    "state_graph_matches_topology: a single shared node exists with \
+                    multiple processor ids"
+                );
+            }
+
             return true; // Already visited, presumably without finding errors
         }
-        self.visited_shared_nodes.insert(data_ptr);
+        self.visited_shared_nodes.insert(data_ptr, node.id());
 
-        if !self.check_processor(data.node()) {
+        if !self.check_processor(data.node(), Some(data_ptr)) {
             return false;
         }
 
@@ -41,13 +56,17 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     }
 
     fn visit_unique_processor_node(&mut self, node: &UniqueProcessorNode<'ctx>) -> bool {
-        if !self.check_processor(node.node()) {
+        if !self.check_processor(node.node(), None) {
             return false;
         }
         self.visit_processor_sound_inputs(node.node())
     }
 
-    fn check_processor(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
+    fn check_processor(
+        &mut self,
+        node: &dyn StateGraphNode<'ctx>,
+        shared_data: Option<*const SharedProcessorNodeData<'ctx>>,
+    ) -> bool {
         let Some(proc_data) = self.topology.sound_processors().get(&node.id()) else {
             println!(
                 "state_graph_matches_topology: a sound processor was found which shouldn't exist"
@@ -56,7 +75,25 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         };
 
         if proc_data.instance().is_static() {
-            self.visited_static_processors.insert(proc_data.id());
+            let Some(shared_data_ptr) = shared_data else {
+                println!(
+                    "state_graph_matches_topology: found a unique node for a static processor \
+                    instead of a shared node"
+                );
+                return false;
+            };
+            if let Some(other_ptr) = self.visited_static_processors.get(&node.id()) {
+                if *other_ptr != shared_data_ptr {
+                    println!(
+                        "state_graph_matches_topology: multiple different shared nodes exist for \
+                        the same static processor"
+                    );
+                    return false;
+                }
+            } else {
+                self.visited_static_processors
+                    .insert(proc_data.id(), shared_data_ptr);
+            }
         }
 
         if !self.check_processor_sound_inputs(node, proc_data) {
@@ -217,10 +254,11 @@ pub(crate) fn state_graph_matches_topology(
     state_graph: &StateGraph,
     topology: &SoundGraphTopology,
 ) -> bool {
+    println!("state_graph_matches_topology: validating...");
     let mut visitor = Visitor {
         topology,
-        visited_shared_nodes: HashSet::new(),
-        visited_static_processors: HashSet::new(),
+        visited_shared_nodes: HashMap::new(),
+        visited_static_processors: HashMap::new(),
     };
 
     for node in state_graph.static_nodes() {
@@ -236,17 +274,25 @@ pub(crate) fn state_graph_matches_topology(
             None
         }
     }) {
-        if !visitor.visited_static_processors.remove(&static_node_id) {
+        if visitor
+            .visited_static_processors
+            .remove(&static_node_id)
+            .is_none()
+        {
             println!("state_graph_matches_topology: a static sound processor node is missing");
             return false;
         }
     }
 
     if !visitor.visited_static_processors.is_empty() {
-        println!("state_graph_matches_topology: one or more static sound processor nodes were found which shouldn't exist");
+        println!(
+            "state_graph_matches_topology: one or more static sound processor nodes were found \
+            which shouldn't exist"
+        );
         return false;
     }
 
+    println!("state_graph_matches_topology: All clear!");
     true
 }
 

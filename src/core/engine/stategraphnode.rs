@@ -351,6 +351,10 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         }
     }
 
+    pub(super) fn data(&self) -> Arc<RwLock<SharedProcessorNodeData<'ctx>>> {
+        Arc::clone(&self.data)
+    }
+
     pub(crate) fn borrow_data<'a>(
         &'a self,
     ) -> impl 'a + Deref<Target = SharedProcessorNodeData<'ctx>> {
