@@ -6,7 +6,7 @@ use crate::core::{
 
 use super::{
     stategraph::StateGraph,
-    stategraphnode::{NodeTargetValue, StateGraphNode},
+    stategraphnode::{NodeTargetValue, SharedProcessorNode},
 };
 
 // Edits to be made to the state graph on the audio thread.
@@ -16,7 +16,7 @@ use super::{
 // graph level have no analog or may not correspond to any edits here if
 // they don't imply any individual changes to the state graph.
 pub(crate) enum StateGraphEdit<'ctx> {
-    AddStaticSoundProcessor(Box<dyn 'ctx + StateGraphNode<'ctx>>),
+    AddStaticSoundProcessor(SharedProcessorNode<'ctx>),
     RemoveStaticSoundProcessor(SoundProcessorId),
     AddSoundInput {
         input_id: SoundInputId,

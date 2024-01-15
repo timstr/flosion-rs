@@ -286,7 +286,7 @@ pub(crate) trait SoundProcessor: 'static + Sync + Send {
 
     fn make_node<'a, 'ctx>(
         self: Arc<Self>,
-        nodegen: &NodeGen<'a, 'ctx>,
+        nodegen: &mut NodeGen<'a, 'ctx>,
     ) -> Box<dyn 'ctx + StateGraphNode<'ctx>>;
 }
 
@@ -309,7 +309,7 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
 
     fn make_node<'a, 'ctx>(
         self: Arc<Self>,
-        nodegen: &NodeGen<'a, 'ctx>,
+        nodegen: &mut NodeGen<'a, 'ctx>,
     ) -> Box<dyn 'ctx + StateGraphNode<'ctx>> {
         let processor_node = StaticProcessorNode::new(Arc::clone(&self), nodegen);
         Box::new(processor_node)
@@ -335,7 +335,7 @@ impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T>
 
     fn make_node<'a, 'ctx>(
         self: Arc<Self>,
-        nodegen: &NodeGen<'a, 'ctx>,
+        nodegen: &mut NodeGen<'a, 'ctx>,
     ) -> Box<dyn 'ctx + StateGraphNode<'ctx>> {
         let processor_node = DynamicProcessorNode::new(&*self, nodegen);
         Box::new(processor_node)

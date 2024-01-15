@@ -178,7 +178,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             }
         }
 
-        // TODO: verify that processors are being cached correctly
+        // TODO: verify that dynamic processors are being cached correctly
 
         // Nothing of number sources to check
 
@@ -254,7 +254,6 @@ pub(crate) fn state_graph_matches_topology(
     state_graph: &StateGraph,
     topology: &SoundGraphTopology,
 ) -> bool {
-    println!("state_graph_matches_topology: validating...");
     let mut visitor = Visitor {
         topology,
         visited_shared_nodes: HashMap::new(),
@@ -292,7 +291,6 @@ pub(crate) fn state_graph_matches_topology(
         return false;
     }
 
-    println!("state_graph_matches_topology: All clear!");
     true
 }
 

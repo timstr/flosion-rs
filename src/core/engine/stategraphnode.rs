@@ -42,7 +42,7 @@ pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
 impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
     pub(crate) fn new<'a>(
         processor: Arc<StaticSoundProcessorWithId<T>>,
-        nodegen: &NodeGen<'a, 'ctx>,
+        nodegen: &mut NodeGen<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
         let sound_input = processor.get_sound_input().make_node(nodegen);
@@ -76,7 +76,7 @@ pub struct DynamicProcessorNode<'ctx, T: DynamicSoundProcessor> {
 impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
     pub(crate) fn new<'a>(
         processor: &DynamicSoundProcessorWithId<T>,
-        nodegen: &NodeGen<'a, 'ctx>,
+        nodegen: &mut NodeGen<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
         let state = StateAndTiming::new(processor.make_state());
@@ -316,12 +316,12 @@ impl<'ctx> SharedProcessorNodeData<'ctx> {
         &mut *self.node
     }
 
-    fn add_target_input(&mut self, input: SoundInputId) {
+    pub(crate) fn add_target_input(&mut self, input: SoundInputId) {
         debug_assert!(self.target_inputs.iter().find(|x| x.0 == input).is_none());
         self.target_inputs.push((input, true));
     }
 
-    fn remove_target_input(&mut self, input: SoundInputId) {
+    pub(crate) fn remove_target_input(&mut self, input: SoundInputId) {
         debug_assert_eq!(
             self.target_inputs.iter().filter(|x| x.0 == input).count(),
             1
@@ -412,6 +412,15 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         local_arrays: LocalArrayList,
     ) -> StreamStatus {
         let mut data = self.data.write();
+        debug_assert_eq!(
+            data.target_inputs
+                .iter()
+                .filter(|(siid, _was_used)| { *siid == input_id })
+                .count(),
+            1,
+            "Attempted to step a shared node for a target sound input which is not listed \
+            properly in the shared node's targets."
+        );
         let &mut SharedProcessorNodeData {
             ref mut node,
             ref mut cached_output,
@@ -494,7 +503,7 @@ impl<'ctx> NodeTarget<'ctx> {
     pub(crate) fn new<'a>(
         input_id: SoundInputId,
         key_index: usize,
-        nodegen: &NodeGen<'a, 'ctx>,
+        nodegen: &mut NodeGen<'a, 'ctx>,
     ) -> NodeTarget<'ctx> {
         NodeTarget {
             input_id,

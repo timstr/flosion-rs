@@ -13,6 +13,7 @@ use super::{
     scratcharena::ScratchArena,
     stategraph::StateGraph,
     stategraphedit::StateGraphEdit,
+    stategraphnode::NodeTargetValue,
 };
 
 #[cfg(debug_assertions)]
@@ -118,10 +119,13 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
 
             // Add back static processors with populated inputs
-            let nodegen = NodeGen::new(&new_topology, jit_server);
+            let mut nodegen = NodeGen::new(&new_topology, jit_server);
             for proc in new_topology.sound_processors().values() {
                 if proc.instance().is_static() {
-                    let node = proc.instance_arc().make_node(&nodegen);
+                    let NodeTargetValue::Shared(node) = nodegen.compile_processor_node(proc.id())
+                    else {
+                        panic!("Static sound processors must compile to shared state graph nodes");
+                    };
                     self.edit_queue
                         .try_send(StateGraphEdit::AddStaticSoundProcessor(node))?;
                 }

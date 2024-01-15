@@ -39,7 +39,7 @@ impl SingleInput {
 impl SoundProcessorInput for SingleInput {
     type NodeType<'ctx> = SingleInputNode<'ctx>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         SingleInputNode::new(self.id, nodegen)
     }
 
@@ -53,7 +53,7 @@ pub struct SingleInputNode<'ctx> {
 }
 
 impl<'ctx> SingleInputNode<'ctx> {
-    pub fn new<'a>(id: SoundInputId, nodegen: &NodeGen<'a, 'ctx>) -> SingleInputNode<'ctx> {
+    pub fn new<'a>(id: SoundInputId, nodegen: &mut NodeGen<'a, 'ctx>) -> SingleInputNode<'ctx> {
         SingleInputNode {
             target: NodeTarget::new(id, 0, nodegen),
         }
@@ -119,7 +119,7 @@ impl<S: State + Default> KeyedInput<S> {
 impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
     type NodeType<'ctx> = KeyedInputNode<'ctx, S>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         KeyedInputNode {
             id: self.id,
             targets: (0..self.num_keys)
@@ -222,7 +222,7 @@ impl<'ctx, S: State + Default> SoundInputNode<'ctx> for KeyedInputNode<'ctx, S> 
 impl SoundProcessorInput for () {
     type NodeType<'ctx> = ();
 
-    fn make_node<'a, 'ctx>(&self, _nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, _nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         ()
     }
 
@@ -281,7 +281,7 @@ impl SingleInputList {
 impl SoundProcessorInput for SingleInputList {
     type NodeType<'ctx> = SingleInputListNode<'ctx>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         SingleInputListNode {
             targets: self
                 .input_ids
@@ -395,7 +395,7 @@ impl<S: State> KeyedInputQueue<S> {
 impl<S: State> SoundProcessorInput for KeyedInputQueue<S> {
     type NodeType<'ctx> = KeyedInputQueueNode<'ctx, S>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         KeyedInputQueueNode::new(self.id, self.num_keys, nodegen)
     }
 
@@ -412,7 +412,7 @@ pub struct KeyedInputQueueNode<'ctx, S: State> {
 }
 
 impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
-    fn new<'a>(id: SoundInputId, num_keys: usize, nodegen: &NodeGen<'a, 'ctx>) -> Self {
+    fn new<'a>(id: SoundInputId, num_keys: usize, nodegen: &mut NodeGen<'a, 'ctx>) -> Self {
         Self {
             id,
             targets: (0..num_keys)

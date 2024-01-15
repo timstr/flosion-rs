@@ -46,7 +46,7 @@ impl<'ctx> SoundInputNode<'ctx> for () {
 pub trait SoundProcessorInput: Sync + Send {
     type NodeType<'ctx>: SoundInputNode<'ctx>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx>;
+    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx>;
 
     fn list_ids(&self) -> Vec<SoundInputId>;
 }

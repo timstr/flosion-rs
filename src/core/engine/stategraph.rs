@@ -39,7 +39,7 @@ impl<'ctx> StateGraph<'ctx> {
         garbage_chute: &GarbageChute<'ctx>,
     ) {
         match edit {
-            StateGraphEdit::AddStaticSoundProcessor(data) => self.add_static_sound_processor(data),
+            StateGraphEdit::AddStaticSoundProcessor(node) => self.add_static_sound_processor(node),
             StateGraphEdit::RemoveStaticSoundProcessor(spid) => {
                 self.remove_static_sound_processor(spid, garbage_chute)
             }
@@ -72,9 +72,8 @@ impl<'ctx> StateGraph<'ctx> {
         }
     }
 
-    fn add_static_sound_processor(&mut self, node: Box<dyn 'ctx + StateGraphNode<'ctx>>) {
-        let shared_node = SharedProcessorNode::<'ctx>::new(node);
-        self.static_nodes.push(shared_node);
+    fn add_static_sound_processor(&mut self, node: SharedProcessorNode<'ctx>) {
+        self.static_nodes.push(node);
     }
 
     fn remove_static_sound_processor(
