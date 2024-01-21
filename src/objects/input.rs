@@ -1,13 +1,11 @@
-use std::sync::{
-    mpsc::{sync_channel, Receiver},
-    Arc, Barrier,
-};
+use std::sync::{Arc, Barrier};
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    BufferSize, SampleRate, Stream, StreamConfig,
+    BufferSize, SampleRate, StreamConfig,
 };
 use parking_lot::Mutex;
+use ringbuffer::ReadResult;
 
 use crate::core::{
     engine::nodegen::NodeGen,
@@ -25,8 +23,14 @@ pub struct Input {
     // TODO: how to do without mutex? In principle, only
     // the one state graph node corresponding to this
     // static processor will ever access this.
-    chunk_receiver: Mutex<Receiver<SoundChunk>>,
+    chunk_receiver: Mutex<ringbuffer::Reader<SoundChunk>>,
     stream_end_barrier: Arc<Barrier>,
+}
+
+impl Input {
+    pub fn get_buffer_reader(&self) -> ringbuffer::Reader<SoundChunk> {
+        self.chunk_receiver.lock().clone()
+    }
 }
 
 impl Drop for Input {
@@ -42,8 +46,10 @@ impl StaticSoundProcessor for Input {
     fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let host = cpal::default_host();
         let device = host
-            .default_output_device()
+            .default_input_device()
             .ok_or_else(|| println!("No input device available"))?;
+
+        println!("Selected input device {}", device.name().unwrap());
 
         let mut supported_configs_range = device
             .supported_input_configs()
@@ -61,7 +67,8 @@ impl StaticSoundProcessor for Input {
         let mut current_chunk = SoundChunk::new();
         let mut chunk_cursor: usize = 0;
 
-        let (tx, rx) = sync_channel::<SoundChunk>(0);
+        // let (tx, rx) = sync_channel::<SoundChunk>(0);
+        let (rx, mut tx) = ringbuffer::ring_buffer::<SoundChunk>(8);
 
         let data_callback = move |data: &[f32], _: &cpal::InputCallbackInfo| {
             for sample in data {
@@ -71,9 +78,7 @@ impl StaticSoundProcessor for Input {
                 chunk_cursor += 1;
                 if chunk_cursor == CHUNK_SIZE {
                     chunk_cursor = 0;
-                    if tx.send(current_chunk.clone()).is_err() {
-                        return;
-                    }
+                    tx.write(current_chunk);
                 }
             }
         };
@@ -123,7 +128,14 @@ impl StaticSoundProcessor for Input {
         dst: &mut SoundChunk,
         _context: Context,
     ) {
-        let chunk = processor.chunk_receiver.lock().recv().unwrap();
+        let chunk = match processor.chunk_receiver.lock().read() {
+            ReadResult::Ok(ch) => ch,
+            ReadResult::Dropout(ch) => {
+                println!("WARNING: Input dropout");
+                ch
+            }
+            ReadResult::Empty => return,
+        };
         *dst = chunk;
     }
 }

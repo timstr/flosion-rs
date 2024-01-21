@@ -149,10 +149,10 @@ impl DynamicSoundProcessor for Ensemble {
             item.step(state, &mut temp_chunk, &context, LocalArrayList::new());
 
             // TODO: helper tools for mixing
-            numeric::mul_scalar_inplace(&mut temp_chunk.l, 0.1);
-            numeric::mul_scalar_inplace(&mut temp_chunk.r, 0.1);
-            numeric::add_inplace(&mut dst.l, &temp_chunk.l);
-            numeric::add_inplace(&mut dst.r, &temp_chunk.r);
+            slicemath::mul_scalar_inplace(&mut temp_chunk.l, 0.1);
+            slicemath::mul_scalar_inplace(&mut temp_chunk.r, 0.1);
+            slicemath::add_inplace(&mut dst.l, &temp_chunk.l);
+            slicemath::add_inplace(&mut dst.r, &temp_chunk.r);
         }
 
         StreamStatus::Playing

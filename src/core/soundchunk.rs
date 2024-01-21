@@ -35,3 +35,12 @@ impl SoundChunk {
         self.l.iter_mut().zip(self.r.iter_mut())
     }
 }
+
+impl Default for SoundChunk {
+    fn default() -> Self {
+        Self {
+            l: [0.0; CHUNK_SIZE],
+            r: [0.0; CHUNK_SIZE],
+        }
+    }
+}

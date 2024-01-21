@@ -11,7 +11,7 @@ edition = "2021"
 
 [dependencies]
 atomic_float = "0.1.0"
-atomicslice = { git = "https://github.com/timstr/atomicslice", branch = "main" }
+atomicslice = "0.1.0"
 base64 = "0.13.0"
 cpal = "0.13.3"
 eframe = "0.22.0"
@@ -19,10 +19,11 @@ eframe = "0.22.0"
 futures = "0.3"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm14-0"] }
 # inkwell = { path = "/home/tim/dev/rust/inkwell_fork", features = ["llvm14-0"] }
-numeric = { git = "https://github.com/timstr/numeric", branch = "main" }
+slicemath = "0.1.0"
 parking_lot = "0.11.2"
 rand = "0.8.3"
 rfd = "0.10.0"
+ringbuffer = { git = "https://github.com/timstr/ringbuffer" }
 seahash = "4.1.0"
 send_wrapper = "0.6.0"
 serialization = { git = "https://github.com/timstr/serialization", branch = "main" }

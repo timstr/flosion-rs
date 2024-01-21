@@ -107,8 +107,8 @@ impl DynamicSoundProcessor for Mixer {
             }
             all_done = false;
             i.step(state, &mut ch, &mut context, LocalArrayList::new());
-            numeric::add_inplace(&mut dst.l, &ch.l);
-            numeric::add_inplace(&mut dst.r, &ch.r);
+            slicemath::add_inplace(&mut dst.l, &ch.l);
+            slicemath::add_inplace(&mut dst.r, &ch.r);
         }
         if all_done {
             StreamStatus::Done

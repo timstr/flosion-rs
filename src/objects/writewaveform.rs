@@ -76,7 +76,7 @@ impl DynamicSoundProcessor for WriteWaveform {
             Discretization::samplewise_temporal(),
             &context.push_processor_state(state, LocalArrayList::new()),
         );
-        numeric::copy(&dst.l, &mut dst.r);
+        slicemath::copy(&dst.l, &mut dst.r);
 
         StreamStatus::Playing
     }

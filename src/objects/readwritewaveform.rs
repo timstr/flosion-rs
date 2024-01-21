@@ -109,7 +109,7 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
                     .push(&tmp.r, number_inputs.input_r),
             ),
         );
-        numeric::copy(&dst.l, &mut dst.r);
+        slicemath::copy(&dst.l, &mut dst.r);
 
         StreamStatus::Playing
     }

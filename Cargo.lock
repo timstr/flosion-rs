@@ -326,7 +326,8 @@ checksum = "73b5e5f48b927f04e952dedc932f31995a65a0bf65ec971c74436e51bf6e970d"
 [[package]]
 name = "atomicslice"
 version = "0.1.0"
-source = "git+https://github.com/timstr/atomicslice?branch=main#0253a1a2acbf98c2583b92517d3926b28032cd1c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8c9399cefcf80080e924add47538332151b125d6e25a1920845660046b08319"
 
 [[package]]
 name = "atspi"
@@ -1060,13 +1061,14 @@ dependencies = [
  "eframe",
  "futures",
  "inkwell",
- "numeric",
  "parking_lot 0.11.2",
  "rand",
  "rfd",
+ "ringbuffer",
  "seahash",
  "send_wrapper",
  "serialization",
+ "slicemath",
  "spin_sleep",
  "thread-priority",
 ]
@@ -1941,11 +1943,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "numeric"
-version = "0.1.0"
-source = "git+https://github.com/timstr/numeric?branch=main#9b4ca4f07c86713b09e7413015e6dd56c49526d8"
-
-[[package]]
 name = "objc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2334,6 +2331,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "ringbuffer"
+version = "0.1.0"
+source = "git+https://github.com/timstr/ringbuffer#25e2f8b99af4cc620fd636bdf753b85df9c34dc2"
+
+[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2463,6 +2465,12 @@ name = "slab"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb703cfe953bccee95685111adeedb76fabe4e97549a58d16f03ea7b9367bb32"
+
+[[package]]
+name = "slicemath"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef3b572c3d502627e5ca09e865c28cdb61da171438aff4f31d190f83911ad913"
 
 [[package]]
 name = "slotmap"

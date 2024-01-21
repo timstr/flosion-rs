@@ -97,11 +97,11 @@ fn chunked_interp(
         prev_level + (samples_so_far as f32 / samples as f32) * (next_level - prev_level);
     if samples_remaining <= out_level.len() {
         let last_value = next_level;
-        numeric::linspace(
+        slicemath::linspace(
             &mut out_level[..samples_remaining],
             first_value,
             last_value,
-            numeric::EndPoint::Excluded,
+            slicemath::EndPoint::Excluded,
         );
         samples_remaining
     } else {
@@ -109,11 +109,11 @@ fn chunked_interp(
         let last_value = prev_level
             + ((samples_so_far + samples_until_chunk_boundary) as f32 / samples as f32)
                 * (next_level - prev_level);
-        numeric::linspace(
+        slicemath::linspace(
             &mut out_level[..],
             first_value,
             last_value,
-            numeric::EndPoint::Excluded,
+            slicemath::EndPoint::Excluded,
         );
         samples_until_chunk_boundary
     }
@@ -246,7 +246,7 @@ impl DynamicSoundProcessor for ADSR {
                 // TODO: consider optionally propagating, e.g.
                 // inputs.request_release(sample_offset);
                 if sample_offset > cursor {
-                    numeric::fill(&mut level[cursor..sample_offset], state.next_level);
+                    slicemath::fill(&mut level[cursor..sample_offset], state.next_level);
                     cursor = sample_offset;
                 }
                 state.phase = Phase::Release;
@@ -256,7 +256,7 @@ impl DynamicSoundProcessor for ADSR {
                 state.prev_level = state.next_level;
                 state.next_level = 0.0;
             } else {
-                numeric::fill(&mut level[cursor..], state.next_level);
+                slicemath::fill(&mut level[cursor..], state.next_level);
                 cursor = CHUNK_SIZE;
             }
         }
@@ -274,7 +274,7 @@ impl DynamicSoundProcessor for ADSR {
             debug_assert!(cursor <= CHUNK_SIZE);
 
             if cursor < CHUNK_SIZE {
-                numeric::fill(&mut level[cursor..], 0.0);
+                slicemath::fill(&mut level[cursor..], 0.0);
                 cursor = CHUNK_SIZE;
                 status = StreamStatus::Done;
             }
@@ -290,8 +290,8 @@ impl DynamicSoundProcessor for ADSR {
             sound_input.reset(0);
         }
         sound_input.step(state, dst, &context, LocalArrayList::new());
-        numeric::mul_inplace(&mut dst.l, &level);
-        numeric::mul_inplace(&mut dst.r, &level);
+        slicemath::mul_inplace(&mut dst.l, &level);
+        slicemath::mul_inplace(&mut dst.r, &level);
 
         status
     }

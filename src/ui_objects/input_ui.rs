@@ -1,7 +1,10 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+    core::{
+        sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+        soundchunk::CHUNK_SIZE,
+    },
     objects::input::Input,
     ui_core::{
         object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
@@ -28,7 +31,39 @@ impl ObjectUi for InputUi {
     ) {
         // TODO: controls for choosing input device?
         // Would require changes to input
-        ProcessorUi::new(&input, "Input", data.color).show(ui, ctx, ui_state, sound_graph);
+        ProcessorUi::new(&input, "Input", data.color).show_with(
+            ui,
+            ctx,
+            ui_state,
+            sound_graph,
+            |ui, _ui_state, _sound_graph| {
+                // TODO: keep this reader between draw calls
+                let mut reader = input.get_buffer_reader();
+                reader.skip_ahead();
+                let color = match reader.read().value() {
+                    Some(chunk) => {
+                        let power_sum_l: f32 = chunk.l.iter().map(|s| s * s).sum();
+                        let power_sum_r: f32 = chunk.r.iter().map(|s| s * s).sum();
+                        let power_avg = (power_sum_l + power_sum_r) / (2.0 * CHUNK_SIZE as f32);
+                        let min_power: f32 = 1e-3;
+                        let max_power: f32 = 1.0;
+                        let log_min_power = min_power.ln();
+                        let log_max_power = max_power.ln();
+                        let power_clipped = power_avg.clamp(min_power, max_power);
+                        let t =
+                            (power_clipped.ln() - log_min_power) / (log_max_power - log_min_power);
+                        let v = (t * 255.0).round() as u8;
+                        egui::Color32::from_rgb(v, v, 0)
+                    }
+                    None => egui::Color32::YELLOW,
+                };
+
+                let (_, rect) = ui.allocate_space(egui::vec2(250.0, 50.0));
+                let painter = ui.painter();
+                painter.rect_filled(rect, egui::Rounding::none(), color);
+                ui.ctx().request_repaint();
+            },
+        );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {

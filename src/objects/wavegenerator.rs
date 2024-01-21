@@ -51,7 +51,7 @@ pub struct WaveGeneratorState {
 
 impl State for WaveGeneratorState {
     fn reset(&mut self) {
-        numeric::fill(&mut self.phase, 0.0);
+        slicemath::fill(&mut self.phase, 0.0);
     }
 }
 
@@ -106,18 +106,18 @@ impl DynamicSoundProcessor for WaveGenerator {
                 Discretization::samplewise_temporal(),
                 &context.push_processor_state(state, LocalArrayList::new()),
             );
-            numeric::copy(&tmp, &mut state.phase);
+            slicemath::copy(&tmp, &mut state.phase);
         }
-        numeric::div_scalar_inplace(&mut state.phase, SAMPLE_FREQUENCY as f32);
-        numeric::exclusive_scan_inplace(&mut state.phase, prev_phase, |p1, p2| p1 + p2);
-        numeric::apply_unary_inplace(&mut state.phase, |x| x - x.floor());
+        slicemath::div_scalar_inplace(&mut state.phase, SAMPLE_FREQUENCY as f32);
+        slicemath::exclusive_scan_inplace(&mut state.phase, prev_phase, |p1, p2| p1 + p2);
+        slicemath::apply_unary_inplace(&mut state.phase, |x| x - x.floor());
 
         number_inputs.amplitude.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
             &context.push_processor_state(state, LocalArrayList::new()),
         );
-        numeric::copy(&dst.l, &mut dst.r);
+        slicemath::copy(&dst.l, &mut dst.r);
 
         StreamStatus::Playing
     }
