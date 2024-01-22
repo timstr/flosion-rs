@@ -5,7 +5,7 @@ use cpal::{
     BufferSize, SampleRate, StreamConfig,
 };
 use parking_lot::Mutex;
-use ringbuffer::ReadResult;
+use spmcq::ReadResult;
 
 use crate::core::{
     engine::nodegen::NodeGen,
@@ -23,12 +23,12 @@ pub struct Input {
     // TODO: how to do without mutex? In principle, only
     // the one state graph node corresponding to this
     // static processor will ever access this.
-    chunk_receiver: Mutex<ringbuffer::Reader<SoundChunk>>,
+    chunk_receiver: Mutex<spmcq::Reader<SoundChunk>>,
     stream_end_barrier: Arc<Barrier>,
 }
 
 impl Input {
-    pub fn get_buffer_reader(&self) -> ringbuffer::Reader<SoundChunk> {
+    pub fn get_buffer_reader(&self) -> spmcq::Reader<SoundChunk> {
         self.chunk_receiver.lock().clone()
     }
 }
@@ -68,7 +68,7 @@ impl StaticSoundProcessor for Input {
         let mut chunk_cursor: usize = 0;
 
         // let (tx, rx) = sync_channel::<SoundChunk>(0);
-        let (rx, mut tx) = ringbuffer::ring_buffer::<SoundChunk>(8);
+        let (rx, mut tx) = spmcq::ring_buffer::<SoundChunk>(8);
 
         let data_callback = move |data: &[f32], _: &cpal::InputCallbackInfo| {
             for sample in data {

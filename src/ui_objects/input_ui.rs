@@ -22,7 +22,7 @@ use crate::{
 pub struct InputUi {}
 
 pub struct InputUiState {
-    buffer_reader: ringbuffer::Reader<SoundChunk>,
+    buffer_reader: spmcq::Reader<SoundChunk>,
     amplitude_history: Vec<f32>,
 }
 

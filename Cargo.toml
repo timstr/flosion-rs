@@ -23,7 +23,7 @@ slicemath = "0.1.0"
 parking_lot = "0.11.2"
 rand = "0.8.3"
 rfd = "0.10.0"
-ringbuffer = { git = "https://github.com/timstr/ringbuffer" }
+spmcq = "0.1.0"
 seahash = "4.1.0"
 send_wrapper = "0.6.0"
 serialization = { git = "https://github.com/timstr/serialization", branch = "main" }

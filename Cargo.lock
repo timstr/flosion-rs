@@ -1064,12 +1064,12 @@ dependencies = [
  "parking_lot 0.11.2",
  "rand",
  "rfd",
- "ringbuffer",
  "seahash",
  "send_wrapper",
  "serialization",
  "slicemath",
  "spin_sleep",
+ "spmcq",
  "thread-priority",
 ]
 
@@ -2331,11 +2331,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ringbuffer"
-version = "0.1.0"
-source = "git+https://github.com/timstr/ringbuffer#25e2f8b99af4cc620fd636bdf753b85df9c34dc2"
-
-[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2535,6 +2530,12 @@ dependencies = [
  "once_cell",
  "winapi",
 ]
+
+[[package]]
+name = "spmcq"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e42520c7f27cf5ccf59468e667b9ac889487de9b3ea2299d1874d0cb8796cc5d"
 
 [[package]]
 name = "static_assertions"
