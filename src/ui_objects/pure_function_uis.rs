@@ -57,6 +57,14 @@ impl ObjectUi for ConstantUi {
             .add(&Constant::ARG_VALUE)
             .add(&ConstantUi::ARG_NAME)
     }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, NumberSourceLayout) {
+        ((), NumberSourceLayout::Function)
+    }
 }
 
 #[derive(Default)]
@@ -298,6 +306,14 @@ macro_rules! ternary_number_source_ui {
 
             fn summon_names(&self) -> &'static [&'static str] {
                 &$summon_names
+            }
+
+            fn make_ui_state(
+                &self,
+                _handle: &Self::HandleType,
+                _init: UiInitialization,
+            ) -> (Self::StateType, NumberSourceLayout) {
+                ((), NumberSourceLayout::Function)
             }
         }
     };

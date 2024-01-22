@@ -4,11 +4,12 @@ use crate::{
     core::number::{numbergraph::NumberGraph, numbersource::StatefulNumberSourceHandle},
     objects::sampler1d::Sampler1d,
     ui_core::{
+        lexicallayout::lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
         numbergraphuicontext::NumberGraphUiContext,
         numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
         numbersourceui::{DisplayStyle, NumberSourceUi},
-        object_ui::ObjectUi,
+        object_ui::{ObjectUi, UiInitialization},
     },
 };
 
@@ -101,5 +102,13 @@ impl ObjectUi for Sampler1dUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["sampler1d"]
+    }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, NumberSourceLayout) {
+        ((), NumberSourceLayout::Function)
     }
 }

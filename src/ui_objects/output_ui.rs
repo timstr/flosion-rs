@@ -4,8 +4,11 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
     objects::output::Output,
     ui_core::{
-        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
+        object_ui::{Color, ObjectUi, UiInitialization},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState,
+        soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -43,5 +46,13 @@ impl ObjectUi for OutputUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["output"]
+    }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, Color) {
+        ((), Color::default())
     }
 }

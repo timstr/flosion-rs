@@ -4,7 +4,7 @@ use serialization::Serializable;
 
 use crate::core::graph::graph::Graph;
 
-pub trait ObjectUiState: Any + Default + Serializable {}
+pub trait ObjectUiState: Any + Serializable {}
 
 pub trait GraphUi {
     // the graph type being represented in the ui

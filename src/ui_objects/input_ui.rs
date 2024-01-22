@@ -1,14 +1,19 @@
 use eframe::egui;
+use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
         sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
-        soundchunk::CHUNK_SIZE,
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
     objects::input::Input,
     ui_core::{
-        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
+        graph_ui::ObjectUiState,
+        object_ui::{Color, ObjectUi, UiInitialization},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState,
+        soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -16,17 +21,32 @@ use crate::{
 #[derive(Default)]
 pub struct InputUi {}
 
+pub struct InputUiState {
+    buffer_reader: ringbuffer::Reader<SoundChunk>,
+}
+
+// TODO: this doesn't make sense
+impl Serializable for InputUiState {
+    fn serialize(&self, serializer: &mut Serializer) {}
+
+    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+        Err(())
+    }
+}
+
+impl ObjectUiState for InputUiState {}
+
 impl ObjectUi for InputUi {
     type GraphUi = SoundGraphUi;
     type HandleType = StaticSoundProcessorHandle<Input>;
-    type StateType = ();
+    type StateType = InputUiState;
     fn ui(
         &self,
         input: StaticSoundProcessorHandle<Input>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
-        data: SoundObjectUiData<()>,
+        data: SoundObjectUiData<Self::StateType>,
         sound_graph: &mut SoundGraph,
     ) {
         // TODO: controls for choosing input device?
@@ -38,8 +58,7 @@ impl ObjectUi for InputUi {
             sound_graph,
             |ui, _ui_state, _sound_graph| {
                 // TODO: keep this reader between draw calls
-                let mut reader = input.get_buffer_reader();
-                reader.skip_ahead();
+                let reader = &mut data.state.buffer_reader;
                 let color = match reader.read().value() {
                     Some(chunk) => {
                         let power_sum_l: f32 = chunk.l.iter().map(|s| s * s).sum();
@@ -68,5 +87,18 @@ impl ObjectUi for InputUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["input"]
+    }
+
+    fn make_ui_state(
+        &self,
+        handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, Color) {
+        (
+            InputUiState {
+                buffer_reader: handle.get_buffer_reader(),
+            },
+            Color::default(),
+        )
     }
 }

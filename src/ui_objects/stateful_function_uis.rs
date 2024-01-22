@@ -4,11 +4,12 @@ use crate::{
         ExponentialApproach, Integrator, LinearApproach, WrappingIntegrator,
     },
     ui_core::{
+        lexicallayout::lexicallayout::NumberSourceLayout,
         numbergraphui::NumberGraphUi,
         numbergraphuicontext::NumberGraphUiContext,
         numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
         numbersourceui::{DisplayStyle, NumberSourceUi},
-        object_ui::ObjectUi,
+        object_ui::{ObjectUi, UiInitialization},
     },
 };
 
@@ -40,6 +41,14 @@ impl ObjectUi for LinearApproachUi {
     fn summon_names(&self) -> &'static [&'static str] {
         &["linearapproach"]
     }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, NumberSourceLayout) {
+        ((), NumberSourceLayout::Function)
+    }
 }
 
 #[derive(Default)]
@@ -70,6 +79,14 @@ impl ObjectUi for ExponentialApproachUi {
     fn summon_names(&self) -> &'static [&'static str] {
         &["exponentialapproach"]
     }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, NumberSourceLayout) {
+        ((), NumberSourceLayout::Function)
+    }
 }
 
 #[derive(Default)]
@@ -95,6 +112,14 @@ impl ObjectUi for IntegratorUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["integrator"]
+    }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, NumberSourceLayout) {
+        ((), NumberSourceLayout::Function)
     }
 }
 
@@ -125,5 +150,13 @@ impl ObjectUi for WrappingIntegratorUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["wrappingintegrator"]
+    }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, NumberSourceLayout) {
+        ((), NumberSourceLayout::Function)
     }
 }

@@ -4,8 +4,11 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::mixer::Mixer,
     ui_core::{
-        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectuistate::SoundObjectUiData,
+        object_ui::{Color, ObjectUi, UiInitialization},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState,
+        soundobjectuistate::SoundObjectUiData,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -69,5 +72,13 @@ impl ObjectUi for MixerUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["mixer"]
+    }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, Color) {
+        ((), Color::default())
     }
 }

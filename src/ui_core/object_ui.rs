@@ -86,9 +86,7 @@ pub trait ObjectUi: 'static + Default {
     ) -> (
         Self::StateType,
         <<Self::GraphUi as GraphUi>::ObjectUiData as ObjectUiData>::RequiredData,
-    ) {
-        (Default::default(), Default::default())
-    }
+    );
 }
 
 pub trait AnyObjectUi<G: GraphUi> {

@@ -2,9 +2,13 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::definitions::Definitions,
     ui_core::{
-        numberinputplot::PlotConfig, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData, soundprocessorui::ProcessorUi,
+        numberinputplot::PlotConfig,
+        object_ui::{Color, ObjectUi, UiInitialization},
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState,
+        soundobjectuistate::SoundObjectUiData,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -31,7 +35,7 @@ impl ObjectUi for DefinitionsUi {
             .add_number_input(definitions.number_input.id(), "a", PlotConfig::new())
             .add_number_source(definitions.number_source.id(), "a")
             .add_sound_input(definitions.sound_input.id(), "input", graph)
-            .show_with(ui, ctx, ui_state, graph, |ui, _uistate, _sound_graph| {
+            .show_with(ui, ctx, ui_state, graph, |_ui, _uistate, _sound_graph| {
                 // TODO: controls to rename source
                 // TODO: buttons to add/remove terms
             })
@@ -39,5 +43,13 @@ impl ObjectUi for DefinitionsUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["definitions"]
+    }
+
+    fn make_ui_state(
+        &self,
+        _handle: &Self::HandleType,
+        _init: UiInitialization,
+    ) -> (Self::StateType, Color) {
+        ((), Color::default())
     }
 }
