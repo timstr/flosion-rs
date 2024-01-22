@@ -23,6 +23,7 @@ pub struct InputUi {}
 
 pub struct InputUiState {
     buffer_reader: ringbuffer::Reader<SoundChunk>,
+    amplitude_history: Vec<f32>,
 }
 
 // TODO: this doesn't make sense
@@ -35,6 +36,25 @@ impl Serializable for InputUiState {
 }
 
 impl ObjectUiState for InputUiState {}
+
+impl InputUi {
+    fn update_amplitude_history(state: &mut InputUiState) {
+        while let Some(chunk) = state.buffer_reader.read().value() {
+            // TODO: display dropouts?
+            let power_sum_l: f32 = chunk.l.iter().map(|s| s * s).sum();
+            let power_sum_r: f32 = chunk.r.iter().map(|s| s * s).sum();
+            let power_avg = (power_sum_l + power_sum_r) / (2.0 * CHUNK_SIZE as f32);
+            let min_power: f32 = 1e-3;
+            let max_power: f32 = 1.0;
+            let log_min_power = min_power.ln();
+            let log_max_power = max_power.ln();
+            let power_clipped = power_avg.clamp(min_power, max_power);
+            let t = (power_clipped.ln() - log_min_power) / (log_max_power - log_min_power);
+            state.amplitude_history.pop();
+            state.amplitude_history.insert(0, t);
+        }
+    }
+}
 
 impl ObjectUi for InputUi {
     type GraphUi = SoundGraphUi;
@@ -49,6 +69,8 @@ impl ObjectUi for InputUi {
         data: SoundObjectUiData<Self::StateType>,
         sound_graph: &mut SoundGraph,
     ) {
+        Self::update_amplitude_history(data.state);
+
         // TODO: controls for choosing input device?
         // Would require changes to input
         ProcessorUi::new(&input, "Input", data.color).show_with(
@@ -57,29 +79,27 @@ impl ObjectUi for InputUi {
             ui_state,
             sound_graph,
             |ui, _ui_state, _sound_graph| {
-                // TODO: keep this reader between draw calls
-                let reader = &mut data.state.buffer_reader;
-                let color = match reader.read().value() {
-                    Some(chunk) => {
-                        let power_sum_l: f32 = chunk.l.iter().map(|s| s * s).sum();
-                        let power_sum_r: f32 = chunk.r.iter().map(|s| s * s).sum();
-                        let power_avg = (power_sum_l + power_sum_r) / (2.0 * CHUNK_SIZE as f32);
-                        let min_power: f32 = 1e-3;
-                        let max_power: f32 = 1.0;
-                        let log_min_power = min_power.ln();
-                        let log_max_power = max_power.ln();
-                        let power_clipped = power_avg.clamp(min_power, max_power);
-                        let t =
-                            (power_clipped.ln() - log_min_power) / (log_max_power - log_min_power);
-                        let v = (t * 255.0).round() as u8;
-                        egui::Color32::from_rgb(v, v, 0)
-                    }
-                    None => egui::Color32::YELLOW,
-                };
-
-                let (_, rect) = ui.allocate_space(egui::vec2(250.0, 50.0));
+                let (_, rect) = ui.allocate_space(egui::vec2(100.0, 100.0));
                 let painter = ui.painter();
-                painter.rect_filled(rect, egui::Rounding::none(), color);
+                painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
+
+                let hist = &data.state.amplitude_history;
+
+                let dy = rect.height() / hist.len() as f32;
+                for (i, v) in hist.iter().enumerate() {
+                    let y0 = i as f32 * dy;
+                    let y1 = ((i + 1) as f32) * dy;
+                    let w = v * rect.width();
+                    painter.rect_filled(
+                        egui::Rect::from_min_max(
+                            egui::pos2(rect.left(), rect.top() + y0),
+                            egui::pos2(rect.left() + w, rect.top() + y1),
+                        ),
+                        egui::Rounding::none(),
+                        egui::Color32::WHITE,
+                    );
+                }
+
                 ui.ctx().request_repaint();
             },
         );
@@ -94,9 +114,12 @@ impl ObjectUi for InputUi {
         handle: &Self::HandleType,
         _init: UiInitialization,
     ) -> (Self::StateType, Color) {
+        let mut amplitude_history = Vec::new();
+        amplitude_history.resize(100, 0.0);
         (
             InputUiState {
                 buffer_reader: handle.get_buffer_reader(),
+                amplitude_history,
             },
             Color::default(),
         )
