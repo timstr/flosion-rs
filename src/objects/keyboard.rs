@@ -16,7 +16,8 @@ use crate::core::{
     soundchunk::SoundChunk,
 };
 
-type KeyId = usize;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct KeyId(pub usize);
 
 pub struct KeyboardKeyState {
     frequency: f32,
@@ -106,10 +107,10 @@ impl StaticSoundProcessor for Keyboard {
         for msg in receiver.try_iter() {
             match msg {
                 KeyboardCommand::StartKey { id, frequency } => {
-                    sound_input_node.start_key(None, id, KeyboardKeyState { frequency }, reuse);
+                    sound_input_node.start_key(None, id.0, KeyboardKeyState { frequency }, reuse);
                 }
                 KeyboardCommand::ReleaseKey { id } => {
-                    sound_input_node.release_key(id);
+                    sound_input_node.release_key(id.0);
                 }
                 KeyboardCommand::ReleaseAllKeys => {
                     sound_input_node.release_all_keys();

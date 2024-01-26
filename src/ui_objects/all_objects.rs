@@ -15,6 +15,7 @@ use super::{
     definitions_ui::DefinitionsUi,
     ensemble_ui::EnsembleUi,
     input_ui::InputUi,
+    keyboard_ui::KeyboardUi,
     mixer_ui::MixerUi,
     output_ui::OutputUi,
     pure_function_uis::{
@@ -67,7 +68,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
 
     // Static sound processors
     helper.register::<OutputUi>();
-    // helper.register_static_sound_processor::<KeyboardUi>();
+    helper.register::<KeyboardUi>();
     helper.register::<RecorderUi>();
 
     // Dynamic sound processors
