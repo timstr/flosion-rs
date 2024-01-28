@@ -3,6 +3,7 @@ pub mod number;
 pub mod sound;
 // pub mod graphserialization;
 pub(crate) mod engine;
+pub(crate) mod fileio;
 pub(crate) mod graph;
 pub mod jit;
 pub mod resample;

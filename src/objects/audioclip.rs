@@ -95,6 +95,7 @@ impl DynamicSoundProcessor for AudioClip {
         _context: Context,
     ) -> StreamStatus {
         let st = state.state_mut();
+        // TODO: avoid locking here? Maybe use ArcSwap
         let data = st.data.read();
         if data.sample_len() == 0 {
             dst.silence();

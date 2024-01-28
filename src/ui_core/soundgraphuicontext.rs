@@ -106,6 +106,7 @@ impl<'a> SoundGraphUiContext<'a> {
 
         self.is_top_level = false;
         self.width = desired_width;
+        // TODO: why does this sometimes panic?
         self.nesting_depth -= 1;
         self.parent_input = Some(input_id);
 

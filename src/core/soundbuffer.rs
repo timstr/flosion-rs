@@ -84,8 +84,8 @@ impl SoundBuffer {
             self.chunks.push(SoundChunk::new());
         }
         let ch = self.chunks.last_mut().unwrap();
-        ch.l[0] = l;
-        ch.r[0] = r;
+        ch.l[offset] = l;
+        ch.r[offset] = r;
         self.sample_len += 1;
     }
 }
