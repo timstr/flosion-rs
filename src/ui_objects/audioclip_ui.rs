@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::{
-        fileio::load_audio_file,
+        audiofileio::load_audio_file,
         sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     },
     objects::audioclip::AudioClip,

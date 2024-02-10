@@ -90,9 +90,15 @@ pub(crate) fn load_audio_file(path: &std::path::Path) -> Result<SoundBuffer, Str
                     AudioBufferRef::F32(buf) => {
                         let planes = buf.planes();
                         let planes_planes = planes.planes();
-                        assert_eq!(planes_planes.len(), 2);
+                        assert!(planes_planes.len() == 1 || planes_planes.len() == 2);
                         let plane_l = planes_planes[0];
-                        let plane_r = planes_planes[1];
+                        // If only one plane (channel) is found, it is interpreted
+                        // as being both the left and right channel here
+                        let plane_r = if planes_planes.len() == 2 {
+                            planes_planes[1]
+                        } else {
+                            planes_planes[0]
+                        };
                         assert_eq!(plane_l.len(), plane_r.len());
 
                         for (l, r) in plane_l.iter().zip(plane_r) {
