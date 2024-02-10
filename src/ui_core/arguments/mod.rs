@@ -1,5 +1,15 @@
 use std::any::Any;
 
+pub mod float;
+pub mod floatrange;
+pub mod naturalnumber;
+pub mod stringidentifier;
+
+pub use float::FloatArgument;
+pub use floatrange::FloatRangeArgument;
+pub use naturalnumber::NaturalNumberArgument;
+pub use stringidentifier::StringIdentifierArgument;
+
 pub struct AnyArgumentValue {
     value: Box<dyn ArgumentValue>,
 }
@@ -47,86 +57,6 @@ pub trait Argument {
     fn name(&self) -> &'static str;
 
     fn try_parse(s: &str) -> Option<Self::ValueType>;
-}
-
-pub struct StringIdentifierArgument(pub &'static str);
-
-pub struct FloatArgument(pub &'static str);
-
-pub struct FloatRangeArgument(pub &'static str);
-
-pub struct NaturalNumberArgument(pub &'static str);
-
-impl Argument for StringIdentifierArgument {
-    type ValueType = String;
-
-    fn name(&self) -> &'static str {
-        self.0
-    }
-
-    fn try_parse(s: &str) -> Option<String> {
-        debug_assert!(s.len() > 0);
-        let first_char = s.chars().next().unwrap();
-        if !first_char.is_alphabetic() {
-            return None;
-        }
-        if !s.chars().all(|c| c.is_alphanumeric()) {
-            return None;
-        }
-        return Some(s.to_string());
-    }
-}
-
-impl Argument for FloatArgument {
-    type ValueType = f64;
-
-    fn name(&self) -> &'static str {
-        self.0
-    }
-
-    fn try_parse(s: &str) -> Option<f64> {
-        s.parse().ok()
-    }
-}
-
-impl Argument for FloatRangeArgument {
-    type ValueType = std::ops::RangeInclusive<f64>;
-
-    fn name(&self) -> &'static str {
-        self.0
-    }
-
-    fn try_parse(s: &str) -> Option<std::ops::RangeInclusive<f64>> {
-        let mut parts = s.split("..");
-        let Some(start) = parts.next() else {
-            return None;
-        };
-        let Some(end) = parts.next() else {
-            return None;
-        };
-        if parts.next().is_some() {
-            return None;
-        }
-        let Ok(start) = start.parse::<f64>() else {
-            return None;
-        };
-        let Ok(end) = end.parse::<f64>() else {
-            return None;
-        };
-        Some(start..=end)
-    }
-}
-
-impl Argument for NaturalNumberArgument {
-    type ValueType = usize;
-
-    fn name(&self) -> &'static str {
-        self.0
-    }
-
-    fn try_parse(s: &str) -> Option<Self::ValueType> {
-        s.parse::<usize>().ok()
-    }
 }
 
 pub trait AnyArgument {
