@@ -1,10 +1,12 @@
 use std::any::Any;
 
+pub mod filepath;
 pub mod float;
 pub mod floatrange;
 pub mod naturalnumber;
 pub mod stringidentifier;
 
+pub use filepath::FilePathArgument;
 pub use float::FloatArgument;
 pub use floatrange::FloatRangeArgument;
 pub use naturalnumber::NaturalNumberArgument;
@@ -51,11 +53,32 @@ impl<T: 'static + Clone> ArgumentValue for T {
     }
 }
 
+// Argument is a trait for passing values through a
+// string-based interface, where those values have
+// names an expected type that they can be parsed into.
 pub trait Argument {
+    // The resulting type after a successful parse
     type ValueType: ArgumentValue + Clone;
 
+    // The name of the argument, e.g. 'count',
+    // 'width', etc. This is entirely domain-specific.
     fn name(&self) -> &'static str;
 
+    // Given a partially-entered text input for
+    // this argument, provide a list of valid
+    // suggestions for complete argument values.
+    // TODO: how should those arguments appear textually?
+    // It would seem natural to require that ValueType
+    // implement Display or Into<String>, but PathBuf
+    // doesn't implement either.
+    fn suggestions(s: &str) -> Vec<Self::ValueType> {
+        Vec::new()
+    }
+
+    // Attempt to parse the given string as a valid
+    // argument, returning None if parsing fails.
+    // Note that returning None enables other arguments
+    // to be parsed.
     fn try_parse(s: &str) -> Option<Self::ValueType>;
 }
 
