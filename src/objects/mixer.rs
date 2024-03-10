@@ -91,17 +91,11 @@ impl DynamicSoundProcessor for Mixer {
         };
         let mut all_done;
         {
-            if first_input.timing().needs_reset() {
-                first_input.reset(0);
-            }
             first_input.step(state, dst, &mut context, LocalArrayList::new());
             all_done = first_input.timing().is_done();
         }
         let mut ch = SoundChunk::new();
         for mut i in ipts {
-            if i.timing().needs_reset() {
-                i.reset(0);
-            }
             if i.timing().is_done() {
                 continue;
             }

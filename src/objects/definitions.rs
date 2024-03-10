@@ -97,13 +97,6 @@ impl DynamicSoundProcessor for Definitions {
             &context.push_processor_state(state, LocalArrayList::new()),
         );
 
-        // TODO: I don't like having to spell this out every time. It should
-        // be automated while ensuring that fine-grained delays are still
-        // possible
-        if sound_inputs.timing().needs_reset() {
-            sound_inputs.reset(0)
-        }
-
         sound_inputs.step(
             state,
             dst,

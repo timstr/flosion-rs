@@ -61,8 +61,7 @@ impl StaticSoundProcessor for Input {
         let mut config: StreamConfig = supported_config.into();
         config.buffer_size = BufferSize::Fixed(CHUNK_SIZE as u32);
 
-        // TODO: stereo???
-        config.channels = 1;
+        config.channels = 2;
 
         let mut current_chunk = SoundChunk::new();
         let mut chunk_cursor: usize = 0;
@@ -71,10 +70,9 @@ impl StaticSoundProcessor for Input {
         let (rx, mut tx) = spmcq::ring_buffer::<SoundChunk>(8);
 
         let data_callback = move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            for sample in data {
-                // TODO: stereo???
-                current_chunk.l[chunk_cursor] = *sample;
-                current_chunk.r[chunk_cursor] = *sample;
+            for sample in data.chunks_exact(2) {
+                current_chunk.l[chunk_cursor] = sample[0];
+                current_chunk.r[chunk_cursor] = sample[1];
                 chunk_cursor += 1;
                 if chunk_cursor == CHUNK_SIZE {
                     chunk_cursor = 0;

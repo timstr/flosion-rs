@@ -587,7 +587,11 @@ impl<'ctx> NodeTarget<'ctx> {
         input_state: AnyData,
         local_arrays: LocalArrayList,
     ) -> StreamStatus {
-        debug_assert!(!self.timing.needs_reset());
+        // debug_assert!(!self.timing.needs_reset());
+        if self.timing.needs_reset() {
+            // NOTE: implicit reset doesn't use any fine timing
+            self.reset(0);
+        }
         if self.timing.is_done() {
             dst.silence();
             return StreamStatus::Done;

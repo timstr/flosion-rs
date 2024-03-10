@@ -171,11 +171,10 @@ impl StaticSoundProcessor for Output {
         _dst: &mut SoundChunk,
         ctx: Context,
     ) {
-        if sound_input.timing().needs_reset()
-            || output
-                .shared_data
-                .pending_reset
-                .swap(false, Ordering::SeqCst)
+        if output
+            .shared_data
+            .pending_reset
+            .swap(false, Ordering::SeqCst)
         {
             sound_input.reset(0);
         }

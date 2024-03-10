@@ -90,13 +90,6 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
-        // TODO: I don't like having to spell this out every time. It should
-        // be automated while ensuring that fine-grained delays are still
-        // possible
-        if sound_input.timing().needs_reset() {
-            sound_input.reset(0)
-        }
-
         let mut tmp = SoundChunk::new();
         sound_input.step(state, &mut tmp, &context, LocalArrayList::new());
         number_inputs.waveform.eval(

@@ -3,17 +3,21 @@ use std::{ops::Deref, sync::Arc};
 use parking_lot::RwLock;
 use serialization::Serializer;
 
-use crate::core::{
-    engine::nodegen::NodeGen,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::Context,
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-        state::State,
+use crate::{
+    core::{
+        audiofileio::load_audio_file,
+        engine::nodegen::NodeGen,
+        graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        sound::{
+            context::Context,
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+            state::State,
+        },
+        soundbuffer::SoundBuffer,
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    soundbuffer::SoundBuffer,
-    soundchunk::{SoundChunk, CHUNK_SIZE},
+    ui_core::arguments::FilePathArgument,
 };
 
 pub struct AudioClip {
@@ -35,6 +39,10 @@ pub struct AudioClipState {
     playhead: usize,
 }
 
+impl AudioClip {
+    pub const ARG_PATH: FilePathArgument = FilePathArgument("path");
+}
+
 impl State for AudioClipState {
     fn reset(&mut self) {
         self.playhead = 0;
@@ -47,25 +55,33 @@ impl DynamicSoundProcessor for AudioClip {
     type NumberInputType<'ctx> = ();
 
     fn new(_tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
-        let data = match init {
+        let mut buffer = SoundBuffer::new_empty();
+        match init {
             ObjectInitialization::Archive(mut a) => {
-                let mut b = SoundBuffer::new_empty();
                 let l = a.peek_length()?;
                 if l % 2 != 0 {
                     return Err(());
                 }
-                b.reserve_chunks(l / (2 * CHUNK_SIZE));
+                buffer.reserve_chunks(l / (2 * CHUNK_SIZE));
                 let mut samples = a.array_iter_f32()?;
                 while let Some(l) = samples.next() {
                     let r = samples.next().unwrap();
-                    b.push_sample(l, r);
+                    buffer.push_sample(l, r);
                 }
-                b
             }
-            _ => SoundBuffer::new_empty(),
+            ObjectInitialization::Arguments(args) => {
+                if let Some(path) = args.get(&Self::ARG_PATH) {
+                    if let Ok(b) = load_audio_file(&path) {
+                        buffer = b;
+                    } else {
+                        println!("Failed to load audio file from \"{}\"", path.display());
+                    }
+                }
+            }
+            _ => (),
         };
         Ok(AudioClip {
-            data: Arc::new(RwLock::new(data)),
+            data: Arc::new(RwLock::new(buffer)),
         })
     }
 
@@ -100,6 +116,9 @@ impl DynamicSoundProcessor for AudioClip {
         if data.sample_len() == 0 {
             dst.silence();
             return StreamStatus::Done;
+        }
+        if st.playhead >= data.sample_len() {
+            st.playhead = 0;
         }
         for i in 0..CHUNK_SIZE {
             // TODO: don't repeat this every sample

@@ -6,6 +6,7 @@ pub mod input;
 pub mod keyboard;
 pub mod melody;
 pub mod mixer;
+pub mod oscilloscope;
 pub mod output;
 pub mod purefunctions;
 pub mod readwritewaveform;

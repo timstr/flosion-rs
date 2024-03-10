@@ -26,7 +26,6 @@ fn score_match(query: &str, content: &str) -> f32 {
     score
 }
 
-// #[derive(Eq, PartialEq)]
 enum SummonRule<T> {
     BasicName(String, T),
     Pattern(String, fn(&str) -> Option<T>),

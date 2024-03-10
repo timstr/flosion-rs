@@ -8,6 +8,7 @@ pub mod ensemble_ui;
 pub mod input_ui;
 pub mod keyboard_ui;
 pub mod mixer_ui;
+pub mod oscilloscope_ui;
 pub mod output_ui;
 pub mod pure_function_uis;
 pub mod readwritewaveform_ui;

@@ -7,22 +7,16 @@ use std::{
 use crate::{
     core::{
         graph::{
-            graphobject::{GraphObjectHandle, ObjectInitialization, ObjectType},
+            graphobject::{GraphObjectHandle, ObjectType},
             objectfactory::ObjectFactory,
         },
         jit::server::{JitClient, JitServerBuilder},
-        number::{numbergraph::NumberGraph, numbergraphdata::NumberTarget},
+        number::numbergraph::NumberGraph,
         revision::revision::{Revision, RevisionNumber},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
             soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
         },
-    },
-    objects::{
-        ensemble::Ensemble,
-        output::Output,
-        purefunctions::{Add, Multiply, SawWave, Variable},
-        wavegenerator::WaveGenerator,
     },
     ui_objects::all_objects::{all_number_graph_objects, all_sound_graph_objects},
 };
@@ -68,180 +62,7 @@ impl FlosionApp {
 
         let (jit_server_builder, jit_client) = JitServerBuilder::new();
 
-        let mut graph = SoundGraph::new(jit_server_builder);
-
-        // TEST while I figure out how to connect inputs in the ui
-        {
-            let output = graph
-                .add_static_sound_processor::<Output>(ObjectInitialization::Default)
-                .unwrap();
-            let wavgen = graph
-                .add_dynamic_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
-                .unwrap();
-            let ensemble = graph
-                .add_dynamic_sound_processor::<Ensemble>(ObjectInitialization::Default)
-                .unwrap();
-            graph
-                .connect_sound_input(output.input.id(), ensemble.id())
-                .unwrap();
-            graph
-                .connect_sound_input(ensemble.input.id(), wavgen.id())
-                .unwrap();
-
-            // TODO: consider renaming all sound number sources / sound number inputs
-            // in order to:
-            // 1. remove overloaded terminology w.r.t. numbergraphs
-            // 2. make it more clear how these number sources differ and
-            //    how they merely provide access to numeric data for the
-            //    number graph internals to do anything with
-            graph
-                .edit_number_input(wavgen.amplitude.id(), |numberinputdata| {
-                    let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
-                    let wavgen_phase_giid = mapping.add_target(wavgen.phase.id(), numbergraph);
-                    let saw = numbergraph
-                        .add_pure_number_source::<SawWave>(ObjectInitialization::Default)
-                        .unwrap();
-                    // brutal
-                    numbergraph
-                        .connect_graph_output(
-                            numbergraph.topology().graph_outputs()[0].id(),
-                            NumberTarget::Source(saw.id()),
-                        )
-                        .unwrap();
-                    let variable = numbergraph
-                        .add_pure_number_source::<Variable>(ObjectInitialization::Default)
-                        .unwrap();
-                    variable.set_value(1.0);
-
-                    let add1 = numbergraph
-                        .add_pure_number_source::<Add>(ObjectInitialization::Default)
-                        .unwrap();
-
-                    let add2 = numbergraph
-                        .add_pure_number_source::<Add>(ObjectInitialization::Default)
-                        .unwrap();
-
-                    let multiply = numbergraph
-                        .add_pure_number_source::<Multiply>(ObjectInitialization::Default)
-                        .unwrap();
-
-                    numbergraph
-                        .connect_number_input(saw.input.id(), NumberTarget::Source(multiply.id()))
-                        .unwrap();
-
-                    numbergraph
-                        .connect_number_input(
-                            multiply.input_1.id(),
-                            NumberTarget::Source(add2.id()),
-                        )
-                        .unwrap();
-
-                    numbergraph
-                        .connect_number_input(add2.input_1.id(), NumberTarget::Source(add1.id()))
-                        .unwrap();
-
-                    numbergraph
-                        .connect_number_input(add2.input_2.id(), NumberTarget::Source(add1.id()))
-                        .unwrap();
-
-                    numbergraph
-                        .connect_number_input(
-                            add1.input_1.id(),
-                            NumberTarget::Source(variable.id()),
-                        )
-                        .unwrap();
-
-                    numbergraph
-                        .connect_number_input(
-                            add1.input_2.id(),
-                            NumberTarget::Source(variable.id()),
-                        )
-                        .unwrap();
-
-                    numbergraph
-                        .connect_number_input(
-                            multiply.input_2.id(),
-                            NumberTarget::GraphInput(wavgen_phase_giid),
-                        )
-                        .unwrap();
-                })
-                .unwrap();
-            graph
-                .edit_number_input(wavgen.frequency.id(), |numberinputdata| {
-                    let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
-                    let voice_freq_giid =
-                        mapping.add_target(ensemble.voice_frequency.id(), numbergraph);
-                    // brutal
-                    numbergraph
-                        .connect_graph_output(
-                            numbergraph.topology().graph_outputs()[0].id(),
-                            NumberTarget::GraphInput(voice_freq_giid),
-                        )
-                        .unwrap();
-                })
-                .unwrap();
-            graph
-                .edit_number_input(ensemble.frequency_in.id(), |numberinputdata| {
-                    let numbergraph = numberinputdata.number_graph_mut();
-                    let variable = numbergraph
-                        .add_pure_number_source::<Variable>(ObjectInitialization::Default)
-                        .unwrap();
-                    variable.set_value(60.0);
-                    numbergraph
-                        .connect_graph_output(
-                            numbergraph.topology().graph_outputs()[0].id(),
-                            NumberTarget::Source(variable.id()),
-                        )
-                        .unwrap();
-                })
-                .unwrap();
-
-            // let dac = graph
-            //     .add_static_sound_processor::<Dac>(ObjectInitialization::Default)
-            //     .unwrap();
-            // let mixer = graph
-            //     .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
-            //     .unwrap();
-            // let mixer2 = graph
-            //     .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
-            //     .unwrap();
-            // let mixer3 = graph
-            //     .add_dynamic_sound_processor::<Mixer>(ObjectInitialization::Default)
-            //     .unwrap();
-            // let whitenoise = graph
-            //     .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
-            //     .unwrap();
-            // let whitenoise2 = graph
-            //     .add_dynamic_sound_processor::<WhiteNoise>(ObjectInitialization::Default)
-            //     .unwrap();
-            // let resampler = graph
-            //     .add_dynamic_sound_processor::<Resampler>(ObjectInitialization::Default)
-            //     .unwrap();
-            // let wavgen = graph
-            //     .add_dynamic_sound_processor::<WaveGenerator>(ObjectInitialization::Default)
-            //     .unwrap();
-            // graph
-            //     .connect_sound_input(dac.input.id(), mixer.id())
-            //     .unwrap();
-            // graph
-            //     .connect_sound_input(mixer.get_input_ids()[0], whitenoise.id())
-            //     .unwrap();
-            // graph
-            //     .connect_sound_input(mixer.get_input_ids()[1], mixer2.id())
-            //     .unwrap();
-            // graph
-            //     .connect_sound_input(mixer2.get_input_ids()[1], resampler.id())
-            //     .unwrap();
-            // graph
-            //     .connect_sound_input(resampler.input.id(), mixer3.id())
-            //     .unwrap();
-            // graph
-            //     .connect_sound_input(mixer3.get_input_ids()[0], whitenoise2.id())
-            //     .unwrap();
-            // graph
-            //     .connect_sound_input(mixer3.get_input_ids()[1], wavgen.id())
-            //     .unwrap();
-        }
+        let graph = SoundGraph::new(jit_server_builder);
 
         let (object_factory, ui_factory) = all_sound_graph_objects();
         let (number_object_factory, number_ui_factory) = all_number_graph_objects();
@@ -452,8 +273,14 @@ impl FlosionApp {
         factory: &UiFactory<SoundGraphUi>,
     ) -> SummonWidgetState<ObjectType> {
         let mut builder = SummonWidgetStateBuilder::new(position);
-        for object_type in factory.all_object_types() {
-            builder.add_basic_name(object_type.name().to_string(), object_type);
+        for object_ui in factory.all_object_uis() {
+            for name in object_ui.summon_names() {
+                builder.add_name_with_arguments(
+                    name.to_string(),
+                    object_ui.summon_arguments(),
+                    object_ui.object_type(),
+                );
+            }
         }
         builder.build()
     }
@@ -475,10 +302,9 @@ impl FlosionApp {
         }
 
         if open_summon_widget && self.summon_state.is_none() {
-            self.summon_state = Some(Self::build_summon_widget(
-                pointer_pos.unwrap(),
-                &self.ui_factory,
-            ));
+            if let Some(pos) = pointer_pos {
+                self.summon_state = Some(Self::build_summon_widget(pos, &self.ui_factory));
+            }
         }
 
         if let Some(summon_state) = self.summon_state.as_mut() {

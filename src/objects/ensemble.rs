@@ -143,9 +143,6 @@ impl DynamicSoundProcessor for Ensemble {
         dst.silence();
         let mut temp_chunk = SoundChunk::new();
         for mut item in sound_inputs.items_mut() {
-            if item.timing().needs_reset() {
-                item.reset(0);
-            }
             item.step(state, &mut temp_chunk, &context, LocalArrayList::new());
 
             // TODO: helper tools for mixing

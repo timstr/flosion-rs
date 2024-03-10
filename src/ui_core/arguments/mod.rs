@@ -66,12 +66,9 @@ pub trait Argument {
 
     // Given a partially-entered text input for
     // this argument, provide a list of valid
-    // suggestions for complete argument values.
-    // TODO: how should those arguments appear textually?
-    // It would seem natural to require that ValueType
-    // implement Display or Into<String>, but PathBuf
-    // doesn't implement either.
-    fn suggestions(s: &str) -> Vec<Self::ValueType> {
+    // suggestions for complete argument values,
+    // along with their textual representations
+    fn suggestions(_: &str) -> Vec<(Self::ValueType, String)> {
         Vec::new()
     }
 

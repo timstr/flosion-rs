@@ -17,6 +17,7 @@ use super::{
     input_ui::InputUi,
     keyboard_ui::KeyboardUi,
     mixer_ui::MixerUi,
+    oscilloscope_ui::OscilloscopeUi,
     output_ui::OutputUi,
     pure_function_uis::{
         AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
@@ -70,6 +71,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     helper.register::<OutputUi>();
     helper.register::<KeyboardUi>();
     helper.register::<RecorderUi>();
+    helper.register::<OscilloscopeUi>();
 
     // Dynamic sound processors
     // helper.register_dynamic_sound_processor::<ADSRUi>();
