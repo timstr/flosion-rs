@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, ColorImage, ImageData, TextureHandle, TextureOptions};
+use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
@@ -24,6 +24,11 @@ pub struct OscilloscopeUi {}
 pub struct OscilloscopeUiState {
     buffer_reader: spmcq::Reader<SoundChunk>,
     exposure: f32,
+    size: f32,
+    gain: f32,
+    decay: f32,
+    rotation: u8,
+    flip: bool,
     prev_sample: (f32, f32),
     image: ColorImage,
     texture: Option<TextureHandle>,
@@ -58,14 +63,13 @@ impl OscilloscopeUi {
             if x < 0 || x >= image.width() as isize || y < 0 || y >= image.height() as isize {
                 return;
             }
-            let c = c * intensity;
+            let c = (c * intensity).clamp(0.0, 1.0);
             let idx = (y as usize * image.width()) + x as usize;
             let [r, g, b, _] = image.pixels[idx].to_array();
-            let v = (c.clamp(0.0, 1.0) * 255.0).round() as u8;
             image.pixels[idx] = Color32::from_rgba_premultiplied(
-                r.saturating_add(v),
-                g.saturating_add(v),
-                b.saturating_add(v),
+                r.saturating_add((c * 16.0).round() as u8),
+                g.saturating_add((c * 255.0).round() as u8),
+                b.saturating_add((c * 32.0).round() as u8),
                 255,
             );
         };
@@ -142,20 +146,30 @@ impl OscilloscopeUi {
             for c in &mut img.pixels {
                 let [r, g, b, _] = c.to_array();
                 *c = Color32::from_rgba_premultiplied(
-                    r.saturating_sub((r / 2).max(1)),
-                    g.saturating_sub((r / 2).max(1)),
-                    b.saturating_sub((r / 2).max(1)),
+                    r.saturating_sub(((r as f32 * state.decay).round() as u8).max(1)),
+                    g.saturating_sub(((g as f32 * state.decay).round() as u8).max(1)),
+                    b.saturating_sub(((b as f32 * state.decay).round() as u8).max(1)),
                     255,
                 );
             }
 
-            // TODO store previous sample in state
+            let theta = -(state.rotation as f32) * std::f32::consts::FRAC_PI_4;
+
+            let (sin_theta, cos_theta) = theta.sin_cos();
+
             let mut s_prev = state.prev_sample;
             for s in chunk.samples() {
-                let x0 = (0.5 + 0.5 * s_prev.0).clamp(0.0, 1.0) * w;
-                let y0 = (0.5 - 0.5 * s_prev.1).clamp(0.0, 1.0) * h;
-                let x1 = (0.5 + 0.5 * s.0).clamp(0.0, 1.0) * w;
-                let y1 = (0.5 - 0.5 * s.1).clamp(0.0, 1.0) * h;
+                let s = if state.flip { (s.1, s.0) } else { s };
+                let s = (
+                    s.0 * cos_theta + s.1 * sin_theta,
+                    s.0 * -sin_theta + s.1 * cos_theta,
+                );
+
+                let x0 = (0.5 + 0.5 * state.gain * s_prev.0).clamp(0.0, 1.0) * w;
+                let y0 = (0.5 - 0.5 * state.gain * s_prev.1).clamp(0.0, 1.0) * h;
+                let x1 = (0.5 + 0.5 * state.gain * s.0).clamp(0.0, 1.0) * w;
+                let y1 = (0.5 - 0.5 * state.gain * s.1).clamp(0.0, 1.0) * h;
+
                 Self::draw_line(x0, y0, x1, y1, img, state.exposure);
                 s_prev = s;
             }
@@ -206,10 +220,76 @@ impl ObjectUi for OscilloscopeUi {
                             }
                         };
 
-                        ui.add(egui::Slider::new(&mut data.state.exposure, 0.1..=10.0));
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::Slider::new(&mut data.state.exposure, 0.0..=100.0)
+                                    .logarithmic(true),
+                            );
+                            ui.separator();
+                            ui.add(egui::Label::new(
+                                egui::RichText::new("Beam Strength")
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
+                            ));
+                        });
 
-                        // ui.image(texture_id, egui::vec2(256.0, 256.0));
-                        ui.image(texture_id, egui::vec2(512.0, 512.0));
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::Slider::new(&mut data.state.gain, 0.0..=100.0)
+                                    .logarithmic(true),
+                            );
+                            ui.separator();
+                            ui.add(egui::Label::new(
+                                egui::RichText::new("Gain")
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
+                            ));
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::Slider::new(&mut data.state.decay, 0.0..=1.0)
+                                    .logarithmic(true),
+                            );
+                            ui.separator();
+                            ui.add(egui::Label::new(
+                                egui::RichText::new("Decay")
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
+                            ));
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.add(egui::Slider::new(&mut data.state.rotation, 0..=8));
+                            ui.separator();
+                            ui.add(egui::Label::new(
+                                egui::RichText::new("Rotation")
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
+                            ));
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.add(egui::Checkbox::new(&mut data.state.flip, ""));
+                            ui.separator();
+                            ui.add(egui::Label::new(
+                                egui::RichText::new("Flip")
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
+                            ));
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.add(egui::Slider::new(&mut data.state.size, 32.0..=1024.0));
+                            ui.separator();
+                            ui.add(egui::Label::new(
+                                egui::RichText::new("Size")
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
+                            ));
+                        });
+
+                        ui.image(texture_id, egui::vec2(data.state.size, data.state.size));
 
                         ui.ctx().request_repaint();
                     });
@@ -229,7 +309,12 @@ impl ObjectUi for OscilloscopeUi {
         (
             OscilloscopeUiState {
                 buffer_reader: handle.get_buffer_reader(),
-                exposure: 2.0,
+                exposure: 5.0,
+                gain: 0.7,
+                decay: 0.3,
+                rotation: 1,
+                flip: true,
+                size: 512.0,
                 prev_sample: (0.0, 0.0),
                 image: ColorImage::new([512, 512], Color32::BLACK),
                 texture: None,
