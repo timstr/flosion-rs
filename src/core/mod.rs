@@ -11,4 +11,5 @@ pub(crate) mod revision;
 pub mod samplefrequency;
 pub mod soundbuffer;
 pub mod soundchunk;
+pub mod timepoint;
 pub(crate) mod uniqueid;
