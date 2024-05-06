@@ -139,10 +139,11 @@ impl<'a> SoundProcessorTools<'a> {
         &mut self,
         default_value: f32,
         scope: SoundNumberInputScope,
+        outputs: usize,
     ) -> SoundNumberInputHandle {
         let id = self.number_input_idgen.next_id();
         let owner = self.processor_id;
-        let data = SoundNumberInputData::new(id, owner, default_value, scope.clone());
+        let data = SoundNumberInputData::new(id, owner, default_value, scope.clone(), outputs);
         self.edit_queue
             .push(SoundNumberEdit::AddNumberInput(data).into());
 

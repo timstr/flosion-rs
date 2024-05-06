@@ -45,7 +45,7 @@ pub(crate) struct InstructionLocations<'ctx> {
 
 pub(super) struct LocalVariables<'ctx> {
     pub(super) loop_counter: IntValue<'ctx>,
-    pub(super) dst_ptr: PointerValue<'ctx>,
+    pub(super) dst_ptrs: Vec<PointerValue<'ctx>>,
     pub(super) dst_len: IntValue<'ctx>,
     pub(super) context_1: IntValue<'ctx>,
     pub(super) context_2: IntValue<'ctx>,
@@ -863,31 +863,32 @@ impl<'ctx> CodeGen<'ctx> {
             self.assign_target(NumberTarget::GraphInput(*giid), value);
         }
 
-        // TODO: add support for multiple outputs
-        assert_eq!(number_topo.graph_outputs().len(), 1);
-        let output_id = number_topo.graph_outputs()[0].id();
+        assert!(number_topo.graph_outputs().len() >= 1);
 
-        let output_data = number_topo.graph_output(output_id).unwrap();
-        let final_value = match output_data.target() {
-            Some(target) => self.visit_target(target, number_topo),
-            None => self
-                .types
-                .f32_type
-                .const_float(output_data.default_value() as f64)
-                .into(),
-        };
+        for output in number_topo.graph_outputs() {
+            let output_id = output.id();
+            let output_data = number_topo.graph_output(output_id).unwrap();
+            let final_value = match output_data.target() {
+                Some(target) => self.visit_target(target, number_topo),
+                None => self
+                    .types
+                    .f32_type
+                    .const_float(output_data.default_value() as f64)
+                    .into(),
+            };
 
-        self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
+            self.builder
+                .position_before(&self.instruction_locations.end_of_loop);
 
-        let dst_elem_ptr = unsafe {
-            self.builder.build_gep(
-                self.local_variables.dst_ptr,
-                &[self.local_variables.loop_counter],
-                "dst_elem_ptr",
-            )
-        };
-        self.builder.build_store(dst_elem_ptr, final_value);
+            let dst_elem_ptr = unsafe {
+                self.builder.build_gep(
+                    self.local_variables.dst_ptr,
+                    &[self.local_variables.loop_counter],
+                    "dst_elem_ptr",
+                )
+            };
+            self.builder.build_store(dst_elem_ptr, final_value);
+        }
 
         self.finish()
     }

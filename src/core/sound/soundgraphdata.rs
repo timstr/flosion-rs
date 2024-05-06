@@ -329,11 +329,14 @@ impl SoundNumberInputData {
         owner: SoundProcessorId,
         default_value: f32,
         scope: SoundNumberInputScope,
+        outputs: usize,
     ) -> Self {
         let mut number_graph = NumberGraph::new();
+        assert!(outputs >= 1);
 
-        // HACK: assuming 1 output for now
-        number_graph.add_graph_output(default_value);
+        for _ in 0..outputs {
+            number_graph.add_graph_output(default_value);
+        }
 
         Self {
             id,

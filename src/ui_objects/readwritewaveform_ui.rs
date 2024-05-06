@@ -34,7 +34,15 @@ impl ObjectUi for ReadWriteWaveformUi {
             .add_number_source(rww.input_l.id(), "l")
             .add_number_source(rww.input_r.id(), "r")
             .add_number_input(rww.waveform.id(), "waveform", PlotConfig::new())
-            .show(ui, ctx, ui_state, sound_graph);
+            .show_with(
+                ui,
+                ctx,
+                ui_state,
+                sound_graph,
+                |_ui, _uistate, _sound_graph| {
+                    // TODO: ?
+                },
+            )
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
