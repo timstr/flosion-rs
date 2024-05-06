@@ -155,7 +155,7 @@ fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
                 None
             }
         }
-        egui::Key::PlusEquals => {
+        egui::Key::Plus => {
             if modifiers.shift {
                 Some('+')
             } else {
@@ -793,7 +793,7 @@ impl LexicalLayout {
             if hover_amount > 0.0 {
                 ui.painter().rect_stroke(
                     r.rect,
-                    egui::Rounding::none(),
+                    egui::Rounding::ZERO,
                     egui::Stroke::new(
                         2.0,
                         egui::Color32::from_white_alpha((hover_amount * 64.0) as u8),
@@ -911,6 +911,7 @@ impl LexicalLayout {
                         pressed,
                         repeat: _,
                         modifiers,
+                        physical_key: _,
                     } = e
                     {
                         if *pressed {

@@ -88,6 +88,7 @@ impl ObjectUi for KeyboardUi {
                             pressed,
                             repeat,
                             modifiers,
+                            physical_key: _,
                         } = e
                         {
                             if repeat || modifiers.any() {

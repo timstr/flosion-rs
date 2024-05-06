@@ -80,7 +80,7 @@ impl NumberInputPlot {
         };
         let (_, rect) = ui.allocate_space(egui::vec2(desired_width, desired_height));
         let painter = ui.painter();
-        painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
+        painter.rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
         match compiled_fn {
             Some(mut compiled_fn) => {
                 let len = rect.width().floor() as usize;
@@ -185,7 +185,7 @@ impl NumberInputPlot {
         }
         painter.rect_stroke(
             rect,
-            egui::Rounding::none(),
+            egui::Rounding::ZERO,
             egui::Stroke::new(2.0, egui::Color32::GRAY),
         );
     }

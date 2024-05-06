@@ -81,7 +81,7 @@ impl ObjectUi for InputUi {
             |ui, _ui_state, _sound_graph| {
                 let (_, rect) = ui.allocate_space(egui::vec2(100.0, 100.0));
                 let painter = ui.painter();
-                painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
+                painter.rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
 
                 let hist = &data.state.amplitude_history;
 
@@ -95,7 +95,7 @@ impl ObjectUi for InputUi {
                             egui::pos2(rect.left(), rect.top() + y0),
                             egui::pos2(rect.left() + w, rect.top() + y1),
                         ),
-                        egui::Rounding::none(),
+                        egui::Rounding::ZERO,
                         egui::Color32::WHITE,
                     );
                 }

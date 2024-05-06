@@ -185,7 +185,7 @@ impl ProcessorUi {
             let mut area = egui::Area::new(id)
                 .movable(false) // disable dragging the area directly, since that gets handled below
                 .constrain(false)
-                .drag_bounds(egui::Rect::EVERYTHING);
+                .constrain_to(egui::Rect::EVERYTHING);
 
             if let Some(state) = ui_state
                 .object_positions()
@@ -221,7 +221,7 @@ impl ProcessorUi {
                 // of the processor that follows the cursor will be drawn separately.
                 ui.painter().rect_filled(
                     response.rect,
-                    egui::Rounding::none(),
+                    egui::Rounding::ZERO,
                     egui::Color32::from_black_alpha(64),
                 );
             }
@@ -261,7 +261,7 @@ impl ProcessorUi {
             }
         }
 
-        if response.drag_released() {
+        if response.drag_stopped() {
             ui_state.drop_dragging_processor();
         }
     }
@@ -374,7 +374,7 @@ impl ProcessorUi {
                                 }
                                 ui.painter().rect_stroke(
                                     r.rect,
-                                    egui::Rounding::none(),
+                                    egui::Rounding::ZERO,
                                     egui::Stroke::new(2.0, egui::Color32::YELLOW),
                                 );
                             } else {
@@ -572,7 +572,7 @@ impl ProcessorUi {
                             );
                         }
 
-                        if response.drag_released() {
+                        if response.drag_stopped() {
                             ui_state.drop_dragging_processor();
                         }
                     } else {
@@ -632,7 +632,7 @@ impl ProcessorUi {
             );
             ui.painter().rect_filled(
                 nonsync_shim_rect,
-                egui::Rounding::none(),
+                egui::Rounding::ZERO,
                 egui::Color32::from_black_alpha(64),
             );
         }

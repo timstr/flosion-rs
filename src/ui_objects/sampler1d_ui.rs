@@ -44,7 +44,7 @@ impl ObjectUi for Sampler1dUi {
             let (id, rect) = ui.allocate_space(egui::vec2(200.0, 100.0));
             let painter = ui.painter();
 
-            painter.rect_filled(rect, egui::Rounding::none(), egui::Color32::BLACK);
+            painter.rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
 
             let dx = rect.width() / (values.len() - 1) as f32;
             for (i, (v0, v1)) in values.iter().zip(&values[1..]).enumerate() {

@@ -247,7 +247,7 @@ impl FlosionApp {
                 selection_area.end_location = pointer_pos.unwrap();
             }
         }
-        if bg_response.drag_released() {
+        if bg_response.drag_stopped() {
             if let Some(selection_area) = selection_area.take() {
                 let mods = ui.input(|i| i.modifiers);
                 let change = if mods.alt {
@@ -583,6 +583,7 @@ impl FlosionApp {
                 pressed,
                 repeat: _,
                 modifiers,
+                physical_key: _,
             } => {
                 if !pressed {
                     return;
