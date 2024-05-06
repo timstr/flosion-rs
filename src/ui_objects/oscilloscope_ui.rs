@@ -289,7 +289,18 @@ impl ObjectUi for OscilloscopeUi {
                             ));
                         });
 
-                        ui.image(texture_id, egui::vec2(data.state.size, data.state.size));
+                        let rect = ui
+                            .allocate_space(egui::vec2(data.state.size, data.state.size))
+                            .1;
+
+                        let painter = ui.painter();
+
+                        let uv =
+                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+
+                        let tint = egui::Color32::WHITE;
+
+                        painter.image(texture_id, rect, uv, tint);
 
                         ui.ctx().request_repaint();
                     });
