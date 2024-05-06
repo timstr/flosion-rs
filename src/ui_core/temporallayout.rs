@@ -15,14 +15,17 @@ pub struct TimeAxis {
     // TODO: offset to allow scrolling?
 }
 
+// TODO: rename.
 pub struct TopLevelLayout {
     pub width_pixels: usize,
     pub time_axis: TimeAxis,
-    pub nesting_depth: usize,
+    // TODO: stack of processors?
 }
 
 pub struct TemporalLayout {
     top_level_objects: HashMap<SoundObjectId, TopLevelLayout>,
+    // TODO: this caches which number depedencies are possible. It has nothing
+    // to do with the UI layout and shouldn't be here.
     available_number_sources: HashMap<SoundNumberInputId, HashSet<SoundNumberSourceId>>,
 }
 
@@ -41,11 +44,15 @@ impl TemporalLayout {
         self.top_level_objects.contains_key(&object_id)
     }
 
-    pub(crate) fn find_top_level_layout(
+    pub(crate) fn find_layout(
         &self,
-        object_id: SoundObjectId,
+        id: SoundGraphId,
+        topo: &SoundGraphTopology,
     ) -> Option<&TopLevelLayout> {
-        self.top_level_objects.get(&object_id)
+        // TODO:
+        // - find the top-level stack containing the object
+        // - return its layout
+        todo!()
     }
 
     pub(crate) fn create_top_level_layout(&mut self, object_id: SoundObjectId) {
@@ -56,8 +63,6 @@ impl TemporalLayout {
                 time_axis: TimeAxis {
                     time_per_x_pixel: Self::DEFAULT_DURATION / (Self::DEFAULT_WIDTH as f32),
                 },
-                // nesting depth will be recomputed later
-                nesting_depth: 0,
             },
         );
     }
@@ -82,30 +87,6 @@ impl TemporalLayout {
             }
             self.create_top_level_layout(spid.into());
         }
-
-        fn count_nesting_depth(
-            spid: SoundProcessorId,
-            dependent_counts: &HashMap<SoundProcessorId, usize>,
-            topo: &SoundGraphTopology,
-        ) -> usize {
-            let inputs = topo.sound_processor(spid).unwrap().sound_inputs();
-            let mut max_depth = 0;
-            for siid in inputs {
-                if let Some(t_sp) = topo.sound_input(*siid).unwrap().target() {
-                    let d = 1 + count_nesting_depth(t_sp, dependent_counts, topo);
-                    max_depth = max_depth.max(d);
-                }
-            }
-            max_depth
-        }
-
-        for (oid, layout) in &mut self.top_level_objects {
-            match *oid {
-                SoundObjectId::Sound(spid) => {
-                    layout.nesting_depth = count_nesting_depth(spid, &dependent_counts, topo);
-                }
-            }
-        }
     }
 
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
@@ -113,36 +94,6 @@ impl TemporalLayout {
             .retain(|k, _v| topo.contains((*k).into()));
 
         self.available_number_sources = available_sound_number_sources(topo);
-    }
-
-    pub(crate) fn find_root_processor(
-        &self,
-        id: SoundGraphId,
-        topo: &SoundGraphTopology,
-    ) -> SoundProcessorId {
-        match id {
-            SoundGraphId::SoundInput(siid) => {
-                self.find_root_processor(topo.sound_input(siid).unwrap().owner().into(), topo)
-            }
-            SoundGraphId::SoundProcessor(spid) => {
-                if self.is_top_level(spid.into()) {
-                    spid
-                } else {
-                    let mut target_iter = topo.sound_processor_targets(spid);
-                    let target = target_iter.next().unwrap();
-                    // A sound processor without a top level layout should be connected
-                    // to exactly one sound input
-                    debug_assert!(target_iter.next().is_none());
-                    self.find_root_processor(target.into(), topo)
-                }
-            }
-            SoundGraphId::SoundNumberInput(sniid) => {
-                self.find_root_processor(topo.number_input(sniid).unwrap().owner().into(), topo)
-            }
-            SoundGraphId::SoundNumberSource(snsid) => {
-                self.find_root_processor(topo.number_source(snsid).unwrap().owner().into(), topo)
-            }
-        }
     }
 
     pub(crate) fn get_stack_items(

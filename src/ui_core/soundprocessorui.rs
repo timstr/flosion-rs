@@ -606,7 +606,7 @@ impl ProcessorUi {
 
         let input_frame = egui::Frame::default()
             .fill(fill)
-            .inner_margin(egui::vec2(0.0, 5.0))
+            .inner_margin(egui::vec2(5.0, 5.0))
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
         let res = input_frame.show(ui, |ui| {

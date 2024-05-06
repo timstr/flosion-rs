@@ -81,39 +81,6 @@ impl KeyboardFocusState {
                 *self = KeyboardFocusState::AroundSoundProcessor(*spid);
                 return true;
             }
-        } else {
-            let graph_id = self.graph_id();
-            let root_spid = temporal_layout.find_root_processor(graph_id, topology);
-
-            let items = temporal_layout.get_stack_items(root_spid, topology);
-
-            let mut index = items.iter().position(|i| *i == graph_id).unwrap();
-            let mut did_anything = false;
-
-            if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-                index = index.saturating_sub(1);
-                did_anything = true;
-            }
-
-            if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-                index = (index + 1).min(items.len() - 1);
-                did_anything = true;
-            }
-
-            if did_anything {
-                let new_item = items[index];
-                *self = match new_item {
-                    SoundGraphId::SoundInput(siid) => KeyboardFocusState::AroundSoundInput(siid),
-                    SoundGraphId::SoundProcessor(spid) => {
-                        KeyboardFocusState::AroundSoundProcessor(spid)
-                    }
-                    SoundGraphId::SoundNumberInput(nsid) => {
-                        KeyboardFocusState::AroundSoundNumberInput(nsid)
-                    }
-                    SoundGraphId::SoundNumberSource(_) => panic!(),
-                };
-                return true;
-            }
         }
 
         match self {
@@ -179,10 +146,8 @@ impl KeyboardFocusState {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
             let owner = soundgraph.topology().number_input(*niid).unwrap().owner();
-            let root_processer =
-                temporal_layout.find_root_processor((*niid).into(), soundgraph.topology());
             let time_axis = temporal_layout
-                .find_top_level_layout(root_processer.into())
+                .find_layout((*niid).into(), soundgraph.topology())
                 .unwrap()
                 .time_axis;
             let outer_context = OuterSoundNumberInputContext::new(

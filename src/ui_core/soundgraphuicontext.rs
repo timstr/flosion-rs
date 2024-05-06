@@ -33,7 +33,6 @@ pub struct SoundGraphUiContext<'a> {
     is_top_level: bool,
     time_axis: TimeAxis,
     width: f32,
-    nesting_depth: usize,
     parent_input: Option<SoundInputId>,
     // TODO: encapsulate
     number_graph_input_references:
@@ -50,7 +49,6 @@ impl<'a> SoundGraphUiContext<'a> {
         is_top_level: bool,
         time_axis: TimeAxis,
         width: f32,
-        nesting_depth: usize,
         jit_client: &'a JitClient,
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
@@ -61,7 +59,6 @@ impl<'a> SoundGraphUiContext<'a> {
             is_top_level,
             time_axis,
             width,
-            nesting_depth,
             parent_input: None,
             number_graph_input_references: Rc::new(RefCell::new(Vec::new())),
             jit_client,
@@ -101,13 +98,10 @@ impl<'a> SoundGraphUiContext<'a> {
     ) {
         let was_top_level = self.is_top_level;
         let old_width = self.width;
-        let old_nesting_depth = self.nesting_depth;
         let old_parent_input = self.parent_input;
 
         self.is_top_level = false;
         self.width = desired_width;
-        // TODO: why does this sometimes panic?
-        self.nesting_depth -= 1;
         self.parent_input = Some(input_id);
 
         self.sound_ui_factory
@@ -115,12 +109,7 @@ impl<'a> SoundGraphUiContext<'a> {
 
         self.is_top_level = was_top_level;
         self.width = old_width;
-        self.nesting_depth = old_nesting_depth;
         self.parent_input = old_parent_input;
-    }
-
-    pub(crate) fn nesting_depth(&self) -> usize {
-        self.nesting_depth
     }
 
     pub(crate) fn parent_sound_input(&self) -> Option<SoundInputId> {

@@ -97,26 +97,27 @@ impl FlosionApp {
         let graph_objects: Vec<GraphObjectHandle<SoundGraph>> =
             self.graph.topology().graph_objects().collect();
         for object in graph_objects {
-            if let Some(layout) = self
-                .ui_state
-                .temporal_layout()
-                .find_top_level_layout(object.id())
-            {
-                let is_top_level = true;
-                let mut ctx = SoundGraphUiContext::new(
-                    &self.ui_factory,
-                    &self.number_object_factory,
-                    &self.number_ui_factory,
-                    &self.object_states,
-                    is_top_level,
-                    layout.time_axis,
-                    layout.width_pixels as f32,
-                    layout.nesting_depth,
-                    &self.jit_client,
-                );
-                self.ui_factory
-                    .ui(&object, &mut self.ui_state, ui, &mut ctx, &mut self.graph);
-            }
+            // TODO: loop over all layouts
+            todo!()
+            // if let Some(layout) = self
+            //     .ui_state
+            //     .temporal_layout()
+            //     .find_top_level_layout(object.id())
+            // {
+            //     let is_top_level = true;
+            //     let mut ctx = SoundGraphUiContext::new(
+            //         &self.ui_factory,
+            //         &self.number_object_factory,
+            //         &self.number_ui_factory,
+            //         &self.object_states,
+            //         is_top_level,
+            //         layout.time_axis,
+            //         layout.width_pixels as f32,
+            //         &self.jit_client,
+            //     );
+            //     self.ui_factory
+            //         .ui(&object, &mut self.ui_state, ui, &mut ctx, &mut self.graph);
+            // }
         }
         self.ui_state
             .apply_processor_drag(ui, self.graph.topology());
