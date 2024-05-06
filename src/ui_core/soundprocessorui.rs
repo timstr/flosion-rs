@@ -3,10 +3,9 @@ use eframe::egui;
 use crate::core::{
     sound::{
         soundgraph::SoundGraph,
-        soundgraphtopology::SoundGraphTopology,
-        soundinput::{InputOptions, SoundInputId},
+        soundinput::SoundInputId,
         soundnumberinput::SoundNumberInputId,
-        soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOwner},
+        soundnumbersource::SoundNumberSourceId,
         soundprocessor::{ProcessorHandle, SoundProcessorId},
     },
     uniqueid::UniqueId,
@@ -30,7 +29,6 @@ pub struct ProcessorUi {
 #[derive(Clone, Copy)]
 struct ProcessorUiProps {
     origin: egui::Pos2,
-    indentation: f32,
 }
 
 impl ProcessorUi {
@@ -84,8 +82,6 @@ impl ProcessorUi {
         self.number_sources.push((source_id, label.into()));
         self
     }
-
-    const RAIL_WIDTH: f32 = 15.0;
 
     pub fn show(
         self,
@@ -198,8 +194,6 @@ impl ProcessorUi {
             let r = area.show(ui.ctx(), |ui| {
                 let r = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
 
-                self.draw_wires(ui, ctx, ui_state, sound_graph.topology());
-
                 r
             });
 
@@ -303,10 +297,9 @@ impl ProcessorUi {
 
         let props = ProcessorUiProps {
             origin: ui.cursor().left_top(),
-            indentation: (ctx.nesting_depth() + 1) as f32 * Self::RAIL_WIDTH,
         };
 
-        let left_of_body = props.origin.x + props.indentation;
+        let left_of_body = props.origin.x;
 
         let desired_width = ctx.width();
 
@@ -400,24 +393,6 @@ impl ProcessorUi {
                 },
             );
 
-            let top_rail_rect = egui::Rect::from_x_y_ranges(
-                props.origin.x..=(props.origin.x + Self::RAIL_WIDTH - 2.0),
-                props.origin.y..=response.rect.bottom(),
-            );
-
-            let rounding = egui::Rounding::same(3.0);
-
-            ui.painter().rect_filled(top_rail_rect, rounding, fill);
-            ui.painter().rect_stroke(
-                top_rail_rect,
-                rounding,
-                egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)),
-            );
-
-            ui_state
-                .object_positions_mut()
-                .track_processor_rail_location(self.processor_id, top_rail_rect);
-
             response
         });
 
@@ -472,7 +447,7 @@ impl ProcessorUi {
         ctx: &mut SoundGraphUiContext,
         input_id: SoundInputId,
         ui_state: &mut SoundGraphUiState,
-        mut props: ProcessorUiProps,
+        props: ProcessorUiProps,
         sound_graph: &mut SoundGraph,
     ) {
         let processor_candidacy = ui_state
@@ -481,23 +456,14 @@ impl ProcessorUi {
 
         let input_data = sound_graph.topology().sound_input(input_id).unwrap();
 
-        let opts = input_data.options();
+        let desired_width = ctx.width();
 
-        let nonsync_shim_width = Self::RAIL_WIDTH * 0.5;
+        // TODO: ?
+        // if let InputOptions::NonSynchronous = opts {
 
-        let original_origin = props.origin;
-        let mut desired_width = ctx.width();
-
-        if let InputOptions::NonSynchronous = opts {
-            props.origin.x += nonsync_shim_width;
-            desired_width -= nonsync_shim_width;
-        }
-
-        let left_of_body = props.origin.x + props.indentation;
+        let left_of_body = props.origin.x;
 
         let desired_width = desired_width;
-
-        let top_of_input = ui.cursor().top();
 
         let input_frame = if processor_candidacy.is_some() {
             egui::Frame::default()
@@ -514,11 +480,8 @@ impl ProcessorUi {
         let target = input_data.target();
         let r = match target {
             Some(spid) => {
-                // move the inner UI one rail's width to the right to account for
-                // the lesser nesting level and to let the nested object ui find
-                // the correct horizontal extent again
                 let inner_objectui_rect = egui::Rect::from_x_y_ranges(
-                    (props.origin.x + Self::RAIL_WIDTH)..=f32::INFINITY,
+                    (props.origin.x)..=f32::INFINITY,
                     ui.cursor().top()..=f32::INFINITY,
                 );
 
@@ -531,7 +494,7 @@ impl ProcessorUi {
                             .show(ui, |ui| {
                                 Self::show_inner_processor_contents(
                                     ui,
-                                    inner_objectui_rect.left() + Self::RAIL_WIDTH,
+                                    inner_objectui_rect.left(),
                                     desired_width,
                                     inner_frame,
                                     |ui| {
@@ -593,8 +556,6 @@ impl ProcessorUi {
                 })
             }
             None => {
-                // move the inner UI exactly to the desired horizontal extent,
-                // past all rails, where it actually needs to get drawn
                 let input_rect = egui::Rect::from_x_y_ranges(
                     left_of_body..=(left_of_body + desired_width),
                     ui.cursor().top()..=f32::INFINITY,
@@ -621,21 +582,6 @@ impl ProcessorUi {
         ui_state
             .object_positions_mut()
             .track_sound_input_location(input_id, r.response.rect);
-
-        let bottom_of_input = ui.cursor().top();
-
-        if let InputOptions::NonSynchronous = opts {
-            let left_of_shim = original_origin.x + Self::RAIL_WIDTH;
-            let nonsync_shim_rect = egui::Rect::from_x_y_ranges(
-                left_of_shim..=(left_of_shim + nonsync_shim_width),
-                top_of_input..=bottom_of_input,
-            );
-            ui.painter().rect_filled(
-                nonsync_shim_rect,
-                egui::Rounding::ZERO,
-                egui::Color32::from_black_alpha(64),
-            );
-        }
 
         if ui_state.is_item_focused(input_id.into()) {
             ui.painter().rect_stroke(
@@ -711,58 +657,6 @@ impl ProcessorUi {
                 egui::Rounding::same(3.0),
                 egui::Stroke::new(2.0, egui::Color32::YELLOW),
             );
-        }
-    }
-
-    fn draw_wires(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
-        ui_state: &mut SoundGraphUiState,
-        topology: &SoundGraphTopology,
-    ) {
-        let references = ctx.number_graph_input_references().borrow();
-
-        for (number_input_id, graph_input_references) in references.iter() {
-            for graph_input in graph_input_references.iter() {
-                let target_number_source = topology
-                    .number_input(*number_input_id)
-                    .unwrap()
-                    .target_mapping()
-                    .graph_input_target(graph_input.input_id())
-                    .unwrap();
-                let target_processor = match topology
-                    .number_source(target_number_source)
-                    .unwrap()
-                    .owner()
-                {
-                    SoundNumberSourceOwner::SoundProcessor(spid) => spid,
-                    SoundNumberSourceOwner::SoundInput(siid) => {
-                        topology.sound_input(siid).unwrap().owner()
-                    }
-                };
-                let target_rail_location = ui_state
-                    .object_positions()
-                    .get_processor_rail_location(target_processor)
-                    .unwrap();
-
-                let y = graph_input.location().y;
-
-                let x_begin = target_rail_location.rect().left() + 1.0;
-                let x_end = graph_input.location().x;
-
-                let wire_rect = egui::Rect::from_x_y_ranges(x_begin..=x_end, y..=(y + 8.0));
-                let wire_color = ctx
-                    .object_states()
-                    .get_apparent_object_color(target_processor.into(), ui_state);
-
-                ui.painter().rect(
-                    wire_rect,
-                    egui::Rounding::same(4.0),
-                    wire_color,
-                    egui::Stroke::new(1.0, egui::Color32::from_black_alpha(128)),
-                );
-            }
         }
     }
 }

@@ -28,7 +28,6 @@ impl LayoutState {
 
 pub struct ObjectPositions {
     objects: HashMap<SoundObjectId, LayoutState>,
-    processor_rails: HashMap<SoundProcessorId, LayoutState>,
     sound_inputs: HashMap<SoundInputId, LayoutState>,
     sound_number_inputs: HashMap<SoundNumberInputId, LayoutState>,
 }
@@ -37,7 +36,6 @@ impl ObjectPositions {
     pub(super) fn new() -> ObjectPositions {
         ObjectPositions {
             objects: HashMap::new(),
-            processor_rails: HashMap::new(),
             sound_inputs: HashMap::new(),
             sound_number_inputs: HashMap::new(),
         }
@@ -45,8 +43,6 @@ impl ObjectPositions {
 
     pub(super) fn retain(&mut self, ids: &HashSet<SoundGraphId>) {
         self.objects.retain(|i, _| ids.contains(&(*i).into()));
-        self.processor_rails
-            .retain(|i, _| ids.contains(&(*i).into()));
         self.sound_inputs.retain(|i, _| ids.contains(&(*i).into()));
         self.sound_number_inputs
             .retain(|i, _| ids.contains(&(*i).into()));
@@ -58,10 +54,6 @@ impl ObjectPositions {
 
     pub(super) fn track_object_location(&mut self, id: SoundObjectId, rect: egui::Rect) {
         self.objects.insert(id, LayoutState { rect });
-    }
-
-    pub(super) fn track_processor_rail_location(&mut self, id: SoundProcessorId, rect: egui::Rect) {
-        self.processor_rails.insert(id, LayoutState { rect });
     }
 
     pub(super) fn track_sound_input_location(&mut self, id: SoundInputId, rect: egui::Rect) {
@@ -80,10 +72,6 @@ impl ObjectPositions {
         self.objects.get(&id)
     }
 
-    pub(super) fn get_processor_rail_location(&self, id: SoundProcessorId) -> Option<&LayoutState> {
-        self.processor_rails.get(&id)
-    }
-
     pub(super) fn get_sound_input_location(&self, id: SoundInputId) -> Option<&LayoutState> {
         self.sound_inputs.get(&id)
     }
@@ -97,10 +85,6 @@ impl ObjectPositions {
     ) {
         self.objects
             .get_mut(&processor_id.into())
-            .unwrap()
-            .translate(delta);
-        self.processor_rails
-            .get_mut(&processor_id)
             .unwrap()
             .translate(delta);
         let proc_data = topo.sound_processor(processor_id).unwrap();
