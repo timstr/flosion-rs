@@ -70,6 +70,12 @@ pub struct CodeGen<'ctx> {
 
 impl<'ctx> CodeGen<'ctx> {
     pub(crate) fn new(inkwell_context: &'ctx inkwell::context::Context) -> CodeGen<'ctx> {
+        Self::new_inner(inkwell_context).unwrap()
+    }
+
+    fn new_inner(
+        inkwell_context: &'ctx inkwell::context::Context,
+    ) -> Result<CodeGen<'ctx>, inkwell::builder::BuilderError> {
         let module_name = "flosion_llvm_module";
         let function_name = "flosion_llvm_function".to_string();
 
@@ -175,13 +181,13 @@ impl<'ctx> CodeGen<'ctx> {
                 arg_dst_len,
                 types.usize_type.const_zero(),
                 "len_is_zero",
-            );
+            )?;
 
             // array read functions and state pointer offsets will be inserted here later
 
             // if len == 0 { goto exit } else { goto check_reset }
             inst_end_of_entry =
-                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_reset);
+                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_reset)?;
         }
 
         // check_reset
@@ -189,7 +195,7 @@ impl<'ctx> CodeGen<'ctx> {
         {
             // init_flag = *ptr_init_flag
             let init_flag = builder
-                .build_load(arg_ptr_init_flag, "init_flag")
+                .build_load(arg_ptr_init_flag, "init_flag")?
                 .into_int_value();
 
             // was_init = init_flag == FLAG_INITIALIZED
@@ -198,10 +204,10 @@ impl<'ctx> CodeGen<'ctx> {
                 init_flag,
                 types.u8_type.const_int(FLAG_INITIALIZED as u64, false),
                 "was_init",
-            );
+            )?;
 
             // if was_init { goto resume } else { goto reset }
-            builder.build_conditional_branch(was_init, bb_resume, bb_reset);
+            builder.build_conditional_branch(was_init, bb_resume, bb_reset)?;
         }
 
         // reset
@@ -211,12 +217,12 @@ impl<'ctx> CodeGen<'ctx> {
             builder.build_store(
                 arg_ptr_init_flag,
                 types.u8_type.const_int(FLAG_INITIALIZED as u64, false),
-            );
+            )?;
 
             // stateful number source init code will be inserted here
 
             // goto pre_loop
-            inst_end_of_reset = builder.build_unconditional_branch(bb_pre_loop);
+            inst_end_of_reset = builder.build_unconditional_branch(bb_pre_loop)?;
         }
 
         // resume
@@ -225,7 +231,7 @@ impl<'ctx> CodeGen<'ctx> {
             // stateful number source load code will be inserted here
 
             // goto pre_loop
-            inst_end_of_resume = builder.build_unconditional_branch(bb_pre_loop);
+            inst_end_of_resume = builder.build_unconditional_branch(bb_pre_loop)?;
         }
 
         // pre_loop
@@ -234,20 +240,20 @@ impl<'ctx> CodeGen<'ctx> {
             // stateful number source pre-loop code will be inserted here
 
             // goto loop
-            inst_end_of_pre_loop = builder.build_unconditional_branch(bb_loop);
+            inst_end_of_pre_loop = builder.build_unconditional_branch(bb_loop)?;
         }
 
         // loop
         builder.position_at_end(bb_loop);
         {
-            let phi = builder.build_phi(types.usize_type, "loop_counter");
+            let phi = builder.build_phi(types.usize_type, "loop_counter")?;
             v_loop_counter = phi.as_basic_value().into_int_value();
 
             let v_loop_counter_inc = builder.build_int_add(
                 v_loop_counter,
                 types.usize_type.const_int(1, false),
                 "loop_counter_inc",
-            );
+            )?;
 
             phi.add_incoming(&[
                 (&types.usize_type.const_zero(), bb_pre_loop),
@@ -262,13 +268,13 @@ impl<'ctx> CodeGen<'ctx> {
                 v_loop_counter_inc,
                 arg_dst_len,
                 "loop_counter_ge_len",
-            );
+            )?;
 
             // loop body will be inserted here
 
             // if loop_counter >= dst_len { goto post_loop } else { goto loop_body }
             inst_end_of_loop =
-                builder.build_conditional_branch(v_loop_counter_ge_len, bb_post_loop, bb_loop);
+                builder.build_conditional_branch(v_loop_counter_ge_len, bb_post_loop, bb_loop)?;
         }
 
         // post_loop
@@ -277,13 +283,13 @@ impl<'ctx> CodeGen<'ctx> {
             // stateful number source store and post-loop code will be inserted here
 
             // goto exit
-            inst_end_of_post_loop = builder.build_unconditional_branch(bb_exit);
+            inst_end_of_post_loop = builder.build_unconditional_branch(bb_exit)?;
         }
 
         // exit
         builder.position_at_end(bb_exit);
         {
-            builder.build_return(None);
+            builder.build_return(None)?;
         }
 
         let instruction_locations = InstructionLocations {
@@ -305,7 +311,7 @@ impl<'ctx> CodeGen<'ctx> {
             state: arg_ptr_state,
         };
 
-        CodeGen {
+        Ok(CodeGen {
             instruction_locations,
             local_variables,
             types,
@@ -318,7 +324,7 @@ impl<'ctx> CodeGen<'ctx> {
             compiled_targets: HashMap::new(),
             num_state_variables: 0,
             state_array_offsets: Vec::new(),
-        }
+        })
     }
 
     pub(super) fn finish(self) -> CompiledNumberInput<'ctx> {
@@ -426,6 +432,7 @@ impl<'ctx> CodeGen<'ctx> {
                         let ptr_state = unsafe {
                             self.builder
                                 .build_gep(ptr_all_states, &[offset], "ptr_state")
+                                .unwrap()
                         };
 
                         ptr_state
@@ -472,16 +479,19 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(input_id.value() as u64, false);
-        let call_site_value = self.builder.build_call(
-            self.wrapper_functions.input_scalar_read_wrapper,
-            &[
-                function_addr.into(),
-                self.local_variables.context_1.into(),
-                self.local_variables.context_2.into(),
-                siid.into(),
-            ],
-            "si_scalar_fn_retv",
-        );
+        let call_site_value = self
+            .builder
+            .build_call(
+                self.wrapper_functions.input_scalar_read_wrapper,
+                &[
+                    function_addr.into(),
+                    self.local_variables.context_1.into(),
+                    self.local_variables.context_2.into(),
+                    siid.into(),
+                ],
+                "si_scalar_fn_retv",
+            )
+            .unwrap();
         let scalar_read_retv = call_site_value
             .try_as_basic_value()
             .left()
@@ -506,16 +516,19 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(processor_id.value() as u64, false);
-        let call_site_value = self.builder.build_call(
-            self.wrapper_functions.processor_scalar_read_wrapper,
-            &[
-                function_addr.into(),
-                self.local_variables.context_1.into(),
-                self.local_variables.context_2.into(),
-                spid.into(),
-            ],
-            "sp_scalar_fn_retv",
-        );
+        let call_site_value = self
+            .builder
+            .build_call(
+                self.wrapper_functions.processor_scalar_read_wrapper,
+                &[
+                    function_addr.into(),
+                    self.local_variables.context_1.into(),
+                    self.local_variables.context_2.into(),
+                    spid.into(),
+                ],
+                "sp_scalar_fn_retv",
+            )
+            .unwrap();
         let scalar_read_retv = call_site_value
             .try_as_basic_value()
             .left()
@@ -540,17 +553,20 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(input_id.value() as u64, false);
-        let call_site_value = self.builder.build_call(
-            self.wrapper_functions.input_array_read_wrapper,
-            &[
-                function_addr.into(),
-                self.local_variables.context_1.into(),
-                self.local_variables.context_2.into(),
-                siid.into(),
-                self.local_variables.dst_len.into(),
-            ],
-            "si_arr_fn_retv",
-        );
+        let call_site_value = self
+            .builder
+            .build_call(
+                self.wrapper_functions.input_array_read_wrapper,
+                &[
+                    function_addr.into(),
+                    self.local_variables.context_1.into(),
+                    self.local_variables.context_2.into(),
+                    siid.into(),
+                    self.local_variables.dst_len.into(),
+                ],
+                "si_arr_fn_retv",
+            )
+            .unwrap();
         let array_read_retv = call_site_value
             .try_as_basic_value()
             .left()
@@ -566,8 +582,12 @@ impl<'ctx> CodeGen<'ctx> {
                 &[self.local_variables.loop_counter],
                 "array_elem_ptr",
             )
-        };
-        let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
+        }
+        .unwrap();
+        let array_elem = self
+            .builder
+            .build_load(array_elem_ptr, "array_elem")
+            .unwrap();
         array_elem.into_float_value()
     }
 
@@ -579,24 +599,28 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
         let function_addr = self.types.usize_type.const_int(function as u64, false);
-        let function_addr =
-            self.builder
-                .build_int_to_ptr(function_addr, self.types.pointer_type, "function_addr");
+        let function_addr = self
+            .builder
+            .build_int_to_ptr(function_addr, self.types.pointer_type, "function_addr")
+            .unwrap();
         let spid = self
             .types
             .usize_type
             .const_int(processor_id.value() as u64, false);
-        let call_site_value = self.builder.build_call(
-            self.wrapper_functions.processor_array_read_wrapper,
-            &[
-                function_addr.into(),
-                self.local_variables.context_1.into(),
-                self.local_variables.context_2.into(),
-                spid.into(),
-                self.local_variables.dst_len.into(),
-            ],
-            "sp_arr_fn_retv",
-        );
+        let call_site_value = self
+            .builder
+            .build_call(
+                self.wrapper_functions.processor_array_read_wrapper,
+                &[
+                    function_addr.into(),
+                    self.local_variables.context_1.into(),
+                    self.local_variables.context_2.into(),
+                    spid.into(),
+                    self.local_variables.dst_len.into(),
+                ],
+                "sp_arr_fn_retv",
+            )
+            .unwrap();
         let array_read_retv = call_site_value
             .try_as_basic_value()
             .left()
@@ -612,8 +636,12 @@ impl<'ctx> CodeGen<'ctx> {
                 &[self.local_variables.loop_counter],
                 "array_elem_ptr",
             )
-        };
-        let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
+        }
+        .unwrap();
+        let array_elem = self
+            .builder
+            .build_load(array_elem_ptr, "array_elem")
+            .unwrap();
         array_elem.into_float_value()
     }
 
@@ -632,17 +660,20 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(source_id.value() as u64, false);
-        let call_site_value = self.builder.build_call(
-            self.wrapper_functions.processor_local_array_read_wrapper,
-            &[
-                self.local_variables.context_1.into(),
-                self.local_variables.context_2.into(),
-                spid.into(),
-                nsid.into(),
-                self.local_variables.dst_len.into(),
-            ],
-            "sp_local_arr_fn_retv",
-        );
+        let call_site_value = self
+            .builder
+            .build_call(
+                self.wrapper_functions.processor_local_array_read_wrapper,
+                &[
+                    self.local_variables.context_1.into(),
+                    self.local_variables.context_2.into(),
+                    spid.into(),
+                    nsid.into(),
+                    self.local_variables.dst_len.into(),
+                ],
+                "sp_local_arr_fn_retv",
+            )
+            .unwrap();
         let local_array_read_retv = call_site_value
             .try_as_basic_value()
             .left()
@@ -658,8 +689,12 @@ impl<'ctx> CodeGen<'ctx> {
                 &[self.local_variables.loop_counter],
                 "array_elem_ptr",
             )
-        };
-        let array_elem = self.builder.build_load(array_elem_ptr, "array_elem");
+        }
+        .unwrap();
+        let array_elem = self
+            .builder
+            .build_load(array_elem_ptr, "array_elem")
+            .unwrap();
         array_elem.into_float_value()
     }
 
@@ -670,43 +705,62 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(processor_id.value() as u64, false);
-        let ptr_time = self.builder.build_alloca(self.types.f32_type, "time");
-        let ptr_speed = self.builder.build_alloca(self.types.f32_type, "speed");
-        self.builder.build_call(
-            self.wrapper_functions.processor_time_wrapper,
-            &[
-                self.local_variables.context_1.into(),
-                self.local_variables.context_2.into(),
-                spid.into(),
-                ptr_time.into(),
-                ptr_speed.into(),
-            ],
-            "sp_time_retv",
-        );
-        let time = self.builder.build_load(ptr_time, "time").into_float_value();
+        let ptr_time = self
+            .builder
+            .build_alloca(self.types.f32_type, "time")
+            .unwrap();
+        let ptr_speed = self
+            .builder
+            .build_alloca(self.types.f32_type, "speed")
+            .unwrap();
+        self.builder
+            .build_call(
+                self.wrapper_functions.processor_time_wrapper,
+                &[
+                    self.local_variables.context_1.into(),
+                    self.local_variables.context_2.into(),
+                    spid.into(),
+                    ptr_time.into(),
+                    ptr_speed.into(),
+                ],
+                "sp_time_retv",
+            )
+            .unwrap();
+        let time = self
+            .builder
+            .build_load(ptr_time, "time")
+            .unwrap()
+            .into_float_value();
         let speed = self
             .builder
             .build_load(ptr_speed, "speed")
+            .unwrap()
             .into_float_value();
-        let adjusted_time_step = self.builder.build_float_mul(
-            speed,
-            self.local_variables.time_step,
-            "adjusted_time_step",
-        );
+        let adjusted_time_step = self
+            .builder
+            .build_float_mul(speed, self.local_variables.time_step, "adjusted_time_step")
+            .unwrap();
 
         self.builder
             .position_before(&self.instruction_locations.end_of_loop);
 
-        let index_float = self.builder.build_unsigned_int_to_float(
-            self.local_variables.loop_counter,
-            self.types.f32_type,
-            "index_f",
-        );
+        let index_float = self
+            .builder
+            .build_unsigned_int_to_float(
+                self.local_variables.loop_counter,
+                self.types.f32_type,
+                "index_f",
+            )
+            .unwrap();
 
-        let time_offset =
-            self.builder
-                .build_float_mul(index_float, adjusted_time_step, "time_offset");
-        let curr_time = self.builder.build_float_add(time, time_offset, "curr_time");
+        let time_offset = self
+            .builder
+            .build_float_mul(index_float, adjusted_time_step, "time_offset")
+            .unwrap();
+        let curr_time = self
+            .builder
+            .build_float_add(time, time_offset, "curr_time")
+            .unwrap();
 
         curr_time
     }
@@ -718,43 +772,62 @@ impl<'ctx> CodeGen<'ctx> {
             .types
             .usize_type
             .const_int(input_id.value() as u64, false);
-        let ptr_time = self.builder.build_alloca(self.types.f32_type, "time");
-        let ptr_speed = self.builder.build_alloca(self.types.f32_type, "speed");
-        self.builder.build_call(
-            self.wrapper_functions.input_time_wrapper,
-            &[
-                self.local_variables.context_1.into(),
-                self.local_variables.context_2.into(),
-                siid.into(),
-                ptr_time.into(),
-                ptr_speed.into(),
-            ],
-            "si_time_retv",
-        );
-        let time = self.builder.build_load(ptr_time, "time").into_float_value();
+        let ptr_time = self
+            .builder
+            .build_alloca(self.types.f32_type, "time")
+            .unwrap();
+        let ptr_speed = self
+            .builder
+            .build_alloca(self.types.f32_type, "speed")
+            .unwrap();
+        self.builder
+            .build_call(
+                self.wrapper_functions.input_time_wrapper,
+                &[
+                    self.local_variables.context_1.into(),
+                    self.local_variables.context_2.into(),
+                    siid.into(),
+                    ptr_time.into(),
+                    ptr_speed.into(),
+                ],
+                "si_time_retv",
+            )
+            .unwrap();
+        let time = self
+            .builder
+            .build_load(ptr_time, "time")
+            .unwrap()
+            .into_float_value();
         let speed = self
             .builder
             .build_load(ptr_speed, "speed")
+            .unwrap()
             .into_float_value();
-        let adjusted_time_step = self.builder.build_float_mul(
-            speed,
-            self.local_variables.time_step,
-            "adjusted_time_step",
-        );
+        let adjusted_time_step = self
+            .builder
+            .build_float_mul(speed, self.local_variables.time_step, "adjusted_time_step")
+            .unwrap();
 
         self.builder
             .position_before(&self.instruction_locations.end_of_loop);
 
-        let index_float = self.builder.build_unsigned_int_to_float(
-            self.local_variables.loop_counter,
-            self.types.f32_type,
-            "index_f",
-        );
+        let index_float = self
+            .builder
+            .build_unsigned_int_to_float(
+                self.local_variables.loop_counter,
+                self.types.f32_type,
+                "index_f",
+            )
+            .unwrap();
 
-        let time_offset =
-            self.builder
-                .build_float_mul(index_float, adjusted_time_step, "time_offset");
-        let curr_time = self.builder.build_float_add(time, time_offset, "curr_time");
+        let time_offset = self
+            .builder
+            .build_float_mul(index_float, adjusted_time_step, "time_offset")
+            .unwrap();
+        let curr_time = self
+            .builder
+            .build_float_add(time, time_offset, "curr_time")
+            .unwrap();
 
         curr_time
     }
@@ -774,7 +847,8 @@ impl<'ctx> CodeGen<'ctx> {
 
         let callsiteval = self
             .builder
-            .build_call(decl, &[input.into()], &format!("{}_call", name));
+            .build_call(decl, &[input.into()], &format!("{}_call", name))
+            .unwrap();
 
         // TODO: error handling
         callsiteval
@@ -798,11 +872,14 @@ impl<'ctx> CodeGen<'ctx> {
         // TODO: error handling
         let decl = decl.unwrap();
 
-        let callsiteval = self.builder.build_call(
-            decl,
-            &[input1.into(), input2.into()],
-            &format!("{}_call", name),
-        );
+        let callsiteval = self
+            .builder
+            .build_call(
+                decl,
+                &[input1.into(), input2.into()],
+                &format!("{}_call", name),
+            )
+            .unwrap();
 
         // TODO: error handling
         callsiteval
@@ -822,10 +899,11 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
 
-        let ptr_val =
-            self.builder
-                .build_int_to_ptr(addr_val, self.types.f32_pointer_type, "p_atomicf32");
-        let load = self.builder.build_load(ptr_val, "atomic32_val");
+        let ptr_val = self
+            .builder
+            .build_int_to_ptr(addr_val, self.types.f32_pointer_type, "p_atomicf32")
+            .unwrap();
+        let load = self.builder.build_load(ptr_val, "atomic32_val").unwrap();
         let load_inst = load.as_instruction_value().unwrap();
         load_inst
             .set_atomic_ordering(AtomicOrdering::SequentiallyConsistent)
@@ -886,8 +964,9 @@ impl<'ctx> CodeGen<'ctx> {
                 &[self.local_variables.loop_counter],
                 "dst_elem_ptr",
             )
-        };
-        self.builder.build_store(dst_elem_ptr, final_value);
+        }
+        .unwrap();
+        self.builder.build_store(dst_elem_ptr, final_value).unwrap();
 
         self.finish()
     }

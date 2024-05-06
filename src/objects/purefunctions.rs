@@ -279,7 +279,9 @@ unary_number_source!(
     "negate",
     0.0,
     |x| -x,
-    LlvmImplementation::ExpressionUnary(|codegen, x| { codegen.builder().build_float_neg(x, "x") })
+    LlvmImplementation::ExpressionUnary(|codegen, x| {
+        codegen.builder().build_float_neg(x, "x").unwrap()
+    })
 );
 unary_number_source!(
     Floor,
@@ -316,7 +318,10 @@ unary_number_source!(
     |x| x.fract(),
     LlvmImplementation::ExpressionUnary(|codegen, x| {
         let x_trunc = codegen.build_unary_intrinsic_call("llvm.trunc", x);
-        codegen.builder().build_float_sub(x, x_trunc, "fract")
+        codegen
+            .builder()
+            .build_float_sub(x, x_trunc, "fract")
+            .unwrap()
     })
 );
 unary_number_source!(
@@ -359,7 +364,10 @@ unary_number_source!(
         let ln_10 = codegen
             .float_type()
             .const_float(std::f32::consts::LN_10 as f64);
-        let x_times_ln_10 = codegen.builder().build_float_mul(x, ln_10, "x_times_ln_10");
+        let x_times_ln_10 = codegen
+            .builder()
+            .build_float_mul(x, ln_10, "x_times_ln_10")
+            .unwrap();
         codegen.build_unary_intrinsic_call("llvm.exp", x_times_ln_10)
     })
 );
@@ -424,7 +432,7 @@ unary_number_source!(
     |x| (x * std::f32::consts::TAU).sin(),
     LlvmImplementation::ExpressionUnary(|codegen, x| {
         let tau = codegen.float_type().const_float(std::f64::consts::TAU);
-        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x");
+        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x").unwrap();
         let sin_tau_x = codegen.build_unary_intrinsic_call("llvm.sin", tau_x);
         sin_tau_x
     })
@@ -436,7 +444,7 @@ unary_number_source!(
     |x| (x * std::f32::consts::TAU).cos(),
     LlvmImplementation::ExpressionUnary(|codegen, x| {
         let tau = codegen.float_type().const_float(std::f64::consts::TAU);
-        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x");
+        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x").unwrap();
         let sin_tau_x = codegen.build_unary_intrinsic_call("llvm.cos", tau_x);
         sin_tau_x
     })
@@ -457,16 +465,18 @@ unary_number_source!(
         let minus_one = codegen.float_type().const_float(-1.0);
         let a_half = codegen.float_type().const_float(0.5);
         let x_floor = codegen.build_unary_intrinsic_call("llvm.floor", x);
-        let x_fract = codegen.builder().build_float_sub(x, x_floor, "x_fract");
-        let x_fract_ge_half = codegen.builder().build_float_compare(
-            FloatPredicate::UGE,
-            x_fract,
-            a_half,
-            "x_fract_ge_half",
-        );
+        let x_fract = codegen
+            .builder()
+            .build_float_sub(x, x_floor, "x_fract")
+            .unwrap();
+        let x_fract_ge_half = codegen
+            .builder()
+            .build_float_compare(FloatPredicate::UGE, x_fract, a_half, "x_fract_ge_half")
+            .unwrap();
         codegen
             .builder()
             .build_select(x_fract_ge_half, plus_one, minus_one, "square_wave")
+            .unwrap()
             .into_float_value()
     })
 );
@@ -479,11 +489,18 @@ unary_number_source!(
         let one = codegen.float_type().const_float(1.0);
         let two = codegen.float_type().const_float(2.0);
         let x_floor = codegen.build_unary_intrinsic_call("llvm.floor", x);
-        let x_fract = codegen.builder().build_float_sub(x, x_floor, "x_fract");
-        let two_x_fract = codegen.builder().build_float_mul(x_fract, two, "2x_fract");
+        let x_fract = codegen
+            .builder()
+            .build_float_sub(x, x_floor, "x_fract")
+            .unwrap();
+        let two_x_fract = codegen
+            .builder()
+            .build_float_mul(x_fract, two, "2x_fract")
+            .unwrap();
         codegen
             .builder()
             .build_float_sub(two_x_fract, one, "saw_wave")
+            .unwrap()
     })
 );
 unary_number_source!(
@@ -496,17 +513,25 @@ unary_number_source!(
         let four = codegen.float_type().const_float(4.0);
         let a_half = codegen.float_type().const_float(0.5);
 
-        let x_plus_half = codegen.builder().build_float_add(x, a_half, "x_plus_half");
+        let x_plus_half = codegen
+            .builder()
+            .build_float_add(x, a_half, "x_plus_half")
+            .unwrap();
         let floored = codegen.build_unary_intrinsic_call("llvm.floor", x_plus_half);
         let x_minus_floored = codegen
             .builder()
-            .build_float_sub(x, floored, "x_minus_floored");
+            .build_float_sub(x, floored, "x_minus_floored")
+            .unwrap();
         let abs = codegen.build_unary_intrinsic_call("llvm.fabs", x_minus_floored);
 
-        let four_abs = codegen.builder().build_float_mul(abs, four, "four_abs");
+        let four_abs = codegen
+            .builder()
+            .build_float_mul(abs, four, "four_abs")
+            .unwrap();
         codegen
             .builder()
             .build_float_sub(four_abs, one, "triangle_wave")
+            .unwrap()
     })
 );
 
@@ -516,7 +541,7 @@ binary_number_source!(
     (0.0, 0.0),
     |a, b| a + b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen.builder().build_float_add(a, b, "sum")
+        codegen.builder().build_float_add(a, b, "sum").unwrap()
     })
 );
 binary_number_source!(
@@ -525,7 +550,10 @@ binary_number_source!(
     (0.0, 0.0),
     |a, b| a - b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen.builder().build_float_sub(a, b, "difference")
+        codegen
+            .builder()
+            .build_float_sub(a, b, "difference")
+            .unwrap()
     })
 );
 binary_number_source!(
@@ -534,7 +562,7 @@ binary_number_source!(
     (1.0, 1.0),
     |a, b| a * b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen.builder().build_float_mul(a, b, "product")
+        codegen.builder().build_float_mul(a, b, "product").unwrap()
     })
 );
 binary_number_source!(
@@ -543,7 +571,7 @@ binary_number_source!(
     (1.0, 1.0),
     |a, b| a / b,
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen.builder().build_float_div(a, b, "quotient")
+        codegen.builder().build_float_div(a, b, "quotient").unwrap()
     })
 );
 // binary_number_source!(Hypot, "hypot", |a, b| a.hypot(b));
@@ -564,7 +592,10 @@ binary_number_source!(
         // x = e^(ln(a^b))
         // x = e^(b * ln(a))
         let ln_a = codegen.build_unary_intrinsic_call("llvm.log", a);
-        let b_ln_a = codegen.builder().build_float_mul(b, ln_a, "b_ln_a");
+        let b_ln_a = codegen
+            .builder()
+            .build_float_mul(b, ln_a, "b_ln_a")
+            .unwrap();
         codegen.build_unary_intrinsic_call("llvm.exp", b_ln_a)
     })
 );
@@ -576,8 +607,14 @@ ternary_number_source!(
     (0.0, 1.0, 0.0),
     |a, b, c| { a + c * (b - a) },
     LlvmImplementation::ExpressionTernary(|codegen, a, b, c| {
-        let diff = codegen.builder().build_float_sub(b, a, "diff");
-        let scaled_diff = codegen.builder().build_float_mul(c, diff, "scaled_diff");
-        codegen.builder().build_float_add(a, scaled_diff, "lerp")
+        let diff = codegen.builder().build_float_sub(b, a, "diff").unwrap();
+        let scaled_diff = codegen
+            .builder()
+            .build_float_mul(c, diff, "scaled_diff")
+            .unwrap();
+        codegen
+            .builder()
+            .build_float_add(a, scaled_diff, "lerp")
+            .unwrap()
     })
 );

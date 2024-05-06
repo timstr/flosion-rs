@@ -303,10 +303,13 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
             .position_before(&codegen.instruction_locations.end_of_entry);
         let stack_variables: Vec<PointerValue<'ctx>> = (0..self.num_variables())
             .map(|i| {
-                codegen.builder().build_alloca(
-                    codegen.types.f32_type,
-                    &format!("numbersource{}_state{}", self.id().value(), i),
-                )
+                codegen
+                    .builder()
+                    .build_alloca(
+                        codegen.types.f32_type,
+                        &format!("numbersource{}_state{}", self.id().value(), i),
+                    )
+                    .unwrap()
             })
             .collect();
 
@@ -320,7 +323,10 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         let init_variable_values = self.compile_reset(codegen);
         debug_assert_eq!(init_variable_values.len(), self.num_variables());
         for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
-            codegen.builder().build_store(*stack_var, init_value);
+            codegen
+                .builder()
+                .build_store(*stack_var, init_value)
+                .unwrap();
         }
 
         // ===========================================================
@@ -332,9 +338,9 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
             .position_before(&codegen.instruction_locations.end_of_resume);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *ptr_state
-            let tmp = codegen.builder().build_load(*ptr_state, "tmp");
+            let tmp = codegen.builder().build_load(*ptr_state, "tmp").unwrap();
             // *stack_var = tmp
-            codegen.builder().build_store(*stack_var, tmp);
+            codegen.builder().build_store(*stack_var, tmp).unwrap();
         }
 
         // ===========================================================
@@ -355,9 +361,9 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
             .position_before(&codegen.instruction_locations.end_of_post_loop);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *stack_var
-            let tmp = codegen.builder().build_load(*stack_var, "tmp");
+            let tmp = codegen.builder().build_load(*stack_var, "tmp").unwrap();
             // *ptr_state = tmp
-            codegen.builder().build_store(*ptr_state, tmp);
+            codegen.builder().build_store(*ptr_state, tmp).unwrap();
         }
         // any custom post-loop work
         self.source.compile_post_loop(codegen, &compile_state);
