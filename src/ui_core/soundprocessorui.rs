@@ -619,7 +619,7 @@ impl ProcessorUi {
 
             names.record_number_input_name(input_id, input_label.to_string());
 
-            let graph_input_references = ctx.with_number_graph_ui_context(
+            ctx.with_number_graph_ui_context(
                 input_id,
                 temporal_layout,
                 names,
@@ -637,19 +637,11 @@ impl ProcessorUi {
                     )
                 },
             );
-
-            graph_input_references
         });
-
-        let graph_input_references = res.inner;
 
         ui_state
             .object_positions_mut()
             .track_sound_number_input_location(input_id, res.response.rect);
-
-        ctx.number_graph_input_references()
-            .borrow_mut()
-            .push((input_id, graph_input_references));
 
         if ui_state.is_item_focused(input_id.into()) {
             ui.painter().rect_stroke(

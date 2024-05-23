@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use eframe::egui;
 
@@ -19,7 +19,6 @@ use super::{
     soundgraphui::SoundGraphUi,
     soundgraphuinames::SoundGraphUiNames,
     soundgraphuistate::SoundGraphUiState,
-    soundnumberinputui::SpatialGraphInputReference,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
     temporallayout::{TemporalLayout, TimeAxis},
     ui_factory::UiFactory,
@@ -34,9 +33,6 @@ pub struct SoundGraphUiContext<'a> {
     time_axis: TimeAxis,
     width: f32,
     parent_input: Option<SoundInputId>,
-    // TODO: encapsulate
-    number_graph_input_references:
-        Rc<RefCell<Vec<(SoundNumberInputId, Vec<SpatialGraphInputReference>)>>>,
     jit_client: &'a JitClient,
 }
 
@@ -60,7 +56,6 @@ impl<'a> SoundGraphUiContext<'a> {
             time_axis,
             width,
             parent_input: None,
-            number_graph_input_references: Rc::new(RefCell::new(Vec::new())),
             jit_client,
         }
     }
@@ -75,12 +70,6 @@ impl<'a> SoundGraphUiContext<'a> {
 
     pub fn width(&self) -> f32 {
         self.width
-    }
-
-    pub(super) fn number_graph_input_references(
-        &self,
-    ) -> &RefCell<Vec<(SoundNumberInputId, Vec<SpatialGraphInputReference>)>> {
-        &*self.number_graph_input_references
     }
 
     pub fn is_top_level(&self) -> bool {

@@ -2,10 +2,7 @@ use eframe::egui;
 
 use crate::core::{
     graph::objectfactory::ObjectFactory,
-    number::{
-        numbergraph::{NumberGraph, NumberGraphInputId},
-        numbergraphtopology::NumberGraphTopology,
-    },
+    number::{numbergraph::NumberGraph, numbergraphtopology::NumberGraphTopology},
     sound::soundnumberinput::SoundNumberInputId,
 };
 
@@ -61,28 +58,6 @@ impl SoundNumberInputPresentation {
     }
 }
 
-pub(super) struct SpatialGraphInputReference {
-    input_id: NumberGraphInputId,
-    location: egui::Pos2,
-}
-
-impl SpatialGraphInputReference {
-    pub(super) fn new(
-        input_id: NumberGraphInputId,
-        location: egui::Pos2,
-    ) -> SpatialGraphInputReference {
-        SpatialGraphInputReference { input_id, location }
-    }
-
-    pub(super) fn input_id(&self) -> NumberGraphInputId {
-        self.input_id
-    }
-
-    pub(super) fn location(&self) -> egui::Pos2 {
-        self.location
-    }
-}
-
 pub(super) struct SoundNumberInputUi {
     _number_input_id: SoundNumberInputId,
 }
@@ -103,7 +78,7 @@ impl SoundNumberInputUi {
         focus: Option<&mut LexicalLayoutFocus>,
         outer_context: &mut OuterNumberGraphUiContext,
         plot_config: &PlotConfig,
-    ) -> Vec<SpatialGraphInputReference> {
+    ) {
         // TODO: expandable/collapsible popup window with full layout
         let frame = egui::Frame::default()
             .fill(egui::Color32::BLACK)
@@ -133,8 +108,5 @@ impl SoundNumberInputUi {
                 });
             })
             .inner;
-
-        // TODO: consider traversing the lexical layout in search of graph inputs
-        Vec::new()
     }
 }
