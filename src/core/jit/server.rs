@@ -61,6 +61,10 @@ impl<'ctx> Cache<'ctx> {
             .insert((input_id, revision_number), Entry { artefact });
     }
 
+    fn len(&self) -> usize {
+        self.artefacts.len()
+    }
+
     // TODO: methods to age-out and clean up the cache based on usage
 }
 
@@ -151,6 +155,9 @@ impl<'ctx> JitServer<'ctx> {
             let codegen = CodeGen::new(self.inkwell_context);
             let artefact = codegen.compile_number_input(niid, topology);
             cache.insert(niid, revnum, artefact);
+            if cache.len() > 1000 {
+                println!("TODO: limit the size of the JitServer cache");
+            }
         }
     }
 

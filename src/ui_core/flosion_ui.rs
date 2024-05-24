@@ -7,7 +7,6 @@ use std::{
 use crate::{
     core::{
         graph::{graphobject::ObjectType, objectfactory::ObjectFactory},
-        jit::server::{JitClient, JitServerBuilder},
         number::numbergraph::NumberGraph,
         revision::revision::{Revision, RevisionNumber},
         sound::{
@@ -39,7 +38,6 @@ struct SelectionState {
 }
 
 pub struct FlosionApp {
-    jit_client: JitClient,
     graph: SoundGraph,
     object_factory: ObjectFactory<SoundGraph>,
     number_object_factory: ObjectFactory<NumberGraph>,
@@ -58,9 +56,7 @@ impl FlosionApp {
     pub fn new(_cc: &eframe::CreationContext) -> FlosionApp {
         // TODO: learn about what CreationContext offers
 
-        let (jit_server_builder, jit_client) = JitServerBuilder::new();
-
-        let graph = SoundGraph::new(jit_server_builder);
+        let graph = SoundGraph::new();
 
         let (object_factory, ui_factory) = all_sound_graph_objects();
         let (number_object_factory, number_ui_factory) = all_number_graph_objects();
@@ -77,7 +73,6 @@ impl FlosionApp {
             selection_area: None,
             known_object_ids: HashSet::new(),
             previous_clean_revision: None,
-            jit_client,
         };
 
         // Initialize all necessary ui state

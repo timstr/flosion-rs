@@ -34,6 +34,10 @@ impl StopButton {
     pub(crate) fn stop(&self) {
         self.0.store(false, Ordering::Relaxed);
     }
+
+    pub(crate) fn was_stopped(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
 }
 
 impl Clone for StopButton {

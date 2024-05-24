@@ -1,7 +1,7 @@
 use std::{
     collections::HashSet,
     sync::{
-        mpsc::{sync_channel, SyncSender, TryRecvError, TrySendError},
+        mpsc::{sync_channel, Receiver, SyncSender, TryRecvError, TrySendError},
         Arc,
     },
     thread::JoinHandle,
@@ -11,9 +11,12 @@ use std::{
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use crate::core::{
-    engine::soundengine::{create_sound_engine, StopButton},
+    engine::{
+        garbage::GarbageDisposer,
+        soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
+    },
     graph::{graph::Graph, graphobject::ObjectInitialization},
-    jit::server::JitServerBuilder,
+    jit::server::{JitClient, JitServer, JitServerBuilder},
     revision::revision::{Revision, RevisionNumber},
     uniqueid::IdGenerator,
 };
@@ -37,6 +40,8 @@ use super::{
     soundprocessortools::SoundProcessorTools,
 };
 
+/// A reference to a subset of the parts of a SoundGraph
+/// using their ids.
 struct SoundGraphClosure {
     sound_processors: HashSet<SoundProcessorId>,
     sound_inputs: HashSet<SoundInputId>,
@@ -118,6 +123,33 @@ impl SoundGraphClosure {
     }
 }
 
+/// A network of connected sound processors which are processing
+/// audio in real time. SoundGraph combines both the individual
+/// sound graph components living inside its SoundGraphTopology
+/// with a SoundEngine instance which conducts audio processing
+/// for those components.
+///
+/// Use a SoundGraph instance's methods to make changes to the
+/// sound graph, such as adding, connecting, and removing sound
+/// processors and their components. These changes will first be
+/// validated locally for immediate error handling feedback.
+/// Next, the changes will persist in local copy of the topology
+/// which is available for immediate inspection at all times.
+/// Finally, all edits are sent asynchronously to the SoundEngine
+/// thread where the changes can be heard.
+///
+/// Currently, two additional threads are involved. A bookkeeping
+/// thread is spawned which performs various asynchronous duties,
+/// including receiving edits from the SoundGraph instance and
+/// compiling them for the SoundEngine on the separate high-priority
+/// audio thread. The SoundEngine maintains a StateGraph instance,
+/// which is a compiled artefact representing a directly executable
+/// version of the sound graph. Thus, the bookkeeping thread compiles
+/// SoundGraphEdits into StateGraphEdits. Other chores that the
+/// bookkeeping thread does include running the JIT compiler to
+/// produce executable number inputs and taking out the garbage,
+/// i.e. disposing of resources that could potentially block the
+/// audio thread.
 pub struct SoundGraph {
     local_topology: SoundGraphTopology,
     last_revision: Option<RevisionNumber>,
@@ -125,6 +157,7 @@ pub struct SoundGraph {
     engine_interface_thread: Option<JoinHandle<()>>,
     stop_button: StopButton,
     topology_sender: SyncSender<(SoundGraphTopology, Instant)>,
+    jit_client: JitClient,
 
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
@@ -133,102 +166,127 @@ pub struct SoundGraph {
 }
 
 impl SoundGraph {
-    pub fn new(jit_server_builder: JitServerBuilder) -> SoundGraph {
+    pub fn new() -> SoundGraph {
         let topo_channel_size = 1024;
         let (topo_sender, topo_receiver) = sync_channel(topo_channel_size);
         let stop_button = StopButton::new();
         let stop_button_also = stop_button.clone();
+
+        let (jit_server_builder, jit_client) = JitServerBuilder::new();
+
         let engine_interface_thread = std::thread::spawn(move || {
             let inkwell_context = inkwell::context::Context::create();
 
             std::thread::scope(|scope| {
-                let (mut engine_interface, engine, garbage_disposer) =
+                let jit_server = jit_server_builder.build_server(&inkwell_context);
+
+                let (engine_interface, engine, garbage_disposer) =
                     create_sound_engine(&stop_button_also);
 
-                let audio_thread_handle = scope.spawn(move || {
+                scope.spawn(move || {
                     set_current_thread_priority(ThreadPriority::Max).unwrap();
                     engine.run();
                 });
 
-                let jit_server = jit_server_builder.build_server(&inkwell_context);
-
-                // NOTE: both the engine interface and the garbage disposer
-                // deal with LLVM resources and so need to stay on the same
-                // thread as the inkwell_context above
-                // Yes, it might be more efficient to perform topology diffing
-                // and recompilation on the sound graph / ui thread but it
-                // needs to happen on the same thread as the inkwell context,
-                // whose lifetime needs to be confined here.
-                // Yes, it might also seem safer and simpler to perform garbage
-                // disposal on a separate thread, removing the need for the
-                // following interleaving mess, but this would mean disposing
-                // LLVM resources on a separate thread, which is also not allowed.
-                loop {
-                    'handle_pending_updates: loop {
-                        garbage_disposer.clear();
-                        let mut issued_late_warning = false;
-                        // TODO: should throughput of jit_server be regulated here?
-                        jit_server.serve_pending_requests(engine_interface.current_topology());
-                        // handle at most a limited number of topology updates
-                        // to guarantee throughput for the garbage disposer
-                        for _ in 0..16 {
-                            let topo = match topo_receiver.try_recv() {
-                                Ok((topo, time_sent)) => {
-                                    let time_received = Instant::now();
-                                    let latency: Duration = time_received - time_sent;
-                                    let latency_ms = latency.as_millis();
-                                    if latency_ms > 200 && !issued_late_warning {
-                                        println!(
-                                            "Warning: sound graph updates are {} milliseconds late",
-                                            latency_ms
-                                        );
-                                        issued_late_warning = true;
-                                    }
-                                    topo
-                                }
-                                Err(TryRecvError::Empty) => {
-                                    break 'handle_pending_updates;
-                                }
-                                Err(TryRecvError::Disconnected) => {
-                                    println!(
-                                        "Sound topology update channel disconnected, \
-                                         sound engine interface thread is exiting"
-                                    );
-                                    return;
-                                }
-                            };
-                            if engine_interface.update(topo, &jit_server).is_err() {
-                                println!(
-                                    "Failed to update sound engine, sound engine interface \
-                                    thread is exiting"
-                                );
-                                return;
-                            }
-                        }
-                    }
-
-                    if audio_thread_handle.is_finished() {
-                        return;
-                    }
-
-                    std::thread::sleep(Duration::from_millis(50));
-                }
+                Self::housekeeping_loop(
+                    jit_server,
+                    topo_receiver,
+                    engine_interface,
+                    garbage_disposer,
+                    stop_button_also,
+                );
             });
         });
 
         SoundGraph {
+            local_topology: SoundGraphTopology::new(),
+
             engine_interface_thread: Some(engine_interface_thread),
             last_revision: None,
             stop_button,
             topology_sender: topo_sender,
 
-            local_topology: SoundGraphTopology::new(),
+            jit_client,
 
             sound_processor_idgen: IdGenerator::new(),
             sound_input_idgen: IdGenerator::new(),
             number_source_idgen: IdGenerator::new(),
             number_input_idgen: IdGenerator::new(),
         }
+    }
+
+    fn housekeeping_loop<'ctx>(
+        jit_server: JitServer<'ctx>,
+        topo_receiver: Receiver<(SoundGraphTopology, Instant)>,
+        mut engine_interface: SoundEngineInterface<'ctx>,
+        garbage_disposer: GarbageDisposer,
+        stop_button: StopButton,
+    ) {
+        // NOTE: both the engine interface and the garbage disposer
+        // deal with LLVM resources and so need to stay on the same
+        // thread as the inkwell_context above
+        // Yes, it might be more efficient to perform topology diffing
+        // and recompilation on the sound graph / ui thread but it
+        // needs to happen on the same thread as the inkwell context,
+        // whose lifetime needs to be confined here.
+        // Yes, it might also seem safer and simpler to perform garbage
+        // disposal on a separate thread, removing the need for the
+        // following interleaving mess, but this would mean disposing
+        // LLVM resources on a separate thread, which is also not allowed.
+        loop {
+            'handle_pending_updates: loop {
+                garbage_disposer.clear();
+                let mut issued_late_warning = false;
+                // TODO: should throughput of jit_server be regulated here?
+                jit_server.serve_pending_requests(engine_interface.current_topology());
+                // handle at most a limited number of topology updates
+                // to guarantee throughput for the garbage disposer
+                for _ in 0..16 {
+                    let topo = match topo_receiver.try_recv() {
+                        Ok((topo, time_sent)) => {
+                            let time_received = Instant::now();
+                            let latency: Duration = time_received - time_sent;
+                            let latency_ms = latency.as_millis();
+                            if latency_ms > 200 && !issued_late_warning {
+                                println!(
+                                    "Warning: sound graph updates are {} milliseconds late",
+                                    latency_ms
+                                );
+                                issued_late_warning = true;
+                            }
+                            topo
+                        }
+                        Err(TryRecvError::Empty) => {
+                            break 'handle_pending_updates;
+                        }
+                        Err(TryRecvError::Disconnected) => {
+                            println!(
+                                "Sound topology update channel disconnected, \
+                                         sound engine interface thread is exiting"
+                            );
+                            return;
+                        }
+                    };
+                    if engine_interface.update(topo, &jit_server).is_err() {
+                        println!(
+                            "Failed to update sound engine, sound engine interface \
+                                    thread is exiting"
+                        );
+                        return;
+                    }
+                }
+            }
+
+            if stop_button.was_stopped() {
+                return;
+            }
+
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    pub(crate) fn jit_client(&self) -> &JitClient {
+        &self.jit_client
     }
 
     pub fn add_static_sound_processor<T: StaticSoundProcessor>(
