@@ -2,33 +2,22 @@ use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
-use crate::core::{
-    graph::objectfactory::ObjectFactory,
-    jit::server::JitClient,
-    number::numbergraph::NumberGraph,
-    sound::{
-        soundedit::SoundEdit,
-        soundgraph::SoundGraph,
-        soundgraphid::{SoundGraphId, SoundObjectId},
-        soundgraphtopology::SoundGraphTopology,
-        soundgraphvalidation::find_error,
-        soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId,
-        soundprocessor::SoundProcessorId,
-    },
+use crate::core::sound::{
+    soundedit::SoundEdit,
+    soundgraphid::{SoundGraphId, SoundObjectId},
+    soundgraphtopology::SoundGraphTopology,
+    soundgraphvalidation::find_error,
+    soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 use super::{
     keyboardfocus::KeyboardFocusState,
-    lexicallayout::lexicallayout::LexicalLayoutFocus,
-    numbergraphui::NumberGraphUi,
     numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
     soundgraphuinames::SoundGraphUiNames,
     soundnumberinputui::SoundNumberInputPresentation,
     soundobjectuistate::SoundObjectUiStates,
-    temporallayout::TemporalLayout,
-    ui_factory::UiFactory,
 };
 
 pub struct NestedProcessorClosure {
@@ -82,7 +71,9 @@ struct PendingProcessorDrag {
 
 pub struct SoundGraphUiState {
     object_positions: ObjectPositions,
-    temporal_layout: TemporalLayout,
+    // NOTE to self: remove SoundGraphLayout (previously TemporalLayout) from
+    // here altogether. Store SoundGraphLayout in FlosionApp directly
+    // and move most or all of this into SoundGraphLayout
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
     number_input_uis: SoundNumberInputUiCollection,
@@ -93,7 +84,6 @@ impl SoundGraphUiState {
     pub(super) fn new() -> SoundGraphUiState {
         SoundGraphUiState {
             object_positions: ObjectPositions::new(),
-            temporal_layout: TemporalLayout::new(),
             mode: UiMode::Passive,
             pending_drag: None,
             number_input_uis: SoundNumberInputUiCollection::new(),
@@ -107,14 +97,6 @@ impl SoundGraphUiState {
 
     pub(super) fn object_positions_mut(&mut self) -> &mut ObjectPositions {
         &mut self.object_positions
-    }
-
-    pub(super) fn temporal_layout(&self) -> &TemporalLayout {
-        &self.temporal_layout
-    }
-
-    pub(super) fn temporal_layout_mut(&mut self) -> &mut TemporalLayout {
-        &mut self.temporal_layout
     }
 
     fn update_mode_from_selection(&mut self) {
@@ -157,74 +139,6 @@ impl SoundGraphUiState {
             }
         }
         self.update_mode_from_selection();
-    }
-
-    pub(super) fn select_with_rect(&mut self, rect: egui::Rect, change: SelectionChange) {
-        let mut selection = match &mut self.mode {
-            UiMode::Selecting(s) => {
-                let mut ss = HashSet::new();
-                std::mem::swap(s, &mut ss);
-                self.mode = UiMode::Passive;
-                ss
-            }
-            _ => HashSet::new(),
-        };
-
-        if let SelectionChange::Replace = change {
-            selection.clear();
-        }
-        for (object_id, object_state) in self.object_positions.objects() {
-            if !self.temporal_layout.is_top_level(*object_id) {
-                continue;
-            }
-            if rect.intersects(object_state.rect()) {
-                if let SelectionChange::Subtract = change {
-                    selection.remove(object_id);
-                } else {
-                    selection.insert(*object_id);
-                }
-            }
-        }
-
-        self.mode = UiMode::Selecting(selection);
-        self.update_mode_from_selection();
-    }
-
-    fn find_nested_processor_closure(
-        processor_id: SoundProcessorId,
-        topo: &SoundGraphTopology,
-        temporal_layout: &TemporalLayout,
-    ) -> NestedProcessorClosure {
-        fn visitor(
-            processor_id: SoundProcessorId,
-            topo: &SoundGraphTopology,
-            temporal_layout: &TemporalLayout,
-            closure: &mut NestedProcessorClosure,
-        ) {
-            closure.sound_processors.insert(processor_id);
-            let inputs = topo.sound_processor(processor_id).unwrap().sound_inputs();
-            for siid in inputs {
-                closure.sound_inputs.insert(*siid);
-                let Some(target_spid) = topo.sound_input(*siid).unwrap().target() else {
-                    continue;
-                };
-
-                if temporal_layout.is_top_level(target_spid.into()) {
-                    continue;
-                }
-
-                visitor(target_spid, topo, temporal_layout, closure);
-            }
-        }
-
-        let mut closure = NestedProcessorClosure {
-            sound_processors: HashSet::new(),
-            sound_inputs: HashSet::new(),
-        };
-
-        visitor(processor_id, topo, temporal_layout, &mut closure);
-
-        closure
     }
 
     fn find_candidate_sound_inputs(
@@ -316,142 +230,6 @@ impl SoundGraphUiState {
         }
     }
 
-    pub(super) fn drag_processor(
-        &mut self,
-        processor_id: SoundProcessorId,
-        delta: egui::Vec2,
-        cursor_pos: egui::Pos2,
-        from_input: Option<SoundInputId>,
-        from_rect: egui::Rect,
-    ) {
-        self.pending_drag = Some(PendingProcessorDrag {
-            processor_id,
-            delta,
-            cursor_pos,
-            from_input,
-            from_rect,
-        });
-    }
-
-    pub(super) fn apply_processor_drag(&mut self, ui: &egui::Ui, topo: &SoundGraphTopology) {
-        let Some(pending_drag) = self.pending_drag.take() else {
-            return;
-        };
-
-        let PendingProcessorDrag {
-            processor_id,
-            delta,
-            cursor_pos,
-            from_input,
-            from_rect,
-        } = pending_drag;
-
-        if let UiMode::Selecting(_) = &self.mode {
-            self.move_selection(delta, topo);
-            return;
-        }
-
-        let get_default_data = || {
-            // let rect = self
-            //     .object_positions
-            //     .get_object_location(processor_id.into())
-            //     .unwrap()
-            //     .rect();
-            let rect = from_rect;
-            let drag_closure =
-                Self::find_nested_processor_closure(processor_id, topo, &self.temporal_layout);
-            let candidate_inputs =
-                Self::find_candidate_sound_inputs(processor_id, topo, &drag_closure);
-            DraggingProcessorData {
-                processor_id,
-                rect,
-                original_rect: rect,
-                drag_closure,
-                candidate_inputs,
-                from_input,
-            }
-        };
-
-        // Assumption: sound graph topology isn't changing while processor is being dragged,
-        // so candidate inputs don't need recomputing
-
-        let mode = std::mem::replace(&mut self.mode, UiMode::Passive);
-        let mut data = match mode {
-            UiMode::DraggingProcessor(data) => {
-                if data.processor_id == processor_id {
-                    data
-                } else {
-                    get_default_data()
-                }
-            }
-            _ => get_default_data(),
-        };
-
-        data.rect = data.rect.translate(delta);
-
-        // If the processor is top level and shift isn't held, move it
-        let shift_is_down = ui.input(|i| i.modifiers.shift);
-
-        if self.temporal_layout.is_top_level(processor_id.into()) && from_input.is_none() {
-            if shift_is_down {
-                self.object_positions
-                    .track_object_location(processor_id.into(), data.original_rect);
-            } else {
-                self.object_positions.move_sound_processor_closure(
-                    processor_id.into(),
-                    topo,
-                    &self.temporal_layout,
-                    delta,
-                );
-            }
-        }
-
-        Self::update_candidate_input_scores(
-            &mut data.candidate_inputs,
-            data.rect,
-            &self.object_positions,
-            cursor_pos,
-        );
-
-        self.mode = UiMode::DraggingProcessor(data);
-    }
-
-    pub(super) fn drop_dragging_processor(&mut self) {
-        if let UiMode::DraggingProcessor(data) = &self.mode {
-            self.mode = UiMode::DroppingProcessor(DroppingProcessorData {
-                processor_id: data.processor_id,
-                rect: data.rect,
-                target_input: data
-                    .candidate_inputs
-                    .iter()
-                    .filter_map(|(siid, d)| if d.is_selected { Some(*siid) } else { None })
-                    .next(),
-                from_input: data.from_input,
-            });
-        }
-    }
-
-    pub(super) fn take_dropped_nested_processor(&mut self) -> Option<DroppingProcessorData> {
-        let mode = std::mem::replace(&mut self.mode, UiMode::Passive);
-        match mode {
-            UiMode::DroppingProcessor(data) => {
-                self.mode = UiMode::Passive;
-                Some(data)
-            }
-            _ => {
-                self.mode = mode;
-                None
-            }
-        }
-    }
-
-    pub(super) fn dragging_processor_data(&self) -> Option<&DraggingProcessorData> {
-        match &self.mode {
-            UiMode::DraggingProcessor(data) => Some(data),
-            _ => None,
-        }
-    }
-
     pub(super) fn cleanup(
         &mut self,
         // TODO: remove this hashset completely here and elsewhere, refer to topology only
@@ -460,7 +238,6 @@ impl SoundGraphUiState {
         object_ui_states: &SoundObjectUiStates,
     ) {
         self.object_positions.retain(remaining_ids);
-        self.temporal_layout.cleanup(topo);
 
         match &mut self.mode {
             UiMode::Selecting(s) => {
@@ -486,9 +263,6 @@ impl SoundGraphUiState {
                 }
             }
         }
-
-        // TODO: do this conservatively, e.g. when the topology changes
-        self.temporal_layout.regenerate(topo);
 
         self.number_input_uis.cleanup(topo, object_ui_states);
 
@@ -541,52 +315,6 @@ impl SoundGraphUiState {
 
     pub(super) fn set_keyboard_focus(&mut self, focus: KeyboardFocusState) {
         self.mode = UiMode::UsingKeyboardNav(focus);
-    }
-
-    pub(super) fn handle_keyboard_focus(
-        &mut self,
-        ui: &egui::Ui,
-        soundgraph: &mut SoundGraph,
-        number_object_factory: &ObjectFactory<NumberGraph>,
-        number_ui_factory: &UiFactory<NumberGraphUi>,
-        object_ui_states: &mut SoundObjectUiStates,
-        jit_client: &JitClient,
-    ) {
-        if let UiMode::UsingKeyboardNav(kbd) = &mut self.mode {
-            kbd.handle_keyboard_focus(
-                ui,
-                soundgraph,
-                &self.temporal_layout,
-                &self.names,
-                &mut self.number_input_uis,
-                number_object_factory,
-                number_ui_factory,
-                object_ui_states,
-                jit_client,
-            );
-        };
-    }
-
-    pub(super) fn move_selection(&mut self, delta: egui::Vec2, topo: &SoundGraphTopology) {
-        match &self.mode {
-            UiMode::Selecting(selection) => {
-                for s in selection {
-                    if self.temporal_layout.is_top_level((*s).into()) {
-                        match s {
-                            SoundObjectId::Sound(spid) => {
-                                self.object_positions.move_sound_processor_closure(
-                                    *spid,
-                                    topo,
-                                    &self.temporal_layout,
-                                    delta,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            _ => (),
-        }
     }
 
     pub(super) fn item_has_keyboard_focus(&self, id: SoundGraphId) -> bool {
@@ -650,30 +378,6 @@ impl SoundGraphUiState {
                 }
             }
         }
-    }
-
-    pub(super) fn number_graph_ui_parts(
-        &mut self,
-        input_id: SoundNumberInputId,
-    ) -> (
-        &mut NumberGraphUiState,
-        &mut SoundNumberInputPresentation,
-        Option<&mut LexicalLayoutFocus>,
-        &TemporalLayout,
-        &mut SoundGraphUiNames,
-    ) {
-        let (ui_state, presentation) = self.number_input_uis.get_mut(input_id).unwrap();
-        let focus = match &mut self.mode {
-            UiMode::UsingKeyboardNav(kbd) => kbd.sound_number_input_focus(input_id),
-            _ => None,
-        };
-        (
-            ui_state,
-            presentation,
-            focus,
-            &self.temporal_layout,
-            &mut self.names,
-        )
     }
 
     pub(crate) fn names(&self) -> &SoundGraphUiNames {

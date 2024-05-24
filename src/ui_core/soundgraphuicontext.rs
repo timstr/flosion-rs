@@ -20,7 +20,7 @@ use super::{
     soundgraphuinames::SoundGraphUiNames,
     soundgraphuistate::SoundGraphUiState,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    temporallayout::{TemporalLayout, TimeAxis},
+    temporallayout::{SoundGraphLayout, TimeAxis},
     ui_factory::UiFactory,
 };
 
@@ -111,7 +111,7 @@ impl<'a> SoundGraphUiContext<'a> {
     >(
         &mut self,
         input_id: SoundNumberInputId,
-        temporal_layout: &TemporalLayout,
+        graph_layout: &SoundGraphLayout,
         names: &SoundGraphUiNames,
         sound_graph: &mut SoundGraph,
         f: F,
@@ -125,7 +125,7 @@ impl<'a> SoundGraphUiContext<'a> {
         let sni_ctx = OuterSoundNumberInputContext::new(
             input_id,
             owner,
-            temporal_layout,
+            graph_layout,
             sound_graph,
             names,
             self.jit_client,

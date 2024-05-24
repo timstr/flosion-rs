@@ -1,14 +1,17 @@
 use eframe::egui;
 
-use crate::core::{
-    sound::{
-        soundgraph::SoundGraph,
-        soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId,
-        soundnumbersource::SoundNumberSourceId,
-        soundprocessor::{ProcessorHandle, SoundProcessorId},
+use crate::{
+    core::{
+        sound::{
+            soundgraph::SoundGraph,
+            soundinput::SoundInputId,
+            soundnumberinput::SoundNumberInputId,
+            soundnumbersource::SoundNumberSourceId,
+            soundprocessor::{ProcessorHandle, SoundProcessorId},
+        },
+        uniqueid::UniqueId,
     },
-    uniqueid::UniqueId,
+    ui_core::soundgraphuinames::SoundGraphUiNames,
 };
 
 use super::{
@@ -170,58 +173,17 @@ impl ProcessorUi {
             }
         }
 
-        let response = if ctx.is_top_level() {
-            // If the object is top-level, draw it in a new egui::Area,
-            // which can be independently clicked and dragged and moved
-            // in front of other objects
+        let response = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
 
-            let s = format!("SoundProcessorUi {:?}", self.processor_id);
-            let id = egui::Id::new(s);
-
-            let mut area = egui::Area::new(id)
-                .movable(false) // disable dragging the area directly, since that gets handled below
-                .constrain(false)
-                .constrain_to(egui::Rect::EVERYTHING);
-
-            if let Some(state) = ui_state
-                .object_positions()
-                .get_object_location(self.processor_id.into())
-            {
-                let pos = state.rect().left_top();
-                area = area.current_pos(pos);
-            }
-
-            let r = area.show(ui.ctx(), |ui| {
-                let r = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
-
-                r
-            });
-
-            let response = r
-                .response
-                .interact(egui::Sense::click_and_drag())
-                .union(r.inner);
-
-            response
-        } else {
-            // Otherwise, if the object isn't top-level, nest it within the
-            // current egui::Ui
-
-            let response = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
-
-            if ui_state.dragging_processor_data().map(|x| x.processor_id) == Some(self.processor_id)
-            {
-                // Make the processor appear faded if it's being dragged. A representation
-                // of the processor that follows the cursor will be drawn separately.
-                ui.painter().rect_filled(
-                    response.rect,
-                    egui::Rounding::ZERO,
-                    egui::Color32::from_black_alpha(64),
-                );
-            }
-
-            response
-        };
+        if todo!("is this processor being dragged?") {
+            // Make the processor appear faded if it's being dragged. A representation
+            // of the processor that follows the cursor will be drawn separately.
+            ui.painter().rect_filled(
+                response.rect,
+                egui::Rounding::ZERO,
+                egui::Color32::from_black_alpha(64),
+            );
+        }
 
         if response.drag_started() {
             if !ui_state.is_object_selected(self.processor_id.into()) {
@@ -231,21 +193,11 @@ impl ProcessorUi {
         }
 
         if response.dragged() {
-            let from_input = if ctx.is_top_level() {
-                None
-            } else {
-                Some(ctx.parent_sound_input().unwrap())
-            };
+            let from_input = ctx.parent_sound_input();
 
             let from_rect = response.rect;
 
-            ui_state.drag_processor(
-                self.processor_id,
-                response.drag_delta(),
-                response.interact_pointer_pos().unwrap(),
-                from_input,
-                from_rect,
-            );
+            todo!("Start dragging this processor");
         }
 
         if response.clicked() {
@@ -256,7 +208,7 @@ impl ProcessorUi {
         }
 
         if response.drag_stopped() {
-            ui_state.drop_dragging_processor();
+            todo!("Stop dragging and drop this processor");
         }
     }
 
@@ -311,11 +263,6 @@ impl ProcessorUi {
 
         let r = outer_frame.show(ui, |ui| {
             ui.set_width(desired_width);
-            if !self.sound_inputs.is_empty() {
-                for (input_id, _label, _time_nsid) in &self.sound_inputs {
-                    self.show_sound_input(ui, ctx, *input_id, ui_state, props, sound_graph);
-                }
-            }
 
             let response = Self::show_inner_processor_contents(
                 ui,
@@ -441,157 +388,6 @@ impl ProcessorUi {
             .interact(egui::Sense::click_and_drag())
     }
 
-    fn show_sound_input(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
-        input_id: SoundInputId,
-        ui_state: &mut SoundGraphUiState,
-        props: ProcessorUiProps,
-        sound_graph: &mut SoundGraph,
-    ) {
-        let processor_candidacy = ui_state
-            .dragging_processor_data()
-            .and_then(|d| d.candidate_inputs.get(&input_id));
-
-        let input_data = sound_graph.topology().sound_input(input_id).unwrap();
-
-        let desired_width = ctx.width();
-
-        // TODO: ?
-        // if let InputOptions::NonSynchronous = opts {
-
-        let left_of_body = props.origin.x;
-
-        let desired_width = desired_width;
-
-        let input_frame = if processor_candidacy.is_some() {
-            egui::Frame::default()
-                .fill(egui::Color32::from_white_alpha(64))
-                .inner_margin(egui::vec2(0.0, 5.0))
-                .stroke(egui::Stroke::new(2.0, egui::Color32::from_white_alpha(128)))
-        } else {
-            egui::Frame::default()
-                .fill(egui::Color32::from_black_alpha(64))
-                .inner_margin(egui::vec2(0.0, 5.0))
-                .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)))
-        };
-
-        let target = input_data.target();
-        let r = match target {
-            Some(spid) => {
-                let inner_objectui_rect = egui::Rect::from_x_y_ranges(
-                    (props.origin.x)..=f32::INFINITY,
-                    ui.cursor().top()..=f32::INFINITY,
-                );
-
-                ui.allocate_ui_at_rect(inner_objectui_rect, |ui| {
-                    if ui_state.temporal_layout().is_top_level(spid.into()) {
-                        let color = ctx.object_states().get_object_color(spid.into());
-                        let (outer_frame, inner_frame) =
-                            Self::outer_and_inner_processor_frames(color);
-                        let response = outer_frame
-                            .show(ui, |ui| {
-                                Self::show_inner_processor_contents(
-                                    ui,
-                                    inner_objectui_rect.left(),
-                                    desired_width,
-                                    inner_frame,
-                                    |ui| {
-                                        ui.horizontal(|ui| {
-                                            ui.set_width(desired_width);
-                                            ui.add_space(10.0);
-                                            let rect = ui.allocate_space(egui::Vec2::splat(20.0)).1;
-                                            let origin = rect.center();
-                                            let processor_position = ui_state
-                                                .object_positions()
-                                                .get_object_location(spid.into())
-                                                .unwrap()
-                                                .rect()
-                                                .center();
-                                            let vec_to_processor = processor_position - origin;
-                                            let vec_to_processor = vec_to_processor
-                                                * (10.0 / vec_to_processor.length());
-                                            ui.painter().arrow(
-                                                origin - vec_to_processor,
-                                                2.0 * vec_to_processor,
-                                                egui::Stroke::new(2.0, egui::Color32::BLACK),
-                                            );
-                                        });
-                                    },
-                                )
-                            })
-                            .inner;
-
-                        if response.dragged() {
-                            let from_input = Some(input_id);
-                            let from_rect = response.rect;
-                            ui_state.drag_processor(
-                                spid,
-                                response.drag_delta(),
-                                response.interact_pointer_pos().unwrap(),
-                                from_input,
-                                from_rect,
-                            );
-                        }
-
-                        if response.drag_stopped() {
-                            ui_state.drop_dragging_processor();
-                        }
-                    } else {
-                        // draw the processor right above
-                        let target_processor =
-                            sound_graph.topology().sound_processor(spid).unwrap();
-                        let target_graph_object = target_processor.instance_arc().as_graph_object();
-
-                        ctx.show_nested_ui(
-                            input_id,
-                            desired_width,
-                            &target_graph_object,
-                            ui_state,
-                            ui,
-                            sound_graph,
-                        );
-                    }
-                })
-            }
-            None => {
-                let input_rect = egui::Rect::from_x_y_ranges(
-                    left_of_body..=(left_of_body + desired_width),
-                    ui.cursor().top()..=f32::INFINITY,
-                );
-
-                ui.allocate_ui_at_rect(input_rect, |ui| {
-                    // TODO: draw an empty field onto which things can be dragged
-                    input_frame.show(ui, |ui| {
-                        ui.set_width(desired_width);
-                        let label_str = format!("Sound Input {} (empty)", input_id.value(),);
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(label_str)
-                                    .color(egui::Color32::BLACK)
-                                    .strong(),
-                            )
-                            .wrap(false),
-                        );
-                    });
-                })
-            }
-        };
-
-        ui_state
-            .object_positions_mut()
-            .track_sound_input_location(input_id, r.response.rect);
-
-        if ui_state.is_item_focused(input_id.into()) {
-            ui.painter().rect_stroke(
-                r.response.rect,
-                egui::Rounding::same(3.0),
-                egui::Stroke::new(2.0, egui::Color32::YELLOW),
-            );
-        }
-    }
-
     fn show_number_input(
         &self,
         ui: &mut egui::Ui,
@@ -614,29 +410,29 @@ impl ProcessorUi {
 
             let input_ui = SoundNumberInputUi::new(input_id);
 
-            let (number_ui_state, presentation, focus, temporal_layout, names) =
-                ui_state.number_graph_ui_parts(input_id);
+            let names: &mut SoundGraphUiNames = todo!("Get mutable ref to names");
 
             names.record_number_input_name(input_id, input_label.to_string());
 
-            ctx.with_number_graph_ui_context(
-                input_id,
-                temporal_layout,
-                names,
-                sound_graph,
-                |number_ctx, sni_ctx| {
-                    let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
-                    input_ui.show(
-                        ui,
-                        number_ui_state,
-                        number_ctx,
-                        presentation,
-                        focus,
-                        &mut outer_ctx,
-                        config,
-                    )
-                },
-            );
+            todo!("render number graph ui");
+            // ctx.with_number_graph_ui_context(
+            //     input_id,
+            //     temporal_layout,
+            //     names,
+            //     sound_graph,
+            //     |number_ctx, sni_ctx| {
+            //         let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
+            //         input_ui.show(
+            //             ui,
+            //             number_ui_state,
+            //             number_ctx,
+            //             presentation,
+            //             focus,
+            //             &mut outer_ctx,
+            //             config,
+            //         )
+            //     },
+            // );
         });
 
         ui_state

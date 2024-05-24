@@ -17,14 +17,14 @@ use super::{
     numbergraphui::NumberGraphUi,
     numbergraphuistate::{AnyNumberObjectUiData, NumberObjectUiStates},
     soundgraphuinames::SoundGraphUiNames,
-    temporallayout::{TemporalLayout, TimeAxis},
+    temporallayout::{SoundGraphLayout, TimeAxis},
     ui_factory::UiFactory,
 };
 
 pub(crate) struct OuterSoundNumberInputContext<'a> {
     sound_number_input_id: SoundNumberInputId,
     parent_sound_processor_id: SoundProcessorId,
-    temporal_layout: &'a TemporalLayout,
+    graph_layout: &'a SoundGraphLayout,
     sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
     jit_client: &'a JitClient,
@@ -35,7 +35,7 @@ impl<'a> OuterSoundNumberInputContext<'a> {
     pub(super) fn new(
         sound_number_input_id: SoundNumberInputId,
         parent_sound_processor_id: SoundProcessorId,
-        temporal_layout: &'a TemporalLayout,
+        graph_layout: &'a SoundGraphLayout,
         sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
         jit_client: &'a JitClient,
@@ -44,7 +44,7 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         Self {
             sound_number_input_id,
             parent_sound_processor_id,
-            temporal_layout,
+            graph_layout,
             sound_graph,
             sound_graph_names,
             jit_client,
@@ -60,8 +60,8 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         self.parent_sound_processor_id
     }
 
-    pub(super) fn temporal_layout(&self) -> &TemporalLayout {
-        self.temporal_layout
+    pub(super) fn graph_layout(&self) -> &SoundGraphLayout {
+        self.graph_layout
     }
 
     pub(crate) fn sound_graph(&self) -> &SoundGraph {

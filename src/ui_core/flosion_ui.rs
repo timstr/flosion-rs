@@ -6,10 +6,7 @@ use std::{
 
 use crate::{
     core::{
-        graph::{
-            graphobject::{GraphObjectHandle, ObjectType},
-            objectfactory::ObjectFactory,
-        },
+        graph::{graphobject::ObjectType, objectfactory::ObjectFactory},
         jit::server::{JitClient, JitServerBuilder},
         number::numbergraph::NumberGraph,
         revision::revision::{Revision, RevisionNumber},
@@ -29,10 +26,10 @@ use rfd::FileDialog;
 use super::{
     numbergraphui::NumberGraphUi,
     soundgraphui::SoundGraphUi,
-    soundgraphuicontext::SoundGraphUiContext,
     soundgraphuistate::{DroppingProcessorData, SelectionChange, SoundGraphUiState},
     soundobjectuistate::SoundObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
+    temporallayout::SoundGraphLayout,
     ui_factory::UiFactory,
 };
 
@@ -49,6 +46,7 @@ pub struct FlosionApp {
     ui_factory: UiFactory<SoundGraphUi>,
     number_ui_factory: UiFactory<NumberGraphUi>,
     ui_state: SoundGraphUiState,
+    graph_layout: SoundGraphLayout,
     object_states: SoundObjectUiStates,
     summon_state: Option<SummonWidgetState<ObjectType>>,
     selection_area: Option<SelectionState>,
@@ -69,6 +67,7 @@ impl FlosionApp {
         let mut app = FlosionApp {
             graph,
             ui_state: SoundGraphUiState::new(),
+            graph_layout: SoundGraphLayout::new(),
             object_states: SoundObjectUiStates::new(),
             object_factory,
             number_object_factory,
@@ -94,34 +93,7 @@ impl FlosionApp {
     }
 
     fn draw_all_objects(&mut self, ui: &mut Ui) {
-        let graph_objects: Vec<GraphObjectHandle<SoundGraph>> =
-            self.graph.topology().graph_objects().collect();
-        for object in graph_objects {
-            // TODO: loop over all layouts
-            todo!()
-            // if let Some(layout) = self
-            //     .ui_state
-            //     .temporal_layout()
-            //     .find_top_level_layout(object.id())
-            // {
-            //     let is_top_level = true;
-            //     let mut ctx = SoundGraphUiContext::new(
-            //         &self.ui_factory,
-            //         &self.number_object_factory,
-            //         &self.number_ui_factory,
-            //         &self.object_states,
-            //         is_top_level,
-            //         layout.time_axis,
-            //         layout.width_pixels as f32,
-            //         &self.jit_client,
-            //     );
-            //     self.ui_factory
-            //         .ui(&object, &mut self.ui_state, ui, &mut ctx, &mut self.graph);
-            // }
-        }
-        self.ui_state
-            .apply_processor_drag(ui, self.graph.topology());
-        self.cleanup();
+        todo!("Render graph layout");
     }
 
     fn handle_shortcuts_selection(
@@ -258,13 +230,7 @@ impl FlosionApp {
                 } else {
                     SelectionChange::Replace
                 };
-                ui_state.select_with_rect(
-                    egui::Rect::from_two_pos(
-                        selection_area.start_location,
-                        selection_area.end_location,
-                    ),
-                    change,
-                );
+                todo!("Implement rectangular selection with SoundGraphLayout")
             }
         }
     }
@@ -341,14 +307,7 @@ impl FlosionApp {
     }
 
     fn handle_keyboard_focus(&mut self, ui: &egui::Ui) {
-        self.ui_state.handle_keyboard_focus(
-            ui,
-            &mut self.graph,
-            &self.number_object_factory,
-            &self.number_ui_factory,
-            &mut self.object_states,
-            &self.jit_client,
-        );
+        // TODO
     }
 
     fn handle_dropped_processor(&mut self, ui: &egui::Ui, data: DroppingProcessorData) {
@@ -380,7 +339,7 @@ impl FlosionApp {
             } else if !shift_is_down {
                 // being dragged from top level, shift isn't held
 
-                // ensure top level layout is removed if possible
+                // ensure group is removed if applicable
                 if self
                     .graph
                     .topology()
@@ -388,9 +347,8 @@ impl FlosionApp {
                     .count()
                     == 0
                 {
-                    self.ui_state
-                        .temporal_layout_mut()
-                        .remove_top_level_layout(data.processor_id.into());
+                    self.graph_layout
+                        .remove_single_processor_group(data.processor_id.into());
                 }
             }
 
@@ -410,11 +368,7 @@ impl FlosionApp {
                 }
             }
 
-            if !self
-                .ui_state
-                .temporal_layout()
-                .is_top_level(data.processor_id.into())
-            {
+            if !self.graph_layout.is_top_level(data.processor_id.into()) {
                 // place the processor where it was dragged to if it was dragged
                 // at top level
                 self.ui_state
@@ -422,9 +376,8 @@ impl FlosionApp {
                     .track_object_location(data.processor_id.into(), data.rect);
 
                 // give the processor a top level layout
-                self.ui_state
-                    .temporal_layout_mut()
-                    .create_top_level_layout(data.processor_id.into());
+                self.graph_layout
+                    .create_single_processor_group(data.processor_id.into());
             }
         }
     }
@@ -675,19 +628,12 @@ impl eframe::App for FlosionApp {
             );
             let layer_id = ui.layer_id();
             self.handle_summon_widget(ui, &bg_response, layer_id);
-            if let Some(drag_data) = self.ui_state.take_dropped_nested_processor() {
-                self.handle_dropped_processor(ui, drag_data);
-            }
+
+            // TODO: if a processor is being dropped, deal with it
+
             self.handle_keyboard_focus(ui);
 
             Self::draw_selection_rect(ui, &self.selection_area);
-
-            if let Some(data) = self.ui_state.dragging_processor_data() {
-                let color = self
-                    .object_states
-                    .get_object_color(data.processor_id.into());
-                Self::draw_nested_processor_dragging(ui, data.rect, color);
-            }
 
             if self.summon_state.is_none() {
                 let events = ctx.input_mut(|i| std::mem::take(&mut i.events));

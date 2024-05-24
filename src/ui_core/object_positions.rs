@@ -10,7 +10,7 @@ use crate::core::sound::{
     soundprocessor::SoundProcessorId,
 };
 
-use super::temporallayout::TemporalLayout;
+use super::temporallayout::SoundGraphLayout;
 
 pub struct LayoutState {
     rect: egui::Rect,
@@ -26,6 +26,7 @@ impl LayoutState {
     }
 }
 
+// TODO: consider storing inside SoundGraphLayout
 pub struct ObjectPositions {
     objects: HashMap<SoundObjectId, LayoutState>,
     sound_inputs: HashMap<SoundInputId, LayoutState>,
@@ -80,7 +81,7 @@ impl ObjectPositions {
         &mut self,
         processor_id: SoundProcessorId,
         topo: &SoundGraphTopology,
-        temporal_layout: &TemporalLayout,
+        graph_layout: &SoundGraphLayout,
         delta: egui::Vec2,
     ) {
         self.objects
@@ -99,10 +100,10 @@ impl ObjectPositions {
             let Some(input_target) = topo.sound_input(*siid).unwrap().target() else {
                 continue;
             };
-            if temporal_layout.is_top_level(input_target.into()) {
+            if graph_layout.is_top_level(input_target.into()) {
                 continue;
             }
-            self.move_sound_processor_closure(input_target, topo, temporal_layout, delta);
+            self.move_sound_processor_closure(input_target, topo, graph_layout, delta);
         }
     }
 
