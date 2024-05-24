@@ -166,6 +166,9 @@ pub struct SoundGraph {
 }
 
 impl SoundGraph {
+    /// Constructs a new SoundGraph, and spawns an additional pair of
+    /// threads for housekeeping and audio processing. Audio processing
+    /// begins right away.
     pub fn new() -> SoundGraph {
         let topo_channel_size = 1024;
         let (topo_sender, topo_receiver) = sync_channel(topo_channel_size);
@@ -174,28 +177,37 @@ impl SoundGraph {
 
         let (jit_server_builder, jit_client) = JitServerBuilder::new();
 
+        // Thread for storing the inkwell (LLVM) context and containing
+        // its heavily-referenced lifetime. Housekeeping is done directly
+        // on this thread.
         let engine_interface_thread = std::thread::spawn(move || {
             let inkwell_context = inkwell::context::Context::create();
 
+            // Construct the sound engine and its companion interfaces
+            let (engine_interface, engine, garbage_disposer) =
+                create_sound_engine(&stop_button_also);
+
+            // Spawn a scoped thread to run the sound engine on a dedicated
+            // high-priority thread while it borrows the inkwell context
             std::thread::scope(|scope| {
-                let jit_server = jit_server_builder.build_server(&inkwell_context);
-
-                let (engine_interface, engine, garbage_disposer) =
-                    create_sound_engine(&stop_button_also);
-
                 scope.spawn(move || {
                     set_current_thread_priority(ThreadPriority::Max).unwrap();
                     engine.run();
                 });
-
-                Self::housekeeping_loop(
-                    jit_server,
-                    topo_receiver,
-                    engine_interface,
-                    garbage_disposer,
-                    stop_button_also,
-                );
             });
+
+            // Build the jit server which will compile number inputs for
+            // the sound engine
+            let jit_server = jit_server_builder.build_server(&inkwell_context);
+
+            // Do the housekeeping chores until iterrupted
+            Self::housekeeping_loop(
+                jit_server,
+                topo_receiver,
+                engine_interface,
+                garbage_disposer,
+                stop_button_also,
+            );
         });
 
         SoundGraph {
@@ -285,10 +297,28 @@ impl SoundGraph {
         }
     }
 
+    /// Access the sound graph topology. This is a local copy
+    /// which is always up to date with respect to the latest
+    /// edits that were applied to this sound graph instance.
+    /// To modify the topology, see the various other high-level
+    /// editing methods.
+    pub(crate) fn topology(&self) -> &SoundGraphTopology {
+        &self.local_topology
+    }
+
+    /// Access the sound graph's jit client, e.g. to
+    /// find and execute jit-compiled functions outside
+    /// of the audio thread.
     pub(crate) fn jit_client(&self) -> &JitClient {
         &self.jit_client
     }
 
+    /// Add a static sound processor to the sound graph,
+    /// i.e. a sound processor which always has a single
+    /// instance running in realtime and cannot be replicated.
+    /// The type must be known statically and given.
+    /// For other ways of creating a sound processor,
+    /// see ObjectArchive.
     pub fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
@@ -311,6 +341,12 @@ impl SoundGraph {
         Ok(StaticSoundProcessorHandle::new(processor2))
     }
 
+    /// Add a dynamic sound processor to the sound graph,
+    /// i.e. a sound processor which is replicated for each
+    /// input it is connected to, which are run on-demand.
+    /// The type must be known statically and given.
+    /// For other ways of creating a sound processor,
+    /// see ObjectArchive.
     pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
@@ -333,6 +369,9 @@ impl SoundGraph {
         Ok(DynamicSoundProcessorHandle::new(processor2))
     }
 
+    /// Connect a sound processor to a sound input. The processor
+    /// and input must exist, the input must be unoccupied, and
+    /// the connection must be valid, otherwise an Err is returned.
     pub fn connect_sound_input(
         &mut self,
         input_id: SoundInputId,
@@ -346,6 +385,11 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
+    /// Disconnect a sound input from the processor connected to it.
+    /// The input must exist and must be connected to a sound processor.
+    /// Additionally, there must be no number connections spanning the
+    /// sound input, as these would be invalidated. Otherwise, an err
+    /// is returned.
     pub fn disconnect_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
         let mut edit_queue = Vec::new();
         edit_queue.push(SoundGraphEdit::Sound(SoundEdit::DisconnectSoundInput(
@@ -354,6 +398,13 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
+    // TODO: ??? Why is there no connect_number_input?
+    // Why is one half implicit but this is explicit?
+    // Maybe it's time to rethink number connections
+    // and allow them to dangle such that they self-heal
+    // once reconnected, rather than trashing all references
+    // to out-of-scope number sources once a sound input
+    // is broken?
     pub fn disconnect_number_input(
         &mut self,
         input_id: SoundNumberInputId,
@@ -365,10 +416,18 @@ impl SoundGraph {
         })
     }
 
+    /// Remove a sound processor completely from the sound graph.
+    /// Any sound connections that include the processor and
+    /// any number connections that include its components or
+    /// span its sound inputs are disconnected.
     pub fn remove_sound_processor(&mut self, id: SoundProcessorId) -> Result<(), SoundError> {
         self.remove_objects_batch(&[id.into()])
     }
 
+    /// Remove a set of top-level sound graph objects simultaneously.
+    /// Sound and number connections which include or span the selected
+    /// objects are disconnected before the objects are removed completely.
+    /// This is more efficient than removing the objects sequentially.
     pub fn remove_objects_batch(&mut self, objects: &[SoundObjectId]) -> Result<(), SoundError> {
         let mut closure = SoundGraphClosure::new();
         for oid in objects {
@@ -383,6 +442,8 @@ impl SoundGraph {
         let mut edit_queue = Vec::new();
 
         // TODO: remove any number connections that would be indirectly invalidated?
+        // See also note at `disconnect_number_input` above, maybe they should
+        // just be allowed to dangle
 
         // remove number connections
         for ni in self.local_topology.number_inputs().values() {
@@ -435,6 +496,11 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
+    /// Create a SoundProcessorTools instance for making topological
+    /// changes to the given sound processor and pass the tools to the
+    /// provided closure. This is useful, for example, for example,
+    /// for modifying sound inputs and number inputs and sources after
+    /// the sound processor has been created.
     pub fn with_processor_tools<F: FnOnce(SoundProcessorTools)>(
         &mut self,
         processor_id: SoundProcessorId,
@@ -448,6 +514,9 @@ impl SoundGraph {
         self.try_make_edits(edit_queue)
     }
 
+    /// Make changes to a number input using the given closure,
+    /// which is passed a mutable instance of the input's
+    /// SoundNumberInputData.
     pub fn edit_number_input<R, F: FnOnce(&mut SoundNumberInputData) -> R>(
         &mut self,
         input_id: SoundNumberInputId,
@@ -468,6 +537,10 @@ impl SoundGraph {
         })
     }
 
+    /// Internal helper method for building sound processor
+    /// tools for the given processor. The sound graph instance
+    /// is borrowed from mutably, and can't be used until the
+    /// returned tools are dropped.
     fn make_tools_for<'a>(
         &'a mut self,
         processor_id: SoundProcessorId,
@@ -482,26 +555,34 @@ impl SoundGraph {
         )
     }
 
-    fn try_make_edits_locally(
-        topo: &mut SoundGraphTopology,
-        edit_queue: Vec<SoundGraphEdit>,
-    ) -> Result<(), SoundError> {
-        for edit in edit_queue {
-            if let Some(err) = edit.check_preconditions(&topo) {
-                return Err(err);
-            }
-            topo.make_sound_graph_edit(edit);
-            if let Some(err) = find_error(&topo) {
-                return Err(err);
-            }
-        }
-        Ok(())
-    }
-
+    /// Internal helper method for applying a list of SoundGraphEdits,
+    /// checking for errors, rolling back on failure, and committing
+    /// on success. Updates are NOT sent to the audio thread yet.
+    /// Call flush_updates() to send an update to the audio thread.
     fn try_make_edits(&mut self, edit_queue: Vec<SoundGraphEdit>) -> Result<(), SoundError> {
-        self.try_make_change(|topo| Self::try_make_edits_locally(topo, edit_queue))
+        // TODO: if the SoundEngineInterface internally just receives
+        // the updated topology directly and diffs it fully, why even
+        // bother at all with SoundGraphEdits? Maybe they should be
+        // purged if it simplifies other things too.
+        self.try_make_change(|topo| {
+            for edit in edit_queue {
+                if let Some(err) = edit.check_preconditions(&topo) {
+                    return Err(err);
+                }
+                topo.make_sound_graph_edit(edit);
+                if let Some(err) = find_error(&topo) {
+                    return Err(err);
+                }
+            }
+            Ok(())
+        })
     }
 
+    /// Internal helper method for modifying the topology locally,
+    /// checking for any errors, rolling back on failure, and
+    /// committing to the audio thread on success. Updates are NOT
+    /// ent to the audio thread yet. Call flush_updates() to send
+    /// an update to the audio thread.
     fn try_make_change<R, F: FnOnce(&mut SoundGraphTopology) -> Result<R, SoundError>>(
         &mut self,
         f: F,
@@ -516,6 +597,13 @@ impl SoundGraph {
         res
     }
 
+    /// Send any pending updates to the audio thread. Until this
+    /// method is called, all edits are applied locally only.
+    /// This method should thus be called whenever changes have
+    /// been made that you would like to hear from the audio
+    /// thread, and no more often than need in order to minimize
+    /// thread communication and possible disruptions to the
+    /// audio thread while it consumes updates.
     pub fn flush_updates(&mut self) {
         let revision = self.local_topology.get_revision();
         if self.last_revision == Some(revision) {
@@ -536,10 +624,6 @@ impl SoundGraph {
         }
 
         self.last_revision = Some(revision);
-    }
-
-    pub(crate) fn topology(&self) -> &SoundGraphTopology {
-        &self.local_topology
     }
 }
 
