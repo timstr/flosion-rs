@@ -36,36 +36,6 @@ impl<G: Graph> ObjectFactory<G> {
         );
     }
 
-    // pub fn register_static_sound_processor<T: StaticSoundProcessor>(&mut self) {
-    //     // TODO: move this to a trait
-    //     let create =
-    //         |g: &mut SoundGraph, init: ObjectInitialization| -> Result<GraphObjectHandle, ()> {
-    //             let h = g.add_static_sound_processor::<T>(init)?;
-    //             Ok(h.into_graph_object())
-    //         };
-    //     self.mapping.insert(
-    //         T::TYPE.name(),
-    //         ObjectData {
-    //             create: Box::new(create),
-    //         },
-    //     );
-    // }
-
-    // pub fn register_dynamic_sound_processor<T: DynamicSoundProcessor>(&mut self) {
-    //     // TODO: move this to a trait
-    //     let create =
-    //         |g: &mut SoundGraph, init: ObjectInitialization| -> Result<GraphObjectHandle, ()> {
-    //             let h = g.add_dynamic_sound_processor::<T>(init)?;
-    //             Ok(h.into_graph_object())
-    //         };
-    //     self.mapping.insert(
-    //         T::TYPE.name(),
-    //         ObjectData {
-    //             create: Box::new(create),
-    //         },
-    //     );
-    // }
-
     fn create_impl(
         &self,
         object_type_str: &str,

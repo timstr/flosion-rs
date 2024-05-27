@@ -177,7 +177,8 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
 
     // Add an empty sound processor first to allow topology changes inside
     // the processor's new() method
-    topo.add_sound_processor(SoundProcessorData::new_empty(test_spid));
+    topo.add_sound_processor(SoundProcessorData::new_empty(test_spid))
+        .unwrap();
 
     // create test sound processor
     let tools = SoundProcessorTools::new(test_spid, &mut topo, &mut idgens);

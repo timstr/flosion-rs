@@ -153,7 +153,9 @@ impl SoundGraphUiState {
             for (niid, nsid) in original_topo.number_connection_crossings(si_data.id()) {
                 topo_disconnected.disconnect_number_input(niid, nsid)
             }
-            topo_disconnected.disconnect_sound_input(si_data.id());
+            topo_disconnected
+                .disconnect_sound_input(si_data.id())
+                .unwrap();
         }
 
         let topo_disconnected = topo_disconnected;
@@ -174,7 +176,9 @@ impl SoundGraphUiState {
             // try connecting the sound input in a clone of the topology,
             // mark it as a candidate if there are no errors
             let mut topo_reconnected = topo_disconnected.clone();
-            topo_reconnected.connect_sound_input(si_data.id(), processor_id);
+            topo_reconnected
+                .connect_sound_input(si_data.id(), processor_id)
+                .unwrap();
             if find_error(&topo_reconnected).is_none() {
                 candidates.insert(
                     si_data.id(),

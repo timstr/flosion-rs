@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     sync::{
         mpsc::{sync_channel, Receiver, SyncSender, TryRecvError, TrySendError},
         Arc,
@@ -55,89 +54,6 @@ impl SoundGraphIdGenerators {
             number_source: IdGenerator::new(),
             number_input: IdGenerator::new(),
         }
-    }
-}
-
-/// A reference to a subset of the parts of a SoundGraph
-/// using their ids.
-struct SoundGraphClosure {
-    sound_processors: HashSet<SoundProcessorId>,
-    sound_inputs: HashSet<SoundInputId>,
-    number_sources: HashSet<SoundNumberSourceId>,
-    number_inputs: HashSet<SoundNumberInputId>,
-}
-
-impl SoundGraphClosure {
-    fn new() -> SoundGraphClosure {
-        SoundGraphClosure {
-            sound_processors: HashSet::new(),
-            sound_inputs: HashSet::new(),
-            number_sources: HashSet::new(),
-            number_inputs: HashSet::new(),
-        }
-    }
-
-    fn add_sound_processor(&mut self, id: SoundProcessorId, topology: &SoundGraphTopology) {
-        let was_added = self.sound_processors.insert(id);
-        if !was_added {
-            return;
-        }
-        let data = topology.sound_processor(id).unwrap();
-        for siid in data.sound_inputs() {
-            self.add_sound_input(*siid, topology);
-        }
-        for nsid in data.number_sources() {
-            self.add_number_source(*nsid);
-        }
-        for niid in data.number_inputs() {
-            self.add_number_input(*niid);
-        }
-    }
-
-    fn add_sound_input(&mut self, id: SoundInputId, topology: &SoundGraphTopology) {
-        let was_added = self.sound_inputs.insert(id);
-        if !was_added {
-            return;
-        }
-        let data = topology.sound_input(id).unwrap();
-        for nsid in data.number_sources() {
-            self.add_number_source(*nsid);
-        }
-    }
-
-    fn add_number_source(&mut self, id: SoundNumberSourceId) {
-        self.number_sources.insert(id);
-    }
-
-    fn add_number_input(&mut self, id: SoundNumberInputId) {
-        self.number_inputs.insert(id);
-    }
-
-    fn includes_sound_connection(&self, id: SoundInputId, topology: &SoundGraphTopology) -> bool {
-        if self.sound_inputs.contains(&id) {
-            return true;
-        }
-        let data = topology.sound_input(id).unwrap();
-        if let Some(spid) = data.target() {
-            if self.sound_processors.contains(&spid) {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn includes_number_connection(
-        &self,
-        niid: SoundNumberInputId,
-        nsid: SoundNumberSourceId,
-    ) -> bool {
-        if self.number_inputs.contains(&niid) {
-            return true;
-        }
-        if self.number_sources.contains(&nsid) {
-            return true;
-        }
-        false
     }
 }
 
