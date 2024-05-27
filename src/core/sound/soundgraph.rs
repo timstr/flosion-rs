@@ -22,16 +22,14 @@ use crate::core::{
 };
 
 use super::{
-    soundedit::{SoundEdit, SoundNumberEdit},
-    soundgraphdata::{SoundNumberInputData, SoundProcessorData},
-    soundgraphedit::SoundGraphEdit,
+    soundgraphdata::{SoundNumberInputData, SoundNumberSourceData, SoundProcessorData},
     soundgrapherror::SoundError,
     soundgraphid::SoundObjectId,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::find_error,
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
-    soundnumbersource::SoundNumberSourceId,
+    soundnumbersource::{ProcessorTimeNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},
     soundprocessor::{
         DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
         SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
@@ -39,6 +37,26 @@ use super::{
     },
     soundprocessortools::SoundProcessorTools,
 };
+
+/// Convenience struct for passing all sound graph id
+/// generators around as a whole
+pub(crate) struct SoundGraphIdGenerators {
+    pub sound_processor: IdGenerator<SoundProcessorId>,
+    pub sound_input: IdGenerator<SoundInputId>,
+    pub number_source: IdGenerator<SoundNumberSourceId>,
+    pub number_input: IdGenerator<SoundNumberInputId>,
+}
+
+impl SoundGraphIdGenerators {
+    pub(crate) fn new() -> SoundGraphIdGenerators {
+        SoundGraphIdGenerators {
+            sound_processor: IdGenerator::new(),
+            sound_input: IdGenerator::new(),
+            number_source: IdGenerator::new(),
+            number_input: IdGenerator::new(),
+        }
+    }
+}
 
 /// A reference to a subset of the parts of a SoundGraph
 /// using their ids.
@@ -145,7 +163,7 @@ impl SoundGraphClosure {
 /// audio thread. The SoundEngine maintains a StateGraph instance,
 /// which is a compiled artefact representing a directly executable
 /// version of the sound graph. Thus, the bookkeeping thread compiles
-/// SoundGraphEdits into StateGraphEdits. Other chores that the
+/// topology changes into StateGraphEdits. Other chores that the
 /// bookkeeping thread does include running the JIT compiler to
 /// produce executable number inputs and taking out the garbage,
 /// i.e. disposing of resources that could potentially block the
@@ -159,10 +177,7 @@ pub struct SoundGraph {
     topology_sender: SyncSender<(SoundGraphTopology, Instant)>,
     jit_client: JitClient,
 
-    sound_processor_idgen: IdGenerator<SoundProcessorId>,
-    sound_input_idgen: IdGenerator<SoundInputId>,
-    number_source_idgen: IdGenerator<SoundNumberSourceId>,
-    number_input_idgen: IdGenerator<SoundNumberInputId>,
+    id_generators: SoundGraphIdGenerators,
 }
 
 impl SoundGraph {
@@ -220,10 +235,7 @@ impl SoundGraph {
 
             jit_client,
 
-            sound_processor_idgen: IdGenerator::new(),
-            sound_input_idgen: IdGenerator::new(),
-            number_source_idgen: IdGenerator::new(),
-            number_input_idgen: IdGenerator::new(),
+            id_generators: SoundGraphIdGenerators::new(),
         }
     }
 
@@ -322,23 +334,53 @@ impl SoundGraph {
     pub fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
-    ) -> Result<StaticSoundProcessorHandle<T>, ()> {
-        let id = self.sound_processor_idgen.next_id();
-        let (add_time, time_nsid) =
-            SoundGraphEdit::add_processor_time(id, &mut self.number_source_idgen);
-        let mut edit_queue = Vec::new();
-        let processor;
-        {
-            let tools = self.make_tools_for(id, &mut edit_queue);
-            let p = T::new(tools, init)?;
-            processor = Arc::new(StaticSoundProcessorWithId::new(p, id, time_nsid));
-        }
-        let processor2 = Arc::clone(&processor);
-        let data = SoundProcessorData::new(processor);
-        edit_queue.insert(0, SoundGraphEdit::Sound(SoundEdit::AddSoundProcessor(data)));
-        edit_queue.insert(1, add_time);
-        self.try_make_edits(edit_queue).unwrap();
-        Ok(StaticSoundProcessorHandle::new(processor2))
+    ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
+        let id = self.id_generators.sound_processor.next_id();
+
+        // Every sound processor gets a 'time' number source
+        let time_data = SoundNumberSourceData::new(
+            self.id_generators.number_source.next_id(),
+            Arc::new(ProcessorTimeNumberSource::new(id)),
+            SoundNumberSourceOwner::SoundProcessor(id),
+        );
+
+        let processor = self.try_make_change(move |topo, idgens| {
+            // Add a new processor data item to the topology,
+            // but without the processor instance. This allows
+            // the processor's topology to be modified within
+            // the processor's new() method, e.g. to add inputs.
+            let data = SoundProcessorData::new_empty(id);
+            topo.add_sound_processor(data)?;
+
+            // The tools which the processor can use to give itself
+            // new inputs, etc
+            let tools = SoundProcessorTools::new(id, topo, idgens);
+
+            // construct the actual processor instance by its
+            // concrete type
+            let processor = T::new(tools, init).map_err(|_| SoundError::BadProcessorInit(id))?;
+
+            // wrap the processor in a type-erased Arc
+            let processor = Arc::new(StaticSoundProcessorWithId::new(
+                processor,
+                id,
+                time_data.id(),
+            ));
+            let processor2 = Arc::clone(&processor);
+
+            // add the missing processor instance to the
+            // newly created processor data in the topology
+            topo.sound_processor_mut(id)
+                .unwrap()
+                .set_processor(processor);
+
+            // Add the 'time' number source
+            topo.add_number_source(time_data)?;
+
+            Ok(processor2)
+        })?;
+
+        Ok(StaticSoundProcessorHandle::new(processor))
     }
 
     /// Add a dynamic sound processor to the sound graph,
@@ -350,23 +392,53 @@ impl SoundGraph {
     pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
-    ) -> Result<DynamicSoundProcessorHandle<T>, ()> {
-        let id = self.sound_processor_idgen.next_id();
-        let (add_time, time_nsid) =
-            SoundGraphEdit::add_processor_time(id, &mut self.number_source_idgen);
-        let mut edit_queue = Vec::new();
-        let processor;
-        {
-            let tools = self.make_tools_for(id, &mut edit_queue);
-            let p = T::new(tools, init)?;
-            processor = Arc::new(DynamicSoundProcessorWithId::new(p, id, time_nsid));
-        }
-        let processor2 = Arc::clone(&processor);
-        let data = SoundProcessorData::new(processor);
-        edit_queue.insert(0, SoundGraphEdit::Sound(SoundEdit::AddSoundProcessor(data)));
-        edit_queue.insert(1, add_time);
-        self.try_make_edits(edit_queue).unwrap();
-        Ok(DynamicSoundProcessorHandle::new(processor2))
+    ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
+        let id = self.id_generators.sound_processor.next_id();
+
+        // Every sound processor gets a 'time' number source
+        let time_data = SoundNumberSourceData::new(
+            self.id_generators.number_source.next_id(),
+            Arc::new(ProcessorTimeNumberSource::new(id)),
+            SoundNumberSourceOwner::SoundProcessor(id),
+        );
+
+        let processor = self.try_make_change(move |topo, idgens| {
+            // Add a new processor data item to the topology,
+            // but without the processor instance. This allows
+            // the processor's topology to be modified within
+            // the processor's new() method, e.g. to add inputs.
+            let data = SoundProcessorData::new_empty(id);
+            topo.add_sound_processor(data)?;
+
+            // The tools which the processor can use to give itself
+            // new inputs, etc
+            let tools = SoundProcessorTools::new(id, topo, idgens);
+
+            // construct the actual processor instance by its
+            // concrete type
+            let processor = T::new(tools, init).map_err(|_| SoundError::BadProcessorInit(id))?;
+
+            // wrap the processor in a type-erased Arc
+            let processor = Arc::new(DynamicSoundProcessorWithId::new(
+                processor,
+                id,
+                time_data.id(),
+            ));
+            let processor2 = Arc::clone(&processor);
+
+            // add the missing processor instance to the
+            // newly created processor data in the topology
+            topo.sound_processor_mut(id)
+                .unwrap()
+                .set_processor(processor);
+
+            // Add the 'time' number source
+            topo.add_number_source(time_data)?;
+
+            Ok(processor2)
+        })?;
+
+        Ok(DynamicSoundProcessorHandle::new(processor))
     }
 
     /// Connect a sound processor to a sound input. The processor
@@ -377,12 +449,7 @@ impl SoundGraph {
         input_id: SoundInputId,
         processor_id: SoundProcessorId,
     ) -> Result<(), SoundError> {
-        let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::Sound(SoundEdit::ConnectSoundInput(
-            input_id,
-            processor_id,
-        )));
-        self.try_make_edits(edit_queue)
+        self.try_make_change(|topo, _| topo.connect_sound_input(input_id, processor_id))
     }
 
     /// Disconnect a sound input from the processor connected to it.
@@ -391,11 +458,7 @@ impl SoundGraph {
     /// sound input, as these would be invalidated. Otherwise, an err
     /// is returned.
     pub fn disconnect_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
-        let mut edit_queue = Vec::new();
-        edit_queue.push(SoundGraphEdit::Sound(SoundEdit::DisconnectSoundInput(
-            input_id,
-        )));
-        self.try_make_edits(edit_queue)
+        self.try_make_change(|topo, _| topo.disconnect_sound_input(input_id))
     }
 
     // TODO: ??? Why is there no connect_number_input?
@@ -410,7 +473,7 @@ impl SoundGraph {
         input_id: SoundNumberInputId,
         source_id: SoundNumberSourceId,
     ) -> Result<(), SoundError> {
-        self.try_make_change(|topo| {
+        self.try_make_change(|topo, _| {
             topo.disconnect_number_input(input_id, source_id);
             Ok(())
         })
@@ -429,71 +492,64 @@ impl SoundGraph {
     /// objects are disconnected before the objects are removed completely.
     /// This is more efficient than removing the objects sequentially.
     pub fn remove_objects_batch(&mut self, objects: &[SoundObjectId]) -> Result<(), SoundError> {
-        let mut closure = SoundGraphClosure::new();
-        for oid in objects {
-            match oid {
-                SoundObjectId::Sound(spid) => {
-                    closure.add_sound_processor(*spid, &self.local_topology)
+        self.try_make_change(|topo, _| {
+            for id in objects {
+                match id {
+                    SoundObjectId::Sound(id) => {
+                        Self::remove_sound_processor_and_components(*id, topo)?
+                    }
                 }
             }
+            Ok(())
+        })
+    }
+
+    /// Internal helper method for removing a sound processor and all
+    /// of its constituents
+    fn remove_sound_processor_and_components(
+        processor_id: SoundProcessorId,
+        topo: &mut SoundGraphTopology,
+    ) -> Result<(), SoundError> {
+        let mut number_input_ids = Vec::new();
+        let mut number_source_and_owner_ids = Vec::new();
+        let mut sound_input_ids = Vec::new();
+
+        let proc = topo
+            .sound_processor(processor_id)
+            .ok_or(SoundError::ProcessorNotFound(processor_id))?;
+
+        for ni in proc.number_inputs() {
+            number_input_ids.push(*ni);
         }
-        let closure = closure;
 
-        let mut edit_queue = Vec::new();
+        for ns in proc.number_sources() {
+            number_source_and_owner_ids
+                .push((*ns, SoundNumberSourceOwner::SoundProcessor(processor_id)));
+        }
 
-        // TODO: remove any number connections that would be indirectly invalidated?
-        // See also note at `disconnect_number_input` above, maybe they should
-        // just be allowed to dangle
-
-        // remove number connections
-        for ni in self.local_topology.number_inputs().values() {
-            for target_ns in ni.target_mapping().items().values() {
-                if closure.includes_number_connection(ni.id(), *target_ns) {
-                    edit_queue
-                        .push(SoundNumberEdit::DisconnectNumberInput(ni.id(), *target_ns).into());
-                }
+        for si in proc.sound_inputs() {
+            sound_input_ids.push(*si);
+            let input = topo.sound_input(*si).unwrap();
+            for ns in input.number_sources() {
+                number_source_and_owner_ids.push((*ns, SoundNumberSourceOwner::SoundInput(*si)));
             }
         }
 
-        // find all sound connections involving these objects and disconnect them
-        for si in self.local_topology.sound_inputs().values() {
-            if si.target().is_some() {
-                if closure.includes_sound_connection(si.id(), &self.local_topology) {
-                    edit_queue.push(SoundGraphEdit::Sound(SoundEdit::DisconnectSoundInput(
-                        si.id(),
-                    )));
-                }
-            }
+        for ni in number_input_ids {
+            topo.remove_number_input(ni, processor_id)?;
         }
 
-        // remove all number inputs
-        for niid in &closure.number_inputs {
-            let owner = self.local_topology.number_input(*niid).unwrap().owner();
-            edit_queue.push(SoundNumberEdit::RemoveNumberInput(*niid, owner).into());
+        for (ns, nso) in number_source_and_owner_ids {
+            topo.remove_number_source(ns, nso)?;
         }
 
-        // remove all number sources
-        for nsid in &closure.number_sources {
-            let owner = self.local_topology.number_source(*nsid).unwrap().owner();
-            edit_queue.push(SoundNumberEdit::RemoveNumberSource(*nsid, owner).into());
+        for si in sound_input_ids {
+            topo.remove_sound_input(si, processor_id)?;
         }
 
-        // remove all sound inputs
-        for siid in &closure.sound_inputs {
-            let owner = self.local_topology.sound_input(*siid).unwrap().owner();
-            edit_queue.push(SoundGraphEdit::Sound(SoundEdit::RemoveSoundInput(
-                *siid, owner,
-            )));
-        }
+        topo.remove_sound_processor(processor_id)?;
 
-        // remove all sound processors
-        for spid in &closure.sound_processors {
-            edit_queue.push(SoundGraphEdit::Sound(SoundEdit::RemoveSoundProcessor(
-                *spid,
-            )));
-        }
-
-        self.try_make_edits(edit_queue)
+        Ok(())
     }
 
     /// Create a SoundProcessorTools instance for making topological
@@ -501,17 +557,15 @@ impl SoundGraph {
     /// provided closure. This is useful, for example, for example,
     /// for modifying sound inputs and number inputs and sources after
     /// the sound processor has been created.
-    pub fn with_processor_tools<F: FnOnce(SoundProcessorTools)>(
+    pub fn with_processor_tools<R, F: FnOnce(SoundProcessorTools) -> Result<R, SoundError>>(
         &mut self,
         processor_id: SoundProcessorId,
         f: F,
-    ) -> Result<(), SoundError> {
-        let mut edit_queue = Vec::new();
-        {
-            let tools = self.make_tools_for(processor_id, &mut edit_queue);
-            f(tools);
-        }
-        self.try_make_edits(edit_queue)
+    ) -> Result<R, SoundError> {
+        self.try_make_change(|topo, idgens| {
+            let tools = SoundProcessorTools::new(processor_id, topo, idgens);
+            f(tools)
+        })
     }
 
     /// Make changes to a number input using the given closure,
@@ -522,10 +576,10 @@ impl SoundGraph {
         input_id: SoundNumberInputId,
         f: F,
     ) -> Result<R, SoundError> {
-        self.try_make_change(|topo| {
+        self.try_make_change(|topo, _| {
             let number_input = topo
                 .number_input_mut(input_id)
-                .ok_or_else(|| SoundError::NumberInputNotFound(input_id))?;
+                .ok_or(SoundError::NumberInputNotFound(input_id))?;
 
             let r = f(number_input);
 
@@ -537,59 +591,21 @@ impl SoundGraph {
         })
     }
 
-    /// Internal helper method for building sound processor
-    /// tools for the given processor. The sound graph instance
-    /// is borrowed from mutably, and can't be used until the
-    /// returned tools are dropped.
-    fn make_tools_for<'a>(
-        &'a mut self,
-        processor_id: SoundProcessorId,
-        edit_queue: &'a mut Vec<SoundGraphEdit>,
-    ) -> SoundProcessorTools<'a> {
-        SoundProcessorTools::new(
-            processor_id,
-            &mut self.sound_input_idgen,
-            &mut self.number_input_idgen,
-            &mut self.number_source_idgen,
-            edit_queue,
-        )
-    }
-
-    /// Internal helper method for applying a list of SoundGraphEdits,
-    /// checking for errors, rolling back on failure, and committing
-    /// on success. Updates are NOT sent to the audio thread yet.
-    /// Call flush_updates() to send an update to the audio thread.
-    fn try_make_edits(&mut self, edit_queue: Vec<SoundGraphEdit>) -> Result<(), SoundError> {
-        // TODO: if the SoundEngineInterface internally just receives
-        // the updated topology directly and diffs it fully, why even
-        // bother at all with SoundGraphEdits? Maybe they should be
-        // purged if it simplifies other things too.
-        self.try_make_change(|topo| {
-            for edit in edit_queue {
-                if let Some(err) = edit.check_preconditions(&topo) {
-                    return Err(err);
-                }
-                topo.make_sound_graph_edit(edit);
-                if let Some(err) = find_error(&topo) {
-                    return Err(err);
-                }
-            }
-            Ok(())
-        })
-    }
-
     /// Internal helper method for modifying the topology locally,
     /// checking for any errors, rolling back on failure, and
     /// committing to the audio thread on success. Updates are NOT
     /// ent to the audio thread yet. Call flush_updates() to send
     /// an update to the audio thread.
-    fn try_make_change<R, F: FnOnce(&mut SoundGraphTopology) -> Result<R, SoundError>>(
+    fn try_make_change<
+        R,
+        F: FnOnce(&mut SoundGraphTopology, &mut SoundGraphIdGenerators) -> Result<R, SoundError>,
+    >(
         &mut self,
         f: F,
     ) -> Result<R, SoundError> {
         debug_assert_eq!(find_error(&self.local_topology), None);
         let prev_topology = self.local_topology.clone();
-        let res = f(&mut self.local_topology);
+        let res = f(&mut self.local_topology, &mut self.id_generators);
         if res.is_err() {
             self.local_topology = prev_topology;
         }

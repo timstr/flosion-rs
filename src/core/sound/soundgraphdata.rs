@@ -116,7 +116,7 @@ impl Revision for SoundInputData {
 #[derive(Clone)]
 pub(crate) struct SoundProcessorData {
     id: SoundProcessorId,
-    processor: Arc<dyn SoundProcessor>,
+    processor: Option<Arc<dyn SoundProcessor>>,
     sound_inputs: Vec<SoundInputId>,
     number_sources: Vec<SoundNumberSourceId>,
     number_inputs: Vec<SoundNumberInputId>,
@@ -126,11 +126,27 @@ impl SoundProcessorData {
     pub(crate) fn new(processor: Arc<dyn SoundProcessor>) -> SoundProcessorData {
         SoundProcessorData {
             id: processor.id(),
-            processor,
+            processor: Some(processor),
             sound_inputs: Vec::new(),
             number_sources: Vec::new(),
             number_inputs: Vec::new(),
         }
+    }
+
+    pub(crate) fn new_empty(id: SoundProcessorId) -> SoundProcessorData {
+        SoundProcessorData {
+            id,
+            processor: None,
+            sound_inputs: Vec::new(),
+            number_sources: Vec::new(),
+            number_inputs: Vec::new(),
+        }
+    }
+
+    pub(crate) fn set_processor(&mut self, processor: Arc<dyn SoundProcessor>) {
+        assert!(self.processor.is_none());
+        assert!(processor.id() == self.id());
+        self.processor = Some(processor);
     }
 
     pub(crate) fn id(&self) -> SoundProcessorId {
@@ -162,11 +178,11 @@ impl SoundProcessorData {
     }
 
     pub(crate) fn instance(&self) -> &dyn SoundProcessor {
-        &*self.processor
+        self.processor.as_deref().unwrap()
     }
 
     pub(crate) fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
-        Arc::clone(&self.processor)
+        Arc::clone(self.processor.as_ref().unwrap())
     }
 }
 
@@ -174,7 +190,7 @@ impl Revision for SoundProcessorData {
     fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
-        hasher.write_u8(if self.processor.is_static() { 1 } else { 2 });
+        hasher.write_u8(if self.instance().is_static() { 1 } else { 2 });
         // Do not hash processor instance
         hasher.write_usize(self.sound_inputs.len());
         for siid in &self.sound_inputs {

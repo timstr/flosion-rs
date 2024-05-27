@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use eframe::egui;
 
 use crate::core::sound::{
-    soundedit::SoundEdit,
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::find_error,
@@ -154,7 +153,7 @@ impl SoundGraphUiState {
             for (niid, nsid) in original_topo.number_connection_crossings(si_data.id()) {
                 topo_disconnected.disconnect_number_input(niid, nsid)
             }
-            topo_disconnected.make_sound_edit(SoundEdit::DisconnectSoundInput(si_data.id()));
+            topo_disconnected.disconnect_sound_input(si_data.id());
         }
 
         let topo_disconnected = topo_disconnected;
@@ -175,8 +174,7 @@ impl SoundGraphUiState {
             // try connecting the sound input in a clone of the topology,
             // mark it as a candidate if there are no errors
             let mut topo_reconnected = topo_disconnected.clone();
-            topo_reconnected
-                .make_sound_edit(SoundEdit::ConnectSoundInput(si_data.id(), processor_id));
+            topo_reconnected.connect_sound_input(si_data.id(), processor_id);
             if find_error(&topo_reconnected).is_none() {
                 candidates.insert(
                     si_data.id(),

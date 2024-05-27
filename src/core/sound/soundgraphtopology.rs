@@ -3,16 +3,14 @@ use std::{collections::HashSet, hash::Hasher};
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
     revision::revision::{Revision, RevisionNumber, Versioned, VersionedHashMap},
-    sound::soundnumbersource::SoundNumberSourceOwner,
+    sound::{soundgrapherror::SoundError, soundnumbersource::SoundNumberSourceOwner},
 };
 
 use super::{
-    soundedit::{SoundEdit, SoundNumberEdit},
     soundgraph::SoundGraph,
     soundgraphdata::{
         SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
     },
-    soundgraphedit::SoundGraphEdit,
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
@@ -71,6 +69,13 @@ impl SoundGraphTopology {
         id: SoundProcessorId,
     ) -> Option<&Versioned<SoundProcessorData>> {
         self.sound_processors.get(&id)
+    }
+
+    pub(crate) fn sound_processor_mut(
+        &mut self,
+        id: SoundProcessorId,
+    ) -> Option<&mut Versioned<SoundProcessorData>> {
+        self.sound_processors.get_mut(&id)
     }
 
     pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&Versioned<SoundInputData>> {
@@ -197,75 +202,80 @@ impl SoundGraphTopology {
         sound_objects
     }
 
-    pub(crate) fn make_sound_graph_edit(&mut self, edit: SoundGraphEdit) {
-        match edit {
-            SoundGraphEdit::Sound(e) => self.make_sound_edit(e),
-            SoundGraphEdit::Number(e) => self.make_sound_number_edit(e),
+    pub(crate) fn add_sound_processor(
+        &mut self,
+        data: SoundProcessorData,
+    ) -> Result<(), SoundError> {
+        if !(data.sound_inputs().is_empty()
+            && data.number_sources().is_empty()
+            && data.number_inputs().is_empty())
+        {
+            return Err(SoundError::BadProcessorInit(data.id()));
         }
-    }
-
-    pub(crate) fn make_sound_edit(&mut self, edit: SoundEdit) {
-        match edit {
-            SoundEdit::AddSoundProcessor(data) => self.add_sound_processor(data),
-            SoundEdit::RemoveSoundProcessor(id) => self.remove_sound_processor(id),
-            SoundEdit::AddSoundInput(data) => self.add_sound_input(data),
-            SoundEdit::RemoveSoundInput(id, owner) => self.remove_sound_input(id, owner),
-            SoundEdit::AddSoundInputKey(siid, i) => self.add_sound_input_key(siid, i),
-            SoundEdit::RemoveSoundInputKey(siid, i) => self.remove_sound_input_key(siid, i),
-            SoundEdit::ConnectSoundInput(siid, spid) => self.connect_sound_input(siid, spid),
-            SoundEdit::DisconnectSoundInput(siid) => self.disconnect_sound_input(siid),
+        if self.sound_processors.contains_key(&data.id()) {
+            return Err(SoundError::ProcessorIdTaken(data.id()));
         }
-    }
-
-    pub(crate) fn make_sound_number_edit(&mut self, edit: SoundNumberEdit) {
-        match edit {
-            SoundNumberEdit::AddNumberSource(data) => self.add_number_source(data),
-            SoundNumberEdit::RemoveNumberSource(id, owner) => self.remove_number_source(id, owner),
-            SoundNumberEdit::AddNumberInput(data) => self.add_number_input(data),
-            SoundNumberEdit::RemoveNumberInput(id, owner) => self.remove_number_input(id, owner),
-            SoundNumberEdit::ConnectNumberInput(niid, nsid) => {
-                self.connect_number_input(niid, nsid)
-            }
-            SoundNumberEdit::DisconnectNumberInput(niid, nsid) => {
-                self.disconnect_number_input(niid, nsid)
-            }
-        }
-    }
-
-    fn add_sound_processor(&mut self, data: SoundProcessorData) {
-        debug_assert!(data.sound_inputs().is_empty());
-        debug_assert!(data.number_sources().is_empty());
-        debug_assert!(data.number_inputs().is_empty());
         let prev = self.sound_processors.insert(data.id(), data);
         debug_assert!(prev.is_none());
+        Ok(())
     }
 
-    fn remove_sound_processor(&mut self, processor_id: SoundProcessorId) {
-        debug_assert!((|| {
-            let data = self.sound_processor(processor_id).unwrap();
-            data.sound_inputs().is_empty()
-                && data.number_sources().is_empty()
-                && data.number_inputs().is_empty()
-        })());
+    pub(crate) fn remove_sound_processor(
+        &mut self,
+        processor_id: SoundProcessorId,
+    ) -> Result<(), SoundError> {
+        let data = self
+            .sound_processor(processor_id)
+            .ok_or(SoundError::ProcessorNotFound(processor_id))?;
+
+        if !(data.sound_inputs().is_empty()
+            && data.number_sources().is_empty()
+            && data.number_inputs().is_empty())
+        {
+            return Err(SoundError::BadProcessorCleanup(processor_id));
+        }
 
         self.sound_processors.remove(&processor_id).unwrap();
+
+        Ok(())
     }
 
-    fn add_sound_input(&mut self, data: SoundInputData) {
-        debug_assert!(data.number_sources().is_empty());
+    pub(crate) fn add_sound_input(&mut self, data: SoundInputData) -> Result<(), SoundError> {
+        if !data.number_sources().is_empty() {
+            return Err(SoundError::BadSoundInputInit(data.id()));
+        }
+        if self.sound_inputs.contains_key(&data.id()) {
+            return Err(SoundError::SoundInputIdTaken(data.id()));
+        }
         let processor_id = data.owner();
-        let proc_data = self.sound_processors.get_mut(&processor_id).unwrap();
+        let proc_data = self
+            .sound_processors
+            .get_mut(&processor_id)
+            .ok_or(SoundError::ProcessorNotFound(processor_id))?;
+        debug_assert!(!proc_data.sound_inputs().contains(&data.id()));
         proc_data.sound_inputs_mut().push(data.id());
         let prev = self.sound_inputs.insert(data.id(), data);
-        debug_assert!(prev.is_none())
+        debug_assert!(prev.is_none());
+        Ok(())
     }
 
-    fn remove_sound_input(&mut self, input_id: SoundInputId, owner: SoundProcessorId) {
-        debug_assert!({
-            let input_data = self.sound_inputs.get(&input_id).unwrap();
+    pub(crate) fn remove_sound_input(
+        &mut self,
+        input_id: SoundInputId,
+        owner: SoundProcessorId,
+    ) -> Result<(), SoundError> {
+        let input_data = self
+            .sound_inputs
+            .get(&input_id)
+            .ok_or(SoundError::SoundInputNotFound(input_id))?;
 
-            input_data.target().is_none() && input_data.number_sources().len() == 0
-        });
+        if input_data.target().is_some() {
+            return Err(SoundError::BadSoundInputCleanup(input_id));
+        }
+
+        if !input_data.number_sources().is_empty() {
+            return Err(SoundError::BadSoundInputCleanup(input_id));
+        }
 
         // remove the input from its owner
         let proc_data = self.sound_processors.get_mut(&owner).unwrap();
@@ -274,6 +284,8 @@ impl SoundGraphTopology {
 
         // remove the input
         self.sound_inputs.remove(&input_id).unwrap();
+
+        Ok(())
     }
 
     fn add_sound_input_key(&mut self, input_id: SoundInputId, index: usize) {
@@ -290,31 +302,68 @@ impl SoundGraphTopology {
         input_data.set_num_keys(n - 1);
     }
 
-    fn connect_sound_input(&mut self, input_id: SoundInputId, processor_id: SoundProcessorId) {
-        debug_assert!(self.sound_processors.contains_key(&processor_id));
+    pub(crate) fn connect_sound_input(
+        &mut self,
+        input_id: SoundInputId,
+        processor_id: SoundProcessorId,
+    ) -> Result<(), SoundError> {
+        if !self.sound_processors.contains_key(&processor_id) {
+            return Err(SoundError::ProcessorNotFound(processor_id));
+        }
+        if !self.sound_inputs.contains_key(&input_id) {
+            return Err(SoundError::SoundInputNotFound(input_id));
+        }
         let input_data = self.sound_inputs.get_mut(&input_id).unwrap();
-        debug_assert!(input_data.target().is_none());
+        if let Some(current_target) = input_data.target() {
+            return Err(SoundError::SoundInputOccupied {
+                input_id,
+                current_target,
+            });
+        }
         input_data.set_target(Some(processor_id));
+        Ok(())
     }
 
-    fn disconnect_sound_input(&mut self, input_id: SoundInputId) {
-        let input_data = self.sound_inputs.get_mut(&input_id).unwrap();
-        debug_assert!(input_data.target().is_some());
+    pub(crate) fn disconnect_sound_input(
+        &mut self,
+        input_id: SoundInputId,
+    ) -> Result<(), SoundError> {
+        let input_data = self
+            .sound_inputs
+            .get_mut(&input_id)
+            .ok_or(SoundError::SoundInputNotFound(input_id))?;
+        if input_data.target().is_none() {
+            return Err(SoundError::SoundInputUnoccupied(input_id));
+        }
         input_data.set_target(None);
+        Ok(())
     }
 
-    fn add_number_source(&mut self, data: SoundNumberSourceData) {
+    pub(crate) fn add_number_source(
+        &mut self,
+        data: SoundNumberSourceData,
+    ) -> Result<(), SoundError> {
         let id = data.id();
         let owner = data.owner();
 
+        if self.number_sources.contains_key(&id) {
+            return Err(SoundError::NumberSourceIdTaken(id));
+        }
+
         match owner {
             SoundNumberSourceOwner::SoundProcessor(spid) => {
-                let proc_data = self.sound_processors.get_mut(&spid).unwrap();
+                let proc_data = self
+                    .sound_processors
+                    .get_mut(&spid)
+                    .ok_or(SoundError::ProcessorNotFound(spid))?;
                 debug_assert!(!proc_data.number_sources().contains(&id));
                 proc_data.number_sources_mut().push(id);
             }
             SoundNumberSourceOwner::SoundInput(siid) => {
-                let input_data = self.sound_inputs.get_mut(&siid).unwrap();
+                let input_data = self
+                    .sound_inputs
+                    .get_mut(&siid)
+                    .ok_or(SoundError::SoundInputNotFound(siid))?;
                 debug_assert!(!input_data.number_sources().contains(&id));
                 input_data.number_sources_mut().push(id);
             }
@@ -322,19 +371,18 @@ impl SoundGraphTopology {
 
         let prev = self.number_sources.insert(id, data);
         debug_assert!(prev.is_none());
+
+        Ok(())
     }
 
-    fn remove_number_source(
+    pub(crate) fn remove_number_source(
         &mut self,
         source_id: SoundNumberSourceId,
+        // TODO: owner here is redundant
         owner: SoundNumberSourceOwner,
-    ) {
-        // remove the number source from any number inputs that use it
-        for ni_data in self.number_inputs.values_mut() {
-            let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
-            if mapping.target_graph_input(source_id).is_some() {
-                mapping.remove_target(source_id, numbergraph);
-            }
+    ) -> Result<(), SoundError> {
+        if !self.number_sources.contains_key(&source_id) {
+            return Err(SoundError::NumberSourceNotFound(source_id));
         }
 
         // remove the number source from its owner, if any
@@ -353,26 +401,58 @@ impl SoundGraphTopology {
             }
         }
 
+        // remove the number source from any number inputs that use it
+        // TODO: or don't????
+        for ni_data in self.number_inputs.values_mut() {
+            let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
+            if mapping.target_graph_input(source_id).is_some() {
+                mapping.remove_target(source_id, numbergraph);
+            }
+        }
+
         // remove the number source
         self.number_sources.remove(&source_id).unwrap();
+
+        Ok(())
     }
 
-    fn add_number_input(&mut self, data: SoundNumberInputData) {
+    pub(crate) fn add_number_input(
+        &mut self,
+        data: SoundNumberInputData,
+    ) -> Result<(), SoundError> {
         let id = data.id();
 
-        let proc_data = self.sound_processors.get_mut(&data.owner()).unwrap();
+        if self.number_inputs.contains_key(&id) {
+            return Err(SoundError::NumberInputIdTaken(id));
+        }
+
+        let proc_data = self
+            .sound_processors
+            .get_mut(&data.owner())
+            .ok_or(SoundError::ProcessorNotFound(data.owner()))?;
         debug_assert!(!proc_data.number_inputs().contains(&id));
+
         proc_data.number_inputs_mut().push(id);
 
         let prev = self.number_inputs.insert(id, data);
         debug_assert!(prev.is_none());
+
+        Ok(())
     }
 
-    fn remove_number_input(&mut self, id: SoundNumberInputId, owner: SoundProcessorId) {
+    pub(crate) fn remove_number_input(
+        &mut self,
+        id: SoundNumberInputId,
+        owner: SoundProcessorId,
+    ) -> Result<(), SoundError> {
+        self.number_inputs
+            .remove(&id)
+            .ok_or(SoundError::NumberInputNotFound(id))?;
+
         let proc_data = self.sound_processors.get_mut(&owner).unwrap();
         proc_data.number_inputs_mut().retain(|niid| *niid != id);
 
-        self.number_inputs.remove(&id);
+        Ok(())
     }
 
     pub fn connect_number_input(

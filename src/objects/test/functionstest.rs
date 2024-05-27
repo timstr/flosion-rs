@@ -19,12 +19,11 @@ use crate::{
         number::{numbergraphdata::NumberTarget, numbersource::PureNumberSource},
         sound::{
             context::{Context, LocalArrayList},
-            soundedit::SoundEdit,
+            soundgraph::SoundGraphIdGenerators,
             soundgraphdata::{SoundNumberInputScope, SoundProcessorData},
             soundgraphtopology::SoundGraphTopology,
-            soundinput::SoundInputId,
-            soundnumberinput::{SoundNumberInputHandle, SoundNumberInputId},
-            soundnumbersource::{SoundNumberSourceHandle, SoundNumberSourceId},
+            soundnumberinput::SoundNumberInputHandle,
+            soundnumbersource::SoundNumberSourceHandle,
             soundprocessor::{
                 DynamicSoundProcessor, DynamicSoundProcessorWithId, SoundProcessorId,
                 StateAndTiming, StreamStatus,
@@ -33,7 +32,6 @@ use crate::{
             state::State,
         },
         soundchunk::SoundChunk,
-        uniqueid::IdGenerator,
     },
     objects::purefunctions::*,
 };
@@ -172,25 +170,17 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
 ) {
     let mut topo = SoundGraphTopology::new();
 
-    let mut spidgen = IdGenerator::<SoundProcessorId>::new();
-    let mut siidgen = IdGenerator::<SoundInputId>::new();
-    let mut nsidgen = IdGenerator::<SoundNumberSourceId>::new();
-    let mut niidgen = IdGenerator::<SoundNumberInputId>::new();
+    let mut idgens = SoundGraphIdGenerators::new();
 
-    let test_spid = spidgen.next_id();
-    let time_nsid = nsidgen.next_id();
+    let test_spid = idgens.sound_processor.next_id();
+    let time_nsid = idgens.number_source.next_id();
 
-    // for stuff added via number source tools or sound processor tools
-    let mut edit_queue = Vec::new();
+    // Add an empty sound processor first to allow topology changes inside
+    // the processor's new() method
+    topo.add_sound_processor(SoundProcessorData::new_empty(test_spid));
 
     // create test sound processor
-    let tools = SoundProcessorTools::new(
-        test_spid,
-        &mut siidgen,
-        &mut niidgen,
-        &mut nsidgen,
-        &mut edit_queue,
-    );
+    let tools = SoundProcessorTools::new(test_spid, &mut topo, &mut idgens);
     let init = ObjectInitialization::Default;
     let sp_instance = Arc::new(DynamicSoundProcessorWithId::new(
         TestSoundProcessor::new(tools, init).unwrap(),
@@ -199,15 +189,10 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     ));
     let sp_instance_2 = Arc::clone(&sp_instance);
 
-    // add sound processor to topology
-    topo.make_sound_edit(SoundEdit::AddSoundProcessor(SoundProcessorData::new(
-        sp_instance_2,
-    )));
-
-    // flush other edits to topology
-    for edit in edit_queue {
-        topo.make_sound_graph_edit(edit);
-    }
+    // add the actual sound processor to topology
+    topo.sound_processor_mut(test_spid)
+        .unwrap()
+        .set_processor(sp_instance_2);
 
     {
         let number_input_data = topo

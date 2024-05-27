@@ -51,6 +51,7 @@ impl ObjectUi for MixerUi {
                         sound_graph
                             .with_processor_tools(w.id(), |mut tools| {
                                 w.add_input(&mut tools);
+                                Ok(())
                             })
                             .unwrap();
                     }
@@ -61,6 +62,7 @@ impl ObjectUi for MixerUi {
                             sound_graph
                                 .with_processor_tools(w.id(), |mut tools| {
                                     w.remove_input(siid, &mut tools);
+                                    Ok(())
                                 })
                                 .unwrap();
                         }

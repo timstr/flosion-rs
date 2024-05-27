@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 use super::{
     path::SoundPath,
-    soundedit::SoundEdit,
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
@@ -448,41 +447,6 @@ pub(super) fn find_invalid_number_connections(
     }
 
     return bad_connections;
-}
-
-pub(crate) fn validate_sound_connection(
-    topology: &SoundGraphTopology,
-    input_id: SoundInputId,
-    processor_id: SoundProcessorId,
-) -> Result<(), SoundError> {
-    // Lazy approach: duplicate the topology, make the edit, and see what happens
-    let mut topo = topology.clone();
-    topo.make_sound_edit(SoundEdit::ConnectSoundInput(input_id, processor_id));
-    match find_error(&topo) {
-        Some(e) => Err(e),
-        None => Ok(()),
-    }
-}
-
-pub(crate) fn validate_sound_disconnection(
-    topology: &SoundGraphTopology,
-    input_id: SoundInputId,
-) -> Result<(), SoundError> {
-    // Lazy approach: duplicate the topology, make the edit, and see what happens
-    let mut topo = topology.clone();
-    topo.make_sound_edit(SoundEdit::DisconnectSoundInput(input_id));
-    match find_error(&topo) {
-        Some(e) => Err(e),
-        None => Ok(()),
-    }
-}
-
-pub(crate) fn validate_sound_number_connection(
-    topology: &SoundGraphTopology,
-    input_id: SoundNumberInputId,
-    source_id: SoundNumberSourceId,
-) -> Result<(), SoundError> {
-    todo!()
 }
 
 pub(crate) fn available_sound_number_sources(

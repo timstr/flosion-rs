@@ -492,6 +492,7 @@ impl<T: StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWi
         graph
             .add_static_sound_processor::<T>(init)
             .map(|h| h.into_graph_object())
+            .map_err(|_| ()) // TODO: report error
     }
 
     fn get_id(&self) -> SoundObjectId {
@@ -527,6 +528,7 @@ impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessor
         graph
             .add_dynamic_sound_processor::<T>(init)
             .map(|h| h.into_graph_object())
+            .map_err(|_| ()) // TODO: report error
     }
 
     fn get_id(&self) -> SoundObjectId {

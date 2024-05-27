@@ -9,8 +9,7 @@ use super::{
     stategraphnode::{NodeTargetValue, SharedProcessorNode},
 };
 
-// Edits to be made to the state graph on the audio thread.
-// While StateGraphEdit is superficially similar to SoundEdit, it is heavily
+// Edits to be made to the state graph on the audio thread. These are heavily
 // focused on efficiently inserted pre-allocated state graph data, rather
 // than keeping track of the overall topology. Many edits made at the sound
 // graph level have no analog or may not correspond to any edits here if
