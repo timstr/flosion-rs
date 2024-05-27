@@ -1,5 +1,5 @@
 use super::{
-    numbergraphdata::NumberTarget, numbergraphedit::NumberGraphEdit, numbergrapherror::NumberError,
+    numbergraphdata::NumberTarget, numbergrapherror::NumberError,
     numbergraphtopology::NumberGraphTopology, numberinput::NumberInputId, path::NumberPath,
 };
 
@@ -167,7 +167,7 @@ pub(crate) fn validate_number_connection(
 ) -> Result<(), NumberError> {
     // Lazy approach: duplicate the topology, make the edit, and see what happens
     let mut topology = topology.clone();
-    topology.make_edit(NumberGraphEdit::ConnectNumberInput(input_id, target));
+    topology.connect_number_input(input_id, target)?;
     if let Some(err) = find_number_error(&topology) {
         return Err(err);
     }

@@ -127,6 +127,7 @@ impl<T: PureNumberSource> GraphObject<NumberGraph> for PureNumberSourceWithId<T>
         graph
             .add_pure_number_source::<T>(init)
             .map(|h| h.into_graph_object())
+            .map_err(|_| ()) // TODO: report error
     }
 
     fn get_type() -> ObjectType {
@@ -392,6 +393,7 @@ impl<T: StatefulNumberSource> GraphObject<NumberGraph> for StatefulNumberSourceW
         graph
             .add_stateful_number_source::<T>(init)
             .map(|h| h.into_graph_object())
+            .map_err(|_| ()) // TODO: report error
     }
 
     fn get_type() -> ObjectType {

@@ -1,7 +1,6 @@
 pub mod context;
 pub mod numbergraph;
 pub mod numbergraphdata;
-pub mod numbergraphedit;
 pub mod numbergrapherror;
 pub mod numbergraphtopology;
 mod numbergraphvalidation;

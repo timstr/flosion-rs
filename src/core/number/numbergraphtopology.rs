@@ -10,7 +10,7 @@ use super::{
     numbergraphdata::{
         NumberDestination, NumberGraphOutputData, NumberInputData, NumberSourceData, NumberTarget,
     },
-    numbergraphedit::NumberGraphEdit,
+    numbergrapherror::NumberError,
     numberinput::NumberInputId,
     numbersource::NumberSourceId,
 };
@@ -39,6 +39,13 @@ impl NumberGraphTopology {
 
     pub(crate) fn number_source(&self, id: NumberSourceId) -> Option<&Versioned<NumberSourceData>> {
         self.number_sources.get(&id)
+    }
+
+    pub(super) fn number_source_mut(
+        &mut self,
+        id: NumberSourceId,
+    ) -> Option<&mut Versioned<NumberSourceData>> {
+        self.number_sources.get_mut(&id)
     }
 
     pub(crate) fn number_inputs(&self) -> &VersionedHashMap<NumberInputId, NumberInputData> {
@@ -82,36 +89,42 @@ impl NumberGraphTopology {
         matching_number_inputs.chain(matching_graph_outputs)
     }
 
-    pub(crate) fn make_edit(&mut self, edit: NumberGraphEdit) {
-        match edit {
-            NumberGraphEdit::AddNumberInput(data) => self.add_number_input(data),
-            NumberGraphEdit::RemoveNumberInput(niid) => self.remove_number_input(niid),
-            NumberGraphEdit::AddNumberSource(data) => self.add_number_source(data),
-            NumberGraphEdit::RemoveNumberSource(nsid) => self.remove_number_source(nsid),
-            NumberGraphEdit::ConnectNumberInput(niid, tid) => self.connect_number_input(niid, tid),
-            NumberGraphEdit::DisconnectNumberInput(niid) => self.disconnect_number_input(niid),
-            NumberGraphEdit::AddGraphInput(data) => self.add_graph_input(data),
-            NumberGraphEdit::RemoveGraphInput(giid) => self.remove_graph_input(giid),
-            NumberGraphEdit::AddGraphOutput(goid) => self.add_graph_output(goid),
-            NumberGraphEdit::RemoveGraphOutput(goid) => self.remove_graph_output(goid),
-            NumberGraphEdit::ConnectGraphOutput(goid, tid) => self.connect_graph_output(goid, tid),
-            NumberGraphEdit::DisconnectGraphOutput(goid) => self.disconnect_graph_output(goid),
+    pub fn add_number_input(&mut self, data: NumberInputData) -> Result<(), NumberError> {
+        if data.target().is_some() {
+            return Err(NumberError::BadInputInit(data.id()));
         }
-    }
 
-    fn add_number_input(&mut self, data: NumberInputData) {
-        debug_assert!(data.target().is_none());
-        let ns_data = self.number_sources.get_mut(&data.owner()).unwrap();
+        if self.number_inputs.contains_key(&data.id()) {
+            return Err(NumberError::InputIdTaken(data.id()));
+        }
+
+        let owner = data.owner();
+
+        let ns_data = self
+            .number_sources
+            .get_mut(&owner)
+            .ok_or(NumberError::SourceNotFound(owner))?;
+
         debug_assert!(!ns_data.number_inputs().contains(&data.id()));
+
         ns_data.number_inputs_mut().push(data.id());
-        let prev = self.number_inputs.insert(data.id(), data);
-        debug_assert!(prev.is_none());
+
+        self.number_inputs.insert(data.id(), data);
+
+        Ok(())
     }
 
-    fn remove_number_input(&mut self, input_id: NumberInputId) {
-        debug_assert!(self.number_input(input_id).unwrap().target().is_none());
-        let owner = self.number_input(input_id).unwrap().owner();
-        let ns_data = self.number_sources.get_mut(&owner).unwrap();
+    pub(crate) fn remove_number_input(
+        &mut self,
+        input_id: NumberInputId,
+    ) -> Result<(), NumberError> {
+        let ni_data = self
+            .number_input(input_id)
+            .ok_or(NumberError::InputNotFound(input_id))?;
+        if ni_data.target().is_some() {
+            return Err(NumberError::BadInputCleanup(input_id));
+        }
+        let ns_data = self.number_sources.get_mut(&ni_data.owner()).unwrap();
         debug_assert_eq!(
             ns_data
                 .number_inputs()
@@ -123,119 +136,232 @@ impl NumberGraphTopology {
         ns_data.number_inputs_mut().retain(|x| *x != input_id);
         let prev = self.number_inputs.remove(&input_id);
         debug_assert!(prev.is_some());
+
+        Ok(())
     }
 
-    fn add_number_source(&mut self, data: NumberSourceData) {
-        debug_assert!(data.number_inputs().is_empty());
-        let prev = self.number_sources.insert(data.id(), data);
-        debug_assert!(prev.is_none());
+    pub(crate) fn add_number_source(&mut self, data: NumberSourceData) -> Result<(), NumberError> {
+        if !data.number_inputs().is_empty() {
+            return Err(NumberError::BadSourceInit(data.id()));
+        }
+        if self.number_sources.contains_key(&data.id()) {
+            return Err(NumberError::SourceIdTaken(data.id()));
+        }
+        self.number_sources.insert(data.id(), data);
+
+        Ok(())
     }
 
-    fn remove_number_source(&mut self, source_id: NumberSourceId) {
-        debug_assert!(!self.number_inputs.values().any(|d| d.owner() == source_id));
-        debug_assert_eq!(self.number_target_destinations(source_id.into()).count(), 0);
+    pub(crate) fn remove_number_source(
+        &mut self,
+        source_id: NumberSourceId,
+    ) -> Result<(), NumberError> {
+        if !self.number_sources.contains_key(&source_id) {
+            return Err(NumberError::SourceNotFound(source_id));
+        }
+
+        // Does the number source still own any inputs?
+        if self.number_inputs.values().any(|d| d.owner() == source_id) {
+            return Err(NumberError::BadSourceCleanup(source_id));
+        }
+        // Is anything connected to the number source?
+        if self.number_target_destinations(source_id.into()).count() > 0 {
+            return Err(NumberError::BadSourceCleanup(source_id));
+        }
+
         debug_assert!(self
             .number_sources
             .get(&source_id)
             .unwrap()
             .number_inputs()
             .is_empty());
-        let prev = self.number_sources.remove(&source_id);
-        debug_assert!(prev.is_some());
+
+        self.number_sources.remove(&source_id);
+
+        Ok(())
     }
 
-    fn connect_number_input(&mut self, input_id: NumberInputId, target: NumberTarget) {
-        debug_assert!(match target {
-            NumberTarget::Source(nsid) => self.number_sources.contains_key(&nsid),
-            NumberTarget::GraphInput(giid) => self.graph_inputs.contains(&giid),
-        });
-        let data = self.number_inputs.get_mut(&input_id).unwrap();
-        debug_assert!(data.target().is_none());
+    pub(crate) fn connect_number_input(
+        &mut self,
+        input_id: NumberInputId,
+        target: NumberTarget,
+    ) -> Result<(), NumberError> {
+        match target {
+            NumberTarget::Source(nsid) => {
+                if !self.number_sources.contains_key(&nsid) {
+                    return Err(NumberError::SourceNotFound(nsid));
+                }
+            }
+            NumberTarget::GraphInput(giid) => {
+                if !self.graph_inputs.contains(&giid) {
+                    return Err(NumberError::GraphInputNotFound(giid));
+                }
+            }
+        }
+        let data = self
+            .number_inputs
+            .get_mut(&input_id)
+            .ok_or(NumberError::InputNotFound(input_id))?;
+        if let Some(current_target) = data.target() {
+            return Err(NumberError::InputOccupied {
+                input_id,
+                current_target,
+            });
+        }
         data.set_target(Some(target));
+
+        Ok(())
     }
 
-    fn disconnect_number_input(&mut self, input_id: NumberInputId) {
-        let data = self.number_inputs.get_mut(&input_id).unwrap();
-        debug_assert!(data.target().is_some());
+    pub(crate) fn disconnect_number_input(
+        &mut self,
+        input_id: NumberInputId,
+    ) -> Result<(), NumberError> {
+        let data = self
+            .number_inputs
+            .get_mut(&input_id)
+            .ok_or(NumberError::InputNotFound(input_id))?;
+        if data.target().is_none() {
+            return Err(NumberError::InputUnoccupied(input_id));
+        }
         data.set_target(None);
+        Ok(())
     }
 
-    fn add_graph_input(&mut self, input_id: NumberGraphInputId) {
-        debug_assert!(!self.graph_inputs.contains(&input_id));
+    pub(crate) fn add_graph_input(
+        &mut self,
+        input_id: NumberGraphInputId,
+    ) -> Result<(), NumberError> {
+        if self.graph_inputs.contains(&input_id) {
+            return Err(NumberError::GraphInputIdTaken(input_id));
+        }
         self.graph_inputs.push(input_id);
+        Ok(())
     }
 
-    fn remove_graph_input(&mut self, input_id: NumberGraphInputId) {
-        debug_assert_eq!(
-            self.graph_inputs.iter().filter(|x| **x == input_id).count(),
-            1
-        );
-        debug_assert!(!self
+    pub(crate) fn remove_graph_input(
+        &mut self,
+        input_id: NumberGraphInputId,
+    ) -> Result<(), NumberError> {
+        if self.graph_inputs.iter().filter(|x| **x == input_id).count() != 1 {
+            return Err(NumberError::GraphInputNotFound(input_id));
+        }
+        if self
             .number_inputs
             .values()
-            .any(|x| x.target() == Some(NumberTarget::GraphInput(input_id))));
-        debug_assert!(!self
+            .any(|x| x.target() == Some(NumberTarget::GraphInput(input_id)))
+        {
+            return Err(NumberError::BadGraphInputCleanup(input_id));
+        }
+        if self
             .graph_outputs
             .iter()
-            .any(|x| x.target() == Some(NumberTarget::GraphInput(input_id))));
+            .any(|x| x.target() == Some(NumberTarget::GraphInput(input_id)))
+        {
+            return Err(NumberError::BadGraphInputCleanup(input_id));
+        }
+
         self.graph_inputs.retain(|x| *x != input_id);
+        Ok(())
     }
 
-    fn add_graph_output(&mut self, data: NumberGraphOutputData) {
-        debug_assert!(data.target().is_none());
-        debug_assert_eq!(
-            self.graph_outputs
-                .iter()
-                .filter(|x| x.id() == data.id())
-                .count(),
-            0
-        );
+    pub(crate) fn add_graph_output(
+        &mut self,
+        data: NumberGraphOutputData,
+    ) -> Result<(), NumberError> {
+        if data.target().is_some() {
+            return Err(NumberError::BadGraphOutputInit(data.id()));
+        }
+
+        if self
+            .graph_outputs
+            .iter()
+            .filter(|x| x.id() == data.id())
+            .count()
+            > 0
+        {
+            return Err(NumberError::GraphOutputIdTaken(data.id()));
+        }
         self.graph_outputs.push(data);
+        Ok(())
     }
 
-    fn remove_graph_output(&mut self, output_id: NumberGraphOutputId) {
-        debug_assert_eq!(
-            self.graph_outputs
-                .iter()
-                .filter(|x| x.id() == output_id)
-                .count(),
-            1
-        );
-        debug_assert!(self
+    pub(crate) fn remove_graph_output(
+        &mut self,
+        output_id: NumberGraphOutputId,
+    ) -> Result<(), NumberError> {
+        if self
+            .graph_outputs
+            .iter()
+            .filter(|x| x.id() == output_id)
+            .count()
+            != 1
+        {
+            return Err(NumberError::BadGraphOutputCleanup(output_id));
+        }
+        if self
             .graph_outputs
             .iter()
             .filter(|x| x.id() == output_id)
             .next()
             .unwrap()
             .target()
-            .is_none());
+            .is_some()
+        {
+            return Err(NumberError::BadGraphOutputCleanup(output_id));
+        }
         self.graph_outputs.retain(|x| x.id() != output_id);
+        Ok(())
     }
 
-    fn connect_graph_output(&mut self, output_id: NumberGraphOutputId, target: NumberTarget) {
-        debug_assert!(match target {
-            NumberTarget::Source(nsid) => self.number_sources.contains_key(&nsid),
-            NumberTarget::GraphInput(giid) => self.graph_inputs.contains(&giid),
-        });
+    pub(crate) fn connect_graph_output(
+        &mut self,
+        output_id: NumberGraphOutputId,
+        target: NumberTarget,
+    ) -> Result<(), NumberError> {
+        match target {
+            NumberTarget::Source(nsid) => {
+                if !self.number_sources.contains_key(&nsid) {
+                    return Err(NumberError::SourceNotFound(nsid));
+                }
+            }
+            NumberTarget::GraphInput(giid) => {
+                if !self.graph_inputs.contains(&giid) {
+                    return Err(NumberError::GraphInputNotFound(giid));
+                }
+            }
+        };
         let data = self
             .graph_outputs
             .iter_mut()
             .filter(|x| x.id() == output_id)
             .next()
-            .unwrap();
-        debug_assert!(data.target().is_none());
+            .ok_or(NumberError::GraphOutputNotFound(output_id))?;
+        if let Some(current_target) = data.target() {
+            return Err(NumberError::GraphOutputOccupied {
+                output_id,
+                current_target,
+            });
+        }
         data.set_target(Some(target));
+        Ok(())
     }
 
-    fn disconnect_graph_output(&mut self, output_id: NumberGraphOutputId) {
+    pub(crate) fn disconnect_graph_output(
+        &mut self,
+        output_id: NumberGraphOutputId,
+    ) -> Result<(), NumberError> {
         let data = self
             .graph_outputs
             .iter_mut()
             .filter(|x| x.id() == output_id)
             .next()
-            .unwrap();
-        debug_assert!(data.target().is_some());
+            .ok_or(NumberError::GraphOutputNotFound(output_id))?;
+        if data.target().is_none() {
+            return Err(NumberError::GraphOutputUnoccupied(output_id));
+        }
         data.set_target(None);
+        Ok(())
     }
 }
 

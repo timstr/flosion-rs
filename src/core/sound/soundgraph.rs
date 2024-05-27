@@ -426,40 +426,56 @@ impl SoundGraph {
         processor_id: SoundProcessorId,
         topo: &mut SoundGraphTopology,
     ) -> Result<(), SoundError> {
-        let mut number_input_ids = Vec::new();
-        let mut number_source_and_owner_ids = Vec::new();
-        let mut sound_input_ids = Vec::new();
+        let mut number_inputs_to_remove = Vec::new();
+        let mut number_sources_to_remove = Vec::new();
+        let mut sound_inputs_to_remove = Vec::new();
+        let mut sound_inputs_to_disconnect = Vec::new();
 
         let proc = topo
             .sound_processor(processor_id)
             .ok_or(SoundError::ProcessorNotFound(processor_id))?;
 
         for ni in proc.number_inputs() {
-            number_input_ids.push(*ni);
+            number_inputs_to_remove.push(*ni);
         }
 
         for ns in proc.number_sources() {
-            number_source_and_owner_ids
+            number_sources_to_remove
                 .push((*ns, SoundNumberSourceOwner::SoundProcessor(processor_id)));
         }
 
         for si in proc.sound_inputs() {
-            sound_input_ids.push(*si);
+            sound_inputs_to_remove.push(*si);
             let input = topo.sound_input(*si).unwrap();
             for ns in input.number_sources() {
-                number_source_and_owner_ids.push((*ns, SoundNumberSourceOwner::SoundInput(*si)));
+                number_sources_to_remove.push((*ns, SoundNumberSourceOwner::SoundInput(*si)));
+            }
+            if topo.sound_input(*si).unwrap().target().is_some() {
+                sound_inputs_to_disconnect.push(*si);
             }
         }
 
-        for ni in number_input_ids {
+        for si in topo.sound_inputs().values() {
+            if si.target() == Some(processor_id) {
+                sound_inputs_to_disconnect.push(si.id());
+            }
+        }
+
+        // ---
+
+        for si in sound_inputs_to_disconnect {
+            topo.disconnect_sound_input(si)?;
+        }
+
+        for ni in number_inputs_to_remove {
             topo.remove_number_input(ni, processor_id)?;
         }
 
-        for (ns, nso) in number_source_and_owner_ids {
+        for (ns, nso) in number_sources_to_remove {
             topo.remove_number_source(ns, nso)?;
         }
 
-        for si in sound_input_ids {
+        for si in sound_inputs_to_remove {
             topo.remove_sound_input(si, processor_id)?;
         }
 

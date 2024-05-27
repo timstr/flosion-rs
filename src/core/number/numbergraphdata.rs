@@ -14,7 +14,7 @@ use super::{
 #[derive(Clone)]
 pub(crate) struct NumberSourceData {
     id: NumberSourceId,
-    instance: Arc<dyn NumberSource>,
+    instance: Option<Arc<dyn NumberSource>>,
     inputs: Vec<NumberInputId>,
 }
 
@@ -22,7 +22,15 @@ impl NumberSourceData {
     pub(crate) fn new(id: NumberSourceId, instance: Arc<dyn NumberSource>) -> NumberSourceData {
         NumberSourceData {
             id,
-            instance,
+            instance: Some(instance),
+            inputs: Vec::new(),
+        }
+    }
+
+    pub(crate) fn new_empty(id: NumberSourceId) -> NumberSourceData {
+        NumberSourceData {
+            id,
+            instance: None,
             inputs: Vec::new(),
         }
     }
@@ -32,11 +40,16 @@ impl NumberSourceData {
     }
 
     pub(crate) fn instance(&self) -> &dyn NumberSource {
-        &*self.instance
+        self.instance.as_deref().unwrap()
     }
 
     pub(crate) fn instance_arc(&self) -> Arc<dyn NumberSource> {
-        Arc::clone(&self.instance)
+        Arc::clone(self.instance.as_ref().unwrap())
+    }
+
+    pub(crate) fn set_instance(&mut self, instance: Arc<dyn NumberSource>) {
+        assert!(self.instance.is_none());
+        self.instance = Some(instance);
     }
 
     pub fn number_inputs(&self) -> &[NumberInputId] {
@@ -62,6 +75,7 @@ impl Revision for NumberSourceData {
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
 pub enum NumberTarget {
+    // TODO: Empty
     Source(NumberSourceId),
     GraphInput(NumberGraphInputId),
 }
