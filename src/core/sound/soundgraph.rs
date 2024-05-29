@@ -25,7 +25,7 @@ use super::{
     soundgrapherror::SoundError,
     soundgraphid::SoundObjectId,
     soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::find_error,
+    soundgraphvalidation::find_sound_error,
     soundinput::SoundInputId,
     soundnumberinput::SoundNumberInputId,
     soundnumbersource::{ProcessorTimeNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},
@@ -246,7 +246,7 @@ impl SoundGraph {
     /// instance running in realtime and cannot be replicated.
     /// The type must be known statically and given.
     /// For other ways of creating a sound processor,
-    /// see ObjectArchive.
+    /// see ObjectFactory.
     pub fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
@@ -304,7 +304,7 @@ impl SoundGraph {
     /// input it is connected to, which are run on-demand.
     /// The type must be known statically and given.
     /// For other ways of creating a sound processor,
-    /// see ObjectArchive.
+    /// see ObjectFactory.
     pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
         &mut self,
         init: ObjectInitialization,
@@ -515,7 +515,7 @@ impl SoundGraph {
 
             let r = f(number_input);
 
-            if let Some(e) = find_error(topo) {
+            if let Some(e) = find_sound_error(topo) {
                 Err(e)
             } else {
                 Ok(r)
@@ -535,13 +535,16 @@ impl SoundGraph {
         &mut self,
         f: F,
     ) -> Result<R, SoundError> {
-        debug_assert_eq!(find_error(&self.local_topology), None);
+        debug_assert_eq!(find_sound_error(&self.local_topology), None);
         let prev_topology = self.local_topology.clone();
         let res = f(&mut self.local_topology, &mut self.id_generators);
         if res.is_err() {
             self.local_topology = prev_topology;
+            return res;
+        } else if let Some(e) = find_sound_error(&self.local_topology) {
+            self.local_topology = prev_topology;
+            return Err(e);
         }
-        debug_assert_eq!(find_error(&self.local_topology), None);
         res
     }
 
@@ -558,7 +561,7 @@ impl SoundGraph {
             return;
         }
 
-        debug_assert_eq!(find_error(&self.local_topology), None);
+        debug_assert_eq!(find_sound_error(&self.local_topology), None);
 
         let time_sent = Instant::now();
         if let Err(err) = self

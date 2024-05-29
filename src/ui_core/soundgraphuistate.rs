@@ -5,7 +5,7 @@ use eframe::egui;
 use crate::core::sound::{
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::find_error,
+    soundgraphvalidation::find_sound_error,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
 };
@@ -160,7 +160,7 @@ impl SoundGraphUiState {
 
         let topo_disconnected = topo_disconnected;
 
-        debug_assert_eq!(find_error(&topo_disconnected), None);
+        debug_assert_eq!(find_sound_error(&topo_disconnected), None);
 
         let mut candidates = HashMap::new();
 
@@ -179,7 +179,7 @@ impl SoundGraphUiState {
             topo_reconnected
                 .connect_sound_input(si_data.id(), processor_id)
                 .unwrap();
-            if find_error(&topo_reconnected).is_none() {
+            if find_sound_error(&topo_reconnected).is_none() {
                 candidates.insert(
                     si_data.id(),
                     CandidateSoundInput {
