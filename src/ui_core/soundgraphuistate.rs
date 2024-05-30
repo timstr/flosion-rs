@@ -151,7 +151,9 @@ impl SoundGraphUiState {
                 continue;
             }
             for (niid, nsid) in original_topo.number_connection_crossings(si_data.id()) {
-                topo_disconnected.disconnect_number_input(niid, nsid)
+                topo_disconnected
+                    .disconnect_number_input(niid, nsid)
+                    .unwrap();
             }
             topo_disconnected
                 .disconnect_sound_input(si_data.id())
