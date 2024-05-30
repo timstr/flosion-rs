@@ -297,31 +297,6 @@ impl SoundGraphTopology {
         Ok(())
     }
 
-    /// Insert a key to the given sound input at the given index. The sound input
-    /// must exist and the index must be valid. To append a key, pass an index
-    /// equal to the number of keys.
-    fn add_sound_input_key(&mut self, input_id: SoundInputId, index: usize) {
-        // TODO: 'key' is a poor name for this. Maybe 'branch'?
-        let input_data = self.sound_inputs.get_mut(&input_id).unwrap();
-        let n = input_data.num_keys();
-        debug_assert!(index <= n);
-        // TODO: storing only the number of keys here means that the SoundEngine
-        // bookkeeping thread cannot know which keys to preserve and how to
-        // adjust their order! A full list of key (branch?) ids should be maintained
-        // so that id can be diffed correctly.
-        input_data.set_num_keys(n + 1);
-    }
-
-    /// Remove a key from the given sound input at the given index.
-    /// The input must exist and the index must be valid, i.e. less
-    /// than the number of keys already associated with the input.
-    fn remove_sound_input_key(&mut self, input_id: SoundInputId, index: usize) {
-        let input_data = self.sound_inputs.get_mut(&input_id).unwrap();
-        let n = input_data.num_keys();
-        debug_assert!(index < n);
-        input_data.set_num_keys(n - 1);
-    }
-
     /// Connect the given sound input to the given sound processor.
     /// Both the input and the processor must exist and the input
     /// must be unoccupied. No additional checks are performed.

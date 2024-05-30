@@ -14,6 +14,7 @@ use crate::core::{
 
 use super::{
     context::{Context, LocalArrayList},
+    soundgraphdata::SoundInputBranchId,
     soundinput::{InputOptions, InputTiming, SoundInputId},
     soundprocessor::{ProcessorState, StreamStatus},
     soundprocessortools::SoundProcessorTools,
@@ -26,14 +27,17 @@ pub struct SingleInput {
 
 impl SingleInput {
     pub fn new(options: InputOptions, tools: &mut SoundProcessorTools) -> SingleInput {
+        let branches = vec![Self::THE_ONLY_BRANCH];
         SingleInput {
-            id: tools.add_sound_input(options, /*num_keys=*/ 1),
+            id: tools.add_sound_input(options, branches),
         }
     }
 
     pub fn id(&self) -> SoundInputId {
         self.id
     }
+
+    const THE_ONLY_BRANCH: SoundInputBranchId = SoundInputBranchId::new(1);
 }
 
 impl SoundProcessorInput for SingleInput {
@@ -55,7 +59,7 @@ pub struct SingleInputNode<'ctx> {
 impl<'ctx> SingleInputNode<'ctx> {
     pub fn new<'a>(id: SoundInputId, nodegen: &mut NodeGen<'a, 'ctx>) -> SingleInputNode<'ctx> {
         SingleInputNode {
-            target: NodeTarget::new(id, 0, nodegen),
+            target: NodeTarget::new(id, SingleInput::THE_ONLY_BRANCH, nodegen),
         }
     }
 
@@ -95,16 +99,18 @@ impl<'ctx> SoundInputNode<'ctx> for SingleInputNode<'ctx> {
 
 pub struct KeyedInput<S: State + Default> {
     id: SoundInputId,
-    num_keys: usize,
+    branches: Vec<SoundInputBranchId>,
     phantom_data: PhantomData<S>,
 }
 
 impl<S: State + Default> KeyedInput<S> {
     pub fn new(options: InputOptions, tools: &mut SoundProcessorTools, num_keys: usize) -> Self {
-        let id = tools.add_sound_input(options, num_keys);
+        let branches: Vec<SoundInputBranchId> =
+            (1..=num_keys).map(|i| SoundInputBranchId::new(i)).collect();
+        let id = tools.add_sound_input(options, branches.clone());
         Self {
             id,
-            num_keys,
+            branches,
             phantom_data: PhantomData,
         }
     }
@@ -122,10 +128,12 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
     fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
         KeyedInputNode {
             id: self.id,
-            targets: (0..self.num_keys)
-                .map(|i| NodeTarget::new(self.id, i, nodegen))
+            targets: self
+                .branches
+                .iter()
+                .map(|id| NodeTarget::new(self.id, *id, nodegen))
                 .collect(),
-            states: (0..self.num_keys).map(|_| S::default()).collect(),
+            states: self.branches.iter().map(|_| S::default()).collect(),
         }
     }
 
@@ -249,7 +257,7 @@ impl SingleInputList {
         SingleInputList {
             input_ids: RwLock::new(
                 (0..count)
-                    .map(|_| tools.add_sound_input(options, /*num_keys=*/ 1))
+                    .map(|_| tools.add_sound_input(options, vec![SingleInput::THE_ONLY_BRANCH]))
                     .collect(),
             ),
             options,
@@ -257,9 +265,11 @@ impl SingleInputList {
     }
 
     pub fn add_input(&self, tools: &mut SoundProcessorTools) {
+        // TODO: by index?
+        // TODO: return the sound input's id?
         self.input_ids
             .write()
-            .push(tools.add_sound_input(self.options, /*num_keys=*/ 1));
+            .push(tools.add_sound_input(self.options, vec![SingleInput::THE_ONLY_BRANCH]));
     }
 
     pub fn remove_input(&self, id: SoundInputId, tools: &mut SoundProcessorTools) {
@@ -287,7 +297,7 @@ impl SoundProcessorInput for SingleInputList {
                 .input_ids
                 .read()
                 .iter()
-                .map(|id| NodeTarget::new(*id, 0, nodegen))
+                .map(|id| NodeTarget::new(*id, SingleInput::THE_ONLY_BRANCH, nodegen))
                 .collect(),
         }
     }
@@ -373,16 +383,19 @@ enum QueuedKeyState<S: State> {
 
 pub struct KeyedInputQueue<S: State> {
     id: SoundInputId,
-    num_keys: usize,
+    branches: Vec<SoundInputBranchId>,
     phantom_data_s: PhantomData<S>,
 }
 
 impl<S: State> KeyedInputQueue<S> {
     pub fn new(queue_size: usize, tools: &mut SoundProcessorTools) -> Self {
-        let id = tools.add_sound_input(InputOptions::NonSynchronous, queue_size);
+        let branches: Vec<SoundInputBranchId> = (1..=queue_size)
+            .map(|i| SoundInputBranchId::new(i))
+            .collect();
+        let id = tools.add_sound_input(InputOptions::NonSynchronous, branches.clone());
         Self {
             id,
-            num_keys: queue_size,
+            branches,
             phantom_data_s: PhantomData,
         }
     }
@@ -396,7 +409,7 @@ impl<S: State> SoundProcessorInput for KeyedInputQueue<S> {
     type NodeType<'ctx> = KeyedInputQueueNode<'ctx, S>;
 
     fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
-        KeyedInputQueueNode::new(self.id, self.num_keys, nodegen)
+        KeyedInputQueueNode::new(self.id, &self.branches, nodegen)
     }
 
     fn list_ids(&self) -> Vec<SoundInputId> {
@@ -412,13 +425,19 @@ pub struct KeyedInputQueueNode<'ctx, S: State> {
 }
 
 impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
-    fn new<'a>(id: SoundInputId, num_keys: usize, nodegen: &mut NodeGen<'a, 'ctx>) -> Self {
+    fn new<'a>(
+        id: SoundInputId,
+        branches: &[SoundInputBranchId],
+        nodegen: &mut NodeGen<'a, 'ctx>,
+    ) -> Self {
         Self {
             id,
-            targets: (0..num_keys)
-                .map(|i| NodeTarget::new(id, i, nodegen))
+            targets: branches
+                .iter()
+                .map(|bid| NodeTarget::new(id, *bid, nodegen))
                 .collect(),
-            states: (0..num_keys)
+            states: branches
+                .iter()
                 .map(|_| QueuedKeyState::NotPlaying())
                 .collect(),
             active: false,

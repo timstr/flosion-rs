@@ -2,8 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use crate::core::{
     sound::{
-        soundgraphdata::SoundProcessorData, soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
+        soundgraphdata::{SoundInputBranchId, SoundProcessorData},
+        soundgraphtopology::SoundGraphTopology,
+        soundinput::SoundInputId,
+        soundnumberinput::SoundNumberInputId,
         soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
@@ -118,18 +120,20 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     ) -> bool {
         // Verify that all expected sound inputs are present
         {
-            let mut remaining_input_nodes: HashSet<(SoundInputId, usize)> = HashSet::new();
-            let mut unexpected_input_nodes: HashSet<(SoundInputId, usize)> = HashSet::new();
+            let mut remaining_input_nodes: HashSet<(SoundInputId, SoundInputBranchId)> =
+                HashSet::new();
+            let mut unexpected_input_nodes: HashSet<(SoundInputId, SoundInputBranchId)> =
+                HashSet::new();
             for input_id in proc_data.sound_inputs() {
                 let input_data = self.topology.sound_input(*input_id).unwrap();
-                for k in 0..input_data.num_keys() {
-                    remaining_input_nodes.insert((*input_id, k));
+                for bid in input_data.branches() {
+                    remaining_input_nodes.insert((*input_id, *bid));
                 }
             }
 
             for target in node.sound_input_node().targets() {
-                if !remaining_input_nodes.remove(&(target.id(), target.key_index())) {
-                    unexpected_input_nodes.insert((target.id(), target.key_index()));
+                if !remaining_input_nodes.remove(&(target.id(), target.branch_id())) {
+                    unexpected_input_nodes.insert((target.id(), target.branch_id()));
                 }
             }
 
@@ -140,9 +144,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
                     node.id().value(),
                     proc_data.instance_arc().as_graph_object().get_type().name(),
                     comma_separated_list(unexpected_input_nodes.iter().map(|x| format!(
-                        "input {} (key={})",
+                        "input {} (branch={})",
                         x.0.value(),
-                        x.1
+                        x.1.value()
                     )))
                 );
                 return false;
@@ -154,9 +158,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
                     node.id().value(),
                     proc_data.instance_arc().as_graph_object().get_type().name(),
                     comma_separated_list(remaining_input_nodes.iter().map(|x| format!(
-                        "input {} (key={})",
+                        "input {} (branch={})",
                         x.0.value(),
-                        x.1
+                        x.1.value()
                     )))
                 );
                 return false;

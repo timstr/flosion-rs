@@ -8,7 +8,8 @@ use crate::core::{
 use super::{
     soundgraph::SoundGraphIdGenerators,
     soundgraphdata::{
-        SoundInputData, SoundNumberInputData, SoundNumberInputScope, SoundNumberSourceData,
+        SoundInputBranchId, SoundInputData, SoundNumberInputData, SoundNumberInputScope,
+        SoundNumberSourceData,
     },
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
@@ -51,11 +52,15 @@ impl<'a> SoundProcessorTools<'a> {
     }
 
     /// Add a sound input to the sound processor with the given
-    /// options and number of keys. Usually you do not want to
+    /// options and list of branches. Usually you do not want to
     /// call this directly when creating a processor instance,
     /// and instead will want to use concrete sound input types
     /// which call this method internally as needed.
-    pub fn add_sound_input(&mut self, options: InputOptions, num_keys: usize) -> SoundInputId {
+    pub fn add_sound_input(
+        &mut self,
+        options: InputOptions,
+        branches: Vec<SoundInputBranchId>,
+    ) -> SoundInputId {
         let id = self.id_generators.sound_input.next_id();
 
         let time_data = SoundNumberSourceData::new(
@@ -65,7 +70,7 @@ impl<'a> SoundProcessorTools<'a> {
         );
 
         let input_data =
-            SoundInputData::new(id, options, num_keys, self.processor_id, time_data.id());
+            SoundInputData::new(id, options, branches, self.processor_id, time_data.id());
 
         self.topology.add_sound_input(input_data).unwrap();
 

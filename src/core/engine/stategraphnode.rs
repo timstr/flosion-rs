@@ -10,6 +10,7 @@ use crate::core::{
     anydata::AnyData,
     sound::{
         context::{Context, LocalArrayList},
+        soundgraphdata::SoundInputBranchId,
         soundinput::{InputTiming, SoundInputId},
         soundprocessor::{
             DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, ProcessorTiming,
@@ -494,7 +495,7 @@ pub enum NodeTargetValue<'ctx> {
 
 pub struct NodeTarget<'ctx> {
     input_id: SoundInputId,
-    key_index: usize,
+    branch_id: SoundInputBranchId,
     timing: InputTiming,
     target: NodeTargetValue<'ctx>,
 }
@@ -502,12 +503,12 @@ pub struct NodeTarget<'ctx> {
 impl<'ctx> NodeTarget<'ctx> {
     pub(crate) fn new<'a>(
         input_id: SoundInputId,
-        key_index: usize,
+        branch_id: SoundInputBranchId,
         nodegen: &mut NodeGen<'a, 'ctx>,
     ) -> NodeTarget<'ctx> {
         NodeTarget {
             input_id,
-            key_index,
+            branch_id,
             timing: InputTiming::default(),
             target: nodegen.allocate_sound_input_node(input_id),
         }
@@ -517,8 +518,8 @@ impl<'ctx> NodeTarget<'ctx> {
         self.input_id
     }
 
-    pub(crate) fn key_index(&self) -> usize {
-        self.key_index
+    pub(crate) fn branch_id(&self) -> SoundInputBranchId {
+        self.branch_id
     }
 
     // TODO: consider hiding inputtiming and publicly re-exposing only those functions which make sense

@@ -342,7 +342,7 @@ pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Optio
             if let Some(t) = input_desc.target() {
                 if let Some(err) = visit(
                     t,
-                    states_to_add * input_desc.num_keys(),
+                    states_to_add * input_desc.branches().len(),
                     is_synchronous && (input_desc.options() == InputOptions::Synchronous),
                     topo,
                     false,

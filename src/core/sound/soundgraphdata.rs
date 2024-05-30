@@ -20,11 +20,38 @@ use super::{
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
+/// Unique integer identifier for each of the branches stemming
+/// from a given sound input.
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct SoundInputBranchId(usize);
+
+impl SoundInputBranchId {
+    pub const fn new(id: usize) -> SoundInputBranchId {
+        SoundInputBranchId(id)
+    }
+}
+
+impl Default for SoundInputBranchId {
+    fn default() -> Self {
+        SoundInputBranchId(1)
+    }
+}
+
+impl UniqueId for SoundInputBranchId {
+    fn value(&self) -> usize {
+        self.0
+    }
+
+    fn next(&self) -> Self {
+        SoundInputBranchId(self.0 + 1)
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct SoundInputData {
     id: SoundInputId,
     options: InputOptions,
-    num_keys: usize,
+    branches: Vec<SoundInputBranchId>,
     target: Option<SoundProcessorId>,
     owner: SoundProcessorId,
     number_sources: Vec<SoundNumberSourceId>,
@@ -35,14 +62,14 @@ impl SoundInputData {
     pub(super) fn new(
         id: SoundInputId,
         options: InputOptions,
-        num_keys: usize,
+        branches: Vec<SoundInputBranchId>,
         owner: SoundProcessorId,
         time_number_source: SoundNumberSourceId,
     ) -> SoundInputData {
         SoundInputData {
             id,
             options,
-            num_keys,
+            branches,
             target: None,
             owner,
             number_sources: Vec::new(),
@@ -58,12 +85,12 @@ impl SoundInputData {
         self.options
     }
 
-    pub(crate) fn num_keys(&self) -> usize {
-        self.num_keys
+    pub(crate) fn branches(&self) -> &[SoundInputBranchId] {
+        &self.branches
     }
 
-    pub(super) fn set_num_keys(&mut self, n: usize) {
-        self.num_keys = n;
+    pub(super) fn branches_mut(&mut self) -> &mut Vec<SoundInputBranchId> {
+        &mut self.branches
     }
 
     pub(crate) fn target(&self) -> Option<SoundProcessorId> {
@@ -99,7 +126,10 @@ impl Revision for SoundInputData {
             InputOptions::Synchronous => 0x1,
             InputOptions::NonSynchronous => 0x2,
         });
-        hasher.write_usize(self.num_keys);
+        hasher.write_usize(self.branches.len());
+        for bid in &self.branches {
+            hasher.write_usize(bid.value());
+        }
         hasher.write_usize(match &self.target {
             Some(id) => id.value(),
             None => usize::MAX,
