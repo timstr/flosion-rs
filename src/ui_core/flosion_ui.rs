@@ -591,12 +591,8 @@ impl FlosionApp {
             }
         }
 
-        let remaining_graph_ids = self.graph.topology().all_ids();
-        self.ui_state.cleanup(
-            &remaining_graph_ids,
-            self.graph.topology(),
-            &self.object_states,
-        );
+        self.ui_state
+            .cleanup(self.graph.topology(), &self.object_states);
         self.object_states.cleanup(self.graph.topology());
 
         self.known_object_ids = current_object_ids;

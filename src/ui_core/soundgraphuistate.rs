@@ -236,33 +236,31 @@ impl SoundGraphUiState {
 
     pub(super) fn cleanup(
         &mut self,
-        // TODO: remove this hashset completely here and elsewhere, refer to topology only
-        remaining_ids: &HashSet<SoundGraphId>,
         topo: &SoundGraphTopology,
         object_ui_states: &SoundObjectUiStates,
     ) {
-        self.object_positions.retain(remaining_ids);
+        self.object_positions.cleanup(topo);
 
         match &mut self.mode {
             UiMode::Selecting(s) => {
-                s.retain(|id| remaining_ids.contains(&(*id).into()));
+                s.retain(|id| topo.contains((*id).into()));
                 if s.is_empty() {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::Passive => (),
             UiMode::UsingKeyboardNav(kbd_focus) => {
-                if !remaining_ids.contains(&kbd_focus.graph_id()) {
+                if !topo.contains(kbd_focus.graph_id()) {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::DraggingProcessor(data) => {
-                if !remaining_ids.contains(&data.processor_id.into()) {
+                if !topo.contains(data.processor_id.into()) {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::DroppingProcessor(data) => {
-                if !remaining_ids.contains(&data.processor_id.into()) {
+                if !topo.contains(data.processor_id.into()) {
                     self.mode = UiMode::Passive;
                 }
             }

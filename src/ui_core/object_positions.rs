@@ -1,13 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use eframe::egui;
 
 use crate::core::sound::{
-    soundgraphid::{SoundGraphId, SoundObjectId},
-    soundgraphtopology::SoundGraphTopology,
-    soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId,
-    soundprocessor::SoundProcessorId,
+    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+    soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
 };
 
 use super::temporallayout::SoundGraphLayout;
@@ -42,11 +39,11 @@ impl ObjectPositions {
         }
     }
 
-    pub(super) fn retain(&mut self, ids: &HashSet<SoundGraphId>) {
-        self.objects.retain(|i, _| ids.contains(&(*i).into()));
-        self.sound_inputs.retain(|i, _| ids.contains(&(*i).into()));
+    pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {
+        self.objects.retain(|i, _| topo.contains((*i).into()));
+        self.sound_inputs.retain(|i, _| topo.contains((*i).into()));
         self.sound_number_inputs
-            .retain(|i, _| ids.contains(&(*i).into()));
+            .retain(|i, _| topo.contains((*i).into()));
     }
 
     pub(super) fn objects(&self) -> &HashMap<SoundObjectId, LayoutState> {

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, hash::Hasher};
+use std::hash::Hasher;
 
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
@@ -173,35 +173,6 @@ impl SoundGraphTopology {
                     }
                 })
         })
-    }
-
-    /// Constructs and returns a hash set containing the ids
-    /// of all entities in the topology.
-    pub(crate) fn all_ids(&self) -> HashSet<SoundGraphId> {
-        // TODO: delete this, it's only used for cleanup
-        // and it would be more efficient to use SoundGraphTopology::contains
-        let mut ids: HashSet<SoundGraphId> = HashSet::new();
-        ids.extend(
-            self.sound_processors
-                .keys()
-                .map(|i| -> SoundGraphId { (*i).into() }),
-        );
-        ids.extend(
-            self.sound_inputs
-                .keys()
-                .map(|i| -> SoundGraphId { (*i).into() }),
-        );
-        ids.extend(
-            self.number_sources
-                .keys()
-                .map(|i| -> SoundGraphId { (*i).into() }),
-        );
-        ids.extend(
-            self.number_inputs
-                .keys()
-                .map(|i| -> SoundGraphId { (*i).into() }),
-        );
-        ids
     }
 
     /// Look up a graph object by its id and return a handle to it.
