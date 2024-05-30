@@ -43,30 +43,22 @@ impl<'ctx> StateGraph<'ctx> {
             StateGraphEdit::RemoveStaticSoundProcessor(spid) => {
                 self.remove_static_sound_processor(spid, garbage_chute)
             }
-            StateGraphEdit::AddSoundInput {
-                input_id,
-                owner,
-                targets,
-            } => self.add_sound_input(input_id, owner, targets),
-            StateGraphEdit::RemoveSoundInput { input_id, owner_id } => {
-                self.remove_sound_input(input_id, owner_id, garbage_chute)
-            }
-            StateGraphEdit::AddSoundInputKey {
+            StateGraphEdit::AddSoundInputBranch {
                 input_id,
                 owner_id,
                 key_index,
                 targets,
-            } => self.add_sound_input_key(input_id, key_index, owner_id, targets),
-            StateGraphEdit::RemoveSoundInputKey {
+            } => self.add_sound_input_branch(input_id, key_index, owner_id, targets),
+            StateGraphEdit::RemoveSoundInputBranch {
                 input_id,
                 owner_id,
                 key_index,
-            } => self.remove_sound_input_key(input_id, key_index, owner_id, garbage_chute),
-            StateGraphEdit::ReplaceSoundInputTargets {
+            } => self.remove_sound_input_branch(input_id, key_index, owner_id, garbage_chute),
+            StateGraphEdit::ReplaceSoundInputBranch {
                 input_id,
                 owner_id,
                 targets,
-            } => self.replace_sound_input_targets(input_id, owner_id, targets, garbage_chute),
+            } => self.replace_sound_input_branch(input_id, owner_id, targets, garbage_chute),
             StateGraphEdit::UpdateNumberInput(_, _) => todo!(),
             StateGraphEdit::DebugInspection(f) => f(self),
         }
@@ -97,32 +89,7 @@ impl<'ctx> StateGraph<'ctx> {
         old_node.toss(garbage_chute);
     }
 
-    fn add_sound_input(
-        &mut self,
-        input_id: SoundInputId,
-        owner: SoundProcessorId,
-        mut targets: Vec<NodeTargetValue<'ctx>>,
-    ) {
-        Self::modify_sound_input_node(&mut self.static_nodes, owner, |node| {
-            let key_index = 0;
-            node.insert_target(input_id, key_index, targets.pop().unwrap());
-        });
-    }
-
-    fn remove_sound_input(
-        &mut self,
-        input_id: SoundInputId,
-        owner: SoundProcessorId,
-        garbage_chute: &GarbageChute<'ctx>,
-    ) {
-        Self::modify_sound_input_node(&mut self.static_nodes, owner, |node| {
-            let key_index = 0;
-            let old_target = node.erase_target(input_id, key_index);
-            old_target.toss(garbage_chute);
-        });
-    }
-
-    fn add_sound_input_key(
+    fn add_sound_input_branch(
         &mut self,
         input_id: SoundInputId,
         index: usize,
@@ -134,7 +101,7 @@ impl<'ctx> StateGraph<'ctx> {
         });
     }
 
-    fn remove_sound_input_key(
+    fn remove_sound_input_branch(
         &mut self,
         input_id: SoundInputId,
         index: usize,
@@ -155,7 +122,7 @@ impl<'ctx> StateGraph<'ctx> {
         todo!();
     }
 
-    fn replace_sound_input_targets(
+    fn replace_sound_input_branch(
         &mut self,
         input_id: SoundInputId,
         owner_id: SoundProcessorId,

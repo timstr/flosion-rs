@@ -123,6 +123,9 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
 
             // Add back static processors with populated inputs
+            // Note that NodeGen will cache and reuse shared static processor
+            // nodes, and so no extra book-keeping is needed here to ensure
+            // that static processors are allocated only once and reused.
             let mut nodegen = NodeGen::new(&new_topology, jit_server);
             for proc in new_topology.sound_processors().values() {
                 if proc.instance().is_static() {

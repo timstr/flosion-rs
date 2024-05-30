@@ -6,8 +6,6 @@ use crate::core::{
     sound::soundinput::SoundInputId,
 };
 
-// TODO: move to core::engine
-
 // Trait used for automating allocation and reallocation of node inputs
 // Not concerned with actual audio processing or providing access to
 // said inputs - concrete types will provide those.
