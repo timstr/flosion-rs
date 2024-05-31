@@ -1,12 +1,12 @@
 use crate::core::{
     jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
     sound::{
-        context::Context, soundinput::SoundInputId, soundnumbersource::SoundNumberSourceId,
+        context::Context, soundinput::SoundInputId, expressionargument::SoundExpressionArgumentId,
         soundprocessor::SoundProcessorId,
     },
 };
 
-pub(crate) trait NumberContext {
+pub(crate) trait ExpressionContext {
     fn read_scalar_from_sound_input(&self, id: SoundInputId, read_fn: ScalarReadFunc) -> f32;
 
     fn read_scalar_from_sound_processor(
@@ -26,7 +26,7 @@ pub(crate) trait NumberContext {
     fn read_local_array_from_sound_processor(
         &self,
         id: SoundProcessorId,
-        source_id: SoundNumberSourceId,
+        source_id: SoundExpressionArgumentId,
     ) -> &[f32];
 
     fn get_time_and_speed_at_sound_input(&self, id: SoundInputId) -> (f32, f32);
@@ -34,7 +34,7 @@ pub(crate) trait NumberContext {
     fn get_time_and_speed_at_sound_processor(&self, id: SoundProcessorId) -> (f32, f32);
 }
 
-impl<'ctx> NumberContext for Context<'ctx> {
+impl<'ctx> ExpressionContext for Context<'ctx> {
     fn read_scalar_from_sound_input(&self, id: SoundInputId, read_fn: ScalarReadFunc) -> f32 {
         let frame = self.find_input_frame(id);
         read_fn(&frame.state())
@@ -66,7 +66,7 @@ impl<'ctx> NumberContext for Context<'ctx> {
     fn read_local_array_from_sound_processor(
         &self,
         id: SoundProcessorId,
-        source_id: SoundNumberSourceId,
+        source_id: SoundExpressionArgumentId,
     ) -> &[f32] {
         self.find_processor_local_array(id, source_id)
     }
@@ -80,20 +80,20 @@ impl<'ctx> NumberContext for Context<'ctx> {
     }
 }
 
-pub(crate) struct MockNumberContext {
+pub(crate) struct MockExpressionContext {
     // array read from by all array read operations
     shared_array: Vec<f32>,
 }
 
-impl MockNumberContext {
-    pub(crate) fn new(len: usize) -> MockNumberContext {
+impl MockExpressionContext {
+    pub(crate) fn new(len: usize) -> MockExpressionContext {
         let mut shared_array = Vec::new();
         shared_array.resize(len, 0.0);
-        MockNumberContext { shared_array }
+        MockExpressionContext { shared_array }
     }
 }
 
-impl NumberContext for MockNumberContext {
+impl ExpressionContext for MockExpressionContext {
     fn read_scalar_from_sound_input(&self, _id: SoundInputId, _read_fn: ScalarReadFunc) -> f32 {
         0.0
     }
@@ -121,7 +121,7 @@ impl NumberContext for MockNumberContext {
     fn read_local_array_from_sound_processor(
         &self,
         _id: SoundProcessorId,
-        _source_id: SoundNumberSourceId,
+        _source_id: SoundExpressionArgumentId,
     ) -> &[f32] {
         &self.shared_array
     }
@@ -135,17 +135,21 @@ impl NumberContext for MockNumberContext {
     }
 }
 
-pub(crate) unsafe fn number_context_to_usize_pair(ctx: &dyn NumberContext) -> (usize, usize) {
+pub(crate) unsafe fn expression_context_to_usize_pair(
+    ctx: &dyn ExpressionContext,
+) -> (usize, usize) {
     debug_assert_eq!(
-        std::mem::size_of::<&dyn NumberContext>(),
+        std::mem::size_of::<&dyn ExpressionContext>(),
         std::mem::size_of::<(usize, usize)>()
     );
     std::mem::transmute(ctx)
 }
 
-pub(crate) unsafe fn usize_pair_to_number_context(p: (usize, usize)) -> *const dyn NumberContext {
+pub(crate) unsafe fn usize_pair_to_expression_context(
+    p: (usize, usize),
+) -> *const dyn ExpressionContext {
     debug_assert_eq!(
-        std::mem::size_of::<&dyn NumberContext>(),
+        std::mem::size_of::<&dyn ExpressionContext>(),
         std::mem::size_of::<(usize, usize)>()
     );
     std::mem::transmute(p)

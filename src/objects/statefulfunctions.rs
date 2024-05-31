@@ -4,12 +4,12 @@ use inkwell::{
 };
 
 use crate::core::{
+    expression::{
+        expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
+        expressionnodetools::ExpressionNodeTools,
+    },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::codegen::CodeGen,
-    number::{
-        numberinput::NumberInputHandle, numbersource::StatefulNumberSource,
-        numbersourcetools::NumberSourceTools,
-    },
 };
 
 // TODO: min
@@ -19,15 +19,15 @@ use crate::core::{
 // TODO: flip flop
 
 pub struct LinearApproach {
-    _input: NumberInputHandle,
-    _speed: NumberInputHandle,
+    _input: ExpressionNodeInputHandle,
+    _speed: ExpressionNodeInputHandle,
 }
 
-impl StatefulNumberSource for LinearApproach {
-    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+impl StatefulExpressionNode for LinearApproach {
+    fn new(mut tools: ExpressionNodeTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(LinearApproach {
-            _input: tools.add_number_input(0.0),
-            _speed: tools.add_number_input(1.0),
+            _input: tools.add_input(0.0),
+            _speed: tools.add_input(1.0),
         })
     }
 
@@ -121,15 +121,15 @@ impl WithObjectType for LinearApproach {
 }
 
 pub struct ExponentialApproach {
-    _input: NumberInputHandle,
-    _decay_rate: NumberInputHandle,
+    _input: ExpressionNodeInputHandle,
+    _decay_rate: ExpressionNodeInputHandle,
 }
 
-impl StatefulNumberSource for ExponentialApproach {
-    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+impl StatefulExpressionNode for ExponentialApproach {
+    fn new(mut tools: ExpressionNodeTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ExponentialApproach {
-            _input: tools.add_number_input(0.0),
-            _decay_rate: tools.add_number_input(0.5),
+            _input: tools.add_input(0.0),
+            _decay_rate: tools.add_input(0.5),
         })
     }
 
@@ -207,13 +207,13 @@ impl WithObjectType for ExponentialApproach {
 }
 
 pub struct Integrator {
-    _input: NumberInputHandle,
+    _input: ExpressionNodeInputHandle,
 }
 
-impl StatefulNumberSource for Integrator {
-    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+impl StatefulExpressionNode for Integrator {
+    fn new(mut tools: ExpressionNodeTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Integrator {
-            _input: tools.add_number_input(0.0),
+            _input: tools.add_input(0.0),
         })
     }
 
@@ -265,13 +265,13 @@ impl WithObjectType for Integrator {
 }
 
 pub struct WrappingIntegrator {
-    _input: NumberInputHandle,
+    _input: ExpressionNodeInputHandle,
 }
 
-impl StatefulNumberSource for WrappingIntegrator {
-    fn new(mut tools: NumberSourceTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
+impl StatefulExpressionNode for WrappingIntegrator {
+    fn new(mut tools: ExpressionNodeTools<'_>, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WrappingIntegrator {
-            _input: tools.add_number_input(0.0),
+            _input: tools.add_input(0.0),
         })
     }
 

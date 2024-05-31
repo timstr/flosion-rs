@@ -3,50 +3,50 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{soundgraphdata::SoundNumberInputScope, soundprocessor::SoundProcessorId};
+use super::{soundgraphdata::SoundExpressionScope, soundprocessor::SoundProcessorId};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundNumberInputId(usize);
+pub struct SoundExpressionId(usize);
 
-impl SoundNumberInputId {
-    pub(crate) fn new(id: usize) -> SoundNumberInputId {
-        SoundNumberInputId(id)
+impl SoundExpressionId {
+    pub(crate) fn new(id: usize) -> SoundExpressionId {
+        SoundExpressionId(id)
     }
 }
 
-impl Default for SoundNumberInputId {
+impl Default for SoundExpressionId {
     fn default() -> Self {
-        SoundNumberInputId(1)
+        SoundExpressionId(1)
     }
 }
 
-impl UniqueId for SoundNumberInputId {
+impl UniqueId for SoundExpressionId {
     fn value(&self) -> usize {
         self.0
     }
 
     fn next(&self) -> Self {
-        SoundNumberInputId(self.0 + 1)
+        SoundExpressionId(self.0 + 1)
     }
 }
 
-pub struct SoundNumberInputHandle {
-    id: SoundNumberInputId,
+pub struct SoundExpressionHandle {
+    id: SoundExpressionId,
     owner: SoundProcessorId,
-    scope: SoundNumberInputScope,
+    scope: SoundExpressionScope,
 }
 
-impl SoundNumberInputHandle {
+impl SoundExpressionHandle {
     // TODO: why is this pub?
     pub fn new(
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         owner: SoundProcessorId,
-        scope: SoundNumberInputScope,
-    ) -> SoundNumberInputHandle {
-        SoundNumberInputHandle { id, owner, scope }
+        scope: SoundExpressionScope,
+    ) -> SoundExpressionHandle {
+        SoundExpressionHandle { id, owner, scope }
     }
 
-    pub fn id(&self) -> SoundNumberInputId {
+    pub fn id(&self) -> SoundExpressionId {
         self.id
     }
 

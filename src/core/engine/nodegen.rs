@@ -4,7 +4,7 @@ use crate::core::{
     jit::{compilednumberinput::CompiledNumberInputFunction, server::JitServer},
     sound::{
         soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
+        expression::SoundExpressionId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -53,7 +53,7 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
 
     pub(crate) fn get_compiled_number_input(
         &self,
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
     ) -> CompiledNumberInputFunction<'ctx> {
         self.jit_server.get_compiled_number_input(id, self.topology)
     }

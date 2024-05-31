@@ -10,7 +10,7 @@ use parking_lot::{Condvar, Mutex, RwLock};
 
 use crate::core::{
     revision::revision::RevisionNumber,
-    sound::{soundgraphtopology::SoundGraphTopology, soundnumberinput::SoundNumberInputId},
+    sound::{soundgraphtopology::SoundGraphTopology, expression::SoundExpressionId},
 };
 
 use super::{
@@ -32,7 +32,7 @@ struct Entry<'ctx> {
 }
 
 struct Cache<'ctx> {
-    artefacts: HashMap<(SoundNumberInputId, RevisionNumber), Entry<'ctx>>,
+    artefacts: HashMap<(SoundExpressionId, RevisionNumber), Entry<'ctx>>,
 }
 
 impl<'ctx> Cache<'ctx> {
@@ -44,7 +44,7 @@ impl<'ctx> Cache<'ctx> {
 
     fn get_compiled_number_input(
         &self,
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         revision: RevisionNumber,
     ) -> Option<CompiledNumberInputFunction<'ctx>> {
         let key = (id, revision);
@@ -53,7 +53,7 @@ impl<'ctx> Cache<'ctx> {
 
     fn insert(
         &mut self,
-        input_id: SoundNumberInputId,
+        input_id: SoundExpressionId,
         revision_number: RevisionNumber,
         artefact: CompiledNumberInput<'ctx>,
     ) {
@@ -144,7 +144,7 @@ impl<'ctx> JitServer<'ctx> {
             // - number inputs that have been requested and are waiting to be served
             // - number inputs that were responded to but don't exist
             // - number inputs that were responded to but have changed
-            let Some(ni_data) = topology.number_input(niid) else {
+            let Some(ni_data) = topology.expression(niid) else {
                 // input doesn't exist, too bad
                 continue;
             };
@@ -163,11 +163,11 @@ impl<'ctx> JitServer<'ctx> {
 
     pub(crate) fn get_compiled_number_input(
         &self,
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         topology: &SoundGraphTopology,
     ) -> CompiledNumberInputFunction<'ctx> {
         let mut cache = self.cache.write();
-        let input_data = topology.number_input(id).unwrap();
+        let input_data = topology.expression(id).unwrap();
         let revision = input_data.get_revision();
         cache
             .artefacts
@@ -195,7 +195,7 @@ impl<'ctx> Drop for JitServer<'ctx> {
 }
 
 pub(crate) enum JitClientRequest {
-    PleaseCompile(SoundNumberInputId, RevisionNumber),
+    PleaseCompile(SoundExpressionId, RevisionNumber),
 }
 
 pub(crate) struct JitClient {
@@ -207,7 +207,7 @@ pub(crate) struct JitClient {
 impl JitClient {
     pub(crate) fn get_compiled_number_input<'a>(
         &'a self,
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         revision: RevisionNumber,
     ) -> Option<CompiledNumberInputFunction<'a>> {
         let f = self.cache.read().get_compiled_number_input(id, revision);

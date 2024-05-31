@@ -1,7 +1,7 @@
 use crate::{
     core::{
+        expression::expressiongraph::ExpressionGraph,
         graph::{graphobject::ObjectHandle, objectfactory::ObjectFactory},
-        number::numbergraph::NumberGraph,
         sound::soundgraph::SoundGraph,
     },
     ui_core::{
@@ -91,7 +91,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     (object_factory, ui_factory)
 }
 
-pub fn all_number_graph_objects() -> (ObjectFactory<NumberGraph>, UiFactory<NumberGraphUi>) {
+pub fn all_number_graph_objects() -> (ObjectFactory<ExpressionGraph>, UiFactory<NumberGraphUi>) {
     let mut object_factory = ObjectFactory::new_empty();
     let mut ui_factory = UiFactory::new_empty();
 

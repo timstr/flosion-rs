@@ -1,7 +1,9 @@
 use eframe::egui;
 
 use crate::{
-    core::number::{numbergraph::NumberGraph, numbersource::StatefulNumberSourceHandle},
+    core::expression::{
+        expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
+    },
     objects::sampler1d::Sampler1d,
     ui_core::{
         lexicallayout::lexicallayout::NumberSourceLayout,
@@ -18,17 +20,17 @@ pub struct Sampler1dUi {}
 
 impl ObjectUi for Sampler1dUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = StatefulNumberSourceHandle<Sampler1d>;
+    type HandleType = StatefulExpressionNodeHandle<Sampler1d>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        sampler1d: StatefulNumberSourceHandle<Sampler1d>,
+        sampler1d: StatefulExpressionNodeHandle<Sampler1d>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
         _data: NumberObjectUiData<()>,
-        _number_graph: &mut NumberGraph,
+        _number_graph: &mut ExpressionGraph,
     ) {
         // TODO: detect drags, edit samples
         // TODO: custom vertical range

@@ -3,13 +3,13 @@ use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
+        expression::{
+            expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
+            expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
+        },
         graph::{
             graphobject::{ObjectType, WithObjectType},
             objectfactory::ObjectFactory,
-        },
-        number::{
-            numbergraph::NumberGraph, numbergraphdata::NumberTarget,
-            numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
         },
         uniqueid::{IdGenerator, UniqueId},
     },
@@ -117,7 +117,7 @@ impl LexicalLayoutFocus {
 }
 
 fn make_internal_node(
-    number_source_id: NumberSourceId,
+    number_source_id: ExpressionNodeId,
     ui_data: &AnyNumberObjectUiData,
     arguments: Vec<ASTNode>,
 ) -> InternalASTNode {
@@ -210,27 +210,27 @@ pub(crate) struct LexicalLayout {
 
 impl LexicalLayout {
     pub(crate) fn generate(
-        topo: &NumberGraphTopology,
+        topo: &ExpressionGraphTopology,
         object_ui_states: &NumberObjectUiStates,
     ) -> LexicalLayout {
-        let outputs = topo.graph_outputs();
+        let outputs = topo.results();
         assert_eq!(outputs.len(), 1);
-        let output = &topo.graph_outputs()[0];
+        let output = &topo.results()[0];
 
         let mut variable_assignments: Vec<VariableDefinition> = Vec::new();
 
         let mut variable_id_generator = IdGenerator::<VariableId>::new();
 
         fn visit_target(
-            target: NumberTarget,
+            target: ExpressionTarget,
             variable_assignments: &mut Vec<VariableDefinition>,
-            topo: &NumberGraphTopology,
+            topo: &ExpressionGraphTopology,
             object_ui_states: &NumberObjectUiStates,
             variable_id_generator: &mut IdGenerator<VariableId>,
         ) -> ASTNode {
             let nsid = match target {
-                NumberTarget::Source(nsid) => nsid,
-                NumberTarget::GraphInput(giid) => {
+                ExpressionTarget::Node(nsid) => nsid,
+                ExpressionTarget::Parameter(giid) => {
                     return ASTNode::new(ASTNodeValue::GraphInput(giid))
                 }
             };
@@ -242,14 +242,14 @@ impl LexicalLayout {
                 return ASTNode::new(ASTNodeValue::Variable(existing_variable.id()));
             }
 
-            let create_new_variable = topo.number_target_destinations(target).count() >= 2;
+            let create_new_variable = topo.destinations(target).count() >= 2;
 
             let arguments: Vec<ASTNode> = topo
-                .number_source(nsid)
+                .node(nsid)
                 .unwrap()
-                .number_inputs()
+                .inputs()
                 .iter()
-                .map(|niid| match topo.number_input(*niid).unwrap().target() {
+                .map(|niid| match topo.node_input(*niid).unwrap().target() {
                     Some(target) => visit_target(
                         target,
                         variable_assignments,
@@ -433,7 +433,7 @@ impl LexicalLayout {
                 }
                 LineLocation::FinalExpression => {
                     let output_id = outer_context.inspect_number_graph(|g| {
-                        let outputs = g.topology().graph_outputs();
+                        let outputs = g.topology().results();
                         assert_eq!(outputs.len(), 1);
                         outputs[0].id()
                     });
@@ -712,7 +712,7 @@ impl LexicalLayout {
 
     fn show_number_source_ui(
         ui: &mut egui::Ui,
-        id: NumberSourceId,
+        id: ExpressionNodeId,
         graph_state: &mut NumberGraphUiState,
         ctx: &mut NumberGraphUiContext,
         outer_context: &mut OuterNumberGraphUiContext,
@@ -720,7 +720,7 @@ impl LexicalLayout {
         let graph_object = outer_context.inspect_number_graph(|numbergraph| {
             numbergraph
                 .topology()
-                .number_source(id)
+                .node(id)
                 .unwrap()
                 .instance_arc()
                 .as_graph_object()
@@ -808,7 +808,7 @@ impl LexicalLayout {
         &mut self,
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        object_factory: &ObjectFactory<NumberGraph>,
+        object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
         outer_context: &mut OuterNumberGraphUiContext,
@@ -886,7 +886,7 @@ impl LexicalLayout {
         &mut self,
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        object_factory: &ObjectFactory<NumberGraph>,
+        object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
         outer_context: &mut OuterNumberGraphUiContext,
@@ -1036,7 +1036,7 @@ impl LexicalLayout {
         &self,
         ns_type: ObjectType,
         arguments: ParsedArguments,
-        object_factory: &ObjectFactory<NumberGraph>,
+        object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
         outer_context: &mut OuterNumberGraphUiContext,
@@ -1064,9 +1064,9 @@ impl LexicalLayout {
         let num_inputs = outer_context.inspect_number_graph(|numbergraph| {
             numbergraph
                 .topology()
-                .number_source(new_object.id())
+                .node(new_object.id())
                 .unwrap()
-                .number_inputs()
+                .inputs()
                 .len()
         });
         let child_nodes: Vec<ASTNode> = (0..num_inputs)
@@ -1107,14 +1107,14 @@ impl LexicalLayout {
 
     pub(crate) fn cleanup(
         &mut self,
-        topology: &NumberGraphTopology,
+        topology: &ExpressionGraphTopology,
         object_ui_states: &NumberObjectUiStates,
     ) {
         fn visitor(
             node: &mut ASTNode,
-            expected_target: Option<NumberTarget>,
+            expected_target: Option<ExpressionTarget>,
             variable_definitions: &[VariableDefinition],
-            topo: &NumberGraphTopology,
+            topo: &ExpressionGraphTopology,
         ) {
             let actual_target = node.indirect_target(variable_definitions);
             if expected_target == actual_target {
@@ -1124,10 +1124,10 @@ impl LexicalLayout {
 
                 if let Some(internal_node) = node.as_internal_node_mut() {
                     let nsid = internal_node.number_source_id();
-                    let expected_inputs = topo.number_source(nsid).unwrap().number_inputs();
-                    let expected_targets: Vec<Option<NumberTarget>> = expected_inputs
+                    let expected_inputs = topo.node(nsid).unwrap().inputs();
+                    let expected_targets: Vec<Option<ExpressionTarget>> = expected_inputs
                         .iter()
-                        .map(|niid| topo.number_input(*niid).unwrap().target())
+                        .map(|niid| topo.node_input(*niid).unwrap().target())
                         .collect();
 
                     if internal_node.num_children() != expected_inputs.len() {
@@ -1159,10 +1159,10 @@ impl LexicalLayout {
             } else {
                 // actual node target doesn't match
                 match expected_target {
-                    Some(NumberTarget::GraphInput(giid)) => {
+                    Some(ExpressionTarget::Parameter(giid)) => {
                         *node = ASTNode::new(ASTNodeValue::GraphInput(giid))
                     }
-                    Some(NumberTarget::Source(nsid)) => {
+                    Some(ExpressionTarget::Node(nsid)) => {
                         // TODO:
                         // - if an existing (direct) variable definition exists for the source,
                         //   create a reference to that variable
@@ -1179,7 +1179,7 @@ impl LexicalLayout {
             }
         }
 
-        let graph_outputs = topology.graph_outputs();
+        let graph_outputs = topology.results();
         assert_eq!(graph_outputs.len(), 1);
         let graph_output = &graph_outputs[0];
 

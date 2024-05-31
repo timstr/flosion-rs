@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::core::{
-    number::{
-        numbergraph::{NumberGraph, NumberGraphInputId},
-        numbergraphtopology::NumberGraphTopology,
+    expression::{
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+        expressiongraphtopology::ExpressionGraphTopology,
     },
     revision::revision::{Revision, RevisionNumber},
     uniqueid::UniqueId,
@@ -15,8 +15,10 @@ use crate::core::{
 
 use super::{
     soundinput::{InputOptions, SoundInputId},
-    soundnumberinput::SoundNumberInputId,
-    soundnumbersource::{SoundNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},
+    expression::SoundExpressionId,
+    expressionargument::{
+        SoundExpressionArgument, SoundExpressionArgumentId, SoundExpressionArgumentOwner,
+    },
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
@@ -54,8 +56,8 @@ pub(crate) struct SoundInputData {
     branches: Vec<SoundInputBranchId>,
     target: Option<SoundProcessorId>,
     owner: SoundProcessorId,
-    number_sources: Vec<SoundNumberSourceId>,
-    time_number_source: SoundNumberSourceId,
+    arguments: Vec<SoundExpressionArgumentId>,
+    time_argument: SoundExpressionArgumentId,
 }
 
 impl SoundInputData {
@@ -64,7 +66,7 @@ impl SoundInputData {
         options: InputOptions,
         branches: Vec<SoundInputBranchId>,
         owner: SoundProcessorId,
-        time_number_source: SoundNumberSourceId,
+        time_argument: SoundExpressionArgumentId,
     ) -> SoundInputData {
         SoundInputData {
             id,
@@ -72,8 +74,8 @@ impl SoundInputData {
             branches,
             target: None,
             owner,
-            number_sources: Vec::new(),
-            time_number_source,
+            arguments: Vec::new(),
+            time_argument,
         }
     }
 
@@ -105,16 +107,16 @@ impl SoundInputData {
         self.owner
     }
 
-    pub(crate) fn number_sources(&self) -> &Vec<SoundNumberSourceId> {
-        &self.number_sources
+    pub(crate) fn expression_arguments(&self) -> &Vec<SoundExpressionArgumentId> {
+        &self.arguments
     }
 
-    pub(crate) fn number_sources_mut(&mut self) -> &mut Vec<SoundNumberSourceId> {
-        &mut self.number_sources
+    pub(crate) fn arguments_mut(&mut self) -> &mut Vec<SoundExpressionArgumentId> {
+        &mut self.arguments
     }
 
-    pub(crate) fn time_number_source(&self) -> SoundNumberSourceId {
-        self.time_number_source
+    pub(crate) fn time_argument(&self) -> SoundExpressionArgumentId {
+        self.time_argument
     }
 }
 
@@ -135,8 +137,8 @@ impl Revision for SoundInputData {
             None => usize::MAX,
         });
         hasher.write_usize(self.owner.value());
-        hasher.write_usize(self.number_sources.len());
-        for nsid in &self.number_sources {
+        hasher.write_usize(self.arguments.len());
+        for nsid in &self.arguments {
             hasher.write_usize(nsid.value());
         }
         RevisionNumber::new(hasher.finish())
@@ -148,8 +150,8 @@ pub(crate) struct SoundProcessorData {
     id: SoundProcessorId,
     processor: Option<Arc<dyn SoundProcessor>>,
     sound_inputs: Vec<SoundInputId>,
-    number_sources: Vec<SoundNumberSourceId>,
-    number_inputs: Vec<SoundNumberInputId>,
+    arguments: Vec<SoundExpressionArgumentId>,
+    expressions: Vec<SoundExpressionId>,
 }
 
 impl SoundProcessorData {
@@ -158,8 +160,8 @@ impl SoundProcessorData {
             id: processor.id(),
             processor: Some(processor),
             sound_inputs: Vec::new(),
-            number_sources: Vec::new(),
-            number_inputs: Vec::new(),
+            arguments: Vec::new(),
+            expressions: Vec::new(),
         }
     }
 
@@ -168,8 +170,8 @@ impl SoundProcessorData {
             id,
             processor: None,
             sound_inputs: Vec::new(),
-            number_sources: Vec::new(),
-            number_inputs: Vec::new(),
+            arguments: Vec::new(),
+            expressions: Vec::new(),
         }
     }
 
@@ -191,20 +193,20 @@ impl SoundProcessorData {
         &mut self.sound_inputs
     }
 
-    pub(crate) fn number_sources(&self) -> &Vec<SoundNumberSourceId> {
-        &self.number_sources
+    pub(crate) fn expression_arguments(&self) -> &Vec<SoundExpressionArgumentId> {
+        &self.arguments
     }
 
-    pub(super) fn number_sources_mut(&mut self) -> &mut Vec<SoundNumberSourceId> {
-        &mut self.number_sources
+    pub(super) fn arguments_mut(&mut self) -> &mut Vec<SoundExpressionArgumentId> {
+        &mut self.arguments
     }
 
-    pub(crate) fn number_inputs(&self) -> &Vec<SoundNumberInputId> {
-        &self.number_inputs
+    pub(crate) fn expressions(&self) -> &Vec<SoundExpressionId> {
+        &self.expressions
     }
 
-    pub(super) fn number_inputs_mut(&mut self) -> &mut Vec<SoundNumberInputId> {
-        &mut self.number_inputs
+    pub(super) fn expressions_mut(&mut self) -> &mut Vec<SoundExpressionId> {
+        &mut self.expressions
     }
 
     pub(crate) fn instance(&self) -> &dyn SoundProcessor {
@@ -226,12 +228,12 @@ impl Revision for SoundProcessorData {
         for siid in &self.sound_inputs {
             hasher.write_usize(siid.value());
         }
-        hasher.write_usize(self.number_sources.len());
-        for nsid in &self.number_sources {
+        hasher.write_usize(self.arguments.len());
+        for nsid in &self.arguments {
             hasher.write_usize(nsid.value());
         }
-        hasher.write_usize(self.number_inputs.len());
-        for niid in &self.number_inputs {
+        hasher.write_usize(self.expressions.len());
+        for niid in &self.expressions {
             hasher.write_usize(niid.value());
         }
         RevisionNumber::new(hasher.finish())
@@ -239,22 +241,28 @@ impl Revision for SoundProcessorData {
 }
 
 #[derive(Clone)]
-pub(crate) struct SoundNumberInputTargetMapping {
-    mapping: HashMap<NumberGraphInputId, SoundNumberSourceId>,
+pub(crate) struct ExpressionParameterMapping {
+    mapping: HashMap<ExpressionGraphParameterId, SoundExpressionArgumentId>,
 }
 
-impl SoundNumberInputTargetMapping {
-    fn new() -> SoundNumberInputTargetMapping {
-        SoundNumberInputTargetMapping {
+impl ExpressionParameterMapping {
+    fn new() -> ExpressionParameterMapping {
+        ExpressionParameterMapping {
             mapping: HashMap::new(),
         }
     }
 
-    pub(crate) fn graph_input_target(&self, id: NumberGraphInputId) -> Option<SoundNumberSourceId> {
+    pub(crate) fn argument_from_parameter(
+        &self,
+        id: ExpressionGraphParameterId,
+    ) -> Option<SoundExpressionArgumentId> {
         self.mapping.get(&id).cloned()
     }
 
-    pub(crate) fn target_graph_input(&self, id: SoundNumberSourceId) -> Option<NumberGraphInputId> {
+    pub(crate) fn parameter_from_argument(
+        &self,
+        id: SoundExpressionArgumentId,
+    ) -> Option<ExpressionGraphParameterId> {
         for (giid, nsid) in &self.mapping {
             if *nsid == id {
                 return Some(*giid);
@@ -263,79 +271,79 @@ impl SoundNumberInputTargetMapping {
         None
     }
 
-    // NOTE: passing NumberGraph separately here might seem a bit awkward from the perspective of the
-    // SoundNumberInputData that owns this and the number graph, but it makes the two separable.
-    // This is useful for making LexicalLayout more reusable accross different types of number graphs
-    pub(crate) fn add_target(
+    // NOTE: passing ExpressionGraph separately here might seem a bit awkward from the perspective of the
+    // SoundExpressionData that owns this and the expression graph, but it makes the two separable.
+    // This is useful for making LexicalLayout more reusable accross different types of expressions
+    pub(crate) fn add_argument(
         &mut self,
-        source_id: SoundNumberSourceId,
-        numbergraph: &mut NumberGraph,
-    ) -> NumberGraphInputId {
-        debug_assert!(self.check_invariants(numbergraph.topology()));
-        if let Some(giid) = self.target_graph_input(source_id) {
+        argument_id: SoundExpressionArgumentId,
+        expr_graph: &mut ExpressionGraph,
+    ) -> ExpressionGraphParameterId {
+        debug_assert!(self.check_invariants(expr_graph.topology()));
+        if let Some(giid) = self.parameter_from_argument(argument_id) {
             return giid;
         }
-        let giid = numbergraph.add_graph_input();
-        let prev = self.mapping.insert(giid, source_id);
+        let giid = expr_graph.add_parameter();
+        let prev = self.mapping.insert(giid, argument_id);
         debug_assert_eq!(prev, None);
-        debug_assert!(self.check_invariants(numbergraph.topology()));
+        debug_assert!(self.check_invariants(expr_graph.topology()));
         giid
     }
 
-    pub(crate) fn remove_target(
+    pub(crate) fn remove_argument(
         &mut self,
-        source_id: SoundNumberSourceId,
-        numbergraph: &mut NumberGraph,
+        argument_id: SoundExpressionArgumentId,
+        expr_graph: &mut ExpressionGraph,
     ) {
-        debug_assert!(self.check_invariants(numbergraph.topology()));
-        let giid = self.target_graph_input(source_id).unwrap();
-        numbergraph.remove_graph_input(giid).unwrap();
+        debug_assert!(self.check_invariants(expr_graph.topology()));
+        let giid = self.parameter_from_argument(argument_id).unwrap();
+        expr_graph.remove_parameter(giid).unwrap();
         let prev = self.mapping.remove(&giid);
         debug_assert!(prev.is_some());
-        debug_assert!(self.check_invariants(numbergraph.topology()));
+        debug_assert!(self.check_invariants(expr_graph.topology()));
     }
 
-    fn check_invariants(&self, topology: &NumberGraphTopology) -> bool {
-        let mapped_graph_inputs: HashSet<NumberGraphInputId> =
+    fn check_invariants(&self, topology: &ExpressionGraphTopology) -> bool {
+        let mapped_params: HashSet<ExpressionGraphParameterId> =
             self.mapping.keys().cloned().collect();
-        let actual_graph_inputs: HashSet<NumberGraphInputId> =
-            topology.graph_inputs().iter().cloned().collect();
-        if mapped_graph_inputs != actual_graph_inputs {
-            println!("Number graph inputs were modified without number input mapping");
+        let actual_params: HashSet<ExpressionGraphParameterId> =
+            topology.parameters().iter().cloned().collect();
+        if mapped_params != actual_params {
+            println!("Expression parameters were modified without updating parameter mapping");
             false
         } else {
             true
         }
     }
 
-    pub(crate) fn items(&self) -> &HashMap<NumberGraphInputId, SoundNumberSourceId> {
+    pub(crate) fn items(&self) -> &HashMap<ExpressionGraphParameterId, SoundExpressionArgumentId> {
         &self.mapping
     }
 }
 
 #[derive(Clone)]
-pub struct SoundNumberInputScope {
+pub struct SoundExpressionScope {
     processor_state_available: bool,
-    available_local_sources: Vec<SoundNumberSourceId>,
+    available_local_arguments: Vec<SoundExpressionArgumentId>,
 }
 
-impl SoundNumberInputScope {
-    pub fn without_processor_state() -> SoundNumberInputScope {
-        SoundNumberInputScope {
+impl SoundExpressionScope {
+    pub fn without_processor_state() -> SoundExpressionScope {
+        SoundExpressionScope {
             processor_state_available: false,
-            available_local_sources: Vec::new(),
+            available_local_arguments: Vec::new(),
         }
     }
 
-    pub fn with_processor_state() -> SoundNumberInputScope {
-        SoundNumberInputScope {
+    pub fn with_processor_state() -> SoundExpressionScope {
+        SoundExpressionScope {
             processor_state_available: true,
-            available_local_sources: Vec::new(),
+            available_local_arguments: Vec::new(),
         }
     }
 
-    pub fn add_local(mut self, id: SoundNumberSourceId) -> SoundNumberInputScope {
-        self.available_local_sources.push(id);
+    pub fn add_local(mut self, id: SoundExpressionArgumentId) -> SoundExpressionScope {
+        self.available_local_arguments.push(id);
         self
     }
 
@@ -343,17 +351,17 @@ impl SoundNumberInputScope {
         self.processor_state_available
     }
 
-    pub(crate) fn available_local_sources(&self) -> &[SoundNumberSourceId] {
-        &self.available_local_sources
+    pub(crate) fn available_local_arguments(&self) -> &[SoundExpressionArgumentId] {
+        &self.available_local_arguments
     }
 }
 
-impl Revision for SoundNumberInputScope {
+impl Revision for SoundExpressionScope {
     fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u8(if self.processor_state_available { 1 } else { 0 });
-        hasher.write_usize(self.available_local_sources.len());
-        for nsid in &self.available_local_sources {
+        hasher.write_usize(self.available_local_arguments.len());
+        for nsid in &self.available_local_arguments {
             hasher.write_usize(nsid.value());
         }
         RevisionNumber::new(hasher.finish())
@@ -361,70 +369,70 @@ impl Revision for SoundNumberInputScope {
 }
 
 #[derive(Clone)]
-pub struct SoundNumberInputData {
-    id: SoundNumberInputId,
-    target_mapping: SoundNumberInputTargetMapping,
-    number_graph: NumberGraph,
+pub struct SoundExpressionData {
+    id: SoundExpressionId,
+    target_mapping: ExpressionParameterMapping,
+    expression_graph: ExpressionGraph,
     owner: SoundProcessorId,
-    scope: SoundNumberInputScope,
+    scope: SoundExpressionScope,
 }
 
-impl SoundNumberInputData {
+impl SoundExpressionData {
     pub(crate) fn new(
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         owner: SoundProcessorId,
         default_value: f32,
-        scope: SoundNumberInputScope,
+        scope: SoundExpressionScope,
     ) -> Self {
-        let mut number_graph = NumberGraph::new();
+        let mut expression_graph = ExpressionGraph::new();
 
         // HACK: assuming 1 output for now
-        number_graph.add_graph_output(default_value);
+        expression_graph.add_result(default_value);
 
         Self {
             id,
-            target_mapping: SoundNumberInputTargetMapping::new(),
-            number_graph,
+            target_mapping: ExpressionParameterMapping::new(),
+            expression_graph,
             owner,
             scope,
         }
     }
 
-    pub(crate) fn id(&self) -> SoundNumberInputId {
+    pub(crate) fn id(&self) -> SoundExpressionId {
         self.id
     }
 
-    pub(crate) fn target_mapping(&self) -> &SoundNumberInputTargetMapping {
+    pub(crate) fn parameter_mapping(&self) -> &ExpressionParameterMapping {
         debug_assert!(self
             .target_mapping
-            .check_invariants(self.number_graph.topology()));
+            .check_invariants(self.expression_graph.topology()));
         &self.target_mapping
     }
 
-    pub(crate) fn number_graph(&self) -> &NumberGraph {
-        &self.number_graph
+    pub(crate) fn expression_graph(&self) -> &ExpressionGraph {
+        &self.expression_graph
     }
 
-    pub(crate) fn number_graph_mut(&mut self) -> &mut NumberGraph {
-        &mut self.number_graph
+    pub(crate) fn expression_graph_mut(&mut self) -> &mut ExpressionGraph {
+        &mut self.expression_graph
     }
 
-    pub(crate) fn number_graph_and_mapping_mut(
+    pub(crate) fn expression_graph_and_mapping_mut(
         &mut self,
-    ) -> (&mut NumberGraph, &mut SoundNumberInputTargetMapping) {
-        (&mut self.number_graph, &mut self.target_mapping)
+    ) -> (&mut ExpressionGraph, &mut ExpressionParameterMapping) {
+        (&mut self.expression_graph, &mut self.target_mapping)
     }
 
     pub(crate) fn owner(&self) -> SoundProcessorId {
         self.owner
     }
 
-    pub(crate) fn scope(&self) -> &SoundNumberInputScope {
+    pub(crate) fn scope(&self) -> &SoundExpressionScope {
         &self.scope
     }
 }
 
-impl Revision for SoundNumberInputData {
+impl Revision for SoundExpressionData {
     fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
@@ -434,7 +442,7 @@ impl Revision for SoundNumberInputData {
             hasher.write_usize(nsid.value());
         }
         hasher.write_u64(items_hash);
-        hasher.write_u64(self.number_graph.topology().get_revision().value());
+        hasher.write_u64(self.expression_graph.topology().get_revision().value());
         hasher.write_usize(self.owner.value());
         hasher.write_u64(self.scope.get_revision().value());
         RevisionNumber::new(hasher.finish())
@@ -442,17 +450,17 @@ impl Revision for SoundNumberInputData {
 }
 
 #[derive(Clone)]
-pub(crate) struct SoundNumberSourceData {
-    id: SoundNumberSourceId,
-    instance: Arc<dyn SoundNumberSource>,
-    owner: SoundNumberSourceOwner,
+pub(crate) struct SoundExpressionArgumentData {
+    id: SoundExpressionArgumentId,
+    instance: Arc<dyn SoundExpressionArgument>,
+    owner: SoundExpressionArgumentOwner,
 }
 
-impl SoundNumberSourceData {
+impl SoundExpressionArgumentData {
     pub(crate) fn new(
-        id: SoundNumberSourceId,
-        instance: Arc<dyn SoundNumberSource>,
-        owner: SoundNumberSourceOwner,
+        id: SoundExpressionArgumentId,
+        instance: Arc<dyn SoundExpressionArgument>,
+        owner: SoundExpressionArgumentOwner,
     ) -> Self {
         Self {
             id,
@@ -461,34 +469,34 @@ impl SoundNumberSourceData {
         }
     }
 
-    pub(crate) fn id(&self) -> SoundNumberSourceId {
+    pub(crate) fn id(&self) -> SoundExpressionArgumentId {
         self.id
     }
 
-    pub(crate) fn instance(&self) -> &dyn SoundNumberSource {
+    pub(crate) fn instance(&self) -> &dyn SoundExpressionArgument {
         &*self.instance
     }
 
-    pub(crate) fn instance_arc(&self) -> Arc<dyn SoundNumberSource> {
+    pub(crate) fn instance_arc(&self) -> Arc<dyn SoundExpressionArgument> {
         Arc::clone(&self.instance)
     }
 
-    pub(crate) fn owner(&self) -> SoundNumberSourceOwner {
+    pub(crate) fn owner(&self) -> SoundExpressionArgumentOwner {
         self.owner
     }
 }
 
-impl Revision for SoundNumberSourceData {
+impl Revision for SoundExpressionArgumentData {
     fn get_revision(&self) -> RevisionNumber {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         // Do not hash instance
         match &self.owner {
-            SoundNumberSourceOwner::SoundProcessor(spid) => {
+            SoundExpressionArgumentOwner::SoundProcessor(spid) => {
                 hasher.write_u8(1);
                 hasher.write_usize(spid.value());
             }
-            SoundNumberSourceOwner::SoundInput(siid) => {
+            SoundExpressionArgumentOwner::SoundInput(siid) => {
                 hasher.write_u8(2);
                 hasher.write_usize(siid.value());
             }

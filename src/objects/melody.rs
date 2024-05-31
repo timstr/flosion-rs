@@ -9,7 +9,7 @@ use crate::core::{
     sound::{
         context::{Context, LocalArrayList},
         soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
-        soundnumbersource::SoundNumberSourceHandle,
+        expressionargument::SoundExpressionArgumentHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -68,8 +68,8 @@ pub struct Melody {
     shared_data: Arc<RwLock<MelodyData>>,
     note_idgen: Mutex<IdGenerator<NoteId>>,
     pub input: KeyedInputQueue<NoteState>,
-    pub note_frequency: SoundNumberSourceHandle,
-    _note_length: SoundNumberSourceHandle,
+    pub note_frequency: SoundExpressionArgumentHandle,
+    _note_length: SoundExpressionArgumentHandle,
 }
 
 pub struct MelodyState {

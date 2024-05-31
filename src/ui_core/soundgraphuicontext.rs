@@ -3,12 +3,12 @@ use std::rc::Rc;
 use eframe::egui;
 
 use crate::core::{
+    expression::expressiongraph::ExpressionGraph,
     graph::{graphobject::GraphObjectHandle, objectfactory::ObjectFactory},
     jit::server::JitClient,
-    number::numbergraph::NumberGraph,
     sound::{
         soundgraph::SoundGraph, soundgraphid::SoundObjectId, soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId,
+        expression::SoundExpressionId,
     },
 };
 
@@ -26,7 +26,7 @@ use super::{
 
 pub struct SoundGraphUiContext<'a> {
     sound_ui_factory: &'a UiFactory<SoundGraphUi>,
-    _number_object_factory: &'a ObjectFactory<NumberGraph>,
+    _number_object_factory: &'a ObjectFactory<ExpressionGraph>,
     number_ui_factory: &'a UiFactory<NumberGraphUi>,
     sound_object_states: &'a SoundObjectUiStates,
     is_top_level: bool,
@@ -39,7 +39,7 @@ pub struct SoundGraphUiContext<'a> {
 impl<'a> SoundGraphUiContext<'a> {
     pub(crate) fn new(
         ui_factory: &'a UiFactory<SoundGraphUi>,
-        number_object_factory: &'a ObjectFactory<NumberGraph>,
+        number_object_factory: &'a ObjectFactory<ExpressionGraph>,
         number_ui_factory: &'a UiFactory<NumberGraphUi>,
         object_states: &'a SoundObjectUiStates,
         is_top_level: bool,
@@ -110,18 +110,14 @@ impl<'a> SoundGraphUiContext<'a> {
         F: FnOnce(&mut NumberGraphUiContext, OuterSoundNumberInputContext) -> R,
     >(
         &mut self,
-        input_id: SoundNumberInputId,
+        input_id: SoundExpressionId,
         graph_layout: &SoundGraphLayout,
         names: &SoundGraphUiNames,
         sound_graph: &mut SoundGraph,
         f: F,
     ) -> R {
         let object_states = self.sound_object_states.number_graph_object_state(input_id);
-        let owner = sound_graph
-            .topology()
-            .number_input(input_id)
-            .unwrap()
-            .owner();
+        let owner = sound_graph.topology().expression(input_id).unwrap().owner();
         let sni_ctx = OuterSoundNumberInputContext::new(
             input_id,
             owner,

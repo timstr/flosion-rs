@@ -10,8 +10,8 @@ use crate::core::{
     jit::compilednumberinput::Discretization,
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundNumberInputScope,
-        soundnumberinput::SoundNumberInputHandle,
+        soundgraphdata::SoundExpressionScope,
+        expression::SoundExpressionHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
     },
@@ -19,7 +19,7 @@ use crate::core::{
 };
 
 pub struct WriteWaveform {
-    pub waveform: SoundNumberInputHandle,
+    pub waveform: SoundExpressionHandle,
 }
 
 pub struct WriteWaveformNumberInputs<'ctx> {
@@ -43,7 +43,7 @@ impl DynamicSoundProcessor for WriteWaveform {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WriteWaveform {
-            waveform: tools.add_number_input(0.0, SoundNumberInputScope::with_processor_state()),
+            waveform: tools.add_number_input(0.0, SoundExpressionScope::with_processor_state()),
         })
     }
 

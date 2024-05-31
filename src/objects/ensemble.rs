@@ -11,11 +11,11 @@ use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundNumberInputScope,
+        soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{KeyedInput, KeyedInputNode},
-        soundnumberinput::SoundNumberInputHandle,
-        soundnumbersource::SoundNumberSourceHandle,
+        expression::SoundExpressionHandle,
+        expressionargument::SoundExpressionArgumentHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -46,9 +46,9 @@ impl Default for VoiceState {
 
 pub struct Ensemble {
     pub input: KeyedInput<VoiceState>,
-    pub frequency_in: SoundNumberInputHandle,
-    pub frequency_spread: SoundNumberInputHandle,
-    pub voice_frequency: SoundNumberSourceHandle,
+    pub frequency_in: SoundExpressionHandle,
+    pub frequency_spread: SoundExpressionHandle,
+    pub voice_frequency: SoundExpressionArgumentHandle,
 }
 
 pub struct EnsembleNumberInputs<'ctx> {
@@ -84,9 +84,9 @@ impl DynamicSoundProcessor for Ensemble {
         Ok(Ensemble {
             input,
             frequency_in: tools
-                .add_number_input(250.0, SoundNumberInputScope::with_processor_state()),
+                .add_number_input(250.0, SoundExpressionScope::with_processor_state()),
             frequency_spread: tools
-                .add_number_input(0.01, SoundNumberInputScope::with_processor_state()),
+                .add_number_input(0.01, SoundExpressionScope::with_processor_state()),
             voice_frequency,
         })
     }

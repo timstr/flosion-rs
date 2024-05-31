@@ -10,10 +10,10 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundNumberInputScope,
+        soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        soundnumberinput::SoundNumberInputHandle,
+        expression::SoundExpressionHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -71,10 +71,10 @@ impl State for ADSRState {
 
 pub struct ADSR {
     pub input: SingleInput,
-    pub attack_time: SoundNumberInputHandle,
-    pub decay_time: SoundNumberInputHandle,
-    pub sustain_level: SoundNumberInputHandle,
-    pub release_time: SoundNumberInputHandle,
+    pub attack_time: SoundExpressionHandle,
+    pub decay_time: SoundExpressionHandle,
+    pub sustain_level: SoundExpressionHandle,
+    pub release_time: SoundExpressionHandle,
 }
 
 // out_level : slice at the beginning of which to produce output level
@@ -130,13 +130,13 @@ impl DynamicSoundProcessor for ADSR {
         Ok(ADSR {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             attack_time: tools
-                .add_number_input(0.01, SoundNumberInputScope::without_processor_state()),
+                .add_number_input(0.01, SoundExpressionScope::without_processor_state()),
             decay_time: tools
-                .add_number_input(0.2, SoundNumberInputScope::without_processor_state()),
+                .add_number_input(0.2, SoundExpressionScope::without_processor_state()),
             sustain_level: tools
-                .add_number_input(0.5, SoundNumberInputScope::without_processor_state()),
+                .add_number_input(0.5, SoundExpressionScope::without_processor_state()),
             release_time: tools
-                .add_number_input(0.25, SoundNumberInputScope::without_processor_state()),
+                .add_number_input(0.25, SoundExpressionScope::without_processor_state()),
         })
     }
 

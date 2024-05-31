@@ -13,13 +13,13 @@ use inkwell::{
 
 use crate::core::{
     engine::garbage::Droppable,
-    number::{
-        numbergraphdata::NumberTarget, numbergraphtopology::NumberGraphTopology,
-        numberinput::NumberInputId, numbersource::NumberSourceId,
+    expression::{
+        expressiongraphdata::ExpressionTarget, expressiongraphtopology::ExpressionGraphTopology,
+        expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
     },
     sound::{
         soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId, soundnumbersource::SoundNumberSourceId,
+        expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
         soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
@@ -63,9 +63,9 @@ pub struct CodeGen<'ctx> {
     execution_engine: ExecutionEngine<'ctx>,
     function_name: String,
     pub(super) atomic_captures: Vec<Arc<dyn Droppable>>,
-    pub(super) compiled_targets: HashMap<NumberTarget, FloatValue<'ctx>>,
+    pub(super) compiled_targets: HashMap<ExpressionTarget, FloatValue<'ctx>>,
     num_state_variables: usize,
-    state_array_offsets: Vec<(NumberSourceId, usize)>,
+    state_array_offsets: Vec<(ExpressionNodeId, usize)>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -373,10 +373,10 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn visit_input(
         &mut self,
-        number_input_id: NumberInputId,
-        topology: &NumberGraphTopology,
+        number_input_id: ExpressionNodeInputId,
+        topology: &ExpressionGraphTopology,
     ) -> FloatValue<'ctx> {
-        let input_data = topology.number_input(number_input_id).unwrap();
+        let input_data = topology.node_input(number_input_id).unwrap();
         match input_data.target() {
             Some(target) => self.visit_target(target, topology),
             None => self
@@ -386,25 +386,25 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    pub(super) fn assign_target(&mut self, target: NumberTarget, value: FloatValue<'ctx>) {
+    pub(super) fn assign_target(&mut self, target: ExpressionTarget, value: FloatValue<'ctx>) {
         self.compiled_targets.insert(target, value);
     }
 
     fn visit_target(
         &mut self,
-        target: NumberTarget,
-        topology: &NumberGraphTopology,
+        target: ExpressionTarget,
+        topology: &ExpressionGraphTopology,
     ) -> FloatValue<'ctx> {
         if let Some(v) = self.compiled_targets.get(&target) {
             return *v;
         }
         match target {
-            NumberTarget::Source(number_source_id) => {
-                let source_data = topology.number_source(number_source_id).unwrap();
+            ExpressionTarget::Node(number_source_id) => {
+                let source_data = topology.node(number_source_id).unwrap();
                 let number_source = source_data.instance();
 
                 let input_values: Vec<_> = source_data
-                    .number_inputs()
+                    .inputs()
                     .iter()
                     .map(|niid| self.visit_input(*niid, topology))
                     .collect();
@@ -446,10 +446,10 @@ impl<'ctx> CodeGen<'ctx> {
                 // let v = number_source.compile_loop(self, &input_values, &state_variables);
 
                 self.compiled_targets
-                    .insert(NumberTarget::Source(number_source_id), v);
+                    .insert(ExpressionTarget::Node(number_source_id), v);
                 v
             }
-            NumberTarget::GraphInput(_) => {
+            ExpressionTarget::Parameter(_) => {
                 panic!("Missing pre-compiled value for a number graph input")
             }
         }
@@ -648,7 +648,7 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn build_processor_local_array_read(
         &mut self,
         processor_id: SoundProcessorId,
-        source_id: SoundNumberSourceId,
+        source_id: SoundExpressionArgumentId,
     ) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
@@ -924,28 +924,28 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub(crate) fn compile_number_input(
         mut self,
-        number_input_id: SoundNumberInputId,
+        number_input_id: SoundExpressionId,
         topology: &SoundGraphTopology,
     ) -> CompiledNumberInput<'ctx> {
-        let sg_number_input_data = topology.number_input(number_input_id).unwrap();
+        let sg_number_input_data = topology.expression(number_input_id).unwrap();
 
-        let number_topo = sg_number_input_data.number_graph().topology();
+        let number_topo = sg_number_input_data.expression_graph().topology();
 
         // pre-compile all number graph inputs
-        for (giid, snsid) in sg_number_input_data.target_mapping().items() {
+        for (giid, snsid) in sg_number_input_data.parameter_mapping().items() {
             let value = topology
-                .number_source(*snsid)
+                .expression_argumnet(*snsid)
                 .unwrap()
                 .instance()
                 .compile(&mut self);
-            self.assign_target(NumberTarget::GraphInput(*giid), value);
+            self.assign_target(ExpressionTarget::Parameter(*giid), value);
         }
 
         // TODO: add support for multiple outputs
-        assert_eq!(number_topo.graph_outputs().len(), 1);
-        let output_id = number_topo.graph_outputs()[0].id();
+        assert_eq!(number_topo.results().len(), 1);
+        let output_id = number_topo.results()[0].id();
 
-        let output_data = number_topo.graph_output(output_id).unwrap();
+        let output_data = number_topo.result(output_id).unwrap();
         let final_value = match output_data.target() {
             Some(target) => self.visit_target(target, number_topo),
             None => self

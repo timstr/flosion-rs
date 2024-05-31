@@ -2,23 +2,24 @@ use std::sync::Arc;
 
 use crate::core::{
     jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
-    sound::soundnumbersource::InputTimeNumberSource,
+    sound::expressionargument::InputTimeExpressionArgument,
 };
 
 use super::{
+    expression::SoundExpressionHandle,
+    expressionargument::{
+        ArrayInputExpressionArgument, ArrayProcessorExpressionArgument,
+        ProcessorLocalArrayExpressionArgument, ScalarInputExpressionArgument,
+        ScalarProcessorExpressionArgument, SoundExpressionArgument, SoundExpressionArgumentHandle,
+        SoundExpressionArgumentId, SoundExpressionArgumentOwner,
+    },
     soundgraph::SoundGraphIdGenerators,
     soundgraphdata::{
-        SoundInputBranchId, SoundInputData, SoundNumberInputData, SoundNumberInputScope,
-        SoundNumberSourceData,
+        SoundExpressionArgumentData, SoundExpressionData, SoundExpressionScope, SoundInputBranchId,
+        SoundInputData,
     },
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
-    soundnumberinput::SoundNumberInputHandle,
-    soundnumbersource::{
-        ArrayInputNumberSource, ArrayProcessorNumberSource, ProcessorLocalArrayNumberSource,
-        ScalarInputNumberSource, ScalarProcessorNumberSource, SoundNumberSource,
-        SoundNumberSourceHandle, SoundNumberSourceId, SoundNumberSourceOwner,
-    },
     soundprocessor::SoundProcessorId,
 };
 
@@ -63,10 +64,10 @@ impl<'a> SoundProcessorTools<'a> {
     ) -> SoundInputId {
         let id = self.id_generators.sound_input.next_id();
 
-        let time_data = SoundNumberSourceData::new(
-            self.id_generators.number_source.next_id(),
-            Arc::new(InputTimeNumberSource::new(id)),
-            SoundNumberSourceOwner::SoundInput(id),
+        let time_data = SoundExpressionArgumentData::new(
+            self.id_generators.expression_argument.next_id(),
+            Arc::new(InputTimeExpressionArgument::new(id)),
+            SoundExpressionArgumentOwner::SoundInput(id),
         );
 
         let input_data =
@@ -74,7 +75,7 @@ impl<'a> SoundProcessorTools<'a> {
 
         self.topology.add_sound_input(input_data).unwrap();
 
-        self.topology.add_number_source(time_data).unwrap();
+        self.topology.add_expression_argument(time_data).unwrap();
 
         id
     }
@@ -94,10 +95,10 @@ impl<'a> SoundProcessorTools<'a> {
         &mut self,
         input_id: SoundInputId,
         function: ScalarReadFunc,
-    ) -> SoundNumberSourceHandle {
+    ) -> SoundExpressionArgumentHandle {
         self.add_input_number_source_helper(
             input_id,
-            Arc::new(ScalarInputNumberSource::new(input_id, function)),
+            Arc::new(ScalarInputExpressionArgument::new(input_id, function)),
         )
     }
 
@@ -109,10 +110,10 @@ impl<'a> SoundProcessorTools<'a> {
         &mut self,
         input_id: SoundInputId,
         function: ArrayReadFunc,
-    ) -> SoundNumberSourceHandle {
+    ) -> SoundExpressionArgumentHandle {
         self.add_input_number_source_helper(
             input_id,
-            Arc::new(ArrayInputNumberSource::new(input_id, function)),
+            Arc::new(ArrayInputExpressionArgument::new(input_id, function)),
         )
     }
 
@@ -121,9 +122,9 @@ impl<'a> SoundProcessorTools<'a> {
     pub fn add_processor_scalar_number_source(
         &mut self,
         function: ScalarReadFunc,
-    ) -> SoundNumberSourceHandle {
+    ) -> SoundExpressionArgumentHandle {
         self.add_processor_number_source_helper(|spid, _| {
-            Arc::new(ScalarProcessorNumberSource::new(spid, function))
+            Arc::new(ScalarProcessorExpressionArgument::new(spid, function))
         })
     }
 
@@ -134,9 +135,9 @@ impl<'a> SoundProcessorTools<'a> {
     pub fn add_processor_array_number_source(
         &mut self,
         function: ArrayReadFunc,
-    ) -> SoundNumberSourceHandle {
+    ) -> SoundExpressionArgumentHandle {
         self.add_processor_number_source_helper(|spid, _| {
-            Arc::new(ArrayProcessorNumberSource::new(spid, function))
+            Arc::new(ArrayProcessorExpressionArgument::new(spid, function))
         })
     }
 
@@ -145,9 +146,9 @@ impl<'a> SoundProcessorTools<'a> {
     /// routine and must be provided with Context::push_processor_state.
     /// NOTE that currently the length of that array must match
     /// the chunk length.
-    pub fn add_local_array_number_source(&mut self) -> SoundNumberSourceHandle {
+    pub fn add_local_array_number_source(&mut self) -> SoundExpressionArgumentHandle {
         self.add_processor_number_source_helper(|spid, id| {
-            Arc::new(ProcessorLocalArrayNumberSource::new(id, spid))
+            Arc::new(ProcessorLocalArrayExpressionArgument::new(id, spid))
         })
     }
 
@@ -158,14 +159,14 @@ impl<'a> SoundProcessorTools<'a> {
     pub fn add_number_input(
         &mut self,
         default_value: f32,
-        scope: SoundNumberInputScope,
-    ) -> SoundNumberInputHandle {
-        let id = self.id_generators.number_input.next_id();
+        scope: SoundExpressionScope,
+    ) -> SoundExpressionHandle {
+        let id = self.id_generators.expression.next_id();
 
-        let data = SoundNumberInputData::new(id, self.processor_id, default_value, scope.clone());
-        self.topology.add_number_input(data).unwrap();
+        let data = SoundExpressionData::new(id, self.processor_id, default_value, scope.clone());
+        self.topology.add_expression(data).unwrap();
 
-        SoundNumberInputHandle::new(id, self.processor_id, scope)
+        SoundExpressionHandle::new(id, self.processor_id, scope)
     }
 
     /// The id of the sound processor that the tools were created for
@@ -177,40 +178,43 @@ impl<'a> SoundProcessorTools<'a> {
     fn add_input_number_source_helper(
         &mut self,
         input_id: SoundInputId,
-        instance: Arc<dyn SoundNumberSource>,
-    ) -> SoundNumberSourceHandle {
+        instance: Arc<dyn SoundExpressionArgument>,
+    ) -> SoundExpressionArgumentHandle {
         assert!(
             self.topology.sound_input(input_id).unwrap().owner() == self.processor_id,
             "The sound input should belong to the processor which the tools were created for"
         );
 
-        let id = self.id_generators.number_source.next_id();
+        let id = self.id_generators.expression_argument.next_id();
 
-        let data =
-            SoundNumberSourceData::new(id, instance, SoundNumberSourceOwner::SoundInput(input_id));
+        let data = SoundExpressionArgumentData::new(
+            id,
+            instance,
+            SoundExpressionArgumentOwner::SoundInput(input_id),
+        );
 
-        self.topology.add_number_source(data).unwrap();
+        self.topology.add_expression_argument(data).unwrap();
 
-        SoundNumberSourceHandle::new(id)
+        SoundExpressionArgumentHandle::new(id)
     }
 
     /// Internal helper method for adding a number source to the processor
     fn add_processor_number_source_helper<
-        F: FnOnce(SoundProcessorId, SoundNumberSourceId) -> Arc<dyn SoundNumberSource>,
+        F: FnOnce(SoundProcessorId, SoundExpressionArgumentId) -> Arc<dyn SoundExpressionArgument>,
     >(
         &mut self,
         f: F,
-    ) -> SoundNumberSourceHandle {
-        let id = self.id_generators.number_source.next_id();
+    ) -> SoundExpressionArgumentHandle {
+        let id = self.id_generators.expression_argument.next_id();
 
-        let data = SoundNumberSourceData::new(
+        let data = SoundExpressionArgumentData::new(
             id,
             f(self.processor_id, id),
-            SoundNumberSourceOwner::SoundProcessor(self.processor_id),
+            SoundExpressionArgumentOwner::SoundProcessor(self.processor_id),
         );
 
-        self.topology.add_number_source(data).unwrap();
+        self.topology.add_expression_argument(data).unwrap();
 
-        SoundNumberSourceHandle::new(id)
+        SoundExpressionArgumentHandle::new(id)
     }
 }

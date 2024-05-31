@@ -7,8 +7,8 @@ use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
+        expressionargument::SoundExpressionArgumentHandle,
         soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
-        soundnumbersource::SoundNumberSourceHandle,
         soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -37,7 +37,7 @@ enum KeyboardCommand {
 
 pub struct Keyboard {
     pub input: KeyedInputQueue<KeyboardKeyState>,
-    pub key_frequency: SoundNumberSourceHandle,
+    pub key_frequency: SoundExpressionArgumentHandle,
     command_sender: SyncSender<KeyboardCommand>,
     command_receiver: Mutex<Receiver<KeyboardCommand>>,
 }

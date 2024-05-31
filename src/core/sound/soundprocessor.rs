@@ -22,8 +22,8 @@ use crate::core::{
 };
 
 use super::{
-    context::Context, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-    soundnumbersource::SoundNumberSourceId, soundprocessortools::SoundProcessorTools, state::State,
+    context::Context, expressionargument::SoundExpressionArgumentId, soundgraph::SoundGraph,
+    soundgraphid::SoundObjectId, soundprocessortools::SoundProcessorTools, state::State,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -114,14 +114,14 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
-    time_number_source: SoundNumberSourceId,
+    time_number_source: SoundExpressionArgumentId,
 }
 
 impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
     pub(crate) fn new(
         processor: T,
         id: SoundProcessorId,
-        time_number_source: SoundNumberSourceId,
+        time_number_source: SoundExpressionArgumentId,
     ) -> Self {
         Self {
             processor,
@@ -134,7 +134,7 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
         self.id
     }
 
-    pub fn time_number_source(&self) -> SoundNumberSourceId {
+    pub fn time_number_source(&self) -> SoundExpressionArgumentId {
         self.time_number_source
     }
 }
@@ -154,14 +154,14 @@ impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
 pub struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
-    time_number_source: SoundNumberSourceId,
+    time_number_source: SoundExpressionArgumentId,
 }
 
 impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
     pub(crate) fn new(
         processor: T,
         id: SoundProcessorId,
-        time_number_source: SoundNumberSourceId,
+        time_number_source: SoundExpressionArgumentId,
     ) -> Self {
         Self {
             processor,
@@ -174,7 +174,7 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
         self.id
     }
 
-    pub fn time_number_source(&self) -> SoundNumberSourceId {
+    pub fn time_number_source(&self) -> SoundExpressionArgumentId {
         self.time_number_source
     }
 }
@@ -560,7 +560,7 @@ impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessor
 pub trait ProcessorHandle {
     fn id(&self) -> SoundProcessorId;
 
-    fn time_number_source(&self) -> SoundNumberSourceId;
+    fn time_number_source(&self) -> SoundExpressionArgumentId;
 }
 
 impl<T: StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> {
@@ -568,7 +568,7 @@ impl<T: StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> 
         StaticSoundProcessorHandle::id(self)
     }
 
-    fn time_number_source(&self) -> SoundNumberSourceId {
+    fn time_number_source(&self) -> SoundExpressionArgumentId {
         self.instance.time_number_source()
     }
 }
@@ -578,7 +578,7 @@ impl<T: DynamicSoundProcessor> ProcessorHandle for DynamicSoundProcessorHandle<T
         DynamicSoundProcessorHandle::id(self)
     }
 
-    fn time_number_source(&self) -> SoundNumberSourceId {
+    fn time_number_source(&self) -> SoundExpressionArgumentId {
         self.instance.time_number_source()
     }
 }

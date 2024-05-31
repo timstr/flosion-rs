@@ -21,14 +21,16 @@ use crate::core::{
 };
 
 use super::{
-    soundgraphdata::{SoundNumberInputData, SoundNumberSourceData, SoundProcessorData},
+    soundgraphdata::{SoundExpressionArgumentData, SoundExpressionData, SoundProcessorData},
     soundgrapherror::SoundError,
     soundgraphid::SoundObjectId,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::find_sound_error,
     soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId,
-    soundnumbersource::{ProcessorTimeNumberSource, SoundNumberSourceId, SoundNumberSourceOwner},
+    expression::SoundExpressionId,
+    expressionargument::{
+        ProcessorTimeExpressionArgument, SoundExpressionArgumentId, SoundExpressionArgumentOwner,
+    },
     soundprocessor::{
         DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
         SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
@@ -42,8 +44,8 @@ use super::{
 pub(crate) struct SoundGraphIdGenerators {
     pub sound_processor: IdGenerator<SoundProcessorId>,
     pub sound_input: IdGenerator<SoundInputId>,
-    pub number_source: IdGenerator<SoundNumberSourceId>,
-    pub number_input: IdGenerator<SoundNumberInputId>,
+    pub expression_argument: IdGenerator<SoundExpressionArgumentId>,
+    pub expression: IdGenerator<SoundExpressionId>,
 }
 
 impl SoundGraphIdGenerators {
@@ -51,8 +53,8 @@ impl SoundGraphIdGenerators {
         SoundGraphIdGenerators {
             sound_processor: IdGenerator::new(),
             sound_input: IdGenerator::new(),
-            number_source: IdGenerator::new(),
-            number_input: IdGenerator::new(),
+            expression_argument: IdGenerator::new(),
+            expression: IdGenerator::new(),
         }
     }
 }
@@ -81,7 +83,7 @@ impl SoundGraphIdGenerators {
 /// version of the sound graph. Thus, the bookkeeping thread compiles
 /// topology changes into StateGraphEdits. Other chores that the
 /// bookkeeping thread does include running the JIT compiler to
-/// produce executable number inputs and taking out the garbage,
+/// produce executable expression and taking out the garbage,
 /// i.e. disposing of resources that could potentially block the
 /// audio thread.
 pub struct SoundGraph {
@@ -127,7 +129,7 @@ impl SoundGraph {
                 });
             });
 
-            // Build the jit server which will compile number inputs for
+            // Build the jit server which will compile expression for
             // the sound engine
             let jit_server = jit_server_builder.build_server(&inkwell_context);
 
@@ -253,11 +255,11 @@ impl SoundGraph {
     ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
         let id = self.id_generators.sound_processor.next_id();
 
-        // Every sound processor gets a 'time' number source
-        let time_data = SoundNumberSourceData::new(
-            self.id_generators.number_source.next_id(),
-            Arc::new(ProcessorTimeNumberSource::new(id)),
-            SoundNumberSourceOwner::SoundProcessor(id),
+        // Every sound processor gets a 'time' expression argument
+        let time_data = SoundExpressionArgumentData::new(
+            self.id_generators.expression_argument.next_id(),
+            Arc::new(ProcessorTimeExpressionArgument::new(id)),
+            SoundExpressionArgumentOwner::SoundProcessor(id),
         );
 
         let processor = self.try_make_change(move |topo, idgens| {
@@ -290,8 +292,8 @@ impl SoundGraph {
                 .unwrap()
                 .set_processor(processor);
 
-            // Add the 'time' number source
-            topo.add_number_source(time_data)?;
+            // Add the 'time' expression argument
+            topo.add_expression_argument(time_data)?;
 
             Ok(processor2)
         })?;
@@ -311,11 +313,11 @@ impl SoundGraph {
     ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
         let id = self.id_generators.sound_processor.next_id();
 
-        // Every sound processor gets a 'time' number source
-        let time_data = SoundNumberSourceData::new(
-            self.id_generators.number_source.next_id(),
-            Arc::new(ProcessorTimeNumberSource::new(id)),
-            SoundNumberSourceOwner::SoundProcessor(id),
+        // Every sound processor gets a 'time' expression argument
+        let time_data = SoundExpressionArgumentData::new(
+            self.id_generators.expression_argument.next_id(),
+            Arc::new(ProcessorTimeExpressionArgument::new(id)),
+            SoundExpressionArgumentOwner::SoundProcessor(id),
         );
 
         let processor = self.try_make_change(move |topo, idgens| {
@@ -348,8 +350,8 @@ impl SoundGraph {
                 .unwrap()
                 .set_processor(processor);
 
-            // Add the 'time' number source
-            topo.add_number_source(time_data)?;
+            // Add the 'time' expression argument
+            topo.add_expression_argument(time_data)?;
 
             Ok(processor2)
         })?;
@@ -370,41 +372,19 @@ impl SoundGraph {
 
     /// Disconnect a sound input from the processor connected to it.
     /// The input must exist and must be connected to a sound processor.
-    /// Additionally, there must be no number connections spanning the
-    /// sound input, as these would be invalidated. Otherwise, an err
-    /// is returned.
     pub fn disconnect_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
         self.try_make_change(|topo, _| topo.disconnect_sound_input(input_id))
     }
 
-    // TODO: ??? Why is there no connect_number_input?
-    // Why is one half implicit but this is explicit?
-    // Maybe it's time to rethink number connections
-    // and allow them to dangle such that they self-heal
-    // once reconnected, rather than trashing all references
-    // to out-of-scope number sources once a sound input
-    // is broken?
-    pub fn disconnect_number_input(
-        &mut self,
-        input_id: SoundNumberInputId,
-        source_id: SoundNumberSourceId,
-    ) -> Result<(), SoundError> {
-        self.try_make_change(|topo, _| {
-            topo.disconnect_number_input(input_id, source_id);
-            Ok(())
-        })
-    }
-
     /// Remove a sound processor completely from the sound graph.
     /// Any sound connections that include the processor and
-    /// any number connections that include its components or
-    /// span its sound inputs are disconnected.
+    /// any expressions that include its components are disconnected.
     pub fn remove_sound_processor(&mut self, id: SoundProcessorId) -> Result<(), SoundError> {
         self.remove_objects_batch(&[id.into()])
     }
 
     /// Remove a set of top-level sound graph objects simultaneously.
-    /// Sound and number connections which include or span the selected
+    /// Sound connections which include or span the selected
     /// objects are disconnected before the objects are removed completely.
     /// This is more efficient than removing the objects sequentially.
     pub fn remove_objects_batch(&mut self, objects: &[SoundObjectId]) -> Result<(), SoundError> {
@@ -426,8 +406,8 @@ impl SoundGraph {
         processor_id: SoundProcessorId,
         topo: &mut SoundGraphTopology,
     ) -> Result<(), SoundError> {
-        let mut number_inputs_to_remove = Vec::new();
-        let mut number_sources_to_remove = Vec::new();
+        let mut expressions_to_remove = Vec::new();
+        let mut expr_arguments_to_remove = Vec::new();
         let mut sound_inputs_to_remove = Vec::new();
         let mut sound_inputs_to_disconnect = Vec::new();
 
@@ -435,20 +415,19 @@ impl SoundGraph {
             .sound_processor(processor_id)
             .ok_or(SoundError::ProcessorNotFound(processor_id))?;
 
-        for ni in proc.number_inputs() {
-            number_inputs_to_remove.push(*ni);
+        for ni in proc.expressions() {
+            expressions_to_remove.push(*ni);
         }
 
-        for ns in proc.number_sources() {
-            number_sources_to_remove
-                .push((*ns, SoundNumberSourceOwner::SoundProcessor(processor_id)));
+        for ns in proc.expression_arguments() {
+            expr_arguments_to_remove.push(*ns);
         }
 
         for si in proc.sound_inputs() {
             sound_inputs_to_remove.push(*si);
             let input = topo.sound_input(*si).unwrap();
-            for ns in input.number_sources() {
-                number_sources_to_remove.push((*ns, SoundNumberSourceOwner::SoundInput(*si)));
+            for ns in input.expression_arguments() {
+                expr_arguments_to_remove.push(*ns);
             }
             if topo.sound_input(*si).unwrap().target().is_some() {
                 sound_inputs_to_disconnect.push(*si);
@@ -467,12 +446,12 @@ impl SoundGraph {
             topo.disconnect_sound_input(si)?;
         }
 
-        for ni in number_inputs_to_remove {
-            topo.remove_number_input(ni, processor_id)?;
+        for ni in expressions_to_remove {
+            topo.remove_expression(ni, processor_id)?;
         }
 
-        for (ns, nso) in number_sources_to_remove {
-            topo.remove_number_source(ns, nso)?;
+        for ns in expr_arguments_to_remove {
+            topo.remove_expression_argument(ns)?;
         }
 
         for si in sound_inputs_to_remove {
@@ -487,7 +466,7 @@ impl SoundGraph {
     /// Create a SoundProcessorTools instance for making topological
     /// changes to the given sound processor and pass the tools to the
     /// provided closure. This is useful, for example, for example,
-    /// for modifying sound inputs and number inputs and sources after
+    /// for modifying sound inputs and expressions and arguments after
     /// the sound processor has been created.
     pub fn with_processor_tools<R, F: FnOnce(SoundProcessorTools) -> Result<R, SoundError>>(
         &mut self,
@@ -500,20 +479,20 @@ impl SoundGraph {
         })
     }
 
-    /// Make changes to a number input using the given closure,
+    /// Make changes to an expression using the given closure,
     /// which is passed a mutable instance of the input's
-    /// SoundNumberInputData.
-    pub fn edit_number_input<R, F: FnOnce(&mut SoundNumberInputData) -> R>(
+    /// SoundExpressionData.
+    pub fn edit_expression<R, F: FnOnce(&mut SoundExpressionData) -> R>(
         &mut self,
-        input_id: SoundNumberInputId,
+        input_id: SoundExpressionId,
         f: F,
     ) -> Result<R, SoundError> {
         self.try_make_change(|topo, _| {
-            let number_input = topo
-                .number_input_mut(input_id)
-                .ok_or(SoundError::NumberInputNotFound(input_id))?;
+            let expr = topo
+                .expression_mut(input_id)
+                .ok_or(SoundError::ExpressionNotFound(input_id))?;
 
-            let r = f(number_input);
+            let r = f(expr);
 
             if let Some(e) = find_sound_error(topo) {
                 Err(e)

@@ -5,8 +5,10 @@ use super::{
     soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
-    soundnumberinput::SoundNumberInputId,
-    soundnumbersource::{SoundNumberSourceId, SoundNumberSourceOrigin, SoundNumberSourceOwner},
+    expression::SoundExpressionId,
+    expressionargument::{
+        SoundExpressionArgumentId, SoundExpressionArgumentOrigin, SoundExpressionArgumentOwner,
+    },
     soundprocessor::SoundProcessorId,
     state::StateOwner,
 };
@@ -20,7 +22,7 @@ pub(crate) fn find_sound_error(topology: &SoundGraphTopology) -> Option<SoundErr
     if let Some(err) = validate_sound_connections(topology) {
         return Some(err);
     }
-    let bad_dependencies = find_invalid_number_connections(topology);
+    let bad_dependencies = find_invalid_expression_arguments(topology);
     if bad_dependencies.len() > 0 {
         return Some(SoundError::StateNotInScope { bad_dependencies }.into());
     }
@@ -52,14 +54,14 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                 ),
             }
         }
-        for i in sp.number_inputs() {
-            // each number input must exist and list the sound processor as its owner
-            match topology.number_inputs().get(i) {
+        for i in sp.expressions() {
+            // each expression must exist and list the sound processor as its owner
+            match topology.expressions().get(i) {
                 Some(idata) => {
                     if idata.owner() != sp.id() {
                         panic!(
-                            "Sound processor {:?} lists number input {:?} as one \
-                            of its number inputs, but that number input does not list
+                            "Sound processor {:?} lists expression {:?} as one \
+                            of its expressions, but that expression does not list
                             the sound processor as its owner.",
                             sp.id(),
                             i
@@ -67,21 +69,21 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                     }
                 }
                 None => panic!(
-                    "Sound processor {:?} lists number input {:?} as one of its \
-                        number inputs, but that number input does not exist.",
+                    "Sound processor {:?} lists expression {:?} as one of its \
+                        expressions, but that expression does not exist.",
                     sp.id(),
                     i
                 ),
             }
         }
-        for s in sp.number_sources() {
-            // each number source must exist and list the sound processor as its owner
-            match topology.number_sources().get(s) {
+        for s in sp.expression_arguments() {
+            // each argument must exist and list the sound processor as its owner
+            match topology.expression_arguments().get(s) {
                 Some(sdata) => {
-                    if sdata.owner() != SoundNumberSourceOwner::SoundProcessor(sp.id()) {
+                    if sdata.owner() != SoundExpressionArgumentOwner::SoundProcessor(sp.id()) {
                         panic!(
-                            "Sound processor {:?} lists number source {:?} as one \
-                                of its number sources, but that number source doesn't \
+                            "Sound processor {:?} lists expression argument {:?} as one \
+                                of its arguments, but that argument doesn't \
                                 list the sound processor as its owner.",
                             sp.id(),
                             s
@@ -89,8 +91,8 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                     }
                 }
                 None => panic!(
-                    "Sound processor {:?} lists number source {:?} as one of its \
-                        number sources, but that number source does not exist.",
+                    "Sound processor {:?} lists expression argument {:?} as one of its \
+                        arguments, but that argument does not exist.",
                     sp.id(),
                     s
                 ),
@@ -130,14 +132,14 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                 si.owner()
             ),
         }
-        for nsid in si.number_sources() {
-            // each number source must exist and list the sound input as its owner
-            match topology.number_sources().get(nsid) {
+        for nsid in si.expression_arguments() {
+            // each argument must exist and list the sound input as its owner
+            match topology.expression_arguments().get(nsid) {
                 Some(ns) => {
-                    if ns.owner() != SoundNumberSourceOwner::SoundInput(si.id()) {
+                    if ns.owner() != SoundExpressionArgumentOwner::SoundInput(si.id()) {
                         panic!(
-                            "Sound input {:?} lists number source {:?} as one of its \
-                                number sources, but that number source doesn't list the \
+                            "Sound input {:?} lists expression argument {:?} as one of its \
+                                arguments, but that argument doesn't list the \
                                 sound input as its owner.",
                             si.id(),
                             nsid
@@ -145,8 +147,8 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
                     }
                 }
                 None => panic!(
-                    "Sound input {:?} lists number source {:?} as one of its number \
-                        sources, but that number source does not exist.",
+                    "Sound input {:?} lists expression argument {:?} as one of its arguments, \
+                        but that argument does not exist.",
                     si.id(),
                     nsid
                 ),
@@ -154,42 +156,44 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
         }
     }
 
-    for ns in topology.number_sources().values() {
+    for ns in topology.expression_arguments().values() {
         match ns.owner() {
-            // if the number source has an owner, it must exist and list the number source
-            SoundNumberSourceOwner::SoundProcessor(spid) => match topology.sound_processor(spid) {
-                Some(sp) => {
-                    if !sp.number_sources().contains(&ns.id()) {
-                        panic!(
-                            "The number source {:?} lists sound processor {:?} as its owner, \
-                                but that sound processor does not list the number source as one \
-                                of its number sources.",
-                            ns.id(),
-                            spid
-                        );
+            // if the argument has an owner, it must exist and list the argument
+            SoundExpressionArgumentOwner::SoundProcessor(spid) => {
+                match topology.sound_processor(spid) {
+                    Some(sp) => {
+                        if !sp.expression_arguments().contains(&ns.id()) {
+                            panic!(
+                                "The expression argument {:?} lists sound processor {:?} as its owner, \
+                                but that sound processor does not list the argument as one \
+                                of its arguments.",
+                                ns.id(),
+                                spid
+                            );
+                        }
                     }
-                }
-                None => panic!(
-                    "The number source {:?} lists sound processor {:?} as its owner, but that \
+                    None => panic!(
+                        "The expression argument {:?} lists sound processor {:?} as its owner, but that \
                         sound processor does not exist.",
-                    ns.id(),
-                    spid
-                ),
-            },
-            SoundNumberSourceOwner::SoundInput(siid) => match topology.sound_input(siid) {
+                        ns.id(),
+                        spid
+                    ),
+                }
+            }
+            SoundExpressionArgumentOwner::SoundInput(siid) => match topology.sound_input(siid) {
                 Some(si) => {
-                    if !si.number_sources().contains(&ns.id()) {
+                    if !si.expression_arguments().contains(&ns.id()) {
                         panic!(
-                            "The number source {:?} lists sound input {:?} as its owner, \
-                                but that sound input does not list the number source as one \
-                                of its number sources.",
+                            "The expression argument {:?} lists sound input {:?} as its owner, \
+                                but that sound input does not list the argument as one \
+                                of its arguments.",
                             ns.id(),
                             siid
                         );
                     }
                 }
                 None => panic!(
-                    "The number source {:?} lists sound input {:?} as its owner, but that \
+                    "The expression argument {:?} lists sound input {:?} as its owner, but that \
                         sound input doesn't exist.",
                     ns.id(),
                     siid
@@ -198,65 +202,65 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
         }
     }
 
-    for ni in topology.number_inputs().values() {
-        // for each number input
+    for ni in topology.expressions().values() {
+        // for each expression
 
-        // all of its target number sources must exist
-        for nsid in ni.target_mapping().items().values() {
-            if topology.number_sources().get(nsid).is_none() {
+        // all of its mapped arguments must exist
+        for nsid in ni.parameter_mapping().items().values() {
+            if topology.expression_arguments().get(nsid).is_none() {
                 panic!(
-                    "The number input {:?} lists number source {:?} as its target, but that \
-                        number source does not exist.",
+                    "The expression {:?} lists expression argument {:?} as its target, but that \
+                        argument does not exist.",
                     ni.id(),
                     nsid
                 );
             }
         }
 
-        // its owner must exist and list it as one of its number inputs
+        // its owner must exist and list it as one of its expressions
         match topology.sound_processor(ni.owner()) {
             Some(sp) => {
-                if !sp.number_inputs().contains(&ni.id()) {
+                if !sp.expressions().contains(&ni.id()) {
                     panic!(
-                        "The number input {:?} lists sound processor {:?} as its owner, \
-                                but that sound processor doesn't list the number input as one of \
-                                its number inputs.",
+                        "The expression {:?} lists sound processor {:?} as its owner, \
+                                but that sound processor doesn't list the expression as one of \
+                                its expressions.",
                         ni.id(),
                         ni.owner()
                     );
                 }
             }
             None => panic!(
-                "The number input {:?} lists sound processor {:?} as its owner, but that \
+                "The expression {:?} lists sound processor {:?} as its owner, but that \
                         sound processor does not exist.",
                 ni.id(),
                 ni.owner()
             ),
         }
 
-        // any number sources listed in its scope must belong to the parent
-        // sound processor and be local number sources
-        for nsid in ni.scope().available_local_sources() {
-            let Some(ns_data) = topology.number_source(*nsid) else {
+        // any expression arguments listed in its scope must belong to the parent
+        // sound processor and be local arguments
+        for nsid in ni.scope().available_local_arguments() {
+            let Some(ns_data) = topology.expression_argumnet(*nsid) else {
                 panic!(
-                    "The number input {:?} lists number source {:?} as in its local scope, but \
-                    that number source doesn't exist.",
+                    "The expression {:?} lists expression argument {:?} as in its local scope, but \
+                    that argument doesn't exist.",
                     ni.id(),
                     nsid
                 );
             };
-            if ns_data.owner() != SoundNumberSourceOwner::SoundProcessor(ni.owner()) {
+            if ns_data.owner() != SoundExpressionArgumentOwner::SoundProcessor(ni.owner()) {
                 panic!(
-                    "The number input {:?} lists number source {:?} as in its local scope, but \
-                    that number source doesn't belong to the same sound processor.",
+                    "The expression {:?} lists expression argument {:?} as in its local scope, but \
+                    that argument doesn't belong to the same sound processor.",
                     ni.id(),
                     nsid
                 );
             }
-            if ns_data.instance().origin() != SoundNumberSourceOrigin::Local(ni.owner()) {
+            if ns_data.instance().origin() != SoundExpressionArgumentOrigin::Local(ni.owner()) {
                 panic!(
-                    "The number input {:?} lists number source {:?} as in its local scope, but \
-                    that number source is not a local number source.",
+                    "The expression {:?} lists expression argument {:?} as in its local scope, but \
+                    that argument is not a local argument.",
                     ni.id(),
                     nsid
                 );
@@ -424,19 +428,19 @@ fn processor_depends_on_processor(
     false
 }
 
-pub(super) fn find_invalid_number_connections(
+pub(super) fn find_invalid_expression_arguments(
     topology: &SoundGraphTopology,
-) -> Vec<(SoundNumberSourceId, SoundNumberInputId)> {
-    let mut bad_connections: Vec<(SoundNumberSourceId, SoundNumberInputId)> = Vec::new();
+) -> Vec<(SoundExpressionArgumentId, SoundExpressionId)> {
+    let mut bad_connections: Vec<(SoundExpressionArgumentId, SoundExpressionId)> = Vec::new();
 
-    for (niid, ni) in topology.number_inputs() {
-        for target in ni.target_mapping().items().values() {
-            let target_owner = topology.number_source(*target).unwrap().owner();
+    for (niid, ni) in topology.expressions() {
+        for target in ni.parameter_mapping().items().values() {
+            let target_owner = topology.expression_argumnet(*target).unwrap().owner();
             let depends = match target_owner {
-                SoundNumberSourceOwner::SoundProcessor(spid) => {
+                SoundExpressionArgumentOwner::SoundProcessor(spid) => {
                     processor_depends_on_processor(spid, ni.owner(), topology)
                 }
-                SoundNumberSourceOwner::SoundInput(siid) => {
+                SoundExpressionArgumentOwner::SoundInput(siid) => {
                     input_depends_on_processor(siid, ni.owner(), topology)
                 }
             };
@@ -449,25 +453,25 @@ pub(super) fn find_invalid_number_connections(
     return bad_connections;
 }
 
-pub(crate) fn available_sound_number_sources(
+pub(crate) fn available_sound_expression_arguments(
     topology: &SoundGraphTopology,
-) -> HashMap<SoundNumberInputId, HashSet<SoundNumberSourceId>> {
-    let mut available_sources_by_processor: HashMap<
+) -> HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>> {
+    let mut available_arguments_by_processor: HashMap<
         SoundProcessorId,
-        HashSet<SoundNumberSourceId>,
+        HashSet<SoundExpressionArgumentId>,
     > = HashMap::new();
     for proc_data in topology.sound_processors().values() {
         if proc_data.instance().is_static() {
-            available_sources_by_processor.insert(
+            available_arguments_by_processor.insert(
                 proc_data.id(),
-                proc_data.number_sources().iter().cloned().collect(),
+                proc_data.expression_arguments().iter().cloned().collect(),
             );
         }
     }
 
     let all_targets_cached_for =
         |processor_id: SoundProcessorId,
-         cache: &HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>>| {
+         cache: &HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>>| {
             topology
                 .sound_processor_targets(processor_id)
                 .all(|target_siid| {
@@ -476,19 +480,19 @@ pub(crate) fn available_sound_number_sources(
                 })
         };
 
-    let sound_input_number_sources =
+    let sound_input_arguments =
         |input_id: SoundInputId,
-         cache: &HashMap<SoundProcessorId, HashSet<SoundNumberSourceId>>|
-         -> HashSet<SoundNumberSourceId> {
+         cache: &HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>>|
+         -> HashSet<SoundExpressionArgumentId> {
             let input_data = topology.sound_input(input_id).unwrap();
-            let mut sources = cache
+            let mut arguments = cache
                 .get(&input_data.owner())
-                .expect("Processor number sources should have been cached")
+                .expect("Processor expression arguments should have been cached")
                 .clone();
-            for nsid in input_data.number_sources() {
-                sources.insert(*nsid);
+            for nsid in input_data.expression_arguments() {
+                arguments.insert(*nsid);
             }
-            sources
+            arguments
         };
 
     // Cache all processors in topological order
@@ -498,11 +502,11 @@ pub(crate) fn available_sound_number_sources(
             .values()
             .filter_map(|proc_data| {
                 // don't revisit processors that are already cached
-                if available_sources_by_processor.contains_key(&proc_data.id()) {
+                if available_arguments_by_processor.contains_key(&proc_data.id()) {
                     return None;
                 }
                 // visit processors for which all targets are cached
-                if all_targets_cached_for(proc_data.id(), &available_sources_by_processor) {
+                if all_targets_cached_for(proc_data.id(), &available_arguments_by_processor) {
                     Some(proc_data.id())
                 } else {
                     None
@@ -515,72 +519,72 @@ pub(crate) fn available_sound_number_sources(
             break;
         };
 
-        let mut available_sources: Option<HashSet<SoundNumberSourceId>> = None;
+        let mut available_arguments: Option<HashSet<SoundExpressionArgumentId>> = None;
 
-        // Available upstream sources are the intersection of all those
+        // Available upstream arguments are the intersection of all those
         // available via each destination sound input
         for target_input in topology.sound_processor_targets(next_proc_id) {
-            let target_input_sources =
-                sound_input_number_sources(target_input, &available_sources_by_processor);
-            if let Some(sources) = available_sources.as_mut() {
-                *sources = sources
-                    .intersection(&target_input_sources)
+            let target_input_arguments =
+                sound_input_arguments(target_input, &available_arguments_by_processor);
+            if let Some(arguments) = available_arguments.as_mut() {
+                *arguments = arguments
+                    .intersection(&target_input_arguments)
                     .cloned()
                     .collect();
             } else {
-                available_sources = Some(target_input_sources);
+                available_arguments = Some(target_input_arguments);
             }
         }
 
-        let mut available_sources = available_sources.unwrap_or_else(HashSet::new);
+        let mut available_arguments = available_arguments.unwrap_or_else(HashSet::new);
 
         for nsid in topology
             .sound_processor(next_proc_id)
             .unwrap()
-            .number_sources()
+            .expression_arguments()
         {
-            available_sources.insert(*nsid);
+            available_arguments.insert(*nsid);
         }
 
-        available_sources_by_processor.insert(next_proc_id, available_sources);
+        available_arguments_by_processor.insert(next_proc_id, available_arguments);
     }
 
-    let mut available_sources_by_number_input = HashMap::new();
+    let mut available_arguments_by_expression = HashMap::new();
 
-    // Each number input's available sources are those available from the processor minus
+    // Each expression's available arguments are those available from the processor minus
     // any out-of-scope locals
-    for ni_data in topology.number_inputs().values() {
-        let mut available_sources = available_sources_by_processor
+    for ni_data in topology.expressions().values() {
+        let mut available_arguments = available_arguments_by_processor
             .get(&ni_data.owner())
             .unwrap()
             .clone();
-        let processor_sources = topology
+        let processor_arguments = topology
             .sound_processor(ni_data.owner())
             .unwrap()
-            .number_sources();
-        for nsid in processor_sources {
-            debug_assert!(available_sources.contains(nsid));
-            let ns_data = topology.number_source(*nsid).unwrap();
+            .expression_arguments();
+        for nsid in processor_arguments {
+            debug_assert!(available_arguments.contains(nsid));
+            let ns_data = topology.expression_argumnet(*nsid).unwrap();
             match ns_data.instance().origin() {
-                SoundNumberSourceOrigin::ProcessorState(spid) => {
+                SoundExpressionArgumentOrigin::ProcessorState(spid) => {
                     debug_assert_eq!(spid, ni_data.owner());
                     if !ni_data.scope().processor_state_available() {
-                        available_sources.remove(nsid);
+                        available_arguments.remove(nsid);
                     }
                 }
-                SoundNumberSourceOrigin::InputState(_) => {
-                    panic!("Processor sound number source can't have a sound input as its origin");
+                SoundExpressionArgumentOrigin::InputState(_) => {
+                    panic!("Processor expression argument can't have a sound input as its origin");
                 }
-                SoundNumberSourceOrigin::Local(spid) => {
+                SoundExpressionArgumentOrigin::Local(spid) => {
                     debug_assert_eq!(spid, ni_data.owner());
-                    if !ni_data.scope().available_local_sources().contains(nsid) {
-                        available_sources.remove(nsid);
+                    if !ni_data.scope().available_local_arguments().contains(nsid) {
+                        available_arguments.remove(nsid);
                     }
                 }
             }
         }
-        available_sources_by_number_input.insert(ni_data.id(), available_sources);
+        available_arguments_by_expression.insert(ni_data.id(), available_arguments);
     }
 
-    available_sources_by_number_input
+    available_arguments_by_expression
 }

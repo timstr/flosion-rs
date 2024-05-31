@@ -6,8 +6,8 @@ use std::{
 
 use crate::{
     core::{
+        expression::expressiongraph::ExpressionGraph,
         graph::{graphobject::ObjectType, objectfactory::ObjectFactory},
-        number::numbergraph::NumberGraph,
         revision::revision::{Revision, RevisionNumber},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
@@ -40,7 +40,7 @@ struct SelectionState {
 pub struct FlosionApp {
     graph: SoundGraph,
     object_factory: ObjectFactory<SoundGraph>,
-    number_object_factory: ObjectFactory<NumberGraph>,
+    number_object_factory: ObjectFactory<ExpressionGraph>,
     ui_factory: UiFactory<SoundGraphUi>,
     number_ui_factory: UiFactory<NumberGraphUi>,
     ui_state: SoundGraphUiState,
@@ -308,16 +308,6 @@ impl FlosionApp {
     fn handle_dropped_processor(&mut self, ui: &egui::Ui, data: DroppingProcessorData) {
         let shift_is_down = ui.input(|i| i.modifiers.shift);
 
-        fn break_number_connections(graph: &mut SoundGraph, sound_input: SoundInputId) {
-            let crossings: Vec<_> = graph
-                .topology()
-                .number_connection_crossings(sound_input)
-                .collect();
-            for (niid, nsid) in crossings {
-                graph.disconnect_number_input(niid, nsid).unwrap();
-            }
-        }
-
         if let Some(siid) = data.target_input {
             // dropped onto a sound input
 
@@ -328,7 +318,6 @@ impl FlosionApp {
                 }
 
                 if !shift_is_down {
-                    break_number_connections(&mut self.graph, previous_siid);
                     self.graph.disconnect_sound_input(previous_siid).unwrap();
                 }
             } else if !shift_is_down {
@@ -358,7 +347,6 @@ impl FlosionApp {
             // not dropped suitably close to an input
             if let Some(previous_siid) = data.from_input {
                 if !shift_is_down {
-                    break_number_connections(&mut self.graph, previous_siid);
                     self.graph.disconnect_sound_input(previous_siid).unwrap();
                 }
             }

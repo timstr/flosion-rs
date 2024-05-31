@@ -1,6 +1,6 @@
 use crate::core::sound::{
-    soundgraphdata::SoundNumberInputData, soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
+    soundgraphdata::SoundExpressionData, soundinput::SoundInputId,
+    expression::SoundExpressionId, soundprocessor::SoundProcessorId,
 };
 
 use super::{
@@ -114,11 +114,11 @@ impl<'ctx> StateGraph<'ctx> {
         });
     }
 
-    fn add_number_input(&mut self, _data: SoundNumberInputData) {
+    fn add_number_input(&mut self, _data: SoundExpressionData) {
         todo!();
     }
 
-    fn remove_number_input(&mut self, _input_id: SoundNumberInputId) {
+    fn remove_number_input(&mut self, _input_id: SoundExpressionId) {
         todo!();
     }
 

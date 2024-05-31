@@ -5,7 +5,7 @@ use crate::core::{
         soundgraphdata::{SoundInputBranchId, SoundProcessorData},
         soundgraphtopology::SoundGraphTopology,
         soundinput::SoundInputId,
-        soundnumberinput::SoundNumberInputId,
+        expression::SoundExpressionId,
         soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
@@ -194,9 +194,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         node: &dyn StateGraphNode,
         proc_data: &SoundProcessorData,
     ) -> bool {
-        let mut remaining_inputs: HashSet<SoundNumberInputId> =
-            proc_data.number_inputs().iter().cloned().collect();
-        let mut unexpected_inputs: HashSet<SoundNumberInputId> = HashSet::new();
+        let mut remaining_inputs: HashSet<SoundExpressionId> =
+            proc_data.expressions().iter().cloned().collect();
+        let mut unexpected_inputs: HashSet<SoundExpressionId> = HashSet::new();
 
         node.visit_number_inputs(&mut |number_input_node: &SoundNumberInputNode| {
             if !remaining_inputs.remove(&number_input_node.id()) {

@@ -2,9 +2,9 @@ use inkwell::values::FunctionValue;
 
 use crate::core::{
     anydata::AnyData,
-    number::context::{usize_pair_to_number_context, NumberContext},
+    expression::context::{usize_pair_to_expression_context, ExpressionContext},
     sound::{
-        soundinput::SoundInputId, soundnumbersource::SoundNumberSourceId,
+        soundinput::SoundInputId, expressionargument::SoundExpressionArgumentId,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -25,8 +25,9 @@ pub(super) unsafe extern "C" fn input_scalar_read_wrapper(
         std::mem::size_of::<*const ()>()
     );
     let read_fn: ScalarReadFunc = std::mem::transmute(scalar_read_fn);
-    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
-    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let ctx: *const dyn ExpressionContext =
+        usize_pair_to_expression_context((context_1, context_2));
+    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let siid = SoundInputId::new(sound_input_id);
     ctx.read_scalar_from_sound_input(siid, read_fn)
 }
@@ -42,8 +43,9 @@ pub(super) unsafe extern "C" fn processor_scalar_read_wrapper(
         std::mem::size_of::<*const ()>()
     );
     let read_fn: ScalarReadFunc = std::mem::transmute(scalar_read_fn);
-    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
-    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let ctx: *const dyn ExpressionContext =
+        usize_pair_to_expression_context((context_1, context_2));
+    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
     ctx.read_scalar_from_sound_processor(spid, read_fn)
 }
@@ -60,8 +62,9 @@ pub(super) unsafe extern "C" fn input_array_read_wrapper(
         std::mem::size_of::<*const ()>()
     );
     let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
-    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
-    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let ctx: *const dyn ExpressionContext =
+        usize_pair_to_expression_context((context_1, context_2));
+    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let siid = SoundInputId::new(sound_input_id);
     let s = ctx.read_array_from_sound_input(siid, f);
     if s.len() != expected_len {
@@ -82,8 +85,9 @@ pub(super) unsafe extern "C" fn processor_array_read_wrapper(
         std::mem::size_of::<*const ()>()
     );
     let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
-    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
-    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let ctx: *const dyn ExpressionContext =
+        usize_pair_to_expression_context((context_1, context_2));
+    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
     let s = ctx.read_array_from_sound_processor(spid, f);
     if s.len() != expected_len {
@@ -99,8 +103,9 @@ pub(super) unsafe extern "C" fn processor_time_wrapper(
     ptr_time: *mut f32,
     ptr_speed: *mut f32,
 ) {
-    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
-    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let ctx: *const dyn ExpressionContext =
+        usize_pair_to_expression_context((context_1, context_2));
+    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
     let (time, speed) = ctx.get_time_and_speed_at_sound_processor(spid);
     *ptr_time = time;
@@ -114,8 +119,9 @@ pub(super) unsafe extern "C" fn input_time_wrapper(
     ptr_time: *mut f32,
     ptr_speed: *mut f32,
 ) {
-    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
-    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let ctx: *const dyn ExpressionContext =
+        usize_pair_to_expression_context((context_1, context_2));
+    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let siid = SoundInputId::new(sound_input_id);
     let (time, speed) = ctx.get_time_and_speed_at_sound_input(siid);
     *ptr_time = time;
@@ -129,10 +135,11 @@ pub(super) unsafe extern "C" fn processor_local_array_read_wrapper(
     number_source_id: usize,
     expected_len: usize,
 ) -> *const f32 {
-    let ctx: *const dyn NumberContext = usize_pair_to_number_context((context_1, context_2));
-    let ctx: &dyn NumberContext = unsafe { &*ctx };
+    let ctx: *const dyn ExpressionContext =
+        usize_pair_to_expression_context((context_1, context_2));
+    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
-    let nsid = SoundNumberSourceId::new(number_source_id);
+    let nsid = SoundExpressionArgumentId::new(number_source_id);
     let s = ctx.read_local_array_from_sound_processor(spid, nsid);
     if s.len() != expected_len {
         panic!("processor_array_read_wrapper received a slice of incorrect length");

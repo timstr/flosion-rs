@@ -11,11 +11,11 @@ use crate::core::{
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundNumberInputScope,
+        soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{KeyedInput, KeyedInputNode},
-        soundnumberinput::SoundNumberInputHandle,
-        soundnumbersource::SoundNumberSourceHandle,
+        expression::SoundExpressionHandle,
+        expressionargument::SoundExpressionArgumentHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -46,9 +46,9 @@ pub struct Scatter {
     // TODO: generalize this to e.g. min and max of a uniform distribution,
     // mean and variance of a normal distribution, etc.
     // For now, zero mean uniform distribution with half width given by parameter.
-    pub parameter: SoundNumberInputHandle,
+    pub parameter: SoundExpressionHandle,
 
-    pub value: SoundNumberSourceHandle,
+    pub value: SoundExpressionArgumentHandle,
 }
 
 pub struct ScatterNumberInputs<'ctx> {
@@ -80,7 +80,7 @@ impl DynamicSoundProcessor for Scatter {
         });
         Ok(Scatter {
             sound_input: input,
-            parameter: tools.add_number_input(1.0, SoundNumberInputScope::with_processor_state()),
+            parameter: tools.add_number_input(1.0, SoundExpressionScope::with_processor_state()),
             value,
         })
     }

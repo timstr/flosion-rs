@@ -7,7 +7,7 @@ use eframe::{egui, epaint::ecolor};
 
 use crate::core::sound::{
     soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-    soundnumberinput::SoundNumberInputId,
+    expression::SoundExpressionId,
 };
 
 use super::{
@@ -79,7 +79,7 @@ pub struct SoundObjectUiData<'a, T: ObjectUiState> {
 
 pub struct SoundObjectUiStates {
     data: HashMap<SoundObjectId, Rc<AnySoundObjectUiData>>,
-    number_graph_object_states: HashMap<SoundNumberInputId, NumberObjectUiStates>,
+    number_graph_object_states: HashMap<SoundExpressionId, NumberObjectUiStates>,
 }
 
 impl SoundObjectUiStates {
@@ -122,9 +122,13 @@ impl SoundObjectUiStates {
             SoundObjectId::Sound(spid) => topo.sound_processors().contains_key(spid),
         });
         self.number_graph_object_states
-            .retain(|i, _| topo.number_inputs().contains_key(i));
+            .retain(|i, _| topo.expressions().contains_key(i));
         for (niid, states) in &mut self.number_graph_object_states {
-            let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+            let number_topo = topo
+                .expression(*niid)
+                .unwrap()
+                .expression_graph()
+                .topology();
             states.cleanup(number_topo);
         }
     }
@@ -248,14 +252,18 @@ impl SoundObjectUiStates {
         });
         match object_id {
             SoundObjectId::Sound(spid) => {
-                let number_input_ids = topo.sound_processor(spid).unwrap().number_inputs();
+                let number_input_ids = topo.sound_processor(spid).unwrap().expressions();
                 for niid in number_input_ids {
-                    let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+                    let number_topo = topo
+                        .expression(*niid)
+                        .unwrap()
+                        .expression_graph()
+                        .topology();
                     self.number_graph_object_states
                         .entry(*niid)
                         .or_insert_with(|| {
                             let mut states = NumberObjectUiStates::new();
-                            for ns_data in number_topo.number_sources().values() {
+                            for ns_data in number_topo.nodes().values() {
                                 let graph_object = ns_data.instance_arc().as_graph_object();
                                 let object_state =
                                     number_ui_factory.create_default_state(&graph_object);
@@ -270,14 +278,14 @@ impl SoundObjectUiStates {
 
     pub(super) fn number_graph_object_state(
         &self,
-        input_id: SoundNumberInputId,
+        input_id: SoundExpressionId,
     ) -> &NumberObjectUiStates {
         self.number_graph_object_states.get(&input_id).unwrap()
     }
 
     pub(super) fn number_graph_object_state_mut(
         &mut self,
-        input_id: SoundNumberInputId,
+        input_id: SoundExpressionId,
     ) -> &mut NumberObjectUiStates {
         self.number_graph_object_states.get_mut(&input_id).unwrap()
     }

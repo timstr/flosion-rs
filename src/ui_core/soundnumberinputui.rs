@@ -1,9 +1,11 @@
 use eframe::egui;
 
 use crate::core::{
+    expression::{
+        expressiongraph::ExpressionGraph, expressiongraphtopology::ExpressionGraphTopology,
+    },
     graph::objectfactory::ObjectFactory,
-    number::{numbergraph::NumberGraph, numbergraphtopology::NumberGraphTopology},
-    sound::soundnumberinput::SoundNumberInputId,
+    sound::expression::SoundExpressionId,
 };
 
 use super::{
@@ -22,7 +24,7 @@ pub(super) struct SoundNumberInputPresentation {
 
 impl SoundNumberInputPresentation {
     pub(super) fn new(
-        topology: &NumberGraphTopology,
+        topology: &ExpressionGraphTopology,
         object_ui_states: &NumberObjectUiStates,
     ) -> SoundNumberInputPresentation {
         SoundNumberInputPresentation {
@@ -32,7 +34,7 @@ impl SoundNumberInputPresentation {
 
     pub(super) fn cleanup(
         &mut self,
-        topology: &NumberGraphTopology,
+        topology: &ExpressionGraphTopology,
         object_ui_states: &NumberObjectUiStates,
     ) {
         self.lexical_layout.cleanup(topology, object_ui_states);
@@ -42,7 +44,7 @@ impl SoundNumberInputPresentation {
         &mut self,
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        object_factory: &ObjectFactory<NumberGraph>,
+        object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut NumberObjectUiStates,
         outer_context: &mut OuterNumberGraphUiContext,
@@ -59,11 +61,11 @@ impl SoundNumberInputPresentation {
 }
 
 pub(super) struct SoundNumberInputUi {
-    _number_input_id: SoundNumberInputId,
+    _number_input_id: SoundExpressionId,
 }
 
 impl SoundNumberInputUi {
-    pub(super) fn new(id: SoundNumberInputId) -> SoundNumberInputUi {
+    pub(super) fn new(id: SoundExpressionId) -> SoundNumberInputUi {
         SoundNumberInputUi {
             _number_input_id: id,
         }
@@ -98,7 +100,7 @@ impl SoundNumberInputUi {
                                 ctx.jit_client(),
                                 ctx.sound_graph()
                                     .topology()
-                                    .number_input(ctx.sound_number_input_id())
+                                    .expression(ctx.sound_number_input_id())
                                     .unwrap(),
                                 *ctx.time_axis(),
                                 plot_config,

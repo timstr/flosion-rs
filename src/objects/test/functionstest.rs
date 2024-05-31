@@ -14,16 +14,16 @@ use crate::{
                 SoundNumberInputNodeVisitorMut,
             },
         },
+        expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         jit::{codegen::CodeGen, compilednumberinput::Discretization},
-        number::{numbergraphdata::NumberTarget, numbersource::PureNumberSource},
         sound::{
             context::{Context, LocalArrayList},
+            expression::SoundExpressionHandle,
+            expressionargument::SoundExpressionArgumentHandle,
             soundgraph::SoundGraphIdGenerators,
-            soundgraphdata::{SoundNumberInputScope, SoundProcessorData},
+            soundgraphdata::{SoundExpressionScope, SoundProcessorData},
             soundgraphtopology::SoundGraphTopology,
-            soundnumberinput::SoundNumberInputHandle,
-            soundnumbersource::SoundNumberSourceHandle,
             soundprocessor::{
                 DynamicSoundProcessor, DynamicSoundProcessorWithId, SoundProcessorId,
                 StateAndTiming, StreamStatus,
@@ -41,11 +41,11 @@ const TEST_ARRAY_SIZE: usize = 1024;
 const MAX_NUM_INPUTS: usize = 3;
 
 struct TestSoundProcessor {
-    number_input: SoundNumberInputHandle,
+    number_input: SoundExpressionHandle,
     input_values: Mutex<[[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]>,
-    number_source_0: SoundNumberSourceHandle,
-    number_source_1: SoundNumberSourceHandle,
-    number_source_2: SoundNumberSourceHandle,
+    number_source_0: SoundExpressionArgumentHandle,
+    number_source_1: SoundExpressionArgumentHandle,
+    number_source_2: SoundExpressionArgumentHandle,
 }
 
 struct TestNumberInput<'ctx> {
@@ -88,8 +88,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(TestSoundProcessor {
-            number_input: tools
-                .add_number_input(0.0, SoundNumberInputScope::with_processor_state()),
+            number_input: tools.add_number_input(0.0, SoundExpressionScope::with_processor_state()),
             input_values: Mutex::new([[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]),
             number_source_0: tools.add_processor_array_number_source(|data| {
                 &data
@@ -164,7 +163,7 @@ macro_rules! assert_near {
     };
 }
 
-fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
+fn do_number_source_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
     input_ranges: &[(f32, f32)],
     test_function: F,
 ) {
@@ -173,7 +172,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     let mut idgens = SoundGraphIdGenerators::new();
 
     let test_spid = idgens.sound_processor.next_id();
-    let time_nsid = idgens.number_source.next_id();
+    let time_nsid = idgens.expression_argument.next_id();
 
     // Add an empty sound processor first to allow topology changes inside
     // the processor's new() method
@@ -196,25 +195,23 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
         .set_processor(sp_instance_2);
 
     {
-        let number_input_data = topo
-            .number_input_mut(sp_instance.number_input.id())
-            .unwrap();
+        let number_input_data = topo.expression_mut(sp_instance.number_input.id()).unwrap();
 
-        let (number_graph, mapping) = number_input_data.number_graph_and_mapping_mut();
+        let (number_graph, mapping) = number_input_data.expression_graph_and_mapping_mut();
 
-        let giid0 = mapping.add_target(sp_instance.number_source_0.id(), number_graph);
-        let giid1 = mapping.add_target(sp_instance.number_source_1.id(), number_graph);
-        let giid2 = mapping.add_target(sp_instance.number_source_2.id(), number_graph);
+        let giid0 = mapping.add_argument(sp_instance.number_source_0.id(), number_graph);
+        let giid1 = mapping.add_argument(sp_instance.number_source_1.id(), number_graph);
+        let giid2 = mapping.add_argument(sp_instance.number_source_2.id(), number_graph);
 
         let ns_handle = number_graph
-            .add_pure_number_source::<T>(ObjectInitialization::Default)
+            .add_pure_expression_node::<T>(ObjectInitialization::Default)
             .unwrap();
 
         let input_ids = number_graph
             .topology()
-            .number_source(ns_handle.id())
+            .node(ns_handle.id())
             .unwrap()
-            .number_inputs()
+            .inputs()
             .to_vec();
 
         for (niid, giid) in input_ids.into_iter().zip(
@@ -225,7 +222,7 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
         ) {
             if let Some(giid) = giid {
                 number_graph
-                    .connect_number_input(niid, NumberTarget::GraphInput(giid))
+                    .connect_node_input(niid, ExpressionTarget::Parameter(giid))
                     .unwrap();
             } else {
                 panic!("A number source has more than three inputs and not all are being tested");
@@ -233,9 +230,9 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
         }
 
         number_graph
-            .connect_graph_output(
-                number_graph.topology().graph_outputs()[0].id(),
-                NumberTarget::Source(ns_handle.id()),
+            .connect_result(
+                number_graph.topology().results()[0].id(),
+                ExpressionTarget::Node(ns_handle.id()),
             )
             .unwrap();
     }
@@ -308,14 +305,14 @@ fn do_number_source_test<T: PureNumberSource, F: Fn(&[f32]) -> f32>(
     }
 }
 
-fn do_number_source_test_unary<T: PureNumberSource>(
+fn do_number_source_test_unary<T: PureExpressionNode>(
     input_range: (f32, f32),
     test_function: fn(f32) -> f32,
 ) {
     do_number_source_test::<T, _>(&[input_range], |inputs| test_function(inputs[0]))
 }
 
-fn do_number_source_test_binary<T: PureNumberSource>(
+fn do_number_source_test_binary<T: PureExpressionNode>(
     input0_range: (f32, f32),
     input1_range: (f32, f32),
     test_function: fn(f32, f32) -> f32,
@@ -325,7 +322,7 @@ fn do_number_source_test_binary<T: PureNumberSource>(
     })
 }
 
-fn do_number_source_test_ternary<T: PureNumberSource>(
+fn do_number_source_test_ternary<T: PureExpressionNode>(
     input0_range: (f32, f32),
     input1_range: (f32, f32),
     input2_range: (f32, f32),

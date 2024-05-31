@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{graph::graphobject::ObjectType, sound::soundnumbersource::SoundNumberSourceId},
+    core::{graph::graphobject::ObjectType, sound::expressionargument::SoundExpressionArgumentId},
     ui_core::{
         numbergraphui::NumberGraphUi,
         numbergraphuicontext::OuterSoundNumberInputContext,
@@ -16,7 +16,7 @@ use super::ast::{VariableDefinition, VariableId};
 pub(super) enum NumberSummonValue {
     NumberSourceType(ObjectType),
     Constant(f32),
-    SoundNumberSource(SoundNumberSourceId),
+    SoundNumberSource(SoundExpressionArgumentId),
     Variable(VariableId),
 }
 

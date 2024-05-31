@@ -3,9 +3,9 @@ use std::cell::Cell;
 use eframe::egui;
 
 use crate::core::{
-    number::{
-        numbergraph::NumberGraphInputId, numbergraphdata::NumberTarget,
-        numbersource::NumberSourceId,
+    expression::{
+        expressiongraph::ExpressionGraphParameterId, expressiongraphdata::ExpressionTarget,
+        expressionnode::ExpressionNodeId,
     },
     uniqueid::UniqueId,
 };
@@ -275,7 +275,7 @@ pub(super) enum ASTNodeValue {
     Empty,
     Internal(Box<InternalASTNode>),
     Variable(VariableId),
-    GraphInput(NumberGraphInputId),
+    GraphInput(ExpressionGraphParameterId),
 }
 
 pub(crate) struct ASTNode {
@@ -297,7 +297,7 @@ impl ASTNode {
 
     // The number graph source or graph input that this ASTNode directly corresponds to.
     // Variables are not looked up and do not correspond directly to a part of the graph.
-    pub(super) fn direct_target(&self) -> Option<NumberTarget> {
+    pub(super) fn direct_target(&self) -> Option<ExpressionTarget> {
         match &self.value {
             ASTNodeValue::Empty => None,
             ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
@@ -311,7 +311,7 @@ impl ASTNode {
     pub(super) fn indirect_target(
         &self,
         definitions: &[VariableDefinition],
-    ) -> Option<NumberTarget> {
+    ) -> Option<ExpressionTarget> {
         match &self.value {
             ASTNodeValue::Empty => None,
             ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
@@ -429,10 +429,10 @@ impl ASTNode {
 }
 
 pub(super) enum InternalASTNodeValue {
-    Prefix(NumberSourceId, ASTNode),
-    Infix(ASTNode, NumberSourceId, ASTNode),
-    Postfix(ASTNode, NumberSourceId),
-    Function(NumberSourceId, Vec<ASTNode>),
+    Prefix(ExpressionNodeId, ASTNode),
+    Infix(ASTNode, ExpressionNodeId, ASTNode),
+    Postfix(ASTNode, ExpressionNodeId),
+    Function(ExpressionNodeId, Vec<ASTNode>),
 }
 
 pub(crate) struct InternalASTNode {
@@ -456,7 +456,7 @@ impl InternalASTNode {
         &mut self.value
     }
 
-    pub(super) fn number_source_id(&self) -> NumberSourceId {
+    pub(super) fn number_source_id(&self) -> ExpressionNodeId {
         match &self.value {
             InternalASTNodeValue::Prefix(id, _) => *id,
             InternalASTNodeValue::Infix(_, id, _) => *id,
@@ -541,7 +541,7 @@ impl InternalASTNode {
         // Swap self.value into a temporary in order to allow borrowing self
         let mut tmp_value = std::mem::replace(
             &mut self.value,
-            InternalASTNodeValue::Function(NumberSourceId::new(1), Vec::new()),
+            InternalASTNodeValue::Function(ExpressionNodeId::new(1), Vec::new()),
         );
         match &mut tmp_value {
             InternalASTNodeValue::Prefix(_, c) => c.visit_mut(path.push(self, 0), f),

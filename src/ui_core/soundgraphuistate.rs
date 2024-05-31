@@ -150,11 +150,6 @@ impl SoundGraphUiState {
             if si_data.target() != Some(processor_id) {
                 continue;
             }
-            for (niid, nsid) in original_topo.number_connection_crossings(si_data.id()) {
-                topo_disconnected
-                    .disconnect_number_input(niid, nsid)
-                    .unwrap();
-            }
             topo_disconnected
                 .disconnect_sound_input(si_data.id())
                 .unwrap();
@@ -368,9 +363,13 @@ impl SoundGraphUiState {
 
         match object_id {
             SoundObjectId::Sound(spid) => {
-                let number_input_ids = topo.sound_processor(spid).unwrap().number_inputs();
+                let number_input_ids = topo.sound_processor(spid).unwrap().expressions();
                 for niid in number_input_ids {
-                    let number_topo = topo.number_input(*niid).unwrap().number_graph().topology();
+                    let number_topo = topo
+                        .expression(*niid)
+                        .unwrap()
+                        .expression_graph()
+                        .topology();
                     let states = object_ui_states.number_graph_object_state(*niid);
                     self.number_input_uis.set_ui_data(
                         *niid,

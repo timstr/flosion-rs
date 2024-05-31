@@ -1,8 +1,8 @@
 use crate::core::uniqueid::UniqueId;
 
 use super::{
-    soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
-    soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
+    soundinput::SoundInputId, expression::SoundExpressionId,
+    expressionargument::SoundExpressionArgumentId, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Eq, PartialEq, Clone, Copy, Hash, Debug)]
@@ -33,8 +33,8 @@ impl From<&SoundProcessorId> for SoundObjectId {
 pub enum SoundGraphId {
     SoundInput(SoundInputId),
     SoundProcessor(SoundProcessorId),
-    SoundNumberInput(SoundNumberInputId),
-    SoundNumberSource(SoundNumberSourceId),
+    Expression(SoundExpressionId),
+    ExpressionArgument(SoundExpressionArgumentId),
 }
 
 impl SoundGraphId {
@@ -42,8 +42,8 @@ impl SoundGraphId {
         match self {
             SoundGraphId::SoundInput(id) => id.value(),
             SoundGraphId::SoundProcessor(id) => id.value(),
-            SoundGraphId::SoundNumberInput(id) => id.value(),
-            SoundGraphId::SoundNumberSource(id) => id.value(),
+            SoundGraphId::Expression(id) => id.value(),
+            SoundGraphId::ExpressionArgument(id) => id.value(),
         }
     }
 }
@@ -58,14 +58,14 @@ impl From<SoundProcessorId> for SoundGraphId {
         SoundGraphId::SoundProcessor(id)
     }
 }
-impl From<SoundNumberInputId> for SoundGraphId {
-    fn from(id: SoundNumberInputId) -> SoundGraphId {
-        SoundGraphId::SoundNumberInput(id)
+impl From<SoundExpressionId> for SoundGraphId {
+    fn from(id: SoundExpressionId) -> SoundGraphId {
+        SoundGraphId::Expression(id)
     }
 }
-impl From<SoundNumberSourceId> for SoundGraphId {
-    fn from(id: SoundNumberSourceId) -> SoundGraphId {
-        SoundGraphId::SoundNumberSource(id)
+impl From<SoundExpressionArgumentId> for SoundGraphId {
+    fn from(id: SoundExpressionArgumentId) -> SoundGraphId {
+        SoundGraphId::ExpressionArgument(id)
     }
 }
 impl From<SoundObjectId> for SoundGraphId {

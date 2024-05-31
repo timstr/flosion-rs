@@ -6,24 +6,24 @@ use crate::core::{
         nodegen::NodeGen,
     },
     jit::compilednumberinput::{CompiledNumberInputFunction, Discretization},
-    sound::{context::Context, soundnumberinput::SoundNumberInputId},
+    sound::{context::Context, expression::SoundExpressionId},
 };
 
 #[cfg(debug_assertions)]
-use crate::core::sound::soundgraphdata::SoundNumberInputScope;
+use crate::core::sound::soundgraphdata::SoundExpressionScope;
 
 pub struct SoundNumberInputNode<'ctx> {
-    id: SoundNumberInputId,
+    id: SoundExpressionId,
     function: CompiledNumberInputFunction<'ctx>,
 
     #[cfg(debug_assertions)]
-    scope: SoundNumberInputScope,
+    scope: SoundExpressionScope,
 }
 
 impl<'ctx> SoundNumberInputNode<'ctx> {
     #[cfg(not(debug_assertions))]
     pub(crate) fn new<'a>(
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> SoundNumberInputNode<'ctx> {
         let function = nodegen.get_compiled_number_input(id);
@@ -32,9 +32,9 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
 
     #[cfg(debug_assertions)]
     pub(crate) fn new<'a>(
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         nodegen: &NodeGen<'a, 'ctx>,
-        scope: SoundNumberInputScope,
+        scope: SoundExpressionScope,
     ) -> SoundNumberInputNode<'ctx> {
         let function = nodegen.get_compiled_number_input(id);
         SoundNumberInputNode {
@@ -44,7 +44,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         }
     }
 
-    pub(crate) fn id(&self) -> SoundNumberInputId {
+    pub(crate) fn id(&self) -> SoundExpressionId {
         self.id
     }
 
@@ -88,13 +88,13 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         for arr in &local_arrays {
             if !self
                 .scope
-                .available_local_sources()
-                .contains(&arr.number_source_id())
+                .available_local_arguments()
+                .contains(&arr.argument_id())
             {
                 println!(
                     "A local array was pushed for number source {} which is not marked as being \
                     in scope.",
-                    arr.number_source_id().value()
+                    arr.argument_id().value()
                 );
                 return false;
             }
@@ -102,17 +102,17 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
                 println!(
                     "A local array was pushed for number source {}, but its length of {} doesn't \
                     match the expected length from the destination array of {}.",
-                    arr.number_source_id().value(),
+                    arr.argument_id().value(),
                     arr.array().len(),
                     expected_len
                 );
                 return false;
             }
         }
-        for nsid in self.scope.available_local_sources() {
+        for nsid in self.scope.available_local_arguments() {
             if local_arrays
                 .iter()
-                .find(|a| a.number_source_id() == *nsid)
+                .find(|a| a.argument_id() == *nsid)
                 .is_none()
             {
                 println!(
@@ -133,10 +133,10 @@ pub trait SoundNumberInputNodeCollection<'ctx>: Sync + Send {
         visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
     );
 
-    fn add_input(&self, _input_id: SoundNumberInputId) {
+    fn add_input(&self, _input_id: SoundExpressionId) {
         panic!("This SoundNumberInputNodeCollection type does not support adding inputs");
     }
-    fn remove_input(&self, _input_id: SoundNumberInputId) {
+    fn remove_input(&self, _input_id: SoundExpressionId) {
         panic!("This SoundNumberInputNodeCollection type does not support removing inputs");
     }
 }

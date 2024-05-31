@@ -1,6 +1,6 @@
 use super::{
-    path::SoundPath, soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
-    soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
+    path::SoundPath, soundinput::SoundInputId, expression::SoundExpressionId,
+    expressionargument::SoundExpressionArgumentId, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -24,23 +24,23 @@ pub enum SoundError {
     },
     StaticTooManyStates(SoundProcessorId),
     StaticNotSynchronous(SoundProcessorId),
-    NumberSourceIdTaken(SoundNumberSourceId),
-    NumberSourceNotFound(SoundNumberSourceId),
-    BadNumberSourceInit(SoundNumberSourceId),
-    BadNumberSourceCleanup(SoundNumberSourceId),
-    NumberInputIdTaken(SoundNumberInputId),
-    BadNumberInputInit(SoundNumberInputId),
-    BadNumberInputCleanup(SoundNumberInputId),
-    NumberInputNotFound(SoundNumberInputId),
-    NumberInputAlreadyConnected {
-        input_id: SoundNumberInputId,
-        target: SoundNumberSourceId,
+    ArgumentIdTaken(SoundExpressionArgumentId),
+    ArgumentNotFound(SoundExpressionArgumentId),
+    BadArgumentInit(SoundExpressionArgumentId),
+    BadArgumentCleanup(SoundExpressionArgumentId),
+    ExpressionIdTaken(SoundExpressionId),
+    BadExpressionInit(SoundExpressionId),
+    BadExpressionCleanup(SoundExpressionId),
+    ExpressionNotFound(SoundExpressionId),
+    ParameterAlreadyBound {
+        input_id: SoundExpressionId,
+        target: SoundExpressionArgumentId,
     },
-    NumberInputNotConnected {
-        input_id: SoundNumberInputId,
-        target: SoundNumberSourceId,
+    ParameterNotBound {
+        input_id: SoundExpressionId,
+        target: SoundExpressionArgumentId,
     },
     StateNotInScope {
-        bad_dependencies: Vec<(SoundNumberSourceId, SoundNumberInputId)>,
+        bad_dependencies: Vec<(SoundExpressionArgumentId, SoundExpressionId)>,
     },
 }

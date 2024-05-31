@@ -1,10 +1,10 @@
 use eframe::egui;
 
 use crate::core::{
+    expression::context::MockExpressionContext,
     jit::{compilednumberinput::Discretization, server::JitClient},
-    number::context::MockNumberContext,
     revision::revision::Revision,
-    sound::{soundgraphdata::SoundNumberInputData, soundnumbersource::SoundNumberSourceId},
+    sound::{soundgraphdata::SoundExpressionData, expressionargument::SoundExpressionArgumentId},
 };
 
 use super::temporallayout::TimeAxis;
@@ -17,7 +17,7 @@ enum VerticalRange {
 
 enum HorizontalDomain {
     Temporal,
-    WithRespectTo(SoundNumberSourceId, std::ops::RangeInclusive<f32>),
+    WithRespectTo(SoundExpressionArgumentId, std::ops::RangeInclusive<f32>),
 }
 
 pub struct PlotConfig {
@@ -41,7 +41,7 @@ impl PlotConfig {
 
     pub fn with_respect_to(
         mut self,
-        source: SoundNumberSourceId,
+        source: SoundExpressionArgumentId,
         domain: std::ops::RangeInclusive<f32>,
     ) -> Self {
         self.horizontal_domain = HorizontalDomain::WithRespectTo(source, domain);
@@ -62,7 +62,7 @@ impl NumberInputPlot {
         self,
         ui: &mut egui::Ui,
         jit_client: &JitClient,
-        ni_data: &SoundNumberInputData,
+        ni_data: &SoundExpressionData,
         time_axis: TimeAxis,
         config: &PlotConfig,
     ) {
@@ -86,7 +86,7 @@ impl NumberInputPlot {
                 let len = rect.width().floor() as usize;
                 let mut dst = Vec::new();
                 dst.resize(len, 0.0);
-                let number_context = MockNumberContext::new(len);
+                let number_context = MockExpressionContext::new(len);
 
                 let discretization = match horizontal_domain {
                     HorizontalDomain::Temporal => {

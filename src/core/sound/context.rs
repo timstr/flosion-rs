@@ -7,14 +7,14 @@ use crate::core::{
 
 use super::{
     soundinput::{InputTiming, SoundInputId},
-    soundnumbersource::SoundNumberSourceId,
+    expressionargument::SoundExpressionArgumentId,
     soundprocessor::{ProcessorState, SoundProcessorId},
 };
 
 #[derive(Clone, Copy)]
 pub(crate) struct LocalArray<'a> {
     array: &'a [f32],
-    number_source_id: SoundNumberSourceId,
+    argument_id: SoundExpressionArgumentId,
 }
 
 impl<'a> LocalArray<'a> {
@@ -22,8 +22,8 @@ impl<'a> LocalArray<'a> {
         self.array
     }
 
-    pub(crate) fn number_source_id(&self) -> SoundNumberSourceId {
-        self.number_source_id
+    pub(crate) fn argument_id(&self) -> SoundExpressionArgumentId {
+        self.argument_id
     }
 }
 
@@ -48,29 +48,23 @@ impl<'a> LocalArrayList<'a> {
     pub fn push(
         &'a self,
         array: &'a [f32],
-        number_source_id: SoundNumberSourceId,
+        argument_id: SoundExpressionArgumentId,
     ) -> LocalArrayList<'a> {
         LocalArrayList {
-            value: LocalArrayListValue::Containing(
-                LocalArray {
-                    array,
-                    number_source_id,
-                },
-                self,
-            ),
+            value: LocalArrayListValue::Containing(LocalArray { array, argument_id }, self),
         }
     }
 
-    pub fn get(&self, number_source_id: SoundNumberSourceId) -> &'a [f32] {
+    pub fn get(&self, argument_id: SoundExpressionArgumentId) -> &'a [f32] {
         match &self.value {
             LocalArrayListValue::Empty => {
                 panic!("Attempted to get a LocalArray which was never pushed")
             }
             LocalArrayListValue::Containing(local_array, rest_of_list) => {
-                if local_array.number_source_id == number_source_id {
+                if local_array.argument_id == argument_id {
                     local_array.array
                 } else {
-                    rest_of_list.get(number_source_id)
+                    rest_of_list.get(argument_id)
                 }
             }
         }
@@ -276,12 +270,12 @@ impl<'a> Context<'a> {
     pub(crate) fn find_processor_local_array(
         &self,
         processor_id: SoundProcessorId,
-        source_id: SoundNumberSourceId,
+        argument_id: SoundExpressionArgumentId,
     ) -> &'a [f32] {
         self.stack
             .find_processor_frame(processor_id)
             .local_arrays
-            .get(source_id)
+            .get(argument_id)
     }
 
     pub(crate) fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {

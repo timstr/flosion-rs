@@ -5,8 +5,8 @@ use crate::{
         sound::{
             soundgraph::SoundGraph,
             soundinput::SoundInputId,
-            soundnumberinput::SoundNumberInputId,
-            soundnumbersource::SoundNumberSourceId,
+            expression::SoundExpressionId,
+            expressionargument::SoundExpressionArgumentId,
             soundprocessor::{ProcessorHandle, SoundProcessorId},
         },
         uniqueid::UniqueId,
@@ -24,9 +24,9 @@ pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
     color: egui::Color32,
-    number_inputs: Vec<(SoundNumberInputId, String, PlotConfig)>,
-    number_sources: Vec<(SoundNumberSourceId, String)>,
-    sound_inputs: Vec<(SoundInputId, String, SoundNumberSourceId)>,
+    number_inputs: Vec<(SoundExpressionId, String, PlotConfig)>,
+    number_sources: Vec<(SoundExpressionArgumentId, String)>,
+    sound_inputs: Vec<(SoundInputId, String, SoundExpressionArgumentId)>,
 }
 
 #[derive(Clone, Copy)]
@@ -62,14 +62,14 @@ impl ProcessorUi {
             .topology()
             .sound_input(input_id)
             .unwrap()
-            .time_number_source();
+            .time_argument();
         self.sound_inputs.push((input_id, label.into(), time_snid));
         self
     }
 
     pub fn add_number_input(
         mut self,
-        input_id: SoundNumberInputId,
+        input_id: SoundExpressionId,
         label: impl Into<String>,
         config: PlotConfig,
     ) -> Self {
@@ -79,7 +79,7 @@ impl ProcessorUi {
 
     pub fn add_number_source(
         mut self,
-        source_id: SoundNumberSourceId,
+        source_id: SoundExpressionArgumentId,
         label: impl Into<String>,
     ) -> Self {
         self.number_sources.push((source_id, label.into()));
@@ -128,9 +128,9 @@ impl ProcessorUi {
                 .sound_processor(self.processor_id)
                 .unwrap();
             let missing_name =
-                |id: SoundNumberSourceId| ui_state.names().number_source(id).is_none();
+                |id: SoundExpressionArgumentId| ui_state.names().number_source(id).is_none();
             let processor_type_name = proc_data.instance_arc().as_graph_object().get_type().name();
-            for nsid in proc_data.number_sources() {
+            for nsid in proc_data.expression_arguments() {
                 if missing_name(*nsid) {
                     println!(
                         "Warning: number source {} on processor {} ({}) is missing a name",
@@ -145,7 +145,7 @@ impl ProcessorUi {
                     .topology()
                     .sound_input(*siid)
                     .unwrap()
-                    .number_sources()
+                    .expression_arguments()
                 {
                     if missing_name(*nsid) {
                         println!(
@@ -392,7 +392,7 @@ impl ProcessorUi {
         &self,
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
-        input_id: SoundNumberInputId,
+        input_id: SoundExpressionId,
         input_label: &str,
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,

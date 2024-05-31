@@ -1,5 +1,7 @@
 use crate::{
-    core::number::{numbergraph::NumberGraphInputId, numbersource::NumberSourceId},
+    core::expression::{
+        expressiongraph::ExpressionGraphParameterId, expressionnode::ExpressionNodeId,
+    },
     ui_core::lexicallayout::ast::{
         ASTNode, ASTNodeValue, ASTPath, InternalASTNode, InternalASTNodeValue, VariableId,
     },
@@ -8,16 +10,18 @@ use crate::{
 fn create_test_ast() -> ASTNode {
     ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
         InternalASTNodeValue::Function(
-            NumberSourceId::new(1),
+            ExpressionNodeId::new(1),
             vec![
                 ASTNode::new(ASTNodeValue::Empty),
                 ASTNode::new(ASTNodeValue::Internal(Box::new(InternalASTNode::new(
                     InternalASTNodeValue::Function(
-                        NumberSourceId::new(2),
+                        ExpressionNodeId::new(2),
                         vec![ASTNode::new(ASTNodeValue::Variable(VariableId::new(1)))],
                     ),
                 )))),
-                ASTNode::new(ASTNodeValue::GraphInput(NumberGraphInputId::new(11))),
+                ASTNode::new(ASTNodeValue::GraphInput(ExpressionGraphParameterId::new(
+                    11,
+                ))),
                 ASTNode::new(ASTNodeValue::Variable(VariableId::new(2))),
             ],
         ),
@@ -63,7 +67,7 @@ fn test_get_along_path() {
     });
 
     assert!(match tree.get_along_path(&[2]).value() {
-        ASTNodeValue::GraphInput(giid) => *giid == NumberGraphInputId::new(11),
+        ASTNodeValue::GraphInput(giid) => *giid == ExpressionGraphParameterId::new(11),
         _ => false,
     });
 

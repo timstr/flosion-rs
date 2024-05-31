@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
 use crate::core::{
-    jit::server::JitClient,
-    number::{
-        numbergraph::{NumberGraph, NumberGraphInputId, NumberGraphOutputId},
-        numbersource::NumberSourceId,
+    expression::{
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId, ExpressionGraphResultId},
+        expressionnode::ExpressionNodeId,
     },
+    jit::server::JitClient,
     sound::{
-        soundgraph::SoundGraph, soundgrapherror::SoundError, soundnumberinput::SoundNumberInputId,
-        soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundgrapherror::SoundError, expression::SoundExpressionId,
+        expressionargument::SoundExpressionArgumentId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -22,7 +22,7 @@ use super::{
 };
 
 pub(crate) struct OuterSoundNumberInputContext<'a> {
-    sound_number_input_id: SoundNumberInputId,
+    sound_number_input_id: SoundExpressionId,
     parent_sound_processor_id: SoundProcessorId,
     graph_layout: &'a SoundGraphLayout,
     sound_graph: &'a mut SoundGraph,
@@ -33,7 +33,7 @@ pub(crate) struct OuterSoundNumberInputContext<'a> {
 
 impl<'a> OuterSoundNumberInputContext<'a> {
     pub(super) fn new(
-        sound_number_input_id: SoundNumberInputId,
+        sound_number_input_id: SoundExpressionId,
         parent_sound_processor_id: SoundProcessorId,
         graph_layout: &'a SoundGraphLayout,
         sound_graph: &'a mut SoundGraph,
@@ -52,7 +52,7 @@ impl<'a> OuterSoundNumberInputContext<'a> {
         }
     }
 
-    pub(super) fn sound_number_input_id(&self) -> SoundNumberInputId {
+    pub(super) fn sound_number_input_id(&self) -> SoundExpressionId {
         self.sound_number_input_id
     }
 
@@ -86,33 +86,33 @@ impl<'a> OuterSoundNumberInputContext<'a> {
 
     pub(crate) fn find_graph_id_for_number_source(
         &self,
-        nsid: SoundNumberSourceId,
-    ) -> Option<NumberGraphInputId> {
+        nsid: SoundExpressionArgumentId,
+    ) -> Option<ExpressionGraphParameterId> {
         self.sound_graph
             .topology()
-            .number_input(self.sound_number_input_id)
+            .expression(self.sound_number_input_id)
             .unwrap()
-            .target_mapping()
-            .target_graph_input(nsid)
+            .parameter_mapping()
+            .parameter_from_argument(nsid)
     }
 
     pub(crate) fn connect_to_number_source(
         &mut self,
-        nsid: SoundNumberSourceId,
-    ) -> NumberGraphInputId {
+        nsid: SoundExpressionArgumentId,
+    ) -> ExpressionGraphParameterId {
         self.sound_graph
-            .edit_number_input(self.sound_number_input_id, |ni_data| {
-                let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
-                mapping.add_target(nsid, numbergraph)
+            .edit_expression(self.sound_number_input_id, |ni_data| {
+                let (numbergraph, mapping) = ni_data.expression_graph_and_mapping_mut();
+                mapping.add_argument(nsid, numbergraph)
             })
             .unwrap()
     }
 
-    pub(crate) fn disconnect_from_number_source(&mut self, nsid: SoundNumberSourceId) {
+    pub(crate) fn disconnect_from_number_source(&mut self, nsid: SoundExpressionArgumentId) {
         self.sound_graph
-            .edit_number_input(self.sound_number_input_id, |ni_data| {
-                let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
-                mapping.remove_target(nsid, numbergraph);
+            .edit_expression(self.sound_number_input_id, |ni_data| {
+                let (numbergraph, mapping) = ni_data.expression_graph_and_mapping_mut();
+                mapping.remove_argument(nsid, numbergraph);
             })
             .unwrap();
     }
@@ -130,27 +130,27 @@ impl<'a> From<OuterSoundNumberInputContext<'a>> for OuterNumberGraphUiContext<'a
 }
 
 impl<'a> OuterNumberGraphUiContext<'a> {
-    pub(crate) fn graph_input_name(&self, input_id: NumberGraphInputId) -> String {
+    pub(crate) fn graph_input_name(&self, input_id: ExpressionGraphParameterId) -> String {
         match self {
             OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
                 let nsid = ctx
                     .sound_graph()
                     .topology()
-                    .number_input(ctx.sound_number_input_id())
+                    .expression(ctx.sound_number_input_id())
                     .unwrap()
-                    .target_mapping()
-                    .graph_input_target(input_id)
+                    .parameter_mapping()
+                    .argument_from_parameter(input_id)
                     .unwrap();
                 ctx.sound_graph_names().combined_number_source_name(nsid)
             }
         }
     }
 
-    pub(crate) fn graph_output_name(&self, output_id: NumberGraphOutputId) -> String {
+    pub(crate) fn graph_output_name(&self, output_id: ExpressionGraphResultId) -> String {
         match self {
             OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
                 assert!(self.inspect_number_graph(|g| {
-                    let outputs = g.topology().graph_outputs();
+                    let outputs = g.topology().results();
                     assert_eq!(outputs.len(), 1);
                     outputs[0].id() == output_id
                 }));
@@ -163,18 +163,18 @@ impl<'a> OuterNumberGraphUiContext<'a> {
         }
     }
 
-    pub(crate) fn inspect_number_graph<R, F: FnOnce(&NumberGraph) -> R>(&self, f: F) -> R {
+    pub(crate) fn inspect_number_graph<R, F: FnOnce(&ExpressionGraph) -> R>(&self, f: F) -> R {
         match self {
             OuterNumberGraphUiContext::SoundNumberInput(ctx) => f(ctx
                 .sound_graph()
                 .topology()
-                .number_input(ctx.sound_number_input_id())
+                .expression(ctx.sound_number_input_id())
                 .unwrap()
-                .number_graph()),
+                .expression_graph()),
         }
     }
 
-    pub(crate) fn edit_number_graph<R, F: FnOnce(&mut NumberGraph) -> R>(
+    pub(crate) fn edit_number_graph<R, F: FnOnce(&mut ExpressionGraph) -> R>(
         &mut self,
         f: F,
     ) -> Result<R, SoundError> {
@@ -182,20 +182,20 @@ impl<'a> OuterNumberGraphUiContext<'a> {
             OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
                 let niid = ctx.sound_number_input_id();
                 ctx.sound_graph_mut()
-                    .edit_number_input(niid, |ni_data| f(ni_data.number_graph_mut()))
+                    .edit_expression(niid, |ni_data| f(ni_data.expression_graph_mut()))
             }
         }
     }
 
-    pub(crate) fn remove_graph_input(&mut self, giid: NumberGraphInputId) {
+    pub(crate) fn remove_graph_input(&mut self, giid: ExpressionGraphParameterId) {
         match self {
             OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
                 let niid = ctx.sound_number_input_id();
                 ctx.sound_graph_mut()
-                    .edit_number_input(niid, |ni_data| {
-                        let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
-                        let source_id = mapping.graph_input_target(giid).unwrap();
-                        mapping.remove_target(source_id, numbergraph);
+                    .edit_expression(niid, |ni_data| {
+                        let (numbergraph, mapping) = ni_data.expression_graph_and_mapping_mut();
+                        let source_id = mapping.argument_from_parameter(giid).unwrap();
+                        mapping.remove_argument(source_id, numbergraph);
                     })
                     .unwrap();
             }
@@ -231,7 +231,7 @@ impl<'a> NumberGraphUiContext<'a> {
 impl<'a> GraphUiContext<'a> for NumberGraphUiContext<'a> {
     type GraphUi = NumberGraphUi;
 
-    fn get_object_ui_data(&self, id: NumberSourceId) -> Rc<AnyNumberObjectUiData> {
+    fn get_object_ui_data(&self, id: ExpressionNodeId) -> Rc<AnyNumberObjectUiData> {
         self.object_states.get_object_data(id)
     }
 }

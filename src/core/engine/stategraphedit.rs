@@ -1,6 +1,6 @@
 use crate::core::{
+    expression::expressionnodeinput::ExpressionNodeInputId,
     jit::compilednumberinput::CompiledNumberInputFunction,
-    number::numberinput::NumberInputId,
     sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId},
 };
 
@@ -85,7 +85,7 @@ pub(crate) enum StateGraphEdit<'ctx> {
     /// graph matching the given id. Compiled functions are Copy, so the
     /// data for each node doesn't need to be separately pre-allocated.
     // TODO: sound processor id?
-    UpdateNumberInput(NumberInputId, CompiledNumberInputFunction<'ctx>),
+    UpdateNumberInput(ExpressionNodeInputId, CompiledNumberInputFunction<'ctx>),
 
     /// Debugging aid. Calls the given function with the current state graph,
     /// e.g. to test its invariants and whether it matches a desired state.

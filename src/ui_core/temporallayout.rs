@@ -2,8 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use crate::core::sound::{
     soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::available_sound_number_sources, soundnumberinput::SoundNumberInputId,
-    soundnumbersource::SoundNumberSourceId, soundprocessor::SoundProcessorId,
+    soundgraphvalidation::available_sound_expression_arguments,
+    expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
+    soundprocessor::SoundProcessorId,
 };
 
 /// A mapping between a portion of the sound processing timeline
@@ -37,7 +38,7 @@ pub struct SoundGraphLayout {
     groups: HashMap<SoundObjectId, StackedGroup>,
     // TODO: this caches which number depedencies are possible. It has nothing
     // to do with the UI layout and shouldn't be here.
-    available_number_sources: HashMap<SoundNumberInputId, HashSet<SoundNumberSourceId>>,
+    available_number_sources: HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
 }
 
 // TODO: let this render itself to the whole screen
@@ -120,13 +121,13 @@ impl SoundGraphLayout {
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         self.groups.retain(|k, _v| topo.contains((*k).into()));
 
-        self.available_number_sources = available_sound_number_sources(topo);
+        self.available_number_sources = available_sound_expression_arguments(topo);
     }
 
     pub(super) fn available_number_sources(
         &self,
-        input_id: SoundNumberInputId,
-    ) -> &HashSet<SoundNumberSourceId> {
+        input_id: SoundExpressionId,
+    ) -> &HashSet<SoundExpressionArgumentId> {
         self.available_number_sources.get(&input_id).unwrap()
     }
 }

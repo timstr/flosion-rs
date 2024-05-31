@@ -12,38 +12,38 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{numbergraph::NumberGraph, numbersourcetools::NumberSourceTools};
+use super::{expressiongraph::ExpressionGraph, expressionnodetools::ExpressionNodeTools};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct NumberSourceId(usize);
+pub struct ExpressionNodeId(usize);
 
-impl NumberSourceId {
-    pub(crate) fn new(value: usize) -> NumberSourceId {
-        NumberSourceId(value)
+impl ExpressionNodeId {
+    pub(crate) fn new(value: usize) -> ExpressionNodeId {
+        ExpressionNodeId(value)
     }
 }
 
-impl Default for NumberSourceId {
-    fn default() -> NumberSourceId {
-        NumberSourceId(1)
+impl Default for ExpressionNodeId {
+    fn default() -> ExpressionNodeId {
+        ExpressionNodeId(1)
     }
 }
 
-impl UniqueId for NumberSourceId {
+impl UniqueId for ExpressionNodeId {
     fn value(&self) -> usize {
         self.0
     }
 
-    fn next(&self) -> NumberSourceId {
-        NumberSourceId(self.0 + 1)
+    fn next(&self) -> ExpressionNodeId {
+        ExpressionNodeId(self.0 + 1)
     }
 }
 
-// A NumberSource whose values are computed as a pure function of the inputs,
-// with no side effects or hidden state. Intended to be used for elementary
-// mathematical functions and easy, closed-form calculations.
-pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
-    fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
+/// An ExpressionNode whose values are computed as a pure function of the inputs,
+/// with no side effects or hidden state. Intended to be used for elementary
+/// mathematical functions and easy, closed-form calculations.
+pub trait PureExpressionNode: 'static + Sync + Send + WithObjectType {
+    fn new(tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 
@@ -57,10 +57,10 @@ pub trait PureNumberSource: 'static + Sync + Send + WithObjectType {
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-// A trait representing any time of NumberSource, both
-// pure and stateful. Intended mainly for trait objects
-// and easy grouping of the different types.
-pub trait NumberSource: 'static + Sync + Send {
+/// A trait representing any type of expression node, both
+/// pure and stateful. Intended mainly for trait objects
+/// and easy grouping of the different types.
+pub trait ExpressionNode: 'static + Sync + Send {
     fn num_variables(&self) -> usize;
 
     fn compile<'ctx>(
@@ -70,33 +70,33 @@ pub trait NumberSource: 'static + Sync + Send {
         state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
-    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph>;
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<ExpressionGraph>;
 }
 
-pub struct PureNumberSourceWithId<T: PureNumberSource> {
-    source: T,
-    id: NumberSourceId,
+pub struct PureExpressionNodeWithId<T: PureExpressionNode> {
+    instance: T,
+    id: ExpressionNodeId,
 }
 
-impl<T: PureNumberSource> PureNumberSourceWithId<T> {
-    pub(crate) fn new(source: T, id: NumberSourceId) -> PureNumberSourceWithId<T> {
-        PureNumberSourceWithId { source, id }
+impl<T: PureExpressionNode> PureExpressionNodeWithId<T> {
+    pub(crate) fn new(instance: T, id: ExpressionNodeId) -> PureExpressionNodeWithId<T> {
+        PureExpressionNodeWithId { instance, id }
     }
 
-    pub(crate) fn id(&self) -> NumberSourceId {
+    pub(crate) fn id(&self) -> ExpressionNodeId {
         self.id
     }
 }
 
-impl<T: PureNumberSource> Deref for PureNumberSourceWithId<T> {
+impl<T: PureExpressionNode> Deref for PureExpressionNodeWithId<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.source
+        &self.instance
     }
 }
 
-impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
+impl<T: PureExpressionNode> ExpressionNode for PureExpressionNodeWithId<T> {
     fn num_variables(&self) -> usize {
         0
     }
@@ -111,21 +111,21 @@ impl<T: PureNumberSource> NumberSource for PureNumberSourceWithId<T> {
         codegen
             .builder()
             .position_before(&codegen.instruction_locations.end_of_loop);
-        self.source.compile(codegen, inputs)
+        self.instance.compile(codegen, inputs)
     }
 
-    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph> {
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<ExpressionGraph> {
         GraphObjectHandle::new(self)
     }
 }
 
-impl<T: PureNumberSource> GraphObject<NumberGraph> for PureNumberSourceWithId<T> {
+impl<T: PureExpressionNode> GraphObject<ExpressionGraph> for PureExpressionNodeWithId<T> {
     fn create(
-        graph: &mut NumberGraph,
+        graph: &mut ExpressionGraph,
         init: ObjectInitialization,
-    ) -> Result<GraphObjectHandle<NumberGraph>, ()> {
+    ) -> Result<GraphObjectHandle<ExpressionGraph>, ()> {
         graph
-            .add_pure_number_source::<T>(init)
+            .add_pure_expression_node::<T>(init)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }
@@ -138,7 +138,7 @@ impl<T: PureNumberSource> GraphObject<NumberGraph> for PureNumberSourceWithId<T>
         T::TYPE
     }
 
-    fn get_id(&self) -> NumberSourceId {
+    fn get_id(&self) -> ExpressionNodeId {
         self.id
     }
 
@@ -155,33 +155,33 @@ impl<T: PureNumberSource> GraphObject<NumberGraph> for PureNumberSourceWithId<T>
     }
 }
 
-pub struct PureNumberSourceHandle<T: PureNumberSource> {
-    instance: Arc<PureNumberSourceWithId<T>>,
+pub struct PureExpressionNodeHandle<T: PureExpressionNode> {
+    instance: Arc<PureExpressionNodeWithId<T>>,
 }
 
-impl<T: PureNumberSource> PureNumberSourceHandle<T> {
-    pub(super) fn new(instance: Arc<PureNumberSourceWithId<T>>) -> Self {
+impl<T: PureExpressionNode> PureExpressionNodeHandle<T> {
+    pub(super) fn new(instance: Arc<PureExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
 
-    pub(super) fn from_graph_object(handle: GraphObjectHandle<NumberGraph>) -> Option<Self> {
+    pub(super) fn from_graph_object(handle: GraphObjectHandle<ExpressionGraph>) -> Option<Self> {
         let arc_any = handle.into_instance_arc().into_arc_any();
-        match arc_any.downcast::<PureNumberSourceWithId<T>>() {
-            Ok(obj) => Some(PureNumberSourceHandle::new(obj)),
+        match arc_any.downcast::<PureExpressionNodeWithId<T>>() {
+            Ok(obj) => Some(PureExpressionNodeHandle::new(obj)),
             Err(_) => None,
         }
     }
 
-    pub fn id(&self) -> NumberSourceId {
+    pub fn id(&self) -> ExpressionNodeId {
         self.instance.id()
     }
 
-    pub fn into_graph_object(self) -> GraphObjectHandle<NumberGraph> {
+    pub fn into_graph_object(self) -> GraphObjectHandle<ExpressionGraph> {
         GraphObjectHandle::new(self.instance)
     }
 }
 
-impl<T: PureNumberSource> Deref for PureNumberSourceHandle<T> {
+impl<T: PureExpressionNode> Deref for PureExpressionNodeHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -189,7 +189,7 @@ impl<T: PureNumberSource> Deref for PureNumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
+impl<T: PureExpressionNode> Clone for PureExpressionNodeHandle<T> {
     fn clone(&self) -> Self {
         Self {
             instance: Arc::clone(&self.instance),
@@ -197,11 +197,11 @@ impl<T: PureNumberSource> Clone for PureNumberSourceHandle<T> {
     }
 }
 
-impl<T: PureNumberSource> ObjectHandle<NumberGraph> for PureNumberSourceHandle<T> {
-    type ObjectType = PureNumberSourceWithId<T>;
+impl<T: PureExpressionNode> ObjectHandle<ExpressionGraph> for PureExpressionNodeHandle<T> {
+    type ObjectType = PureExpressionNodeWithId<T>;
 
-    fn from_graph_object(object: GraphObjectHandle<NumberGraph>) -> Option<Self> {
-        PureNumberSourceHandle::from_graph_object(object)
+    fn from_graph_object(object: GraphObjectHandle<ExpressionGraph>) -> Option<Self> {
+        PureExpressionNodeHandle::from_graph_object(object)
     }
 
     fn object_type() -> ObjectType {
@@ -209,23 +209,23 @@ impl<T: PureNumberSource> ObjectHandle<NumberGraph> for PureNumberSourceHandle<T
     }
 }
 
-// A NumberSource which might have hidden state and/or might require
-// special build-up and tear-down to be used. This includes calculations
-// involving reccurences, e.g. relying on previous results, as well
-// as data structures that e.g. require locking in order to read safely.
-pub trait StatefulNumberSource: 'static + Sync + Send + WithObjectType {
-    fn new(tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
+/// An Expression which might have hidden state and/or might require
+/// special build-up and tear-down to be used. This includes calculations
+/// involving reccurences, e.g. relying on previous results, as well
+/// as data structures that e.g. require locking in order to read safely.
+pub trait StatefulExpressionNode: 'static + Sync + Send + WithObjectType {
+    fn new(tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
     where
         Self: Sized;
 
     // The number of additional floating point variables that are
-    // associated with each compiled instance of the number source.
+    // associated with each compiled instance of the node.
     // This is allowed to be zero.
     const NUM_VARIABLES: usize;
 
     // A type intended to be used to store instruction values and temporary
     // variables that are to be shared between the pre-loop, loop, and post-loop
-    // phases of the number source's evaluation. For example, a pointer value
+    // phases of the node's evaluation. For example, a pointer value
     // pointing to data might be fetched and locked in the pre-loop phase,
     // dereferenced in the loop phase, and unlocked in the post-loop phase.
     type CompileState<'ctx>;
@@ -264,30 +264,30 @@ pub trait StatefulNumberSource: 'static + Sync + Send + WithObjectType {
     fn serialize(&self, _serializer: Serializer) {}
 }
 
-pub struct StatefulNumberSourceWithId<T: StatefulNumberSource> {
-    source: T,
-    id: NumberSourceId,
+pub struct StatefulExpressionNodeWithId<T: StatefulExpressionNode> {
+    instance: T,
+    id: ExpressionNodeId,
 }
 
-impl<T: StatefulNumberSource> StatefulNumberSourceWithId<T> {
-    pub(crate) fn new(source: T, id: NumberSourceId) -> StatefulNumberSourceWithId<T> {
-        StatefulNumberSourceWithId { source, id }
+impl<T: StatefulExpressionNode> StatefulExpressionNodeWithId<T> {
+    pub(crate) fn new(instance: T, id: ExpressionNodeId) -> StatefulExpressionNodeWithId<T> {
+        StatefulExpressionNodeWithId { instance, id }
     }
 
-    pub(crate) fn id(&self) -> NumberSourceId {
+    pub(crate) fn id(&self) -> ExpressionNodeId {
         self.id
     }
 }
 
-impl<T: StatefulNumberSource> Deref for StatefulNumberSourceWithId<T> {
+impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeWithId<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.source
+        &self.instance
     }
 }
 
-impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
+impl<T: StatefulExpressionNode> ExpressionNode for StatefulExpressionNodeWithId<T> {
     fn num_variables(&self) -> usize {
         T::NUM_VARIABLES
     }
@@ -308,7 +308,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
                     .builder()
                     .build_alloca(
                         codegen.types.f32_type,
-                        &format!("numbersource{}_state{}", self.id().value(), i),
+                        &format!("node{}_state{}", self.id().value(), i),
                     )
                     .unwrap()
             })
@@ -351,7 +351,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         codegen
             .builder()
             .position_before(&codegen.instruction_locations.end_of_pre_loop);
-        let compile_state = self.source.compile_pre_loop(codegen);
+        let compile_state = self.instance.compile_pre_loop(codegen);
 
         // ===========================================================
         // =            Post-loop persisting and tear-down           =
@@ -367,7 +367,7 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
             codegen.builder().build_store(*ptr_state, tmp).unwrap();
         }
         // any custom post-loop work
-        self.source.compile_post_loop(codegen, &compile_state);
+        self.instance.compile_post_loop(codegen, &compile_state);
 
         // ===========================================================
         // =                        The loop                         =
@@ -380,18 +380,18 @@ impl<T: StatefulNumberSource> NumberSource for StatefulNumberSourceWithId<T> {
         loop_value
     }
 
-    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<NumberGraph> {
+    fn as_graph_object(self: Arc<Self>) -> GraphObjectHandle<ExpressionGraph> {
         GraphObjectHandle::new(self)
     }
 }
 
-impl<T: StatefulNumberSource> GraphObject<NumberGraph> for StatefulNumberSourceWithId<T> {
+impl<T: StatefulExpressionNode> GraphObject<ExpressionGraph> for StatefulExpressionNodeWithId<T> {
     fn create(
-        graph: &mut NumberGraph,
+        graph: &mut ExpressionGraph,
         init: ObjectInitialization,
-    ) -> Result<GraphObjectHandle<NumberGraph>, ()> {
+    ) -> Result<GraphObjectHandle<ExpressionGraph>, ()> {
         graph
-            .add_stateful_number_source::<T>(init)
+            .add_stateful_expression_node::<T>(init)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }
@@ -404,7 +404,7 @@ impl<T: StatefulNumberSource> GraphObject<NumberGraph> for StatefulNumberSourceW
         T::TYPE
     }
 
-    fn get_id(&self) -> NumberSourceId {
+    fn get_id(&self) -> ExpressionNodeId {
         self.id
     }
 
@@ -421,32 +421,32 @@ impl<T: StatefulNumberSource> GraphObject<NumberGraph> for StatefulNumberSourceW
     }
 }
 
-pub struct StatefulNumberSourceHandle<T: StatefulNumberSource> {
-    instance: Arc<StatefulNumberSourceWithId<T>>,
+pub struct StatefulExpressionNodeHandle<T: StatefulExpressionNode> {
+    instance: Arc<StatefulExpressionNodeWithId<T>>,
 }
 
-impl<T: StatefulNumberSource> StatefulNumberSourceHandle<T> {
-    pub(super) fn new(instance: Arc<StatefulNumberSourceWithId<T>>) -> Self {
+impl<T: StatefulExpressionNode> StatefulExpressionNodeHandle<T> {
+    pub(super) fn new(instance: Arc<StatefulExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
 
-    pub(super) fn from_graph_object(handle: GraphObjectHandle<NumberGraph>) -> Option<Self> {
+    pub(super) fn from_graph_object(handle: GraphObjectHandle<ExpressionGraph>) -> Option<Self> {
         let arc_any = handle.into_instance_arc().into_arc_any();
-        match arc_any.downcast::<StatefulNumberSourceWithId<T>>() {
-            Ok(obj) => Some(StatefulNumberSourceHandle::new(obj)),
+        match arc_any.downcast::<StatefulExpressionNodeWithId<T>>() {
+            Ok(obj) => Some(StatefulExpressionNodeHandle::new(obj)),
             Err(_) => None,
         }
     }
 
-    pub fn id(&self) -> NumberSourceId {
+    pub fn id(&self) -> ExpressionNodeId {
         self.instance.id()
     }
 
-    pub fn into_graph_object(self) -> GraphObjectHandle<NumberGraph> {
+    pub fn into_graph_object(self) -> GraphObjectHandle<ExpressionGraph> {
         GraphObjectHandle::new(self.instance)
     }
 }
-impl<T: StatefulNumberSource> Deref for StatefulNumberSourceHandle<T> {
+impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -454,7 +454,7 @@ impl<T: StatefulNumberSource> Deref for StatefulNumberSourceHandle<T> {
     }
 }
 
-impl<T: StatefulNumberSource> Clone for StatefulNumberSourceHandle<T> {
+impl<T: StatefulExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
     fn clone(&self) -> Self {
         Self {
             instance: Arc::clone(&self.instance),
@@ -462,11 +462,11 @@ impl<T: StatefulNumberSource> Clone for StatefulNumberSourceHandle<T> {
     }
 }
 
-impl<T: StatefulNumberSource> ObjectHandle<NumberGraph> for StatefulNumberSourceHandle<T> {
-    type ObjectType = StatefulNumberSourceWithId<T>;
+impl<T: StatefulExpressionNode> ObjectHandle<ExpressionGraph> for StatefulExpressionNodeHandle<T> {
+    type ObjectType = StatefulExpressionNodeWithId<T>;
 
-    fn from_graph_object(object: GraphObjectHandle<NumberGraph>) -> Option<Self> {
-        StatefulNumberSourceHandle::from_graph_object(object)
+    fn from_graph_object(object: GraphObjectHandle<ExpressionGraph>) -> Option<Self> {
+        StatefulExpressionNodeHandle::from_graph_object(object)
     }
 
     fn object_type() -> ObjectType {

@@ -1,5 +1,7 @@
 use crate::{
-    core::number::{numbergraph::NumberGraph, numbersource::StatefulNumberSourceHandle},
+    core::expression::{
+        expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
+    },
     objects::statefulfunctions::{
         ExponentialApproach, Integrator, LinearApproach, WrappingIntegrator,
     },
@@ -18,17 +20,17 @@ pub struct LinearApproachUi {}
 
 impl ObjectUi for LinearApproachUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = StatefulNumberSourceHandle<LinearApproach>;
+    type HandleType = StatefulExpressionNodeHandle<LinearApproach>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulNumberSourceHandle<LinearApproach>,
+        handle: StatefulExpressionNodeHandle<LinearApproach>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
         _data: NumberObjectUiData<()>,
-        _number_graph: &mut NumberGraph,
+        _number_graph: &mut ExpressionGraph,
     ) {
         NumberSourceUi::new_named(
             handle.id(),
@@ -56,17 +58,17 @@ pub struct ExponentialApproachUi {}
 
 impl ObjectUi for ExponentialApproachUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = StatefulNumberSourceHandle<ExponentialApproach>;
+    type HandleType = StatefulExpressionNodeHandle<ExponentialApproach>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulNumberSourceHandle<ExponentialApproach>,
+        handle: StatefulExpressionNodeHandle<ExponentialApproach>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
         _data: NumberObjectUiData<()>,
-        _number_graph: &mut NumberGraph,
+        _number_graph: &mut ExpressionGraph,
     ) {
         NumberSourceUi::new_named(
             handle.id(),
@@ -94,17 +96,17 @@ pub struct IntegratorUi {}
 
 impl ObjectUi for IntegratorUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = StatefulNumberSourceHandle<Integrator>;
+    type HandleType = StatefulExpressionNodeHandle<Integrator>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulNumberSourceHandle<Integrator>,
+        handle: StatefulExpressionNodeHandle<Integrator>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
         _data: NumberObjectUiData<()>,
-        _number_graph: &mut NumberGraph,
+        _number_graph: &mut ExpressionGraph,
     ) {
         NumberSourceUi::new_named(handle.id(), "Integrator".to_string(), DisplayStyle::Framed)
             .show(ui, ctx, ui_state);
@@ -128,17 +130,17 @@ pub struct WrappingIntegratorUi {}
 
 impl ObjectUi for WrappingIntegratorUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = StatefulNumberSourceHandle<WrappingIntegrator>;
+    type HandleType = StatefulExpressionNodeHandle<WrappingIntegrator>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulNumberSourceHandle<WrappingIntegrator>,
+        handle: StatefulExpressionNodeHandle<WrappingIntegrator>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
         _data: NumberObjectUiData<()>,
-        _number_graph: &mut NumberGraph,
+        _number_graph: &mut ExpressionGraph,
     ) {
         NumberSourceUi::new_named(
             handle.id(),

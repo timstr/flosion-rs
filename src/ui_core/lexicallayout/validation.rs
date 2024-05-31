@@ -2,9 +2,9 @@ use std::collections::HashSet;
 
 use crate::{
     core::{
-        number::{
-            numbergraph::NumberGraphInputId, numbergraphdata::NumberTarget,
-            numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId,
+        expression::{
+            expressiongraph::ExpressionGraphParameterId, expressiongraphdata::ExpressionTarget,
+            expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
         },
         uniqueid::UniqueId,
     },
@@ -17,19 +17,19 @@ use super::lexicallayout::LexicalLayout;
 
 pub(super) fn lexical_layout_matches_number_graph(
     layout: &LexicalLayout,
-    topology: &NumberGraphTopology,
+    topology: &ExpressionGraphTopology,
 ) -> bool {
-    let mut visited_sources: HashSet<NumberSourceId> = HashSet::new();
+    let mut visited_sources: HashSet<ExpressionNodeId> = HashSet::new();
 
-    let mut visited_graph_inputs: HashSet<NumberGraphInputId> = HashSet::new();
+    let mut visited_graph_inputs: HashSet<ExpressionGraphParameterId> = HashSet::new();
 
     fn ast_node_matches_topology(
         node: &ASTNode,
         variables_in_scope: &[VariableDefinition],
-        expected_target: Option<NumberTarget>,
-        visited_sources: &mut HashSet<NumberSourceId>,
-        visited_graph_inputs: &mut HashSet<NumberGraphInputId>,
-        topology: &NumberGraphTopology,
+        expected_target: Option<ExpressionTarget>,
+        visited_sources: &mut HashSet<ExpressionNodeId>,
+        visited_graph_inputs: &mut HashSet<ExpressionGraphParameterId>,
+        topology: &ExpressionGraphTopology,
     ) -> bool {
         match node.value() {
             ASTNodeValue::Empty => {
@@ -52,16 +52,16 @@ pub(super) fn lexical_layout_matches_number_graph(
                     );
                     return false;
                 }
-                if expected_target != Some(NumberTarget::Source(nsid)) {
+                if expected_target != Some(ExpressionTarget::Node(nsid)) {
                     println!(
                         "Got an internal ASTNode where {:?} was expected",
                         expected_target
                     );
                     return false;
                 }
-                let ns_data = topology.number_source(nsid).unwrap();
+                let ns_data = topology.node(nsid).unwrap();
                 let num_ast_children = inode.num_children();
-                let ns_inputs = ns_data.number_inputs();
+                let ns_inputs = ns_data.inputs();
                 if ns_inputs.len() != num_ast_children {
                     println!(
                         "An internal ASTNode has a different number of inputs from \
@@ -71,7 +71,7 @@ pub(super) fn lexical_layout_matches_number_graph(
                 }
                 for (i, ns_input) in ns_inputs.iter().cloned().enumerate() {
                     let ast_child = inode.get_child(i);
-                    let Some(ns_input) = topology.number_input(ns_input) else {
+                    let Some(ns_input) = topology.node_input(ns_input) else {
                         println!(
                             "An internal ASTNode refers to number source {} which doesn't exist",
                             nsid.value()
@@ -125,7 +125,7 @@ pub(super) fn lexical_layout_matches_number_graph(
             }
             ASTNodeValue::GraphInput(giid) => {
                 visited_graph_inputs.insert(*giid);
-                if expected_target != Some(NumberTarget::GraphInput(*giid)) {
+                if expected_target != Some(ExpressionTarget::Parameter(*giid)) {
                     println!(
                         "An ASTNode pointing to graph input {} was found, but the \
                         expected target is {:?}",
@@ -160,7 +160,7 @@ pub(super) fn lexical_layout_matches_number_graph(
         }
     }
 
-    let graph_outputs = topology.graph_outputs();
+    let graph_outputs = topology.results();
     assert_eq!(graph_outputs.len(), 1);
     let graph_output = &graph_outputs[0];
 
@@ -176,13 +176,13 @@ pub(super) fn lexical_layout_matches_number_graph(
         all_good = false;
     }
 
-    for nsid in topology.number_sources().keys() {
+    for nsid in topology.nodes().keys() {
         if !visited_sources.contains(nsid) {
             println!(
                 "Number source {} \"{}\" is not represented by any ASTNode",
                 nsid.value(),
                 topology
-                    .number_source(*nsid)
+                    .node(*nsid)
                     .unwrap()
                     .instance_arc()
                     .as_graph_object()
@@ -193,7 +193,7 @@ pub(super) fn lexical_layout_matches_number_graph(
         }
     }
 
-    let graph_inputs = topology.graph_inputs();
+    let graph_inputs = topology.parameters();
 
     for giid in visited_graph_inputs.iter() {
         if !graph_inputs.contains(giid) {

@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::core::number::numbersource::NumberSourceId;
+use crate::core::expression::expressionnode::ExpressionNodeId;
 
 use super::{numbergraphuicontext::NumberGraphUiContext, numbergraphuistate::NumberGraphUiState};
 
@@ -10,14 +10,14 @@ pub enum DisplayStyle {
 }
 
 pub struct NumberSourceUi {
-    _source_id: NumberSourceId,
+    _source_id: ExpressionNodeId,
     label: Option<String>,
     display_style: DisplayStyle,
 }
 
 impl NumberSourceUi {
     pub fn new_named(
-        source_id: NumberSourceId,
+        source_id: ExpressionNodeId,
         label: String,
         display_style: DisplayStyle,
     ) -> NumberSourceUi {
@@ -28,7 +28,7 @@ impl NumberSourceUi {
         }
     }
 
-    pub fn new_unnamed(source_id: NumberSourceId, display_style: DisplayStyle) -> NumberSourceUi {
+    pub fn new_unnamed(source_id: ExpressionNodeId, display_style: DisplayStyle) -> NumberSourceUi {
         NumberSourceUi {
             _source_id: source_id,
             label: None,

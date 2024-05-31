@@ -1,4 +1,4 @@
-use crate::core::number::numbergraph::NumberGraph;
+use crate::core::expression::expressiongraph::ExpressionGraph;
 
 use super::{
     graph_ui::GraphUi,
@@ -9,7 +9,7 @@ use super::{
 pub struct NumberGraphUi {}
 
 impl GraphUi for NumberGraphUi {
-    type Graph = NumberGraph;
+    type Graph = ExpressionGraph;
 
     type State = NumberGraphUiState;
 

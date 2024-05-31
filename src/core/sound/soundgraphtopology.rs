@@ -3,18 +3,18 @@ use std::hash::Hasher;
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
     revision::revision::{Revision, RevisionNumber, Versioned, VersionedHashMap},
-    sound::{soundgrapherror::SoundError, soundnumbersource::SoundNumberSourceOwner},
+    sound::{soundgrapherror::SoundError, expressionargument::SoundExpressionArgumentOwner},
 };
 
 use super::{
     soundgraph::SoundGraph,
     soundgraphdata::{
-        SoundInputData, SoundNumberInputData, SoundNumberSourceData, SoundProcessorData,
+        SoundExpressionArgumentData, SoundExpressionData, SoundInputData, SoundProcessorData,
     },
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId,
-    soundnumbersource::SoundNumberSourceId,
+    expression::SoundExpressionId,
+    expressionargument::SoundExpressionArgumentId,
     soundprocessor::SoundProcessorId,
 };
 
@@ -24,8 +24,8 @@ enum SoundConnectionPart {
     Input(SoundInputId),
 }
 
-/// A set of sound processors, all their constituent sound inputs, number
-/// sources, and number inputs, and the relationships and connections
+/// A set of sound processors, all their constituent sound inputs, expressions,
+/// and expression argument, and the relationships and connections
 /// between them. Unlike the full SoundGraph, SoundGraphTopology is only
 /// concerned with storing individual graph components and representing
 /// their hierarchies and dependencies. Changes made to SoundGraphTopology
@@ -37,8 +37,8 @@ enum SoundConnectionPart {
 pub(crate) struct SoundGraphTopology {
     sound_processors: VersionedHashMap<SoundProcessorId, SoundProcessorData>,
     sound_inputs: VersionedHashMap<SoundInputId, SoundInputData>,
-    number_sources: VersionedHashMap<SoundNumberSourceId, SoundNumberSourceData>,
-    number_inputs: VersionedHashMap<SoundNumberInputId, SoundNumberInputData>,
+    expression_arguments: VersionedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData>,
+    expressions: VersionedHashMap<SoundExpressionId, SoundExpressionData>,
 }
 
 impl SoundGraphTopology {
@@ -47,8 +47,8 @@ impl SoundGraphTopology {
         SoundGraphTopology {
             sound_processors: VersionedHashMap::new(),
             sound_inputs: VersionedHashMap::new(),
-            number_sources: VersionedHashMap::new(),
-            number_inputs: VersionedHashMap::new(),
+            expression_arguments: VersionedHashMap::new(),
+            expressions: VersionedHashMap::new(),
         }
     }
 
@@ -64,18 +64,16 @@ impl SoundGraphTopology {
         &self.sound_inputs
     }
 
-    /// Access the set of sound number sources stored in the topology
-    pub(crate) fn number_sources(
+    /// Access the set of expression arguments stored in the topology
+    pub(crate) fn expression_arguments(
         &self,
-    ) -> &VersionedHashMap<SoundNumberSourceId, SoundNumberSourceData> {
-        &self.number_sources
+    ) -> &VersionedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData> {
+        &self.expression_arguments
     }
 
-    /// Access the set of sound number inputs stored in the topology
-    pub(crate) fn number_inputs(
-        &self,
-    ) -> &VersionedHashMap<SoundNumberInputId, SoundNumberInputData> {
-        &self.number_inputs
+    /// Access the set of expressions stored in the topology
+    pub(crate) fn expressions(&self) -> &VersionedHashMap<SoundExpressionId, SoundExpressionData> {
+        &self.expressions
     }
 
     /// Look up a specific sound processor by its id
@@ -99,28 +97,28 @@ impl SoundGraphTopology {
         self.sound_inputs.get(&id)
     }
 
-    /// Look up a specific sound number source by its id
-    pub(crate) fn number_source(
+    /// Look up a specific expression argument by its id
+    pub(crate) fn expression_argumnet(
         &self,
-        id: SoundNumberSourceId,
-    ) -> Option<&Versioned<SoundNumberSourceData>> {
-        self.number_sources.get(&id)
+        id: SoundExpressionArgumentId,
+    ) -> Option<&Versioned<SoundExpressionArgumentData>> {
+        self.expression_arguments.get(&id)
     }
 
-    /// Look up a specific sound number input by its id
-    pub(crate) fn number_input(
+    /// Look up a specific expression by its id
+    pub(crate) fn expression(
         &self,
-        id: SoundNumberInputId,
-    ) -> Option<&Versioned<SoundNumberInputData>> {
-        self.number_inputs.get(&id)
+        id: SoundExpressionId,
+    ) -> Option<&Versioned<SoundExpressionData>> {
+        self.expressions.get(&id)
     }
 
-    /// Look up a specific sound number input by its id with mutable access
-    pub(crate) fn number_input_mut(
+    /// Look up a specific expression by its id with mutable access
+    pub(crate) fn expression_mut(
         &mut self,
-        id: SoundNumberInputId,
-    ) -> Option<&mut Versioned<SoundNumberInputData>> {
-        self.number_inputs.get_mut(&id)
+        id: SoundExpressionId,
+    ) -> Option<&mut Versioned<SoundExpressionData>> {
+        self.expressions.get_mut(&id)
     }
 
     /// Returns an iterator listing all the sound inputs that are connected
@@ -135,43 +133,6 @@ impl SoundGraphTopology {
             } else {
                 None
             }
-        })
-    }
-
-    /// Returns an iterator over all sound number inputs and their connected
-    /// targets which would rely on data from the audio processing call stack
-    /// that is made available through the given sound input.
-    pub(crate) fn number_connection_crossings<'a>(
-        &'a self,
-        id: SoundInputId,
-    ) -> impl 'a + Iterator<Item = (SoundNumberInputId, SoundNumberSourceId)> {
-        self.number_inputs.values().flat_map(move |ni_data| {
-            let id = id;
-            ni_data
-                .target_mapping()
-                .items()
-                .values()
-                .filter_map(move |target_ns| {
-                    let target_ns_owner = self.number_source(*target_ns).unwrap().owner();
-                    let target_part = match target_ns_owner {
-                        SoundNumberSourceOwner::SoundProcessor(spid) => {
-                            SoundConnectionPart::Processor(spid)
-                        }
-                        SoundNumberSourceOwner::SoundInput(siid) => {
-                            SoundConnectionPart::Input(siid)
-                        }
-                    };
-                    if self.depends_on(target_part, SoundConnectionPart::Input(id))
-                        && self.depends_on(
-                            SoundConnectionPart::Input(id),
-                            SoundConnectionPart::Processor(ni_data.owner()),
-                        )
-                    {
-                        Some((ni_data.id(), *target_ns))
-                    } else {
-                        None
-                    }
-                })
         })
     }
 
@@ -202,15 +163,15 @@ impl SoundGraphTopology {
 
     /// Add a sound processsor to the topology.
     /// The provided SoundProcessorData must be empty (i.e. it must have
-    /// no sound inputs, number sources, or number inputs) and its id must
+    /// no sound inputs, expressions, or expression arguments) and its id must
     /// not yet be in use.
     pub(crate) fn add_sound_processor(
         &mut self,
         data: SoundProcessorData,
     ) -> Result<(), SoundError> {
         if !(data.sound_inputs().is_empty()
-            && data.number_sources().is_empty()
-            && data.number_inputs().is_empty())
+            && data.expression_arguments().is_empty()
+            && data.expressions().is_empty())
         {
             return Err(SoundError::BadProcessorInit(data.id()));
         }
@@ -223,8 +184,8 @@ impl SoundGraphTopology {
     }
 
     /// Remove a sound processor from the topology. The sound
-    /// processor must not have any sound inputs, number sources,
-    /// or number inputs associated with it.
+    /// processor must not have any sound inputs, expressions,
+    /// or expressiona arguments associated with it.
     pub(crate) fn remove_sound_processor(
         &mut self,
         processor_id: SoundProcessorId,
@@ -234,8 +195,8 @@ impl SoundGraphTopology {
             .ok_or(SoundError::ProcessorNotFound(processor_id))?;
 
         if !(data.sound_inputs().is_empty()
-            && data.number_sources().is_empty()
-            && data.number_inputs().is_empty())
+            && data.expression_arguments().is_empty()
+            && data.expressions().is_empty())
         {
             return Err(SoundError::BadProcessorCleanup(processor_id));
         }
@@ -246,10 +207,10 @@ impl SoundGraphTopology {
     }
 
     /// Add a sound input to the topology. The provided SoundInputData
-    /// must have no number sources, its id must not yet be in use, and
-    /// the sound processor to which it belongs must exist.
+    /// must have no expression arguments, its id must not yet be in use,
+    /// and the sound processor to which it belongs must exist.
     pub(crate) fn add_sound_input(&mut self, data: SoundInputData) -> Result<(), SoundError> {
-        if !data.number_sources().is_empty() {
+        if !data.expression_arguments().is_empty() {
             return Err(SoundError::BadSoundInputInit(data.id()));
         }
         if self.sound_inputs.contains_key(&data.id()) {
@@ -282,7 +243,7 @@ impl SoundGraphTopology {
             return Err(SoundError::BadSoundInputCleanup(input_id));
         }
 
-        if !input_data.number_sources().is_empty() {
+        if !input_data.expression_arguments().is_empty() {
             return Err(SoundError::BadSoundInputCleanup(input_id));
         }
 
@@ -302,7 +263,7 @@ impl SoundGraphTopology {
     /// must be unoccupied. No additional checks are performed.
     /// It is possible to create cycles using this method, even
     /// though cycles are generally not permitted. It is also
-    /// possible to invalidate existing number inputs that rely
+    /// possible to invalidate existing expression that rely
     /// on state from higher up the audio call stack by creating
     /// a separate pathway through which that state is not available.
     /// For additional error checking, use SoundGraph instead or see
@@ -332,7 +293,7 @@ impl SoundGraphTopology {
     /// Disconnect the given sound input from the processor it points to.
     /// The sound input must exist and it must be pointing to a sound
     /// processor already. No additional error checking is performed. It
-    /// is possible to invalidate number sources which rely on state from
+    /// is possible to invalidate expression arguments which rely on state from
     /// higher up the audio call stack by removing their access to that
     /// state. For additional error checking, use SoundGraph instead or
     /// see find_sound_error.
@@ -351,163 +312,146 @@ impl SoundGraphTopology {
         Ok(())
     }
 
-    /// Add a sound number source to the topology. The number source's
+    /// Add an expression argument to the topology. The arguments's
     /// id must not be in use yet and its owner (i.e. the sound processor
     /// or input to which it belongs) must already exist.
-    pub(crate) fn add_number_source(
+    pub(crate) fn add_expression_argument(
         &mut self,
-        data: SoundNumberSourceData,
+        data: SoundExpressionArgumentData,
     ) -> Result<(), SoundError> {
-        // TODO: rename "sound number source" to something less vague.
-        // Make it clear that it exposes audio processing state to
-        // the numeric side of things. Perhaps SoundStateReader,
-        // SoundStateAccessor, etc
         let id = data.id();
         let owner = data.owner();
 
-        if self.number_sources.contains_key(&id) {
-            return Err(SoundError::NumberSourceIdTaken(id));
+        if self.expression_arguments.contains_key(&id) {
+            return Err(SoundError::ArgumentIdTaken(id));
         }
 
         match owner {
-            SoundNumberSourceOwner::SoundProcessor(spid) => {
+            SoundExpressionArgumentOwner::SoundProcessor(spid) => {
                 let proc_data = self
                     .sound_processors
                     .get_mut(&spid)
                     .ok_or(SoundError::ProcessorNotFound(spid))?;
-                debug_assert!(!proc_data.number_sources().contains(&id));
-                proc_data.number_sources_mut().push(id);
+                debug_assert!(!proc_data.expression_arguments().contains(&id));
+                proc_data.arguments_mut().push(id);
             }
-            SoundNumberSourceOwner::SoundInput(siid) => {
+            SoundExpressionArgumentOwner::SoundInput(siid) => {
                 let input_data = self
                     .sound_inputs
                     .get_mut(&siid)
                     .ok_or(SoundError::SoundInputNotFound(siid))?;
-                debug_assert!(!input_data.number_sources().contains(&id));
-                input_data.number_sources_mut().push(id);
+                debug_assert!(!input_data.expression_arguments().contains(&id));
+                input_data.arguments_mut().push(id);
             }
         }
 
-        let prev = self.number_sources.insert(id, data);
+        let prev = self.expression_arguments.insert(id, data);
         debug_assert!(prev.is_none());
 
         Ok(())
     }
 
-    /// Remove a sound number source from the topology.
-    pub(crate) fn remove_number_source(
+    /// Remove an expression argument from the topology.
+    pub(crate) fn remove_expression_argument(
         &mut self,
-        source_id: SoundNumberSourceId,
-        // TODO: owner here is redundant
-        owner: SoundNumberSourceOwner,
+        argument_id: SoundExpressionArgumentId,
     ) -> Result<(), SoundError> {
-        if !self.number_sources.contains_key(&source_id) {
-            return Err(SoundError::NumberSourceNotFound(source_id));
-        }
+        let owner = self
+            .expression_arguments
+            .get(&argument_id)
+            .ok_or(SoundError::ArgumentNotFound(argument_id))?
+            .owner();
 
-        // remove the number source from its owner, if any
+        // remove the argument from its owner
         match owner {
-            SoundNumberSourceOwner::SoundProcessor(spid) => {
+            SoundExpressionArgumentOwner::SoundProcessor(spid) => {
                 let proc_data = self.sound_processors.get_mut(&spid).unwrap();
-                proc_data
-                    .number_sources_mut()
-                    .retain(|iid| *iid != source_id);
+                proc_data.arguments_mut().retain(|iid| *iid != argument_id);
             }
-            SoundNumberSourceOwner::SoundInput(siid) => {
+            SoundExpressionArgumentOwner::SoundInput(siid) => {
                 let input_data = self.sound_inputs.get_mut(&siid).unwrap();
-                input_data
-                    .number_sources_mut()
-                    .retain(|iid| *iid != source_id);
+                input_data.arguments_mut().retain(|iid| *iid != argument_id);
             }
         }
 
-        // remove the number source from any number inputs that use it
-        // TODO: or don't????
-        for ni_data in self.number_inputs.values_mut() {
-            let (numbergraph, mapping) = ni_data.number_graph_and_mapping_mut();
-            if mapping.target_graph_input(source_id).is_some() {
-                mapping.remove_target(source_id, numbergraph);
-            }
-        }
-
-        // remove the number source
-        self.number_sources.remove(&source_id).unwrap();
+        // remove the argument
+        self.expression_arguments.remove(&argument_id).unwrap();
 
         Ok(())
     }
 
-    /// Add a sound number input to the topology. The number input's
+    /// Add an expression to the topology. The expressions's
     /// id must not yet be in use and it must not yet be connected
-    /// to any sound number sources in its input mapping. The sound
+    /// to any expression arguments in its parameter mapping. The sound
     /// processor to which the input belongs must exist.
-    pub(crate) fn add_number_input(
-        &mut self,
-        data: SoundNumberInputData,
-    ) -> Result<(), SoundError> {
+    pub(crate) fn add_expression(&mut self, data: SoundExpressionData) -> Result<(), SoundError> {
         let id = data.id();
 
-        if self.number_inputs.contains_key(&id) {
-            return Err(SoundError::NumberInputIdTaken(id));
+        if self.expressions.contains_key(&id) {
+            return Err(SoundError::ExpressionIdTaken(id));
         }
 
-        if !data.target_mapping().items().is_empty() {
-            return Err(SoundError::BadNumberInputInit(id));
+        if !data.parameter_mapping().items().is_empty() {
+            return Err(SoundError::BadExpressionInit(id));
         }
 
         let proc_data = self
             .sound_processors
             .get_mut(&data.owner())
             .ok_or(SoundError::ProcessorNotFound(data.owner()))?;
-        debug_assert!(!proc_data.number_inputs().contains(&id));
+        debug_assert!(!proc_data.expressions().contains(&id));
 
-        proc_data.number_inputs_mut().push(id);
+        proc_data.expressions_mut().push(id);
 
-        let prev = self.number_inputs.insert(id, data);
+        let prev = self.expressions.insert(id, data);
         debug_assert!(prev.is_none());
 
         Ok(())
     }
 
-    /// Remove a sound number input from the topology.
-    pub(crate) fn remove_number_input(
+    /// Remove an expression from the topology.
+    pub(crate) fn remove_expression(
         &mut self,
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         owner: SoundProcessorId,
     ) -> Result<(), SoundError> {
-        self.number_inputs
+        self.expressions
             .remove(&id)
-            .ok_or(SoundError::NumberInputNotFound(id))?;
+            .ok_or(SoundError::ExpressionNotFound(id))?;
 
         let proc_data = self.sound_processors.get_mut(&owner).unwrap();
-        proc_data.number_inputs_mut().retain(|niid| *niid != id);
+        proc_data.expressions_mut().retain(|niid| *niid != id);
 
         Ok(())
     }
 
-    /// Add a sound number source as an input to the given sound number input.
-    pub fn connect_number_input(
+    /// Add a parameter to the given expression and connect it to the
+    /// given expression argument
+    pub fn bind_expression_argument(
         &mut self,
-        input_id: SoundNumberInputId,
-        source_id: SoundNumberSourceId,
+        expression_id: SoundExpressionId,
+        argument_id: SoundExpressionArgumentId,
     ) -> Result<(), SoundError> {
-        let numberinputdata = self
-            .number_input_mut(input_id)
-            .ok_or(SoundError::NumberInputNotFound(input_id))?;
-        let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
-        mapping.add_target(source_id, numbergraph);
+        let expr_data = self
+            .expression_mut(expression_id)
+            .ok_or(SoundError::ExpressionNotFound(expression_id))?;
+        let (expr_graph, mapping) = expr_data.expression_graph_and_mapping_mut();
+        mapping.add_argument(argument_id, expr_graph);
         Ok(())
     }
 
-    pub fn disconnect_number_input(
+    /// Disconnect the expression's parameter from the argument and
+    /// remove the parameter from the expression.
+    pub fn unbind_expression_argument(
         &mut self,
-        input_id: SoundNumberInputId,
-        source_id: SoundNumberSourceId,
+        expression_id: SoundExpressionId,
+        argument_id: SoundExpressionArgumentId,
     ) -> Result<(), SoundError> {
-        let numberinputdata = self
-            .number_input_mut(input_id)
-            .ok_or(SoundError::NumberInputNotFound(input_id))?;
-        let (numbergraph, mapping) = numberinputdata.number_graph_and_mapping_mut();
-        mapping.remove_target(source_id, numbergraph);
+        let expr_data = self
+            .expression_mut(expression_id)
+            .ok_or(SoundError::ExpressionNotFound(expression_id))?;
+        let (expr_graph, mapping) = expr_data.expression_graph_and_mapping_mut();
+        mapping.remove_argument(argument_id, expr_graph);
         Ok(())
     }
 
@@ -516,8 +460,8 @@ impl SoundGraphTopology {
         match graph_id {
             SoundGraphId::SoundInput(siid) => self.sound_inputs.contains_key(&siid),
             SoundGraphId::SoundProcessor(spid) => self.sound_processors.contains_key(&spid),
-            SoundGraphId::SoundNumberInput(niid) => self.number_inputs.contains_key(&niid),
-            SoundGraphId::SoundNumberSource(nsid) => self.number_sources.contains_key(&nsid),
+            SoundGraphId::Expression(niid) => self.expressions.contains_key(&niid),
+            SoundGraphId::ExpressionArgument(nsid) => self.expression_arguments.contains_key(&nsid),
         }
     }
 
@@ -552,8 +496,8 @@ impl Revision for SoundGraphTopology {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u64(self.sound_processors.get_revision().value());
         hasher.write_u64(self.sound_inputs.get_revision().value());
-        hasher.write_u64(self.number_sources.get_revision().value());
-        hasher.write_u64(self.number_inputs.get_revision().value());
+        hasher.write_u64(self.expression_arguments.get_revision().value());
+        hasher.write_u64(self.expressions.get_revision().value());
         RevisionNumber::new(hasher.finish())
     }
 }

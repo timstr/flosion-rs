@@ -8,16 +8,16 @@ use inkwell::{
 use serialization::Serializer;
 
 use crate::core::{
+    expression::{
+        expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
+        expressionnodetools::ExpressionNodeTools,
+    },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::codegen::CodeGen,
-    number::{
-        numberinput::NumberInputHandle, numbersource::StatefulNumberSource,
-        numbersourcetools::NumberSourceTools,
-    },
 };
 
 pub struct Sampler1d {
-    input: NumberInputHandle,
+    input: ExpressionNodeInputHandle,
     value: Arc<AtomicSlice<f32>>,
 }
 
@@ -33,13 +33,13 @@ pub struct Sampler1dCompileState<'ctx> {
     ptr_status: PointerValue<'ctx>,
 }
 
-impl StatefulNumberSource for Sampler1d {
-    fn new(mut tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
+impl StatefulExpressionNode for Sampler1d {
+    fn new(mut tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         // TODO: use init
         let mut value = Vec::new();
         value.resize(256, 0.0);
         Ok(Sampler1d {
-            input: tools.add_number_input(0.0),
+            input: tools.add_input(0.0),
             value: Arc::new(AtomicSlice::new(value)),
         })
     }

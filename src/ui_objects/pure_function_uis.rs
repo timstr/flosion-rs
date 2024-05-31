@@ -3,7 +3,9 @@ use eframe::egui;
 use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
-    core::number::{numbergraph::NumberGraph, numbersource::PureNumberSourceHandle},
+    core::expression::{
+        expressiongraph::ExpressionGraph, expressionnode::PureExpressionNodeHandle,
+    },
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
@@ -26,17 +28,17 @@ impl ConstantUi {
 
 impl ObjectUi for ConstantUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = PureNumberSourceHandle<Constant>;
+    type HandleType = PureExpressionNodeHandle<Constant>;
     type StateType = ();
 
     fn ui(
         &self,
-        constant: PureNumberSourceHandle<Constant>,
+        constant: PureExpressionNodeHandle<Constant>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut egui::Ui,
         ctx: &mut NumberGraphUiContext,
         _data: NumberObjectUiData<()>,
-        _number_graph: &mut NumberGraph,
+        _number_graph: &mut ExpressionGraph,
     ) {
         // TODO: add ui state for custom name
         // NumberSourceUi::new_unnamed(constant.id()).show(ui, ctx, ui_state);
@@ -114,16 +116,16 @@ impl ObjectUiState for SliderUiState {}
 
 impl ObjectUi for SliderUi {
     type GraphUi = NumberGraphUi;
-    type HandleType = PureNumberSourceHandle<Variable>;
+    type HandleType = PureExpressionNodeHandle<Variable>;
     type StateType = SliderUiState;
     fn ui(
         &self,
-        variable: PureNumberSourceHandle<Variable>,
+        variable: PureExpressionNodeHandle<Variable>,
         ui_state: &mut NumberGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &mut NumberGraphUiContext,
         data: NumberObjectUiData<SliderUiState>,
-        _number_graph: &mut NumberGraph,
+        _number_graph: &mut ExpressionGraph,
     ) {
         NumberSourceUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
             .show_with(ui, ctx, ui_state, |ui, _ui_state| {
@@ -151,7 +153,7 @@ impl ObjectUi for SliderUi {
 
     fn make_ui_state(
         &self,
-        object: &PureNumberSourceHandle<Variable>,
+        object: &PureExpressionNodeHandle<Variable>,
         init: UiInitialization,
     ) -> (Self::StateType, NumberSourceLayout) {
         let state = match init {
@@ -215,16 +217,16 @@ macro_rules! unary_number_source_ui {
 
         impl ObjectUi for $name {
             type GraphUi = NumberGraphUi;
-            type HandleType = PureNumberSourceHandle<$object>;
+            type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureNumberSourceHandle<$object>,
+                object: PureExpressionNodeHandle<$object>,
                 ui_state: &mut NumberGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
-                _number_graph: &mut NumberGraph,
+                _expr_graph: &mut ExpressionGraph,
             ) {
                 NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
@@ -236,7 +238,7 @@ macro_rules! unary_number_source_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &PureNumberSourceHandle<$object>,
+                _object: &PureExpressionNodeHandle<$object>,
                 _init: UiInitialization,
             ) -> (Self::StateType, NumberSourceLayout) {
                 ((), $layout)
@@ -252,16 +254,16 @@ macro_rules! binary_number_source_ui {
 
         impl ObjectUi for $name {
             type GraphUi = NumberGraphUi;
-            type HandleType = PureNumberSourceHandle<$object>;
+            type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureNumberSourceHandle<$object>,
+                object: PureExpressionNodeHandle<$object>,
                 ui_state: &mut NumberGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
-                _number_graph: &mut NumberGraph,
+                _expr_graph: &mut ExpressionGraph,
             ) {
                 NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
@@ -273,7 +275,7 @@ macro_rules! binary_number_source_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &PureNumberSourceHandle<$object>,
+                _object: &PureExpressionNodeHandle<$object>,
                 _init: UiInitialization,
             ) -> (Self::StateType, NumberSourceLayout) {
                 ((), $layout)
@@ -289,16 +291,16 @@ macro_rules! ternary_number_source_ui {
 
         impl ObjectUi for $name {
             type GraphUi = NumberGraphUi;
-            type HandleType = PureNumberSourceHandle<$object>;
+            type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureNumberSourceHandle<$object>,
+                object: PureExpressionNodeHandle<$object>,
                 ui_state: &mut NumberGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &mut NumberGraphUiContext,
                 _data: NumberObjectUiData<Self::StateType>,
-                _number_graph: &mut NumberGraph,
+                _expr_graph: &mut ExpressionGraph,
             ) {
                 NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);

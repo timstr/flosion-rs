@@ -10,11 +10,11 @@ use crate::core::{
     jit::compilednumberinput::Discretization,
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundNumberInputScope,
+        soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        soundnumberinput::SoundNumberInputHandle,
-        soundnumbersource::{SoundNumberSourceHandle, SoundNumberSourceId},
+        expression::SoundExpressionHandle,
+        expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
     },
@@ -26,13 +26,13 @@ pub struct Definitions {
 
     // TODO: store these in a vector. Might need to rethink how DefinitionsNumberInputs works,
     // e.g. does it need to use Vec or can it use something friendlier to the audio thread?
-    pub number_input: SoundNumberInputHandle,
-    pub number_source: SoundNumberSourceHandle,
+    pub number_input: SoundExpressionHandle,
+    pub number_source: SoundExpressionArgumentHandle,
 }
 
 pub struct DefinitionsNumberInputs<'ctx> {
     input: SoundNumberInputNode<'ctx>,
-    source_id: SoundNumberSourceId,
+    source_id: SoundExpressionArgumentId,
 }
 
 impl<'ctx> SoundNumberInputNodeCollection<'ctx> for DefinitionsNumberInputs<'ctx> {
@@ -59,7 +59,7 @@ impl DynamicSoundProcessor for Definitions {
         Ok(Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             number_input: tools
-                .add_number_input(0.0, SoundNumberInputScope::with_processor_state()),
+                .add_number_input(0.0, SoundExpressionScope::with_processor_state()),
             number_source: tools.add_local_array_number_source(),
         })
     }

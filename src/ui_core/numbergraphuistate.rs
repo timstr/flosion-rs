@@ -4,8 +4,10 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use std::any::type_name;
 
 use crate::core::{
-    number::{numbergraphtopology::NumberGraphTopology, numbersource::NumberSourceId},
-    sound::{soundgraphtopology::SoundGraphTopology, soundnumberinput::SoundNumberInputId},
+    expression::{
+        expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
+    },
+    sound::{soundgraphtopology::SoundGraphTopology, expression::SoundExpressionId},
 };
 
 use super::{
@@ -31,7 +33,7 @@ impl NumberGraphUiState {
 }
 
 pub(super) struct SoundNumberInputUiCollection {
-    data: HashMap<SoundNumberInputId, (NumberGraphUiState, SoundNumberInputPresentation)>,
+    data: HashMap<SoundExpressionId, (NumberGraphUiState, SoundNumberInputPresentation)>,
 }
 
 impl SoundNumberInputUiCollection {
@@ -43,7 +45,7 @@ impl SoundNumberInputUiCollection {
 
     pub(super) fn set_ui_data(
         &mut self,
-        niid: SoundNumberInputId,
+        niid: SoundExpressionId,
         ui_state: NumberGraphUiState,
         presentation: SoundNumberInputPresentation,
     ) {
@@ -56,13 +58,13 @@ impl SoundNumberInputUiCollection {
         object_ui_states: &SoundObjectUiStates,
     ) {
         self.data
-            .retain(|id, _| topology.number_inputs().contains_key(id));
+            .retain(|id, _| topology.expressions().contains_key(id));
 
         for (niid, (ui_state, presentation)) in &mut self.data {
             let number_topo = topology
-                .number_input(*niid)
+                .expression(*niid)
                 .unwrap()
-                .number_graph()
+                .expression_graph()
                 .topology();
             ui_state.cleanup();
             presentation.cleanup(
@@ -74,14 +76,14 @@ impl SoundNumberInputUiCollection {
 
     pub(crate) fn get_mut(
         &mut self,
-        niid: SoundNumberInputId,
+        niid: SoundExpressionId,
     ) -> Option<(&mut NumberGraphUiState, &mut SoundNumberInputPresentation)> {
         self.data.get_mut(&niid).map(|(a, b)| (a, b))
     }
 }
 
 pub struct AnyNumberObjectUiData {
-    _id: NumberSourceId,
+    _id: ExpressionNodeId,
     state: RefCell<Box<dyn AnyObjectUiState>>,
     layout: NumberSourceLayout,
 }
@@ -97,7 +99,7 @@ impl ObjectUiData for AnyNumberObjectUiData {
 
     type RequiredData = NumberSourceLayout;
 
-    fn new<S: ObjectUiState>(id: NumberSourceId, state: S, data: Self::RequiredData) -> Self {
+    fn new<S: ObjectUiState>(id: ExpressionNodeId, state: S, data: Self::RequiredData) -> Self {
         AnyNumberObjectUiData {
             _id: id,
             state: RefCell::new(Box::new(state)),
@@ -141,7 +143,7 @@ pub struct NumberObjectUiData<'a, T: ObjectUiState> {
 }
 
 pub struct NumberObjectUiStates {
-    data: HashMap<NumberSourceId, Rc<AnyNumberObjectUiData>>,
+    data: HashMap<ExpressionNodeId, Rc<AnyNumberObjectUiData>>,
 }
 
 impl NumberObjectUiStates {
@@ -151,16 +153,15 @@ impl NumberObjectUiStates {
         }
     }
 
-    pub(super) fn set_object_data(&mut self, id: NumberSourceId, state: AnyNumberObjectUiData) {
+    pub(super) fn set_object_data(&mut self, id: ExpressionNodeId, state: AnyNumberObjectUiData) {
         self.data.insert(id, Rc::new(state));
     }
 
-    pub(super) fn get_object_data(&self, id: NumberSourceId) -> Rc<AnyNumberObjectUiData> {
+    pub(super) fn get_object_data(&self, id: ExpressionNodeId) -> Rc<AnyNumberObjectUiData> {
         Rc::clone(self.data.get(&id).unwrap())
     }
 
-    pub(super) fn cleanup(&mut self, topology: &NumberGraphTopology) {
-        self.data
-            .retain(|id, _| topology.number_sources().contains_key(id));
+    pub(super) fn cleanup(&mut self, topology: &ExpressionGraphTopology) {
+        self.data.retain(|id, _| topology.nodes().contains_key(id));
     }
 }

@@ -10,11 +10,11 @@ use crate::core::{
     jit::compilednumberinput::Discretization,
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundNumberInputScope,
+        soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        soundnumberinput::SoundNumberInputHandle,
-        soundnumbersource::{SoundNumberSourceHandle, SoundNumberSourceId},
+        expression::SoundExpressionHandle,
+        expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
     },
@@ -24,15 +24,15 @@ use crate::core::{
 pub struct ReadWriteWaveform {
     pub sound_input: SingleInput,
     // TODO: multiple outputs to enable stereo
-    pub waveform: SoundNumberInputHandle,
-    pub input_l: SoundNumberSourceHandle,
-    pub input_r: SoundNumberSourceHandle,
+    pub waveform: SoundExpressionHandle,
+    pub input_l: SoundExpressionArgumentHandle,
+    pub input_r: SoundExpressionArgumentHandle,
 }
 
 pub struct ReadWriteWaveformNumberInputs<'ctx> {
     waveform: SoundNumberInputNode<'ctx>,
-    input_l: SoundNumberSourceId,
-    input_r: SoundNumberSourceId,
+    input_l: SoundExpressionArgumentId,
+    input_r: SoundExpressionArgumentId,
 }
 
 impl<'ctx> SoundNumberInputNodeCollection<'ctx> for ReadWriteWaveformNumberInputs<'ctx> {
@@ -53,7 +53,7 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let input_l = tools.add_local_array_number_source();
         let input_r = tools.add_local_array_number_source();
-        let waveform_scope = SoundNumberInputScope::with_processor_state()
+        let waveform_scope = SoundExpressionScope::with_processor_state()
             .add_local(input_l.id())
             .add_local(input_r.id());
         Ok(ReadWriteWaveform {

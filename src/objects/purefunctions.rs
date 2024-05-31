@@ -1,11 +1,11 @@
 use crate::{
     core::{
+        expression::{
+            expressionnode::PureExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
+            expressionnodetools::ExpressionNodeTools,
+        },
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
         jit::codegen::CodeGen,
-        number::{
-            numberinput::NumberInputHandle, numbersource::PureNumberSource,
-            numbersourcetools::NumberSourceTools,
-        },
     },
     ui_core::arguments::FloatArgument,
 };
@@ -26,8 +26,8 @@ impl Constant {
     pub const ARG_VALUE: FloatArgument = FloatArgument("value");
 }
 
-impl PureNumberSource for Constant {
-    fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
+impl PureExpressionNode for Constant {
+    fn new(_tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
             // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
             ObjectInitialization::Archive(mut d) => d.f32()?,
@@ -59,7 +59,7 @@ impl WithObjectType for Constant {
 
 // Note: Variable isn't strictly speaking "pure" in the mathematical sense,
 // but it is intended to not vary rapidly (e.g. at audio rates) and
-// doesn't need any extra per-number-input state to be stored.
+// doesn't need any extra per-node state to be stored.
 pub struct Variable {
     value: Arc<AtomicF32>,
 }
@@ -76,8 +76,8 @@ impl Variable {
     pub const ARG_VALUE: FloatArgument = FloatArgument("value");
 }
 
-impl PureNumberSource for Variable {
-    fn new(_tools: NumberSourceTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
+impl PureExpressionNode for Variable {
+    fn new(_tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
             // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
             ObjectInitialization::Archive(mut d) => d.f32()?,
@@ -166,20 +166,20 @@ impl LlvmImplementation {
     }
 }
 
-macro_rules! unary_number_source {
+macro_rules! unary_expression_node {
     ($name: ident, $namestr: literal, $default_input: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
-            pub input: NumberInputHandle,
+            pub input: ExpressionNodeInputHandle,
         }
 
-        impl PureNumberSource for $name {
+        impl PureExpressionNode for $name {
             fn new(
-                mut tools: NumberSourceTools<'_>,
+                mut tools: ExpressionNodeTools<'_>,
                 _init: ObjectInitialization,
             ) -> Result<$name, ()> {
                 let default_value: f32 = $default_input;
                 Ok($name {
-                    input: tools.add_number_input(default_value),
+                    input: tools.add_input(default_value),
                 })
             }
 
@@ -199,22 +199,22 @@ macro_rules! unary_number_source {
     };
 }
 
-macro_rules! binary_number_source {
+macro_rules! binary_expression_node {
     ($name: ident, $namestr: literal, $default_inputs: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
-            pub input_1: NumberInputHandle,
-            pub input_2: NumberInputHandle,
+            pub input_1: ExpressionNodeInputHandle,
+            pub input_2: ExpressionNodeInputHandle,
         }
 
-        impl PureNumberSource for $name {
+        impl PureExpressionNode for $name {
             fn new(
-                mut tools: NumberSourceTools<'_>,
+                mut tools: ExpressionNodeTools<'_>,
                 _init: ObjectInitialization,
             ) -> Result<$name, ()> {
                 let default_values: (f32, f32) = $default_inputs;
                 Ok($name {
-                    input_1: tools.add_number_input(default_values.0),
-                    input_2: tools.add_number_input(default_values.1),
+                    input_1: tools.add_input(default_values.0),
+                    input_2: tools.add_input(default_values.1),
                 })
             }
 
@@ -234,24 +234,24 @@ macro_rules! binary_number_source {
     };
 }
 
-macro_rules! ternary_number_source {
+macro_rules! ternary_expression_node {
     ($name: ident, $namestr: literal, $default_inputs: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
-            pub input_1: NumberInputHandle,
-            pub input_2: NumberInputHandle,
-            pub input_3: NumberInputHandle,
+            pub input_1: ExpressionNodeInputHandle,
+            pub input_2: ExpressionNodeInputHandle,
+            pub input_3: ExpressionNodeInputHandle,
         }
 
-        impl PureNumberSource for $name {
+        impl PureExpressionNode for $name {
             fn new(
-                mut tools: NumberSourceTools<'_>,
+                mut tools: ExpressionNodeTools<'_>,
                 _init: ObjectInitialization,
             ) -> Result<$name, ()> {
                 let default_values: (f32, f32, f32) = $default_inputs;
                 Ok($name {
-                    input_1: tools.add_number_input(default_values.0),
-                    input_2: tools.add_number_input(default_values.1),
-                    input_3: tools.add_number_input(default_values.2),
+                    input_1: tools.add_input(default_values.0),
+                    input_2: tools.add_input(default_values.1),
+                    input_3: tools.add_input(default_values.2),
                 })
             }
 
@@ -274,7 +274,7 @@ macro_rules! ternary_number_source {
 // TODO
 // fma
 
-unary_number_source!(
+unary_expression_node!(
     Negate,
     "negate",
     0.0,
@@ -283,35 +283,35 @@ unary_number_source!(
         codegen.builder().build_float_neg(x, "x").unwrap()
     })
 );
-unary_number_source!(
+unary_expression_node!(
     Floor,
     "floor",
     0.0,
     |x| x.floor(),
     LlvmImplementation::IntrinsicUnary("llvm.floor")
 );
-unary_number_source!(
+unary_expression_node!(
     Ceil,
     "ceil",
     0.0,
     |x| x.ceil(),
     LlvmImplementation::IntrinsicUnary("llvm.ceil")
 );
-unary_number_source!(
+unary_expression_node!(
     Round,
     "round",
     0.0,
     |x| x.round(),
     LlvmImplementation::IntrinsicUnary("llvm.round")
 );
-unary_number_source!(
+unary_expression_node!(
     Trunc,
     "trunc",
     0.0,
     |x| x.trunc(),
     LlvmImplementation::IntrinsicUnary("llvm.trunc")
 );
-unary_number_source!(
+unary_expression_node!(
     Fract,
     "fract",
     0.0,
@@ -324,14 +324,14 @@ unary_number_source!(
             .unwrap()
     })
 );
-unary_number_source!(
+unary_expression_node!(
     Abs,
     "abs",
     0.0,
     |x| x.abs(),
     LlvmImplementation::IntrinsicUnary("llvm.fabs")
 );
-unary_number_source!(
+unary_expression_node!(
     Signum,
     "signum",
     0.0,
@@ -341,21 +341,21 @@ unary_number_source!(
         codegen.build_binary_intrinsic_call("llvm.copysign", one, x)
     })
 );
-unary_number_source!(
+unary_expression_node!(
     Exp,
     "exp",
     0.0,
     |x| x.exp(),
     LlvmImplementation::IntrinsicUnary("llvm.exp")
 );
-unary_number_source!(
+unary_expression_node!(
     Exp2,
     "exp2",
     0.0,
     |x| x.exp2(),
     LlvmImplementation::IntrinsicUnary("llvm.exp2")
 );
-unary_number_source!(
+unary_expression_node!(
     Exp10,
     "exp10",
     0.0,
@@ -371,61 +371,63 @@ unary_number_source!(
         codegen.build_unary_intrinsic_call("llvm.exp", x_times_ln_10)
     })
 );
-unary_number_source!(
+unary_expression_node!(
     Log,
     "log",
     1.0,
     |x| x.ln(),
     LlvmImplementation::IntrinsicUnary("llvm.log")
 );
-unary_number_source!(
+unary_expression_node!(
     Log2,
     "log2",
     1.0,
     |x| x.log2(),
     LlvmImplementation::IntrinsicUnary("llvm.log2")
 );
-unary_number_source!(
+unary_expression_node!(
     Log10,
     "log10",
     1.0,
     |x| x.log10(),
     LlvmImplementation::IntrinsicUnary("llvm.log10")
 );
-unary_number_source!(
+unary_expression_node!(
     Sqrt,
     "sqrt",
     0.0,
     |x| x.sqrt(),
     LlvmImplementation::IntrinsicUnary("llvm.sqrt")
 );
-// unary_number_source!(Cbrt, "cbrt", 0.0, |x| x.cbrt());
-unary_number_source!(
+// TODO:
+// - cbrt
+unary_expression_node!(
     Sin,
     "sin",
     0.0,
     |x| x.sin(),
     LlvmImplementation::IntrinsicUnary("llvm.sin")
 );
-unary_number_source!(
+unary_expression_node!(
     Cos,
     "cos",
     0.0,
     |x| x.cos(),
     LlvmImplementation::IntrinsicUnary("llvm.cos")
 );
-// unary_number_source!(Tan, "tan", |x| x.tan());
-// unary_number_source!(Asin, "asin", |x| x.asin());
-// unary_number_source!(Acos, "acos", |x| x.acos());
-// unary_number_source!(Atan, "atan", |x| x.atan());
-// unary_number_source!(Sinh, "sinh", |x| x.sinh());
-// unary_number_source!(Cosh, "cosh", |x| x.cosh());
-// unary_number_source!(Tanh, "tanh", |x| x.tanh());
-// unary_number_source!(Asinh, "asinh", |x| x.asinh());
-// unary_number_source!(Acosh, "acosh", |x| x.acosh());
-// unary_number_source!(Atanh, "atanh", |x| x.atanh());
+// TODO:
+//  - tan
+//  - asin
+//  - acos
+//  - atan
+//  - sinh
+//  - cosh
+//  - tanh
+//  - asinh
+//  - acosh
+//  - atanh
 
-unary_number_source!(
+unary_expression_node!(
     SineWave,
     "sinewave",
     0.0,
@@ -437,7 +439,7 @@ unary_number_source!(
         sin_tau_x
     })
 );
-unary_number_source!(
+unary_expression_node!(
     CosineWave,
     "cosinewave",
     0.0,
@@ -449,7 +451,7 @@ unary_number_source!(
         sin_tau_x
     })
 );
-unary_number_source!(
+unary_expression_node!(
     SquareWave,
     "squarewave",
     0.0,
@@ -480,7 +482,7 @@ unary_number_source!(
             .into_float_value()
     })
 );
-unary_number_source!(
+unary_expression_node!(
     SawWave,
     "sawwave",
     0.0,
@@ -503,7 +505,7 @@ unary_number_source!(
             .unwrap()
     })
 );
-unary_number_source!(
+unary_expression_node!(
     TriangleWave,
     "trianglewave",
     0.0,
@@ -535,7 +537,7 @@ unary_number_source!(
     })
 );
 
-binary_number_source!(
+binary_expression_node!(
     Add,
     "add",
     (0.0, 0.0),
@@ -544,7 +546,7 @@ binary_number_source!(
         codegen.builder().build_float_add(a, b, "sum").unwrap()
     })
 );
-binary_number_source!(
+binary_expression_node!(
     Subtract,
     "subtract",
     (0.0, 0.0),
@@ -556,7 +558,7 @@ binary_number_source!(
             .unwrap()
     })
 );
-binary_number_source!(
+binary_expression_node!(
     Multiply,
     "multiply",
     (1.0, 1.0),
@@ -565,7 +567,7 @@ binary_number_source!(
         codegen.builder().build_float_mul(a, b, "product").unwrap()
     })
 );
-binary_number_source!(
+binary_expression_node!(
     Divide,
     "divide",
     (1.0, 1.0),
@@ -574,15 +576,16 @@ binary_number_source!(
         codegen.builder().build_float_div(a, b, "quotient").unwrap()
     })
 );
-// binary_number_source!(Hypot, "hypot", |a, b| a.hypot(b));
-binary_number_source!(
+// TODO:
+//  - hypot
+binary_expression_node!(
     Copysign,
     "copysign",
     (0.0, 0.0),
     |a, b| a.copysign(b),
     LlvmImplementation::IntrinsicBinary("llvm.copysign")
 );
-binary_number_source!(
+binary_expression_node!(
     Pow,
     "pow",
     (0.0, 1.0),
@@ -599,9 +602,10 @@ binary_number_source!(
         codegen.build_unary_intrinsic_call("llvm.exp", b_ln_a)
     })
 );
-// binary_number_source!(Atan2, "atan2", |a, b| a.atan2(b));
+// TODO:
+//  - atan2
 
-ternary_number_source!(
+ternary_expression_node!(
     Lerp,
     "lerp",
     (0.0, 1.0, 0.0),

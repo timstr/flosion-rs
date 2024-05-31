@@ -4,7 +4,7 @@ use eframe::egui;
 
 use crate::core::sound::{
     soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-    soundnumberinput::SoundNumberInputId, soundprocessor::SoundProcessorId,
+    expression::SoundExpressionId, soundprocessor::SoundProcessorId,
 };
 
 use super::temporallayout::SoundGraphLayout;
@@ -27,7 +27,7 @@ impl LayoutState {
 pub struct ObjectPositions {
     objects: HashMap<SoundObjectId, LayoutState>,
     sound_inputs: HashMap<SoundInputId, LayoutState>,
-    sound_number_inputs: HashMap<SoundNumberInputId, LayoutState>,
+    sound_number_inputs: HashMap<SoundExpressionId, LayoutState>,
 }
 
 impl ObjectPositions {
@@ -60,7 +60,7 @@ impl ObjectPositions {
 
     pub(super) fn track_sound_number_input_location(
         &mut self,
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
         rect: egui::Rect,
     ) {
         self.sound_number_inputs.insert(id, LayoutState { rect });
@@ -86,7 +86,7 @@ impl ObjectPositions {
             .unwrap()
             .translate(delta);
         let proc_data = topo.sound_processor(processor_id).unwrap();
-        for niid in proc_data.number_inputs() {
+        for niid in proc_data.expressions() {
             self.sound_number_inputs
                 .get_mut(&niid)
                 .unwrap()

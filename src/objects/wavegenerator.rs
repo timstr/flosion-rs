@@ -12,9 +12,9 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundNumberInputScope,
-        soundnumberinput::SoundNumberInputHandle,
-        soundnumbersource::SoundNumberSourceHandle,
+        soundgraphdata::SoundExpressionScope,
+        expression::SoundExpressionHandle,
+        expressionargument::SoundExpressionArgumentHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -23,9 +23,9 @@ use crate::core::{
 };
 
 pub struct WaveGenerator {
-    pub phase: SoundNumberSourceHandle,
-    pub amplitude: SoundNumberInputHandle,
-    pub frequency: SoundNumberInputHandle,
+    pub phase: SoundExpressionArgumentHandle,
+    pub amplitude: SoundExpressionHandle,
+    pub frequency: SoundExpressionHandle,
 }
 
 pub struct WaveGeneratorNumberInputs<'ctx> {
@@ -66,8 +66,8 @@ impl DynamicSoundProcessor for WaveGenerator {
             phase: tools.add_processor_array_number_source(|state: &AnyData| -> &[f32] {
                 &state.downcast_if::<WaveGeneratorState>().unwrap().phase
             }),
-            amplitude: tools.add_number_input(0.0, SoundNumberInputScope::with_processor_state()),
-            frequency: tools.add_number_input(250.0, SoundNumberInputScope::with_processor_state()),
+            amplitude: tools.add_number_input(0.0, SoundExpressionScope::with_processor_state()),
+            frequency: tools.add_number_input(250.0, SoundExpressionScope::with_processor_state()),
         })
     }
 

@@ -1,12 +1,12 @@
 use eframe::egui;
 
 use crate::core::{
+    expression::expressiongraph::ExpressionGraph,
     graph::objectfactory::ObjectFactory,
     jit::server::JitClient,
-    number::numbergraph::NumberGraph,
     sound::{
         soundgraph::SoundGraph, soundgraphid::SoundGraphId, soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId, soundnumberinput::SoundNumberInputId,
+        soundinput::SoundInputId, expression::SoundExpressionId,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -24,8 +24,8 @@ pub(super) enum KeyboardFocusState {
     OnSoundProcessorName(SoundProcessorId),
     AroundSoundInput(SoundInputId),
     InsideEmptySoundInput(SoundInputId),
-    AroundSoundNumberInput(SoundNumberInputId),
-    InsideSoundNumberInput(SoundNumberInputId, LexicalLayoutFocus),
+    AroundSoundNumberInput(SoundExpressionId),
+    InsideSoundNumberInput(SoundExpressionId, LexicalLayoutFocus),
 }
 
 impl KeyboardFocusState {
@@ -46,7 +46,7 @@ impl KeyboardFocusState {
 
     pub(super) fn sound_number_input_focus(
         &mut self,
-        id: SoundNumberInputId,
+        id: SoundExpressionId,
     ) -> Option<&mut LexicalLayoutFocus> {
         match self {
             KeyboardFocusState::InsideSoundNumberInput(snid, focus) => {
@@ -124,7 +124,7 @@ impl KeyboardFocusState {
         layout: &SoundGraphLayout,
         names: &SoundGraphUiNames,
         number_graph_uis: &mut SoundNumberInputUiCollection,
-        object_factory: &ObjectFactory<NumberGraph>,
+        object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<NumberGraphUi>,
         object_ui_states: &mut SoundObjectUiStates,
         jit_client: &JitClient,
@@ -146,7 +146,7 @@ impl KeyboardFocusState {
         if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
             let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
             let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
-            let owner = soundgraph.topology().number_input(*niid).unwrap().owner();
+            let owner = soundgraph.topology().expression(*niid).unwrap().owner();
             let time_axis = layout.find_group(owner.into()).unwrap().time_axis;
             let outer_context = OuterSoundNumberInputContext::new(
                 *niid, owner, layout, soundgraph, names, jit_client, time_axis,

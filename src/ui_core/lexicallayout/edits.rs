@@ -1,9 +1,9 @@
 use core::panic;
 
 use crate::{
-    core::number::{
-        numbergraph::{NumberGraph, NumberGraphInputId},
-        numbergraphdata::NumberTarget,
+    core::expression::{
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+        expressiongraphdata::ExpressionTarget,
     },
     ui_core::{
         lexicallayout::ast::{ASTPath, InternalASTNodeValue},
@@ -77,12 +77,12 @@ pub(super) fn insert_to_numbergraph_at_cursor(
                         .edit_number_graph(|numbergraph| {
                             // if the cursor points to the final expression, reconnect
                             // the graph output
-                            let graph_outputs = numbergraph.topology().graph_outputs();
+                            let graph_outputs = numbergraph.topology().results();
                             debug_assert_eq!(graph_outputs.len(), 1);
                             let graph_output = graph_outputs.first().unwrap();
                             debug_assert_eq!(n.direct_target(), None);
                             numbergraph
-                                .connect_graph_output(graph_output.id(), target)
+                                .connect_result(graph_output.id(), target)
                                 .unwrap();
                         })
                         .unwrap();
@@ -97,11 +97,11 @@ pub(super) fn insert_to_numbergraph_at_cursor(
             outer_context
                 .edit_number_graph(|numbergraph| {
                     let parent_nsid = parent_node.number_source_id();
-                    let parent_ns = numbergraph.topology().number_source(parent_nsid).unwrap();
-                    let parent_inputs = parent_ns.number_inputs();
+                    let parent_ns = numbergraph.topology().node(parent_nsid).unwrap();
+                    let parent_inputs = parent_ns.inputs();
                     debug_assert_eq!(parent_inputs.len(), parent_node.num_children());
                     let input_id = parent_inputs[child_index];
-                    numbergraph.connect_number_input(input_id, target).unwrap();
+                    numbergraph.connect_node_input(input_id, target).unwrap();
                 })
                 .unwrap();
         }
@@ -115,13 +115,13 @@ fn delete_ast_nodes_from_graph(
     layout: &mut LexicalLayout,
     outer_context: &mut OuterNumberGraphUiContext,
 ) {
-    fn remove_node(node: &ASTNode, numbergraph: &mut NumberGraph) {
+    fn remove_node(node: &ASTNode, numbergraph: &mut ExpressionGraph) {
         if let Some(internal_node) = node.as_internal_node() {
             remove_internal_node(internal_node, numbergraph);
         }
     }
 
-    fn remove_internal_node(node: &InternalASTNode, numbergraph: &mut NumberGraph) {
+    fn remove_internal_node(node: &InternalASTNode, numbergraph: &mut ExpressionGraph) {
         let nsid = node.number_source_id();
 
         // Recursively delete any number sources corresponding to direct AST children
@@ -144,7 +144,7 @@ fn delete_ast_nodes_from_graph(
         }
 
         // Delete the number source itself
-        numbergraph.remove_number_source(nsid).unwrap();
+        numbergraph.remove_expression_node(nsid).unwrap();
     }
 
     outer_context
@@ -191,7 +191,7 @@ fn disconnect_each_variable_use(
     layout: &LexicalLayout,
     cursor: &LexicalLayoutCursor,
     id: VariableId,
-    numbergraph: &mut NumberGraph,
+    numbergraph: &mut ExpressionGraph,
 ) {
     let (var_defn, prev_defns) =
         find_variable_definition_and_scope(id, layout.variable_definitions()).unwrap();
@@ -219,21 +219,17 @@ fn disconnect_each_variable_use(
                 disconnect_each_variable_use(layout, cursor, var_id, numbergraph);
             }
             ASTNodeParent::FinalExpression => {
-                let outputs = numbergraph.topology().graph_outputs();
+                let outputs = numbergraph.topology().results();
                 debug_assert_eq!(outputs.len(), 1);
                 let goid = outputs[0].id();
-                numbergraph.disconnect_graph_output(goid).unwrap();
+                numbergraph.disconnect_result(goid).unwrap();
             }
             ASTNodeParent::InternalNode(internal_node, child_index) => {
                 let nsid = internal_node.number_source_id();
-                let number_inputs = numbergraph
-                    .topology()
-                    .number_source(nsid)
-                    .unwrap()
-                    .number_inputs();
+                let number_inputs = numbergraph.topology().node(nsid).unwrap().inputs();
                 debug_assert_eq!(number_inputs.len(), internal_node.num_children());
                 let niid = number_inputs[child_index];
-                numbergraph.disconnect_number_input(niid).unwrap();
+                numbergraph.disconnect_node_input(niid).unwrap();
             }
         }
     });
@@ -242,7 +238,7 @@ fn disconnect_each_variable_use(
 fn connect_each_variable_use(
     layout: &LexicalLayout,
     id: VariableId,
-    target: NumberTarget,
+    target: ExpressionTarget,
     outer_context: &mut OuterNumberGraphUiContext,
 ) {
     let mut variables_to_connect = vec![id];
@@ -266,21 +262,17 @@ fn connect_each_variable_use(
                             variables_to_connect.push(var_id);
                         }
                         ASTNodeParent::FinalExpression => {
-                            let outputs = numbergraph.topology().graph_outputs();
+                            let outputs = numbergraph.topology().results();
                             debug_assert_eq!(outputs.len(), 1);
                             let goid = outputs[0].id();
-                            numbergraph.connect_graph_output(goid, target).unwrap();
+                            numbergraph.connect_result(goid, target).unwrap();
                         }
                         ASTNodeParent::InternalNode(internal_node, child_index) => {
                             let nsid = internal_node.number_source_id();
-                            let number_inputs = numbergraph
-                                .topology()
-                                .number_source(nsid)
-                                .unwrap()
-                                .number_inputs();
+                            let number_inputs = numbergraph.topology().node(nsid).unwrap().inputs();
                             debug_assert_eq!(number_inputs.len(), internal_node.num_children());
                             let niid = number_inputs[child_index];
-                            numbergraph.connect_number_input(niid, target).unwrap();
+                            numbergraph.connect_node_input(niid, target).unwrap();
                         }
                     }
                 });
@@ -304,7 +296,7 @@ pub(super) fn remove_unreferenced_graph_inputs(
     layout: &LexicalLayout,
     outer_context: &mut OuterNumberGraphUiContext,
 ) {
-    let mut referenced_graph_inputs = Vec::<NumberGraphInputId>::new();
+    let mut referenced_graph_inputs = Vec::<ExpressionGraphParameterId>::new();
 
     let all_graph_inputs = outer_context.inspect_number_graph(|numbergraph| {
         layout.visit(|node, _path| {
@@ -317,14 +309,14 @@ pub(super) fn remove_unreferenced_graph_inputs(
 
         debug_assert!((|| {
             for giid in &referenced_graph_inputs {
-                if !numbergraph.topology().graph_inputs().contains(giid) {
+                if !numbergraph.topology().parameters().contains(giid) {
                     return false;
                 }
             }
             true
         })());
 
-        let all_graph_inputs = numbergraph.topology().graph_inputs().to_vec();
+        let all_graph_inputs = numbergraph.topology().parameters().to_vec();
         all_graph_inputs
     });
 
@@ -335,8 +327,8 @@ pub(super) fn remove_unreferenced_graph_inputs(
     }
 }
 
-fn disconnect_graph_output(layout: &LexicalLayout, numbergraph: &mut NumberGraph) {
-    let graph_outputs = numbergraph.topology().graph_outputs();
+fn disconnect_graph_output(layout: &LexicalLayout, numbergraph: &mut ExpressionGraph) {
+    let graph_outputs = numbergraph.topology().results();
     debug_assert_eq!(graph_outputs.len(), 1);
     let graph_output = graph_outputs.first().unwrap();
     debug_assert_eq!(
@@ -347,7 +339,7 @@ fn disconnect_graph_output(layout: &LexicalLayout, numbergraph: &mut NumberGraph
     );
     if numbergraph
         .topology()
-        .graph_output(graph_output.id())
+        .result(graph_output.id())
         .unwrap()
         .target()
         .is_none()
@@ -355,31 +347,25 @@ fn disconnect_graph_output(layout: &LexicalLayout, numbergraph: &mut NumberGraph
         // Graph output is already disconnected
         return;
     }
-    numbergraph
-        .disconnect_graph_output(graph_output.id())
-        .unwrap();
+    numbergraph.disconnect_result(graph_output.id()).unwrap();
 }
 
 fn disconnect_internal_node(
     parent_node: &InternalASTNode,
     child_index: usize,
-    numbergraph: &mut NumberGraph,
+    numbergraph: &mut ExpressionGraph,
 ) {
     let nsid = parent_node.number_source_id();
-    let parent_ns_inputs = numbergraph
-        .topology()
-        .number_source(nsid)
-        .unwrap()
-        .number_inputs();
+    let parent_ns_inputs = numbergraph.topology().node(nsid).unwrap().inputs();
     debug_assert_eq!(parent_ns_inputs.len(), parent_node.num_children());
     let input = parent_ns_inputs[child_index];
     if numbergraph
         .topology()
-        .number_input(input)
+        .node_input(input)
         .unwrap()
         .target()
         .is_some()
     {
-        numbergraph.disconnect_number_input(input).unwrap();
+        numbergraph.disconnect_node_input(input).unwrap();
     }
 }
