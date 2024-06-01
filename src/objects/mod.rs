@@ -15,7 +15,6 @@ pub mod resampler;
 pub mod sampler1d;
 pub mod scatter;
 pub mod statefulfunctions;
-// pub mod sequencer;
 pub mod wavegenerator;
 pub mod whitenoise;
 pub mod writewaveform;
