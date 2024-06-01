@@ -1,7 +1,4 @@
-use crate::core::sound::{
-    expression::SoundExpressionId, soundgraphdata::SoundExpressionData, soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
-};
+use crate::core::sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
 
 use super::{
     garbage::{Garbage, GarbageChute},
