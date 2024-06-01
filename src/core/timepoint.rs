@@ -27,7 +27,6 @@ pub enum TimePointRecipe {
     // Between(TimePointId, TimePointId, f32)
     // Repeat(...)
     // Subdivide(...)
-    // FromNumberSource(NumberSourceId)
     // Unplanned(...)
     // etc...
 }

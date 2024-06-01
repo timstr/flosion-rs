@@ -2,8 +2,7 @@ use crate::core::{
     engine::{
         nodegen::NodeGen,
         soundexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
-            ExpressionVisitorMut,
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -24,18 +23,18 @@ use crate::core::{
 pub struct Definitions {
     pub sound_input: SingleInput,
 
-    // TODO: store these in a vector. Might need to rethink how DefinitionsNumberInputs works,
+    // TODO: store these in a vector. Might need to rethink how DefinitionsExpressions works,
     // e.g. does it need to use Vec or can it use something friendlier to the audio thread?
-    pub number_input: SoundExpressionHandle,
-    pub number_source: SoundExpressionArgumentHandle,
+    pub expression: SoundExpressionHandle,
+    pub argument: SoundExpressionArgumentHandle,
 }
 
-pub struct DefinitionsNumberInputs<'ctx> {
+pub struct DefinitionsExpressions<'ctx> {
     input: CompiledExpressionNode<'ctx>,
-    source_id: SoundExpressionArgumentId,
+    argument_id: SoundExpressionArgumentId,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for DefinitionsNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for DefinitionsExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.input);
     }
@@ -50,13 +49,13 @@ impl DynamicSoundProcessor for Definitions {
 
     type SoundInputType = SingleInput;
 
-    type Expressions<'ctx> = DefinitionsNumberInputs<'ctx>;
+    type Expressions<'ctx> = DefinitionsExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            number_input: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
-            number_source: tools.add_local_array_argument(),
+            expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
+            argument: tools.add_local_array_argument(),
         })
     }
 
@@ -72,22 +71,22 @@ impl DynamicSoundProcessor for Definitions {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        DefinitionsNumberInputs {
-            input: self.number_input.make_node(nodegen),
-            source_id: self.number_source.id(),
+        DefinitionsExpressions {
+            input: self.expression.make_node(nodegen),
+            argument_id: self.argument.id(),
         }
     }
 
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut SingleInputNode<'ctx>,
-        number_inputs: &mut DefinitionsNumberInputs<'ctx>,
+        expressions: &mut DefinitionsExpressions<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
         let mut buffer = context.get_scratch_space(CHUNK_SIZE);
 
-        number_inputs.input.eval(
+        expressions.input.eval(
             &mut buffer,
             Discretization::samplewise_temporal(),
             &context.push_processor_state(state, LocalArrayList::new()),
@@ -97,7 +96,7 @@ impl DynamicSoundProcessor for Definitions {
             state,
             dst,
             &context,
-            LocalArrayList::new().push(&buffer, number_inputs.source_id),
+            LocalArrayList::new().push(&buffer, expressions.argument_id),
         )
     }
 }

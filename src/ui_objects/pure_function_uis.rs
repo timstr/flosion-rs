@@ -9,12 +9,12 @@ use crate::{
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
+        expressiongraphui::ExpressionGraphUi,
+        expressiongraphuicontext::ExpressionGraphUiContext,
+        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressionodeui::{DisplayStyle, ExpressionNodeUi},
         graph_ui::ObjectUiState,
-        lexicallayout::lexicallayout::NumberSourceLayout,
-        numbergraphui::NumberGraphUi,
-        numbergraphuicontext::NumberGraphUiContext,
-        numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
-        numbersourceui::{DisplayStyle, NumberSourceUi},
+        lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::{ObjectUi, UiInitialization},
     },
 };
@@ -27,22 +27,20 @@ impl ConstantUi {
 }
 
 impl ObjectUi for ConstantUi {
-    type GraphUi = NumberGraphUi;
+    type GraphUi = ExpressionGraphUi;
     type HandleType = PureExpressionNodeHandle<Constant>;
     type StateType = ();
 
     fn ui(
         &self,
         constant: PureExpressionNodeHandle<Constant>,
-        ui_state: &mut NumberGraphUiState,
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        _data: NumberObjectUiData<()>,
-        _number_graph: &mut ExpressionGraph,
+        ctx: &mut ExpressionGraphUiContext,
+        _data: ExpressionNodeObjectUiData<()>,
+        _graph: &mut ExpressionGraph,
     ) {
-        // TODO: add ui state for custom name
-        // NumberSourceUi::new_unnamed(constant.id()).show(ui, ctx, ui_state);
-        NumberSourceUi::new_named(
+        ExpressionNodeUi::new_named(
             constant.id(),
             format!("{}", constant.value()),
             DisplayStyle::Framed,
@@ -64,8 +62,8 @@ impl ObjectUi for ConstantUi {
         &self,
         _handle: &Self::HandleType,
         _init: UiInitialization,
-    ) -> (Self::StateType, NumberSourceLayout) {
-        ((), NumberSourceLayout::Function)
+    ) -> (Self::StateType, ExpressionNodeLayout) {
+        ((), ExpressionNodeLayout::Function)
     }
 }
 
@@ -115,19 +113,19 @@ impl Serializable for SliderUiState {
 impl ObjectUiState for SliderUiState {}
 
 impl ObjectUi for SliderUi {
-    type GraphUi = NumberGraphUi;
+    type GraphUi = ExpressionGraphUi;
     type HandleType = PureExpressionNodeHandle<Variable>;
     type StateType = SliderUiState;
     fn ui(
         &self,
         variable: PureExpressionNodeHandle<Variable>,
-        ui_state: &mut NumberGraphUiState,
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        data: NumberObjectUiData<SliderUiState>,
-        _number_graph: &mut ExpressionGraph,
+        ctx: &mut ExpressionGraphUiContext,
+        data: ExpressionNodeObjectUiData<SliderUiState>,
+        _graph: &mut ExpressionGraph,
     ) {
-        NumberSourceUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
+        ExpressionNodeUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
             .show_with(ui, ctx, ui_state, |ui, _ui_state| {
                 let mut v = variable.get_value();
                 let v_old = v;
@@ -155,7 +153,7 @@ impl ObjectUi for SliderUi {
         &self,
         object: &PureExpressionNodeHandle<Variable>,
         init: UiInitialization,
-    ) -> (Self::StateType, NumberSourceLayout) {
+    ) -> (Self::StateType, ExpressionNodeLayout) {
         let state = match init {
             UiInitialization::Default => {
                 let v = object.get_value();
@@ -195,7 +193,7 @@ impl ObjectUi for SliderUi {
                 }
             }
         };
-        (state, NumberSourceLayout::default())
+        (state, ExpressionNodeLayout::default())
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -210,25 +208,25 @@ impl ObjectUi for SliderUi {
     }
 }
 
-macro_rules! unary_number_source_ui {
+macro_rules! unary_expression_node_ui {
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type GraphUi = NumberGraphUi;
+            type GraphUi = ExpressionGraphUi;
             type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut NumberGraphUiState,
+                ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
-                ctx: &mut NumberGraphUiContext,
-                _data: NumberObjectUiData<Self::StateType>,
+                ctx: &mut ExpressionGraphUiContext,
+                _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
+                ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
             }
 
@@ -240,32 +238,32 @@ macro_rules! unary_number_source_ui {
                 &self,
                 _object: &PureExpressionNodeHandle<$object>,
                 _init: UiInitialization,
-            ) -> (Self::StateType, NumberSourceLayout) {
+            ) -> (Self::StateType, ExpressionNodeLayout) {
                 ((), $layout)
             }
         }
     };
 }
 
-macro_rules! binary_number_source_ui {
+macro_rules! binary_expression_node_ui {
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type GraphUi = NumberGraphUi;
+            type GraphUi = ExpressionGraphUi;
             type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut NumberGraphUiState,
+                ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
-                ctx: &mut NumberGraphUiContext,
-                _data: NumberObjectUiData<Self::StateType>,
+                ctx: &mut ExpressionGraphUiContext,
+                _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
+                ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
             }
 
@@ -277,32 +275,32 @@ macro_rules! binary_number_source_ui {
                 &self,
                 _object: &PureExpressionNodeHandle<$object>,
                 _init: UiInitialization,
-            ) -> (Self::StateType, NumberSourceLayout) {
+            ) -> (Self::StateType, ExpressionNodeLayout) {
                 ((), $layout)
             }
         }
     };
 }
 
-macro_rules! ternary_number_source_ui {
+macro_rules! ternary_expression_node_ui {
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr) => {
         #[derive(Default)]
         pub struct $name {}
 
         impl ObjectUi for $name {
-            type GraphUi = NumberGraphUi;
+            type GraphUi = ExpressionGraphUi;
             type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut NumberGraphUiState,
+                ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
-                ctx: &mut NumberGraphUiContext,
-                _data: NumberObjectUiData<Self::StateType>,
+                ctx: &mut ExpressionGraphUiContext,
+                _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
-                NumberSourceUi::new_named(object.id(), $display_name.to_string(), $display_style)
+                ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx, ui_state);
             }
 
@@ -314,252 +312,238 @@ macro_rules! ternary_number_source_ui {
                 &self,
                 _handle: &Self::HandleType,
                 _init: UiInitialization,
-            ) -> (Self::StateType, NumberSourceLayout) {
-                ((), NumberSourceLayout::Function)
+            ) -> (Self::StateType, ExpressionNodeLayout) {
+                ((), ExpressionNodeLayout::Function)
             }
         }
     };
 }
 
-unary_number_source_ui!(
+unary_expression_node_ui!(
     NegateUi,
     Negate,
     "Negate",
     DisplayStyle::Framed,
     ["negate"],
-    NumberSourceLayout::Prefix
+    ExpressionNodeLayout::Prefix
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     FloorUi,
     Floor,
     "Floor",
     DisplayStyle::Framed,
     ["floor"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     CeilUi,
     Ceil,
     "Ceil",
     DisplayStyle::Framed,
     ["ceil"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     RoundUi,
     Round,
     "Round",
     DisplayStyle::Framed,
     ["round"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     TruncUi,
     Trunc,
     "Trunc",
     DisplayStyle::Framed,
     ["trunc"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     FractUi,
     Fract,
     "Fract",
     DisplayStyle::Framed,
     ["fract"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     AbsUi,
     Abs,
     "Abs",
     DisplayStyle::Framed,
     ["abs"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     SignumUi,
     Signum,
     "Signum",
     DisplayStyle::Framed,
     ["signum"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     ExpUi,
     Exp,
     "Exp",
     DisplayStyle::Framed,
     ["exp"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     Exp2Ui,
     Exp2,
     "Exp2",
     DisplayStyle::Framed,
     ["exp2"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     Exp10Ui,
     Exp10,
     "Exp10",
     DisplayStyle::Framed,
     ["exp10"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     LogUi,
     Log,
     "Log",
     DisplayStyle::Framed,
     ["log"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     Log2Ui,
     Log2,
     "Log2",
     DisplayStyle::Framed,
     ["log2"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     Log10Ui,
     Log10,
     "Log10",
     DisplayStyle::Framed,
     ["log10"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     SqrtUi,
     Sqrt,
     "Sqrt",
     DisplayStyle::Framed,
     ["sqrt"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-// unary_number_source_ui!(CbrtUi, Cbrt, "Cbrt", []);
-unary_number_source_ui!(
+unary_expression_node_ui!(
     SinUi,
     Sin,
     "Sin",
     DisplayStyle::Framed,
     ["sin"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     CosUi,
     Cos,
     "Cos",
     DisplayStyle::Framed,
     ["cos"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-// TODO
-// unary_number_source_ui!(TanUi, Tan, "Tan", []);
-// unary_number_source_ui!(AsinUi, Asin, "Asin", []);
-// unary_number_source_ui!(AcosUi, Acos, "Acos", []);
-// unary_number_source_ui!(AtanUi, Atan, "Atan", []);
-// unary_number_source_ui!(SinhUi, Sinh, "Sinh", []);
-// unary_number_source_ui!(CoshUi, Cosh, "Cosh", []);
-// unary_number_source_ui!(TanhUi, Tanh, "Tanh", []);
-// unary_number_source_ui!(AsinhUi, Asinh, "Asinh", []);
-// unary_number_source_ui!(AcoshUi, Acosh, "Acosh", []);
-// unary_number_source_ui!(AtanhUi, Atanh, "Atanh", []);
 
-unary_number_source_ui!(
+unary_expression_node_ui!(
     SineWaveUi,
     SineWave,
     "SineWave",
     DisplayStyle::Framed,
     ["sinewave"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     CosineWaveUi,
     CosineWave,
     "CosineWave",
     DisplayStyle::Framed,
     ["cosinewave"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     SquareWaveUi,
     SquareWave,
     "SquareWave",
     DisplayStyle::Framed,
     ["squarewave"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     SawWaveUi,
     SawWave,
     "SawWave",
     DisplayStyle::Frameless,
     ["sawwave"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-unary_number_source_ui!(
+unary_expression_node_ui!(
     TriangleWaveUi,
     TriangleWave,
     "TriangleWave",
     DisplayStyle::Framed,
     ["trianglewave"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
 
-binary_number_source_ui!(
+binary_expression_node_ui!(
     AddUi,
     Add,
     "+",
     DisplayStyle::Frameless,
     ["add", "+", "plus"],
-    NumberSourceLayout::Infix
+    ExpressionNodeLayout::Infix
 );
-binary_number_source_ui!(
+binary_expression_node_ui!(
     SubtractUi,
     Subtract,
     "-",
     DisplayStyle::Frameless,
     ["subtract", "-", "minus"],
-    NumberSourceLayout::Infix
+    ExpressionNodeLayout::Infix
 );
-binary_number_source_ui!(
+binary_expression_node_ui!(
     MultiplyUi,
     Multiply,
     "*",
     DisplayStyle::Frameless,
     ["multiply", "*", "times"],
-    NumberSourceLayout::Infix
+    ExpressionNodeLayout::Infix
 );
-binary_number_source_ui!(
+binary_expression_node_ui!(
     DivideUi,
     Divide,
     "/",
     DisplayStyle::Frameless,
     ["divide", "/"],
-    NumberSourceLayout::Infix
+    ExpressionNodeLayout::Infix
 );
-// binary_number_source_ui!(HypotUi, Hypot, "Hypot", []);
-binary_number_source_ui!(
+binary_expression_node_ui!(
     CopysignUi,
     Copysign,
     "Copysign",
     DisplayStyle::Framed,
     ["copysign"],
-    NumberSourceLayout::Function
+    ExpressionNodeLayout::Function
 );
-binary_number_source_ui!(
+binary_expression_node_ui!(
     PowUi,
     Pow,
     "^",
     DisplayStyle::Frameless,
     ["pow", "^"],
-    NumberSourceLayout::Infix
+    ExpressionNodeLayout::Infix
 );
-// binary_number_source_ui!(Atan2Ui, Atan2, "Atan2", []);
 
-ternary_number_source_ui!(LerpUi, Lerp, "Lerp", DisplayStyle::Framed, ["lerp"]);
+ternary_expression_node_ui!(LerpUi, Lerp, "Lerp", DisplayStyle::Framed, ["lerp"]);

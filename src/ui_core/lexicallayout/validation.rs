@@ -15,7 +15,7 @@ use crate::{
 
 use super::lexicallayout::LexicalLayout;
 
-pub(super) fn lexical_layout_matches_number_graph(
+pub(super) fn lexical_layout_matches_expression_graph(
     layout: &LexicalLayout,
     topology: &ExpressionGraphTopology,
 ) -> bool {
@@ -43,7 +43,7 @@ pub(super) fn lexical_layout_matches_number_graph(
                 return true;
             }
             ASTNodeValue::Internal(inode) => {
-                let nsid = inode.number_source_id();
+                let nsid = inode.expression_node_id();
                 let was_inserted = visited_sources.insert(nsid);
                 if !was_inserted {
                     println!(
@@ -123,7 +123,7 @@ pub(super) fn lexical_layout_matches_number_graph(
                 }
                 true
             }
-            ASTNodeValue::GraphInput(giid) => {
+            ASTNodeValue::Parameter(giid) => {
                 visited_graph_inputs.insert(*giid);
                 if expected_target != Some(ExpressionTarget::Parameter(*giid)) {
                     println!(

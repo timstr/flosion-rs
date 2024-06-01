@@ -7,15 +7,15 @@ use crate::core::{
     graph::{graphobject::GraphObjectHandle, objectfactory::ObjectFactory},
     jit::server::JitClient,
     sound::{
-        soundgraph::SoundGraph, soundgraphid::SoundObjectId, soundinput::SoundInputId,
-        expression::SoundExpressionId,
+        expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+        soundinput::SoundInputId,
     },
 };
 
 use super::{
+    expressiongraphui::ExpressionGraphUi,
+    expressiongraphuicontext::{ExpressionGraphUiContext, OuterProcessorExpressionContext},
     graph_ui::GraphUiContext,
-    numbergraphui::NumberGraphUi,
-    numbergraphuicontext::{NumberGraphUiContext, OuterSoundNumberInputContext},
     soundgraphui::SoundGraphUi,
     soundgraphuinames::SoundGraphUiNames,
     soundgraphuistate::SoundGraphUiState,
@@ -26,8 +26,8 @@ use super::{
 
 pub struct SoundGraphUiContext<'a> {
     sound_ui_factory: &'a UiFactory<SoundGraphUi>,
-    _number_object_factory: &'a ObjectFactory<ExpressionGraph>,
-    number_ui_factory: &'a UiFactory<NumberGraphUi>,
+    _expression_object_factory: &'a ObjectFactory<ExpressionGraph>,
+    expression_ui_factory: &'a UiFactory<ExpressionGraphUi>,
     sound_object_states: &'a SoundObjectUiStates,
     is_top_level: bool,
     time_axis: TimeAxis,
@@ -39,8 +39,8 @@ pub struct SoundGraphUiContext<'a> {
 impl<'a> SoundGraphUiContext<'a> {
     pub(crate) fn new(
         ui_factory: &'a UiFactory<SoundGraphUi>,
-        number_object_factory: &'a ObjectFactory<ExpressionGraph>,
-        number_ui_factory: &'a UiFactory<NumberGraphUi>,
+        expression_object_factory: &'a ObjectFactory<ExpressionGraph>,
+        expression_ui_factory: &'a UiFactory<ExpressionGraphUi>,
         object_states: &'a SoundObjectUiStates,
         is_top_level: bool,
         time_axis: TimeAxis,
@@ -49,8 +49,8 @@ impl<'a> SoundGraphUiContext<'a> {
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
             sound_ui_factory: ui_factory,
-            _number_object_factory: number_object_factory,
-            number_ui_factory,
+            _expression_object_factory: expression_object_factory,
+            expression_ui_factory,
             sound_object_states: object_states,
             is_top_level,
             time_axis,
@@ -105,9 +105,9 @@ impl<'a> SoundGraphUiContext<'a> {
         self.parent_input
     }
 
-    pub(crate) fn with_number_graph_ui_context<
+    pub(crate) fn with_expression_graph_ui_context<
         R,
-        F: FnOnce(&mut NumberGraphUiContext, OuterSoundNumberInputContext) -> R,
+        F: FnOnce(&mut ExpressionGraphUiContext, OuterProcessorExpressionContext) -> R,
     >(
         &mut self,
         input_id: SoundExpressionId,
@@ -116,9 +116,11 @@ impl<'a> SoundGraphUiContext<'a> {
         sound_graph: &mut SoundGraph,
         f: F,
     ) -> R {
-        let object_states = self.sound_object_states.number_graph_object_state(input_id);
+        let object_states = self
+            .sound_object_states
+            .expression_graph_object_state(input_id);
         let owner = sound_graph.topology().expression(input_id).unwrap().owner();
-        let sni_ctx = OuterSoundNumberInputContext::new(
+        let sni_ctx = OuterProcessorExpressionContext::new(
             input_id,
             owner,
             graph_layout,
@@ -127,7 +129,7 @@ impl<'a> SoundGraphUiContext<'a> {
             self.jit_client,
             self.time_axis,
         );
-        let mut ctx = NumberGraphUiContext::new(&self.number_ui_factory, object_states);
+        let mut ctx = ExpressionGraphUiContext::new(&self.expression_ui_factory, object_states);
         f(&mut ctx, sni_ctx)
     }
 }

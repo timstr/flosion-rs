@@ -275,7 +275,7 @@ pub(super) enum ASTNodeValue {
     Empty,
     Internal(Box<InternalASTNode>),
     Variable(VariableId),
-    GraphInput(ExpressionGraphParameterId),
+    Parameter(ExpressionGraphParameterId),
 }
 
 pub(crate) struct ASTNode {
@@ -295,18 +295,18 @@ impl ASTNode {
         &self.value
     }
 
-    // The number graph source or graph input that this ASTNode directly corresponds to.
+    // The expression graph node or parameter that this ASTNode directly corresponds to.
     // Variables are not looked up and do not correspond directly to a part of the graph.
     pub(super) fn direct_target(&self) -> Option<ExpressionTarget> {
         match &self.value {
             ASTNodeValue::Empty => None,
-            ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
+            ASTNodeValue::Internal(node) => Some(node.expression_node_id().into()),
             ASTNodeValue::Variable(_) => None,
-            ASTNodeValue::GraphInput(giid) => Some((*giid).into()),
+            ASTNodeValue::Parameter(giid) => Some((*giid).into()),
         }
     }
 
-    // The number graph source or graph input that this ASTNode indirectly corresponds to.
+    // The expression graph node or parameter that this ASTNode indirectly corresponds to.
     // Variables are looked up recursively in case of aliased definitions.
     pub(super) fn indirect_target(
         &self,
@@ -314,13 +314,13 @@ impl ASTNode {
     ) -> Option<ExpressionTarget> {
         match &self.value {
             ASTNodeValue::Empty => None,
-            ASTNodeValue::Internal(node) => Some(node.number_source_id().into()),
+            ASTNodeValue::Internal(node) => Some(node.expression_node_id().into()),
             ASTNodeValue::Variable(id) => {
                 let (defn, previous_defns) =
                     find_variable_definition_and_scope(*id, definitions).unwrap();
                 defn.value().indirect_target(previous_defns)
             }
-            ASTNodeValue::GraphInput(giid) => Some((*giid).into()),
+            ASTNodeValue::Parameter(giid) => Some((*giid).into()),
         }
     }
 
@@ -456,7 +456,7 @@ impl InternalASTNode {
         &mut self.value
     }
 
-    pub(super) fn number_source_id(&self) -> ExpressionNodeId {
+    pub(super) fn expression_node_id(&self) -> ExpressionNodeId {
         match &self.value {
             InternalASTNodeValue::Prefix(id, _) => *id,
             InternalASTNodeValue::Infix(_, id, _) => *id,

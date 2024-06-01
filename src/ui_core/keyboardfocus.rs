@@ -5,16 +5,16 @@ use crate::core::{
     graph::objectfactory::ObjectFactory,
     jit::server::JitClient,
     sound::{
-        soundgraph::SoundGraph, soundgraphid::SoundGraphId, soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId, expression::SoundExpressionId,
+        expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundGraphId,
+        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
 };
 
 use super::{
-    lexicallayout::lexicallayout::LexicalLayoutFocus, numbergraphui::NumberGraphUi,
-    numbergraphuicontext::OuterSoundNumberInputContext,
-    numbergraphuistate::SoundNumberInputUiCollection, soundgraphuinames::SoundGraphUiNames,
+    expressiongraphui::ExpressionGraphUi, lexicallayout::lexicallayout::LexicalLayoutFocus,
+    expressiongraphuicontext::OuterProcessorExpressionContext,
+    expressiongraphuistate::ExpressionUiCollection, soundgraphuinames::SoundGraphUiNames,
     soundobjectuistate::SoundObjectUiStates, temporallayout::SoundGraphLayout,
     ui_factory::UiFactory,
 };
@@ -24,8 +24,8 @@ pub(super) enum KeyboardFocusState {
     OnSoundProcessorName(SoundProcessorId),
     AroundSoundInput(SoundInputId),
     InsideEmptySoundInput(SoundInputId),
-    AroundSoundNumberInput(SoundExpressionId),
-    InsideSoundNumberInput(SoundExpressionId, LexicalLayoutFocus),
+    AroundExpression(SoundExpressionId),
+    InsideExpression(SoundExpressionId, LexicalLayoutFocus),
 }
 
 impl KeyboardFocusState {
@@ -35,8 +35,8 @@ impl KeyboardFocusState {
             KeyboardFocusState::OnSoundProcessorName(spid) => (*spid).into(),
             KeyboardFocusState::AroundSoundInput(siid) => (*siid).into(),
             KeyboardFocusState::InsideEmptySoundInput(siid) => (*siid).into(),
-            KeyboardFocusState::AroundSoundNumberInput(niid) => (*niid).into(),
-            KeyboardFocusState::InsideSoundNumberInput(niid, _) => (*niid).into(),
+            KeyboardFocusState::AroundExpression(niid) => (*niid).into(),
+            KeyboardFocusState::InsideExpression(niid, _) => (*niid).into(),
         }
     }
 
@@ -44,12 +44,12 @@ impl KeyboardFocusState {
         self.graph_id() == item
     }
 
-    pub(super) fn sound_number_input_focus(
+    pub(super) fn expression_focus(
         &mut self,
         id: SoundExpressionId,
     ) -> Option<&mut LexicalLayoutFocus> {
         match self {
-            KeyboardFocusState::InsideSoundNumberInput(snid, focus) => {
+            KeyboardFocusState::InsideExpression(snid, focus) => {
                 if *snid == id {
                     Some(focus)
                 } else {
@@ -66,9 +66,9 @@ impl KeyboardFocusState {
         layout: &SoundGraphLayout,
         input: &mut egui::InputState,
     ) -> bool {
-        if let KeyboardFocusState::InsideSoundNumberInput(niid, _) = self {
+        if let KeyboardFocusState::InsideExpression(niid, _) = self {
             if input.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
-                *self = KeyboardFocusState::AroundSoundNumberInput(*niid);
+                *self = KeyboardFocusState::AroundExpression(*niid);
                 return true;
             }
             return false;
@@ -102,12 +102,9 @@ impl KeyboardFocusState {
                     *self = KeyboardFocusState::InsideEmptySoundInput(*siid);
                 }
             }
-            KeyboardFocusState::AroundSoundNumberInput(niid) => {
+            KeyboardFocusState::AroundExpression(niid) => {
                 if input.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
-                    *self = KeyboardFocusState::InsideSoundNumberInput(
-                        *niid,
-                        LexicalLayoutFocus::new(),
-                    );
+                    *self = KeyboardFocusState::InsideExpression(*niid, LexicalLayoutFocus::new());
                     return true;
                 }
             }
@@ -123,9 +120,9 @@ impl KeyboardFocusState {
         soundgraph: &mut SoundGraph,
         layout: &SoundGraphLayout,
         names: &SoundGraphUiNames,
-        number_graph_uis: &mut SoundNumberInputUiCollection,
+        expr_graph_uis: &mut ExpressionUiCollection,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<NumberGraphUi>,
+        ui_factory: &UiFactory<ExpressionGraphUi>,
         object_ui_states: &mut SoundObjectUiStates,
         jit_client: &JitClient,
     ) {
@@ -143,12 +140,12 @@ impl KeyboardFocusState {
             while self.handle_single_keyboard_event(soundgraph.topology(), layout, i) {}
         });
 
-        if let KeyboardFocusState::InsideSoundNumberInput(niid, ni_focus) = self {
-            let (_ui_state, ui_presentation) = number_graph_uis.get_mut(*niid).unwrap();
-            let object_ui_states = object_ui_states.number_graph_object_state_mut(*niid);
+        if let KeyboardFocusState::InsideExpression(niid, ni_focus) = self {
+            let (_ui_state, ui_presentation) = expr_graph_uis.get_mut(*niid).unwrap();
+            let object_ui_states = object_ui_states.expression_graph_object_state_mut(*niid);
             let owner = soundgraph.topology().expression(*niid).unwrap().owner();
             let time_axis = layout.find_group(owner.into()).unwrap().time_axis;
-            let outer_context = OuterSoundNumberInputContext::new(
+            let outer_context = OuterProcessorExpressionContext::new(
                 *niid, owner, layout, soundgraph, names, jit_client, time_axis,
             );
             ui_presentation.handle_keypress(

@@ -122,7 +122,7 @@ impl StaticSoundProcessor for Input {
         processor: &StaticSoundProcessorWithId<Self>,
         _timing: &ProcessorTiming,
         _sound_inputs: &mut (),
-        _number_inputs: &mut (),
+        _expressions: &mut (),
         dst: &mut SoundChunk,
         _context: Context,
     ) {

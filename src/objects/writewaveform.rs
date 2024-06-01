@@ -2,8 +2,7 @@ use crate::core::{
     engine::{
         nodegen::NodeGen,
         soundexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
-            ExpressionVisitorMut,
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -22,11 +21,11 @@ pub struct WriteWaveform {
     pub waveform: SoundExpressionHandle,
 }
 
-pub struct WriteWaveformNumberInputs<'ctx> {
+pub struct WriteWaveformExpressions<'ctx> {
     waveform: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for WriteWaveformNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for WriteWaveformExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.waveform);
     }
@@ -39,7 +38,7 @@ impl<'ctx> ExpressionCollection<'ctx> for WriteWaveformNumberInputs<'ctx> {
 impl DynamicSoundProcessor for WriteWaveform {
     type StateType = ();
     type SoundInputType = ();
-    type Expressions<'ctx> = WriteWaveformNumberInputs<'ctx>;
+    type Expressions<'ctx> = WriteWaveformExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WriteWaveform {
@@ -59,7 +58,7 @@ impl DynamicSoundProcessor for WriteWaveform {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        WriteWaveformNumberInputs {
+        WriteWaveformExpressions {
             waveform: self.waveform.make_node(nodegen),
         }
     }
@@ -67,11 +66,11 @@ impl DynamicSoundProcessor for WriteWaveform {
     fn process_audio(
         state: &mut StateAndTiming<()>,
         _sound_inputs: &mut (),
-        number_inputs: &mut WriteWaveformNumberInputs,
+        expressions: &mut WriteWaveformExpressions,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
-        number_inputs.waveform.eval(
+        expressions.waveform.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
             &context.push_processor_state(state, LocalArrayList::new()),

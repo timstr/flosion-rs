@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use eframe::egui;
 
 use crate::core::sound::{
-    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-    expression::SoundExpressionId, soundprocessor::SoundProcessorId,
+    expression::SoundExpressionId, soundgraphid::SoundObjectId,
+    soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 use super::temporallayout::SoundGraphLayout;
@@ -27,7 +28,7 @@ impl LayoutState {
 pub struct ObjectPositions {
     objects: HashMap<SoundObjectId, LayoutState>,
     sound_inputs: HashMap<SoundInputId, LayoutState>,
-    sound_number_inputs: HashMap<SoundExpressionId, LayoutState>,
+    expressions: HashMap<SoundExpressionId, LayoutState>,
 }
 
 impl ObjectPositions {
@@ -35,15 +36,14 @@ impl ObjectPositions {
         ObjectPositions {
             objects: HashMap::new(),
             sound_inputs: HashMap::new(),
-            sound_number_inputs: HashMap::new(),
+            expressions: HashMap::new(),
         }
     }
 
     pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         self.objects.retain(|i, _| topo.contains((*i).into()));
         self.sound_inputs.retain(|i, _| topo.contains((*i).into()));
-        self.sound_number_inputs
-            .retain(|i, _| topo.contains((*i).into()));
+        self.expressions.retain(|i, _| topo.contains((*i).into()));
     }
 
     pub(super) fn objects(&self) -> &HashMap<SoundObjectId, LayoutState> {
@@ -58,12 +58,12 @@ impl ObjectPositions {
         self.sound_inputs.insert(id, LayoutState { rect });
     }
 
-    pub(super) fn track_sound_number_input_location(
+    pub(super) fn track_sound_expression_location(
         &mut self,
         id: SoundExpressionId,
         rect: egui::Rect,
     ) {
-        self.sound_number_inputs.insert(id, LayoutState { rect });
+        self.expressions.insert(id, LayoutState { rect });
     }
 
     pub(super) fn get_object_location(&self, id: SoundObjectId) -> Option<&LayoutState> {
@@ -87,10 +87,7 @@ impl ObjectPositions {
             .translate(delta);
         let proc_data = topo.sound_processor(processor_id).unwrap();
         for niid in proc_data.expressions() {
-            self.sound_number_inputs
-                .get_mut(&niid)
-                .unwrap()
-                .translate(delta);
+            self.expressions.get_mut(&niid).unwrap().translate(delta);
         }
         for siid in proc_data.sound_inputs() {
             self.sound_inputs.get_mut(siid).unwrap().translate(delta);

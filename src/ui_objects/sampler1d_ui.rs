@@ -6,11 +6,11 @@ use crate::{
     },
     objects::sampler1d::Sampler1d,
     ui_core::{
-        lexicallayout::lexicallayout::NumberSourceLayout,
-        numbergraphui::NumberGraphUi,
-        numbergraphuicontext::NumberGraphUiContext,
-        numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
-        numbersourceui::{DisplayStyle, NumberSourceUi},
+        expressiongraphui::ExpressionGraphUi,
+        expressiongraphuicontext::ExpressionGraphUiContext,
+        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressionodeui::{DisplayStyle, ExpressionNodeUi},
+        lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::{ObjectUi, UiInitialization},
     },
 };
@@ -19,23 +19,23 @@ use crate::{
 pub struct Sampler1dUi {}
 
 impl ObjectUi for Sampler1dUi {
-    type GraphUi = NumberGraphUi;
+    type GraphUi = ExpressionGraphUi;
     type HandleType = StatefulExpressionNodeHandle<Sampler1d>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
         sampler1d: StatefulExpressionNodeHandle<Sampler1d>,
-        ui_state: &mut NumberGraphUiState,
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        _data: NumberObjectUiData<()>,
-        _number_graph: &mut ExpressionGraph,
+        ctx: &mut ExpressionGraphUiContext,
+        _data: ExpressionNodeObjectUiData<()>,
+        _graph: &mut ExpressionGraph,
     ) {
         // TODO: detect drags, edit samples
         // TODO: custom vertical range
 
-        NumberSourceUi::new_named(
+        ExpressionNodeUi::new_named(
             sampler1d.id(),
             "Sampler1d".to_string(),
             DisplayStyle::Framed,
@@ -110,7 +110,7 @@ impl ObjectUi for Sampler1dUi {
         &self,
         _handle: &Self::HandleType,
         _init: UiInitialization,
-    ) -> (Self::StateType, NumberSourceLayout) {
-        ((), NumberSourceLayout::Function)
+    ) -> (Self::StateType, ExpressionNodeLayout) {
+        ((), ExpressionNodeLayout::Function)
     }
 }

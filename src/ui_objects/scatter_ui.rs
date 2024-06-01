@@ -2,7 +2,7 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::scatter::Scatter,
     ui_core::{
-        numberinputplot::PlotConfig,
+        expressionplot::PlotConfig,
         object_ui::{Color, ObjectUi, UiInitialization},
         soundgraphui::SoundGraphUi,
         soundgraphuicontext::SoundGraphUiContext,
@@ -35,8 +35,8 @@ impl ObjectUi for ScatterUi {
 
         ProcessorUi::new(&scatter, "Scatter", data.color)
             .add_sound_input(scatter.sound_input.id(), "input", sound_graph)
-            .add_number_input(scatter.parameter.id(), "parameter", PlotConfig::new())
-            .add_number_source(scatter.value.id(), "value")
+            .add_expression(scatter.parameter.id(), "parameter", PlotConfig::new())
+            .add_argument(scatter.value.id(), "value")
             .show(ui, ctx, ui_state, sound_graph);
     }
 

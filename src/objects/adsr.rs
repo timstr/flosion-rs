@@ -2,8 +2,7 @@ use crate::core::{
     engine::{
         nodegen::NodeGen,
         soundexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
-            ExpressionVisitorMut,
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -30,14 +29,14 @@ enum Phase {
     Release,
 }
 
-pub struct ADSRNumberInputs<'ctx> {
+pub struct ADSRExpressions<'ctx> {
     attack_time: CompiledExpressionNode<'ctx>,
     decay_time: CompiledExpressionNode<'ctx>,
     sustain_level: CompiledExpressionNode<'ctx>,
     release_time: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ADSRNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for ADSRExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.attack_time);
         visitor.visit_node(&self.decay_time);
@@ -124,7 +123,7 @@ impl DynamicSoundProcessor for ADSR {
 
     type SoundInputType = SingleInput;
 
-    type Expressions<'ctx> = ADSRNumberInputs<'ctx>;
+    type Expressions<'ctx> = ADSRExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ADSR {
@@ -158,7 +157,7 @@ impl DynamicSoundProcessor for ADSR {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        ADSRNumberInputs {
+        ADSRExpressions {
             attack_time: self.attack_time.make_node(nodegen),
             decay_time: self.decay_time.make_node(nodegen),
             sustain_level: self.sustain_level.make_node(nodegen),
@@ -169,7 +168,7 @@ impl DynamicSoundProcessor for ADSR {
     fn process_audio(
         state: &mut StateAndTiming<ADSRState>,
         sound_input: &mut SingleInputNode,
-        number_input: &mut ADSRNumberInputs,
+        expressions: &mut ADSRExpressions,
         dst: &mut SoundChunk,
         mut context: Context,
     ) -> StreamStatus {
@@ -180,7 +179,7 @@ impl DynamicSoundProcessor for ADSR {
             state.prev_level = 0.0;
             state.next_level = 1.0;
             state.phase_samples =
-                (number_input.attack_time.eval_scalar(&context) * SAMPLE_FREQUENCY as f32) as usize;
+                (expressions.attack_time.eval_scalar(&context) * SAMPLE_FREQUENCY as f32) as usize;
             state.phase_samples_so_far = 0;
         }
 
@@ -203,10 +202,10 @@ impl DynamicSoundProcessor for ADSR {
             if cursor < CHUNK_SIZE {
                 state.phase = Phase::Decay;
                 state.phase_samples_so_far = 0;
-                state.phase_samples = (number_input.decay_time.eval_scalar(&context)
+                state.phase_samples = (expressions.decay_time.eval_scalar(&context)
                     * SAMPLE_FREQUENCY as f32) as usize;
                 state.prev_level = 1.0;
-                state.next_level = number_input
+                state.next_level = expressions
                     .sustain_level
                     .eval_scalar(&context)
                     .clamp(0.0, 1.0);
@@ -249,7 +248,7 @@ impl DynamicSoundProcessor for ADSR {
                     cursor = sample_offset;
                 }
                 state.phase = Phase::Release;
-                state.phase_samples = (number_input.release_time.eval_scalar(&context)
+                state.phase_samples = (expressions.release_time.eval_scalar(&context)
                     * SAMPLE_FREQUENCY as f32) as usize;
                 state.phase_samples_so_far = 0;
                 state.prev_level = state.next_level;

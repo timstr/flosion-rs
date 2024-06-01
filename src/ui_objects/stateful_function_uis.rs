@@ -6,11 +6,11 @@ use crate::{
         ExponentialApproach, Integrator, LinearApproach, WrappingIntegrator,
     },
     ui_core::{
-        lexicallayout::lexicallayout::NumberSourceLayout,
-        numbergraphui::NumberGraphUi,
-        numbergraphuicontext::NumberGraphUiContext,
-        numbergraphuistate::{NumberGraphUiState, NumberObjectUiData},
-        numbersourceui::{DisplayStyle, NumberSourceUi},
+        expressiongraphui::ExpressionGraphUi,
+        expressiongraphuicontext::ExpressionGraphUiContext,
+        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressionodeui::{DisplayStyle, ExpressionNodeUi},
+        lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::{ObjectUi, UiInitialization},
     },
 };
@@ -19,20 +19,20 @@ use crate::{
 pub struct LinearApproachUi {}
 
 impl ObjectUi for LinearApproachUi {
-    type GraphUi = NumberGraphUi;
+    type GraphUi = ExpressionGraphUi;
     type HandleType = StatefulExpressionNodeHandle<LinearApproach>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<LinearApproach>,
-        ui_state: &mut NumberGraphUiState,
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        _data: NumberObjectUiData<()>,
-        _number_graph: &mut ExpressionGraph,
+        ctx: &mut ExpressionGraphUiContext,
+        _data: ExpressionNodeObjectUiData<()>,
+        _graph: &mut ExpressionGraph,
     ) {
-        NumberSourceUi::new_named(
+        ExpressionNodeUi::new_named(
             handle.id(),
             "LinearApproach".to_string(),
             DisplayStyle::Framed,
@@ -48,8 +48,8 @@ impl ObjectUi for LinearApproachUi {
         &self,
         _handle: &Self::HandleType,
         _init: UiInitialization,
-    ) -> (Self::StateType, NumberSourceLayout) {
-        ((), NumberSourceLayout::Function)
+    ) -> (Self::StateType, ExpressionNodeLayout) {
+        ((), ExpressionNodeLayout::Function)
     }
 }
 
@@ -57,20 +57,20 @@ impl ObjectUi for LinearApproachUi {
 pub struct ExponentialApproachUi {}
 
 impl ObjectUi for ExponentialApproachUi {
-    type GraphUi = NumberGraphUi;
+    type GraphUi = ExpressionGraphUi;
     type HandleType = StatefulExpressionNodeHandle<ExponentialApproach>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<ExponentialApproach>,
-        ui_state: &mut NumberGraphUiState,
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        _data: NumberObjectUiData<()>,
-        _number_graph: &mut ExpressionGraph,
+        ctx: &mut ExpressionGraphUiContext,
+        _data: ExpressionNodeObjectUiData<()>,
+        _graph: &mut ExpressionGraph,
     ) {
-        NumberSourceUi::new_named(
+        ExpressionNodeUi::new_named(
             handle.id(),
             "ExponentialApproach".to_string(),
             DisplayStyle::Framed,
@@ -86,8 +86,8 @@ impl ObjectUi for ExponentialApproachUi {
         &self,
         _handle: &Self::HandleType,
         _init: UiInitialization,
-    ) -> (Self::StateType, NumberSourceLayout) {
-        ((), NumberSourceLayout::Function)
+    ) -> (Self::StateType, ExpressionNodeLayout) {
+        ((), ExpressionNodeLayout::Function)
     }
 }
 
@@ -95,20 +95,20 @@ impl ObjectUi for ExponentialApproachUi {
 pub struct IntegratorUi {}
 
 impl ObjectUi for IntegratorUi {
-    type GraphUi = NumberGraphUi;
+    type GraphUi = ExpressionGraphUi;
     type HandleType = StatefulExpressionNodeHandle<Integrator>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<Integrator>,
-        ui_state: &mut NumberGraphUiState,
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        _data: NumberObjectUiData<()>,
-        _number_graph: &mut ExpressionGraph,
+        ctx: &mut ExpressionGraphUiContext,
+        _data: ExpressionNodeObjectUiData<()>,
+        _graph: &mut ExpressionGraph,
     ) {
-        NumberSourceUi::new_named(handle.id(), "Integrator".to_string(), DisplayStyle::Framed)
+        ExpressionNodeUi::new_named(handle.id(), "Integrator".to_string(), DisplayStyle::Framed)
             .show(ui, ctx, ui_state);
     }
 
@@ -120,8 +120,8 @@ impl ObjectUi for IntegratorUi {
         &self,
         _handle: &Self::HandleType,
         _init: UiInitialization,
-    ) -> (Self::StateType, NumberSourceLayout) {
-        ((), NumberSourceLayout::Function)
+    ) -> (Self::StateType, ExpressionNodeLayout) {
+        ((), ExpressionNodeLayout::Function)
     }
 }
 
@@ -129,20 +129,20 @@ impl ObjectUi for IntegratorUi {
 pub struct WrappingIntegratorUi {}
 
 impl ObjectUi for WrappingIntegratorUi {
-    type GraphUi = NumberGraphUi;
+    type GraphUi = ExpressionGraphUi;
     type HandleType = StatefulExpressionNodeHandle<WrappingIntegrator>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<WrappingIntegrator>,
-        ui_state: &mut NumberGraphUiState,
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        _data: NumberObjectUiData<()>,
-        _number_graph: &mut ExpressionGraph,
+        ctx: &mut ExpressionGraphUiContext,
+        _data: ExpressionNodeObjectUiData<()>,
+        _graph: &mut ExpressionGraph,
     ) {
-        NumberSourceUi::new_named(
+        ExpressionNodeUi::new_named(
             handle.id(),
             "WrappingIntegrator".to_string(),
             DisplayStyle::Framed,
@@ -158,7 +158,7 @@ impl ObjectUi for WrappingIntegratorUi {
         &self,
         _handle: &Self::HandleType,
         _init: UiInitialization,
-    ) -> (Self::StateType, NumberSourceLayout) {
-        ((), NumberSourceLayout::Function)
+    ) -> (Self::StateType, ExpressionNodeLayout) {
+        ((), ExpressionNodeLayout::Function)
     }
 }

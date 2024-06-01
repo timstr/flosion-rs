@@ -28,13 +28,13 @@ pub struct ReadWriteWaveform {
     pub input_r: SoundExpressionArgumentHandle,
 }
 
-pub struct ReadWriteWaveformNumberInputs<'ctx> {
+pub struct ReadWriteWaveformExpressions<'ctx> {
     waveform: CompiledExpressionNode<'ctx>,
     input_l: SoundExpressionArgumentId,
     input_r: SoundExpressionArgumentId,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ReadWriteWaveformNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for ReadWriteWaveformExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.waveform);
     }
@@ -47,7 +47,7 @@ impl<'ctx> ExpressionCollection<'ctx> for ReadWriteWaveformNumberInputs<'ctx> {
 impl DynamicSoundProcessor for ReadWriteWaveform {
     type StateType = ();
     type SoundInputType = SingleInput;
-    type Expressions<'ctx> = ReadWriteWaveformNumberInputs<'ctx>;
+    type Expressions<'ctx> = ReadWriteWaveformExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let input_l = tools.add_local_array_argument();
@@ -75,7 +75,7 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        ReadWriteWaveformNumberInputs {
+        ReadWriteWaveformExpressions {
             waveform: self.waveform.make_node(nodegen),
             input_l: self.input_l.id(),
             input_r: self.input_r.id(),
@@ -85,20 +85,20 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
     fn process_audio(
         state: &mut StateAndTiming<()>,
         sound_input: &mut SingleInputNode,
-        number_inputs: &mut ReadWriteWaveformNumberInputs,
+        expressions: &mut ReadWriteWaveformExpressions,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
         let mut tmp = SoundChunk::new();
         sound_input.step(state, &mut tmp, &context, LocalArrayList::new());
-        number_inputs.waveform.eval(
+        expressions.waveform.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
             &context.push_processor_state(
                 state,
                 LocalArrayList::new()
-                    .push(&tmp.l, number_inputs.input_l)
-                    .push(&tmp.r, number_inputs.input_r),
+                    .push(&tmp.l, expressions.input_l)
+                    .push(&tmp.r, expressions.input_r),
             ),
         );
         slicemath::copy(&dst.l, &mut dst.r);

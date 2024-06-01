@@ -2,7 +2,7 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::ensemble::Ensemble,
     ui_core::{
-        numberinputplot::PlotConfig,
+        expressionplot::PlotConfig,
         object_ui::{Color, ObjectUi, UiInitialization},
         soundgraphui::SoundGraphUi,
         soundgraphuicontext::SoundGraphUiContext,
@@ -31,17 +31,17 @@ impl ObjectUi for EnsembleUi {
     ) {
         ProcessorUi::new(&ensemble, "Ensemble", data.color)
             .add_sound_input(ensemble.input.id(), "input", sound_graph)
-            .add_number_input(
+            .add_expression(
                 ensemble.frequency_in.id(),
                 "frequency_in",
                 PlotConfig::new(),
             )
-            .add_number_input(
+            .add_expression(
                 ensemble.frequency_spread.id(),
                 "frequency_spread",
                 PlotConfig::new(),
             )
-            .add_number_source(ensemble.voice_frequency.id(), "voice_frequency")
+            .add_argument(ensemble.voice_frequency.id(), "voice_frequency")
             .show(ui, ctx, ui_state, sound_graph);
     }
 

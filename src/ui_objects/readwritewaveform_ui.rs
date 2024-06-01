@@ -2,7 +2,7 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::readwritewaveform::ReadWriteWaveform,
     ui_core::{
-        numberinputplot::PlotConfig,
+        expressionplot::PlotConfig,
         object_ui::{Color, ObjectUi, UiInitialization},
         soundgraphui::SoundGraphUi,
         soundgraphuicontext::SoundGraphUiContext,
@@ -31,9 +31,9 @@ impl ObjectUi for ReadWriteWaveformUi {
     ) {
         ProcessorUi::new(&rww, "ReadWriteWaveform", data.color)
             .add_sound_input(rww.sound_input.id(), "input", sound_graph)
-            .add_number_source(rww.input_l.id(), "l")
-            .add_number_source(rww.input_r.id(), "r")
-            .add_number_input(rww.waveform.id(), "waveform", PlotConfig::new())
+            .add_argument(rww.input_l.id(), "l")
+            .add_argument(rww.input_r.id(), "r")
+            .add_expression(rww.waveform.id(), "waveform", PlotConfig::new())
             .show(ui, ctx, ui_state, sound_graph);
     }
 

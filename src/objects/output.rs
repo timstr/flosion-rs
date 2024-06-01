@@ -167,7 +167,7 @@ impl StaticSoundProcessor for Output {
         output: &StaticSoundProcessorWithId<Output>,
         timing: &ProcessorTiming,
         sound_input: &mut SingleInputNode,
-        _number_input: &mut (),
+        _expressions: &mut (),
         _dst: &mut SoundChunk,
         ctx: Context,
     ) {

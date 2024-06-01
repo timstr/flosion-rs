@@ -11,11 +11,11 @@ use crate::core::sound::{
 };
 
 use super::{
+    expressiongraphuistate::{ExpressionGraphUiState, ExpressionUiCollection},
     keyboardfocus::KeyboardFocusState,
-    numbergraphuistate::{NumberGraphUiState, SoundNumberInputUiCollection},
     object_positions::ObjectPositions,
     soundgraphuinames::SoundGraphUiNames,
-    soundnumberinputui::SoundNumberInputPresentation,
+    expressionui::ExpressionPresentation,
     soundobjectuistate::SoundObjectUiStates,
 };
 
@@ -75,7 +75,7 @@ pub struct SoundGraphUiState {
     // and move most or all of this into SoundGraphLayout
     mode: UiMode,
     pending_drag: Option<PendingProcessorDrag>,
-    number_input_uis: SoundNumberInputUiCollection,
+    expression_uis: ExpressionUiCollection,
     names: SoundGraphUiNames,
 }
 
@@ -85,7 +85,7 @@ impl SoundGraphUiState {
             object_positions: ObjectPositions::new(),
             mode: UiMode::Passive,
             pending_drag: None,
-            number_input_uis: SoundNumberInputUiCollection::new(),
+            expression_uis: ExpressionUiCollection::new(),
             names: SoundGraphUiNames::new(),
         }
     }
@@ -261,7 +261,7 @@ impl SoundGraphUiState {
             }
         }
 
-        self.number_input_uis.cleanup(topo, object_ui_states);
+        self.expression_uis.cleanup(topo, object_ui_states);
 
         self.names.regenerate(topo);
     }
@@ -363,18 +363,18 @@ impl SoundGraphUiState {
 
         match object_id {
             SoundObjectId::Sound(spid) => {
-                let number_input_ids = topo.sound_processor(spid).unwrap().expressions();
-                for niid in number_input_ids {
-                    let number_topo = topo
+                let expression_ids = topo.sound_processor(spid).unwrap().expressions();
+                for niid in expression_ids {
+                    let expr_topo = topo
                         .expression(*niid)
                         .unwrap()
                         .expression_graph()
                         .topology();
-                    let states = object_ui_states.number_graph_object_state(*niid);
-                    self.number_input_uis.set_ui_data(
+                    let states = object_ui_states.expression_graph_object_state(*niid);
+                    self.expression_uis.set_ui_data(
                         *niid,
-                        NumberGraphUiState::new(),
-                        SoundNumberInputPresentation::new(number_topo, states),
+                        ExpressionGraphUiState::new(),
+                        ExpressionPresentation::new(expr_topo, states),
                     );
                 }
             }

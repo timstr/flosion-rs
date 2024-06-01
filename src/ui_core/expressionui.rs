@@ -10,24 +10,24 @@ use crate::core::{
 
 use super::{
     lexicallayout::lexicallayout::{LexicalLayout, LexicalLayoutFocus},
-    numbergraphui::NumberGraphUi,
-    numbergraphuicontext::{NumberGraphUiContext, OuterNumberGraphUiContext},
-    numbergraphuistate::{NumberGraphUiState, NumberObjectUiStates},
-    numberinputplot::{NumberInputPlot, PlotConfig},
+    expressiongraphui::ExpressionGraphUi,
+    expressiongraphuicontext::{ExpressionGraphUiContext, OuterExpressionGraphUiContext},
+    expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiStates},
+    expressionplot::{ExpressionPlot, PlotConfig},
     ui_factory::UiFactory,
 };
 
 // TODO: add other presentations (e.g. plot, DAG maybe) and allow non-destructively switching between them
-pub(super) struct SoundNumberInputPresentation {
+pub(super) struct ExpressionPresentation {
     lexical_layout: LexicalLayout,
 }
 
-impl SoundNumberInputPresentation {
+impl ExpressionPresentation {
     pub(super) fn new(
         topology: &ExpressionGraphTopology,
-        object_ui_states: &NumberObjectUiStates,
-    ) -> SoundNumberInputPresentation {
-        SoundNumberInputPresentation {
+        object_ui_states: &ExpressionNodeObjectUiStates,
+    ) -> ExpressionPresentation {
+        ExpressionPresentation {
             lexical_layout: LexicalLayout::generate(topology, object_ui_states),
         }
     }
@@ -35,7 +35,7 @@ impl SoundNumberInputPresentation {
     pub(super) fn cleanup(
         &mut self,
         topology: &ExpressionGraphTopology,
-        object_ui_states: &NumberObjectUiStates,
+        object_ui_states: &ExpressionNodeObjectUiStates,
     ) {
         self.lexical_layout.cleanup(topology, object_ui_states);
     }
@@ -45,9 +45,9 @@ impl SoundNumberInputPresentation {
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<NumberGraphUi>,
-        object_ui_states: &mut NumberObjectUiStates,
-        outer_context: &mut OuterNumberGraphUiContext,
+        ui_factory: &UiFactory<ExpressionGraphUi>,
+        object_ui_states: &mut ExpressionNodeObjectUiStates,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) {
         self.lexical_layout.handle_keypress(
             ui,
@@ -60,25 +60,23 @@ impl SoundNumberInputPresentation {
     }
 }
 
-pub(super) struct SoundNumberInputUi {
-    _number_input_id: SoundExpressionId,
+pub(super) struct SoundExpressionUi {
+    _expression_id: SoundExpressionId,
 }
 
-impl SoundNumberInputUi {
-    pub(super) fn new(id: SoundExpressionId) -> SoundNumberInputUi {
-        SoundNumberInputUi {
-            _number_input_id: id,
-        }
+impl SoundExpressionUi {
+    pub(super) fn new(id: SoundExpressionId) -> SoundExpressionUi {
+        SoundExpressionUi { _expression_id: id }
     }
 
     pub(super) fn show(
         self,
         ui: &mut egui::Ui,
-        graph_state: &mut NumberGraphUiState,
-        ctx: &mut NumberGraphUiContext,
-        presentation: &mut SoundNumberInputPresentation,
+        graph_state: &mut ExpressionGraphUiState,
+        ctx: &mut ExpressionGraphUiContext,
+        presentation: &mut ExpressionPresentation,
         focus: Option<&mut LexicalLayoutFocus>,
-        outer_context: &mut OuterNumberGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
         plot_config: &PlotConfig,
     ) {
         // TODO: expandable/collapsible popup window with full layout
@@ -94,13 +92,13 @@ impl SoundNumberInputUi {
                         .lexical_layout
                         .show(ui, graph_state, ctx, focus, outer_context);
                     match outer_context {
-                        OuterNumberGraphUiContext::SoundNumberInput(ctx) => {
-                            NumberInputPlot::new().show(
+                        OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
+                            ExpressionPlot::new().show(
                                 ui,
                                 ctx.jit_client(),
                                 ctx.sound_graph()
                                     .topology()
-                                    .expression(ctx.sound_number_input_id())
+                                    .expression(ctx.expression_id())
                                     .unwrap(),
                                 *ctx.time_axis(),
                                 plot_config,

@@ -76,7 +76,7 @@ impl DynamicSoundProcessor for Mixer {
     fn process_audio(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut SingleInputListNode,
-        _number_inputs: &mut (),
+        _expressions: &mut (),
         dst: &mut SoundChunk,
         mut context: Context,
     ) -> StreamStatus {

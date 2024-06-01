@@ -2,7 +2,7 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::definitions::Definitions,
     ui_core::{
-        numberinputplot::PlotConfig,
+        expressionplot::PlotConfig,
         object_ui::{Color, ObjectUi, UiInitialization},
         soundgraphui::SoundGraphUi,
         soundgraphuicontext::SoundGraphUiContext,
@@ -32,8 +32,8 @@ impl ObjectUi for DefinitionsUi {
         graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&definitions, "Definitions", data.color)
-            .add_number_input(definitions.number_input.id(), "a", PlotConfig::new())
-            .add_number_source(definitions.number_source.id(), "a")
+            .add_expression(definitions.expression.id(), "a", PlotConfig::new())
+            .add_argument(definitions.argument.id(), "a")
             .add_sound_input(definitions.sound_input.id(), "input", graph)
             .show_with(ui, ctx, ui_state, graph, |_ui, _uistate, _sound_graph| {
                 // TODO: controls to rename source

@@ -4,8 +4,7 @@ use crate::core::{
     engine::{
         nodegen::NodeGen,
         soundexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
-            ExpressionVisitorMut,
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -51,12 +50,12 @@ pub struct Ensemble {
     pub voice_frequency: SoundExpressionArgumentHandle,
 }
 
-pub struct EnsembleNumberInputs<'ctx> {
+pub struct EnsembleExpressions<'ctx> {
     frequency_in: CompiledExpressionNode<'ctx>,
     frequency_spread: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for EnsembleNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for EnsembleExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.frequency_in);
         visitor.visit_node(&self.frequency_spread);
@@ -73,7 +72,7 @@ impl DynamicSoundProcessor for Ensemble {
 
     type SoundInputType = KeyedInput<VoiceState>;
 
-    type Expressions<'ctx> = EnsembleNumberInputs<'ctx>;
+    type Expressions<'ctx> = EnsembleExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_keys = 8; // idk
@@ -102,7 +101,7 @@ impl DynamicSoundProcessor for Ensemble {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        EnsembleNumberInputs {
+        EnsembleExpressions {
             frequency_in: self.frequency_in.make_node(nodegen),
             frequency_spread: self.frequency_spread.make_node(nodegen),
         }
@@ -111,11 +110,11 @@ impl DynamicSoundProcessor for Ensemble {
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut KeyedInputNode<'ctx, VoiceState>,
-        number_inputs: &mut Self::Expressions<'ctx>,
+        expressions: &mut Self::Expressions<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
-        // TODO: eval_scalar here is the reason that stateful number sources don't work,
+        // TODO: eval_scalar here is the reason that stateful expression nodes don't work,
         // since it implies no time discretization.
         // I want frequency and spread to vary smoothly.
         // How to do this without bloating keyed input state?
@@ -125,10 +124,10 @@ impl DynamicSoundProcessor for Ensemble {
         // Consider adding a way to use a borrowed slice as part of the state
         // of an input in the audio context
 
-        let freq_in = number_inputs
+        let freq_in = expressions
             .frequency_in
             .eval_scalar(&context.push_processor_state(state, LocalArrayList::new()));
-        let freq_spread = number_inputs
+        let freq_spread = expressions
             .frequency_spread
             .eval_scalar(&context.push_processor_state(state, LocalArrayList::new()));
         for mut item in sound_inputs.items_mut() {

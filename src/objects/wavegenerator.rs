@@ -27,12 +27,12 @@ pub struct WaveGenerator {
     pub frequency: SoundExpressionHandle,
 }
 
-pub struct WaveGeneratorNumberInputs<'ctx> {
+pub struct WaveGeneratorExpressions<'ctx> {
     frequency: CompiledExpressionNode<'ctx>,
     amplitude: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for WaveGeneratorNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for WaveGeneratorExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.frequency);
         visitor.visit_node(&self.amplitude);
@@ -57,7 +57,7 @@ impl State for WaveGeneratorState {
 impl DynamicSoundProcessor for WaveGenerator {
     type StateType = WaveGeneratorState;
     type SoundInputType = ();
-    type Expressions<'ctx> = WaveGeneratorNumberInputs<'ctx>;
+    type Expressions<'ctx> = WaveGeneratorExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
@@ -84,7 +84,7 @@ impl DynamicSoundProcessor for WaveGenerator {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        WaveGeneratorNumberInputs {
+        WaveGeneratorExpressions {
             frequency: self.frequency.make_node(nodegen),
             amplitude: self.amplitude.make_node(nodegen),
         }
@@ -93,14 +93,14 @@ impl DynamicSoundProcessor for WaveGenerator {
     fn process_audio(
         state: &mut StateAndTiming<WaveGeneratorState>,
         _sound_inputs: &mut (),
-        number_inputs: &mut WaveGeneratorNumberInputs,
+        expressions: &mut WaveGeneratorExpressions,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
         let prev_phase = *state.phase.last().unwrap();
         {
             let mut tmp = context.get_scratch_space(state.phase.len());
-            number_inputs.frequency.eval(
+            expressions.frequency.eval(
                 &mut tmp,
                 Discretization::samplewise_temporal(),
                 &context.push_processor_state(state, LocalArrayList::new()),
@@ -111,7 +111,7 @@ impl DynamicSoundProcessor for WaveGenerator {
         slicemath::exclusive_scan_inplace(&mut state.phase, prev_phase, |p1, p2| p1 + p2);
         slicemath::apply_unary_inplace(&mut state.phase, |x| x - x.floor());
 
-        number_inputs.amplitude.eval(
+        expressions.amplitude.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
             &context.push_processor_state(state, LocalArrayList::new()),

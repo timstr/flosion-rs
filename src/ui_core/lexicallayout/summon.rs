@@ -3,8 +3,8 @@ use eframe::egui;
 use crate::{
     core::{graph::graphobject::ObjectType, sound::expressionargument::SoundExpressionArgumentId},
     ui_core::{
-        numbergraphui::NumberGraphUi,
-        numbergraphuicontext::OuterSoundNumberInputContext,
+        expressiongraphui::ExpressionGraphUi,
+        expressiongraphuicontext::OuterProcessorExpressionContext,
         summon_widget::{SummonWidgetState, SummonWidgetStateBuilder},
         ui_factory::UiFactory,
     },
@@ -13,44 +13,41 @@ use crate::{
 use super::ast::{VariableDefinition, VariableId};
 
 #[derive(Copy, Clone)]
-pub(super) enum NumberSummonValue {
-    NumberSourceType(ObjectType),
+pub(super) enum ExpressionSummonValue {
+    ExpressionNodeType(ObjectType),
     Constant(f32),
-    SoundNumberSource(SoundExpressionArgumentId),
+    Argument(SoundExpressionArgumentId),
     Variable(VariableId),
 }
 
-pub(super) fn build_summon_widget_for_sound_number_input(
+pub(super) fn build_summon_widget_for_processor_expression(
     position: egui::Pos2,
-    ui_factory: &UiFactory<NumberGraphUi>,
-    ctx: &OuterSoundNumberInputContext,
+    ui_factory: &UiFactory<ExpressionGraphUi>,
+    ctx: &OuterProcessorExpressionContext,
     variable_definitions: &[VariableDefinition],
-) -> SummonWidgetState<NumberSummonValue> {
+) -> SummonWidgetState<ExpressionSummonValue> {
     let mut builder = SummonWidgetStateBuilder::new(position);
     for object_ui in ui_factory.all_object_uis() {
         for name in object_ui.summon_names() {
             builder.add_name_with_arguments(
                 name.to_string(),
                 object_ui.summon_arguments(),
-                NumberSummonValue::NumberSourceType(object_ui.object_type()),
+                ExpressionSummonValue::ExpressionNodeType(object_ui.object_type()),
             );
         }
     }
 
-    for snsid in ctx
-        .graph_layout()
-        .available_number_sources(ctx.sound_number_input_id())
-    {
+    for snsid in ctx.graph_layout().available_arguments(ctx.expression_id()) {
         builder.add_basic_name(
-            ctx.sound_graph_names().combined_number_source_name(*snsid),
-            NumberSummonValue::SoundNumberSource(*snsid),
+            ctx.sound_graph_names().combined_parameter_name(*snsid),
+            ExpressionSummonValue::Argument(*snsid),
         );
     }
 
     for var_defn in variable_definitions {
         builder.add_basic_name(
             var_defn.name().to_string(),
-            NumberSummonValue::Variable(var_defn.id()),
+            ExpressionSummonValue::Variable(var_defn.id()),
         );
     }
 
@@ -58,7 +55,7 @@ pub(super) fn build_summon_widget_for_sound_number_input(
     builder.add_pattern("constant".to_string(), |s| {
         s.parse::<f32>()
             .ok()
-            .and_then(|v| Some(NumberSummonValue::Constant(v)))
+            .and_then(|v| Some(ExpressionSummonValue::Constant(v)))
     });
 
     builder.build()

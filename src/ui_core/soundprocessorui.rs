@@ -15,17 +15,16 @@ use crate::{
 };
 
 use super::{
-    keyboardfocus::KeyboardFocusState, numbergraphuicontext::OuterNumberGraphUiContext,
-    numberinputplot::PlotConfig, soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState, soundnumberinputui::SoundNumberInputUi,
+    expressionplot::PlotConfig, expressionui::SoundExpressionUi, keyboardfocus::KeyboardFocusState,
+    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
 };
 
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
     color: egui::Color32,
-    number_inputs: Vec<(SoundExpressionId, String, PlotConfig)>,
-    number_sources: Vec<(SoundExpressionArgumentId, String)>,
+    expressions: Vec<(SoundExpressionId, String, PlotConfig)>,
+    arguments: Vec<(SoundExpressionArgumentId, String)>,
     sound_inputs: Vec<(SoundInputId, String, SoundExpressionArgumentId)>,
 }
 
@@ -40,14 +39,14 @@ impl ProcessorUi {
         label: &'static str,
         color: egui::Color32,
     ) -> ProcessorUi {
-        let mut number_sources = Vec::new();
-        number_sources.push((handle.time_argument(), "time".to_string()));
+        let mut arguments = Vec::new();
+        arguments.push((handle.time_argument(), "time".to_string()));
         ProcessorUi {
             processor_id: handle.id(),
             label,
             color,
-            number_inputs: Vec::new(),
-            number_sources,
+            expressions: Vec::new(),
+            arguments,
             sound_inputs: Vec::new(),
         }
     }
@@ -67,22 +66,22 @@ impl ProcessorUi {
         self
     }
 
-    pub fn add_number_input(
+    pub fn add_expression(
         mut self,
         input_id: SoundExpressionId,
         label: impl Into<String>,
         config: PlotConfig,
     ) -> Self {
-        self.number_inputs.push((input_id, label.into(), config));
+        self.expressions.push((input_id, label.into(), config));
         self
     }
 
-    pub fn add_number_source(
+    pub fn add_argument(
         mut self,
-        source_id: SoundExpressionArgumentId,
+        argument_id: SoundExpressionArgumentId,
         label: impl Into<String>,
     ) -> Self {
-        self.number_sources.push((source_id, label.into()));
+        self.arguments.push((argument_id, label.into()));
         self
     }
 
@@ -110,15 +109,15 @@ impl ProcessorUi {
         sound_graph: &mut SoundGraph,
         add_contents: F,
     ) {
-        for (nsid, name) in &self.number_sources {
+        for (nsid, name) in &self.arguments {
             ui_state
                 .names_mut()
-                .record_number_source_name(*nsid, name.to_string());
+                .record_argument_name(*nsid, name.to_string());
         }
         for (_, _, time_nsid) in &self.sound_inputs {
             ui_state
                 .names_mut()
-                .record_number_source_name(*time_nsid, "time".to_string());
+                .record_argument_name(*time_nsid, "time".to_string());
         }
 
         #[cfg(debug_assertions)]
@@ -128,12 +127,12 @@ impl ProcessorUi {
                 .sound_processor(self.processor_id)
                 .unwrap();
             let missing_name =
-                |id: SoundExpressionArgumentId| ui_state.names().number_source(id).is_none();
+                |id: SoundExpressionArgumentId| ui_state.names().argument(id).is_none();
             let processor_type_name = proc_data.instance_arc().as_graph_object().get_type().name();
             for nsid in proc_data.expression_arguments() {
                 if missing_name(*nsid) {
                     println!(
-                        "Warning: number source {} on processor {} ({}) is missing a name",
+                        "Warning: argument {} on processor {} ({}) is missing a name",
                         nsid.value(),
                         self.processor_id.value(),
                         processor_type_name
@@ -149,7 +148,7 @@ impl ProcessorUi {
                 {
                     if missing_name(*nsid) {
                         println!(
-                            "Warning: number source {} on sound input {} on processor {} ({}) is missing a name",
+                            "Warning: argument {} on sound input {} on processor {} ({}) is missing a name",
                             nsid.value(),
                             siid.value(),
                             self.processor_id.value(),
@@ -271,8 +270,8 @@ impl ProcessorUi {
                 inner_frame,
                 |ui| {
                     ui.vertical(|ui| {
-                        for (input_id, input_label, config) in &self.number_inputs {
-                            self.show_number_input(
+                        for (input_id, input_label, config) in &self.expressions {
+                            self.show_expression(
                                 ui,
                                 ctx,
                                 *input_id,
@@ -388,7 +387,7 @@ impl ProcessorUi {
             .interact(egui::Sense::click_and_drag())
     }
 
-    fn show_number_input(
+    fn show_expression(
         &self,
         ui: &mut egui::Ui,
         ctx: &mut SoundGraphUiContext,
@@ -408,13 +407,13 @@ impl ProcessorUi {
         let res = input_frame.show(ui, |ui| {
             ui.set_width(ctx.width());
 
-            let input_ui = SoundNumberInputUi::new(input_id);
+            let input_ui = SoundExpressionUi::new(input_id);
 
             let names: &mut SoundGraphUiNames = todo!("Get mutable ref to names");
 
-            names.record_number_input_name(input_id, input_label.to_string());
+            names.record_expression_name(input_id, input_label.to_string());
 
-            todo!("render number graph ui");
+            todo!("render expression ui");
             // ctx.with_number_graph_ui_context(
             //     input_id,
             //     temporal_layout,
@@ -437,7 +436,7 @@ impl ProcessorUi {
 
         ui_state
             .object_positions_mut()
-            .track_sound_number_input_location(input_id, res.response.rect);
+            .track_sound_expression_location(input_id, res.response.rect);
 
         if ui_state.is_item_focused(input_id.into()) {
             ui.painter().rect_stroke(

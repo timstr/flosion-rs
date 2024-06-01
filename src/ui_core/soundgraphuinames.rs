@@ -2,21 +2,21 @@ use eframe::epaint::ahash::{HashMap, HashMapExt};
 
 use crate::core::{
     sound::{
-        soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId,
         expression::SoundExpressionId,
         expressionargument::{SoundExpressionArgumentId, SoundExpressionArgumentOwner},
+        soundgraphtopology::SoundGraphTopology,
+        soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
 };
 
-pub(crate) struct SoundNumberSourceNameData {
+pub(crate) struct SoundArgumentNameData {
     name: String,
     owner: SoundExpressionArgumentOwner,
 }
 
-impl SoundNumberSourceNameData {
+impl SoundArgumentNameData {
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
@@ -26,11 +26,11 @@ impl SoundNumberSourceNameData {
     }
 }
 
-pub(crate) struct SoundNumberInputNameData {
+pub(crate) struct SoundExpressionNameData {
     name: String,
 }
 
-impl SoundNumberInputNameData {
+impl SoundExpressionNameData {
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
@@ -62,8 +62,8 @@ impl SoundProcessorNameData {
 }
 
 pub(crate) struct SoundGraphUiNames {
-    number_sources: HashMap<SoundExpressionArgumentId, SoundNumberSourceNameData>,
-    number_inputs: HashMap<SoundExpressionId, SoundNumberInputNameData>,
+    arguments: HashMap<SoundExpressionArgumentId, SoundArgumentNameData>,
+    expressions: HashMap<SoundExpressionId, SoundExpressionNameData>,
     sound_inputs: HashMap<SoundInputId, SoundInputNameData>,
     sound_processors: HashMap<SoundProcessorId, SoundProcessorNameData>,
 }
@@ -71,17 +71,17 @@ pub(crate) struct SoundGraphUiNames {
 impl SoundGraphUiNames {
     pub(crate) fn new() -> SoundGraphUiNames {
         SoundGraphUiNames {
-            number_sources: HashMap::new(),
-            number_inputs: HashMap::new(),
+            arguments: HashMap::new(),
+            expressions: HashMap::new(),
             sound_inputs: HashMap::new(),
             sound_processors: HashMap::new(),
         }
     }
 
     pub(crate) fn regenerate(&mut self, topology: &SoundGraphTopology) {
-        self.number_sources
+        self.arguments
             .retain(|k, _v| topology.expression_argumnet(*k).is_some());
-        self.number_inputs
+        self.expressions
             .retain(|k, _v| topology.expression(*k).is_some());
         self.sound_inputs
             .retain(|k, _v| topology.sound_input(*k).is_some());
@@ -89,19 +89,19 @@ impl SoundGraphUiNames {
             .retain(|k, _v| topology.sound_processor(*k).is_some());
 
         for ns_data in topology.expression_arguments().values() {
-            self.number_sources
+            self.arguments
                 .entry(ns_data.id())
-                .or_insert_with(|| SoundNumberSourceNameData {
-                    name: format!("number_source_{}", ns_data.id().value()),
+                .or_insert_with(|| SoundArgumentNameData {
+                    name: format!("argument_{}", ns_data.id().value()),
                     owner: ns_data.owner(),
                 });
         }
 
         for ni_data in topology.expressions().values() {
-            self.number_inputs
+            self.expressions
                 .entry(ni_data.id())
-                .or_insert_with(|| SoundNumberInputNameData {
-                    name: format!("number_input_{}", ni_data.id().value()),
+                .or_insert_with(|| SoundExpressionNameData {
+                    name: format!("expression_{}", ni_data.id().value()),
                 });
         }
 
@@ -128,15 +128,12 @@ impl SoundGraphUiNames {
         }
     }
 
-    pub(crate) fn number_source(
-        &self,
-        id: SoundExpressionArgumentId,
-    ) -> Option<&SoundNumberSourceNameData> {
-        self.number_sources.get(&id)
+    pub(crate) fn argument(&self, id: SoundExpressionArgumentId) -> Option<&SoundArgumentNameData> {
+        self.arguments.get(&id)
     }
 
-    pub(crate) fn number_input(&self, id: SoundExpressionId) -> Option<&SoundNumberInputNameData> {
-        self.number_inputs.get(&id)
+    pub(crate) fn expression(&self, id: SoundExpressionId) -> Option<&SoundExpressionNameData> {
+        self.expressions.get(&id)
     }
 
     pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&SoundInputNameData> {
@@ -147,12 +144,8 @@ impl SoundGraphUiNames {
         self.sound_processors.get(&id)
     }
 
-    pub(crate) fn record_number_source_name(
-        &mut self,
-        id: SoundExpressionArgumentId,
-        name: String,
-    ) {
-        self.number_sources.get_mut(&id).unwrap().name = name;
+    pub(crate) fn record_argument_name(&mut self, id: SoundExpressionArgumentId, name: String) {
+        self.arguments.get_mut(&id).unwrap().name = name;
     }
 
     pub(crate) fn record_sound_input_name(&mut self, id: SoundInputId, name: String) {
@@ -163,12 +156,12 @@ impl SoundGraphUiNames {
         self.sound_processors.get_mut(&id).unwrap().name = name;
     }
 
-    pub(crate) fn record_number_input_name(&mut self, id: SoundExpressionId, name: String) {
-        self.number_inputs.get_mut(&id).unwrap().name = name;
+    pub(crate) fn record_expression_name(&mut self, id: SoundExpressionId, name: String) {
+        self.expressions.get_mut(&id).unwrap().name = name;
     }
 
-    pub(crate) fn combined_number_source_name(&self, id: SoundExpressionArgumentId) -> String {
-        let ns_data = self.number_source(id).unwrap();
+    pub(crate) fn combined_parameter_name(&self, id: SoundExpressionArgumentId) -> String {
+        let ns_data = self.argument(id).unwrap();
         match ns_data.owner() {
             SoundExpressionArgumentOwner::SoundProcessor(spid) => {
                 let sp_name = self.sound_processor(spid).unwrap().name();

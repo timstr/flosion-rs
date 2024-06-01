@@ -2,7 +2,7 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::resampler::Resampler,
     ui_core::{
-        numberinputplot::PlotConfig,
+        expressionplot::PlotConfig,
         object_ui::{Color, ObjectUi, UiInitialization},
         soundgraphui::SoundGraphUi,
         soundgraphuicontext::SoundGraphUiContext,
@@ -30,7 +30,7 @@ impl ObjectUi for ResamplerUi {
     ) {
         ProcessorUi::new(&resampler, "Resampler", data.color)
             .add_sound_input(resampler.input.id(), "input", sound_graph)
-            .add_number_input(resampler.speed_ratio.id(), "speed", PlotConfig::new())
+            .add_expression(resampler.speed_ratio.id(), "speed", PlotConfig::new())
             .show(ui, ctx, ui_state, sound_graph);
     }
 

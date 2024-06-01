@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::sound::{
-    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::available_sound_expression_arguments,
     expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-    soundprocessor::SoundProcessorId,
+    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
+    soundgraphvalidation::available_sound_expression_arguments, soundprocessor::SoundProcessorId,
 };
 
 /// A mapping between a portion of the sound processing timeline
@@ -38,7 +37,7 @@ pub struct SoundGraphLayout {
     groups: HashMap<SoundObjectId, StackedGroup>,
     // TODO: this caches which number depedencies are possible. It has nothing
     // to do with the UI layout and shouldn't be here.
-    available_number_sources: HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
+    available_arguments: HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
 }
 
 // TODO: let this render itself to the whole screen
@@ -49,7 +48,7 @@ impl SoundGraphLayout {
     pub(crate) fn new() -> SoundGraphLayout {
         SoundGraphLayout {
             groups: HashMap::new(),
-            available_number_sources: HashMap::new(),
+            available_arguments: HashMap::new(),
         }
     }
 
@@ -121,13 +120,14 @@ impl SoundGraphLayout {
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         self.groups.retain(|k, _v| topo.contains((*k).into()));
 
-        self.available_number_sources = available_sound_expression_arguments(topo);
+        self.available_arguments = available_sound_expression_arguments(topo);
     }
 
-    pub(super) fn available_number_sources(
+    // TODO: move/remove, see note above
+    pub(super) fn available_arguments(
         &self,
         input_id: SoundExpressionId,
     ) -> &HashSet<SoundExpressionArgumentId> {
-        self.available_number_sources.get(&input_id).unwrap()
+        self.available_arguments.get(&input_id).unwrap()
     }
 }

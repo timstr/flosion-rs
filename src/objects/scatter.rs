@@ -4,8 +4,7 @@ use crate::core::{
     engine::{
         nodegen::NodeGen,
         soundexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
-            ExpressionVisitorMut,
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -51,11 +50,11 @@ pub struct Scatter {
     pub value: SoundExpressionArgumentHandle,
 }
 
-pub struct ScatterNumberInputs<'ctx> {
+pub struct ScatterExpressions<'ctx> {
     parameter: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ScatterNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for ScatterExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.parameter);
     }
@@ -70,7 +69,7 @@ impl DynamicSoundProcessor for Scatter {
 
     type SoundInputType = KeyedInput<ScatterInputState>;
 
-    type Expressions<'ctx> = ScatterNumberInputs<'ctx>;
+    type Expressions<'ctx> = ScatterExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_keys = 8; // idk
@@ -97,7 +96,7 @@ impl DynamicSoundProcessor for Scatter {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        ScatterNumberInputs {
+        ScatterExpressions {
             parameter: self.parameter.make_node(nodegen),
         }
     }
@@ -105,12 +104,12 @@ impl DynamicSoundProcessor for Scatter {
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut KeyedInputNode<'ctx, ScatterInputState>,
-        number_inputs: &mut Self::Expressions<'ctx>,
+        expressions: &mut Self::Expressions<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
         if state.just_started() {
-            let param = number_inputs
+            let param = expressions
                 .parameter
                 .eval_scalar(&context.push_processor_state(state, LocalArrayList::new()));
 

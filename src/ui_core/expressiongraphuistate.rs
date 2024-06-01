@@ -7,38 +7,38 @@ use crate::core::{
     expression::{
         expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
     },
-    sound::{soundgraphtopology::SoundGraphTopology, expression::SoundExpressionId},
+    sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology},
 };
 
 use super::{
+    expressiongraphui::ExpressionGraphUi,
+    expressiongraphuicontext::ExpressionGraphUiContext,
+    expressionui::ExpressionPresentation,
     graph_ui::{ObjectUiData, ObjectUiState},
-    lexicallayout::lexicallayout::NumberSourceLayout,
-    numbergraphui::NumberGraphUi,
-    numbergraphuicontext::NumberGraphUiContext,
+    lexicallayout::lexicallayout::ExpressionNodeLayout,
     object_ui_states::AnyObjectUiState,
-    soundnumberinputui::SoundNumberInputPresentation,
     soundobjectuistate::SoundObjectUiStates,
 };
 
-pub struct NumberGraphUiState {
+pub struct ExpressionGraphUiState {
     // TODO: what is this for???
 }
 
-impl NumberGraphUiState {
-    pub(super) fn new() -> NumberGraphUiState {
-        NumberGraphUiState {}
+impl ExpressionGraphUiState {
+    pub(super) fn new() -> ExpressionGraphUiState {
+        ExpressionGraphUiState {}
     }
 
     pub(super) fn cleanup(&mut self) {}
 }
 
-pub(super) struct SoundNumberInputUiCollection {
-    data: HashMap<SoundExpressionId, (NumberGraphUiState, SoundNumberInputPresentation)>,
+pub(super) struct ExpressionUiCollection {
+    data: HashMap<SoundExpressionId, (ExpressionGraphUiState, ExpressionPresentation)>,
 }
 
-impl SoundNumberInputUiCollection {
-    pub(super) fn new() -> SoundNumberInputUiCollection {
-        SoundNumberInputUiCollection {
+impl ExpressionUiCollection {
+    pub(super) fn new() -> ExpressionUiCollection {
+        ExpressionUiCollection {
             data: HashMap::new(),
         }
     }
@@ -46,8 +46,8 @@ impl SoundNumberInputUiCollection {
     pub(super) fn set_ui_data(
         &mut self,
         niid: SoundExpressionId,
-        ui_state: NumberGraphUiState,
-        presentation: SoundNumberInputPresentation,
+        ui_state: ExpressionGraphUiState,
+        presentation: ExpressionPresentation,
     ) {
         self.data.insert(niid, (ui_state, presentation));
     }
@@ -69,7 +69,7 @@ impl SoundNumberInputUiCollection {
             ui_state.cleanup();
             presentation.cleanup(
                 number_topo,
-                &object_ui_states.number_graph_object_state(*niid),
+                &object_ui_states.expression_graph_object_state(*niid),
             );
         }
     }
@@ -77,45 +77,49 @@ impl SoundNumberInputUiCollection {
     pub(crate) fn get_mut(
         &mut self,
         niid: SoundExpressionId,
-    ) -> Option<(&mut NumberGraphUiState, &mut SoundNumberInputPresentation)> {
+    ) -> Option<(&mut ExpressionGraphUiState, &mut ExpressionPresentation)> {
         self.data.get_mut(&niid).map(|(a, b)| (a, b))
     }
 }
 
-pub struct AnyNumberObjectUiData {
+pub struct AnyExpressionNodeObjectUiData {
     _id: ExpressionNodeId,
     state: RefCell<Box<dyn AnyObjectUiState>>,
-    layout: NumberSourceLayout,
+    layout: ExpressionNodeLayout,
 }
 
-impl AnyNumberObjectUiData {
-    pub(crate) fn layout(&self) -> NumberSourceLayout {
+impl AnyExpressionNodeObjectUiData {
+    pub(crate) fn layout(&self) -> ExpressionNodeLayout {
         self.layout
     }
 }
 
-impl ObjectUiData for AnyNumberObjectUiData {
-    type GraphUi = NumberGraphUi;
+impl ObjectUiData for AnyExpressionNodeObjectUiData {
+    type GraphUi = ExpressionGraphUi;
 
-    type RequiredData = NumberSourceLayout;
+    type RequiredData = ExpressionNodeLayout;
 
     fn new<S: ObjectUiState>(id: ExpressionNodeId, state: S, data: Self::RequiredData) -> Self {
-        AnyNumberObjectUiData {
+        AnyExpressionNodeObjectUiData {
             _id: id,
             state: RefCell::new(Box::new(state)),
             layout: data,
         }
     }
 
-    type ConcreteType<'a, T: ObjectUiState> = NumberObjectUiData<'a, T>;
+    type ConcreteType<'a, T: ObjectUiState> = ExpressionNodeObjectUiData<'a, T>;
 
     fn downcast_with<
         T: ObjectUiState,
-        F: FnOnce(NumberObjectUiData<'_, T>, &mut NumberGraphUiState, &mut NumberGraphUiContext),
+        F: FnOnce(
+            ExpressionNodeObjectUiData<'_, T>,
+            &mut ExpressionGraphUiState,
+            &mut ExpressionGraphUiContext,
+        ),
     >(
         &self,
-        ui_state: &mut NumberGraphUiState,
-        ctx: &mut NumberGraphUiContext<'_>,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &mut ExpressionGraphUiContext<'_>,
         f: F,
     ) {
         let mut state_mut = self.state.borrow_mut();
@@ -125,7 +129,7 @@ impl ObjectUiData for AnyNumberObjectUiData {
             let state_any = state_mut.as_mut_any();
             debug_assert!(
                 state_any.is::<T>(),
-                "AnyNumberObjectUiData expected to receive state type {}, but got {:?} instead",
+                "AnyExpressionNodeObjectUiData expected to receive state type {}, but got {:?} instead",
                 type_name::<T>(),
                 actual_name
             );
@@ -133,31 +137,38 @@ impl ObjectUiData for AnyNumberObjectUiData {
         let state_any = state_mut.as_mut_any();
         let state = state_any.downcast_mut::<T>().unwrap();
 
-        f(NumberObjectUiData { state }, ui_state, ctx);
+        f(ExpressionNodeObjectUiData { state }, ui_state, ctx);
     }
 }
 
-pub struct NumberObjectUiData<'a, T: ObjectUiState> {
+pub struct ExpressionNodeObjectUiData<'a, T: ObjectUiState> {
     pub state: &'a mut T,
     // TODO: other presentation state, e.g. color?
 }
 
-pub struct NumberObjectUiStates {
-    data: HashMap<ExpressionNodeId, Rc<AnyNumberObjectUiData>>,
+pub struct ExpressionNodeObjectUiStates {
+    data: HashMap<ExpressionNodeId, Rc<AnyExpressionNodeObjectUiData>>,
 }
 
-impl NumberObjectUiStates {
-    pub(super) fn new() -> NumberObjectUiStates {
-        NumberObjectUiStates {
+impl ExpressionNodeObjectUiStates {
+    pub(super) fn new() -> ExpressionNodeObjectUiStates {
+        ExpressionNodeObjectUiStates {
             data: HashMap::new(),
         }
     }
 
-    pub(super) fn set_object_data(&mut self, id: ExpressionNodeId, state: AnyNumberObjectUiData) {
+    pub(super) fn set_object_data(
+        &mut self,
+        id: ExpressionNodeId,
+        state: AnyExpressionNodeObjectUiData,
+    ) {
         self.data.insert(id, Rc::new(state));
     }
 
-    pub(super) fn get_object_data(&self, id: ExpressionNodeId) -> Rc<AnyNumberObjectUiData> {
+    pub(super) fn get_object_data(
+        &self,
+        id: ExpressionNodeId,
+    ) -> Rc<AnyExpressionNodeObjectUiData> {
         Rc::clone(self.data.get(&id).unwrap())
     }
 

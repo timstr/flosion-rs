@@ -11,10 +11,10 @@ use crate::{
         revision::revision::{Revision, RevisionNumber},
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+            soundgraphtopology::SoundGraphTopology,
         },
     },
-    ui_objects::all_objects::{all_number_graph_objects, all_sound_graph_objects},
+    ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
 };
 use eframe::{
     self,
@@ -23,7 +23,7 @@ use eframe::{
 use rfd::FileDialog;
 
 use super::{
-    numbergraphui::NumberGraphUi,
+    expressiongraphui::ExpressionGraphUi,
     soundgraphui::SoundGraphUi,
     soundgraphuistate::{DroppingProcessorData, SelectionChange, SoundGraphUiState},
     soundobjectuistate::SoundObjectUiStates,
@@ -40,9 +40,9 @@ struct SelectionState {
 pub struct FlosionApp {
     graph: SoundGraph,
     object_factory: ObjectFactory<SoundGraph>,
-    number_object_factory: ObjectFactory<ExpressionGraph>,
+    expression_object_factory: ObjectFactory<ExpressionGraph>,
     ui_factory: UiFactory<SoundGraphUi>,
-    number_ui_factory: UiFactory<NumberGraphUi>,
+    expression_ui_factory: UiFactory<ExpressionGraphUi>,
     ui_state: SoundGraphUiState,
     graph_layout: SoundGraphLayout,
     object_states: SoundObjectUiStates,
@@ -59,16 +59,16 @@ impl FlosionApp {
         let graph = SoundGraph::new();
 
         let (object_factory, ui_factory) = all_sound_graph_objects();
-        let (number_object_factory, number_ui_factory) = all_number_graph_objects();
+        let (expresion_object_factory, expression_ui_factory) = all_expression_graph_objects();
         let mut app = FlosionApp {
             graph,
             ui_state: SoundGraphUiState::new(),
             graph_layout: SoundGraphLayout::new(),
             object_states: SoundObjectUiStates::new(),
             object_factory,
-            number_object_factory,
+            expression_object_factory: expresion_object_factory,
             ui_factory,
-            number_ui_factory,
+            expression_ui_factory,
             summon_state: None,
             selection_area: None,
             known_object_ids: HashSet::new(),
@@ -569,7 +569,7 @@ impl FlosionApp {
                     *object_id,
                     self.graph.topology(),
                     &self.ui_factory,
-                    &self.number_ui_factory,
+                    &self.expression_ui_factory,
                 );
                 self.ui_state.create_state_for(
                     *object_id,

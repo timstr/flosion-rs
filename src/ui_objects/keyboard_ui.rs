@@ -32,7 +32,7 @@ impl ObjectUi for KeyboardUi {
     ) {
         ProcessorUi::new(&keyboard, "Keyboard", data.color)
             .add_sound_input(keyboard.input.id(), "input", sound_graph)
-            .add_number_source(keyboard.key_frequency.id(), "keyfrequency")
+            .add_argument(keyboard.key_frequency.id(), "keyfrequency")
             .show_with(
                 ui,
                 ctx,

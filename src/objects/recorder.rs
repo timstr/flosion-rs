@@ -98,7 +98,7 @@ impl StaticSoundProcessor for Recorder {
         recorder: &StaticSoundProcessorWithId<Recorder>,
         timing: &ProcessorTiming,
         sound_inputs: &mut SingleInputNode,
-        _number_inputs: &mut (),
+        _expressions: &mut (),
         dst: &mut SoundChunk,
         ctx: Context,
     ) {

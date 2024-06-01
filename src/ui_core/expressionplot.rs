@@ -49,13 +49,13 @@ impl PlotConfig {
     }
 }
 
-pub(crate) struct NumberInputPlot {
+pub(crate) struct ExpressionPlot {
     // TODO: fields for creating mock context?
 }
 
-impl NumberInputPlot {
-    pub(crate) fn new() -> NumberInputPlot {
-        NumberInputPlot {}
+impl ExpressionPlot {
+    pub(crate) fn new() -> ExpressionPlot {
+        ExpressionPlot {}
     }
 
     pub(crate) fn show(

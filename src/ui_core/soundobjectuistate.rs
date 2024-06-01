@@ -6,14 +6,14 @@ use std::any::type_name;
 use eframe::{egui, epaint::ecolor};
 
 use crate::core::sound::{
-    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-    expression::SoundExpressionId,
+    expression::SoundExpressionId, soundgraphid::SoundObjectId,
+    soundgraphtopology::SoundGraphTopology,
 };
 
 use super::{
     graph_ui::{ObjectUiData, ObjectUiState},
-    numbergraphui::NumberGraphUi,
-    numbergraphuistate::NumberObjectUiStates,
+    expressiongraphui::ExpressionGraphUi,
+    expressiongraphuistate::ExpressionNodeObjectUiStates,
     object_ui::Color,
     object_ui_states::AnyObjectUiState,
     soundgraphui::SoundGraphUi,
@@ -79,14 +79,14 @@ pub struct SoundObjectUiData<'a, T: ObjectUiState> {
 
 pub struct SoundObjectUiStates {
     data: HashMap<SoundObjectId, Rc<AnySoundObjectUiData>>,
-    number_graph_object_states: HashMap<SoundExpressionId, NumberObjectUiStates>,
+    expression_graph_object_states: HashMap<SoundExpressionId, ExpressionNodeObjectUiStates>,
 }
 
 impl SoundObjectUiStates {
     pub(super) fn new() -> SoundObjectUiStates {
         SoundObjectUiStates {
             data: HashMap::new(),
-            number_graph_object_states: HashMap::new(),
+            expression_graph_object_states: HashMap::new(),
         }
     }
 
@@ -121,15 +121,15 @@ impl SoundObjectUiStates {
         self.data.retain(|i, _| match i {
             SoundObjectId::Sound(spid) => topo.sound_processors().contains_key(spid),
         });
-        self.number_graph_object_states
+        self.expression_graph_object_states
             .retain(|i, _| topo.expressions().contains_key(i));
-        for (niid, states) in &mut self.number_graph_object_states {
-            let number_topo = topo
+        for (niid, states) in &mut self.expression_graph_object_states {
+            let expr_topo = topo
                 .expression(*niid)
                 .unwrap()
                 .expression_graph()
                 .topology();
-            states.cleanup(number_topo);
+            states.cleanup(expr_topo);
         }
     }
 
@@ -157,7 +157,7 @@ impl SoundObjectUiStates {
                 }
             }
         }
-        // TODO: invariant check for number object states
+        // TODO: invariant check for expression object states
         good
     }
 
@@ -244,7 +244,7 @@ impl SoundObjectUiStates {
         object_id: SoundObjectId,
         topo: &SoundGraphTopology,
         ui_factory: &UiFactory<SoundGraphUi>,
-        number_ui_factory: &UiFactory<NumberGraphUi>,
+        expression_ui_factory: &UiFactory<ExpressionGraphUi>,
     ) {
         self.data.entry(object_id).or_insert_with(|| {
             let graph_object = topo.graph_object(object_id).unwrap();
@@ -252,21 +252,21 @@ impl SoundObjectUiStates {
         });
         match object_id {
             SoundObjectId::Sound(spid) => {
-                let number_input_ids = topo.sound_processor(spid).unwrap().expressions();
-                for niid in number_input_ids {
-                    let number_topo = topo
+                let expression_ids = topo.sound_processor(spid).unwrap().expressions();
+                for niid in expression_ids {
+                    let expr_topo = topo
                         .expression(*niid)
                         .unwrap()
                         .expression_graph()
                         .topology();
-                    self.number_graph_object_states
+                    self.expression_graph_object_states
                         .entry(*niid)
                         .or_insert_with(|| {
-                            let mut states = NumberObjectUiStates::new();
-                            for ns_data in number_topo.nodes().values() {
+                            let mut states = ExpressionNodeObjectUiStates::new();
+                            for ns_data in expr_topo.nodes().values() {
                                 let graph_object = ns_data.instance_arc().as_graph_object();
                                 let object_state =
-                                    number_ui_factory.create_default_state(&graph_object);
+                                    expression_ui_factory.create_default_state(&graph_object);
                                 states.set_object_data(ns_data.id(), object_state);
                             }
                             states
@@ -276,17 +276,19 @@ impl SoundObjectUiStates {
         }
     }
 
-    pub(super) fn number_graph_object_state(
+    pub(super) fn expression_graph_object_state(
         &self,
         input_id: SoundExpressionId,
-    ) -> &NumberObjectUiStates {
-        self.number_graph_object_states.get(&input_id).unwrap()
+    ) -> &ExpressionNodeObjectUiStates {
+        self.expression_graph_object_states.get(&input_id).unwrap()
     }
 
-    pub(super) fn number_graph_object_state_mut(
+    pub(super) fn expression_graph_object_state_mut(
         &mut self,
         input_id: SoundExpressionId,
-    ) -> &mut NumberObjectUiStates {
-        self.number_graph_object_states.get_mut(&input_id).unwrap()
+    ) -> &mut ExpressionNodeObjectUiStates {
+        self.expression_graph_object_states
+            .get_mut(&input_id)
+            .unwrap()
     }
 }

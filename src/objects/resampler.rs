@@ -2,8 +2,7 @@ use crate::core::{
     engine::{
         nodegen::NodeGen,
         soundexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
-            ExpressionVisitorMut,
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -26,11 +25,11 @@ pub struct Resampler {
     pub speed_ratio: SoundExpressionHandle,
 }
 
-pub struct ResamplerNumberInputs<'ctx> {
+pub struct ResamplerExpressions<'ctx> {
     speed_ratio: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ResamplerNumberInputs<'ctx> {
+impl<'ctx> ExpressionCollection<'ctx> for ResamplerExpressions<'ctx> {
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.speed_ratio);
     }
@@ -58,7 +57,7 @@ impl State for ResamplerState {
 impl DynamicSoundProcessor for Resampler {
     type StateType = ResamplerState;
     type SoundInputType = SingleInput;
-    type Expressions<'ctx> = ResamplerNumberInputs<'ctx>;
+    type Expressions<'ctx> = ResamplerExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Resampler {
@@ -84,7 +83,7 @@ impl DynamicSoundProcessor for Resampler {
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
-        ResamplerNumberInputs {
+        ResamplerExpressions {
             speed_ratio: self.speed_ratio.make_node(nodegen),
         }
     }
@@ -92,7 +91,7 @@ impl DynamicSoundProcessor for Resampler {
     fn process_audio(
         state: &mut StateAndTiming<ResamplerState>,
         sound_inputs: &mut SingleInputNode,
-        number_inputs: &mut ResamplerNumberInputs,
+        expressions: &mut ResamplerExpressions,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {
@@ -120,7 +119,7 @@ impl DynamicSoundProcessor for Resampler {
         // TODO: linear interpolation instead of constant,
         // consider storing previous sample in state
         let mut speedratio = context.get_scratch_space(CHUNK_SIZE);
-        number_inputs.speed_ratio.eval(
+        expressions.speed_ratio.eval(
             &mut speedratio,
             Discretization::samplewise_temporal(),
             &context.push_processor_state(state, LocalArrayList::new()),

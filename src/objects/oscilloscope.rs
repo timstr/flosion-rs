@@ -62,7 +62,7 @@ impl StaticSoundProcessor for Oscilloscope {
         processor: &StaticSoundProcessorWithId<Self>,
         timing: &ProcessorTiming,
         sound_input: &mut SingleInputNode<'ctx>,
-        _number_inputs: &mut (),
+        _expressions: &mut (),
         dst: &mut SoundChunk,
         context: Context,
     ) {

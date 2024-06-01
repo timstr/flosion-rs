@@ -2,35 +2,38 @@ use eframe::egui;
 
 use crate::core::expression::expressionnode::ExpressionNodeId;
 
-use super::{numbergraphuicontext::NumberGraphUiContext, numbergraphuistate::NumberGraphUiState};
+use super::{
+    expressiongraphuicontext::ExpressionGraphUiContext,
+    expressiongraphuistate::ExpressionGraphUiState,
+};
 
 pub enum DisplayStyle {
     Framed,
     Frameless,
 }
 
-pub struct NumberSourceUi {
-    _source_id: ExpressionNodeId,
+pub struct ExpressionNodeUi {
+    _node_id: ExpressionNodeId,
     label: Option<String>,
     display_style: DisplayStyle,
 }
 
-impl NumberSourceUi {
+impl ExpressionNodeUi {
     pub fn new_named(
-        source_id: ExpressionNodeId,
+        node_id: ExpressionNodeId,
         label: String,
         display_style: DisplayStyle,
-    ) -> NumberSourceUi {
-        NumberSourceUi {
-            _source_id: source_id,
+    ) -> ExpressionNodeUi {
+        ExpressionNodeUi {
+            _node_id: node_id,
             label: Some(label),
             display_style,
         }
     }
 
-    pub fn new_unnamed(source_id: ExpressionNodeId, display_style: DisplayStyle) -> NumberSourceUi {
-        NumberSourceUi {
-            _source_id: source_id,
+    pub fn new_unnamed(node_id: ExpressionNodeId, display_style: DisplayStyle) -> ExpressionNodeUi {
+        ExpressionNodeUi {
+            _node_id: node_id,
             label: None,
             display_style,
         }
@@ -39,17 +42,17 @@ impl NumberSourceUi {
     pub fn show(
         self,
         ui: &mut egui::Ui,
-        ctx: &mut NumberGraphUiContext,
-        ui_state: &mut NumberGraphUiState,
+        ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
     ) {
         self.show_with(ui, ctx, ui_state, |_ui, _ui_state| {});
     }
 
-    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut NumberGraphUiState)>(
+    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut ExpressionGraphUiState)>(
         self,
         ui: &mut egui::Ui,
-        _ctx: &mut NumberGraphUiContext,
-        ui_state: &mut NumberGraphUiState,
+        _ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
         add_contents: F,
     ) {
         ui.spacing_mut().item_spacing.x = 3.0;

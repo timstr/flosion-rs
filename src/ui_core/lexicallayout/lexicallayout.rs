@@ -16,19 +16,21 @@ use crate::{
     objects::purefunctions::Constant,
     ui_core::{
         arguments::ParsedArguments,
+        expressiongraphuicontext::OuterExpressionGraphUiContext,
         lexicallayout::{
             ast::{ASTNodeValue, InternalASTNodeValue},
-            edits::remove_unreferenced_graph_inputs,
-            validation::lexical_layout_matches_number_graph,
+            edits::remove_unreferenced_parameters,
+            validation::lexical_layout_matches_expression_graph,
         },
-        numbergraphuicontext::OuterNumberGraphUiContext,
     },
 };
 
 use crate::ui_core::{
-    numbergraphui::NumberGraphUi,
-    numbergraphuicontext::NumberGraphUiContext,
-    numbergraphuistate::{AnyNumberObjectUiData, NumberGraphUiState, NumberObjectUiStates},
+    expressiongraphui::ExpressionGraphUi,
+    expressiongraphuicontext::ExpressionGraphUiContext,
+    expressiongraphuistate::{
+        AnyExpressionNodeObjectUiData, ExpressionGraphUiState, ExpressionNodeObjectUiStates,
+    },
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
 };
@@ -39,39 +41,39 @@ use super::{
         VariableDefinition, VariableId,
     },
     cursor::{LexicalLayoutCursor, LineLocation},
-    edits::{delete_from_numbergraph_at_cursor, insert_to_numbergraph_at_cursor},
-    summon::{build_summon_widget_for_sound_number_input, NumberSummonValue},
+    edits::{delete_from_graph_at_cursor, insert_to_graph_at_cursor},
+    summon::{build_summon_widget_for_processor_expression, ExpressionSummonValue},
 };
 
-impl Default for NumberSourceLayout {
+impl Default for ExpressionNodeLayout {
     fn default() -> Self {
-        NumberSourceLayout::Function
+        ExpressionNodeLayout::Function
     }
 }
 
-impl Serializable for NumberSourceLayout {
+impl Serializable for ExpressionNodeLayout {
     fn serialize(&self, serializer: &mut Serializer) {
         serializer.u8(match self {
-            NumberSourceLayout::Prefix => 1,
-            NumberSourceLayout::Infix => 2,
-            NumberSourceLayout::Postfix => 3,
-            NumberSourceLayout::Function => 4,
+            ExpressionNodeLayout::Prefix => 1,
+            ExpressionNodeLayout::Infix => 2,
+            ExpressionNodeLayout::Postfix => 3,
+            ExpressionNodeLayout::Function => 4,
         });
     }
 
     fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
         Ok(match deserializer.u8()? {
-            1 => NumberSourceLayout::Prefix,
-            2 => NumberSourceLayout::Infix,
-            3 => NumberSourceLayout::Postfix,
-            4 => NumberSourceLayout::Function,
+            1 => ExpressionNodeLayout::Prefix,
+            2 => ExpressionNodeLayout::Infix,
+            3 => ExpressionNodeLayout::Postfix,
+            4 => ExpressionNodeLayout::Function,
             _ => return Err(()),
         })
     }
 }
 
 #[derive(Copy, Clone)]
-pub enum NumberSourceLayout {
+pub enum ExpressionNodeLayout {
     Prefix,
     Infix,
     Postfix,
@@ -80,7 +82,7 @@ pub enum NumberSourceLayout {
 
 pub(crate) struct LexicalLayoutFocus {
     cursor: LexicalLayoutCursor,
-    summon_widget_state: Option<SummonWidgetState<NumberSummonValue>>,
+    summon_widget_state: Option<SummonWidgetState<ExpressionSummonValue>>,
 }
 
 impl LexicalLayoutFocus {
@@ -99,7 +101,7 @@ impl LexicalLayoutFocus {
         &mut self.cursor
     }
 
-    pub(super) fn summon_widget_state(&self) -> Option<&SummonWidgetState<NumberSummonValue>> {
+    pub(super) fn summon_widget_state(&self) -> Option<&SummonWidgetState<ExpressionSummonValue>> {
         self.summon_widget_state.as_ref()
     }
 
@@ -107,7 +109,7 @@ impl LexicalLayoutFocus {
     // add separate method to write the option itself
     pub(super) fn summon_widget_state_mut(
         &mut self,
-    ) -> &mut Option<SummonWidgetState<NumberSummonValue>> {
+    ) -> &mut Option<SummonWidgetState<ExpressionSummonValue>> {
         &mut self.summon_widget_state
     }
 
@@ -117,31 +119,33 @@ impl LexicalLayoutFocus {
 }
 
 fn make_internal_node(
-    number_source_id: ExpressionNodeId,
-    ui_data: &AnyNumberObjectUiData,
+    expression_node_id: ExpressionNodeId,
+    ui_data: &AnyExpressionNodeObjectUiData,
     arguments: Vec<ASTNode>,
 ) -> InternalASTNode {
     let value = match ui_data.layout() {
-        NumberSourceLayout::Prefix => {
+        ExpressionNodeLayout::Prefix => {
             assert_eq!(arguments.len(), 1);
             let mut args = arguments.into_iter();
-            InternalASTNodeValue::Prefix(number_source_id, args.next().unwrap())
+            InternalASTNodeValue::Prefix(expression_node_id, args.next().unwrap())
         }
-        NumberSourceLayout::Infix => {
+        ExpressionNodeLayout::Infix => {
             assert_eq!(arguments.len(), 2);
             let mut args = arguments.into_iter();
             InternalASTNodeValue::Infix(
                 args.next().unwrap(),
-                number_source_id,
+                expression_node_id,
                 args.next().unwrap(),
             )
         }
-        NumberSourceLayout::Postfix => {
+        ExpressionNodeLayout::Postfix => {
             assert_eq!(arguments.len(), 1);
             let mut args = arguments.into_iter();
-            InternalASTNodeValue::Postfix(args.next().unwrap(), number_source_id)
+            InternalASTNodeValue::Postfix(args.next().unwrap(), expression_node_id)
         }
-        NumberSourceLayout::Function => InternalASTNodeValue::Function(number_source_id, arguments),
+        ExpressionNodeLayout::Function => {
+            InternalASTNodeValue::Function(expression_node_id, arguments)
+        }
     };
     InternalASTNode::new(value)
 }
@@ -211,7 +215,7 @@ pub(crate) struct LexicalLayout {
 impl LexicalLayout {
     pub(crate) fn generate(
         topo: &ExpressionGraphTopology,
-        object_ui_states: &NumberObjectUiStates,
+        object_ui_states: &ExpressionNodeObjectUiStates,
     ) -> LexicalLayout {
         let outputs = topo.results();
         assert_eq!(outputs.len(), 1);
@@ -225,13 +229,13 @@ impl LexicalLayout {
             target: ExpressionTarget,
             variable_assignments: &mut Vec<VariableDefinition>,
             topo: &ExpressionGraphTopology,
-            object_ui_states: &NumberObjectUiStates,
+            object_ui_states: &ExpressionNodeObjectUiStates,
             variable_id_generator: &mut IdGenerator<VariableId>,
         ) -> ASTNode {
             let nsid = match target {
                 ExpressionTarget::Node(nsid) => nsid,
                 ExpressionTarget::Parameter(giid) => {
-                    return ASTNode::new(ASTNodeValue::GraphInput(giid))
+                    return ASTNode::new(ASTNodeValue::Parameter(giid))
                 }
             };
 
@@ -295,7 +299,7 @@ impl LexicalLayout {
             variable_id_generator,
         };
 
-        debug_assert!(lexical_layout_matches_number_graph(&layout, topo));
+        debug_assert!(lexical_layout_matches_expression_graph(&layout, topo));
 
         layout
     }
@@ -319,13 +323,14 @@ impl LexicalLayout {
     pub(crate) fn show(
         &mut self,
         ui: &mut egui::Ui,
-        graph_state: &mut NumberGraphUiState,
-        ctx: &mut NumberGraphUiContext,
+        graph_state: &mut ExpressionGraphUiState,
+        ctx: &mut ExpressionGraphUiContext,
         mut focus: Option<&mut LexicalLayoutFocus>,
-        outer_context: &mut OuterNumberGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(outer_context
-            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
+        debug_assert!(outer_context.inspect_expression_graph(|g| {
+            lexical_layout_matches_expression_graph(self, g.topology())
+        }));
 
         let num_variable_definitions = self.variable_definitions.len();
 
@@ -364,8 +369,9 @@ impl LexicalLayout {
             }
         }
 
-        debug_assert!(outer_context
-            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
+        debug_assert!(outer_context.inspect_expression_graph(|g| {
+            lexical_layout_matches_expression_graph(self, g.topology())
+        }));
     }
 
     fn show_line(
@@ -373,9 +379,9 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         line: LineLocation,
         focus: &mut Option<&mut LexicalLayoutFocus>,
-        graph_state: &mut NumberGraphUiState,
-        ctx: &mut NumberGraphUiContext,
-        outer_context: &mut OuterNumberGraphUiContext,
+        graph_state: &mut ExpressionGraphUiState,
+        ctx: &mut ExpressionGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) {
         ui.spacing_mut().item_spacing.x = 0.0;
         let mut cursor_path = if let Some(focus) = focus {
@@ -432,13 +438,13 @@ impl LexicalLayout {
                     }
                 }
                 LineLocation::FinalExpression => {
-                    let output_id = outer_context.inspect_number_graph(|g| {
+                    let output_id = outer_context.inspect_expression_graph(|g| {
                         let outputs = g.topology().results();
                         assert_eq!(outputs.len(), 1);
                         outputs[0].id()
                     });
                     ui.add(egui::Label::new(
-                        egui::RichText::new(outer_context.graph_output_name(output_id))
+                        egui::RichText::new(outer_context.result_name(output_id))
                             .text_style(egui::TextStyle::Monospace)
                             .background_color(egui::Color32::TRANSPARENT),
                     ));
@@ -508,11 +514,11 @@ impl LexicalLayout {
     fn show_child_ast_node(
         ui: &mut egui::Ui,
         node: &ASTNode,
-        graph_state: &mut NumberGraphUiState,
-        ctx: &mut NumberGraphUiContext,
+        graph_state: &mut ExpressionGraphUiState,
+        ctx: &mut ExpressionGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
-        outer_context: &mut OuterNumberGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
         variable_definitions: &[VariableDefinition],
     ) {
         let hovering = ui
@@ -550,8 +556,8 @@ impl LexicalLayout {
                     ))
                     .rect
                 }
-                ASTNodeValue::GraphInput(giid) => {
-                    let name = outer_context.graph_input_name(*giid);
+                ASTNodeValue::Parameter(giid) => {
+                    let name = outer_context.parameter_name(*giid);
                     let r = ui
                         .add(egui::Label::new(
                             egui::RichText::new(name).code().color(egui::Color32::WHITE),
@@ -567,11 +573,11 @@ impl LexicalLayout {
     fn show_internal_node(
         ui: &mut egui::Ui,
         node: &InternalASTNode,
-        graph_state: &mut NumberGraphUiState,
-        ctx: &mut NumberGraphUiContext,
+        graph_state: &mut ExpressionGraphUiState,
+        ctx: &mut ExpressionGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
-        outer_context: &mut OuterNumberGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
         variable_definitions: &[VariableDefinition],
     ) -> egui::Response {
         let styled_text = |ui: &mut egui::Ui, s: String| -> egui::Response {
@@ -589,7 +595,7 @@ impl LexicalLayout {
             let own_rect = match &node.value() {
                 InternalASTNodeValue::Prefix(nsid, expr) => {
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
+                        Self::show_expression_node_ui(ui, *nsid, graph_state, ctx, outer_context)
                     });
                     Self::show_child_ast_node(
                         ui,
@@ -615,7 +621,7 @@ impl LexicalLayout {
                         variable_definitions,
                     );
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
+                        Self::show_expression_node_ui(ui, *nsid, graph_state, ctx, outer_context)
                     });
                     Self::show_child_ast_node(
                         ui,
@@ -641,13 +647,19 @@ impl LexicalLayout {
                         variable_definitions,
                     );
                     Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
+                        Self::show_expression_node_ui(ui, *nsid, graph_state, ctx, outer_context)
                     })
                 }
                 InternalASTNodeValue::Function(nsid, exprs) => {
                     if exprs.is_empty() {
                         Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                            Self::show_number_source_ui(ui, *nsid, graph_state, ctx, outer_context)
+                            Self::show_expression_node_ui(
+                                ui,
+                                *nsid,
+                                graph_state,
+                                ctx,
+                                outer_context,
+                            )
                         })
                     } else {
                         let frame = egui::Frame::default()
@@ -661,7 +673,7 @@ impl LexicalLayout {
                                     cursor,
                                     hovering_over_self,
                                     |ui, _| {
-                                        Self::show_number_source_ui(
+                                        Self::show_expression_node_ui(
                                             ui,
                                             *nsid,
                                             graph_state,
@@ -710,15 +722,15 @@ impl LexicalLayout {
         ir.response
     }
 
-    fn show_number_source_ui(
+    fn show_expression_node_ui(
         ui: &mut egui::Ui,
         id: ExpressionNodeId,
-        graph_state: &mut NumberGraphUiState,
-        ctx: &mut NumberGraphUiContext,
-        outer_context: &mut OuterNumberGraphUiContext,
+        graph_state: &mut ExpressionGraphUiState,
+        ctx: &mut ExpressionGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) -> egui::Rect {
-        let graph_object = outer_context.inspect_number_graph(|numbergraph| {
-            numbergraph
+        let graph_object = outer_context.inspect_expression_graph(|graph| {
+            graph
                 .topology()
                 .node(id)
                 .unwrap()
@@ -730,7 +742,7 @@ impl LexicalLayout {
         let object_state = ctx.object_ui_states().get_object_data(id);
         ui.horizontal_centered(|ui| {
             outer_context
-                .edit_number_graph(|g| {
+                .edit_expression_graph(|g| {
                     object_ui.apply(&graph_object, &object_state, graph_state, ui, ctx, g);
                 })
                 .unwrap();
@@ -809,12 +821,13 @@ impl LexicalLayout {
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<NumberGraphUi>,
-        object_ui_states: &mut NumberObjectUiStates,
-        outer_context: &mut OuterNumberGraphUiContext,
+        ui_factory: &UiFactory<ExpressionGraphUi>,
+        object_ui_states: &mut ExpressionNodeObjectUiStates,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(outer_context
-            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
+        debug_assert!(outer_context.inspect_expression_graph(|g| {
+            lexical_layout_matches_expression_graph(self, g.topology())
+        }));
 
         self.handle_summon_widget(
             ui,
@@ -849,8 +862,8 @@ impl LexicalLayout {
             });
 
             if pressed_delete {
-                delete_from_numbergraph_at_cursor(self, cursor, outer_context);
-                remove_unreferenced_graph_inputs(self, outer_context);
+                delete_from_graph_at_cursor(self, cursor, outer_context);
+                remove_unreferenced_parameters(self, outer_context);
             }
 
             if pressed_enter || pressed_shift_enter {
@@ -878,8 +891,9 @@ impl LexicalLayout {
             }
         }
 
-        debug_assert!(outer_context
-            .inspect_number_graph(|g| { lexical_layout_matches_number_graph(self, g.topology()) }));
+        debug_assert!(outer_context.inspect_expression_graph(|g| {
+            lexical_layout_matches_expression_graph(self, g.topology())
+        }));
     }
 
     fn handle_summon_widget(
@@ -887,9 +901,9 @@ impl LexicalLayout {
         ui: &egui::Ui,
         focus: &mut LexicalLayoutFocus,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<NumberGraphUi>,
-        object_ui_states: &mut NumberObjectUiStates,
-        outer_context: &mut OuterNumberGraphUiContext,
+        ui_factory: &UiFactory<ExpressionGraphUi>,
+        object_ui_states: &mut ExpressionNodeObjectUiStates,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) {
         if focus.cursor().get_node(self).is_none() {
             return;
@@ -933,8 +947,8 @@ impl LexicalLayout {
                 //  open summon widget when space/tab is pressed
                 if let Some(node_at_cursor) = focus.cursor().get_node(self) {
                     let mut widget_state = match outer_context {
-                        OuterNumberGraphUiContext::SoundNumberInput(sni_ctx) => {
-                            build_summon_widget_for_sound_number_input(
+                        OuterExpressionGraphUiContext::ProcessorExpression(sni_ctx) => {
+                            build_summon_widget_for_processor_expression(
                                 node_at_cursor.rect().center_bottom(),
                                 ui_factory,
                                 sni_ctx,
@@ -956,13 +970,13 @@ impl LexicalLayout {
             if let Some(choice) = summon_widget_state.final_choice() {
                 let (summon_value, arguments) = choice;
 
-                debug_assert!(outer_context.inspect_number_graph(|g| {
-                    lexical_layout_matches_number_graph(self, g.topology())
+                debug_assert!(outer_context.inspect_expression_graph(|g| {
+                    lexical_layout_matches_expression_graph(self, g.topology())
                 }));
 
                 let (new_node, layout) = match summon_value {
-                    NumberSummonValue::NumberSourceType(ns_type) => self
-                        .create_new_number_source_from_type(
+                    ExpressionSummonValue::ExpressionNodeType(ns_type) => self
+                        .create_new_expression_node_from_type(
                             ns_type,
                             arguments,
                             object_factory,
@@ -971,31 +985,31 @@ impl LexicalLayout {
                             outer_context,
                         )
                         .unwrap(),
-                    NumberSummonValue::SoundNumberSource(snsid) => {
+                    ExpressionSummonValue::Argument(snsid) => {
                         let node;
                         {
                             let outer_context = match outer_context {
-                                OuterNumberGraphUiContext::SoundNumberInput(ctx) => ctx,
+                                OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx,
                             };
                             let giid = if let Some(giid) =
-                                outer_context.find_graph_id_for_number_source(snsid)
+                                outer_context.find_graph_id_for_argument(snsid)
                             {
                                 giid
                             } else {
-                                let giid = outer_context.connect_to_number_source(snsid);
+                                let giid = outer_context.connect_to_argument(snsid);
                                 giid
                             };
-                            node = ASTNode::new(ASTNodeValue::GraphInput(giid));
+                            node = ASTNode::new(ASTNodeValue::Parameter(giid));
                         }
-                        (node, NumberSourceLayout::Function)
+                        (node, ExpressionNodeLayout::Function)
                     }
-                    NumberSummonValue::Variable(variable_id) => (
+                    ExpressionSummonValue::Variable(variable_id) => (
                         ASTNode::new(ASTNodeValue::Variable(variable_id)),
-                        NumberSourceLayout::Function,
+                        ExpressionNodeLayout::Function,
                     ),
-                    NumberSummonValue::Constant(constant_value) => {
+                    ExpressionSummonValue::Constant(constant_value) => {
                         let (node, layout) = self
-                            .create_new_number_source_from_type(
+                            .create_new_expression_node_from_type(
                                 Constant::TYPE,
                                 arguments
                                     .add_or_replace(&Constant::ARG_VALUE, constant_value as f64),
@@ -1009,19 +1023,19 @@ impl LexicalLayout {
                     }
                 };
                 let num_children = new_node.num_children();
-                insert_to_numbergraph_at_cursor(self, focus.cursor_mut(), new_node, outer_context);
-                remove_unreferenced_graph_inputs(self, outer_context);
+                insert_to_graph_at_cursor(self, focus.cursor_mut(), new_node, outer_context);
+                remove_unreferenced_parameters(self, outer_context);
 
-                debug_assert!(outer_context.inspect_number_graph(|g| {
-                    lexical_layout_matches_number_graph(self, g.topology())
+                debug_assert!(outer_context.inspect_expression_graph(|g| {
+                    lexical_layout_matches_expression_graph(self, g.topology())
                 }));
 
                 let cursor_path = focus.cursor_mut().path_mut().unwrap();
                 match layout {
-                    NumberSourceLayout::Prefix => cursor_path.go_into(0),
-                    NumberSourceLayout::Infix => cursor_path.go_into(0),
-                    NumberSourceLayout::Postfix => cursor_path.go_into(0),
-                    NumberSourceLayout::Function => {
+                    ExpressionNodeLayout::Prefix => cursor_path.go_into(0),
+                    ExpressionNodeLayout::Infix => cursor_path.go_into(0),
+                    ExpressionNodeLayout::Postfix => cursor_path.go_into(0),
+                    ExpressionNodeLayout::Function => {
                         if num_children > 0 {
                             cursor_path.go_into(0);
                         }
@@ -1032,18 +1046,18 @@ impl LexicalLayout {
         }
     }
 
-    fn create_new_number_source_from_type(
+    fn create_new_expression_node_from_type(
         &self,
         ns_type: ObjectType,
         arguments: ParsedArguments,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<NumberGraphUi>,
-        object_ui_states: &mut NumberObjectUiStates,
-        outer_context: &mut OuterNumberGraphUiContext,
-    ) -> Result<(ASTNode, NumberSourceLayout), String> {
+        ui_factory: &UiFactory<ExpressionGraphUi>,
+        object_ui_states: &mut ExpressionNodeObjectUiStates,
+        outer_context: &mut OuterExpressionGraphUiContext,
+    ) -> Result<(ASTNode, ExpressionNodeLayout), String> {
         let new_object = outer_context
-            .edit_number_graph(|numbergraph| {
-                object_factory.create_from_args(ns_type.name(), numbergraph, arguments.clone())
+            .edit_expression_graph(|graph| {
+                object_factory.create_from_args(ns_type.name(), graph, arguments.clone())
             })
             .unwrap();
 
@@ -1051,7 +1065,7 @@ impl LexicalLayout {
             Ok(o) => o,
             Err(_) => {
                 return Err(format!(
-                    "Failed to create number object of type {}",
+                    "Failed to create expression node of type {}",
                     ns_type.name()
                 ));
             }
@@ -1061,8 +1075,8 @@ impl LexicalLayout {
             .create_state_from_arguments(&new_object, arguments)
             .map_err(|e| format!("Failed to create ui state: {:?}", e))?;
 
-        let num_inputs = outer_context.inspect_number_graph(|numbergraph| {
-            numbergraph
+        let num_inputs = outer_context.inspect_expression_graph(|graph| {
+            graph
                 .topology()
                 .node(new_object.id())
                 .unwrap()
@@ -1108,7 +1122,7 @@ impl LexicalLayout {
     pub(crate) fn cleanup(
         &mut self,
         topology: &ExpressionGraphTopology,
-        object_ui_states: &NumberObjectUiStates,
+        object_ui_states: &ExpressionNodeObjectUiStates,
     ) {
         fn visitor(
             node: &mut ASTNode,
@@ -1123,7 +1137,7 @@ impl LexicalLayout {
                 // the variable definition later
 
                 if let Some(internal_node) = node.as_internal_node_mut() {
-                    let nsid = internal_node.number_source_id();
+                    let nsid = internal_node.expression_node_id();
                     let expected_inputs = topo.node(nsid).unwrap().inputs();
                     let expected_targets: Vec<Option<ExpressionTarget>> = expected_inputs
                         .iter()
@@ -1135,7 +1149,7 @@ impl LexicalLayout {
                             // see notes below
                             todo!("Allocate new AST nodes for function arguments")
                         } else {
-                            panic!("A number source changed number of inputs whose ui doesn't support that");
+                            panic!("An expression nodes modified its inputs and its ui doesn't support that");
                         }
                     }
                     match internal_node.value_mut() {
@@ -1160,7 +1174,7 @@ impl LexicalLayout {
                 // actual node target doesn't match
                 match expected_target {
                     Some(ExpressionTarget::Parameter(giid)) => {
-                        *node = ASTNode::new(ASTNodeValue::GraphInput(giid))
+                        *node = ASTNode::new(ASTNodeValue::Parameter(giid))
                     }
                     Some(ExpressionTarget::Node(nsid)) => {
                         // TODO:
