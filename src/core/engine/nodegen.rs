@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use crate::core::{
-    jit::{compilednumberinput::CompiledNumberInputFunction, server::JitServer},
+    jit::{compiledexpression::CompiledExpressionFunction, server::JitServer},
     sound::{
-        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-        expression::SoundExpressionId, soundprocessor::SoundProcessorId,
+        expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology,
+        soundinput::SoundInputId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -51,11 +51,11 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
         }
     }
 
-    pub(crate) fn get_compiled_number_input(
+    pub(crate) fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
-    ) -> CompiledNumberInputFunction<'ctx> {
-        self.jit_server.get_compiled_number_input(id, self.topology)
+    ) -> CompiledExpressionFunction<'ctx> {
+        self.jit_server.get_compiled_expression(id, self.topology)
     }
 
     pub(crate) fn allocate_sound_input_node(

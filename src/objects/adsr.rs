@@ -1,19 +1,19 @@
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        soundexpressionnode::{
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
+            ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::{Context, LocalArrayList},
+        expression::SoundExpressionHandle,
         soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        expression::SoundExpressionHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -31,21 +31,21 @@ enum Phase {
 }
 
 pub struct ADSRNumberInputs<'ctx> {
-    attack_time: SoundNumberInputNode<'ctx>,
-    decay_time: SoundNumberInputNode<'ctx>,
-    sustain_level: SoundNumberInputNode<'ctx>,
-    release_time: SoundNumberInputNode<'ctx>,
+    attack_time: CompiledExpressionNode<'ctx>,
+    decay_time: CompiledExpressionNode<'ctx>,
+    sustain_level: CompiledExpressionNode<'ctx>,
+    release_time: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for ADSRNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for ADSRNumberInputs<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.attack_time);
         visitor.visit_node(&self.decay_time);
         visitor.visit_node(&self.sustain_level);
         visitor.visit_node(&self.release_time);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.attack_time);
         visitor.visit_node(&mut self.decay_time);
         visitor.visit_node(&mut self.sustain_level);
@@ -124,19 +124,18 @@ impl DynamicSoundProcessor for ADSR {
 
     type SoundInputType = SingleInput;
 
-    type NumberInputType<'ctx> = ADSRNumberInputs<'ctx>;
+    type Expressions<'ctx> = ADSRNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(ADSR {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             attack_time: tools
-                .add_number_input(0.01, SoundExpressionScope::without_processor_state()),
-            decay_time: tools
-                .add_number_input(0.2, SoundExpressionScope::without_processor_state()),
+                .add_expression(0.01, SoundExpressionScope::without_processor_state()),
+            decay_time: tools.add_expression(0.2, SoundExpressionScope::without_processor_state()),
             sustain_level: tools
-                .add_number_input(0.5, SoundExpressionScope::without_processor_state()),
+                .add_expression(0.5, SoundExpressionScope::without_processor_state()),
             release_time: tools
-                .add_number_input(0.25, SoundExpressionScope::without_processor_state()),
+                .add_expression(0.25, SoundExpressionScope::without_processor_state()),
         })
     }
 
@@ -155,10 +154,10 @@ impl DynamicSoundProcessor for ADSR {
         }
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ADSRNumberInputs {
             attack_time: self.attack_time.make_node(nodegen),
             decay_time: self.decay_time.make_node(nodegen),

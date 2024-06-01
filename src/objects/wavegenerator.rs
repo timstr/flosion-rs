@@ -2,19 +2,18 @@ use crate::core::{
     anydata::AnyData,
     engine::{
         nodegen::NodeGen,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        soundexpressionnode::{
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compilednumberinput::Discretization,
+    jit::compiledexpression::Discretization,
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundExpressionScope,
         expression::SoundExpressionHandle,
         expressionargument::SoundExpressionArgumentHandle,
+        soundgraphdata::SoundExpressionScope,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -29,17 +28,17 @@ pub struct WaveGenerator {
 }
 
 pub struct WaveGeneratorNumberInputs<'ctx> {
-    frequency: SoundNumberInputNode<'ctx>,
-    amplitude: SoundNumberInputNode<'ctx>,
+    frequency: CompiledExpressionNode<'ctx>,
+    amplitude: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for WaveGeneratorNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for WaveGeneratorNumberInputs<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.frequency);
         visitor.visit_node(&self.amplitude);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.frequency);
         visitor.visit_node(&mut self.amplitude);
     }
@@ -58,16 +57,16 @@ impl State for WaveGeneratorState {
 impl DynamicSoundProcessor for WaveGenerator {
     type StateType = WaveGeneratorState;
     type SoundInputType = ();
-    type NumberInputType<'ctx> = WaveGeneratorNumberInputs<'ctx>;
+    type Expressions<'ctx> = WaveGeneratorNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WaveGenerator {
             // TODO: bypass this array entirely?
-            phase: tools.add_processor_array_number_source(|state: &AnyData| -> &[f32] {
+            phase: tools.add_processor_array_argument(|state: &AnyData| -> &[f32] {
                 &state.downcast_if::<WaveGeneratorState>().unwrap().phase
             }),
-            amplitude: tools.add_number_input(0.0, SoundExpressionScope::with_processor_state()),
-            frequency: tools.add_number_input(250.0, SoundExpressionScope::with_processor_state()),
+            amplitude: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
+            frequency: tools.add_expression(250.0, SoundExpressionScope::with_processor_state()),
         })
     }
 
@@ -81,10 +80,10 @@ impl DynamicSoundProcessor for WaveGenerator {
         }
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         WaveGeneratorNumberInputs {
             frequency: self.frequency.make_node(nodegen),
             amplitude: self.amplitude.make_node(nodegen),

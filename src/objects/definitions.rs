@@ -1,20 +1,20 @@
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        soundexpressionnode::{
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
+            ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compilednumberinput::Discretization,
+    jit::compiledexpression::Discretization,
     sound::{
         context::{Context, LocalArrayList},
+        expression::SoundExpressionHandle,
+        expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
         soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        expression::SoundExpressionHandle,
-        expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
     },
@@ -31,19 +31,16 @@ pub struct Definitions {
 }
 
 pub struct DefinitionsNumberInputs<'ctx> {
-    input: SoundNumberInputNode<'ctx>,
+    input: CompiledExpressionNode<'ctx>,
     source_id: SoundExpressionArgumentId,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for DefinitionsNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for DefinitionsNumberInputs<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.input);
     }
 
-    fn visit_number_inputs_mut(
-        &mut self,
-        visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
-    ) {
+    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.input);
     }
 }
@@ -53,14 +50,13 @@ impl DynamicSoundProcessor for Definitions {
 
     type SoundInputType = SingleInput;
 
-    type NumberInputType<'ctx> = DefinitionsNumberInputs<'ctx>;
+    type Expressions<'ctx> = DefinitionsNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            number_input: tools
-                .add_number_input(0.0, SoundExpressionScope::with_processor_state()),
-            number_source: tools.add_local_array_number_source(),
+            number_input: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
+            number_source: tools.add_local_array_argument(),
         })
     }
 
@@ -72,10 +68,10 @@ impl DynamicSoundProcessor for Definitions {
         ()
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         DefinitionsNumberInputs {
             input: self.number_input.make_node(nodegen),
             source_id: self.number_source.id(),

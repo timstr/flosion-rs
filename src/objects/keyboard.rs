@@ -65,14 +65,14 @@ impl Keyboard {
 impl StaticSoundProcessor for Keyboard {
     type SoundInputType = KeyedInputQueue<KeyboardKeyState>;
 
-    type NumberInputType<'ctx> = ();
+    type Expressions<'ctx> = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let message_queue_size = 16; // idk
         let input_queue_size = 8; // idk
         let (command_sender, command_receiver) = sync_channel(message_queue_size);
         let input = KeyedInputQueue::new(input_queue_size, &mut tools);
-        let key_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
+        let key_frequency = tools.add_input_scalar_argument(input.id(), |state| {
             state.downcast_if::<KeyboardKeyState>().unwrap().frequency
         });
         Ok(Keyboard {
@@ -87,10 +87,10 @@ impl StaticSoundProcessor for Keyboard {
         &self.input
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         _nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ()
     }
 

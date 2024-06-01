@@ -26,7 +26,7 @@ use super::{
 /// An interface for making changes to the sound graph from the view of
 /// a single sound processor. Changes to the topology of a single
 /// processor, such as adding and removing sound inputs and modifying
-/// number sources and inputs, can be done through SoundProcessorTools.
+/// expressions and expression arguments, can be done through SoundProcessorTools.
 /// This is largely for convenience, since doing the same changes through
 /// the SoundGraph interface directly would mean to pass around the
 /// processor's id and thus be juggling even more ids at once.
@@ -84,79 +84,79 @@ impl<'a> SoundProcessorTools<'a> {
     pub fn remove_sound_input(&mut self, input_id: SoundInputId, owner: SoundProcessorId) {
         // TODO: wtf what is 'owner' doing here? Is it every possibly separate from self.processor_id?
         debug_assert!(owner == self.processor_id, "Huh.....");
-        // TODO: also remove the input's number sources?
+        // TODO: also remove the input's arguments?
         self.topology.remove_sound_input(input_id, owner).unwrap();
     }
 
-    /// Add a number source to the given sound input which
+    /// Add an expression argument to the given sound input which
     /// reads a single scalar value from the sound input's state
     /// using the provided function.
-    pub fn add_input_scalar_number_source(
+    pub fn add_input_scalar_argument(
         &mut self,
         input_id: SoundInputId,
         function: ScalarReadFunc,
     ) -> SoundExpressionArgumentHandle {
-        self.add_input_number_source_helper(
+        self.add_input_argument_helper(
             input_id,
             Arc::new(ScalarInputExpressionArgument::new(input_id, function)),
         )
     }
 
-    /// Add a number source which reads an entire array from the
+    /// Add an expression argument which reads an entire array from the
     /// given sound input's state using the provided function.
     /// NOTE that currently the length of that array must match
     /// the chunk length.
-    pub fn add_input_array_number_source(
+    pub fn add_input_array_argument(
         &mut self,
         input_id: SoundInputId,
         function: ArrayReadFunc,
     ) -> SoundExpressionArgumentHandle {
-        self.add_input_number_source_helper(
+        self.add_input_argument_helper(
             input_id,
             Arc::new(ArrayInputExpressionArgument::new(input_id, function)),
         )
     }
 
-    /// Add a number source which reads a single scalar value
+    /// Add an expression argument which reads a single scalar value
     /// from the processor's state using the given function.
-    pub fn add_processor_scalar_number_source(
+    pub fn add_processor_scalar_argument(
         &mut self,
         function: ScalarReadFunc,
     ) -> SoundExpressionArgumentHandle {
-        self.add_processor_number_source_helper(|spid, _| {
+        self.add_processor_argument_helper(|spid, _| {
             Arc::new(ScalarProcessorExpressionArgument::new(spid, function))
         })
     }
 
-    /// Add a number source which reads an entire array from the
+    /// Add an expression argument which reads an entire array from the
     /// sound processor's state using the provided function.
     /// NOTE that currently the length of that array must match
     /// the chunk length.
-    pub fn add_processor_array_number_source(
+    pub fn add_processor_array_argument(
         &mut self,
         function: ArrayReadFunc,
     ) -> SoundExpressionArgumentHandle {
-        self.add_processor_number_source_helper(|spid, _| {
+        self.add_processor_argument_helper(|spid, _| {
             Arc::new(ArrayProcessorExpressionArgument::new(spid, function))
         })
     }
 
-    /// Add a number source which reads an entire array that
+    /// Add an expression argument which reads an entire array that
     /// is local to the sound processor's audio processing
     /// routine and must be provided with Context::push_processor_state.
     /// NOTE that currently the length of that array must match
     /// the chunk length.
-    pub fn add_local_array_number_source(&mut self) -> SoundExpressionArgumentHandle {
-        self.add_processor_number_source_helper(|spid, id| {
+    pub fn add_local_array_argument(&mut self) -> SoundExpressionArgumentHandle {
+        self.add_processor_argument_helper(|spid, id| {
             Arc::new(ProcessorLocalArrayExpressionArgument::new(id, spid))
         })
     }
 
-    /// Add a number input to the sound processor.
-    /// When compiled, that number input can be
+    /// Add an expression to the sound processor.
+    /// When compiled, that expression can be
     /// executed directly on the audio thread
-    /// to compute the result. See `make_number_inputs`
-    pub fn add_number_input(
+    /// to compute the result. See `make_expression_nodes`
+    pub fn add_expression(
         &mut self,
         default_value: f32,
         scope: SoundExpressionScope,
@@ -174,8 +174,9 @@ impl<'a> SoundProcessorTools<'a> {
         self.processor_id
     }
 
-    /// Internal helper method for adding a number source to a sound input
-    fn add_input_number_source_helper(
+    /// Internal helper method for adding an expression argument to a sound input
+    /// belonging to the sound processor that the tools were created for.
+    fn add_input_argument_helper(
         &mut self,
         input_id: SoundInputId,
         instance: Arc<dyn SoundExpressionArgument>,
@@ -198,8 +199,9 @@ impl<'a> SoundProcessorTools<'a> {
         SoundExpressionArgumentHandle::new(id)
     }
 
-    /// Internal helper method for adding a number source to the processor
-    fn add_processor_number_source_helper<
+    /// Internal helper method for adding an expression to the sound processor
+    /// which the tools were created for.
+    fn add_processor_argument_helper<
         F: FnOnce(SoundProcessorId, SoundExpressionArgumentId) -> Arc<dyn SoundExpressionArgument>,
     >(
         &mut self,

@@ -3,10 +3,10 @@ use eframe::egui;
 use crate::{
     core::{
         sound::{
-            soundgraph::SoundGraph,
-            soundinput::SoundInputId,
             expression::SoundExpressionId,
             expressionargument::SoundExpressionArgumentId,
+            soundgraph::SoundGraph,
+            soundinput::SoundInputId,
             soundprocessor::{ProcessorHandle, SoundProcessorId},
         },
         uniqueid::UniqueId,
@@ -41,7 +41,7 @@ impl ProcessorUi {
         color: egui::Color32,
     ) -> ProcessorUi {
         let mut number_sources = Vec::new();
-        number_sources.push((handle.time_number_source(), "time".to_string()));
+        number_sources.push((handle.time_argument(), "time".to_string()));
         ProcessorUi {
             processor_id: handle.id(),
             label,

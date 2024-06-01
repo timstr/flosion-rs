@@ -1,6 +1,6 @@
 use crate::core::sound::{
-    soundgraphdata::SoundExpressionData, soundinput::SoundInputId,
-    expression::SoundExpressionId, soundprocessor::SoundProcessorId,
+    expression::SoundExpressionId, soundgraphdata::SoundExpressionData, soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 use super::{
@@ -59,7 +59,7 @@ impl<'ctx> StateGraph<'ctx> {
                 owner_id,
                 targets,
             } => self.replace_sound_input_branch(input_id, owner_id, targets, garbage_chute),
-            StateGraphEdit::UpdateNumberInput(_, _) => todo!(),
+            StateGraphEdit::UpdateExpression(_, _) => todo!(),
             StateGraphEdit::DebugInspection(f) => f(self),
         }
     }
@@ -112,14 +112,6 @@ impl<'ctx> StateGraph<'ctx> {
             let old_target = node.erase_target(input_id, index);
             old_target.toss(garbage_chute);
         });
-    }
-
-    fn add_number_input(&mut self, _data: SoundExpressionData) {
-        todo!();
-    }
-
-    fn remove_number_input(&mut self, _input_id: SoundExpressionId) {
-        todo!();
     }
 
     fn replace_sound_input_branch(

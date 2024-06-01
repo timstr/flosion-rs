@@ -8,8 +8,8 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
         context::{Context, LocalArrayList},
-        soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
         expressionargument::SoundExpressionArgumentHandle,
+        soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -130,15 +130,15 @@ impl DynamicSoundProcessor for Melody {
 
     type SoundInputType = KeyedInputQueue<NoteState>;
 
-    type NumberInputType<'ctx> = ();
+    type Expressions<'ctx> = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let queue_size = 8; // idk
         let input = KeyedInputQueue::new(queue_size, &mut tools);
-        let note_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
+        let note_frequency = tools.add_input_scalar_argument(input.id(), |state| {
             state.downcast_if::<NoteState>().unwrap().frequency
         });
-        let note_length = tools.add_input_scalar_number_source(input.id(), |state| {
+        let note_length = tools.add_input_scalar_argument(input.id(), |state| {
             state.downcast_if::<NoteState>().unwrap().length_seconds
         });
         // TODO: add note progress (time / length) as a derived number source
@@ -166,10 +166,10 @@ impl DynamicSoundProcessor for Melody {
         }
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         _nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ()
     }
 

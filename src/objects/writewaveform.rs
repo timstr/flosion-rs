@@ -1,17 +1,17 @@
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        soundexpressionnode::{
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
+            ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compilednumberinput::Discretization,
+    jit::compiledexpression::Discretization,
     sound::{
         context::{Context, LocalArrayList},
-        soundgraphdata::SoundExpressionScope,
         expression::SoundExpressionHandle,
+        soundgraphdata::SoundExpressionScope,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
     },
@@ -23,15 +23,15 @@ pub struct WriteWaveform {
 }
 
 pub struct WriteWaveformNumberInputs<'ctx> {
-    waveform: SoundNumberInputNode<'ctx>,
+    waveform: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for WriteWaveformNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for WriteWaveformNumberInputs<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.waveform);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.waveform);
     }
 }
@@ -39,11 +39,11 @@ impl<'ctx> SoundNumberInputNodeCollection<'ctx> for WriteWaveformNumberInputs<'c
 impl DynamicSoundProcessor for WriteWaveform {
     type StateType = ();
     type SoundInputType = ();
-    type NumberInputType<'ctx> = WriteWaveformNumberInputs<'ctx>;
+    type Expressions<'ctx> = WriteWaveformNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(WriteWaveform {
-            waveform: tools.add_number_input(0.0, SoundExpressionScope::with_processor_state()),
+            waveform: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
         })
     }
 
@@ -55,10 +55,10 @@ impl DynamicSoundProcessor for WriteWaveform {
         ()
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         WriteWaveformNumberInputs {
             waveform: self.waveform.make_node(nodegen),
         }

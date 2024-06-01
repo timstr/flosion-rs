@@ -3,19 +3,19 @@ use rand::prelude::*;
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        soundexpressionnode::{
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
+            ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
+        expression::SoundExpressionHandle,
+        expressionargument::SoundExpressionArgumentHandle,
         soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{KeyedInput, KeyedInputNode},
-        expression::SoundExpressionHandle,
-        expressionargument::SoundExpressionArgumentHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -52,15 +52,15 @@ pub struct Scatter {
 }
 
 pub struct ScatterNumberInputs<'ctx> {
-    parameter: SoundNumberInputNode<'ctx>,
+    parameter: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for ScatterNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for ScatterNumberInputs<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.parameter);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.parameter);
     }
 }
@@ -70,17 +70,17 @@ impl DynamicSoundProcessor for Scatter {
 
     type SoundInputType = KeyedInput<ScatterInputState>;
 
-    type NumberInputType<'ctx> = ScatterNumberInputs<'ctx>;
+    type Expressions<'ctx> = ScatterNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_keys = 8; // idk
         let input = KeyedInput::new(InputOptions::Synchronous, &mut tools, num_keys);
-        let value = tools.add_input_scalar_number_source(input.id(), |state| {
+        let value = tools.add_input_scalar_argument(input.id(), |state| {
             state.downcast_if::<ScatterInputState>().unwrap().value
         });
         Ok(Scatter {
             sound_input: input,
-            parameter: tools.add_number_input(1.0, SoundExpressionScope::with_processor_state()),
+            parameter: tools.add_expression(1.0, SoundExpressionScope::with_processor_state()),
             value,
         })
     }
@@ -93,10 +93,10 @@ impl DynamicSoundProcessor for Scatter {
         ()
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ScatterNumberInputs {
             parameter: self.parameter.make_node(nodegen),
         }
@@ -105,7 +105,7 @@ impl DynamicSoundProcessor for Scatter {
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut KeyedInputNode<'ctx, ScatterInputState>,
-        number_inputs: &mut Self::NumberInputType<'ctx>,
+        number_inputs: &mut Self::Expressions<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {

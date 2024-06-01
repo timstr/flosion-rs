@@ -45,7 +45,7 @@ impl Mixer {
 impl DynamicSoundProcessor for Mixer {
     type StateType = ();
     type SoundInputType = SingleInputList;
-    type NumberInputType<'ctx> = ();
+    type Expressions<'ctx> = ();
 
     fn new(mut tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
         let num_inputs: usize = match init {
@@ -66,10 +66,10 @@ impl DynamicSoundProcessor for Mixer {
         ()
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         _nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ()
     }
 

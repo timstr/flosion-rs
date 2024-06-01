@@ -2,9 +2,9 @@ use eframe::egui;
 
 use crate::core::{
     expression::context::MockExpressionContext,
-    jit::{compilednumberinput::Discretization, server::JitClient},
+    jit::{compiledexpression::Discretization, server::JitClient},
     revision::revision::Revision,
-    sound::{soundgraphdata::SoundExpressionData, expressionargument::SoundExpressionArgumentId},
+    sound::{expressionargument::SoundExpressionArgumentId, soundgraphdata::SoundExpressionData},
 };
 
 use super::temporallayout::TimeAxis;
@@ -70,8 +70,7 @@ impl NumberInputPlot {
             vertical_range,
             horizontal_domain,
         } = config;
-        let compiled_fn =
-            jit_client.get_compiled_number_input(ni_data.id(), ni_data.get_revision());
+        let compiled_fn = jit_client.get_compiled_expression(ni_data.id(), ni_data.get_revision());
         // TODO: make this configurable / draggable. Where to store such ui state?
         let desired_height = 30.0;
         let desired_width = match horizontal_domain {

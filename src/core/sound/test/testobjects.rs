@@ -20,7 +20,7 @@ impl TestStaticSoundProcessor {
 impl StaticSoundProcessor for TestStaticSoundProcessor {
     type SoundInputType = ();
 
-    type NumberInputType<'ctx> = ();
+    type Expressions<'ctx> = ();
 
     fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Self {})
@@ -30,10 +30,10 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
         &()
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         _nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ()
     }
 
@@ -41,7 +41,7 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
         _processor: &StaticSoundProcessorWithId<TestStaticSoundProcessor>,
         _timing: &ProcessorTiming,
         _sound_inputs: &mut (),
-        _number_inputs: &mut (),
+        _expressions: &mut (),
         _dst: &mut SoundChunk,
         _context: Context,
     ) {

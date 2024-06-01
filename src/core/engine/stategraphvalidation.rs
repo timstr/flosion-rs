@@ -2,17 +2,17 @@ use std::collections::{HashMap, HashSet};
 
 use crate::core::{
     sound::{
+        expression::SoundExpressionId,
         soundgraphdata::{SoundInputBranchId, SoundProcessorData},
         soundgraphtopology::SoundGraphTopology,
         soundinput::SoundInputId,
-        expression::SoundExpressionId,
         soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
 };
 
 use super::{
-    soundnumberinputnode::SoundNumberInputNode,
+    soundexpressionnode::CompiledExpressionNode,
     stategraph::StateGraph,
     stategraphnode::{
         NodeTargetValue, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,
@@ -102,11 +102,11 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             return false;
         }
 
-        // NOTE: number sources have nothing to be checked here -
-        // they are implemented in the state graph via compiled number
-        // inputs elsewhere, which read from the context's states
+        // NOTE: expression arguments have nothing to be checked here -
+        // they are implemented in the state graph via compiled expressions
+        // elsewhere, which read from the context's states
 
-        if !self.check_processor_number_inputs(node, proc_data) {
+        if !self.check_processor_expressions(node, proc_data) {
             return false;
         }
 
@@ -184,12 +184,12 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
         // TODO: verify that dynamic processors are being cached correctly
 
-        // Nothing of number sources to check
+        // Nothing of expression arguments to check
 
         true
     }
 
-    fn check_processor_number_inputs(
+    fn check_processor_expressions(
         &self,
         node: &dyn StateGraphNode,
         proc_data: &SoundProcessorData,
@@ -198,9 +198,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             proc_data.expressions().iter().cloned().collect();
         let mut unexpected_inputs: HashSet<SoundExpressionId> = HashSet::new();
 
-        node.visit_number_inputs(&mut |number_input_node: &SoundNumberInputNode| {
-            if !remaining_inputs.remove(&number_input_node.id()) {
-                unexpected_inputs.insert(number_input_node.id());
+        node.visit_expressions(&mut |expression_node: &CompiledExpressionNode| {
+            if !remaining_inputs.remove(&expression_node.id()) {
+                unexpected_inputs.insert(expression_node.id());
             }
         });
 
@@ -209,7 +209,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if !unexpected_inputs.is_empty() {
             println!(
                 "state_graph_matches_topology: sound processor {} \"{}\" has the \
-                following number input nodes which shouldn't exist: {}",
+                following expression nodes which shouldn't exist: {}",
                 node.id().value(),
                 proc_data.instance_arc().as_graph_object().get_type().name(),
                 comma_separated_list(unexpected_inputs.iter().map(|x| x.value().to_string()))
@@ -219,7 +219,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if !remaining_inputs.is_empty() {
             println!(
                 "state_graph_matches_topology: sound processor {} \"{}\" is missing the \
-                following number input nodes: {}",
+                following expression nodes: {}",
                 node.id().value(),
                 proc_data.instance_arc().as_graph_object().get_type().name(),
                 comma_separated_list(remaining_inputs.iter().map(|x| x.value().to_string()))
@@ -227,8 +227,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             all_good = false;
         }
 
-        // TODO: once number input nodes are more fleshed out, verify that
-        // they are up to date.
+        // TODO: verify that expression nodes are up to date.
 
         all_good
     }

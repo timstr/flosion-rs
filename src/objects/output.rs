@@ -49,7 +49,7 @@ impl Drop for Output {
 
 impl StaticSoundProcessor for Output {
     type SoundInputType = SingleInput;
-    type NumberInputType<'ctx> = ();
+    type Expressions<'ctx> = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let host = cpal::default_host();
@@ -156,10 +156,10 @@ impl StaticSoundProcessor for Output {
         &self.input
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         _nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ()
     }
 

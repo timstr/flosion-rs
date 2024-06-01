@@ -3,19 +3,19 @@ use rand::prelude::*;
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        soundexpressionnode::{
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
+            ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
+        expression::SoundExpressionHandle,
+        expressionargument::SoundExpressionArgumentHandle,
         soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{KeyedInput, KeyedInputNode},
-        expression::SoundExpressionHandle,
-        expressionargument::SoundExpressionArgumentHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -52,17 +52,17 @@ pub struct Ensemble {
 }
 
 pub struct EnsembleNumberInputs<'ctx> {
-    frequency_in: SoundNumberInputNode<'ctx>,
-    frequency_spread: SoundNumberInputNode<'ctx>,
+    frequency_in: CompiledExpressionNode<'ctx>,
+    frequency_spread: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for EnsembleNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for EnsembleNumberInputs<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.frequency_in);
         visitor.visit_node(&self.frequency_spread);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.frequency_in);
         visitor.visit_node(&mut self.frequency_spread);
     }
@@ -73,20 +73,19 @@ impl DynamicSoundProcessor for Ensemble {
 
     type SoundInputType = KeyedInput<VoiceState>;
 
-    type NumberInputType<'ctx> = EnsembleNumberInputs<'ctx>;
+    type Expressions<'ctx> = EnsembleNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let num_keys = 8; // idk
         let input = KeyedInput::new(InputOptions::Synchronous, &mut tools, num_keys);
-        let voice_frequency = tools.add_input_scalar_number_source(input.id(), |state| {
+        let voice_frequency = tools.add_input_scalar_argument(input.id(), |state| {
             state.downcast_if::<VoiceState>().unwrap().frequency
         });
         Ok(Ensemble {
             input,
-            frequency_in: tools
-                .add_number_input(250.0, SoundExpressionScope::with_processor_state()),
+            frequency_in: tools.add_expression(250.0, SoundExpressionScope::with_processor_state()),
             frequency_spread: tools
-                .add_number_input(0.01, SoundExpressionScope::with_processor_state()),
+                .add_expression(0.01, SoundExpressionScope::with_processor_state()),
             voice_frequency,
         })
     }
@@ -99,10 +98,10 @@ impl DynamicSoundProcessor for Ensemble {
         ()
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         EnsembleNumberInputs {
             frequency_in: self.frequency_in.make_node(nodegen),
             frequency_spread: self.frequency_spread.make_node(nodegen),
@@ -112,7 +111,7 @@ impl DynamicSoundProcessor for Ensemble {
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<()>,
         sound_inputs: &mut KeyedInputNode<'ctx, VoiceState>,
-        number_inputs: &mut Self::NumberInputType<'ctx>,
+        number_inputs: &mut Self::Expressions<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus {

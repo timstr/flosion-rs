@@ -18,15 +18,15 @@ use crate::core::{
         expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
     },
     sound::{
-        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
+        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
     uniqueid::UniqueId,
 };
 
 use super::{
-    compilednumberinput::CompiledNumberInput,
+    compiledexpression::CompiledExpression,
     types::JitTypes,
     wrappers::{ArrayReadFunc, ScalarReadFunc, WrapperFunctions},
 };
@@ -94,7 +94,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let builder = inkwell_context.create_builder();
 
-        let fn_eval_number_input_type = types.void_type.fn_type(
+        let fn_eval_expression_type = types.void_type.fn_type(
             &[
                 // *mut f32 : pointer to destination array
                 types.f32_pointer_type.into(),
@@ -114,45 +114,43 @@ impl<'ctx> CodeGen<'ctx> {
             false, // is_var_args
         );
 
-        let fn_eval_number_input =
-            module.add_function(&function_name, fn_eval_number_input_type, None);
+        let fn_eval_expression = module.add_function(&function_name, fn_eval_expression_type, None);
 
-        let bb_entry = inkwell_context.append_basic_block(fn_eval_number_input, "entry");
-        let bb_check_reset =
-            inkwell_context.append_basic_block(fn_eval_number_input, "check_reset");
-        let bb_reset = inkwell_context.append_basic_block(fn_eval_number_input, "reset");
-        let bb_resume = inkwell_context.append_basic_block(fn_eval_number_input, "resume");
-        let bb_pre_loop = inkwell_context.append_basic_block(fn_eval_number_input, "pre_loop");
-        let bb_loop = inkwell_context.append_basic_block(fn_eval_number_input, "loop");
-        let bb_post_loop = inkwell_context.append_basic_block(fn_eval_number_input, "post_loop");
-        let bb_exit = inkwell_context.append_basic_block(fn_eval_number_input, "exit");
+        let bb_entry = inkwell_context.append_basic_block(fn_eval_expression, "entry");
+        let bb_check_reset = inkwell_context.append_basic_block(fn_eval_expression, "check_reset");
+        let bb_reset = inkwell_context.append_basic_block(fn_eval_expression, "reset");
+        let bb_resume = inkwell_context.append_basic_block(fn_eval_expression, "resume");
+        let bb_pre_loop = inkwell_context.append_basic_block(fn_eval_expression, "pre_loop");
+        let bb_loop = inkwell_context.append_basic_block(fn_eval_expression, "loop");
+        let bb_post_loop = inkwell_context.append_basic_block(fn_eval_expression, "post_loop");
+        let bb_exit = inkwell_context.append_basic_block(fn_eval_expression, "exit");
 
         // read arguments
-        let arg_f32_dst_ptr = fn_eval_number_input
+        let arg_f32_dst_ptr = fn_eval_expression
             .get_nth_param(0)
             .unwrap()
             .into_pointer_value();
-        let arg_dst_len = fn_eval_number_input
+        let arg_dst_len = fn_eval_expression
             .get_nth_param(1)
             .unwrap()
             .into_int_value();
-        let arg_time_step = fn_eval_number_input
+        let arg_time_step = fn_eval_expression
             .get_nth_param(2)
             .unwrap()
             .into_float_value();
-        let arg_ctx_1 = fn_eval_number_input
+        let arg_ctx_1 = fn_eval_expression
             .get_nth_param(3)
             .unwrap()
             .into_int_value();
-        let arg_ctx_2 = fn_eval_number_input
+        let arg_ctx_2 = fn_eval_expression
             .get_nth_param(4)
             .unwrap()
             .into_int_value();
-        let arg_ptr_init_flag = fn_eval_number_input
+        let arg_ptr_init_flag = fn_eval_expression
             .get_nth_param(5)
             .unwrap()
             .into_pointer_value();
-        let arg_ptr_state = fn_eval_number_input
+        let arg_ptr_state = fn_eval_expression
             .get_nth_param(6)
             .unwrap()
             .into_pointer_value();
@@ -219,7 +217,7 @@ impl<'ctx> CodeGen<'ctx> {
                 types.u8_type.const_int(FLAG_INITIALIZED as u64, false),
             )?;
 
-            // stateful number source init code will be inserted here
+            // stateful expression node init code will be inserted here
 
             // goto pre_loop
             inst_end_of_reset = builder.build_unconditional_branch(bb_pre_loop)?;
@@ -228,7 +226,7 @@ impl<'ctx> CodeGen<'ctx> {
         // resume
         builder.position_at_end(bb_resume);
         {
-            // stateful number source load code will be inserted here
+            // stateful expression node load code will be inserted here
 
             // goto pre_loop
             inst_end_of_resume = builder.build_unconditional_branch(bb_pre_loop)?;
@@ -237,7 +235,7 @@ impl<'ctx> CodeGen<'ctx> {
         // pre_loop
         builder.position_at_end(bb_pre_loop);
         {
-            // stateful number source pre-loop code will be inserted here
+            // stateful expression node pre-loop code will be inserted here
 
             // goto loop
             inst_end_of_pre_loop = builder.build_unconditional_branch(bb_loop)?;
@@ -280,7 +278,7 @@ impl<'ctx> CodeGen<'ctx> {
         // post_loop
         builder.position_at_end(bb_post_loop);
         {
-            // stateful number source store and post-loop code will be inserted here
+            // stateful expression node store and post-loop code will be inserted here
 
             // goto exit
             inst_end_of_post_loop = builder.build_unconditional_branch(bb_exit)?;
@@ -327,7 +325,7 @@ impl<'ctx> CodeGen<'ctx> {
         })
     }
 
-    pub(super) fn finish(self) -> CompiledNumberInput<'ctx> {
+    pub(super) fn finish(self) -> CompiledExpression<'ctx> {
         if let Err(s) = self.module().verify() {
             let s = s.to_string();
             println!("LLVM failed to verify IR module");
@@ -363,7 +361,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
         };
 
-        CompiledNumberInput::new(
+        CompiledExpression::new(
             self.execution_engine,
             compiled_fn,
             self.num_state_variables,
@@ -373,10 +371,10 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn visit_input(
         &mut self,
-        number_input_id: ExpressionNodeInputId,
+        input_id: ExpressionNodeInputId,
         topology: &ExpressionGraphTopology,
     ) -> FloatValue<'ctx> {
-        let input_data = topology.node_input(number_input_id).unwrap();
+        let input_data = topology.node_input(input_id).unwrap();
         match input_data.target() {
             Some(target) => self.visit_target(target, topology),
             None => self
@@ -399,22 +397,22 @@ impl<'ctx> CodeGen<'ctx> {
             return *v;
         }
         match target {
-            ExpressionTarget::Node(number_source_id) => {
-                let source_data = topology.node(number_source_id).unwrap();
-                let number_source = source_data.instance();
+            ExpressionTarget::Node(expr_node_id) => {
+                let expr_node_data = topology.node(expr_node_id).unwrap();
+                let expr = expr_node_data.instance();
 
-                let input_values: Vec<_> = source_data
+                let input_values: Vec<_> = expr_node_data
                     .inputs()
                     .iter()
                     .map(|niid| self.visit_input(*niid, topology))
                     .collect();
 
-                let num_variables = number_source.num_variables();
+                let num_variables = expr.num_variables();
 
                 let base_state_index = self.num_state_variables;
 
                 self.state_array_offsets
-                    .push((number_source_id, self.num_state_variables));
+                    .push((expr_node_id, self.num_state_variables));
                 self.num_state_variables += num_variables;
 
                 // Get pointers to state variables in shared state array
@@ -439,18 +437,14 @@ impl<'ctx> CodeGen<'ctx> {
                     })
                     .collect();
 
-                let v = number_source.compile(self, &input_values, &state_ptrs);
-
-                // self.builder
-                //     .position_before(&self.instruction_locations.end_of_bb_loop);
-                // let v = number_source.compile_loop(self, &input_values, &state_variables);
+                let v = expr.compile(self, &input_values, &state_ptrs);
 
                 self.compiled_targets
-                    .insert(ExpressionTarget::Node(number_source_id), v);
+                    .insert(ExpressionTarget::Node(expr_node_id), v);
                 v
             }
             ExpressionTarget::Parameter(_) => {
-                panic!("Missing pre-compiled value for a number graph input")
+                panic!("Missing pre-compiled value for an expression graph parameter")
             }
         }
     }
@@ -648,7 +642,7 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn build_processor_local_array_read(
         &mut self,
         processor_id: SoundProcessorId,
-        source_id: SoundExpressionArgumentId,
+        argument_id: SoundExpressionArgumentId,
     ) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
@@ -659,7 +653,7 @@ impl<'ctx> CodeGen<'ctx> {
         let nsid = self
             .types
             .usize_type
-            .const_int(source_id.value() as u64, false);
+            .const_int(argument_id.value() as u64, false);
         let call_site_value = self
             .builder
             .build_call(
@@ -922,17 +916,17 @@ impl<'ctx> CodeGen<'ctx> {
         self.local_variables.time_step
     }
 
-    pub(crate) fn compile_number_input(
+    pub(crate) fn compile_expression(
         mut self,
-        number_input_id: SoundExpressionId,
+        expression_id: SoundExpressionId,
         topology: &SoundGraphTopology,
-    ) -> CompiledNumberInput<'ctx> {
-        let sg_number_input_data = topology.expression(number_input_id).unwrap();
+    ) -> CompiledExpression<'ctx> {
+        let sg_expr_data = topology.expression(expression_id).unwrap();
 
-        let number_topo = sg_number_input_data.expression_graph().topology();
+        let expr_topo = sg_expr_data.expression_graph().topology();
 
-        // pre-compile all number graph inputs
-        for (giid, snsid) in sg_number_input_data.parameter_mapping().items() {
+        // pre-compile all expression graph arguments
+        for (giid, snsid) in sg_expr_data.parameter_mapping().items() {
             let value = topology
                 .expression_argumnet(*snsid)
                 .unwrap()
@@ -941,13 +935,13 @@ impl<'ctx> CodeGen<'ctx> {
             self.assign_target(ExpressionTarget::Parameter(*giid), value);
         }
 
-        // TODO: add support for multiple outputs
-        assert_eq!(number_topo.results().len(), 1);
-        let output_id = number_topo.results()[0].id();
+        // TODO: add support for multiple results
+        assert_eq!(expr_topo.results().len(), 1);
+        let output_id = expr_topo.results()[0].id();
 
-        let output_data = number_topo.result(output_id).unwrap();
+        let output_data = expr_topo.result(output_id).unwrap();
         let final_value = match output_data.target() {
-            Some(target) => self.visit_target(target, number_topo),
+            Some(target) => self.visit_target(target, expr_topo),
             None => self
                 .types
                 .f32_type

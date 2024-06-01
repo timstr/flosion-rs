@@ -11,7 +11,7 @@ use crate::core::{
 
 use super::codegen::FLAG_NOT_INITIALIZED;
 
-type EvalNumberInputFunc = unsafe extern "C" fn(
+type EvalExpressionFunc = unsafe extern "C" fn(
     *mut f32, // pointer to destination array
     usize,    // length of destination array
     f32,      // time step
@@ -21,28 +21,28 @@ type EvalNumberInputFunc = unsafe extern "C" fn(
     *mut f32, // state variables
 );
 
-struct CompiledNumberInputData<'ctx> {
+struct CompiledExpressionData<'ctx> {
     _execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
-    _function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>>,
+    _function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalExpressionFunc>>,
     _atomic_captures: Vec<Arc<dyn Droppable>>,
     num_state_variables: usize,
-    raw_function: EvalNumberInputFunc,
+    raw_function: EvalExpressionFunc,
 }
 
-impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
+impl<'inkwell_ctx> CompiledExpressionData<'inkwell_ctx> {
     fn new(
         execution_engine: inkwell::execution_engine::ExecutionEngine<'inkwell_ctx>,
-        function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalNumberInputFunc>,
+        function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalExpressionFunc>,
         num_state_variables: usize,
         atomic_captures: Vec<Arc<dyn Droppable>>,
-    ) -> CompiledNumberInputData<'inkwell_ctx> {
+    ) -> CompiledExpressionData<'inkwell_ctx> {
         // SAFETY: the ExecutionEngine and JitFunction must outlive the
         // raw function pointer. Storing an Arc to both of those ensures
         // this. Storing that Arc further inside of a SendWrapper ensures
         // that the inkwell data can neither be accessed nor dropped on
         // the audio thread.
         let raw_function = unsafe { function.as_raw() };
-        CompiledNumberInputData {
+        CompiledExpressionData {
             _execution_engine: SendWrapper::new(execution_engine),
             _function: SendWrapper::new(function),
             _atomic_captures: atomic_captures,
@@ -52,22 +52,22 @@ impl<'inkwell_ctx> CompiledNumberInputData<'inkwell_ctx> {
     }
 }
 
-// Stores the compiled artefact of a number input. Intended to be
+// Stores the compiled artefact of an expression. Intended to be
 // used to create copies of callable functions, not intended to be
 // invoked directly. See make_function below.
-pub(crate) struct CompiledNumberInput<'ctx> {
-    data: Arc<CompiledNumberInputData<'ctx>>,
+pub(crate) struct CompiledExpression<'ctx> {
+    data: Arc<CompiledExpressionData<'ctx>>,
 }
 
-impl<'ctx> CompiledNumberInput<'ctx> {
+impl<'ctx> CompiledExpression<'ctx> {
     pub fn new(
         execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
-        function: inkwell::execution_engine::JitFunction<'ctx, EvalNumberInputFunc>,
+        function: inkwell::execution_engine::JitFunction<'ctx, EvalExpressionFunc>,
         num_state_variables: usize,
         atomic_captures: Vec<Arc<dyn Droppable>>,
-    ) -> CompiledNumberInput<'ctx> {
-        CompiledNumberInput {
-            data: Arc::new(CompiledNumberInputData::new(
+    ) -> CompiledExpression<'ctx> {
+        CompiledExpression {
+            data: Arc::new(CompiledExpressionData::new(
                 execution_engine,
                 function,
                 num_state_variables,
@@ -76,10 +76,10 @@ impl<'ctx> CompiledNumberInput<'ctx> {
         }
     }
 
-    pub(crate) fn make_function(&self) -> CompiledNumberInputFunction<'ctx> {
+    pub(crate) fn make_function(&self) -> CompiledExpressionFunction<'ctx> {
         let mut state_variables = Vec::new();
         state_variables.resize(self.data.num_state_variables, 0.0);
-        CompiledNumberInputFunction {
+        CompiledExpressionFunction {
             data: Arc::clone(&self.data),
             function: self.data.raw_function,
             init_flag: FLAG_NOT_INITIALIZED,
@@ -88,9 +88,9 @@ impl<'ctx> CompiledNumberInput<'ctx> {
     }
 }
 
-pub(crate) struct CompiledNumberInputFunction<'ctx> {
-    data: Arc<CompiledNumberInputData<'ctx>>,
-    function: EvalNumberInputFunc,
+pub(crate) struct CompiledExpressionFunction<'ctx> {
+    data: Arc<CompiledExpressionData<'ctx>>,
+    function: EvalExpressionFunc,
     init_flag: u8,
     state_variables: Vec<f32>,
 }
@@ -113,7 +113,7 @@ impl Discretization {
     }
 }
 
-impl<'ctx> CompiledNumberInputFunction<'ctx> {
+impl<'ctx> CompiledExpressionFunction<'ctx> {
     pub(crate) fn reset(&mut self) {
         self.init_flag = FLAG_NOT_INITIALIZED;
     }
@@ -129,7 +129,7 @@ impl<'ctx> CompiledNumberInputFunction<'ctx> {
             let (context_1, context_2) = expression_context_to_usize_pair(context);
             let time_step = discretization.time_step();
 
-            let CompiledNumberInputFunction {
+            let CompiledExpressionFunction {
                 data: _,
                 function,
                 init_flag,
@@ -152,7 +152,7 @@ impl<'ctx> CompiledNumberInputFunction<'ctx> {
     }
 }
 
-impl<'ctx> Garbage<'ctx> for CompiledNumberInputFunction<'ctx> {
+impl<'ctx> Garbage<'ctx> for CompiledExpressionFunction<'ctx> {
     fn toss(self, chute: &GarbageChute<'ctx>) {
         chute.send_arc(self.data);
     }

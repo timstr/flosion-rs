@@ -10,20 +10,20 @@ use parking_lot::{Condvar, Mutex, RwLock};
 
 use crate::core::{
     revision::revision::RevisionNumber,
-    sound::{soundgraphtopology::SoundGraphTopology, expression::SoundExpressionId},
+    sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology},
 };
 
 use super::{
     codegen::CodeGen,
-    compilednumberinput::{CompiledNumberInput, CompiledNumberInputFunction},
+    compiledexpression::{CompiledExpression, CompiledExpressionFunction},
 };
 
 // TODO: put one of these on the all-purpose inkwell worker thread
 
-// An object to receive and serve requests for compiled number inputs,
+// An object to receive and serve requests for compiled expressions,
 // as well as stored cached artefacts according to their revision
 struct Entry<'ctx> {
-    artefact: CompiledNumberInput<'ctx>,
+    artefact: CompiledExpression<'ctx>,
     // TODO: info about how recently the entry was used,
     // in order to help clean things out efficiently.
     // Wait hang on, maybe reference counts suffice?
@@ -42,11 +42,11 @@ impl<'ctx> Cache<'ctx> {
         }
     }
 
-    fn get_compiled_number_input(
+    fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
         revision: RevisionNumber,
-    ) -> Option<CompiledNumberInputFunction<'ctx>> {
+    ) -> Option<CompiledExpressionFunction<'ctx>> {
         let key = (id, revision);
         self.artefacts.get(&key).map(|c| c.artefact.make_function())
     }
@@ -55,7 +55,7 @@ impl<'ctx> Cache<'ctx> {
         &mut self,
         input_id: SoundExpressionId,
         revision_number: RevisionNumber,
-        artefact: CompiledNumberInput<'ctx>,
+        artefact: CompiledExpression<'ctx>,
     ) {
         self.artefacts
             .insert((input_id, revision_number), Entry { artefact });
@@ -141,9 +141,9 @@ impl<'ctx> JitServer<'ctx> {
         while let Ok(request) = self.client_receiver.try_recv() {
             let JitClientRequest::PleaseCompile(niid, revnum) = request;
             // TODO: distinguish between
-            // - number inputs that have been requested and are waiting to be served
-            // - number inputs that were responded to but don't exist
-            // - number inputs that were responded to but have changed
+            // - expressions that have been requested and are waiting to be served
+            // - expressions that were responded to but don't exist
+            // - expressions that were responded to but have changed
             let Some(ni_data) = topology.expression(niid) else {
                 // input doesn't exist, too bad
                 continue;
@@ -153,7 +153,7 @@ impl<'ctx> JitServer<'ctx> {
                 continue;
             }
             let codegen = CodeGen::new(self.inkwell_context);
-            let artefact = codegen.compile_number_input(niid, topology);
+            let artefact = codegen.compile_expression(niid, topology);
             cache.insert(niid, revnum, artefact);
             if cache.len() > 1000 {
                 println!("TODO: limit the size of the JitServer cache");
@@ -161,11 +161,11 @@ impl<'ctx> JitServer<'ctx> {
         }
     }
 
-    pub(crate) fn get_compiled_number_input(
+    pub(crate) fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
         topology: &SoundGraphTopology,
-    ) -> CompiledNumberInputFunction<'ctx> {
+    ) -> CompiledExpressionFunction<'ctx> {
         let mut cache = self.cache.write();
         let input_data = topology.expression(id).unwrap();
         let revision = input_data.get_revision();
@@ -174,7 +174,7 @@ impl<'ctx> JitServer<'ctx> {
             .entry((id, revision))
             .or_insert_with(|| {
                 let codegen = CodeGen::new(self.inkwell_context);
-                let artefact = codegen.compile_number_input(id, topology);
+                let artefact = codegen.compile_expression(id, topology);
                 Entry { artefact }
             })
             .artefact
@@ -205,12 +205,12 @@ pub(crate) struct JitClient {
 }
 
 impl JitClient {
-    pub(crate) fn get_compiled_number_input<'a>(
+    pub(crate) fn get_compiled_expression<'a>(
         &'a self,
         id: SoundExpressionId,
         revision: RevisionNumber,
-    ) -> Option<CompiledNumberInputFunction<'a>> {
-        let f = self.cache.read().get_compiled_number_input(id, revision);
+    ) -> Option<CompiledExpressionFunction<'a>> {
+        let f = self.cache.read().get_compiled_expression(id, revision);
         if f.is_none() {
             match self
                 .request_sender

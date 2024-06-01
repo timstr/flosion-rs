@@ -52,7 +52,7 @@ impl State for AudioClipState {
 impl DynamicSoundProcessor for AudioClip {
     type StateType = AudioClipState;
     type SoundInputType = ();
-    type NumberInputType<'ctx> = ();
+    type Expressions<'ctx> = ();
 
     fn new(_tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
         let mut buffer = SoundBuffer::new_empty();
@@ -96,10 +96,10 @@ impl DynamicSoundProcessor for AudioClip {
         }
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         _nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ()
     }
 

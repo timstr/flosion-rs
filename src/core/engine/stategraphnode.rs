@@ -26,17 +26,16 @@ use super::{
     garbage::{Droppable, Garbage, GarbageChute},
     nodegen::NodeGen,
     scratcharena::ScratchArena,
-    soundinputnode::{SoundInputNode, SoundProcessorInput},
-    soundnumberinputnode::{
-        SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-        SoundNumberInputNodeVisitorMut,
+    soundexpressionnode::{
+        CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
     },
+    soundinputnode::{SoundInputNode, SoundProcessorInput},
 };
 
 pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
     processor: Arc<StaticSoundProcessorWithId<T>>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-    number_input: T::NumberInputType<'ctx>,
+    expressions: T::Expressions<'ctx>,
     timing: ProcessorTiming,
 }
 
@@ -47,7 +46,7 @@ impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
     ) -> Self {
         let start = Instant::now();
         let sound_input = processor.get_sound_input().make_node(nodegen);
-        let number_input = processor.make_number_inputs(nodegen);
+        let expressions = processor.compile_expressions(nodegen);
         let finish = Instant::now();
         let time_to_compile: Duration = finish - start;
         let time_to_compile_ms = time_to_compile.as_millis();
@@ -61,7 +60,7 @@ impl<'ctx, T: StaticSoundProcessor> StaticProcessorNode<'ctx, T> {
         Self {
             processor,
             sound_input,
-            number_input,
+            expressions,
             timing: ProcessorTiming::new(),
         }
     }
@@ -71,7 +70,7 @@ pub struct DynamicProcessorNode<'ctx, T: DynamicSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-    number_input: T::NumberInputType<'ctx>,
+    expressions: T::Expressions<'ctx>,
 }
 
 impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
@@ -82,7 +81,7 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
         let start = Instant::now();
         let state = StateAndTiming::new(processor.make_state());
         let sound_input = processor.get_sound_input().make_node(nodegen);
-        let number_input = processor.make_number_inputs(nodegen);
+        let expressions = processor.compile_expressions(nodegen);
         let finish = Instant::now();
         let time_to_compile: Duration = finish - start;
         let time_to_compile_ms = time_to_compile.as_millis();
@@ -97,7 +96,7 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
             id: processor.id(),
             state,
             sound_input,
-            number_input,
+            expressions,
         }
     }
 
@@ -106,8 +105,8 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
         for t in self.sound_input.targets_mut() {
             t.timing_mut().require_reset();
         }
-        self.number_input
-            .visit_number_inputs_mut(&mut |node: &mut SoundNumberInputNode<'ctx>| {
+        self.expressions
+            .visit_expressions_mut(&mut |node: &mut CompiledExpressionNode<'ctx>| {
                 node.reset();
             });
     }
@@ -116,7 +115,7 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
         let status = T::process_audio(
             &mut self.state,
             &mut self.sound_input,
-            &mut self.number_input,
+            &mut self.expressions,
             dst,
             ctx,
         );
@@ -140,9 +139,9 @@ pub trait StateGraphNode<'ctx>: Sync + Send {
     fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx>;
     fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx>;
 
-    fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx>;
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>);
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>);
+    fn expressions(&mut self) -> &mut dyn ExpressionCollection<'ctx>;
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>);
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>);
 }
 
 impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode<'ctx, T> {
@@ -159,7 +158,7 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
             &*self.processor,
             &self.timing,
             &mut self.sound_input,
-            &mut self.number_input,
+            &mut self.expressions,
             dst,
             ctx,
         );
@@ -179,16 +178,16 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
         &mut self.sound_input
     }
 
-    fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx> {
-        &mut self.number_input
+    fn expressions(&mut self) -> &mut dyn ExpressionCollection<'ctx> {
+        &mut self.expressions
     }
 
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
-        self.number_input.visit_number_inputs(visitor);
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+        self.expressions.visit_expressions(visitor);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
-        self.number_input.visit_number_inputs_mut(visitor);
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+        self.expressions.visit_expressions_mut(visitor);
     }
 
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable> {
@@ -221,16 +220,16 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
         &mut self.sound_input
     }
 
-    fn number_input_node_mut(&mut self) -> &mut dyn SoundNumberInputNodeCollection<'ctx> {
-        &mut self.number_input
+    fn expressions(&mut self) -> &mut dyn ExpressionCollection<'ctx> {
+        &mut self.expressions
     }
 
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
-        self.number_input.visit_number_inputs(visitor);
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+        self.expressions.visit_expressions(visitor);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
-        self.number_input.visit_number_inputs_mut(visitor);
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+        self.expressions.visit_expressions_mut(visitor);
     }
 
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable> {

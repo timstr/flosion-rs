@@ -1,19 +1,19 @@
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundnumberinputnode::{
-            SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-            SoundNumberInputNodeVisitorMut,
+        soundexpressionnode::{
+            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
+            ExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compilednumberinput::Discretization,
+    jit::compiledexpression::Discretization,
     sound::{
         context::{Context, LocalArrayList},
+        expression::SoundExpressionHandle,
         soundgraphdata::SoundExpressionScope,
         soundinput::InputOptions,
         soundinputtypes::{SingleInput, SingleInputNode},
-        expression::SoundExpressionHandle,
         soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
         soundprocessortools::SoundProcessorTools,
         state::State,
@@ -27,15 +27,15 @@ pub struct Resampler {
 }
 
 pub struct ResamplerNumberInputs<'ctx> {
-    speed_ratio: SoundNumberInputNode<'ctx>,
+    speed_ratio: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for ResamplerNumberInputs<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for ResamplerNumberInputs<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.speed_ratio);
     }
 
-    fn visit_number_inputs_mut(&mut self, visitor: &mut dyn SoundNumberInputNodeVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.speed_ratio);
     }
 }
@@ -58,12 +58,12 @@ impl State for ResamplerState {
 impl DynamicSoundProcessor for Resampler {
     type StateType = ResamplerState;
     type SoundInputType = SingleInput;
-    type NumberInputType<'ctx> = ResamplerNumberInputs<'ctx>;
+    type Expressions<'ctx> = ResamplerNumberInputs<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(Resampler {
             input: SingleInput::new(InputOptions::NonSynchronous, &mut tools),
-            speed_ratio: tools.add_number_input(1.0, SoundExpressionScope::with_processor_state()),
+            speed_ratio: tools.add_expression(1.0, SoundExpressionScope::with_processor_state()),
         })
     }
 
@@ -80,10 +80,10 @@ impl DynamicSoundProcessor for Resampler {
         }
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ResamplerNumberInputs {
             speed_ratio: self.speed_ratio.make_node(nodegen),
         }

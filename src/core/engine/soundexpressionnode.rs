@@ -5,29 +5,29 @@ use crate::core::{
         garbage::{Garbage, GarbageChute},
         nodegen::NodeGen,
     },
-    jit::compilednumberinput::{CompiledNumberInputFunction, Discretization},
+    jit::compiledexpression::{CompiledExpressionFunction, Discretization},
     sound::{context::Context, expression::SoundExpressionId},
 };
 
 #[cfg(debug_assertions)]
 use crate::core::sound::soundgraphdata::SoundExpressionScope;
 
-pub struct SoundNumberInputNode<'ctx> {
+pub struct CompiledExpressionNode<'ctx> {
     id: SoundExpressionId,
-    function: CompiledNumberInputFunction<'ctx>,
+    function: CompiledExpressionFunction<'ctx>,
 
     #[cfg(debug_assertions)]
     scope: SoundExpressionScope,
 }
 
-impl<'ctx> SoundNumberInputNode<'ctx> {
+impl<'ctx> CompiledExpressionNode<'ctx> {
     #[cfg(not(debug_assertions))]
     pub(crate) fn new<'a>(
         id: SoundExpressionId,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> SoundNumberInputNode<'ctx> {
-        let function = nodegen.get_compiled_number_input(id);
-        SoundNumberInputNode { id, function }
+    ) -> CompiledExpressionNode<'ctx> {
+        let function = nodegen.get_compiled_expression(id);
+        CompiledExpressionNode { id, function }
     }
 
     #[cfg(debug_assertions)]
@@ -35,9 +35,9 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
         id: SoundExpressionId,
         nodegen: &NodeGen<'a, 'ctx>,
         scope: SoundExpressionScope,
-    ) -> SoundNumberInputNode<'ctx> {
-        let function = nodegen.get_compiled_number_input(id);
-        SoundNumberInputNode {
+    ) -> CompiledExpressionNode<'ctx> {
+        let function = nodegen.get_compiled_expression(id);
+        CompiledExpressionNode {
             id,
             function,
             scope,
@@ -54,7 +54,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
 
     pub(crate) fn update(
         &mut self,
-        function: CompiledNumberInputFunction<'ctx>,
+        function: CompiledExpressionFunction<'ctx>,
         garbage_chute: &GarbageChute<'ctx>,
     ) {
         let old_function = std::mem::replace(&mut self.function, function);
@@ -81,7 +81,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
 
         let stack = context.stack();
         let StackFrame::Processor(frame) = stack else {
-            println!("Processor state must be pushed onto context when evaluating number input");
+            println!("Processor state must be pushed onto context when evaluating expression");
             return false;
         };
         let local_arrays = frame.local_arrays().as_vec();
@@ -92,7 +92,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
                 .contains(&arr.argument_id())
             {
                 println!(
-                    "A local array was pushed for number source {} which is not marked as being \
+                    "A local array was pushed for expression argument {} which is not marked as being \
                     in scope.",
                     arr.argument_id().value()
                 );
@@ -100,7 +100,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
             }
             if arr.array().len() != expected_len {
                 println!(
-                    "A local array was pushed for number source {}, but its length of {} doesn't \
+                    "A local array was pushed for expression argument {}, but its length of {} doesn't \
                     match the expected length from the destination array of {}.",
                     arr.argument_id().value(),
                     arr.array().len(),
@@ -116,7 +116,7 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
                 .is_none()
             {
                 println!(
-                    "No local array was pushed for number source {}, which is marked as being in scope.",
+                    "No local array was pushed for expression argument {}, which is marked as being in scope.",
                     nsid.value()
                 );
                 return false;
@@ -126,50 +126,44 @@ impl<'ctx> SoundNumberInputNode<'ctx> {
     }
 }
 
-pub trait SoundNumberInputNodeCollection<'ctx>: Sync + Send {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>);
-    fn visit_number_inputs_mut(
-        &mut self,
-        visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
-    );
+pub trait ExpressionCollection<'ctx>: Sync + Send {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>);
+    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>);
 
     fn add_input(&self, _input_id: SoundExpressionId) {
-        panic!("This SoundNumberInputNodeCollection type does not support adding inputs");
+        panic!("This ExpressionCollection type does not support adding expressions");
     }
     fn remove_input(&self, _input_id: SoundExpressionId) {
-        panic!("This SoundNumberInputNodeCollection type does not support removing inputs");
+        panic!("This ExpressionCollection type does not support removing expressions");
     }
 }
 
-pub trait SoundNumberInputNodeVisitor<'ctx> {
-    fn visit_node(&mut self, node: &SoundNumberInputNode<'ctx>);
+pub trait ExpressionVisitor<'ctx> {
+    fn visit_node(&mut self, node: &CompiledExpressionNode<'ctx>);
 }
 
-pub trait SoundNumberInputNodeVisitorMut<'ctx> {
-    fn visit_node(&mut self, node: &mut SoundNumberInputNode<'ctx>);
+pub trait ExpressionVisitorMut<'ctx> {
+    fn visit_node(&mut self, node: &mut CompiledExpressionNode<'ctx>);
 }
 
-impl<'ctx, F: FnMut(&SoundNumberInputNode<'ctx>)> SoundNumberInputNodeVisitor<'ctx> for F {
-    fn visit_node(&mut self, node: &SoundNumberInputNode<'ctx>) {
+impl<'ctx, F: FnMut(&CompiledExpressionNode<'ctx>)> ExpressionVisitor<'ctx> for F {
+    fn visit_node(&mut self, node: &CompiledExpressionNode<'ctx>) {
         (*self)(node);
     }
 }
 
-impl<'ctx, F: FnMut(&mut SoundNumberInputNode<'ctx>)> SoundNumberInputNodeVisitorMut<'ctx> for F {
-    fn visit_node(&mut self, node: &mut SoundNumberInputNode<'ctx>) {
+impl<'ctx, F: FnMut(&mut CompiledExpressionNode<'ctx>)> ExpressionVisitorMut<'ctx> for F {
+    fn visit_node(&mut self, node: &mut CompiledExpressionNode<'ctx>) {
         (*self)(node);
     }
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for () {
-    fn visit_number_inputs(&self, _visitor: &mut dyn SoundNumberInputNodeVisitor) {
+impl<'ctx> ExpressionCollection<'ctx> for () {
+    fn visit_expressions(&self, _visitor: &mut dyn ExpressionVisitor) {
         // Nothing to do
     }
 
-    fn visit_number_inputs_mut(
-        &mut self,
-        _visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
-    ) {
+    fn visit_expressions_mut(&mut self, _visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>) {
         // Nothing to do
     }
 }

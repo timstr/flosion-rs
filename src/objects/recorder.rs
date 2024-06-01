@@ -67,7 +67,7 @@ impl Recorder {
 
 impl StaticSoundProcessor for Recorder {
     type SoundInputType = SingleInput;
-    type NumberInputType<'ctx> = ();
+    type Expressions<'ctx> = ();
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let buf = match _init {
@@ -87,10 +87,10 @@ impl StaticSoundProcessor for Recorder {
         &self.input
     }
 
-    fn make_number_inputs<'a, 'ctx>(
+    fn compile_expressions<'a, 'ctx>(
         &self,
         _nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx> {
+    ) -> Self::Expressions<'ctx> {
         ()
     }
 

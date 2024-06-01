@@ -4,7 +4,7 @@ use crate::core::{
     anydata::AnyData,
     expression::context::{usize_pair_to_expression_context, ExpressionContext},
     sound::{
-        soundinput::SoundInputId, expressionargument::SoundExpressionArgumentId,
+        expressionargument::SoundExpressionArgumentId, soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -132,14 +132,14 @@ pub(super) unsafe extern "C" fn processor_local_array_read_wrapper(
     context_1: usize,
     context_2: usize,
     sound_processor_id: usize,
-    number_source_id: usize,
+    argument_id: usize,
     expected_len: usize,
 ) -> *const f32 {
     let ctx: *const dyn ExpressionContext =
         usize_pair_to_expression_context((context_1, context_2));
     let ctx: &dyn ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
-    let nsid = SoundExpressionArgumentId::new(number_source_id);
+    let nsid = SoundExpressionArgumentId::new(argument_id);
     let s = ctx.read_local_array_from_sound_processor(spid, nsid);
     if s.len() != expected_len {
         panic!("processor_array_read_wrapper received a slice of incorrect length");
@@ -217,7 +217,7 @@ impl<'ctx> WrapperFunctions<'ctx> {
                 types.usize_type.into(),
                 // sound_processor_id
                 types.usize_type.into(),
-                // number_source_id
+                // argument_id
                 types.usize_type.into(),
                 // expected_len
                 types.usize_type.into(),

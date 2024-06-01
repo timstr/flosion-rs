@@ -1,6 +1,6 @@
 use crate::core::{
     expression::expressionnodeinput::ExpressionNodeInputId,
-    jit::compilednumberinput::CompiledNumberInputFunction,
+    jit::compiledexpression::CompiledExpressionFunction,
     sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId},
 };
 
@@ -32,7 +32,7 @@ pub(crate) enum StateGraphEdit<'ctx> {
     /// one state. For that reason, every sound processor is allocated exactly
     /// one shared node, at which the most recent chunk of audio is cached.
     ///
-    /// All dependent nodes of the static processor, including its number inputs,
+    /// All dependent nodes of the static processor, including its expressions,
     /// sound inputs, any dynamic processor nodes connected to its inputs, and
     /// their further dependencies, are assumed to have been pre-allocated and
     /// to be present in the provided shared processor node already. If there
@@ -81,11 +81,11 @@ pub(crate) enum StateGraphEdit<'ctx> {
         targets: Vec<NodeTargetValue<'ctx>>,
     },
 
-    /// Replace a compiled number input for each number input node in the
-    /// graph matching the given id. Compiled functions are Copy, so the
+    /// Replace a compiled expression for each expression node in the
+    /// graph matching the given id. Compiled expressions are Copy, so the
     /// data for each node doesn't need to be separately pre-allocated.
     // TODO: sound processor id?
-    UpdateNumberInput(ExpressionNodeInputId, CompiledNumberInputFunction<'ctx>),
+    UpdateExpression(ExpressionNodeInputId, CompiledExpressionFunction<'ctx>),
 
     /// Debugging aid. Calls the given function with the current state graph,
     /// e.g. to test its invariants and whether it matches a desired state.

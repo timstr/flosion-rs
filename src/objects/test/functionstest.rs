@@ -9,14 +9,14 @@ use crate::{
         engine::{
             nodegen::NodeGen,
             scratcharena::ScratchArena,
-            soundnumberinputnode::{
-                SoundNumberInputNode, SoundNumberInputNodeCollection, SoundNumberInputNodeVisitor,
-                SoundNumberInputNodeVisitorMut,
+            soundexpressionnode::{
+                CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
+                ExpressionVisitorMut,
             },
         },
         expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-        jit::{codegen::CodeGen, compilednumberinput::Discretization},
+        jit::{codegen::CodeGen, compiledexpression::Discretization},
         sound::{
             context::{Context, LocalArrayList},
             expression::SoundExpressionHandle,
@@ -49,18 +49,15 @@ struct TestSoundProcessor {
 }
 
 struct TestNumberInput<'ctx> {
-    input: SoundNumberInputNode<'ctx>,
+    input: CompiledExpressionNode<'ctx>,
 }
 
-impl<'ctx> SoundNumberInputNodeCollection<'ctx> for TestNumberInput<'ctx> {
-    fn visit_number_inputs(&self, visitor: &mut dyn SoundNumberInputNodeVisitor<'ctx>) {
+impl<'ctx> ExpressionCollection<'ctx> for TestNumberInput<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.input);
     }
 
-    fn visit_number_inputs_mut(
-        &mut self,
-        visitor: &'_ mut dyn SoundNumberInputNodeVisitorMut<'ctx>,
-    ) {
+    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.input);
     }
 }
@@ -84,25 +81,25 @@ impl DynamicSoundProcessor for TestSoundProcessor {
 
     type SoundInputType = ();
 
-    type NumberInputType<'ctx> = TestNumberInput<'ctx>;
+    type Expressions<'ctx> = TestNumberInput<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         Ok(TestSoundProcessor {
-            number_input: tools.add_number_input(0.0, SoundExpressionScope::with_processor_state()),
+            number_input: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
             input_values: Mutex::new([[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]),
-            number_source_0: tools.add_processor_array_number_source(|data| {
+            number_source_0: tools.add_processor_array_argument(|data| {
                 &data
                     .downcast_if::<TestSoundProcessorState>()
                     .unwrap()
                     .values[0]
             }),
-            number_source_1: tools.add_processor_array_number_source(|data| {
+            number_source_1: tools.add_processor_array_argument(|data| {
                 &data
                     .downcast_if::<TestSoundProcessorState>()
                     .unwrap()
                     .values[1]
             }),
-            number_source_2: tools.add_processor_array_number_source(|data| {
+            number_source_2: tools.add_processor_array_argument(|data| {
                 &data
                     .downcast_if::<TestSoundProcessorState>()
                     .unwrap()
@@ -115,7 +112,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
         &()
     }
 
-    fn make_number_inputs<'ctx>(&self, context: &NodeGen<'_, 'ctx>) -> Self::NumberInputType<'ctx> {
+    fn compile_expressions<'ctx>(&self, context: &NodeGen<'_, 'ctx>) -> Self::Expressions<'ctx> {
         TestNumberInput {
             input: self.number_input.make_node(context),
         }
@@ -130,7 +127,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
     fn process_audio<'ctx>(
         _state: &mut StateAndTiming<Self::StateType>,
         _sound_inputs: &mut (),
-        _number_inputs: &mut Self::NumberInputType<'ctx>,
+        _number_inputs: &mut Self::Expressions<'ctx>,
         _dst: &mut SoundChunk,
         _context: Context,
     ) -> StreamStatus {
@@ -243,7 +240,7 @@ fn do_number_source_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let codegen = CodeGen::new(&inkwell_context);
 
-    let compiled_input = codegen.compile_number_input(sp_instance.number_input.id(), &topo);
+    let compiled_input = codegen.compile_expression(sp_instance.number_input.id(), &topo);
 
     let mut compiled_function = compiled_input.make_function();
 

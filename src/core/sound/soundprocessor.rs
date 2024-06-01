@@ -9,8 +9,8 @@ use serialization::Serializer;
 use crate::core::{
     engine::{
         nodegen::NodeGen,
+        soundexpressionnode::ExpressionCollection,
         soundinputnode::SoundProcessorInput,
-        soundnumberinputnode::SoundNumberInputNodeCollection,
         stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
     },
     graph::graphobject::{
@@ -59,22 +59,20 @@ pub enum StreamStatus {
 pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
     type SoundInputType: SoundProcessorInput;
 
-    type NumberInputType<'ctx>: SoundNumberInputNodeCollection<'ctx>;
+    type Expressions<'ctx>: ExpressionCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
-    fn make_number_inputs<'a, 'ctx>(
-        &self,
-        nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx>;
+    fn compile_expressions<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>)
+        -> Self::Expressions<'ctx>;
 
     fn process_audio<'ctx>(
         processor: &StaticSoundProcessorWithId<Self>,
         timing: &ProcessorTiming,
         sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-        number_inputs: &mut Self::NumberInputType<'ctx>,
+        expressions: &mut Self::Expressions<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     );
@@ -87,7 +85,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     type SoundInputType: SoundProcessorInput;
 
-    type NumberInputType<'ctx>: SoundNumberInputNodeCollection<'ctx>;
+    type Expressions<'ctx>: ExpressionCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 
@@ -95,15 +93,13 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     fn make_state(&self) -> Self::StateType;
 
-    fn make_number_inputs<'a, 'ctx>(
-        &self,
-        nodegen: &NodeGen<'a, 'ctx>,
-    ) -> Self::NumberInputType<'ctx>;
+    fn compile_expressions<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>)
+        -> Self::Expressions<'ctx>;
 
     fn process_audio<'ctx>(
         state: &mut StateAndTiming<Self::StateType>,
         sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-        number_inputs: &mut Self::NumberInputType<'ctx>,
+        expressions: &mut Self::Expressions<'ctx>,
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus;
@@ -114,19 +110,19 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
-    time_number_source: SoundExpressionArgumentId,
+    time_argument: SoundExpressionArgumentId,
 }
 
 impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
     pub(crate) fn new(
         processor: T,
         id: SoundProcessorId,
-        time_number_source: SoundExpressionArgumentId,
+        time_argument: SoundExpressionArgumentId,
     ) -> Self {
         Self {
             processor,
             id,
-            time_number_source,
+            time_argument,
         }
     }
 
@@ -134,8 +130,8 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
         self.id
     }
 
-    pub fn time_number_source(&self) -> SoundExpressionArgumentId {
-        self.time_number_source
+    pub fn time_argument(&self) -> SoundExpressionArgumentId {
+        self.time_argument
     }
 }
 
@@ -154,19 +150,19 @@ impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
 pub struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
     processor: T,
     id: SoundProcessorId,
-    time_number_source: SoundExpressionArgumentId,
+    time_argument: SoundExpressionArgumentId,
 }
 
 impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
     pub(crate) fn new(
         processor: T,
         id: SoundProcessorId,
-        time_number_source: SoundExpressionArgumentId,
+        time_argument: SoundExpressionArgumentId,
     ) -> Self {
         Self {
             processor,
             id,
-            time_number_source,
+            time_argument,
         }
     }
 
@@ -174,8 +170,8 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
         self.id
     }
 
-    pub fn time_number_source(&self) -> SoundExpressionArgumentId {
-        self.time_number_source
+    pub fn time_argument(&self) -> SoundExpressionArgumentId {
+        self.time_argument
     }
 }
 
@@ -560,7 +556,7 @@ impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessor
 pub trait ProcessorHandle {
     fn id(&self) -> SoundProcessorId;
 
-    fn time_number_source(&self) -> SoundExpressionArgumentId;
+    fn time_argument(&self) -> SoundExpressionArgumentId;
 }
 
 impl<T: StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> {
@@ -568,8 +564,8 @@ impl<T: StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> 
         StaticSoundProcessorHandle::id(self)
     }
 
-    fn time_number_source(&self) -> SoundExpressionArgumentId {
-        self.instance.time_number_source()
+    fn time_argument(&self) -> SoundExpressionArgumentId {
+        self.instance.time_argument()
     }
 }
 
@@ -578,7 +574,7 @@ impl<T: DynamicSoundProcessor> ProcessorHandle for DynamicSoundProcessorHandle<T
         DynamicSoundProcessorHandle::id(self)
     }
 
-    fn time_number_source(&self) -> SoundExpressionArgumentId {
-        self.instance.time_number_source()
+    fn time_argument(&self) -> SoundExpressionArgumentId {
+        self.instance.time_argument()
     }
 }
