@@ -928,7 +928,7 @@ impl<'ctx> CodeGen<'ctx> {
         // pre-compile all expression graph arguments
         for (giid, snsid) in sg_expr_data.parameter_mapping().items() {
             let value = topology
-                .expression_argumnet(*snsid)
+                .expression_argument(*snsid)
                 .unwrap()
                 .instance()
                 .compile(&mut self);

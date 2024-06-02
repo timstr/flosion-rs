@@ -3,18 +3,18 @@ use std::hash::Hasher;
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
     revision::revision::{Revision, RevisionNumber, Versioned, VersionedHashMap},
-    sound::{soundgrapherror::SoundError, expressionargument::SoundExpressionArgumentOwner},
+    sound::{expressionargument::SoundExpressionArgumentOwner, soundgrapherror::SoundError},
 };
 
 use super::{
+    expression::SoundExpressionId,
+    expressionargument::SoundExpressionArgumentId,
     soundgraph::SoundGraph,
     soundgraphdata::{
         SoundExpressionArgumentData, SoundExpressionData, SoundInputData, SoundProcessorData,
     },
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundinput::SoundInputId,
-    expression::SoundExpressionId,
-    expressionargument::SoundExpressionArgumentId,
     soundprocessor::SoundProcessorId,
 };
 
@@ -98,7 +98,7 @@ impl SoundGraphTopology {
     }
 
     /// Look up a specific expression argument by its id
-    pub(crate) fn expression_argumnet(
+    pub(crate) fn expression_argument(
         &self,
         id: SoundExpressionArgumentId,
     ) -> Option<&Versioned<SoundExpressionArgumentData>> {
@@ -422,36 +422,6 @@ impl SoundGraphTopology {
         let proc_data = self.sound_processors.get_mut(&owner).unwrap();
         proc_data.expressions_mut().retain(|niid| *niid != id);
 
-        Ok(())
-    }
-
-    /// Add a parameter to the given expression and connect it to the
-    /// given expression argument
-    pub fn bind_expression_argument(
-        &mut self,
-        expression_id: SoundExpressionId,
-        argument_id: SoundExpressionArgumentId,
-    ) -> Result<(), SoundError> {
-        let expr_data = self
-            .expression_mut(expression_id)
-            .ok_or(SoundError::ExpressionNotFound(expression_id))?;
-        let (expr_graph, mapping) = expr_data.expression_graph_and_mapping_mut();
-        mapping.add_argument(argument_id, expr_graph);
-        Ok(())
-    }
-
-    /// Disconnect the expression's parameter from the argument and
-    /// remove the parameter from the expression.
-    pub fn unbind_expression_argument(
-        &mut self,
-        expression_id: SoundExpressionId,
-        argument_id: SoundExpressionArgumentId,
-    ) -> Result<(), SoundError> {
-        let expr_data = self
-            .expression_mut(expression_id)
-            .ok_or(SoundError::ExpressionNotFound(expression_id))?;
-        let (expr_graph, mapping) = expr_data.expression_graph_and_mapping_mut();
-        mapping.remove_argument(argument_id, expr_graph);
         Ok(())
     }
 

@@ -80,7 +80,7 @@ impl SoundGraphUiNames {
 
     pub(crate) fn regenerate(&mut self, topology: &SoundGraphTopology) {
         self.arguments
-            .retain(|k, _v| topology.expression_argumnet(*k).is_some());
+            .retain(|k, _v| topology.expression_argument(*k).is_some());
         self.expressions
             .retain(|k, _v| topology.expression(*k).is_some());
         self.sound_inputs

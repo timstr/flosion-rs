@@ -1,14 +1,14 @@
 use std::collections::{HashMap, HashSet};
 
 use super::{
-    path::SoundPath,
-    soundgrapherror::SoundError,
-    soundgraphtopology::SoundGraphTopology,
-    soundinput::{InputOptions, SoundInputId},
     expression::SoundExpressionId,
     expressionargument::{
         SoundExpressionArgumentId, SoundExpressionArgumentOrigin, SoundExpressionArgumentOwner,
     },
+    path::SoundPath,
+    soundgrapherror::SoundError,
+    soundgraphtopology::SoundGraphTopology,
+    soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
     state::StateOwner,
 };
@@ -241,7 +241,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
         // any expression arguments listed in its scope must belong to the parent
         // sound processor and be local arguments
         for nsid in ni.scope().available_local_arguments() {
-            let Some(ns_data) = topology.expression_argumnet(*nsid) else {
+            let Some(ns_data) = topology.expression_argument(*nsid) else {
                 panic!(
                     "The expression {:?} lists expression argument {:?} as in its local scope, but \
                     that argument doesn't exist.",
@@ -435,7 +435,7 @@ pub(super) fn find_invalid_expression_arguments(
 
     for (niid, ni) in topology.expressions() {
         for target in ni.parameter_mapping().items().values() {
-            let target_owner = topology.expression_argumnet(*target).unwrap().owner();
+            let target_owner = topology.expression_argument(*target).unwrap().owner();
             let depends = match target_owner {
                 SoundExpressionArgumentOwner::SoundProcessor(spid) => {
                     processor_depends_on_processor(spid, ni.owner(), topology)
@@ -564,7 +564,7 @@ pub(crate) fn available_sound_expression_arguments(
             .expression_arguments();
         for nsid in processor_arguments {
             debug_assert!(available_arguments.contains(nsid));
-            let ns_data = topology.expression_argumnet(*nsid).unwrap();
+            let ns_data = topology.expression_argument(*nsid).unwrap();
             match ns_data.instance().origin() {
                 SoundExpressionArgumentOrigin::ProcessorState(spid) => {
                     debug_assert_eq!(spid, ni_data.owner());
