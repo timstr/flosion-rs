@@ -7,8 +7,7 @@ use crate::{
         revision::revision::{Revision, RevisionNumber},
         sound::{
             expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-            soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphvalidation::available_sound_expression_arguments,
+            soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
         },
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
@@ -130,9 +129,6 @@ impl FlosionApp {
             return;
         }
 
-        let current_object_ids: HashSet<SoundObjectId> =
-            self.graph.topology().graph_object_ids().collect();
-
         self.ui_state
             .cleanup(self.graph.topology(), &self.factories);
 
@@ -144,6 +140,7 @@ impl FlosionApp {
     #[cfg(debug_assertions)]
     fn check_invariants(&self) {
         assert!(self.ui_state.check_invariants(self.graph.topology()));
+        assert!(self.graph_layout.check_invariants(self.graph.topology()));
     }
 }
 
