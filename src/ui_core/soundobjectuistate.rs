@@ -3,16 +3,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 #[cfg(debug_assertions)]
 use std::any::type_name;
 
-use eframe::{egui, epaint::ecolor};
+use eframe::egui;
 
-use crate::core::sound::{
-    expression::SoundExpressionId, soundgraphid::SoundObjectId,
-    soundgraphtopology::SoundGraphTopology,
-};
+use crate::core::sound::{soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology};
 
 use super::{
     expressiongraphui::ExpressionGraphUi,
-    expressiongraphuistate::ExpressionNodeObjectUiStates,
     graph_ui::{ObjectUiData, ObjectUiState},
     object_ui::Color,
     object_ui_states::AnyObjectUiState,
@@ -65,9 +61,7 @@ impl ObjectUiData for AnySoundObjectUiData {
         }
         let state_any = state_mut.as_mut_any();
         let state = state_any.downcast_mut::<T>().unwrap();
-        let color = ctx
-            .object_states()
-            .get_apparent_object_color(self.id, ui_state);
+        let color = ctx.object_states().get_object_color(self.id);
         f(SoundObjectUiData { state, color }, ui_state, ctx);
     }
 }
@@ -79,14 +73,12 @@ pub struct SoundObjectUiData<'a, T: ObjectUiState> {
 
 pub struct SoundObjectUiStates {
     data: HashMap<SoundObjectId, Rc<AnySoundObjectUiData>>,
-    expression_graph_object_states: HashMap<SoundExpressionId, ExpressionNodeObjectUiStates>,
 }
 
 impl SoundObjectUiStates {
     pub(super) fn new() -> SoundObjectUiStates {
         SoundObjectUiStates {
             data: HashMap::new(),
-            expression_graph_object_states: HashMap::new(),
         }
     }
 
@@ -102,35 +94,10 @@ impl SoundObjectUiStates {
         self.data.get(&id).unwrap().color.color
     }
 
-    pub(super) fn get_apparent_object_color(
-        &self,
-        id: SoundObjectId,
-        ui_state: &SoundGraphUiState,
-    ) -> egui::Color32 {
-        let color = self.get_object_color(id);
-        if ui_state.is_item_focused(id.into()) || ui_state.is_object_selected(id) {
-            let mut hsva = ecolor::Hsva::from(color);
-            hsva.v = 0.5 * (1.0 + hsva.a);
-            hsva.into()
-        } else {
-            color
-        }
-    }
-
     pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         self.data.retain(|i, _| match i {
             SoundObjectId::Sound(spid) => topo.sound_processors().contains_key(spid),
         });
-        self.expression_graph_object_states
-            .retain(|i, _| topo.expressions().contains_key(i));
-        for (niid, states) in &mut self.expression_graph_object_states {
-            let expr_topo = topo
-                .expression(*niid)
-                .unwrap()
-                .expression_graph()
-                .topology();
-            states.cleanup(expr_topo);
-        }
     }
 
     #[cfg(debug_assertions)]
@@ -161,84 +128,6 @@ impl SoundObjectUiStates {
         good
     }
 
-    // pub(super) fn serialize(
-    //     &self,
-    //     serializer: &mut Serializer,
-    //     subset: Option<&HashSet<ObjectId>>,
-    //     idmap: &ForwardGraphIdMap,
-    // ) {
-    //     let is_selected = |id: ObjectId| match subset {
-    //         Some(s) => s.get(&id).is_some(),
-    //         None => true,
-    //     };
-    //     let mut s1 = serializer.subarchive();
-    //     for (id, state) in &self.data {
-    //         if !is_selected(*id) {
-    //             continue;
-    //         }
-    //         serialize_object_id(*id, &mut s1, idmap);
-    //         let color = u32::from_be_bytes([
-    //             state.color.r(),
-    //             state.color.g(),
-    //             state.color.b(),
-    //             state.color.a(),
-    //         ]);
-    //         s1.u32(color);
-    //         let mut s2 = s1.subarchive();
-    //         state.state.borrow().serialize(&mut s2);
-    //     }
-    // }
-
-    // pub(super) fn deserialize(
-    //     &mut self,
-    //     deserializer: &mut Deserializer,
-    //     idmap: &ReverseGraphIdMap,
-    //     topology: &SoundGraphTopology,
-    //     ui_factory: &UiFactory,
-    // ) -> Result<(), ()> {
-    //     let mut d1 = deserializer.subarchive()?;
-    //     while !d1.is_empty() {
-    //         let id = deserialize_object_id(&mut d1, idmap)?;
-    //         let obj = match id {
-    //             ObjectId::Sound(i) => match topology.sound_processor(i) {
-    //                 Some(sp) => sp.instance_arc().as_graph_object(),
-    //                 None => return Err(()),
-    //             },
-    //             ObjectId::Number(i) => match topology.number_source(i) {
-    //                 Some(ns) => {
-    //                     if let Some(o) = ns.instance_arc().as_graph_object() {
-    //                         o
-    //                     } else {
-    //                         return Err(());
-    //                     }
-    //                 }
-    //                 None => return Err(()),
-    //             },
-    //         };
-
-    //         let color = match d1.u32() {
-    //             Ok(i) => {
-    //                 let [r, g, b, a] = i.to_be_bytes();
-    //                 egui::Color32::from_rgba_premultiplied(r, g, b, a)
-    //             }
-    //             Err(_) => random_object_color(),
-    //         };
-
-    //         let d2 = d1.subarchive()?;
-    //         let state = if let Ok(s) = ui_factory.create_state_from_archive(&obj, d2) {
-    //             s
-    //         } else {
-    //             println!(
-    //                 "Warning: could not deserialize state for object of type \"{}\"",
-    //                 obj.get_type().name()
-    //             );
-    //             ui_factory.create_default_state(&obj)
-    //         };
-    //         self.set_object_data(id, state, color);
-    //     }
-    //     Ok(())
-    // }
-
     pub(super) fn create_state_for(
         &mut self,
         object_id: SoundObjectId,
@@ -250,45 +139,5 @@ impl SoundObjectUiStates {
             let graph_object = topo.graph_object(object_id).unwrap();
             Rc::new(ui_factory.create_default_state(&graph_object))
         });
-        match object_id {
-            SoundObjectId::Sound(spid) => {
-                let expression_ids = topo.sound_processor(spid).unwrap().expressions();
-                for niid in expression_ids {
-                    let expr_topo = topo
-                        .expression(*niid)
-                        .unwrap()
-                        .expression_graph()
-                        .topology();
-                    self.expression_graph_object_states
-                        .entry(*niid)
-                        .or_insert_with(|| {
-                            let mut states = ExpressionNodeObjectUiStates::new();
-                            for ns_data in expr_topo.nodes().values() {
-                                let graph_object = ns_data.instance_arc().as_graph_object();
-                                let object_state =
-                                    expression_ui_factory.create_default_state(&graph_object);
-                                states.set_object_data(ns_data.id(), object_state);
-                            }
-                            states
-                        });
-                }
-            }
-        }
-    }
-
-    pub(super) fn expression_graph_object_state(
-        &self,
-        input_id: SoundExpressionId,
-    ) -> &ExpressionNodeObjectUiStates {
-        self.expression_graph_object_states.get(&input_id).unwrap()
-    }
-
-    pub(super) fn expression_graph_object_state_mut(
-        &mut self,
-        input_id: SoundExpressionId,
-    ) -> &mut ExpressionNodeObjectUiStates {
-        self.expression_graph_object_states
-            .get_mut(&input_id)
-            .unwrap()
     }
 }

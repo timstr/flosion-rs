@@ -6,21 +6,16 @@ use crate::core::{
     expression::expressiongraph::ExpressionGraph,
     graph::{graphobject::GraphObjectHandle, objectfactory::ObjectFactory},
     jit::server::JitClient,
-    sound::{
-        expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-        soundinput::SoundInputId,
-    },
+    sound::{soundgraph::SoundGraph, soundgraphid::SoundObjectId, soundinput::SoundInputId},
 };
 
 use super::{
     expressiongraphui::ExpressionGraphUi,
-    expressiongraphuicontext::{ExpressionGraphUiContext, OuterProcessorExpressionContext},
     graph_ui::GraphUiContext,
+    soundgraphlayout::TimeAxis,
     soundgraphui::SoundGraphUi,
-    soundgraphuinames::SoundGraphUiNames,
     soundgraphuistate::SoundGraphUiState,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    temporallayout::{SoundGraphLayout, TimeAxis},
     ui_factory::UiFactory,
 };
 
@@ -103,34 +98,6 @@ impl<'a> SoundGraphUiContext<'a> {
 
     pub(crate) fn parent_sound_input(&self) -> Option<SoundInputId> {
         self.parent_input
-    }
-
-    pub(crate) fn with_expression_graph_ui_context<
-        R,
-        F: FnOnce(&mut ExpressionGraphUiContext, OuterProcessorExpressionContext) -> R,
-    >(
-        &mut self,
-        input_id: SoundExpressionId,
-        graph_layout: &SoundGraphLayout,
-        names: &SoundGraphUiNames,
-        sound_graph: &mut SoundGraph,
-        f: F,
-    ) -> R {
-        let object_states = self
-            .sound_object_states
-            .expression_graph_object_state(input_id);
-        let owner = sound_graph.topology().expression(input_id).unwrap().owner();
-        let sni_ctx = OuterProcessorExpressionContext::new(
-            input_id,
-            owner,
-            graph_layout,
-            sound_graph,
-            names,
-            self.jit_client,
-            self.time_axis,
-        );
-        let mut ctx = ExpressionGraphUiContext::new(&self.expression_ui_factory, object_states);
-        f(&mut ctx, sni_ctx)
     }
 }
 

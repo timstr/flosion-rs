@@ -2,10 +2,7 @@ use eframe::egui;
 
 use crate::core::expression::expressionnode::ExpressionNodeId;
 
-use super::{
-    expressiongraphuicontext::ExpressionGraphUiContext,
-    expressiongraphuistate::ExpressionGraphUiState,
-};
+use super::expressiongraphuicontext::ExpressionGraphUiContext;
 
 pub enum DisplayStyle {
     Framed,
@@ -39,20 +36,14 @@ impl ExpressionNodeUi {
         }
     }
 
-    pub fn show(
-        self,
-        ui: &mut egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
-        ui_state: &mut ExpressionGraphUiState,
-    ) {
-        self.show_with(ui, ctx, ui_state, |_ui, _ui_state| {});
+    pub fn show(self, ui: &mut egui::Ui, ctx: &mut ExpressionGraphUiContext) {
+        self.show_with(ui, ctx, |_ui| {});
     }
 
-    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut ExpressionGraphUiState)>(
+    pub fn show_with<F: FnOnce(&mut egui::Ui)>(
         self,
         ui: &mut egui::Ui,
         _ctx: &mut ExpressionGraphUiContext,
-        ui_state: &mut ExpressionGraphUiState,
         add_contents: F,
     ) {
         ui.spacing_mut().item_spacing.x = 3.0;
@@ -68,7 +59,7 @@ impl ExpressionNodeUi {
                     .wrap(false),
                 );
             }
-            add_contents(ui, ui_state);
+            add_contents(ui);
         };
 
         match self.display_style {

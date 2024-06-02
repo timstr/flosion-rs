@@ -8,7 +8,7 @@ use crate::{
     ui_core::{
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressiongraphuistate::ExpressionNodeObjectUiData,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::{ObjectUi, UiInitialization},
@@ -26,7 +26,7 @@ impl ObjectUi for LinearApproachUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<LinearApproach>,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ui: &mut eframe::egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
@@ -37,7 +37,7 @@ impl ObjectUi for LinearApproachUi {
             "LinearApproach".to_string(),
             DisplayStyle::Framed,
         )
-        .show(ui, ctx, ui_state);
+        .show(ui, ctx);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -64,7 +64,7 @@ impl ObjectUi for ExponentialApproachUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<ExponentialApproach>,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ui: &mut eframe::egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
@@ -75,7 +75,7 @@ impl ObjectUi for ExponentialApproachUi {
             "ExponentialApproach".to_string(),
             DisplayStyle::Framed,
         )
-        .show(ui, ctx, ui_state);
+        .show(ui, ctx);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -102,14 +102,14 @@ impl ObjectUi for IntegratorUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<Integrator>,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ui: &mut eframe::egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
         _graph: &mut ExpressionGraph,
     ) {
         ExpressionNodeUi::new_named(handle.id(), "Integrator".to_string(), DisplayStyle::Framed)
-            .show(ui, ctx, ui_state);
+            .show(ui, ctx);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -136,7 +136,7 @@ impl ObjectUi for WrappingIntegratorUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<WrappingIntegrator>,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ui: &mut eframe::egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
@@ -147,7 +147,7 @@ impl ObjectUi for WrappingIntegratorUi {
             "WrappingIntegrator".to_string(),
             DisplayStyle::Framed,
         )
-        .show(ui, ctx, ui_state);
+        .show(ui, ctx);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {

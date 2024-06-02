@@ -8,7 +8,7 @@ use crate::{
     ui_core::{
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressiongraphuistate::ExpressionNodeObjectUiData,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::{ObjectUi, UiInitialization},
@@ -26,7 +26,7 @@ impl ObjectUi for Sampler1dUi {
     fn ui<'a, 'b>(
         &self,
         sampler1d: StatefulExpressionNodeHandle<Sampler1d>,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ui: &mut eframe::egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
@@ -40,7 +40,7 @@ impl ObjectUi for Sampler1dUi {
             "Sampler1d".to_string(),
             DisplayStyle::Framed,
         )
-        .show_with(ui, ctx, ui_state, |ui, _ui_state| {
+        .show_with(ui, ctx, |ui| {
             let mut values = sampler1d.value().read().to_vec();
 
             let (id, rect) = ui.allocate_space(egui::vec2(200.0, 100.0));

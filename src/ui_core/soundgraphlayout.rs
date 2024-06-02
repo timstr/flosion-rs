@@ -1,9 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+
+use eframe::egui;
 
 use crate::core::sound::{
-    expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
     soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::available_sound_expression_arguments, soundprocessor::SoundProcessorId,
+    soundprocessor::SoundProcessorId,
 };
 
 /// A mapping between a portion of the sound processing timeline
@@ -28,16 +29,15 @@ pub struct StackedGroup {
     /// deepest dependency first. The root/bottom processor is
     /// thus the last in the vec.
     processors: Vec<SoundProcessorId>,
+    // TODO: on-screen location?
 }
 
 /// Visual layout of all processor groups and the connections between them.
 /// Intended to be the entry point of the main UI for all things pertaining
 /// to sound processors, their inputs, connections, and numeric UIs.
 pub struct SoundGraphLayout {
+    /// The set of top-level stacked groups of sound processors
     groups: HashMap<SoundObjectId, StackedGroup>,
-    // TODO: this caches which number depedencies are possible. It has nothing
-    // to do with the UI layout and shouldn't be here.
-    available_arguments: HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
 }
 
 // TODO: let this render itself to the whole screen
@@ -48,7 +48,6 @@ impl SoundGraphLayout {
     pub(crate) fn new() -> SoundGraphLayout {
         SoundGraphLayout {
             groups: HashMap::new(),
-            available_arguments: HashMap::new(),
         }
     }
 
@@ -115,19 +114,13 @@ impl SoundGraphLayout {
         }
     }
 
+    pub(crate) fn draw(&self, ui: &mut egui::Ui) {
+        todo!("draw the backdrop, all stacked groups, and all objects");
+    }
+
     /// Remove any data associated with sound graph objects that
     /// no longer exist according to the given topology
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         self.groups.retain(|k, _v| topo.contains((*k).into()));
-
-        self.available_arguments = available_sound_expression_arguments(topo);
-    }
-
-    // TODO: move/remove, see note above
-    pub(super) fn available_arguments(
-        &self,
-        input_id: SoundExpressionId,
-    ) -> &HashSet<SoundExpressionArgumentId> {
-        self.available_arguments.get(&input_id).unwrap()
     }
 }

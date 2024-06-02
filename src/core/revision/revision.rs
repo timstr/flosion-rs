@@ -10,6 +10,7 @@ use std::{
 
 use crate::core::uniqueid::UniqueId;
 
+// TODO: rename to revision hash
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct RevisionNumber(u64);
 

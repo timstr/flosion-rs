@@ -9,35 +9,36 @@ use crate::core::{
 };
 
 use super::{
-    lexicallayout::lexicallayout::{LexicalLayout, LexicalLayoutFocus},
     expressiongraphui::ExpressionGraphUi,
     expressiongraphuicontext::{ExpressionGraphUiContext, OuterExpressionGraphUiContext},
-    expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiStates},
+    expressiongraphuistate::ExpressionNodeObjectUiStates,
     expressionplot::{ExpressionPlot, PlotConfig},
+    lexicallayout::lexicallayout::{LexicalLayout, LexicalLayoutFocus},
     ui_factory::UiFactory,
 };
 
 // TODO: add other presentations (e.g. plot, DAG maybe) and allow non-destructively switching between them
+// TODO: rename
 pub(super) struct ExpressionPresentation {
     lexical_layout: LexicalLayout,
+    ui_states: ExpressionNodeObjectUiStates,
 }
 
 impl ExpressionPresentation {
     pub(super) fn new(
         topology: &ExpressionGraphTopology,
-        object_ui_states: &ExpressionNodeObjectUiStates,
+        factory: &UiFactory<ExpressionGraphUi>,
     ) -> ExpressionPresentation {
+        let ui_states = ExpressionNodeObjectUiStates::generate(topology, factory);
         ExpressionPresentation {
-            lexical_layout: LexicalLayout::generate(topology, object_ui_states),
+            lexical_layout: LexicalLayout::generate(topology, &ui_states),
+            ui_states,
         }
     }
 
-    pub(super) fn cleanup(
-        &mut self,
-        topology: &ExpressionGraphTopology,
-        object_ui_states: &ExpressionNodeObjectUiStates,
-    ) {
-        self.lexical_layout.cleanup(topology, object_ui_states);
+    pub(super) fn cleanup(&mut self, topology: &ExpressionGraphTopology) {
+        self.lexical_layout.cleanup(topology);
+        self.ui_states.cleanup(topology);
     }
 
     pub(super) fn handle_keypress(
@@ -46,7 +47,6 @@ impl ExpressionPresentation {
         focus: &mut LexicalLayoutFocus,
         object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<ExpressionGraphUi>,
-        object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &mut OuterExpressionGraphUiContext,
     ) {
         self.lexical_layout.handle_keypress(
@@ -54,7 +54,7 @@ impl ExpressionPresentation {
             focus,
             object_factory,
             ui_factory,
-            object_ui_states,
+            &mut self.ui_states,
             outer_context,
         )
     }
@@ -72,7 +72,6 @@ impl SoundExpressionUi {
     pub(super) fn show(
         self,
         ui: &mut egui::Ui,
-        graph_state: &mut ExpressionGraphUiState,
         ctx: &mut ExpressionGraphUiContext,
         presentation: &mut ExpressionPresentation,
         focus: Option<&mut LexicalLayoutFocus>,
@@ -90,7 +89,7 @@ impl SoundExpressionUi {
                     ui.set_width(ui.available_width());
                     presentation
                         .lexical_layout
-                        .show(ui, graph_state, ctx, focus, outer_context);
+                        .show(ui, ctx, focus, outer_context);
                     match outer_context {
                         OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
                             ExpressionPlot::new().show(

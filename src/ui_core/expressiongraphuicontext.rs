@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 use crate::core::{
     expression::{
@@ -16,39 +16,39 @@ use super::{
     expressiongraphui::ExpressionGraphUi,
     expressiongraphuistate::{AnyExpressionNodeObjectUiData, ExpressionNodeObjectUiStates},
     graph_ui::GraphUiContext,
+    soundgraphlayout::{SoundGraphLayout, TimeAxis},
     soundgraphuinames::SoundGraphUiNames,
-    temporallayout::{SoundGraphLayout, TimeAxis},
     ui_factory::UiFactory,
 };
 
 pub(crate) struct OuterProcessorExpressionContext<'a> {
     expression_id: SoundExpressionId,
     parent_sound_processor_id: SoundProcessorId,
-    graph_layout: &'a SoundGraphLayout,
     sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
     jit_client: &'a JitClient,
     time_axis: TimeAxis,
+    available_arguments: &'a HashSet<SoundExpressionArgumentId>,
 }
 
 impl<'a> OuterProcessorExpressionContext<'a> {
     pub(super) fn new(
         expression_id: SoundExpressionId,
         parent_sound_processor_id: SoundProcessorId,
-        graph_layout: &'a SoundGraphLayout,
         sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
         jit_client: &'a JitClient,
         time_axis: TimeAxis,
+        available_arguments: &'a HashSet<SoundExpressionArgumentId>,
     ) -> Self {
         Self {
             expression_id,
             parent_sound_processor_id,
-            graph_layout,
             sound_graph,
             sound_graph_names,
             jit_client,
             time_axis,
+            available_arguments,
         }
     }
 
@@ -60,8 +60,8 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         self.parent_sound_processor_id
     }
 
-    pub(super) fn graph_layout(&self) -> &SoundGraphLayout {
-        self.graph_layout
+    pub(super) fn available_arguments(&self) -> &HashSet<SoundExpressionArgumentId> {
+        self.available_arguments
     }
 
     pub(crate) fn sound_graph(&self) -> &SoundGraph {

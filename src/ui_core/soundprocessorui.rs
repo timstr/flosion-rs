@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    expressionplot::PlotConfig, expressionui::SoundExpressionUi, keyboardfocus::KeyboardFocusState,
+    expressionplot::PlotConfig, expressionui::SoundExpressionUi,
     soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
 };
 
@@ -173,42 +173,6 @@ impl ProcessorUi {
         }
 
         let response = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
-
-        if todo!("is this processor being dragged?") {
-            // Make the processor appear faded if it's being dragged. A representation
-            // of the processor that follows the cursor will be drawn separately.
-            ui.painter().rect_filled(
-                response.rect,
-                egui::Rounding::ZERO,
-                egui::Color32::from_black_alpha(64),
-            );
-        }
-
-        if response.drag_started() {
-            if !ui_state.is_object_selected(self.processor_id.into()) {
-                // Stop selecting, allowing the processor to be dragged onto sound inputs
-                ui_state.stop_selecting();
-            }
-        }
-
-        if response.dragged() {
-            let from_input = ctx.parent_sound_input();
-
-            let from_rect = response.rect;
-
-            todo!("Start dragging this processor");
-        }
-
-        if response.clicked() {
-            if !ui_state.is_object_selected(self.processor_id.into()) {
-                ui_state.stop_selecting();
-                ui_state.select_object(self.processor_id.into());
-            }
-        }
-
-        if response.drag_stopped() {
-            todo!("Stop dragging and drop this processor");
-        }
     }
 
     fn outer_and_inner_processor_frames(color: egui::Color32) -> (egui::Frame, egui::Frame) {
@@ -282,16 +246,6 @@ impl ProcessorUi {
                             );
                         }
                         ui.set_width(desired_width);
-                        let keyboard_focus_on_name = match ui_state.keyboard_focus() {
-                            Some(kbd) => {
-                                if let KeyboardFocusState::OnSoundProcessorName(spid) = kbd {
-                                    *spid == self.processor_id
-                                } else {
-                                    false
-                                }
-                            }
-                            None => false,
-                        };
 
                         ui.horizontal(|ui| {
                             ui.spacing();
@@ -302,30 +256,15 @@ impl ProcessorUi {
                                 .name()
                                 .to_string();
 
-                            if keyboard_focus_on_name {
-                                let mut name = name.clone();
-                                let r = ui.add(egui::TextEdit::singleline(&mut name));
-                                r.request_focus();
-                                if r.changed() {
-                                    ui_state
-                                        .names_mut()
-                                        .record_sound_processor_name(self.processor_id, name);
-                                }
-                                ui.painter().rect_stroke(
-                                    r.rect,
-                                    egui::Rounding::ZERO,
-                                    egui::Stroke::new(2.0, egui::Color32::YELLOW),
-                                );
-                            } else {
-                                ui.add(
-                                    egui::Label::new(
-                                        egui::RichText::new(&name)
-                                            .color(egui::Color32::BLACK)
-                                            .strong(),
-                                    )
-                                    .wrap(false),
-                                );
-                            }
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(&name)
+                                        .color(egui::Color32::BLACK)
+                                        .strong(),
+                                )
+                                .wrap(false),
+                            );
+
                             if !name.to_lowercase().contains(&self.label.to_lowercase()) {
                                 ui.add(egui::Label::new(
                                     egui::RichText::new(self.label)
@@ -341,20 +280,6 @@ impl ProcessorUi {
 
             response
         });
-
-        if ui_state.is_item_focused(self.processor_id.into())
-            || ui_state.is_object_selected(self.processor_id.into())
-        {
-            ui.painter().rect_stroke(
-                r.response.rect,
-                egui::Rounding::same(3.0),
-                egui::Stroke::new(2.0, egui::Color32::YELLOW),
-            );
-        }
-
-        ui_state
-            .object_positions_mut()
-            .track_object_location(self.processor_id.into(), r.response.rect);
 
         r.response.union(r.inner)
         // r
@@ -433,17 +358,5 @@ impl ProcessorUi {
             //     },
             // );
         });
-
-        ui_state
-            .object_positions_mut()
-            .track_sound_expression_location(input_id, res.response.rect);
-
-        if ui_state.is_item_focused(input_id.into()) {
-            ui.painter().rect_stroke(
-                res.response.rect,
-                egui::Rounding::same(3.0),
-                egui::Stroke::new(2.0, egui::Color32::YELLOW),
-            );
-        }
     }
 }

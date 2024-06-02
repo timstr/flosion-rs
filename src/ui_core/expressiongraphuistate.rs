@@ -17,23 +17,11 @@ use super::{
     graph_ui::{ObjectUiData, ObjectUiState},
     lexicallayout::lexicallayout::ExpressionNodeLayout,
     object_ui_states::AnyObjectUiState,
-    soundobjectuistate::SoundObjectUiStates,
+    ui_factory::UiFactory,
 };
 
-pub struct ExpressionGraphUiState {
-    // TODO: what is this for???
-}
-
-impl ExpressionGraphUiState {
-    pub(super) fn new() -> ExpressionGraphUiState {
-        ExpressionGraphUiState {}
-    }
-
-    pub(super) fn cleanup(&mut self) {}
-}
-
 pub(super) struct ExpressionUiCollection {
-    data: HashMap<SoundExpressionId, (ExpressionGraphUiState, ExpressionPresentation)>,
+    data: HashMap<SoundExpressionId, ExpressionPresentation>,
 }
 
 impl ExpressionUiCollection {
@@ -46,39 +34,50 @@ impl ExpressionUiCollection {
     pub(super) fn set_ui_data(
         &mut self,
         niid: SoundExpressionId,
-        ui_state: ExpressionGraphUiState,
         presentation: ExpressionPresentation,
     ) {
-        self.data.insert(niid, (ui_state, presentation));
+        self.data.insert(niid, presentation);
     }
 
     pub(super) fn cleanup(
         &mut self,
         topology: &SoundGraphTopology,
-        object_ui_states: &SoundObjectUiStates,
+        factory: &UiFactory<ExpressionGraphUi>,
     ) {
+        // Delete data for removed expressions
         self.data
             .retain(|id, _| topology.expressions().contains_key(id));
 
-        for (niid, (ui_state, presentation)) in &mut self.data {
+        // Clean up the internal ui data of individual expressions
+        for (niid, presentation) in &mut self.data {
             let number_topo = topology
                 .expression(*niid)
                 .unwrap()
                 .expression_graph()
                 .topology();
-            ui_state.cleanup();
-            presentation.cleanup(
-                number_topo,
-                &object_ui_states.expression_graph_object_state(*niid),
-            );
+            presentation.cleanup(number_topo);
+        }
+
+        // Add data for newly-added expressions
+        for expr in topology.expressions().values() {
+            if self.data.contains_key(&expr.id()) {
+                continue;
+            }
+
+            let ui_state = ();
+
+            let presentation =
+                ExpressionPresentation::new(expr.expression_graph().topology(), factory);
+
+            self.data.insert(expr.id(), presentation);
         }
     }
 
     pub(crate) fn get_mut(
         &mut self,
         niid: SoundExpressionId,
-    ) -> Option<(&mut ExpressionGraphUiState, &mut ExpressionPresentation)> {
-        self.data.get_mut(&niid).map(|(a, b)| (a, b))
+    ) -> Option<&mut ExpressionPresentation> {
+        self.data.get_mut(&niid)
     }
 }
 
@@ -111,14 +110,10 @@ impl ObjectUiData for AnyExpressionNodeObjectUiData {
 
     fn downcast_with<
         T: ObjectUiState,
-        F: FnOnce(
-            ExpressionNodeObjectUiData<'_, T>,
-            &mut ExpressionGraphUiState,
-            &mut ExpressionGraphUiContext,
-        ),
+        F: FnOnce(ExpressionNodeObjectUiData<'_, T>, &mut (), &mut ExpressionGraphUiContext),
     >(
         &self,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ctx: &mut ExpressionGraphUiContext<'_>,
         f: F,
     ) {
@@ -155,6 +150,21 @@ impl ExpressionNodeObjectUiStates {
         ExpressionNodeObjectUiStates {
             data: HashMap::new(),
         }
+    }
+
+    pub(super) fn generate(
+        topo: &ExpressionGraphTopology,
+        factory: &UiFactory<ExpressionGraphUi>,
+    ) -> ExpressionNodeObjectUiStates {
+        let mut states = Self::new();
+
+        for node in topo.nodes().values() {
+            let object = node.instance_arc().as_graph_object();
+            let state = factory.create_default_state(&object);
+            states.set_object_data(node.id(), state);
+        }
+
+        states
     }
 
     pub(super) fn set_object_data(

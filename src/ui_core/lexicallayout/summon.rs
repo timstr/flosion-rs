@@ -37,7 +37,7 @@ pub(super) fn build_summon_widget_for_processor_expression(
         }
     }
 
-    for snsid in ctx.graph_layout().available_arguments(ctx.expression_id()) {
+    for snsid in ctx.available_arguments() {
         builder.add_basic_name(
             ctx.sound_graph_names().combined_parameter_name(*snsid),
             ExpressionSummonValue::Argument(*snsid),

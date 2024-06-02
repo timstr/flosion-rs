@@ -11,7 +11,7 @@ use crate::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressiongraphuistate::ExpressionNodeObjectUiData,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         graph_ui::ObjectUiState,
         lexicallayout::lexicallayout::ExpressionNodeLayout,
@@ -34,7 +34,7 @@ impl ObjectUi for ConstantUi {
     fn ui(
         &self,
         constant: PureExpressionNodeHandle<Constant>,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ui: &mut egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
@@ -45,7 +45,7 @@ impl ObjectUi for ConstantUi {
             format!("{}", constant.value()),
             DisplayStyle::Framed,
         )
-        .show(ui, ctx, ui_state);
+        .show(ui, ctx);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -119,14 +119,14 @@ impl ObjectUi for SliderUi {
     fn ui(
         &self,
         variable: PureExpressionNodeHandle<Variable>,
-        ui_state: &mut ExpressionGraphUiState,
+        ui_state: &mut (),
         ui: &mut eframe::egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         data: ExpressionNodeObjectUiData<SliderUiState>,
         _graph: &mut ExpressionGraph,
     ) {
         ExpressionNodeUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
-            .show_with(ui, ctx, ui_state, |ui, _ui_state| {
+            .show_with(ui, ctx, |ui| {
                 let mut v = variable.get_value();
                 let v_old = v;
                 ui.add(egui::Slider::new(
@@ -220,14 +220,14 @@ macro_rules! unary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut ExpressionGraphUiState,
+                ui_state: &mut (),
                 ui: &mut egui::Ui,
                 ctx: &mut ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
-                    .show(ui, ctx, ui_state);
+                    .show(ui, ctx);
             }
 
             fn summon_names(&self) -> &'static [&'static str] {
@@ -257,14 +257,14 @@ macro_rules! binary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut ExpressionGraphUiState,
+                ui_state: &mut (),
                 ui: &mut egui::Ui,
                 ctx: &mut ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
-                    .show(ui, ctx, ui_state);
+                    .show(ui, ctx);
             }
 
             fn summon_names(&self) -> &'static [&'static str] {
@@ -294,14 +294,14 @@ macro_rules! ternary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut ExpressionGraphUiState,
+                ui_state: &mut (),
                 ui: &mut egui::Ui,
                 ctx: &mut ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
-                    .show(ui, ctx, ui_state);
+                    .show(ui, ctx);
             }
 
             fn summon_names(&self) -> &'static [&'static str] {
