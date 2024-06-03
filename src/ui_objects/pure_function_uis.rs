@@ -34,7 +34,7 @@ impl ObjectUi for ConstantUi {
     fn ui(
         &self,
         constant: PureExpressionNodeHandle<Constant>,
-        ui_state: &mut (),
+        _ui_state: &mut (),
         ui: &mut egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
@@ -119,7 +119,7 @@ impl ObjectUi for SliderUi {
     fn ui(
         &self,
         variable: PureExpressionNodeHandle<Variable>,
-        ui_state: &mut (),
+        _ui_state: &mut (),
         ui: &mut eframe::egui::Ui,
         ctx: &mut ExpressionGraphUiContext,
         data: ExpressionNodeObjectUiData<SliderUiState>,
@@ -220,7 +220,7 @@ macro_rules! unary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut (),
+                _ui_state: &mut (),
                 ui: &mut egui::Ui,
                 ctx: &mut ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
@@ -257,7 +257,7 @@ macro_rules! binary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut (),
+                _ui_state: &mut (),
                 ui: &mut egui::Ui,
                 ctx: &mut ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
@@ -294,7 +294,7 @@ macro_rules! ternary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                ui_state: &mut (),
+                _ui_state: &mut (),
                 ui: &mut egui::Ui,
                 ctx: &mut ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
