@@ -123,18 +123,21 @@ impl FlosionApp {
     }
 
     fn cleanup(&mut self) {
-        let current_revision = self.graph.topology().get_revision();
+        let topo = self.graph.topology();
+
+        let current_revision = topo.get_revision();
 
         if self.previous_clean_revision == Some(current_revision) {
             return;
         }
 
-        self.ui_state
-            .cleanup(self.graph.topology(), &self.factories);
+        self.ui_state.cleanup(topo, &self.factories);
+        self.graph_layout.regenerate(topo);
+        self.interactions.cleanup(topo);
+
+        self.available_arguments = available_sound_expression_arguments(topo);
 
         self.previous_clean_revision = Some(current_revision);
-
-        self.available_arguments = available_sound_expression_arguments(self.graph.topology());
     }
 
     #[cfg(debug_assertions)]

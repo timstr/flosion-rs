@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use eframe::egui;
 
 use crate::core::sound::{
-    soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-    soundprocessor::SoundProcessorId,
+    soundgraphtopology::SoundGraphTopology, soundprocessor::SoundProcessorId,
 };
 
 /// A mapping between a portion of the sound processing timeline
@@ -33,8 +32,21 @@ pub struct StackedGroup {
 }
 
 impl StackedGroup {
-    pub(crate) fn new() {
-        todo!()
+    pub(crate) fn new() -> StackedGroup {
+        StackedGroup {
+            width_pixels: SoundGraphLayout::DEFAULT_WIDTH,
+            time_axis: TimeAxis {
+                time_per_x_pixel: (SoundGraphLayout::DEFAULT_DURATION as f32)
+                    / (SoundGraphLayout::DEFAULT_WIDTH as f32),
+            },
+            processors: Vec::new(),
+        }
+    }
+
+    pub(crate) fn new_with_processors(processors: Vec<SoundProcessorId>) -> StackedGroup {
+        let mut g = Self::new();
+        g.processors = processors;
+        g
     }
 
     pub(crate) fn draw(&self, ui: &mut egui::Ui) {
@@ -47,70 +59,73 @@ impl StackedGroup {
 /// to sound processors, their inputs, connections, and numeric UIs.
 pub struct SoundGraphLayout {
     /// The set of top-level stacked groups of sound processors
-    groups: HashMap<SoundObjectId, StackedGroup>,
+    groups: Vec<StackedGroup>,
 }
 
-// TODO: let this render itself to the whole screen
+/// Public methods
 impl SoundGraphLayout {
+    /// The default on-screen width of a stacked group, in pixels
     const DEFAULT_WIDTH: usize = 600;
+
+    /// The default temporal duration of a stacked group, in seconds
     const DEFAULT_DURATION: f32 = 4.0;
 
+    /// Construct a new, empty SoundGraphLayout. See `renegerate` below for
+    /// how to populate a SoundGraphLayout automatically from an existing
+    /// SoundGraphTopology instance.
     pub(crate) fn new() -> SoundGraphLayout {
-        SoundGraphLayout {
-            groups: HashMap::new(),
-        }
+        SoundGraphLayout { groups: Vec::new() }
     }
 
-    pub(crate) fn is_top_level(&self, object_id: SoundObjectId) -> bool {
-        self.groups.contains_key(&object_id)
-    }
-
-    pub(crate) fn find_group(&self, id: SoundObjectId) -> Option<&StackedGroup> {
-        // Easy case: object is top-level
-        if let Some(g) = self.groups.get(&id) {
-            Some(g)
-        } else {
-            // Otherwise, look for group containing object
-            let id = id.as_sound_processor_id().unwrap();
-            for (_, g) in &self.groups {
-                if g.processors.contains(&id) {
-                    return Some(g);
-                }
+    /// Find the stacked group that a sound processor belongs to, if any.
+    pub(crate) fn find_group(&self, id: SoundProcessorId) -> Option<&StackedGroup> {
+        for g in &self.groups {
+            if g.processors.contains(&id) {
+                return Some(g);
             }
-            None
         }
+        None
     }
 
-    pub(crate) fn create_single_processor_group(&mut self, object_id: SoundObjectId) {
-        self.groups.insert(
-            object_id,
-            StackedGroup {
-                width_pixels: Self::DEFAULT_WIDTH,
-                time_axis: TimeAxis {
-                    time_per_x_pixel: Self::DEFAULT_DURATION / (Self::DEFAULT_WIDTH as f32),
-                },
-                processors: vec![object_id.as_sound_processor_id().unwrap()],
-            },
-        );
+    /// Find the stacked group that a sound processor belongs to, if any.
+    fn find_group_mut(&mut self, id: SoundProcessorId) -> Option<&mut StackedGroup> {
+        for g in &mut self.groups {
+            if g.processors.contains(&id) {
+                return Some(g);
+            }
+        }
+        None
     }
 
-    pub(crate) fn remove_single_processor_group(&mut self, object_id: SoundObjectId) {
-        let g = self
-            .groups
-            .remove(&object_id)
-            .expect("Group was not present");
-        debug_assert_eq!(
-            g.processors,
-            vec![object_id.as_sound_processor_id().unwrap()],
-            "Group did not consist of only the requested processor"
-        );
+    /// Returns true if the given sound processor belongs to a group
+    /// and is the very first/top processor in that group.
+    pub(crate) fn is_top_of_group(&self, id: SoundProcessorId) -> bool {
+        let Some(group) = self.find_group(id) else {
+            return false;
+        };
+
+        let top_id: SoundProcessorId = *group.processors.first().unwrap();
+        top_id == id
     }
 
-    /// Ensure the layout is up-to-date with respect to the latest
-    /// provided sound graph topology by deleted data from unused
-    /// processors and automatically generating data for newly-added
-    /// processors as needed.
+    /// Returns true if the given sound processor belongs to a group
+    /// and is the very last/bottom in that group.
+    pub(crate) fn is_bottom_of_group(&self, id: SoundProcessorId) -> bool {
+        let Some(group) = self.find_group(id) else {
+            return false;
+        };
+
+        let bottom_id: SoundProcessorId = *group.processors.last().unwrap();
+        bottom_id == id
+    }
+
+    /// Update the layout to remove any deleted processors, include
+    /// any newly-added sound processors, and generally keep things
+    /// tidy and valid as the topology changes programmatically and
+    /// without simultaneous changes to the layout.
     pub(crate) fn regenerate(&mut self, topo: &SoundGraphTopology) {
+        self.remove_dangling_processor_ids(topo);
+
         // precompute the number of sound inputs that each processor
         // is connected to
         let mut dependent_counts: HashMap<SoundProcessorId, usize> =
@@ -122,105 +137,218 @@ impl SoundGraphLayout {
             }
         }
 
-        // helper function to create a new stacked group, starting
-        // with the given root and stacking connected processors
-        // in series on top until either a processor is encountered
-        // that already is in a group, or a processor with zero or
-        // multiple sound inputs is found.
-        let insert_and_grow_stacked_group =
-            |layout: &mut SoundGraphLayout, root: SoundProcessorId| {
-                let mut next_spid = root;
-
-                let mut processors = Vec::new();
-
-                loop {
-                    processors.insert(0, next_spid);
-
-                    let inputs = topo.sound_processor(next_spid).unwrap().sound_inputs();
-
-                    if inputs.len() != 1 {
-                        break;
-                    }
-
-                    let input_target = topo.sound_input(inputs[0]).unwrap().target();
-
-                    let Some(input_target) = input_target else {
-                        break;
-                    };
-
-                    if layout.groups.contains_key(&input_target.into()) {
-                        break;
-                    }
-
-                    next_spid = input_target;
-                }
-
-                layout.groups.insert(
-                    root.into(),
-                    StackedGroup {
-                        width_pixels: Self::DEFAULT_WIDTH,
-                        time_axis: TimeAxis {
-                            time_per_x_pixel: Self::DEFAULT_DURATION / (Self::DEFAULT_WIDTH as f32),
-                        },
-                        processors,
-                    },
-                );
-            };
-
-        // Find all sound processors that don't have exactly one
-        // sound input they're connected to and turn them into
-        // the roots of new stacked groups
-        for (spid, n_deps) in &dependent_counts {
-            if *n_deps == 1 {
+        // every processor with zero or more than one sound input
+        // must be at the top of a group. Processors with a single
+        // disconnected sound input also belong at the top of a group.
+        for proc in topo.sound_processors().values() {
+            let inputs = proc.sound_inputs();
+            if inputs.len() == 1 {
+                continue;
+            }
+            let target = topo.sound_input(inputs[0]).unwrap().target();
+            if target.is_some() {
                 continue;
             }
 
-            insert_and_grow_stacked_group(self, *spid);
+            // If the processor is already in a group, split it.
+            // Otherwise, add a new group for it. Other newly-added
+            // processors which should belong to the same group
+            // will be added below.
+            if self.find_group(proc.id().into()).is_some() {
+                self.split_group_above_processor(proc.id());
+            } else {
+                self.groups
+                    .push(StackedGroup::new_with_processors(vec![proc.id()]));
+            }
         }
 
-        // Find any remaining processors and create groups
-        // for them as needed. Processors here would have
-        // been excluded earlier because of a connection
-        // through one of multiple sound inputs, which
-        // terminates a stack.
-        loop {
-            let processor_without_group = topo
-                .sound_processors()
-                .keys()
-                .filter(|spid| !self.groups.contains_key(&(*spid).into()))
-                .cloned()
-                .next();
+        // every existing processor with zero or more than one dependent must
+        // be at the bottom of a group
+        for (spid, dep_count) in dependent_counts {
+            if dep_count != 1 {
+                // If the processor is already in a group, split it.
+                // Otherwise, do nothing. It will be appended onto
+                // an existing group in the next phase.
+                if self.find_group(spid.into()).is_some() {
+                    self.split_group_below_processor(spid);
+                }
+            }
+        }
 
-            let Some(spid) = processor_without_group else {
-                break;
-            };
+        // Finally, add every remaining processor to a group.
+        // Because of the above steps, every remaining processor
+        // in the topology which is not yet in a group has exactly
+        // one connected sound input. Repeatedly search for remaining
+        // processors which are connected to the bottom processor of
+        // an existing group, and add them.
+        let mut remaining_processors: Vec<SoundProcessorId> = topo
+            .sound_processors()
+            .keys()
+            .cloned()
+            .filter(|i| self.find_group(*i).is_none())
+            .collect();
 
-            insert_and_grow_stacked_group(self, spid);
+        while !remaining_processors.is_empty() {
+            let mut added_processor = None;
+            for spid in &remaining_processors {
+                let inputs = topo.sound_processor(*spid).unwrap().sound_inputs();
+                debug_assert_eq!(inputs.len(), 1);
+                let input = topo.sound_input(inputs[0]).unwrap();
+                let target = input.target().unwrap();
+
+                if self.is_bottom_of_group(target) {
+                    let existing_group = self.find_group_mut(target).unwrap();
+                    existing_group.processors.push(*spid);
+                    added_processor = Some(target);
+                    break;
+                }
+            }
+
+            let added_processor = added_processor.expect(
+                "Oops, seems like something went wrong while regenerating the SoundGraphLayout",
+            );
+
+            remaining_processors.retain(|i| *i != added_processor);
         }
     }
 
+    /// Draw the layout and every group to the ui
     pub(crate) fn draw(&self, ui: &mut egui::Ui) {
-        for group in self.groups.values() {
+        for group in &self.groups {
             group.draw(ui);
         }
-    }
-
-    /// Remove any data associated with sound graph objects that
-    /// no longer exist according to the given topology
-    pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
-        self.groups.retain(|k, _v| topo.contains((*k).into()));
+        // TODO: draw wires between connected groups also
     }
 
     #[cfg(debug_assertions)]
     pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
+        // every sound processor in the topology must appear exactly once
         for spid in topo.sound_processors().keys().cloned() {
             let number_of_appearances: usize = self
                 .groups
-                .values()
+                .iter()
                 .map(|group| group.processors.iter().filter(|i| **i == spid).count())
                 .sum();
 
             if number_of_appearances != 1 {
+                return false;
+            }
+        }
+
+        // every sound processor in the layout must exist in the topology
+        for group in &self.groups {
+            for spid in &group.processors {
+                if !topo.contains((*spid).into()) {
+                    return false;
+                }
+            }
+        }
+
+        // Every connection implied by adjacent processors in a stacked
+        // group must exist and be unique (see `connection_is_unique` for
+        // a definition)
+        for group in &self.groups {
+            for (top_proc, bottom_proc) in
+                group.processors.iter().zip(group.processors.iter().skip(1))
+            {
+                if !Self::connection_is_unique(*top_proc, *bottom_proc, topo) {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+}
+
+/// Internal helper methods
+impl SoundGraphLayout {
+    /// Remove sound processors which no longer exist from any groups they
+    /// appear in, splitting groups where connections are broken and
+    /// removing any empty groups that result.
+    fn remove_dangling_processor_ids(&mut self, topo: &SoundGraphTopology) {
+        // delete any removed processor ids
+        for group in &mut self.groups {
+            group.processors.retain(|i| topo.contains((*i).into()));
+        }
+
+        // Remove any empty groups
+        self.groups.retain(|g| !g.processors.is_empty());
+
+        // split any groups where they imply connections that no longer exist
+        let mut new_groups = Vec::new();
+        for group in &mut self.groups {
+            // Iterate over the group connections in reverse so that
+            // we can repeatedly split off the remaining end of the vector
+            for i in (1..group.processors.len()).rev() {
+                let top_proc = group.processors[i - 1];
+                let bottom_proc = group.processors[i];
+
+                // If the connection isn't unique, split off the remainder
+                // of the stack into a separate group
+                if !Self::connection_is_unique(top_proc, bottom_proc, topo) {
+                    new_groups.push(StackedGroup::new_with_processors(
+                        group.processors.split_off(i),
+                    ));
+                }
+            }
+        }
+
+        self.groups.append(&mut new_groups);
+    }
+
+    /// Find the group that the processor belongs to, and if there
+    /// are any processors above it, split those off into a separate
+    /// group. This would be done for example if the given processor
+    /// just gained a new sound input, which breaks uniqueness of the
+    /// group's implied connection above the processor.
+    fn split_group_above_processor(&mut self, processor_id: SoundProcessorId) {
+        todo!()
+    }
+
+    /// Find the group that processor belongs to, and if there are
+    /// any processors below it, split those off into a separate
+    /// group. This would be done for example if the given processor
+    /// was just connected to another sound input elsewhere, which
+    /// breaks uniqueness of the group's implied connection below the
+    /// processor.
+    fn split_group_below_processor(&mut self, processor_id: SoundProcessorId) {
+        todo!()
+    }
+
+    /// Returns true if and only if:
+    ///  - the bottom processor has exactly one sound input
+    ///  - the top processor is connected to that sound input
+    ///  - the top processor not connected to any other sound inputs
+    /// Thinking of the sound graph topology in terms of a directed
+    /// acyclic graph, this corresponds to there being exactly one
+    /// outbound edge from the top processor which itself is the only
+    /// inbound edge to the bottom processor.
+    fn connection_is_unique(
+        top_processor: SoundProcessorId,
+        bottom_processor: SoundProcessorId,
+        topo: &SoundGraphTopology,
+    ) -> bool {
+        let inputs = topo
+            .sound_processor(bottom_processor)
+            .unwrap()
+            .sound_inputs();
+
+        // check that the bottom processor has 1 input
+        if inputs.len() != 1 {
+            return false;
+        }
+
+        // check that the top processor is connected to that input
+        let input_id = inputs[0];
+        let input_target = topo.sound_input(input_id).unwrap().target();
+        if input_target != Some(top_processor) {
+            return false;
+        }
+
+        // check that no other inputs are connected to the top processor
+        for other_input in topo.sound_inputs().values() {
+            if other_input.id() != input_id && other_input.target() == Some(top_processor) {
                 return false;
             }
         }
