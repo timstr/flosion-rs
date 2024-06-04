@@ -190,7 +190,6 @@ impl<'ctx> Drop for JitServer<'ctx> {
             condvar.wait(&mut lock);
         }
         assert!(*lock);
-        println!("JitServer dropped");
     }
 }
 
@@ -226,7 +225,6 @@ impl JitClient {
 
 impl Drop for JitClient {
     fn drop(&mut self) {
-        println!("JitClient being dropped, notifying JitServer");
         let (mutex, condvar) = &*self.mutex_and_cond_var;
         let mut lock = mutex.lock();
         *lock = true;

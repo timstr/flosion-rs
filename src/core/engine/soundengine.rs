@@ -28,11 +28,11 @@ pub(crate) struct StopButton(Arc<AtomicBool>);
 
 impl StopButton {
     pub(crate) fn new() -> StopButton {
-        StopButton(Arc::new(AtomicBool::new(true)))
+        StopButton(Arc::new(AtomicBool::new(false)))
     }
 
     pub(crate) fn stop(&self) {
-        self.0.store(false, Ordering::Relaxed);
+        self.0.store(true, Ordering::Relaxed);
     }
 
     pub(crate) fn was_stopped(&self) -> bool {
@@ -53,19 +53,18 @@ pub(crate) fn create_sound_engine<'ctx>(
     SoundEngine<'ctx>,
     GarbageDisposer<'ctx>,
 ) {
-    let keep_running = Arc::clone(&stop_button.0);
     let edit_queue_size = 1024;
     let (edit_sender, edit_receiver) = sync_channel::<StateGraphEdit<'ctx>>(edit_queue_size);
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
     let se_interface = SoundEngineInterface {
         current_topology: SoundGraphTopology::new(),
-        keep_running: Arc::clone(&keep_running),
+        stop_button: stop_button.clone(),
         edit_queue: edit_sender,
     };
 
     let se = SoundEngine {
-        keep_running,
+        stop_button: stop_button.clone(),
         edit_queue: edit_receiver,
         deadline_warning_issued: false,
         garbage_chute,
@@ -76,7 +75,7 @@ pub(crate) fn create_sound_engine<'ctx>(
 
 pub(crate) struct SoundEngineInterface<'ctx> {
     current_topology: SoundGraphTopology,
-    keep_running: Arc<AtomicBool>,
+    stop_button: StopButton,
     edit_queue: SyncSender<StateGraphEdit<'ctx>>,
 }
 
@@ -182,12 +181,12 @@ impl<'ctx> SoundEngineInterface<'ctx> {
 
 impl<'ctx> Drop for SoundEngineInterface<'ctx> {
     fn drop(&mut self) {
-        self.keep_running.store(false, Ordering::SeqCst);
+        self.stop_button.stop();
     }
 }
 
 pub(crate) struct SoundEngine<'ctx> {
-    keep_running: Arc<AtomicBool>,
+    stop_button: StopButton,
     edit_queue: Receiver<StateGraphEdit<'ctx>>,
     deadline_warning_issued: bool,
     garbage_chute: GarbageChute<'ctx>,
@@ -210,7 +209,7 @@ impl<'ctx> SoundEngine<'ctx> {
             Self::flush_updates(&self.edit_queue, &mut state_graph, &self.garbage_chute);
 
             self.process_audio(&state_graph);
-            if !self.keep_running.load(Ordering::Relaxed) {
+            if self.stop_button.was_stopped() {
                 break;
             }
 
