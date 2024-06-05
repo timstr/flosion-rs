@@ -60,14 +60,14 @@ pub trait ObjectUi: 'static + Default {
     type HandleType: ObjectHandle<<Self::GraphUi as GraphUi>::Graph>;
     type StateType: ObjectUiState;
 
-    fn ui<'a, 'b>(
+    fn ui<'a>(
         &self,
         handle: Self::HandleType,
         ui_state: &mut <Self::GraphUi as GraphUi>::State,
         ui: &mut egui::Ui,
-        ctx: &mut <Self::GraphUi as GraphUi>::Context<'a>,
+        ctx: &<Self::GraphUi as GraphUi>::Context<'_>,
         data: <<Self::GraphUi as GraphUi>::ObjectUiData as ObjectUiData>::ConcreteType<
-            'b,
+            'a,
             Self::StateType,
         >,
         graph: &mut <Self::GraphUi as GraphUi>::Graph,
@@ -96,7 +96,7 @@ pub trait AnyObjectUi<G: GraphUi> {
         object_ui_state: &G::ObjectUiData,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
-        ctx: &mut G::Context<'_>,
+        ctx: &G::Context<'_>,
         graph: &mut G::Graph,
     );
 
@@ -121,7 +121,7 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
         object_ui_state: &G::ObjectUiData,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
-        ctx: &mut G::Context<'_>,
+        ctx: &G::Context<'_>,
         graph: &mut G::Graph,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();

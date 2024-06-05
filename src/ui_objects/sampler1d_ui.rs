@@ -8,7 +8,7 @@ use crate::{
     ui_core::{
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::ExpressionNodeObjectUiData,
+        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::{ObjectUi, UiInitialization},
@@ -26,9 +26,9 @@ impl ObjectUi for Sampler1dUi {
     fn ui<'a, 'b>(
         &self,
         sampler1d: StatefulExpressionNodeHandle<Sampler1d>,
-        ui_state: &mut (),
+        ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ctx: &ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
         _graph: &mut ExpressionGraph,
     ) {

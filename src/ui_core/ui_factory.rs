@@ -9,7 +9,7 @@ use crate::core::graph::graphobject::{
 
 use super::{
     arguments::ParsedArguments,
-    graph_ui::{GraphUi, GraphUiContext},
+    graph_ui::{GraphUi, GraphUiState},
     object_ui::{AnyObjectUi, ObjectUi},
 };
 
@@ -53,17 +53,17 @@ impl<G: GraphUi> UiFactory<G> {
     pub fn ui(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        graph_state: &mut G::State,
+        ui_state: &mut G::State,
         ui: &mut egui::Ui,
-        ctx: &mut G::Context<'_>,
+        ctx: &G::Context<'_>,
         graph: &mut G::Graph,
     ) {
         let object_type = object.get_type();
         let id = object.id();
         match self.mapping.get(&object_type) {
             Some(data) => {
-                let state = ctx.get_object_ui_data(id);
-                data.ui.apply(object, &*state, graph_state, ui, ctx, graph);
+                let state = ui_state.get_object_ui_data(id);
+                data.ui.apply(object, &*state, ui_state, ui, ctx, graph);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",

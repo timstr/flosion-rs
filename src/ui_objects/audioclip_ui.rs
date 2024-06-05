@@ -57,7 +57,7 @@ impl ObjectUi for AudioClipUi {
         audioclip: DynamicSoundProcessorHandle<AudioClip>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         data: SoundObjectUiData<AudioClipUiState>,
         sound_graph: &mut SoundGraph,
     ) {

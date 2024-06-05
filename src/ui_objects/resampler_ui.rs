@@ -24,7 +24,7 @@ impl ObjectUi for ResamplerUi {
         resampler: DynamicSoundProcessorHandle<Resampler>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {

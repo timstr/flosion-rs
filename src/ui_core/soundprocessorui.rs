@@ -88,7 +88,7 @@ impl ProcessorUi {
     pub fn show(
         self,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,
     ) {
@@ -104,7 +104,7 @@ impl ProcessorUi {
     pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(
         self,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,
         add_contents: F,
@@ -198,7 +198,7 @@ impl ProcessorUi {
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(
         &self,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,
         add_contents: F,
@@ -315,7 +315,7 @@ impl ProcessorUi {
     fn show_expression(
         &self,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         input_id: SoundExpressionId,
         input_label: &str,
         ui_state: &mut SoundGraphUiState,

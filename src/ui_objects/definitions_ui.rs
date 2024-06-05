@@ -27,7 +27,7 @@ impl ObjectUi for DefinitionsUi {
         definitions: DynamicSoundProcessorHandle<Definitions>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         data: SoundObjectUiData<()>,
         graph: &mut SoundGraph,
     ) {

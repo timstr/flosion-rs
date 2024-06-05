@@ -113,13 +113,11 @@ impl FlosionApp {
         app
     }
 
-    fn draw(&self, ui: &mut egui::Ui) {
-        self.graph_layout.draw(ui);
-        self.interactions.draw(ui);
-    }
-
-    fn interact(&mut self, ui: &mut egui::Ui) {
-        self.interactions.interact(ui);
+    fn draw_and_interact(&mut self, ui: &mut egui::Ui) {
+        self.graph_layout
+            .draw(ui, &self.factories, &mut self.ui_state, &mut self.graph);
+        self.interactions
+            .interact(ui, &self.factories, &mut self.graph, &mut self.ui_state);
     }
 
     fn cleanup(&mut self) {
@@ -150,12 +148,10 @@ impl FlosionApp {
 impl eframe::App for FlosionApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.draw(ui);
-
-            self.interact(ui);
-
             #[cfg(debug_assertions)]
             self.check_invariants();
+
+            self.draw_and_interact(ui);
 
             self.graph.flush_updates();
 

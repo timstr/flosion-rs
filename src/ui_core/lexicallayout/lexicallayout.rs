@@ -17,6 +17,7 @@ use crate::{
     ui_core::{
         arguments::ParsedArguments,
         expressiongraphuicontext::OuterExpressionGraphUiContext,
+        expressiongraphuistate::ExpressionGraphUiState,
         lexicallayout::{
             ast::{ASTNodeValue, InternalASTNodeValue},
             edits::remove_unreferenced_parameters,
@@ -321,7 +322,8 @@ impl LexicalLayout {
     pub(crate) fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &ExpressionGraphUiContext,
         mut focus: Option<&mut LexicalLayoutFocus>,
         outer_context: &mut OuterExpressionGraphUiContext,
     ) {
@@ -337,6 +339,7 @@ impl LexicalLayout {
                     ui,
                     LineLocation::VariableDefinition(i),
                     &mut focus,
+                    ui_state,
                     ctx,
                     outer_context,
                 );
@@ -348,6 +351,7 @@ impl LexicalLayout {
                 ui,
                 LineLocation::FinalExpression,
                 &mut focus,
+                ui_state,
                 ctx,
                 outer_context,
             );
@@ -374,7 +378,8 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         line: LineLocation,
         focus: &mut Option<&mut LexicalLayoutFocus>,
-        ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &ExpressionGraphUiContext,
         outer_context: &mut OuterExpressionGraphUiContext,
     ) {
         ui.spacing_mut().item_spacing.x = 0.0;
@@ -461,6 +466,7 @@ impl LexicalLayout {
             Self::show_child_ast_node(
                 ui,
                 node,
+                ui_state,
                 ctx,
                 ASTPathBuilder::Root(ast_root),
                 &mut cursor_path,
@@ -507,7 +513,8 @@ impl LexicalLayout {
     fn show_child_ast_node(
         ui: &mut egui::Ui,
         node: &ASTNode,
-        ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &ExpressionGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
         outer_context: &mut OuterExpressionGraphUiContext,
@@ -527,6 +534,7 @@ impl LexicalLayout {
                     let r = Self::show_internal_node(
                         ui,
                         n,
+                        ui_state,
                         ctx,
                         path,
                         cursor,
@@ -564,7 +572,8 @@ impl LexicalLayout {
     fn show_internal_node(
         ui: &mut egui::Ui,
         node: &InternalASTNode,
-        ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &ExpressionGraphUiContext,
         path: ASTPathBuilder,
         cursor: &mut Option<ASTPath>,
         outer_context: &mut OuterExpressionGraphUiContext,
@@ -585,11 +594,12 @@ impl LexicalLayout {
             let own_rect = match &node.value() {
                 InternalASTNodeValue::Prefix(nsid, expr) => {
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_expression_node_ui(ui, *nsid, ctx, outer_context)
+                        Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
                     });
                     Self::show_child_ast_node(
                         ui,
                         expr,
+                        ui_state,
                         ctx,
                         path.push(node, 0),
                         cursor,
@@ -602,6 +612,7 @@ impl LexicalLayout {
                     Self::show_child_ast_node(
                         ui,
                         expr1,
+                        ui_state,
                         ctx,
                         path.push(node, 0),
                         cursor,
@@ -609,11 +620,12 @@ impl LexicalLayout {
                         variable_definitions,
                     );
                     let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_expression_node_ui(ui, *nsid, ctx, outer_context)
+                        Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
                     });
                     Self::show_child_ast_node(
                         ui,
                         expr2,
+                        ui_state,
                         ctx,
                         path.push(node, 1),
                         cursor,
@@ -626,6 +638,7 @@ impl LexicalLayout {
                     Self::show_child_ast_node(
                         ui,
                         expr,
+                        ui_state,
                         ctx,
                         path.push(node, 0),
                         cursor,
@@ -633,13 +646,13 @@ impl LexicalLayout {
                         variable_definitions,
                     );
                     Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_expression_node_ui(ui, *nsid, ctx, outer_context)
+                        Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
                     })
                 }
                 InternalASTNodeValue::Function(nsid, exprs) => {
                     if exprs.is_empty() {
                         Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                            Self::show_expression_node_ui(ui, *nsid, ctx, outer_context)
+                            Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
                         })
                     } else {
                         let frame = egui::Frame::default()
@@ -653,7 +666,13 @@ impl LexicalLayout {
                                     cursor,
                                     hovering_over_self,
                                     |ui, _| {
-                                        Self::show_expression_node_ui(ui, *nsid, ctx, outer_context)
+                                        Self::show_expression_node_ui(
+                                            ui,
+                                            *nsid,
+                                            ui_state,
+                                            ctx,
+                                            outer_context,
+                                        )
                                     },
                                 );
                                 styled_text(ui, "(".to_string());
@@ -662,6 +681,7 @@ impl LexicalLayout {
                                         Self::show_child_ast_node(
                                             ui,
                                             expr,
+                                            ui_state,
                                             ctx,
                                             path.push(node, i),
                                             cursor,
@@ -673,6 +693,7 @@ impl LexicalLayout {
                                     Self::show_child_ast_node(
                                         ui,
                                         last_expr,
+                                        ui_state,
                                         ctx,
                                         path.push(node, other_exprs.len()),
                                         cursor,
@@ -697,7 +718,8 @@ impl LexicalLayout {
     fn show_expression_node_ui(
         ui: &mut egui::Ui,
         id: ExpressionNodeId,
-        ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &ExpressionGraphUiContext,
         outer_context: &mut OuterExpressionGraphUiContext,
     ) -> egui::Rect {
         let graph_object = outer_context.inspect_expression_graph(|graph| {
@@ -708,13 +730,10 @@ impl LexicalLayout {
                 .instance_arc()
                 .as_graph_object()
         });
-        let object_type = graph_object.get_type();
-        let object_ui = ctx.ui_factory().get_object_ui(object_type);
-        let object_state = ctx.object_ui_states().get_object_data(id);
         ui.horizontal_centered(|ui| {
             outer_context
                 .edit_expression_graph(|g| {
-                    object_ui.apply(&graph_object, &object_state, &mut (), ui, ctx, g);
+                    ctx.ui_factory().ui(&graph_object, ui_state, ui, ctx, g);
                 })
                 .unwrap();
         })

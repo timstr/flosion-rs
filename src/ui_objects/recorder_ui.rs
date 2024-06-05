@@ -29,7 +29,7 @@ impl ObjectUi for RecorderUi {
         recorder: StaticSoundProcessorHandle<Recorder>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {

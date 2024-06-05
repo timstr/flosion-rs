@@ -15,8 +15,7 @@ use crate::core::{
 use super::{
     expressiongraphui::ExpressionGraphUi,
     expressiongraphuistate::{AnyExpressionNodeObjectUiData, ExpressionNodeObjectUiStates},
-    graph_ui::GraphUiContext,
-    soundgraphlayout::{SoundGraphLayout, TimeAxis},
+    soundgraphlayout::TimeAxis,
     soundgraphuinames::SoundGraphUiNames,
     ui_factory::UiFactory,
 };
@@ -205,33 +204,16 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 
 pub struct ExpressionGraphUiContext<'a> {
     ui_factory: &'a UiFactory<ExpressionGraphUi>,
-    object_states: &'a ExpressionNodeObjectUiStates,
 }
 
 impl<'a> ExpressionGraphUiContext<'a> {
     pub(super) fn new(
         ui_factory: &'a UiFactory<ExpressionGraphUi>,
-        object_states: &'a ExpressionNodeObjectUiStates,
     ) -> ExpressionGraphUiContext<'a> {
-        ExpressionGraphUiContext {
-            ui_factory,
-            object_states,
-        }
+        ExpressionGraphUiContext { ui_factory }
     }
 
     pub(super) fn ui_factory(&self) -> &UiFactory<ExpressionGraphUi> {
         self.ui_factory
-    }
-
-    pub(super) fn object_ui_states(&self) -> &ExpressionNodeObjectUiStates {
-        self.object_states
-    }
-}
-
-impl<'a> GraphUiContext<'a> for ExpressionGraphUiContext<'a> {
-    type GraphUi = ExpressionGraphUi;
-
-    fn get_object_ui_data(&self, id: ExpressionNodeId) -> Rc<AnyExpressionNodeObjectUiData> {
-        self.object_states.get_object_data(id)
     }
 }

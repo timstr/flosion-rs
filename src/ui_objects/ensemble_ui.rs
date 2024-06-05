@@ -25,7 +25,7 @@ impl ObjectUi for EnsembleUi {
         ensemble: DynamicSoundProcessorHandle<Ensemble>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         data: SoundObjectUiData<()>,
         sound_graph: &mut SoundGraph,
     ) {

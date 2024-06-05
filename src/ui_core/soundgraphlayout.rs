@@ -3,7 +3,13 @@ use std::collections::HashMap;
 use eframe::egui;
 
 use crate::core::sound::{
-    soundgraphtopology::SoundGraphTopology, soundprocessor::SoundProcessorId,
+    soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
+    soundprocessor::SoundProcessorId,
+};
+
+use super::{
+    flosion_ui::Factories, soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::SoundGraphUiState,
 };
 
 /// A mapping between a portion of the sound processing timeline
@@ -49,8 +55,50 @@ impl StackedGroup {
         g
     }
 
-    pub(crate) fn draw(&self, ui: &mut egui::Ui) {
-        todo!()
+    pub(crate) fn draw(
+        &self,
+        ui: &mut egui::Ui,
+        factories: &Factories,
+        ui_state: &mut SoundGraphUiState,
+        graph: &mut SoundGraph,
+    ) {
+        // For a unique id for egui, hash the processor ids in the group
+        let area_id = egui::Id::new(&self.processors);
+
+        let area = egui::Area::new(area_id).constrain(false).movable(true);
+
+        area.show(ui.ctx(), |ui| {
+            let frame = egui::Frame::default()
+                // .fill(egui::Color32::from_gray(64))
+                .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
+                .rounding(10.0)
+                .inner_margin(10.0);
+            frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("-");
+                    ui.separator();
+                    ui.vertical(|ui| {
+                        for spid in &self.processors {
+                            // ui.label(format!("Processor {}", spid.value()));
+                            let object = graph
+                                .topology()
+                                .sound_processor(*spid)
+                                .unwrap()
+                                .instance_arc()
+                                .as_graph_object();
+                            let mut ctx = SoundGraphUiContext::new(
+                                factories,
+                                self.time_axis,
+                                self.width_pixels as f32,
+                            );
+                            factories
+                                .sound_uis()
+                                .ui(&object, ui_state, ui, &mut ctx, graph)
+                        }
+                    });
+                });
+            });
+        });
     }
 }
 
@@ -145,9 +193,11 @@ impl SoundGraphLayout {
             if inputs.len() == 1 {
                 continue;
             }
-            let target = topo.sound_input(inputs[0]).unwrap().target();
-            if target.is_some() {
-                continue;
+            if let Some(input_0) = inputs.get(0) {
+                let target = topo.sound_input(*input_0).unwrap().target();
+                if target.is_some() {
+                    continue;
+                }
             }
 
             // If the processor is already in a group, split it.
@@ -213,9 +263,15 @@ impl SoundGraphLayout {
     }
 
     /// Draw the layout and every group to the ui
-    pub(crate) fn draw(&self, ui: &mut egui::Ui) {
+    pub(crate) fn draw(
+        &self,
+        ui: &mut egui::Ui,
+        factories: &Factories,
+        ui_state: &mut SoundGraphUiState,
+        graph: &mut SoundGraph,
+    ) {
         for group in &self.groups {
-            group.draw(ui);
+            group.draw(ui, factories, ui_state, graph);
         }
         // TODO: draw wires between connected groups also
     }
@@ -231,6 +287,11 @@ impl SoundGraphLayout {
                 .sum();
 
             if number_of_appearances != 1 {
+                if number_of_appearances == 0 {
+                    println!("A sound processor does not appear any groups");
+                } else {
+                    println!("A sound processor appears in more than one group");
+                }
                 return false;
             }
         }
@@ -239,6 +300,7 @@ impl SoundGraphLayout {
         for group in &self.groups {
             for spid in &group.processors {
                 if !topo.contains((*spid).into()) {
+                    println!("The layout contains a sound processor which no longer exists");
                     return false;
                 }
             }
@@ -252,6 +314,7 @@ impl SoundGraphLayout {
                 group.processors.iter().zip(group.processors.iter().skip(1))
             {
                 if !Self::connection_is_unique(*top_proc, *bottom_proc, topo) {
+                    println!("Two adjacent processors in a group do not have a unique connection");
                     return false;
                 }
             }
@@ -303,7 +366,21 @@ impl SoundGraphLayout {
     /// just gained a new sound input, which breaks uniqueness of the
     /// group's implied connection above the processor.
     fn split_group_above_processor(&mut self, processor_id: SoundProcessorId) {
-        todo!()
+        let group = self.find_group_mut(processor_id).unwrap();
+        let i = group
+            .processors
+            .iter()
+            .position(|p| *p == processor_id)
+            .unwrap();
+
+        if i == 0 {
+            return;
+        }
+
+        let rest_inclusive = group.processors.split_off(i);
+
+        self.groups
+            .push(StackedGroup::new_with_processors(rest_inclusive));
     }
 
     /// Find the group that processor belongs to, and if there are
@@ -313,7 +390,17 @@ impl SoundGraphLayout {
     /// breaks uniqueness of the group's implied connection below the
     /// processor.
     fn split_group_below_processor(&mut self, processor_id: SoundProcessorId) {
-        todo!()
+        let group = self.find_group_mut(processor_id).unwrap();
+        let i = group
+            .processors
+            .iter()
+            .position(|p| *p == processor_id)
+            .unwrap();
+        let rest_exclusive = group.processors.split_off(i + 1);
+        if !rest_exclusive.is_empty() {
+            self.groups
+                .push(StackedGroup::new_with_processors(rest_exclusive));
+        }
     }
 
     /// Returns true if and only if:

@@ -2,7 +2,8 @@ use crate::core::expression::expressiongraph::ExpressionGraph;
 
 use super::{
     expressiongraphuicontext::ExpressionGraphUiContext,
-    expressiongraphuistate::AnyExpressionNodeObjectUiData, graph_ui::GraphUi,
+    expressiongraphuistate::{AnyExpressionNodeObjectUiData, ExpressionGraphUiState},
+    graph_ui::GraphUi,
 };
 
 pub struct ExpressionGraphUi {}
@@ -10,8 +11,7 @@ pub struct ExpressionGraphUi {}
 impl GraphUi for ExpressionGraphUi {
     type Graph = ExpressionGraph;
 
-    // TODO: ???
-    type State = ();
+    type State = ExpressionGraphUiState;
 
     type Context<'a> = ExpressionGraphUiContext<'a>;
 

@@ -188,7 +188,7 @@ impl ObjectUi for OscilloscopeUi {
         oscilloscope: StaticSoundProcessorHandle<Oscilloscope>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         mut data: SoundObjectUiData<Self::StateType>,
         sound_graph: &mut SoundGraph,
     ) {

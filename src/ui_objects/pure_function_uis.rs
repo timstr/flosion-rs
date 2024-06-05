@@ -11,7 +11,7 @@ use crate::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::ExpressionNodeObjectUiData,
+        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         graph_ui::ObjectUiState,
         lexicallayout::lexicallayout::ExpressionNodeLayout,
@@ -34,9 +34,9 @@ impl ObjectUi for ConstantUi {
     fn ui(
         &self,
         constant: PureExpressionNodeHandle<Constant>,
-        _ui_state: &mut (),
+        _ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ctx: &ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
         _graph: &mut ExpressionGraph,
     ) {
@@ -119,9 +119,9 @@ impl ObjectUi for SliderUi {
     fn ui(
         &self,
         variable: PureExpressionNodeHandle<Variable>,
-        _ui_state: &mut (),
+        _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ctx: &ExpressionGraphUiContext,
         data: ExpressionNodeObjectUiData<SliderUiState>,
         _graph: &mut ExpressionGraph,
     ) {
@@ -220,9 +220,9 @@ macro_rules! unary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                _ui_state: &mut (),
+                _ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
-                ctx: &mut ExpressionGraphUiContext,
+                ctx: &ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
@@ -257,9 +257,9 @@ macro_rules! binary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                _ui_state: &mut (),
+                _ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
-                ctx: &mut ExpressionGraphUiContext,
+                ctx: &ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {
@@ -294,9 +294,9 @@ macro_rules! ternary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                _ui_state: &mut (),
+                _ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
-                ctx: &mut ExpressionGraphUiContext,
+                ctx: &ExpressionGraphUiContext,
                 _data: ExpressionNodeObjectUiData<Self::StateType>,
                 _expr_graph: &mut ExpressionGraph,
             ) {

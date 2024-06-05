@@ -65,7 +65,7 @@ impl ObjectUi for InputUi {
         input: StaticSoundProcessorHandle<Input>,
         ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
-        ctx: &mut SoundGraphUiContext,
+        ctx: &SoundGraphUiContext,
         data: SoundObjectUiData<Self::StateType>,
         sound_graph: &mut SoundGraph,
     ) {

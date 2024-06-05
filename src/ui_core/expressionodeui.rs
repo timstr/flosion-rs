@@ -36,14 +36,15 @@ impl ExpressionNodeUi {
         }
     }
 
-    pub fn show(self, ui: &mut egui::Ui, ctx: &mut ExpressionGraphUiContext) {
+    pub fn show(self, ui: &mut egui::Ui, ctx: &ExpressionGraphUiContext) {
         self.show_with(ui, ctx, |_ui| {});
     }
 
     pub fn show_with<F: FnOnce(&mut egui::Ui)>(
         self,
         ui: &mut egui::Ui,
-        _ctx: &mut ExpressionGraphUiContext,
+        // Huh???
+        _ctx: &ExpressionGraphUiContext,
         add_contents: F,
     ) {
         ui.spacing_mut().item_spacing.x = 3.0;

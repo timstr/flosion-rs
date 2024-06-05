@@ -7,22 +7,30 @@ use crate::core::graph::graph::Graph;
 pub trait ObjectUiState: Any + Serializable {}
 
 pub trait GraphUi {
-    // the graph type being represented in the ui
+    /// the graph type being represented in the ui
     type Graph: Graph;
 
-    // graph-wide ui state
-    type State;
+    /// graph-wide ui state, containing per-object
+    /// ui data. See also GraphUiState below.
+    type State: GraphUiState<GraphUi = Self>;
 
-    // extra data passed to each individual object ui
-    type Context<'a>: GraphUiContext<'a, GraphUi = Self>;
+    /// extra data passed to each individual object ui.
+    // NOTE: this lifetime is here because both
+    // SoundGraphUiContext and ExpressionGraphUiContext
+    // require lifetimes, and there doesn't seem to be
+    // a way to elide it currently.
+    type Context<'a>;
 
-    // data associated with individual object ui
+    /// data associated with individual object ui
     type ObjectUiData: ObjectUiData<GraphUi = Self>;
 }
 
-pub trait GraphUiContext<'a> {
+pub trait GraphUiState {
     type GraphUi: GraphUi;
 
+    /// Access the ui data of an individual graph object by its id.
+    /// This is used in UiFactory to automate rendering the ui of
+    /// any given object.
     fn get_object_ui_data(
         &self,
         id: <<Self::GraphUi as GraphUi>::Graph as Graph>::ObjectId,
@@ -48,12 +56,12 @@ pub trait ObjectUiData {
         F: FnOnce(
             Self::ConcreteType<'_, T>,
             &mut <Self::GraphUi as GraphUi>::State,
-            &mut <Self::GraphUi as GraphUi>::Context<'_>,
+            &<Self::GraphUi as GraphUi>::Context<'_>,
         ),
     >(
         &self,
         ui_state: &mut <Self::GraphUi as GraphUi>::State,
-        ctx: &mut <Self::GraphUi as GraphUi>::Context<'_>,
+        ctx: &<Self::GraphUi as GraphUi>::Context<'_>,
         f: F,
     );
 }

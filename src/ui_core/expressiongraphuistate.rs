@@ -14,7 +14,7 @@ use super::{
     expressiongraphui::ExpressionGraphUi,
     expressiongraphuicontext::ExpressionGraphUiContext,
     expressionui::ExpressionPresentation,
-    graph_ui::{ObjectUiData, ObjectUiState},
+    graph_ui::{GraphUiState, ObjectUiData, ObjectUiState},
     lexicallayout::lexicallayout::ExpressionNodeLayout,
     object_ui_states::AnyObjectUiState,
     ui_factory::UiFactory,
@@ -110,11 +110,15 @@ impl ObjectUiData for AnyExpressionNodeObjectUiData {
 
     fn downcast_with<
         T: ObjectUiState,
-        F: FnOnce(ExpressionNodeObjectUiData<'_, T>, &mut (), &mut ExpressionGraphUiContext),
+        F: FnOnce(
+            ExpressionNodeObjectUiData<'_, T>,
+            &mut ExpressionGraphUiState,
+            &ExpressionGraphUiContext,
+        ),
     >(
         &self,
-        ui_state: &mut (),
-        ctx: &mut ExpressionGraphUiContext<'_>,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &ExpressionGraphUiContext<'_>,
         f: F,
     ) {
         let mut state_mut = self.state.borrow_mut();
@@ -184,5 +188,23 @@ impl ExpressionNodeObjectUiStates {
 
     pub(super) fn cleanup(&mut self, topology: &ExpressionGraphTopology) {
         self.data.retain(|id, _| topology.nodes().contains_key(id));
+    }
+}
+
+pub struct ExpressionGraphUiState {
+    object_states: ExpressionNodeObjectUiStates,
+}
+
+impl ExpressionGraphUiState {
+    pub(crate) fn new(object_states: ExpressionNodeObjectUiStates) -> ExpressionGraphUiState {
+        ExpressionGraphUiState { object_states }
+    }
+}
+
+impl GraphUiState for ExpressionGraphUiState {
+    type GraphUi = ExpressionGraphUi;
+
+    fn get_object_ui_data(&self, id: ExpressionNodeId) -> Rc<AnyExpressionNodeObjectUiData> {
+        self.object_states.get_object_data(id)
     }
 }

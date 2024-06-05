@@ -1,19 +1,22 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use eframe::egui;
 
 use crate::core::{
     graph::graphobject::ObjectType,
     sound::{
-        soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+        soundprocessor::SoundProcessorId,
     },
 };
 
 use super::{
+    flosion_ui::Factories,
     keyboardfocus::KeyboardFocusState,
     soundgraphui::SoundGraphUi,
-    summon_widget::{SummonWidgetState, SummonWidgetStateBuilder},
+    soundgraphuistate::SoundGraphUiState,
+    summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
 };
 
@@ -83,14 +86,48 @@ impl AppInteractions {
     }
 
     /// Receive user input and handle and respond to all top-level interactions
-    pub(crate) fn interact(&mut self, ui: &mut egui::Ui) {
-        todo!()
-    }
+    pub(crate) fn interact(
+        &mut self,
+        ui: &mut egui::Ui,
+        factories: &Factories,
+        graph: &mut SoundGraph,
+        ui_state: &mut SoundGraphUiState,
+    ) {
+        match &mut self.mode {
+            UiMode::Passive => {
+                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)) {
+                    let position = ui
+                        .ctx()
+                        .pointer_latest_pos()
+                        .unwrap_or(egui::pos2(50.0, 50.0));
+                    self.start_summoning(position, factories.sound_uis())
+                }
+            }
+            UiMode::UsingKeyboardNav(_) => todo!(),
+            UiMode::MakingSelection(_) => todo!(),
+            UiMode::HoldingSelection(_) => todo!(),
+            UiMode::DraggingProcessor(_) => todo!(),
+            UiMode::DroppingProcessor(_) => todo!(),
+            UiMode::Summoning(summon_widget) => {
+                ui.add(SummonWidget::new(summon_widget));
 
-    /// Draw any additional visual interactive components to the screen, such
-    /// as a selection rectangle or the summon widget
-    pub(crate) fn draw(&self, ui: &mut egui::Ui) {
-        todo!()
+                if let Some((object_type, args)) = summon_widget.final_choice() {
+                    let new_obj_handle = factories
+                        .sound_objects()
+                        .create_from_args(object_type.name(), graph, args)
+                        .expect("Oops, failed to create object");
+                    ui_state.create_state_for(
+                        new_obj_handle.id(),
+                        graph.topology(),
+                        factories.sound_uis(),
+                    );
+
+                    self.mode = UiMode::Passive;
+                } else if summon_widget.was_cancelled() {
+                    self.mode = UiMode::Passive;
+                }
+            }
+        }
     }
 
     /// Remove any data associated with objects that are no longer present in

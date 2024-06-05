@@ -11,7 +11,7 @@ use crate::core::{
 use super::{
     expressiongraphui::ExpressionGraphUi,
     expressiongraphuicontext::{ExpressionGraphUiContext, OuterExpressionGraphUiContext},
-    expressiongraphuistate::ExpressionNodeObjectUiStates,
+    expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiStates},
     expressionplot::{ExpressionPlot, PlotConfig},
     lexicallayout::lexicallayout::{LexicalLayout, LexicalLayoutFocus},
     ui_factory::UiFactory,
@@ -72,7 +72,8 @@ impl SoundExpressionUi {
     pub(super) fn show(
         self,
         ui: &mut egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ui_state: &mut ExpressionGraphUiState,
+        ctx: &ExpressionGraphUiContext,
         presentation: &mut ExpressionPresentation,
         focus: Option<&mut LexicalLayoutFocus>,
         outer_context: &mut OuterExpressionGraphUiContext,
@@ -89,7 +90,7 @@ impl SoundExpressionUi {
                     ui.set_width(ui.available_width());
                     presentation
                         .lexical_layout
-                        .show(ui, ctx, focus, outer_context);
+                        .show(ui, ui_state, ctx, focus, outer_context);
                     match outer_context {
                         OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
                             ExpressionPlot::new().show(

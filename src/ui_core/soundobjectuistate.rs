@@ -8,14 +8,12 @@ use eframe::egui;
 use crate::core::sound::{soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology};
 
 use super::{
-    expressiongraphui::ExpressionGraphUi,
     graph_ui::{ObjectUiData, ObjectUiState},
     object_ui::Color,
     object_ui_states::AnyObjectUiState,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuistate::SoundGraphUiState,
-    ui_factory::UiFactory,
 };
 
 pub struct AnySoundObjectUiData {
@@ -40,11 +38,11 @@ impl ObjectUiData for AnySoundObjectUiData {
 
     fn downcast_with<
         T: ObjectUiState,
-        F: FnOnce(SoundObjectUiData<'_, T>, &mut SoundGraphUiState, &mut SoundGraphUiContext<'_>),
+        F: FnOnce(SoundObjectUiData<'_, T>, &mut SoundGraphUiState, &SoundGraphUiContext<'_>),
     >(
         &self,
         ui_state: &mut SoundGraphUiState,
-        ctx: &mut SoundGraphUiContext<'_>,
+        ctx: &SoundGraphUiContext<'_>,
         f: F,
     ) {
         let mut state_mut = self.state.borrow_mut();
@@ -61,7 +59,7 @@ impl ObjectUiData for AnySoundObjectUiData {
         }
         let state_any = state_mut.as_mut_any();
         let state = state_any.downcast_mut::<T>().unwrap();
-        let color = ctx.object_states().get_object_color(self.id);
+        let color = ui_state.object_states().get_object_color(self.id);
         f(SoundObjectUiData { state, color }, ui_state, ctx);
     }
 }
@@ -126,18 +124,5 @@ impl SoundObjectUiStates {
         }
         // TODO: invariant check for expression object states
         good
-    }
-
-    pub(super) fn create_state_for(
-        &mut self,
-        object_id: SoundObjectId,
-        topo: &SoundGraphTopology,
-        ui_factory: &UiFactory<SoundGraphUi>,
-        expression_ui_factory: &UiFactory<ExpressionGraphUi>,
-    ) {
-        self.data.entry(object_id).or_insert_with(|| {
-            let graph_object = topo.graph_object(object_id).unwrap();
-            Rc::new(ui_factory.create_default_state(&graph_object))
-        });
     }
 }

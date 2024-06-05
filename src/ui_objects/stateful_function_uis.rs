@@ -8,7 +8,7 @@ use crate::{
     ui_core::{
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::ExpressionNodeObjectUiData,
+        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::{ObjectUi, UiInitialization},
@@ -26,9 +26,9 @@ impl ObjectUi for LinearApproachUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<LinearApproach>,
-        _ui_state: &mut (),
+        _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ctx: &ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
         _graph: &mut ExpressionGraph,
     ) {
@@ -64,9 +64,9 @@ impl ObjectUi for ExponentialApproachUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<ExponentialApproach>,
-        _ui_state: &mut (),
+        _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ctx: &ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
         _graph: &mut ExpressionGraph,
     ) {
@@ -102,9 +102,9 @@ impl ObjectUi for IntegratorUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<Integrator>,
-        _ui_state: &mut (),
+        _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ctx: &ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
         _graph: &mut ExpressionGraph,
     ) {
@@ -136,9 +136,9 @@ impl ObjectUi for WrappingIntegratorUi {
     fn ui<'a, 'b>(
         &self,
         handle: StatefulExpressionNodeHandle<WrappingIntegrator>,
-        _ui_state: &mut (),
+        _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
-        ctx: &mut ExpressionGraphUiContext,
+        ctx: &ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,
         _graph: &mut ExpressionGraph,
     ) {
