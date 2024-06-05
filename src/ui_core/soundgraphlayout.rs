@@ -34,7 +34,6 @@ pub struct StackedGroup {
     /// deepest dependency first. The root/bottom processor is
     /// thus the last in the vec.
     processors: Vec<SoundProcessorId>,
-    // TODO: on-screen location?
 }
 
 impl StackedGroup {
@@ -75,9 +74,12 @@ impl StackedGroup {
                 .inner_margin(10.0);
             frame.show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("-");
-                    ui.separator();
-                    ui.vertical(|ui| {
+                    // Allocate some width for the sidebar (full height is not known until
+                    // the after the processors are laid out)
+                    let (initial_sidebar_rect, _) =
+                        ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
+
+                    let processors_response = ui.vertical(|ui| {
                         for spid in &self.processors {
                             // ui.label(format!("Processor {}", spid.value()));
                             let object = graph
@@ -96,6 +98,15 @@ impl StackedGroup {
                                 .ui(&object, ui_state, ui, &mut ctx, graph)
                         }
                     });
+
+                    let sidebar_rect =
+                        initial_sidebar_rect.with_max_y(processors_response.response.rect.max.y);
+
+                    ui.painter().rect_filled(
+                        sidebar_rect,
+                        egui::Rounding::same(5.0),
+                        egui::Color32::from_white_alpha(32),
+                    );
                 });
             });
         });
@@ -185,17 +196,12 @@ impl SoundGraphLayout {
             }
         }
 
-        // every processor with zero or more than one sound input
-        // must be at the top of a group. Processors with a single
-        // disconnected sound input also belong at the top of a group.
+        // Every processor except those with a single connected sound
+        // input must be at the top of a group
         for proc in topo.sound_processors().values() {
             let inputs = proc.sound_inputs();
             if inputs.len() == 1 {
-                continue;
-            }
-            if let Some(input_0) = inputs.get(0) {
-                let target = topo.sound_input(*input_0).unwrap().target();
-                if target.is_some() {
+                if topo.sound_input(inputs[0]).unwrap().target().is_some() {
                     continue;
                 }
             }
