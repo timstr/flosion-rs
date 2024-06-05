@@ -172,27 +172,7 @@ impl ProcessorUi {
             }
         }
 
-        let response = self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
-    }
-
-    fn outer_and_inner_processor_frames(color: egui::Color32) -> (egui::Frame, egui::Frame) {
-        let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
-
-        let outer_frame = egui::Frame::default()
-            .fill(egui::Color32::from_rgb(
-                (color.r() as u16 * 3 / 4) as u8,
-                (color.g() as u16 * 3 / 4) as u8,
-                (color.b() as u16 * 3 / 4) as u8,
-            ))
-            .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(darkish_stroke);
-
-        let inner_frame = egui::Frame::default()
-            .fill(color)
-            .inner_margin(egui::vec2(0.0, 5.0))
-            .stroke(darkish_stroke);
-
-        (outer_frame, inner_frame)
+        self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
     }
 
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(
@@ -206,9 +186,13 @@ impl ProcessorUi {
         // Clip to the entire screen, not just outside the area
         ui.set_clip_rect(ui.ctx().input(|i| i.screen_rect()));
 
-        let fill = self.color;
+        let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
 
-        let (outer_frame, inner_frame) = Self::outer_and_inner_processor_frames(fill);
+        let frame = egui::Frame::default()
+            .fill(self.color)
+            .inner_margin(egui::vec2(0.0, 5.0))
+            .rounding(5.0)
+            .stroke(darkish_stroke);
 
         let props = ProcessorUiProps {
             origin: ui.cursor().left_top(),
@@ -224,65 +208,55 @@ impl ProcessorUi {
                 .record_sound_input_name(*siid, label.to_string());
         }
 
-        let r = outer_frame.show(ui, |ui| {
-            ui.set_width(desired_width);
+        ui.set_width(desired_width);
 
-            let response = Self::show_inner_processor_contents(
-                ui,
-                left_of_body,
-                desired_width,
-                inner_frame,
-                |ui| {
-                    ui.vertical(|ui| {
-                        for (input_id, input_label, config) in &self.expressions {
-                            self.show_expression(
-                                ui,
-                                ctx,
-                                *input_id,
-                                input_label,
-                                ui_state,
-                                sound_graph,
-                                config,
-                            );
+        let response =
+            Self::show_inner_processor_contents(ui, left_of_body, desired_width, frame, |ui| {
+                ui.vertical(|ui| {
+                    for (input_id, input_label, config) in &self.expressions {
+                        self.show_expression(
+                            ui,
+                            ctx,
+                            *input_id,
+                            input_label,
+                            ui_state,
+                            sound_graph,
+                            config,
+                        );
+                    }
+                    ui.set_width(desired_width);
+
+                    ui.horizontal(|ui| {
+                        ui.spacing();
+                        let name = ui_state
+                            .names()
+                            .sound_processor(self.processor_id)
+                            .unwrap()
+                            .name()
+                            .to_string();
+
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(&name)
+                                    .color(egui::Color32::BLACK)
+                                    .strong(),
+                            )
+                            .wrap(false),
+                        );
+
+                        if !name.to_lowercase().contains(&self.label.to_lowercase()) {
+                            ui.add(egui::Label::new(
+                                egui::RichText::new(self.label)
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
+                            ));
                         }
-                        ui.set_width(desired_width);
-
-                        ui.horizontal(|ui| {
-                            ui.spacing();
-                            let name = ui_state
-                                .names()
-                                .sound_processor(self.processor_id)
-                                .unwrap()
-                                .name()
-                                .to_string();
-
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(&name)
-                                        .color(egui::Color32::BLACK)
-                                        .strong(),
-                                )
-                                .wrap(false),
-                            );
-
-                            if !name.to_lowercase().contains(&self.label.to_lowercase()) {
-                                ui.add(egui::Label::new(
-                                    egui::RichText::new(self.label)
-                                        .color(egui::Color32::from_black_alpha(192))
-                                        .italics(),
-                                ));
-                            }
-                        });
-                        add_contents(ui, ui_state, sound_graph)
                     });
-                },
-            );
+                    add_contents(ui, ui_state, sound_graph)
+                });
+            });
 
-            response
-        });
-
-        r.response.union(r.inner)
-        // r
+        response
     }
 
     fn show_inner_processor_contents<F: FnOnce(&mut egui::Ui)>(
