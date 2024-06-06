@@ -10,13 +10,28 @@ use crate::core::{
 
 use super::stategraphnode::{NodeTargetValue, SharedProcessorNode, UniqueProcessorNode};
 
+/// Struct through which compilation of sound graph components for direct
+/// execution on the audio thread is performed. NodeGen combines both the
+/// creation of executable nodes for sound processors and their inputs as
+/// well as JIT compilation of expressions.
 pub struct NodeGen<'a, 'ctx> {
+    /// The current sound graph topology
     topology: &'a SoundGraphTopology,
+
+    /// The JIT server for compiling expressions
     jit_server: &'a JitServer<'ctx>,
+
+    /// Cache of all nodes for processors which are static and thus should
+    /// only have one single, shared state graph node.
+    // TODO: when implementing partial state graph edits, make sure this is
+    // maintained between topology updates.
     static_processor_nodes: HashMap<SoundProcessorId, SharedProcessorNode<'ctx>>,
 }
 
 impl<'a, 'ctx> NodeGen<'a, 'ctx> {
+    /// Create a new NodeGen instance. The static processor cache will be
+    /// empty, and new nodes will be genereated for static processors
+    /// the first time they are encountered by this NodeGen instance.
     pub(crate) fn new(
         topology: &'a SoundGraphTopology,
         jit_server: &'a JitServer<'ctx>,
@@ -28,6 +43,10 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
         }
     }
 
+    /// Compile a sound processor node, creating an executable node value
+    /// for the state graph. If the node is static, it will be cached to
+    /// to ensure that multiple requests for the same static node receive
+    /// the same (single) shared node.
     pub(crate) fn compile_processor_node(
         &mut self,
         processor_id: SoundProcessorId,
@@ -51,6 +70,8 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
         }
     }
 
+    /// Compile an expression using the JIT compiler, or retrieve
+    /// it if it's already compiled
     pub(crate) fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
@@ -58,6 +79,9 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
         self.jit_server.get_compiled_expression(id, self.topology)
     }
 
+    /// Compile a sound input node for execution on the audio thread
+    /// as part of the state graph. This is called automatically when
+    /// a sound processor node is compiled.
     pub(crate) fn allocate_sound_input_node(
         &mut self,
         sound_input_id: SoundInputId,
