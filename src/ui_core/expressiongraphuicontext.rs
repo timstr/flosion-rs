@@ -1,11 +1,9 @@
-use std::{collections::HashSet, rc::Rc};
+use std::collections::HashSet;
 
 use crate::core::{
-    expression::{
-        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId, ExpressionGraphResultId},
-        expressionnode::ExpressionNodeId,
+    expression::expressiongraph::{
+        ExpressionGraph, ExpressionGraphParameterId, ExpressionGraphResultId,
     },
-    jit::server::JitClient,
     sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
         soundgraph::SoundGraph, soundgrapherror::SoundError, soundprocessor::SoundProcessorId,
@@ -13,11 +11,8 @@ use crate::core::{
 };
 
 use super::{
-    expressiongraphui::ExpressionGraphUi,
-    expressiongraphuistate::{AnyExpressionNodeObjectUiData, ExpressionNodeObjectUiStates},
-    soundgraphlayout::TimeAxis,
-    soundgraphuinames::SoundGraphUiNames,
-    ui_factory::UiFactory,
+    expressiongraphui::ExpressionGraphUi, soundgraphlayout::TimeAxis,
+    soundgraphuinames::SoundGraphUiNames, ui_factory::UiFactory,
 };
 
 pub(crate) struct OuterProcessorExpressionContext<'a> {
@@ -25,7 +20,6 @@ pub(crate) struct OuterProcessorExpressionContext<'a> {
     parent_sound_processor_id: SoundProcessorId,
     sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
-    jit_client: &'a JitClient,
     time_axis: TimeAxis,
     available_arguments: &'a HashSet<SoundExpressionArgumentId>,
 }
@@ -36,7 +30,6 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         parent_sound_processor_id: SoundProcessorId,
         sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
-        jit_client: &'a JitClient,
         time_axis: TimeAxis,
         available_arguments: &'a HashSet<SoundExpressionArgumentId>,
     ) -> Self {
@@ -45,7 +38,6 @@ impl<'a> OuterProcessorExpressionContext<'a> {
             parent_sound_processor_id,
             sound_graph,
             sound_graph_names,
-            jit_client,
             time_axis,
             available_arguments,
         }
@@ -73,10 +65,6 @@ impl<'a> OuterProcessorExpressionContext<'a> {
 
     pub(crate) fn sound_graph_names(&self) -> &SoundGraphUiNames {
         self.sound_graph_names
-    }
-
-    pub(crate) fn jit_client(&self) -> &JitClient {
-        self.jit_client
     }
 
     pub(crate) fn time_axis(&self) -> &TimeAxis {

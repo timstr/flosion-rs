@@ -85,6 +85,11 @@ pub struct FlosionApp {
 
     /// A cache of which expression arguments are available to which expressions,
     /// to avoid repeatedly traversing the graph to find out
+    // TODO: it will be useful to cache other derived sound graph properties,
+    // such as:
+    // - number/set of sound inputs each processor is connected to
+    // - number of times each dynamic processor is implicitly replicated (needed for the state graph)
+    // consider creating a solution for this
     available_arguments: HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
 }
 
@@ -114,8 +119,13 @@ impl FlosionApp {
     }
 
     fn draw_and_interact(&mut self, ui: &mut egui::Ui) {
-        self.graph_layout
-            .draw(ui, &self.factories, &mut self.ui_state, &mut self.graph);
+        self.graph_layout.draw(
+            ui,
+            &self.factories,
+            &mut self.ui_state,
+            &mut self.graph,
+            &self.available_arguments,
+        );
         self.interactions
             .interact(ui, &self.factories, &mut self.graph, &mut self.ui_state);
     }

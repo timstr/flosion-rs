@@ -1,22 +1,19 @@
 use eframe::egui;
 
-use crate::{
-    core::{
-        sound::{
-            expression::SoundExpressionId,
-            expressionargument::SoundExpressionArgumentId,
-            soundgraph::SoundGraph,
-            soundinput::SoundInputId,
-            soundprocessor::{ProcessorHandle, SoundProcessorId},
-        },
-        uniqueid::UniqueId,
+use crate::core::{
+    sound::{
+        expression::SoundExpressionId,
+        expressionargument::SoundExpressionArgumentId,
+        soundgraph::SoundGraph,
+        soundinput::SoundInputId,
+        soundprocessor::{ProcessorHandle, SoundProcessorId},
     },
-    ui_core::soundgraphuinames::SoundGraphUiNames,
+    uniqueid::UniqueId,
 };
 
 use super::{
-    expressionplot::PlotConfig, expressionui::SoundExpressionUi,
-    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+    expressionplot::PlotConfig, soundgraphuicontext::SoundGraphUiContext,
+    soundgraphuistate::SoundGraphUiState,
 };
 
 pub struct ProcessorUi {
@@ -294,43 +291,23 @@ impl ProcessorUi {
         input_label: &str,
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,
-        config: &PlotConfig,
+        plot_config: &PlotConfig,
     ) {
         let fill = egui::Color32::from_black_alpha(64);
 
-        let input_frame = egui::Frame::default()
+        let expr_frame = egui::Frame::default()
             .fill(fill)
             .inner_margin(egui::vec2(5.0, 5.0))
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
-        let res = input_frame.show(ui, |ui| {
+        expr_frame.show(ui, |ui| {
             ui.set_width(ctx.width());
 
-            let input_ui = SoundExpressionUi::new(input_id);
+            ui_state
+                .names_mut()
+                .record_expression_name(input_id, input_label.to_string());
 
-            let names: &mut SoundGraphUiNames = todo!("Get mutable ref to names");
-
-            names.record_expression_name(input_id, input_label.to_string());
-
-            todo!("render expression ui");
-            // ctx.with_number_graph_ui_context(
-            //     input_id,
-            //     temporal_layout,
-            //     names,
-            //     sound_graph,
-            //     |number_ctx, sni_ctx| {
-            //         let mut outer_ctx: OuterNumberGraphUiContext = sni_ctx.into();
-            //         input_ui.show(
-            //             ui,
-            //             number_ui_state,
-            //             number_ctx,
-            //             presentation,
-            //             focus,
-            //             &mut outer_ctx,
-            //             config,
-            //         )
-            //     },
-            // );
+            ui_state.show_expression_graph_ui(input_id, sound_graph, ctx, plot_config, ui);
         });
     }
 }

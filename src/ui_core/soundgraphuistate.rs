@@ -1,18 +1,28 @@
 use std::rc::Rc;
 
-use crate::core::sound::{soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology};
+use eframe::egui;
+
+use crate::core::sound::{
+    expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+    soundgraphtopology::SoundGraphTopology,
+};
 
 use super::{
+    expressiongraphuicontext::{
+        ExpressionGraphUiContext, OuterExpressionGraphUiContext, OuterProcessorExpressionContext,
+    },
     expressiongraphuistate::ExpressionUiCollection,
+    expressionplot::PlotConfig,
+    expressionui::SoundExpressionUi,
     flosion_ui::Factories,
     graph_ui::GraphUiState,
     soundgraphui::SoundGraphUi,
+    soundgraphuicontext::SoundGraphUiContext,
     soundgraphuinames::SoundGraphUiNames,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
     ui_factory::UiFactory,
 };
 
-// TODO: rename to AppUiState
 pub struct SoundGraphUiState {
     /// The ui information needed for all expression uis
     expression_uis: ExpressionUiCollection,
@@ -31,6 +41,10 @@ impl SoundGraphUiState {
             object_states: SoundObjectUiStates::new(),
             names: SoundGraphUiNames::new(),
         }
+    }
+
+    pub(crate) fn expression_uis_mut(&mut self) -> &mut ExpressionUiCollection {
+        &mut self.expression_uis
     }
 
     pub(crate) fn object_states(&self) -> &SoundObjectUiStates {
@@ -70,6 +84,43 @@ impl SoundGraphUiState {
 
     pub(crate) fn names_mut(&mut self) -> &mut SoundGraphUiNames {
         &mut self.names
+    }
+
+    pub(crate) fn show_expression_graph_ui(
+        &mut self,
+        expression_id: SoundExpressionId,
+        graph: &mut SoundGraph,
+        ctx: &SoundGraphUiContext,
+        plot_config: &PlotConfig,
+        ui: &mut egui::Ui,
+    ) {
+        let parent_proc = graph.topology().expression(expression_id).unwrap().owner();
+        let outer_ctx = OuterProcessorExpressionContext::new(
+            expression_id,
+            parent_proc,
+            graph,
+            &self.names,
+            *ctx.time_axis(),
+            ctx.available_arguments().get(&expression_id).unwrap(),
+        );
+        let mut outer_ctx = OuterExpressionGraphUiContext::ProcessorExpression(outer_ctx);
+        let inner_ctx = ExpressionGraphUiContext::new(ctx.factories().expression_uis());
+
+        let expr_ui_focus = None; // TODO
+
+        let expr_ui = SoundExpressionUi::new(expression_id);
+
+        let (expr_ui_state, expr_ui_layout) = self.expression_uis.get_mut(expression_id).unwrap();
+
+        expr_ui.show(
+            ui,
+            expr_ui_state,
+            &inner_ctx,
+            expr_ui_layout,
+            expr_ui_focus,
+            &mut outer_ctx,
+            plot_config,
+        );
     }
 }
 

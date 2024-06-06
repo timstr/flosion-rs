@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
 
 use crate::core::sound::{
+    expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
     soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
     soundprocessor::SoundProcessorId,
 };
@@ -60,6 +61,7 @@ impl StackedGroup {
         factories: &Factories,
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
+        available_arguments: &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
     ) {
         // For a unique id for egui, hash the processor ids in the group
         let area_id = egui::Id::new(&self.processors);
@@ -92,6 +94,7 @@ impl StackedGroup {
                                 factories,
                                 self.time_axis,
                                 self.width_pixels as f32,
+                                available_arguments,
                             );
                             factories
                                 .sound_uis()
@@ -275,9 +278,10 @@ impl SoundGraphLayout {
         factories: &Factories,
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
+        available_arguments: &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
     ) {
         for group in &self.groups {
-            group.draw(ui, factories, ui_state, graph);
+            group.draw(ui, factories, ui_state, graph, available_arguments);
         }
         // TODO: draw wires between connected groups also
     }
