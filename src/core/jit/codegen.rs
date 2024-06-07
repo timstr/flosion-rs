@@ -36,7 +36,7 @@ pub(super) const FLAG_INITIALIZED: u8 = 0;
 
 pub(crate) struct InstructionLocations<'ctx> {
     pub(crate) end_of_entry: InstructionValue<'ctx>,
-    pub(crate) end_of_reset: InstructionValue<'ctx>,
+    pub(crate) end_of_startover: InstructionValue<'ctx>,
     pub(crate) end_of_resume: InstructionValue<'ctx>,
     pub(crate) end_of_pre_loop: InstructionValue<'ctx>,
     pub(crate) end_of_post_loop: InstructionValue<'ctx>,
@@ -117,8 +117,9 @@ impl<'ctx> CodeGen<'ctx> {
         let fn_eval_expression = module.add_function(&function_name, fn_eval_expression_type, None);
 
         let bb_entry = inkwell_context.append_basic_block(fn_eval_expression, "entry");
-        let bb_check_reset = inkwell_context.append_basic_block(fn_eval_expression, "check_reset");
-        let bb_reset = inkwell_context.append_basic_block(fn_eval_expression, "reset");
+        let bb_check_startover =
+            inkwell_context.append_basic_block(fn_eval_expression, "check_startover");
+        let bb_startover = inkwell_context.append_basic_block(fn_eval_expression, "startover");
         let bb_resume = inkwell_context.append_basic_block(fn_eval_expression, "resume");
         let bb_pre_loop = inkwell_context.append_basic_block(fn_eval_expression, "pre_loop");
         let bb_loop = inkwell_context.append_basic_block(fn_eval_expression, "loop");
@@ -162,7 +163,7 @@ impl<'ctx> CodeGen<'ctx> {
         arg_ctx_2.set_name("context_2");
 
         let inst_end_of_entry;
-        let inst_end_of_reset;
+        let inst_end_of_startover;
         let inst_end_of_resume;
         let inst_end_of_pre_loop;
         let inst_end_of_loop;
@@ -183,13 +184,13 @@ impl<'ctx> CodeGen<'ctx> {
 
             // array read functions and state pointer offsets will be inserted here later
 
-            // if len == 0 { goto exit } else { goto check_reset }
+            // if len == 0 { goto exit } else { goto check_startover }
             inst_end_of_entry =
-                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_reset)?;
+                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_startover)?;
         }
 
-        // check_reset
-        builder.position_at_end(bb_check_reset);
+        // check_startover
+        builder.position_at_end(bb_check_startover);
         {
             // init_flag = *ptr_init_flag
             let init_flag = builder
@@ -204,12 +205,12 @@ impl<'ctx> CodeGen<'ctx> {
                 "was_init",
             )?;
 
-            // if was_init { goto resume } else { goto reset }
-            builder.build_conditional_branch(was_init, bb_resume, bb_reset)?;
+            // if was_init { goto resume } else { goto startover }
+            builder.build_conditional_branch(was_init, bb_resume, bb_startover)?;
         }
 
-        // reset
-        builder.position_at_end(bb_reset);
+        // startover
+        builder.position_at_end(bb_startover);
         {
             // *ptr_init_flag = 1
             builder.build_store(
@@ -220,7 +221,7 @@ impl<'ctx> CodeGen<'ctx> {
             // stateful expression node init code will be inserted here
 
             // goto pre_loop
-            inst_end_of_reset = builder.build_unconditional_branch(bb_pre_loop)?;
+            inst_end_of_startover = builder.build_unconditional_branch(bb_pre_loop)?;
         }
 
         // resume
@@ -292,7 +293,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let instruction_locations = InstructionLocations {
             end_of_entry: inst_end_of_entry,
-            end_of_reset: inst_end_of_reset,
+            end_of_startover: inst_end_of_startover,
             end_of_resume: inst_end_of_resume,
             end_of_pre_loop: inst_end_of_pre_loop,
             end_of_post_loop: inst_end_of_post_loop,

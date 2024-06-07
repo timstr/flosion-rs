@@ -41,20 +41,20 @@ enum ReleaseStatus {
 pub struct InputTiming {
     sample_offset: usize,
     time_speed: f32,
-    // TODO: add pending sample offset for resetting
-    needs_reset: bool,
+    // TODO: add pending sample offset for starting over
+    need_to_start_over: bool,
     is_done: bool,
     release: ReleaseStatus,
 }
 
 impl InputTiming {
-    pub fn require_reset(&mut self) {
-        self.needs_reset = true;
+    pub fn flag_to_start_over(&mut self) {
+        self.need_to_start_over = true;
         self.is_done = false;
     }
 
-    pub fn needs_reset(&self) -> bool {
-        self.needs_reset
+    pub fn need_to_start_over(&self) -> bool {
+        self.need_to_start_over
     }
 
     pub fn is_done(&self) -> bool {
@@ -96,10 +96,10 @@ impl InputTiming {
         self.release == ReleaseStatus::Released
     }
 
-    pub fn reset(&mut self, sample_offset: usize) {
+    pub fn start_over(&mut self, sample_offset: usize) {
         debug_assert!(sample_offset < CHUNK_SIZE);
         self.sample_offset = sample_offset;
-        self.needs_reset = false;
+        self.need_to_start_over = false;
         self.is_done = false;
         self.release = ReleaseStatus::NotYet;
     }
@@ -123,7 +123,7 @@ impl Default for InputTiming {
         InputTiming {
             sample_offset: 0,
             time_speed: 1.0,
-            needs_reset: true,
+            need_to_start_over: true,
             is_done: false,
             release: ReleaseStatus::NotYet,
         }

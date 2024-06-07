@@ -1,11 +1,11 @@
 use super::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
 
 pub trait State: Sync + Send + 'static {
-    fn reset(&mut self);
+    fn start_over(&mut self);
 }
 
 impl State for () {
-    fn reset(&mut self) {}
+    fn start_over(&mut self) {}
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

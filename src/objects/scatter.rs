@@ -28,7 +28,7 @@ pub struct ScatterInputState {
 }
 
 impl State for ScatterInputState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.value = 0.0;
     }
 }

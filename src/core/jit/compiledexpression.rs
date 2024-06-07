@@ -114,7 +114,7 @@ impl Discretization {
 }
 
 impl<'ctx> CompiledExpressionFunction<'ctx> {
-    pub(crate) fn reset(&mut self) {
+    pub(crate) fn start_over(&mut self) {
         self.init_flag = FLAG_NOT_INITIALIZED;
     }
 

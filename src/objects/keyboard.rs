@@ -24,7 +24,7 @@ pub struct KeyboardKeyState {
 }
 
 impl State for KeyboardKeyState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.frequency = 0.0;
     }
 }

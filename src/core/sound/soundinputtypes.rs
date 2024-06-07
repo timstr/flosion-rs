@@ -82,8 +82,8 @@ impl<'ctx> SingleInputNode<'ctx> {
             .step(processor_state, dst, ctx, AnyData::new(&()), local_arrays)
     }
 
-    pub fn reset(&mut self, sample_offset: usize) {
-        self.target.reset(sample_offset);
+    pub fn start_over(&mut self, sample_offset: usize) {
+        self.target.start_over(sample_offset);
     }
 }
 
@@ -192,8 +192,8 @@ impl<'a, 'ctx, S: 'static> KeyedInputNodeItem<'a, 'ctx, S> {
         &mut self.state
     }
 
-    pub fn reset(&mut self, sample_offset: usize) {
-        self.target.reset(sample_offset);
+    pub fn start_over(&mut self, sample_offset: usize) {
+        self.target.start_over(sample_offset);
     }
 }
 
@@ -335,8 +335,8 @@ impl<'a, 'ctx> SingleInputListNodeItem<'a, 'ctx> {
             .step(processor_state, dst, ctx, AnyData::new(&()), local_arrays)
     }
 
-    pub fn reset(&mut self, sample_offset: usize) {
-        self.target.reset(sample_offset)
+    pub fn start_over(&mut self, sample_offset: usize) {
+        self.target.start_over(sample_offset)
     }
 }
 
@@ -493,7 +493,7 @@ impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
 
         let data = &mut self.targets[index];
 
-        data.reset(0); // TODO: sample offset
+        data.start_over(0); // TODO: sample offset
         let key_data = KeyPlayingData {
             id,
             state,

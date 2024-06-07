@@ -231,9 +231,9 @@ pub trait StatefulExpressionNode: 'static + Sync + Send + WithObjectType {
     type CompileState<'ctx>;
 
     // Generate instructions to produce the initial values of state variables.
-    // This will be run the first time the compiled called after a reset.
+    // This will be run the first time the compiled called when starting over.
     // The returned vector must have length Self::NUM_VARIABLES
-    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
+    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
 
     // Generate instructions to perform any necessary work prior
     // to the main body of the compiled function, such as synchronization
@@ -315,13 +315,13 @@ impl<T: StatefulExpressionNode> ExpressionNode for StatefulExpressionNodeWithId<
             .collect();
 
         // ===========================================================
-        // =           First-time initialization and reset           =
+        // =       First-time initialization and starting over       =
         // ===========================================================
         // assign initial values to stack variables
         codegen
             .builder()
-            .position_before(&codegen.instruction_locations.end_of_reset);
-        let init_variable_values = self.compile_reset(codegen);
+            .position_before(&codegen.instruction_locations.end_of_startover);
+        let init_variable_values = self.compile_start_over(codegen);
         debug_assert_eq!(init_variable_values.len(), self.num_variables());
         for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
             codegen

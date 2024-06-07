@@ -1,9 +1,9 @@
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
         compiledexpressionnode::{
             CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
+        nodegen::NodeGen,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
@@ -62,7 +62,7 @@ pub struct ADSRState {
 }
 
 impl State for ADSRState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.phase = Phase::Init;
         self.was_released = false;
     }

@@ -66,7 +66,7 @@ struct TestSoundProcessorState {
 }
 
 impl State for TestSoundProcessorState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         // NOTE: values shouldn't be overwritten
     }
 }

@@ -49,7 +49,7 @@ pub struct WaveGeneratorState {
 }
 
 impl State for WaveGeneratorState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         slicemath::fill(&mut self.phase, 0.0);
     }
 }

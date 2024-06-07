@@ -43,7 +43,7 @@ pub struct NoteState {
 }
 
 impl State for NoteState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.frequency = 0.0;
         self.length_seconds = 0.0;
     }
@@ -78,7 +78,7 @@ pub struct MelodyState {
 }
 
 impl State for MelodyState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.current_position = 0;
     }
 }

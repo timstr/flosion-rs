@@ -28,7 +28,7 @@ pub struct VoiceState {
 }
 
 impl State for VoiceState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.spread_ratio = 0.0;
         self.frequency = 0.0;
     }

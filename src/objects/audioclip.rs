@@ -44,7 +44,7 @@ impl AudioClip {
 }
 
 impl State for AudioClipState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.playhead = 0;
     }
 }

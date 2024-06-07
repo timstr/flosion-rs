@@ -1,9 +1,9 @@
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
         compiledexpressionnode::{
             CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
+        nodegen::NodeGen,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,
@@ -47,7 +47,7 @@ pub struct ResamplerState {
 }
 
 impl State for ResamplerState {
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         self.init = false;
         self.sample_index = 0;
         self.sample_offset = 0.0;
@@ -97,7 +97,7 @@ impl DynamicSoundProcessor for Resampler {
     ) -> StreamStatus {
         // TODO: tell context about time speed
         if !state.init {
-            sound_inputs.reset(0);
+            sound_inputs.start_over(0);
             let mut ch = SoundChunk::new();
             sound_inputs.step(state, &mut ch, &context, LocalArrayList::new());
             state.input_chunk = ch;

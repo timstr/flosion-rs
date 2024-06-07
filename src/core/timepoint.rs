@@ -63,7 +63,7 @@ enum TimePointGenerator {
 }
 
 impl TimePointGenerator {
-    fn reset(&mut self) {}
+    fn start_over(&mut self) {}
 }
 
 // A set of time point recipes

@@ -26,18 +26,21 @@ use cpal::{
 
 pub struct OutputData {
     stream_end_barrier: Barrier,
-    pending_reset: AtomicBool,
+    pending_startover: AtomicBool,
     chunk_sender: SyncSender<SoundChunk>,
 }
 
+// TODO: rename to e.g. "SoundOut", "Output" is too vague and overloaded
 pub struct Output {
     pub input: SingleInput,
     shared_data: Arc<OutputData>,
 }
 
 impl Output {
-    pub fn reset(&self) {
-        self.shared_data.pending_reset.store(true, Ordering::SeqCst);
+    pub fn start_over(&self) {
+        self.shared_data
+            .pending_startover
+            .store(true, Ordering::SeqCst);
     }
 }
 
@@ -86,7 +89,7 @@ impl StaticSoundProcessor for Output {
 
         let shared_data = Arc::new(OutputData {
             chunk_sender: tx,
-            pending_reset: AtomicBool::new(false),
+            pending_startover: AtomicBool::new(false),
             stream_end_barrier: Barrier::new(2),
         });
 
@@ -173,10 +176,10 @@ impl StaticSoundProcessor for Output {
     ) {
         if output
             .shared_data
-            .pending_reset
+            .pending_startover
             .swap(false, Ordering::SeqCst)
         {
-            sound_input.reset(0);
+            sound_input.start_over(0);
         }
         let mut ch = SoundChunk::new();
         sound_input.step(timing, &mut ch, &ctx, LocalArrayList::new());

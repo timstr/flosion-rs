@@ -59,11 +59,8 @@ impl<'ctx> CompiledExpressionNode<'ctx> {
 
     /// Flag the compiled function to start over when it is next
     /// evaluated. This is a lightweight operation.
-    // TODO: consider renaming 'reset' here and elsewhere since it makes
-    // me think of e.g. resetting a C++ std::unique_ptr or other class
-    // Maybe 'start_over'?
-    pub(crate) fn reset(&mut self) {
-        self.function.reset();
+    pub(crate) fn start_over(&mut self) {
+        self.function.start_over();
     }
 
     /// Swap the existing compiled function for a new one, disposing of

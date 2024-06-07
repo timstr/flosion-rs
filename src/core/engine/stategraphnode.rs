@@ -23,12 +23,12 @@ use crate::core::{
 };
 
 use super::{
-    garbage::{Droppable, Garbage, GarbageChute},
-    nodegen::NodeGen,
-    scratcharena::ScratchArena,
     compiledexpressionnode::{
         CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
     },
+    garbage::{Droppable, Garbage, GarbageChute},
+    nodegen::NodeGen,
+    scratcharena::ScratchArena,
     soundinputnode::{SoundInputNode, SoundProcessorInput},
 };
 
@@ -100,14 +100,14 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
         }
     }
 
-    fn reset(&mut self) {
-        self.state.reset();
+    fn start_over(&mut self) {
+        self.state.start_over();
         for t in self.sound_input.targets_mut() {
-            t.timing_mut().require_reset();
+            t.timing_mut().flag_to_start_over();
         }
         self.expressions
             .visit_expressions_mut(&mut |node: &mut CompiledExpressionNode<'ctx>| {
-                node.reset();
+                node.start_over();
             });
     }
 
@@ -127,7 +127,7 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
 // TODO: make this not pub
 pub trait StateGraphNode<'ctx>: Sync + Send {
     fn id(&self) -> SoundProcessorId;
-    fn reset(&mut self);
+    fn start_over(&mut self);
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
 
     // Used for book-keeping optimizations, e.g. to avoid visiting shared nodes twice
@@ -149,8 +149,8 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
         self.processor.id()
     }
 
-    fn reset(&mut self) {
-        self.timing.reset();
+    fn start_over(&mut self) {
+        self.timing.start_over();
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
@@ -200,8 +200,8 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
         self.id
     }
 
-    fn reset(&mut self) {
-        (self as &mut DynamicProcessorNode<T>).reset()
+    fn start_over(&mut self) {
+        (self as &mut DynamicProcessorNode<T>).start_over()
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
@@ -282,8 +282,8 @@ impl<'ctx> UniqueProcessorNode<'ctx> {
         status
     }
 
-    fn reset(&mut self) {
-        self.node.reset();
+    fn start_over(&mut self) {
+        self.node.start_over();
     }
 
     fn visit<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(&mut self, mut f: F) {
@@ -454,9 +454,9 @@ impl<'ctx> SharedProcessorNode<'ctx> {
         *stream_status
     }
 
-    fn reset(&mut self) {
+    fn start_over(&mut self) {
         let mut data = self.data.write();
-        data.node.reset();
+        data.node.start_over();
         for (_target_id, used) in &mut data.target_inputs {
             *used = true;
         }
@@ -570,11 +570,11 @@ impl<'ctx> NodeTarget<'ctx> {
         target
     }
 
-    pub(crate) fn reset(&mut self, sample_offset: usize) {
-        self.timing.reset(sample_offset);
+    pub(crate) fn start_over(&mut self, sample_offset: usize) {
+        self.timing.start_over(sample_offset);
         match &mut self.target {
-            NodeTargetValue::Unique(node) => node.reset(),
-            NodeTargetValue::Shared(node) => node.reset(),
+            NodeTargetValue::Unique(node) => node.start_over(),
+            NodeTargetValue::Shared(node) => node.start_over(),
             NodeTargetValue::Empty => (),
         }
     }
@@ -587,10 +587,9 @@ impl<'ctx> NodeTarget<'ctx> {
         input_state: AnyData,
         local_arrays: LocalArrayList,
     ) -> StreamStatus {
-        // debug_assert!(!self.timing.needs_reset());
-        if self.timing.needs_reset() {
-            // NOTE: implicit reset doesn't use any fine timing
-            self.reset(0);
+        if self.timing.need_to_start_over() {
+            // NOTE: implicitly starting over doesn't use any fine timing
+            self.start_over(0);
         }
         if self.timing.is_done() {
             dst.silence();

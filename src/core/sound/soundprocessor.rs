@@ -8,8 +8,8 @@ use serialization::Serializer;
 
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
         compiledexpressionnode::ExpressionCollection,
+        nodegen::NodeGen,
         soundinputnode::SoundProcessorInput,
         stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
     },
@@ -348,7 +348,7 @@ impl ProcessorTiming {
         ProcessorTiming { elapsed_chunks: 0 }
     }
 
-    pub(crate) fn reset(&mut self) {
+    pub(crate) fn start_over(&mut self) {
         self.elapsed_chunks = 0;
     }
 
@@ -377,7 +377,7 @@ pub trait ProcessorState: 'static + Sync + Send {
 
     fn timing(&self) -> &ProcessorTiming;
 
-    fn reset(&mut self);
+    fn start_over(&mut self);
 }
 
 impl ProcessorState for ProcessorTiming {
@@ -393,8 +393,8 @@ impl ProcessorState for ProcessorTiming {
         self
     }
 
-    fn reset(&mut self) {
-        (self as &mut ProcessorTiming).reset();
+    fn start_over(&mut self) {
+        (self as &mut ProcessorTiming).start_over();
     }
 }
 
@@ -411,9 +411,9 @@ impl<T: State> ProcessorState for StateAndTiming<T> {
         (self as &StateAndTiming<T>).timing()
     }
 
-    fn reset(&mut self) {
-        self.state.reset();
-        self.timing.reset();
+    fn start_over(&mut self) {
+        self.state.start_over();
+        self.timing.start_over();
     }
 }
 

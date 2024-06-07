@@ -35,7 +35,7 @@ impl StatefulExpressionNode for LinearApproach {
 
     type CompileState<'ctx> = ();
 
-    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 
@@ -137,7 +137,7 @@ impl StatefulExpressionNode for ExponentialApproach {
 
     type CompileState<'ctx> = ();
 
-    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 
@@ -221,7 +221,7 @@ impl StatefulExpressionNode for Integrator {
 
     type CompileState<'ctx> = ();
 
-    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 
@@ -279,7 +279,7 @@ impl StatefulExpressionNode for WrappingIntegrator {
 
     type CompileState<'ctx> = ();
 
-    fn compile_reset<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![codegen.float_type().const_float(0.0)]
     }
 

@@ -52,7 +52,7 @@ impl StatefulExpressionNode for Sampler1d {
         // TODO
     }
 
-    fn compile_reset<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
+    fn compile_start_over<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![]
     }
 

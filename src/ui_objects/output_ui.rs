@@ -37,8 +37,11 @@ impl ObjectUi for OutputUi {
                 ui_state,
                 sound_graph,
                 |ui, _ui_state, _sound_graph| {
-                    if ui.add(egui::Button::new("Reset").wrap(false)).clicked() {
-                        output.reset();
+                    if ui
+                        .add(egui::Button::new("Start over").wrap(false))
+                        .clicked()
+                    {
+                        output.start_over();
                     }
                 },
             );
