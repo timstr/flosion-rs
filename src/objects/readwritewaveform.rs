@@ -1,9 +1,9 @@
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
-        soundexpressionnode::{
+        compiledexpressionnode::{
             CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
+        nodegen::NodeGen,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,

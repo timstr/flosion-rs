@@ -12,7 +12,7 @@ use crate::core::{
 };
 
 use super::{
-    soundexpressionnode::CompiledExpressionNode,
+    compiledexpressionnode::CompiledExpressionNode,
     stategraph::StateGraph,
     stategraphnode::{
         NodeTargetValue, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,

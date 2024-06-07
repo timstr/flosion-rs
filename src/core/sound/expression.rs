@@ -1,5 +1,5 @@
 use crate::core::{
-    engine::{nodegen::NodeGen, soundexpressionnode::CompiledExpressionNode},
+    engine::{nodegen::NodeGen, compiledexpressionnode::CompiledExpressionNode},
     uniqueid::UniqueId,
 };
 

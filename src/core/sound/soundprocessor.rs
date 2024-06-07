@@ -9,7 +9,7 @@ use serialization::Serializer;
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundexpressionnode::ExpressionCollection,
+        compiledexpressionnode::ExpressionCollection,
         soundinputnode::SoundProcessorInput,
         stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
     },

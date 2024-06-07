@@ -1,7 +1,7 @@
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        soundexpressionnode::{
+        compiledexpressionnode::{
             CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
         },
     },

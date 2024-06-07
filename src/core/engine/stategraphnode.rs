@@ -26,7 +26,7 @@ use super::{
     garbage::{Droppable, Garbage, GarbageChute},
     nodegen::NodeGen,
     scratcharena::ScratchArena,
-    soundexpressionnode::{
+    compiledexpressionnode::{
         CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
     },
     soundinputnode::{SoundInputNode, SoundProcessorInput},

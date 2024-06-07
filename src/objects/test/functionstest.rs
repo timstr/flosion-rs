@@ -9,7 +9,7 @@ use crate::{
         engine::{
             nodegen::NodeGen,
             scratcharena::ScratchArena,
-            soundexpressionnode::{
+            compiledexpressionnode::{
                 CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
                 ExpressionVisitorMut,
             },
