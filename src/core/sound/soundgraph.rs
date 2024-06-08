@@ -132,7 +132,7 @@ impl SoundGraph {
                 // the sound engine
                 let jit_server = jit_server_builder.build_server(&inkwell_context);
 
-                // Do the housekeeping chores until iterrupted
+                // Do the housekeeping chores until interrupted
                 Self::housekeeping_loop(
                     jit_server,
                     topo_receiver,
