@@ -4,7 +4,7 @@ use crate::core::{
             CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
             CompiledExpressionVisitorMut,
         },
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,
@@ -70,10 +70,10 @@ impl DynamicSoundProcessor for Definitions {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        nodegen: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         DefinitionsExpressions {
-            input: self.expression.make_node(nodegen),
+            input: self.expression.compile(nodegen),
             argument_id: self.argument.id(),
         }
     }

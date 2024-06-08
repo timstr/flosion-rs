@@ -1,9 +1,10 @@
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
         compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,
@@ -56,10 +57,10 @@ impl DynamicSoundProcessor for WriteWaveform {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         WriteWaveformExpressions {
-            waveform: self.waveform.make_node(nodegen),
+            waveform: self.waveform.compile(compiler),
         }
     }
 

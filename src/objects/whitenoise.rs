@@ -1,7 +1,7 @@
 use rand::prelude::*;
 
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::soundgraphcompiler::SoundGraphCompiler,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::Context,
@@ -32,7 +32,7 @@ impl DynamicSoundProcessor for WhiteNoise {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        _nodegen: &NodeGen<'a, 'ctx>,
+        _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
     }

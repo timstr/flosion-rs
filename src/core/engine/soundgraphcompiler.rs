@@ -13,10 +13,10 @@ use super::stategraphnode::{
 };
 
 /// Struct through which compilation of sound graph components for direct
-/// execution on the audio thread is performed. NodeGen combines both the
-/// creation of executable nodes for sound processors and their inputs as
-/// well as JIT compilation of expressions.
-pub struct NodeGen<'a, 'ctx> {
+/// execution on the audio thread is performed. SoundGraphCompiler combines
+/// both the creation of executable nodes for sound processors and their inputs
+/// as well as JIT compilation of expressions.
+pub struct SoundGraphCompiler<'a, 'ctx> {
     /// The current sound graph topology
     topology: &'a SoundGraphTopology,
 
@@ -30,15 +30,15 @@ pub struct NodeGen<'a, 'ctx> {
     static_processor_nodes: HashMap<SoundProcessorId, SharedCompiledProcessor<'ctx>>,
 }
 
-impl<'a, 'ctx> NodeGen<'a, 'ctx> {
-    /// Create a new NodeGen instance. The static processor cache will be
+impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
+    /// Create a new SoundGraphCompiler instance. The static processor cache will be
     /// empty, and new nodes will be genereated for static processors
-    /// the first time they are encountered by this NodeGen instance.
+    /// the first time they are encountered by this SoundGraphCompiler instance.
     pub(crate) fn new(
         topology: &'a SoundGraphTopology,
         jit_server: &'a JitServer<'ctx>,
-    ) -> NodeGen<'a, 'ctx> {
-        NodeGen {
+    ) -> SoundGraphCompiler<'a, 'ctx> {
+        SoundGraphCompiler {
             topology,
             jit_server,
             static_processor_nodes: HashMap::new(),
@@ -57,7 +57,7 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
             if let Some(node) = self.static_processor_nodes.get(&processor_id) {
                 StateGraphNodeValue::Shared(node.clone())
             } else {
-                let node = SharedCompiledProcessor::new(proc.instance_arc().make_node(self));
+                let node = SharedCompiledProcessor::new(proc.instance_arc().compile(self));
                 self.static_processor_nodes
                     .insert(processor_id, node.clone());
                 StateGraphNodeValue::Shared(node)
@@ -66,7 +66,7 @@ impl<'a, 'ctx> NodeGen<'a, 'ctx> {
             // TODO: for shared dynamic processors, some kind of clever
             // book-keeping will be needed here
             StateGraphNodeValue::Unique(UniqueCompiledSoundProcessor::new(
-                proc.instance_arc().make_node(self),
+                proc.instance_arc().compile(self),
             ))
         }
     }

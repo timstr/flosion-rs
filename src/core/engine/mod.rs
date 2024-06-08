@@ -1,6 +1,6 @@
 pub mod compiledexpression;
 pub(crate) mod garbage;
-pub mod nodegen;
+pub mod soundgraphcompiler;
 pub(crate) mod scratcharena;
 pub mod soundengine;
 pub mod compiledsoundinput;

@@ -6,7 +6,7 @@ use crate::core::{
     anydata::AnyData,
     engine::{
         compiledsoundinput::{CompiledSoundInput, SoundProcessorInput},
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
         stategraphnode::CompiledSoundInputBranch,
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -43,8 +43,11 @@ impl SingleInput {
 impl SoundProcessorInput for SingleInput {
     type NodeType<'ctx> = SingleInputNode<'ctx>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
-        SingleInputNode::new(self.id, nodegen)
+    fn make_node<'a, 'ctx>(
+        &self,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+    ) -> Self::NodeType<'ctx> {
+        SingleInputNode::new(self.id, compiler)
     }
 
     fn list_ids(&self) -> Vec<SoundInputId> {
@@ -57,9 +60,12 @@ pub struct SingleInputNode<'ctx> {
 }
 
 impl<'ctx> SingleInputNode<'ctx> {
-    pub fn new<'a>(id: SoundInputId, nodegen: &mut NodeGen<'a, 'ctx>) -> SingleInputNode<'ctx> {
+    pub fn new<'a>(
+        id: SoundInputId,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+    ) -> SingleInputNode<'ctx> {
         SingleInputNode {
-            target: CompiledSoundInputBranch::new(id, SingleInput::THE_ONLY_BRANCH, nodegen),
+            target: CompiledSoundInputBranch::new(id, SingleInput::THE_ONLY_BRANCH, compiler),
         }
     }
 
@@ -125,13 +131,16 @@ impl<S: State + Default> KeyedInput<S> {
 impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
     type NodeType<'ctx> = KeyedInputNode<'ctx, S>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(
+        &self,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+    ) -> Self::NodeType<'ctx> {
         KeyedInputNode {
             id: self.id,
             targets: self
                 .branches
                 .iter()
-                .map(|id| CompiledSoundInputBranch::new(self.id, *id, nodegen))
+                .map(|id| CompiledSoundInputBranch::new(self.id, *id, compiler))
                 .collect(),
             states: self.branches.iter().map(|_| S::default()).collect(),
         }
@@ -230,7 +239,10 @@ impl<'ctx, S: State + Default> CompiledSoundInput<'ctx> for KeyedInputNode<'ctx,
 impl SoundProcessorInput for () {
     type NodeType<'ctx> = ();
 
-    fn make_node<'a, 'ctx>(&self, _nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(
+        &self,
+        _compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+    ) -> Self::NodeType<'ctx> {
         ()
     }
 
@@ -291,13 +303,18 @@ impl SingleInputList {
 impl SoundProcessorInput for SingleInputList {
     type NodeType<'ctx> = SingleInputListNode<'ctx>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
+    fn make_node<'a, 'ctx>(
+        &self,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+    ) -> Self::NodeType<'ctx> {
         SingleInputListNode {
             targets: self
                 .input_ids
                 .read()
                 .iter()
-                .map(|id| CompiledSoundInputBranch::new(*id, SingleInput::THE_ONLY_BRANCH, nodegen))
+                .map(|id| {
+                    CompiledSoundInputBranch::new(*id, SingleInput::THE_ONLY_BRANCH, compiler)
+                })
                 .collect(),
         }
     }
@@ -408,8 +425,11 @@ impl<S: State> KeyedInputQueue<S> {
 impl<S: State> SoundProcessorInput for KeyedInputQueue<S> {
     type NodeType<'ctx> = KeyedInputQueueNode<'ctx, S>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx> {
-        KeyedInputQueueNode::new(self.id, &self.branches, nodegen)
+    fn make_node<'a, 'ctx>(
+        &self,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+    ) -> Self::NodeType<'ctx> {
+        KeyedInputQueueNode::new(self.id, &self.branches, compiler)
     }
 
     fn list_ids(&self) -> Vec<SoundInputId> {
@@ -428,13 +448,13 @@ impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
     fn new<'a>(
         id: SoundInputId,
         branches: &[SoundInputBranchId],
-        nodegen: &mut NodeGen<'a, 'ctx>,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Self {
         Self {
             id,
             targets: branches
                 .iter()
-                .map(|bid| CompiledSoundInputBranch::new(id, *bid, nodegen))
+                .map(|bid| CompiledSoundInputBranch::new(id, *bid, compiler))
                 .collect(),
             states: branches
                 .iter()

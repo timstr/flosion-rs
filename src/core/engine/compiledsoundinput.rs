@@ -1,6 +1,6 @@
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
         stategraphnode::{CompiledSoundInputBranch, StateGraphNodeValue},
     },
     sound::soundinput::SoundInputId,
@@ -64,7 +64,10 @@ impl<'ctx> CompiledSoundInput<'ctx> for () {
 pub trait SoundProcessorInput: Sync + Send {
     type NodeType<'ctx>: CompiledSoundInput<'ctx>;
 
-    fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx>;
+    fn make_node<'a, 'ctx>(
+        &self,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+    ) -> Self::NodeType<'ctx>;
 
     fn list_ids(&self) -> Vec<SoundInputId>;
 }

@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use crate::{
     core::{
         engine::{
-            nodegen::NodeGen,
+            soundgraphcompiler::SoundGraphCompiler,
             scratcharena::ScratchArena,
             compiledexpression::{
                 CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
@@ -112,9 +112,9 @@ impl DynamicSoundProcessor for TestSoundProcessor {
         &()
     }
 
-    fn compile_expressions<'ctx>(&self, context: &NodeGen<'_, 'ctx>) -> Self::Expressions<'ctx> {
+    fn compile_expressions<'ctx>(&self, context: &SoundGraphCompiler<'_, 'ctx>) -> Self::Expressions<'ctx> {
         TestExpressions {
-            input: self.expression.make_node(context),
+            input: self.expression.compile(context),
         }
     }
 

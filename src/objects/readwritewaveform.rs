@@ -4,7 +4,7 @@ use crate::core::{
             CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
             CompiledExpressionVisitorMut,
         },
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,
@@ -74,10 +74,10 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ReadWriteWaveformExpressions {
-            waveform: self.waveform.make_node(nodegen),
+            waveform: self.waveform.compile(compiler),
             input_l: self.input_l.id(),
             input_r: self.input_r.id(),
         }

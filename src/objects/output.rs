@@ -5,7 +5,7 @@ use std::sync::{
 };
 
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::soundgraphcompiler::SoundGraphCompiler,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     resample::resample_interleave,
     samplefrequency::SAMPLE_FREQUENCY,
@@ -161,7 +161,7 @@ impl StaticSoundProcessor for Output {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        _nodegen: &NodeGen<'a, 'ctx>,
+        _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
     }

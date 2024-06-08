@@ -2,10 +2,11 @@ use rand::prelude::*;
 
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
         compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
@@ -94,10 +95,10 @@ impl DynamicSoundProcessor for Scatter {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ScatterExpressions {
-            parameter: self.parameter.make_node(nodegen),
+            parameter: self.parameter.compile(compiler),
         }
     }
 

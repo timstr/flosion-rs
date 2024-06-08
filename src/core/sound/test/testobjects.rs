@@ -1,5 +1,5 @@
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::soundgraphcompiler::SoundGraphCompiler,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::Context,
@@ -32,7 +32,7 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        _nodegen: &NodeGen<'a, 'ctx>,
+        _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
     }

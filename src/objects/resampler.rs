@@ -4,7 +4,7 @@ use crate::core::{
             CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
             CompiledExpressionVisitorMut,
         },
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,
@@ -82,10 +82,10 @@ impl DynamicSoundProcessor for Resampler {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ResamplerExpressions {
-            speed_ratio: self.speed_ratio.make_node(nodegen),
+            speed_ratio: self.speed_ratio.compile(compiler),
         }
     }
 

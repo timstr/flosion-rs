@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use spmcq::ReadResult;
 
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::soundgraphcompiler::SoundGraphCompiler,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{
@@ -113,7 +113,7 @@ impl StaticSoundProcessor for Input {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        _nodegen: &NodeGen<'a, 'ctx>,
+        _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
     }

@@ -3,7 +3,7 @@ use std::slice;
 use crate::core::{
     engine::{
         garbage::{Garbage, GarbageChute},
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
     },
     jit::compiledexpression::{CompiledExpressionFunction, Discretization},
     sound::{context::Context, expression::SoundExpressionId},
@@ -28,23 +28,23 @@ pub struct CompiledExpression<'ctx> {
 
 impl<'ctx> CompiledExpression<'ctx> {
     #[cfg(not(debug_assertions))]
-    /// Creates a new compiled expression node
+    /// Creates a new compiled expression
     pub(crate) fn new<'a>(
         id: SoundExpressionId,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> CompiledExpression<'ctx> {
-        let function = nodegen.get_compiled_expression(id);
+        let function = compiler.get_compiled_expression(id);
         CompiledExpression { id, function }
     }
 
     #[cfg(debug_assertions)]
-    /// Creates a new compiled expression node
+    /// Creates a new compiled expression
     pub(crate) fn new<'a>(
         id: SoundExpressionId,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
         scope: SoundExpressionScope,
     ) -> CompiledExpression<'ctx> {
-        let function = nodegen.get_compiled_expression(id);
+        let function = compiler.get_compiled_expression(id);
         CompiledExpression {
             id,
             function,
@@ -52,7 +52,7 @@ impl<'ctx> CompiledExpression<'ctx> {
         }
     }
 
-    /// Retrieve the id of the expression the node corresponds to
+    /// Retrieve the id of the expression
     pub(crate) fn id(&self) -> SoundExpressionId {
         self.id
     }

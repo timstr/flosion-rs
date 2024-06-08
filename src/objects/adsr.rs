@@ -1,9 +1,10 @@
 use crate::core::{
     engine::{
         compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     samplefrequency::SAMPLE_FREQUENCY,
@@ -155,13 +156,13 @@ impl DynamicSoundProcessor for ADSR {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ADSRExpressions {
-            attack_time: self.attack_time.make_node(nodegen),
-            decay_time: self.decay_time.make_node(nodegen),
-            sustain_level: self.sustain_level.make_node(nodegen),
-            release_time: self.release_time.make_node(nodegen),
+            attack_time: self.attack_time.compile(compiler),
+            decay_time: self.decay_time.compile(compiler),
+            sustain_level: self.sustain_level.compile(compiler),
+            release_time: self.release_time.compile(compiler),
         }
     }
 

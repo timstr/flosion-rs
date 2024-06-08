@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 use serialization::{Serializable, Serializer};
 
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::soundgraphcompiler::SoundGraphCompiler,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
@@ -89,7 +89,7 @@ impl StaticSoundProcessor for Recorder {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        _nodegen: &NodeGen<'a, 'ctx>,
+        _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
     }

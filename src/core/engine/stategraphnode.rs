@@ -29,8 +29,8 @@ use super::{
     },
     compiledsoundinput::{CompiledSoundInput, SoundProcessorInput},
     garbage::{Droppable, Garbage, GarbageChute},
-    nodegen::NodeGen,
     scratcharena::ScratchArena,
+    soundgraphcompiler::SoundGraphCompiler,
 };
 
 /// A compiled state graph artefact for a static processor. An Arc to the
@@ -46,11 +46,11 @@ pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
 impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
     pub(crate) fn new<'a>(
         processor: Arc<StaticSoundProcessorWithId<T>>,
-        nodegen: &mut NodeGen<'a, 'ctx>,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
-        let sound_input = processor.get_sound_input().make_node(nodegen);
-        let expressions = processor.compile_expressions(nodegen);
+        let sound_input = processor.get_sound_input().make_node(compiler);
+        let expressions = processor.compile_expressions(compiler);
         let finish = Instant::now();
         let time_to_compile: Duration = finish - start;
         let time_to_compile_ms = time_to_compile.as_millis();
@@ -80,12 +80,12 @@ pub struct CompiledDynamicProcessor<'ctx, T: DynamicSoundProcessor> {
 impl<'ctx, T: DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
     pub(crate) fn new<'a>(
         processor: &DynamicSoundProcessorWithId<T>,
-        nodegen: &mut NodeGen<'a, 'ctx>,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
         let state = StateAndTiming::new(processor.make_state());
-        let sound_input = processor.get_sound_input().make_node(nodegen);
-        let expressions = processor.compile_expressions(nodegen);
+        let sound_input = processor.get_sound_input().make_node(compiler);
+        let expressions = processor.compile_expressions(compiler);
         let finish = Instant::now();
         let time_to_compile: Duration = finish - start;
         let time_to_compile_ms = time_to_compile.as_millis();
@@ -508,13 +508,13 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     pub(crate) fn new<'a>(
         input_id: SoundInputId,
         branch_id: SoundInputBranchId,
-        nodegen: &mut NodeGen<'a, 'ctx>,
+        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> CompiledSoundInputBranch<'ctx> {
         CompiledSoundInputBranch {
             input_id,
             branch_id,
             timing: InputTiming::default(),
-            target: nodegen.compile_sound_input(input_id),
+            target: compiler.compile_sound_input(input_id),
         }
     }
 

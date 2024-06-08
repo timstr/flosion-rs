@@ -2,9 +2,10 @@ use crate::core::{
     anydata::AnyData,
     engine::{
         compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,
@@ -82,11 +83,11 @@ impl DynamicSoundProcessor for WaveGenerator {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compile: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         WaveGeneratorExpressions {
-            frequency: self.frequency.make_node(nodegen),
-            amplitude: self.amplitude.make_node(nodegen),
+            frequency: self.frequency.compile(compile),
+            amplitude: self.amplitude.compile(compile),
         }
     }
 

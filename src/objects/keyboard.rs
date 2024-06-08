@@ -3,7 +3,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use parking_lot::Mutex;
 
 use crate::core::{
-    engine::nodegen::NodeGen,
+    engine::soundgraphcompiler::SoundGraphCompiler,
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
         context::{Context, LocalArrayList},
@@ -89,7 +89,7 @@ impl StaticSoundProcessor for Keyboard {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        _nodegen: &NodeGen<'a, 'ctx>,
+        _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
     }

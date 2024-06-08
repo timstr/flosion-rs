@@ -3,9 +3,10 @@ use rand::prelude::*;
 use crate::core::{
     engine::{
         compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
-        nodegen::NodeGen,
+        soundgraphcompiler::SoundGraphCompiler,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
@@ -99,11 +100,11 @@ impl DynamicSoundProcessor for Ensemble {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &NodeGen<'a, 'ctx>,
+        compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         EnsembleExpressions {
-            frequency_in: self.frequency_in.make_node(nodegen),
-            frequency_spread: self.frequency_spread.make_node(nodegen),
+            frequency_in: self.frequency_in.compile(compiler),
+            frequency_spread: self.frequency_spread.compile(compiler),
         }
     }
 
