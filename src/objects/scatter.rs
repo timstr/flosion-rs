@@ -56,12 +56,12 @@ pub struct ScatterExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for ScatterExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.parameter);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.parameter);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.parameter);
+    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.parameter);
     }
 }
 

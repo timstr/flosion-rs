@@ -31,12 +31,12 @@ pub struct ResamplerExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for ResamplerExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.speed_ratio);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.speed_ratio);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.speed_ratio);
+    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.speed_ratio);
     }
 }
 

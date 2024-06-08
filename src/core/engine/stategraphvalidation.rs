@@ -15,7 +15,7 @@ use super::{
     compiledexpression::CompiledExpression,
     stategraph::StateGraph,
     stategraphnode::{
-        CompiledSoundProcessor, SharedCompiledProcessor, SharedCompiledProcessorData,
+        CompiledSoundProcessor, SharedCompiledProcessor, SharedCompiledProcessorCache,
         StateGraphNodeValue, UniqueCompiledSoundProcessor,
     },
 };
@@ -26,17 +26,17 @@ struct Visitor<'a, 'ctx> {
     // All shared compiled processors visited so far, and the processors they correspond to.
     // Note that all static processor nodes are shared nodes, but dynamic
     // processor nodes can be shared as well.
-    visited_shared_processors: HashMap<*const SharedCompiledProcessorData<'ctx>, SoundProcessorId>,
+    visited_shared_processors: HashMap<*const SharedCompiledProcessorCache<'ctx>, SoundProcessorId>,
 
     // All static processors visited so far, along with the shared data that
     // they correspond to
-    visited_static_processors: HashMap<SoundProcessorId, *const SharedCompiledProcessorData<'ctx>>,
+    visited_static_processors: HashMap<SoundProcessorId, *const SharedCompiledProcessorCache<'ctx>>,
 }
 
 impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn visit_shared_processor(&mut self, proc: &SharedCompiledProcessor<'ctx>) -> bool {
-        let data = proc.borrow_data();
-        let data_ptr: *const SharedCompiledProcessorData = &*data;
+        let data = proc.borrow_cache();
+        let data_ptr: *const SharedCompiledProcessorCache = &*data;
 
         if let Some(spid) = self.visited_shared_processors.get(&data_ptr) {
             if *spid != proc.id() {
@@ -67,7 +67,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn check_processor(
         &mut self,
         proc: &dyn CompiledSoundProcessor<'ctx>,
-        shared_data: Option<*const SharedCompiledProcessorData<'ctx>>,
+        shared_data: Option<*const SharedCompiledProcessorCache<'ctx>>,
     ) -> bool {
         let Some(proc_data) = self.topology.sound_processors().get(&proc.id()) else {
             println!(
@@ -198,7 +198,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             proc_data.expressions().iter().cloned().collect();
         let mut unexpected_inputs: HashSet<SoundExpressionId> = HashSet::new();
 
-        proc.visit_expressions(&mut |expr: &CompiledExpression| {
+        proc.expressions().visit(&mut |expr: &CompiledExpression| {
             if !remaining_inputs.remove(&expr.id()) {
                 unexpected_inputs.insert(expr.id());
             }

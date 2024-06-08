@@ -38,18 +38,18 @@ pub struct ADSRExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for ADSRExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.attack_time);
-        visitor.visit_node(&self.decay_time);
-        visitor.visit_node(&self.sustain_level);
-        visitor.visit_node(&self.release_time);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.attack_time);
+        visitor.visit(&self.decay_time);
+        visitor.visit(&self.sustain_level);
+        visitor.visit(&self.release_time);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.attack_time);
-        visitor.visit_node(&mut self.decay_time);
-        visitor.visit_node(&mut self.sustain_level);
-        visitor.visit_node(&mut self.release_time);
+    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.attack_time);
+        visitor.visit(&mut self.decay_time);
+        visitor.visit(&mut self.sustain_level);
+        visitor.visit(&mut self.release_time);
     }
 }
 

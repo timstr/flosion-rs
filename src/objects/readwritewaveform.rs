@@ -36,12 +36,12 @@ pub struct ReadWriteWaveformExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for ReadWriteWaveformExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.waveform);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.waveform);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.waveform);
+    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.waveform);
     }
 }
 

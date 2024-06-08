@@ -34,14 +34,14 @@ pub struct WaveGeneratorExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for WaveGeneratorExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.frequency);
-        visitor.visit_node(&self.amplitude);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.frequency);
+        visitor.visit(&self.amplitude);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.frequency);
-        visitor.visit_node(&mut self.amplitude);
+    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.frequency);
+        visitor.visit(&mut self.amplitude);
     }
 }
 

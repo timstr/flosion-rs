@@ -93,7 +93,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
                 let mut node = self.compile_sound_processor(spid);
                 if let StateGraphNodeValue::Shared(shared_node) = &mut node {
                     shared_node
-                        .borrow_data_mut()
+                        .borrow_cache_mut()
                         .add_target_input(sound_input_id);
                 }
                 node

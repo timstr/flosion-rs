@@ -57,14 +57,14 @@ pub struct EnsembleExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for EnsembleExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.frequency_in);
-        visitor.visit_node(&self.frequency_spread);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.frequency_in);
+        visitor.visit(&self.frequency_spread);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.frequency_in);
-        visitor.visit_node(&mut self.frequency_spread);
+    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.frequency_in);
+        visitor.visit(&mut self.frequency_spread);
     }
 }
 

@@ -36,12 +36,12 @@ pub struct DefinitionsExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for DefinitionsExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.input);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.input);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.input);
+    fn visit_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.input);
     }
 }
 
@@ -70,10 +70,10 @@ impl DynamicSoundProcessor for Definitions {
 
     fn compile_expressions<'a, 'ctx>(
         &self,
-        nodegen: &SoundGraphCompiler<'a, 'ctx>,
+        compile: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         DefinitionsExpressions {
-            input: self.expression.compile(nodegen),
+            input: self.expression.compile(compile),
             argument_id: self.argument.id(),
         }
     }

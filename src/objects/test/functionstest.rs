@@ -7,12 +7,12 @@ use parking_lot::Mutex;
 use crate::{
     core::{
         engine::{
-            soundgraphcompiler::SoundGraphCompiler,
-            scratcharena::ScratchArena,
             compiledexpression::{
                 CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
                 CompiledExpressionVisitorMut,
             },
+            scratcharena::ScratchArena,
+            soundgraphcompiler::SoundGraphCompiler,
         },
         expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
         graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -53,12 +53,12 @@ struct TestExpressions<'ctx> {
 }
 
 impl<'ctx> CompiledExpressionCollection<'ctx> for TestExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit_node(&self.input);
+    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
+        visitor.visit(&self.input);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit_node(&mut self.input);
+    fn visit_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
+        visitor.visit(&mut self.input);
     }
 }
 struct TestSoundProcessorState {
@@ -112,7 +112,10 @@ impl DynamicSoundProcessor for TestSoundProcessor {
         &()
     }
 
-    fn compile_expressions<'ctx>(&self, context: &SoundGraphCompiler<'_, 'ctx>) -> Self::Expressions<'ctx> {
+    fn compile_expressions<'ctx>(
+        &self,
+        context: &SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::Expressions<'ctx> {
         TestExpressions {
             input: self.expression.compile(context),
         }
