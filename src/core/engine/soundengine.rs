@@ -315,7 +315,7 @@ impl<'ctx> SoundEngine<'ctx> {
     }
 
     /// Invoke all static sound processors in the state graph.
-    /// This ensures that static processors always update, and
+    /// This ensures that static processors are always update, and
     /// the dynamic processor nodes in their dependencies will
     /// be invoked recursively from there.
     fn process_audio(&mut self, state_graph: &StateGraph) {

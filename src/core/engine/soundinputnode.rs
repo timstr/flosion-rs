@@ -6,11 +6,22 @@ use crate::core::{
     sound::soundinput::SoundInputId,
 };
 
-// Trait used for automating allocation and reallocation of node inputs
-// Not concerned with actual audio processing or providing access to
-// said inputs - concrete types will provide those.
+/// SoundInputNode is a trait for accessing and modifying the state
+/// graph nodes associated with a sound input or collection of sound
+/// inputs inside of a StateGraph. Generally, this will only be internally
+/// implemented by the node types of specific sound input types, such as
+/// SingleInput, QueuedInput, etc.
+///
+/// The required methods are `targets` and `targets_mut` which give access
+/// to the stored state graph nodes. The optional methods `insert_target`
+/// and `erase_target` are only needed for sound inputs that support adding
+/// and removing additional inputs or branches per input after the parent
+/// sound processor has been constructed.
 pub trait SoundInputNode<'ctx>: Sync + Send {
+    /// Access the targets of the sound input node
     fn targets(&self) -> &[NodeTarget<'ctx>];
+
+    /// Mutably access the targets of the sound input node
     fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>];
 
     fn insert_target(
@@ -31,6 +42,7 @@ pub trait SoundInputNode<'ctx>: Sync + Send {
     }
 }
 
+/// The unit type `()` can be used as a SoundInputNode with no targets
 impl<'ctx> SoundInputNode<'ctx> for () {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
         &[]
@@ -41,6 +53,11 @@ impl<'ctx> SoundInputNode<'ctx> for () {
     }
 }
 
+/// SoundProcessorInput is a trait for the sound input used by a given
+/// sound processor. While the trait itself is concerned mainly with
+/// allocating nodes for the StateGraph, actual types implementing this
+/// trait will typically provide diverse and fully-featured APIs for
+/// using different types of sound inputs. See implementations for more.
 pub trait SoundProcessorInput: Sync + Send {
     type NodeType<'ctx>: SoundInputNode<'ctx>;
 
