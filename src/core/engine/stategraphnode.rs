@@ -32,6 +32,9 @@ use super::{
     soundinputnode::{CompiledSoundInput, SoundProcessorInput},
 };
 
+/// A compiled state graph node for a static processor. An Arc to the
+/// processor is held, along with a unique copy of its compiled sound
+/// input and expression nodes.
 pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
     processor: Arc<StaticSoundProcessorWithId<T>>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,

@@ -15,7 +15,7 @@ use crate::core::{
 
 use super::{
     codegen::CodeGen,
-    compiledexpression::{CompiledExpression, CompiledExpressionFunction},
+    compiledexpression::{CompiledExpressionArtefact, CompiledExpressionFunction},
 };
 
 // TODO: put one of these on the all-purpose inkwell worker thread
@@ -23,7 +23,7 @@ use super::{
 // An object to receive and serve requests for compiled expressions,
 // as well as stored cached artefacts according to their revision
 struct Entry<'ctx> {
-    artefact: CompiledExpression<'ctx>,
+    artefact: CompiledExpressionArtefact<'ctx>,
     // TODO: info about how recently the entry was used,
     // in order to help clean things out efficiently.
     // Wait hang on, maybe reference counts suffice?
@@ -55,7 +55,7 @@ impl<'ctx> Cache<'ctx> {
         &mut self,
         input_id: SoundExpressionId,
         revision_number: RevisionNumber,
-        artefact: CompiledExpression<'ctx>,
+        artefact: CompiledExpressionArtefact<'ctx>,
     ) {
         self.artefacts
             .insert((input_id, revision_number), Entry { artefact });

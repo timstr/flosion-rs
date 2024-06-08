@@ -26,7 +26,7 @@ use crate::core::{
 };
 
 use super::{
-    compiledexpression::CompiledExpression,
+    compiledexpression::CompiledExpressionArtefact,
     types::JitTypes,
     wrappers::{ArrayReadFunc, ScalarReadFunc, WrapperFunctions},
 };
@@ -326,7 +326,7 @@ impl<'ctx> CodeGen<'ctx> {
         })
     }
 
-    pub(super) fn finish(self) -> CompiledExpression<'ctx> {
+    pub(super) fn finish(self) -> CompiledExpressionArtefact<'ctx> {
         if let Err(s) = self.module().verify() {
             let s = s.to_string();
             println!("LLVM failed to verify IR module");
@@ -362,7 +362,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
         };
 
-        CompiledExpression::new(
+        CompiledExpressionArtefact::new(
             self.execution_engine,
             compiled_fn,
             self.num_state_variables,
@@ -921,7 +921,7 @@ impl<'ctx> CodeGen<'ctx> {
         mut self,
         expression_id: SoundExpressionId,
         topology: &SoundGraphTopology,
-    ) -> CompiledExpression<'ctx> {
+    ) -> CompiledExpressionArtefact<'ctx> {
         let sg_expr_data = topology.expression(expression_id).unwrap();
 
         let expr_topo = sg_expr_data.expression_graph().topology();

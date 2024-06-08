@@ -55,18 +55,18 @@ impl<'inkwell_ctx> CompiledExpressionData<'inkwell_ctx> {
 // Stores the compiled artefact of an expression. Intended to be
 // used to create copies of callable functions, not intended to be
 // invoked directly. See make_function below.
-pub(crate) struct CompiledExpression<'ctx> {
+pub(crate) struct CompiledExpressionArtefact<'ctx> {
     data: Arc<CompiledExpressionData<'ctx>>,
 }
 
-impl<'ctx> CompiledExpression<'ctx> {
+impl<'ctx> CompiledExpressionArtefact<'ctx> {
     pub fn new(
         execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
         function: inkwell::execution_engine::JitFunction<'ctx, EvalExpressionFunc>,
         num_state_variables: usize,
         atomic_captures: Vec<Arc<dyn Droppable>>,
-    ) -> CompiledExpression<'ctx> {
-        CompiledExpression {
+    ) -> CompiledExpressionArtefact<'ctx> {
+        CompiledExpressionArtefact {
             data: Arc::new(CompiledExpressionData::new(
                 execution_engine,
                 function,
