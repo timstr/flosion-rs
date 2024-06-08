@@ -6,8 +6,8 @@ use crate::core::{
 };
 
 use super::{
-    soundinput::{InputTiming, SoundInputId},
     expressionargument::SoundExpressionArgumentId,
+    soundinput::{InputTiming, SoundInputId},
     soundprocessor::{ProcessorState, SoundProcessorId},
 };
 
@@ -228,9 +228,6 @@ impl<'a> Context<'a> {
         &self.stack
     }
 
-    // TODO: it appears that input states and processor states are always pushed a pair at a time.
-    // Consider avoiding half the indirections by storing both in the same frame, and by making
-    // the root frame always correspond to a static processor without a target input
     pub(crate) fn push_input(
         &'a self,
         target: Option<SoundProcessorId>,

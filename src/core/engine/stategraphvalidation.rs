@@ -20,20 +20,24 @@ use super::{
     },
 };
 
+/// Helper struct for comparing a StateGraph to a SoundGraphTopology instance
 struct Visitor<'a, 'ctx> {
+    /// The topology being compared against
     topology: &'a SoundGraphTopology,
 
-    // All shared compiled processors visited so far, and the processors they correspond to.
-    // Note that all static processor nodes are shared nodes, but dynamic
-    // processor nodes can be shared as well.
+    /// All shared compiled processors visited so far, and the processors they correspond to.
+    /// Note that all static processor nodes are shared nodes, but dynamic
+    /// processor nodes can be shared as well.
     visited_shared_processors: HashMap<*const SharedCompiledProcessorCache<'ctx>, SoundProcessorId>,
 
-    // All static processors visited so far, along with the shared data that
-    // they correspond to
+    /// All static processors visited so far, along with the shared data that
+    /// they correspond to
     visited_static_processors: HashMap<SoundProcessorId, *const SharedCompiledProcessorCache<'ctx>>,
 }
 
 impl<'a, 'ctx> Visitor<'a, 'ctx> {
+    /// Recursively inspect a shared compiled processor and test whether it matches
+    /// the topology.
     fn visit_shared_processor(&mut self, proc: &SharedCompiledProcessor<'ctx>) -> bool {
         let data = proc.borrow_cache();
         let data_ptr: *const SharedCompiledProcessorCache = &*data;
@@ -44,6 +48,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
                     "state_graph_matches_topology: a single shared compiled processor exists with \
                     multiple processor ids"
                 );
+                return false;
             }
 
             return true; // Already visited, presumably without finding errors
@@ -57,6 +62,8 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         self.visit_processor_sound_inputs(data.processor())
     }
 
+    /// Recursively inspect a unique compiled processor and test whether it matches
+    /// the topology
     fn visit_unique_processor(&mut self, proc: &UniqueCompiledSoundProcessor<'ctx>) -> bool {
         if !self.check_processor(proc.processor(), None) {
             return false;
@@ -64,6 +71,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         self.visit_processor_sound_inputs(proc.processor())
     }
 
+    /// Recursively inspect a compiled processor directly
     fn check_processor(
         &mut self,
         proc: &dyn CompiledSoundProcessor<'ctx>,
@@ -113,6 +121,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         true
     }
 
+    /// Check the compiled sound inputs
     fn check_processor_sound_inputs(
         &self,
         proc: &dyn CompiledSoundProcessor,
@@ -189,6 +198,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         true
     }
 
+    /// Check the compiled expressions
     fn check_processor_expressions(
         &self,
         proc: &dyn CompiledSoundProcessor,
@@ -232,6 +242,8 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         all_good
     }
 
+    /// Recursively visit the compiled sound inputs of a processor
+    /// and all of its targets
     fn visit_processor_sound_inputs(&mut self, proc: &dyn CompiledSoundProcessor<'ctx>) -> bool {
         let mut all_good = true;
 
@@ -251,6 +263,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     }
 }
 
+/// Checks whether the given state graph accurately models the given sound graph topology.
 pub(crate) fn state_graph_matches_topology(
     state_graph: &StateGraph,
     topology: &SoundGraphTopology,
@@ -295,6 +308,7 @@ pub(crate) fn state_graph_matches_topology(
     true
 }
 
+/// Helper function for pretty-printing a sequence of strings
 fn comma_separated_list<I: Iterator<Item = String>>(iter: I) -> String {
     let mut v = iter.collect::<Vec<String>>();
     v.sort();

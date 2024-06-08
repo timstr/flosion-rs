@@ -664,6 +664,14 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     // fold 'state', 'input_state', and  'local_arrays' into one
     // or two calls to push onto the Context stack, and thus
     // removed here. This method really doesn't need to be generic.
+    //
+    // The nice thing about taking all these arguments is that it
+    // ultimately forces sound processors' `process_audio` methods
+    // to provide the necessary information to correctly push the
+    // audio call stack. Perhaps that can still be achieved with
+    // something a bit tidier? Maybe compiled sound inputs can be
+    // wrapped in something that demands the same context info
+    // before the sound input's 'step' method is available? Hmmmm.
     pub(crate) fn step<T: ProcessorState>(
         &mut self,
         state: &T,
