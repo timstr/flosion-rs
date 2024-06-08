@@ -6,7 +6,7 @@ use crate::core::{
     sound::soundinput::SoundInputId,
 };
 
-/// SoundInputNode is a trait for accessing and modifying the state
+/// CompiledSoundInput is a trait for accessing and modifying the state
 /// graph nodes associated with a sound input or collection of sound
 /// inputs inside of a StateGraph. Generally, this will only be internally
 /// implemented by the node types of specific sound input types, such as
@@ -17,7 +17,7 @@ use crate::core::{
 /// and `erase_target` are only needed for sound inputs that support adding
 /// and removing additional inputs or branches per input after the parent
 /// sound processor has been constructed.
-pub trait SoundInputNode<'ctx>: Sync + Send {
+pub trait CompiledSoundInput<'ctx>: Sync + Send {
     /// Access the targets of the sound input node
     fn targets(&self) -> &[NodeTarget<'ctx>];
 
@@ -49,8 +49,8 @@ pub trait SoundInputNode<'ctx>: Sync + Send {
     }
 }
 
-/// The unit type `()` can be used as a SoundInputNode with no targets
-impl<'ctx> SoundInputNode<'ctx> for () {
+/// The unit type `()` can be used as a CompiledSoundInput with no targets
+impl<'ctx> CompiledSoundInput<'ctx> for () {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
         &[]
     }
@@ -66,7 +66,7 @@ impl<'ctx> SoundInputNode<'ctx> for () {
 /// trait will typically provide diverse and fully-featured APIs for
 /// using different types of sound inputs. See implementations for more.
 pub trait SoundProcessorInput: Sync + Send {
-    type NodeType<'ctx>: SoundInputNode<'ctx>;
+    type NodeType<'ctx>: CompiledSoundInput<'ctx>;
 
     fn make_node<'a, 'ctx>(&self, nodegen: &mut NodeGen<'a, 'ctx>) -> Self::NodeType<'ctx>;
 

@@ -29,7 +29,7 @@ use super::{
     garbage::{Droppable, Garbage, GarbageChute},
     nodegen::NodeGen,
     scratcharena::ScratchArena,
-    soundinputnode::{SoundInputNode, SoundProcessorInput},
+    soundinputnode::{CompiledSoundInput, SoundProcessorInput},
 };
 
 pub struct StaticProcessorNode<'ctx, T: StaticSoundProcessor> {
@@ -136,8 +136,8 @@ pub trait StateGraphNode<'ctx>: Sync + Send {
 
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable>;
 
-    fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx>;
-    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx>;
+    fn sound_input_node(&self) -> &dyn CompiledSoundInput<'ctx>;
+    fn sound_input_node_mut(&mut self) -> &mut dyn CompiledSoundInput<'ctx>;
 
     fn expressions(&mut self) -> &mut dyn ExpressionCollection<'ctx>;
     fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>);
@@ -171,10 +171,10 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
         ptr as *const ()
     }
 
-    fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx> {
+    fn sound_input_node(&self) -> &dyn CompiledSoundInput<'ctx> {
         &self.sound_input
     }
-    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
+    fn sound_input_node_mut(&mut self) -> &mut dyn CompiledSoundInput<'ctx> {
         &mut self.sound_input
     }
 
@@ -213,10 +213,10 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
         ptr as *const ()
     }
 
-    fn sound_input_node(&self) -> &dyn SoundInputNode<'ctx> {
+    fn sound_input_node(&self) -> &dyn CompiledSoundInput<'ctx> {
         &self.sound_input
     }
-    fn sound_input_node_mut(&mut self) -> &mut dyn SoundInputNode<'ctx> {
+    fn sound_input_node_mut(&mut self) -> &mut dyn CompiledSoundInput<'ctx> {
         &mut self.sound_input
     }
 

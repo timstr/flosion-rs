@@ -2,7 +2,7 @@ use crate::core::sound::{soundinput::SoundInputId, soundprocessor::SoundProcesso
 
 use super::{
     garbage::{Garbage, GarbageChute},
-    soundinputnode::SoundInputNode,
+    soundinputnode::CompiledSoundInput,
     stategraphedit::StateGraphEdit,
     stategraphnode::StateGraphNode,
     stategraphnode::{NodeTargetValue, SharedProcessorNode},
@@ -96,7 +96,7 @@ impl<'ctx> StateGraph<'ctx> {
     /// Modify all sound input nodes corresponding to the given sound input
     /// to add pre-allocated targets at the given branch index. There must
     /// be enough targets allocated for all replicated nodes in the graph.
-    /// Internally, this calls `SoundInputNode::insert_target`.
+    /// Internally, this calls `CompiledSoundInput::insert_target`.
     fn add_sound_input_branch(
         &mut self,
         input_id: SoundInputId,
@@ -151,7 +151,7 @@ impl<'ctx> StateGraph<'ctx> {
 
     /// Internal helper method for looking up all copies of and making
     /// changes to the nodes of a sound input in the StateGraph.
-    fn modify_sound_input_node<F: FnMut(&mut dyn SoundInputNode<'ctx>)>(
+    fn modify_sound_input_node<F: FnMut(&mut dyn CompiledSoundInput<'ctx>)>(
         _static_nodes: &mut [SharedProcessorNode<'ctx>],
         _owner_id: SoundProcessorId,
         _f: F,

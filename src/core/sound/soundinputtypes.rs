@@ -6,7 +6,7 @@ use crate::core::{
     anydata::AnyData,
     engine::{
         nodegen::NodeGen,
-        soundinputnode::{SoundInputNode, SoundProcessorInput},
+        soundinputnode::{CompiledSoundInput, SoundProcessorInput},
         stategraphnode::NodeTarget,
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -87,7 +87,7 @@ impl<'ctx> SingleInputNode<'ctx> {
     }
 }
 
-impl<'ctx> SoundInputNode<'ctx> for SingleInputNode<'ctx> {
+impl<'ctx> CompiledSoundInput<'ctx> for SingleInputNode<'ctx> {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
         std::slice::from_ref(&self.target)
     }
@@ -217,7 +217,7 @@ impl<'ctx, S: State + Default> KeyedInputNode<'ctx, S> {
     }
 }
 
-impl<'ctx, S: State + Default> SoundInputNode<'ctx> for KeyedInputNode<'ctx, S> {
+impl<'ctx, S: State + Default> CompiledSoundInput<'ctx> for KeyedInputNode<'ctx, S> {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
         &self.targets
     }
@@ -348,7 +348,7 @@ impl<'ctx> SingleInputListNode<'ctx> {
     }
 }
 
-impl<'ctx> SoundInputNode<'ctx> for SingleInputListNode<'ctx> {
+impl<'ctx> CompiledSoundInput<'ctx> for SingleInputListNode<'ctx> {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
         &self.targets
     }
@@ -573,7 +573,7 @@ impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
     }
 }
 
-impl<'ctx, S: State> SoundInputNode<'ctx> for KeyedInputQueueNode<'ctx, S> {
+impl<'ctx, S: State> CompiledSoundInput<'ctx> for KeyedInputQueueNode<'ctx, S> {
     fn targets(&self) -> &[NodeTarget<'ctx>] {
         &self.targets
     }
