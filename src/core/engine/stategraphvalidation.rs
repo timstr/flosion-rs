@@ -15,61 +15,61 @@ use super::{
     compiledexpression::CompiledExpression,
     stategraph::StateGraph,
     stategraphnode::{
-        NodeTargetValue, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,
-        UniqueProcessorNode,
+        CompiledSoundProcessor, SharedCompiledProcessor, SharedCompiledProcessorData,
+        StateGraphNodeValue, UniqueCompiledSoundProcessor,
     },
 };
 
 struct Visitor<'a, 'ctx> {
     topology: &'a SoundGraphTopology,
 
-    // All shared nodes visited so far, and the processors they correspond to.
+    // All shared compiled processors visited so far, and the processors they correspond to.
     // Note that all static processor nodes are shared nodes, but dynamic
     // processor nodes can be shared as well.
-    visited_shared_nodes: HashMap<*const SharedProcessorNodeData<'ctx>, SoundProcessorId>,
+    visited_shared_processors: HashMap<*const SharedCompiledProcessorData<'ctx>, SoundProcessorId>,
 
     // All static processors visited so far, along with the shared data that
     // they correspond to
-    visited_static_processors: HashMap<SoundProcessorId, *const SharedProcessorNodeData<'ctx>>,
+    visited_static_processors: HashMap<SoundProcessorId, *const SharedCompiledProcessorData<'ctx>>,
 }
 
 impl<'a, 'ctx> Visitor<'a, 'ctx> {
-    fn visit_shared_processor_node(&mut self, node: &SharedProcessorNode<'ctx>) -> bool {
-        let data = node.borrow_data();
-        let data_ptr: *const SharedProcessorNodeData = &*data;
+    fn visit_shared_processor(&mut self, proc: &SharedCompiledProcessor<'ctx>) -> bool {
+        let data = proc.borrow_data();
+        let data_ptr: *const SharedCompiledProcessorData = &*data;
 
-        if let Some(spid) = self.visited_shared_nodes.get(&data_ptr) {
-            if *spid != node.id() {
+        if let Some(spid) = self.visited_shared_processors.get(&data_ptr) {
+            if *spid != proc.id() {
                 println!(
-                    "state_graph_matches_topology: a single shared node exists with \
+                    "state_graph_matches_topology: a single shared compiled processor exists with \
                     multiple processor ids"
                 );
             }
 
             return true; // Already visited, presumably without finding errors
         }
-        self.visited_shared_nodes.insert(data_ptr, node.id());
+        self.visited_shared_processors.insert(data_ptr, proc.id());
 
-        if !self.check_processor(data.node(), Some(data_ptr)) {
+        if !self.check_processor(data.processor(), Some(data_ptr)) {
             return false;
         }
 
-        self.visit_processor_sound_inputs(data.node())
+        self.visit_processor_sound_inputs(data.processor())
     }
 
-    fn visit_unique_processor_node(&mut self, node: &UniqueProcessorNode<'ctx>) -> bool {
-        if !self.check_processor(node.node(), None) {
+    fn visit_unique_processor(&mut self, proc: &UniqueCompiledSoundProcessor<'ctx>) -> bool {
+        if !self.check_processor(proc.processor(), None) {
             return false;
         }
-        self.visit_processor_sound_inputs(node.node())
+        self.visit_processor_sound_inputs(proc.processor())
     }
 
     fn check_processor(
         &mut self,
-        node: &dyn StateGraphNode<'ctx>,
-        shared_data: Option<*const SharedProcessorNodeData<'ctx>>,
+        proc: &dyn CompiledSoundProcessor<'ctx>,
+        shared_data: Option<*const SharedCompiledProcessorData<'ctx>>,
     ) -> bool {
-        let Some(proc_data) = self.topology.sound_processors().get(&node.id()) else {
+        let Some(proc_data) = self.topology.sound_processors().get(&proc.id()) else {
             println!(
                 "state_graph_matches_topology: a sound processor was found which shouldn't exist"
             );
@@ -84,7 +84,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
                 );
                 return false;
             };
-            if let Some(other_ptr) = self.visited_static_processors.get(&node.id()) {
+            if let Some(other_ptr) = self.visited_static_processors.get(&proc.id()) {
                 if *other_ptr != shared_data_ptr {
                     println!(
                         "state_graph_matches_topology: multiple different shared nodes exist for \
@@ -98,7 +98,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             }
         }
 
-        if !self.check_processor_sound_inputs(node, proc_data) {
+        if !self.check_processor_sound_inputs(proc, proc_data) {
             return false;
         }
 
@@ -106,7 +106,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         // they are implemented in the state graph via compiled expressions
         // elsewhere, which read from the context's states
 
-        if !self.check_processor_expressions(node, proc_data) {
+        if !self.check_processor_expressions(proc, proc_data) {
             return false;
         }
 
@@ -115,35 +115,35 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
     fn check_processor_sound_inputs(
         &self,
-        node: &dyn StateGraphNode,
+        proc: &dyn CompiledSoundProcessor,
         proc_data: &SoundProcessorData,
     ) -> bool {
         // Verify that all expected sound inputs are present
         {
-            let mut remaining_input_nodes: HashSet<(SoundInputId, SoundInputBranchId)> =
+            let mut remaining_input_branches: HashSet<(SoundInputId, SoundInputBranchId)> =
                 HashSet::new();
-            let mut unexpected_input_nodes: HashSet<(SoundInputId, SoundInputBranchId)> =
+            let mut unexpected_input_branches: HashSet<(SoundInputId, SoundInputBranchId)> =
                 HashSet::new();
             for input_id in proc_data.sound_inputs() {
                 let input_data = self.topology.sound_input(*input_id).unwrap();
                 for bid in input_data.branches() {
-                    remaining_input_nodes.insert((*input_id, *bid));
+                    remaining_input_branches.insert((*input_id, *bid));
                 }
             }
 
-            for target in node.sound_input_node().targets() {
-                if !remaining_input_nodes.remove(&(target.id(), target.branch_id())) {
-                    unexpected_input_nodes.insert((target.id(), target.branch_id()));
+            for target in proc.sound_input().targets() {
+                if !remaining_input_branches.remove(&(target.id(), target.branch_id())) {
+                    unexpected_input_branches.insert((target.id(), target.branch_id()));
                 }
             }
 
-            if !unexpected_input_nodes.is_empty() {
+            if !unexpected_input_branches.is_empty() {
                 println!(
                     "state_graph_matches_topology: sound processor {} \"{}\" has the following \
-                    sound input nodes which shouldn't exist: {}",
-                    node.id().value(),
+                    sound input branches which shouldn't exist: {}",
+                    proc.id().value(),
                     proc_data.instance_arc().as_graph_object().get_type().name(),
-                    comma_separated_list(unexpected_input_nodes.iter().map(|x| format!(
+                    comma_separated_list(unexpected_input_branches.iter().map(|x| format!(
                         "input {} (branch={})",
                         x.0.value(),
                         x.1.value()
@@ -151,13 +151,13 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
                 );
                 return false;
             }
-            if !remaining_input_nodes.is_empty() {
+            if !remaining_input_branches.is_empty() {
                 println!(
                     "state_graph_matches_topology: sound processor {} \"{}\" is missing the \
-                    following sound input nodes: {}",
-                    node.id().value(),
+                    following sound input branches: {}",
+                    proc.id().value(),
                     proc_data.instance_arc().as_graph_object().get_type().name(),
-                    comma_separated_list(remaining_input_nodes.iter().map(|x| format!(
+                    comma_separated_list(remaining_input_branches.iter().map(|x| format!(
                         "input {} (branch={})",
                         x.0.value(),
                         x.1.value()
@@ -170,7 +170,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         // verify that the sound inputs have the expected targets
         {
             let mut all_good = true;
-            for target in node.sound_input_node().targets() {
+            for target in proc.sound_input().targets() {
                 let input_data = self.topology.sound_input(target.id()).unwrap();
                 if target.target_id() != input_data.target() {
                     all_good = false;
@@ -191,16 +191,16 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
     fn check_processor_expressions(
         &self,
-        node: &dyn StateGraphNode,
+        proc: &dyn CompiledSoundProcessor,
         proc_data: &SoundProcessorData,
     ) -> bool {
         let mut remaining_inputs: HashSet<SoundExpressionId> =
             proc_data.expressions().iter().cloned().collect();
         let mut unexpected_inputs: HashSet<SoundExpressionId> = HashSet::new();
 
-        node.visit_expressions(&mut |expression_node: &CompiledExpression| {
-            if !remaining_inputs.remove(&expression_node.id()) {
-                unexpected_inputs.insert(expression_node.id());
+        proc.visit_expressions(&mut |expr: &CompiledExpression| {
+            if !remaining_inputs.remove(&expr.id()) {
+                unexpected_inputs.insert(expr.id());
             }
         });
 
@@ -209,8 +209,8 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if !unexpected_inputs.is_empty() {
             println!(
                 "state_graph_matches_topology: sound processor {} \"{}\" has the \
-                following expression nodes which shouldn't exist: {}",
-                node.id().value(),
+                following compiled expressions which shouldn't exist: {}",
+                proc.id().value(),
                 proc_data.instance_arc().as_graph_object().get_type().name(),
                 comma_separated_list(unexpected_inputs.iter().map(|x| x.value().to_string()))
             );
@@ -219,29 +219,27 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if !remaining_inputs.is_empty() {
             println!(
                 "state_graph_matches_topology: sound processor {} \"{}\" is missing the \
-                following expression nodes: {}",
-                node.id().value(),
+                following compiled expressions: {}",
+                proc.id().value(),
                 proc_data.instance_arc().as_graph_object().get_type().name(),
                 comma_separated_list(remaining_inputs.iter().map(|x| x.value().to_string()))
             );
             all_good = false;
         }
 
-        // TODO: verify that expression nodes are up to date.
+        // TODO: verify that compiled expressions are up to date.
 
         all_good
     }
 
-    fn visit_processor_sound_inputs(&mut self, node: &dyn StateGraphNode<'ctx>) -> bool {
+    fn visit_processor_sound_inputs(&mut self, proc: &dyn CompiledSoundProcessor<'ctx>) -> bool {
         let mut all_good = true;
 
-        // node.visit_sound_inputs(
-        //     &mut |_siid: SoundInputId, _kidx: usize, target: &NodeTarget<'ctx>| {
-        for target in node.sound_input_node().targets() {
+        for target in proc.sound_input().targets() {
             let good = match target.target() {
-                NodeTargetValue::Unique(n) => self.visit_unique_processor_node(n),
-                NodeTargetValue::Shared(n) => self.visit_shared_processor_node(n),
-                NodeTargetValue::Empty => true,
+                StateGraphNodeValue::Unique(n) => self.visit_unique_processor(n),
+                StateGraphNodeValue::Shared(n) => self.visit_shared_processor(n),
+                StateGraphNodeValue::Empty => true,
             };
             if !good {
                 all_good = false;
@@ -259,17 +257,17 @@ pub(crate) fn state_graph_matches_topology(
 ) -> bool {
     let mut visitor = Visitor {
         topology,
-        visited_shared_nodes: HashMap::new(),
+        visited_shared_processors: HashMap::new(),
         visited_static_processors: HashMap::new(),
     };
 
-    for node in state_graph.static_nodes() {
-        if !visitor.visit_shared_processor_node(node) {
+    for proc in state_graph.static_processors() {
+        if !visitor.visit_shared_processor(proc) {
             return false;
         }
     }
 
-    for static_node_id in topology.sound_processors().values().filter_map(|pd| {
+    for static_proc_id in topology.sound_processors().values().filter_map(|pd| {
         if pd.instance().is_static() {
             Some(pd.id())
         } else {
@@ -278,17 +276,17 @@ pub(crate) fn state_graph_matches_topology(
     }) {
         if visitor
             .visited_static_processors
-            .remove(&static_node_id)
+            .remove(&static_proc_id)
             .is_none()
         {
-            println!("state_graph_matches_topology: a static sound processor node is missing");
+            println!("state_graph_matches_topology: a static compiled processor is missing");
             return false;
         }
     }
 
     if !visitor.visited_static_processors.is_empty() {
         println!(
-            "state_graph_matches_topology: one or more static sound processor nodes were found \
+            "state_graph_matches_topology: one or more static compiled processors were found \
             which shouldn't exist"
         );
         return false;

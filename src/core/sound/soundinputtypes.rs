@@ -7,7 +7,7 @@ use crate::core::{
     engine::{
         compiledsoundinput::{CompiledSoundInput, SoundProcessorInput},
         nodegen::NodeGen,
-        stategraphnode::NodeTarget,
+        stategraphnode::CompiledSoundInputBranch,
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},
 };
@@ -53,13 +53,13 @@ impl SoundProcessorInput for SingleInput {
 }
 
 pub struct SingleInputNode<'ctx> {
-    target: NodeTarget<'ctx>,
+    target: CompiledSoundInputBranch<'ctx>,
 }
 
 impl<'ctx> SingleInputNode<'ctx> {
     pub fn new<'a>(id: SoundInputId, nodegen: &mut NodeGen<'a, 'ctx>) -> SingleInputNode<'ctx> {
         SingleInputNode {
-            target: NodeTarget::new(id, SingleInput::THE_ONLY_BRANCH, nodegen),
+            target: CompiledSoundInputBranch::new(id, SingleInput::THE_ONLY_BRANCH, nodegen),
         }
     }
 
@@ -88,11 +88,11 @@ impl<'ctx> SingleInputNode<'ctx> {
 }
 
 impl<'ctx> CompiledSoundInput<'ctx> for SingleInputNode<'ctx> {
-    fn targets(&self) -> &[NodeTarget<'ctx>] {
+    fn targets(&self) -> &[CompiledSoundInputBranch<'ctx>] {
         std::slice::from_ref(&self.target)
     }
 
-    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+    fn targets_mut(&mut self) -> &mut [CompiledSoundInputBranch<'ctx>] {
         std::slice::from_mut(&mut self.target)
     }
 }
@@ -131,7 +131,7 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
             targets: self
                 .branches
                 .iter()
-                .map(|id| NodeTarget::new(self.id, *id, nodegen))
+                .map(|id| CompiledSoundInputBranch::new(self.id, *id, nodegen))
                 .collect(),
             states: self.branches.iter().map(|_| S::default()).collect(),
         }
@@ -144,18 +144,18 @@ impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {
 
 pub struct KeyedInputData<'ctx, S: State + Default> {
     id: SoundInputId,
-    target: NodeTarget<'ctx>,
+    target: CompiledSoundInputBranch<'ctx>,
     state: S,
 }
 
 pub struct KeyedInputNode<'ctx, S: State + Default> {
     id: SoundInputId,
-    targets: Vec<NodeTarget<'ctx>>,
+    targets: Vec<CompiledSoundInputBranch<'ctx>>,
     states: Vec<S>,
 }
 
 pub struct KeyedInputNodeItem<'a, 'ctx, S> {
-    target: &'a mut NodeTarget<'ctx>,
+    target: &'a mut CompiledSoundInputBranch<'ctx>,
     state: &'a mut S,
 }
 
@@ -218,11 +218,11 @@ impl<'ctx, S: State + Default> KeyedInputNode<'ctx, S> {
 }
 
 impl<'ctx, S: State + Default> CompiledSoundInput<'ctx> for KeyedInputNode<'ctx, S> {
-    fn targets(&self) -> &[NodeTarget<'ctx>] {
+    fn targets(&self) -> &[CompiledSoundInputBranch<'ctx>] {
         &self.targets
     }
 
-    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+    fn targets_mut(&mut self) -> &mut [CompiledSoundInputBranch<'ctx>] {
         &mut self.targets
     }
 }
@@ -297,7 +297,7 @@ impl SoundProcessorInput for SingleInputList {
                 .input_ids
                 .read()
                 .iter()
-                .map(|id| NodeTarget::new(*id, SingleInput::THE_ONLY_BRANCH, nodegen))
+                .map(|id| CompiledSoundInputBranch::new(*id, SingleInput::THE_ONLY_BRANCH, nodegen))
                 .collect(),
         }
     }
@@ -308,11 +308,11 @@ impl SoundProcessorInput for SingleInputList {
 }
 
 pub struct SingleInputListNode<'ctx> {
-    targets: Vec<NodeTarget<'ctx>>,
+    targets: Vec<CompiledSoundInputBranch<'ctx>>,
 }
 
 pub struct SingleInputListNodeItem<'a, 'ctx> {
-    target: &'a mut NodeTarget<'ctx>,
+    target: &'a mut CompiledSoundInputBranch<'ctx>,
 }
 
 impl<'a, 'ctx> SingleInputListNodeItem<'a, 'ctx> {
@@ -349,11 +349,11 @@ impl<'ctx> SingleInputListNode<'ctx> {
 }
 
 impl<'ctx> CompiledSoundInput<'ctx> for SingleInputListNode<'ctx> {
-    fn targets(&self) -> &[NodeTarget<'ctx>] {
+    fn targets(&self) -> &[CompiledSoundInputBranch<'ctx>] {
         &self.targets
     }
 
-    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+    fn targets_mut(&mut self) -> &mut [CompiledSoundInputBranch<'ctx>] {
         &mut self.targets
     }
 }
@@ -419,7 +419,7 @@ impl<S: State> SoundProcessorInput for KeyedInputQueue<S> {
 
 pub struct KeyedInputQueueNode<'ctx, S: State> {
     id: SoundInputId,
-    targets: Vec<NodeTarget<'ctx>>,
+    targets: Vec<CompiledSoundInputBranch<'ctx>>,
     states: Vec<QueuedKeyState<S>>,
     active: bool,
 }
@@ -434,7 +434,7 @@ impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
             id,
             targets: branches
                 .iter()
-                .map(|bid| NodeTarget::new(id, *bid, nodegen))
+                .map(|bid| CompiledSoundInputBranch::new(id, *bid, nodegen))
                 .collect(),
             states: branches
                 .iter()
@@ -574,11 +574,11 @@ impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
 }
 
 impl<'ctx, S: State> CompiledSoundInput<'ctx> for KeyedInputQueueNode<'ctx, S> {
-    fn targets(&self) -> &[NodeTarget<'ctx>] {
+    fn targets(&self) -> &[CompiledSoundInputBranch<'ctx>] {
         &self.targets
     }
 
-    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+    fn targets_mut(&mut self) -> &mut [CompiledSoundInputBranch<'ctx>] {
         &mut self.targets
     }
 }

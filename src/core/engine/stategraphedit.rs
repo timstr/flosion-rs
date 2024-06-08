@@ -6,7 +6,7 @@ use crate::core::{
 
 use super::{
     stategraph::StateGraph,
-    stategraphnode::{NodeTargetValue, SharedProcessorNode},
+    stategraphnode::{StateGraphNodeValue, SharedCompiledProcessor},
 };
 
 /// Edits to be made to the state graph on the audio thread. These are heavily
@@ -42,7 +42,7 @@ pub(crate) enum StateGraphEdit<'ctx> {
     ///
     /// After this edit, the shared processor node will begin being evaluated
     /// exactly once per chunk on the audio thread by the SoundEngine.
-    AddStaticSoundProcessor(SharedProcessorNode<'ctx>),
+    AddStaticSoundProcessor(SharedCompiledProcessor<'ctx>),
 
     /// Remove a static sound processor node. This also removes all dependent
     /// nodes belonging to the processor, but does not remove any other static
@@ -59,7 +59,7 @@ pub(crate) enum StateGraphEdit<'ctx> {
         input_id: SoundInputId,
         owner_id: SoundProcessorId,
         key_index: usize,
-        targets: Vec<NodeTargetValue<'ctx>>,
+        targets: Vec<StateGraphNodeValue<'ctx>>,
     },
 
     /// Remove a branch from all nodes in the state graph for the given
@@ -78,7 +78,7 @@ pub(crate) enum StateGraphEdit<'ctx> {
     ReplaceSoundInputBranch {
         input_id: SoundInputId,
         owner_id: SoundProcessorId,
-        targets: Vec<NodeTargetValue<'ctx>>,
+        targets: Vec<StateGraphNodeValue<'ctx>>,
     },
 
     /// Replace a compiled expression for each expression node in the

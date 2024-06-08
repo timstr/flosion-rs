@@ -11,7 +11,7 @@ use crate::core::{
         compiledexpression::CompiledExpressionCollection,
         compiledsoundinput::SoundProcessorInput,
         nodegen::NodeGen,
-        stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
+        stategraphnode::{CompiledDynamicProcessor, CompiledStaticProcessor, CompiledSoundProcessor},
     },
     graph::graphobject::{
         GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
@@ -283,7 +283,7 @@ pub(crate) trait SoundProcessor: 'static + Sync + Send {
     fn make_node<'a, 'ctx>(
         self: Arc<Self>,
         nodegen: &mut NodeGen<'a, 'ctx>,
-    ) -> Box<dyn 'ctx + StateGraphNode<'ctx>>;
+    ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>;
 }
 
 impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
@@ -306,8 +306,8 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
     fn make_node<'a, 'ctx>(
         self: Arc<Self>,
         nodegen: &mut NodeGen<'a, 'ctx>,
-    ) -> Box<dyn 'ctx + StateGraphNode<'ctx>> {
-        let processor_node = StaticProcessorNode::new(Arc::clone(&self), nodegen);
+    ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
+        let processor_node = CompiledStaticProcessor::new(Arc::clone(&self), nodegen);
         Box::new(processor_node)
     }
 }
@@ -332,8 +332,8 @@ impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T>
     fn make_node<'a, 'ctx>(
         self: Arc<Self>,
         nodegen: &mut NodeGen<'a, 'ctx>,
-    ) -> Box<dyn 'ctx + StateGraphNode<'ctx>> {
-        let processor_node = DynamicProcessorNode::new(&*self, nodegen);
+    ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
+        let processor_node = CompiledDynamicProcessor::new(&*self, nodegen);
         Box::new(processor_node)
     }
 }

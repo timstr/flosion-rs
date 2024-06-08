@@ -1,7 +1,7 @@
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        stategraphnode::{NodeTarget, NodeTargetValue},
+        stategraphnode::{CompiledSoundInputBranch, StateGraphNodeValue},
     },
     sound::soundinput::SoundInputId,
 };
@@ -19,43 +19,39 @@ use crate::core::{
 /// sound processor has been constructed.
 pub trait CompiledSoundInput<'ctx>: Sync + Send {
     /// Access the targets of the sound input node
-    fn targets(&self) -> &[NodeTarget<'ctx>];
+    fn targets(&self) -> &[CompiledSoundInputBranch<'ctx>];
 
     /// Mutably access the targets of the sound input node
-    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>];
+    fn targets_mut(&mut self) -> &mut [CompiledSoundInputBranch<'ctx>];
 
     /// Add the first branch for a newly-created sound input or add a branch
     /// to an existing set of branches under an existing input. The exact
     /// interpretation of what this means is largely up to the implementing
     /// sound input type.
-    fn insert_target(
+    fn insert(
         &mut self,
         _input_id: SoundInputId,
         _key_index: usize,
-        _target: NodeTargetValue<'ctx>,
+        _value: StateGraphNodeValue<'ctx>,
     ) {
-        panic!("This input node type does not support inserting targets");
+        panic!("This input node type does not support inserting inputs or branches");
     }
 
     /// Remove a target from an existing set of branches, or remove an
     /// existing sound input entirely. The exact interpretation is similarly
     /// up to the implementing sound input type.
-    fn erase_target(
-        &mut self,
-        _input_id: SoundInputId,
-        _key_index: usize,
-    ) -> NodeTargetValue<'ctx> {
-        panic!("This input node type does not support erasing targets");
+    fn erase(&mut self, _input_id: SoundInputId, _key_index: usize) -> StateGraphNodeValue<'ctx> {
+        panic!("This input node type does not support erasing inputs or branches");
     }
 }
 
 /// The unit type `()` can be used as a CompiledSoundInput with no targets
 impl<'ctx> CompiledSoundInput<'ctx> for () {
-    fn targets(&self) -> &[NodeTarget<'ctx>] {
+    fn targets(&self) -> &[CompiledSoundInputBranch<'ctx>] {
         &[]
     }
 
-    fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>] {
+    fn targets_mut(&mut self) -> &mut [CompiledSoundInputBranch<'ctx>] {
         &mut []
     }
 }

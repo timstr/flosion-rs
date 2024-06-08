@@ -13,7 +13,7 @@ use super::{
     scratcharena::ScratchArena,
     stategraph::StateGraph,
     stategraphedit::StateGraphEdit,
-    stategraphnode::NodeTargetValue,
+    stategraphnode::StateGraphNodeValue,
 };
 
 #[cfg(debug_assertions)]
@@ -158,7 +158,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
                 self.edit_queue
                     .try_send(StateGraphEdit::DebugInspection(Box::new(
                         |sg: &StateGraph<'ctx>| {
-                            debug_assert!(sg.static_nodes().is_empty());
+                            debug_assert!(sg.static_processors().is_empty());
                         },
                     )))?;
             }
@@ -170,7 +170,8 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             let mut nodegen = NodeGen::new(&new_topology, jit_server);
             for proc in new_topology.sound_processors().values() {
                 if proc.instance().is_static() {
-                    let NodeTargetValue::Shared(node) = nodegen.compile_processor_node(proc.id())
+                    let StateGraphNodeValue::Shared(node) =
+                        nodegen.compile_sound_processor(proc.id())
                     else {
                         panic!("Static sound processors must compile to shared state graph nodes");
                     };
@@ -320,7 +321,7 @@ impl<'ctx> SoundEngine<'ctx> {
     /// be invoked recursively from there.
     fn process_audio(&mut self, state_graph: &StateGraph) {
         Self::SCRATCH_SPACE.with(|scratch_space| {
-            for node in state_graph.static_nodes() {
+            for node in state_graph.static_processors() {
                 // TODO: how does this ensure that:
                 // 1) static processors are evaluated in topological order and cached correctly, and
                 // 2) static processors are re-evaluated correctly in the chunk?
