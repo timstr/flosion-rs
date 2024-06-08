@@ -8,28 +8,32 @@ use super::{
     stategraphnode::{NodeTargetValue, SharedProcessorNode},
 };
 
-// A directed acyclic graph of nodes representing invidual sound processors,
-// their state, and any cached intermediate outputs. Static processors are
-// always at the top of each sub-graph, and represent a top-level view into
-// other parts of the sub-graph. Dynamic processor nodes which are not
-// shared (cached for re-use) are stored in a Box for unique ownership, while
-// shared/cached nodes are stored in an Arc (for now).
-
+/// A directed acyclic graph of nodes representing invidual sound processors,
+/// their state, and any cached intermediate outputs. Static processors are
+/// always at the top of each sub-graph, and represent a top-level view into
+/// other parts of the sub-graph. Dynamic processor nodes which are not
+/// shared (cached for re-use) are stored in a Box for unique ownership, while
+/// shared/cached nodes are stored in an Arc (for now).
 pub struct StateGraph<'ctx> {
     static_nodes: Vec<SharedProcessorNode<'ctx>>,
 }
 
 impl<'ctx> StateGraph<'ctx> {
+    /// Create a new, empty StateGraph instance
     pub(super) fn new() -> StateGraph<'ctx> {
         StateGraph {
             static_nodes: Vec::new(),
         }
     }
 
+    /// Access the static processor nodes
     pub(super) fn static_nodes(&self) -> &[SharedProcessorNode<'ctx>] {
         &self.static_nodes
     }
 
+    /// Apply an edit to the StateGraph, tossing any stale and unwanted
+    /// data down the given garbage chute if it could involve heap
+    /// deallocation to drop directly.
     pub(super) fn make_edit(
         &mut self,
         edit: StateGraphEdit<'ctx>,
@@ -61,10 +65,13 @@ impl<'ctx> StateGraph<'ctx> {
         }
     }
 
+    /// Add a new static processor node to the graph.
     fn add_static_sound_processor(&mut self, node: SharedProcessorNode<'ctx>) {
+        debug_assert!(self.static_nodes.iter().all(|n| n.id() != node.id()));
         self.static_nodes.push(node);
     }
 
+    /// Remove a previously added static processor node from the graph.
     fn remove_static_sound_processor(
         &mut self,
         processor_id: SoundProcessorId,
@@ -86,6 +93,10 @@ impl<'ctx> StateGraph<'ctx> {
         old_node.toss(garbage_chute);
     }
 
+    /// Modify all sound input nodes corresponding to the given sound input
+    /// to add pre-allocated targets at the given branch index. There must
+    /// be enough targets allocated for all replicated nodes in the graph.
+    /// Internally, this calls `SoundInputNode::insert_target`.
     fn add_sound_input_branch(
         &mut self,
         input_id: SoundInputId,
@@ -98,6 +109,10 @@ impl<'ctx> StateGraph<'ctx> {
         });
     }
 
+    /// Modify all sound input nodes corresponding to the given sound input
+    /// to remove targets at the given branch index. The removed targets are
+    /// all tossed into the given GarbageChute. Internally, this calls
+    /// `SingleInputNode::erase_target`
     fn remove_sound_input_branch(
         &mut self,
         input_id: SoundInputId,
@@ -111,6 +126,10 @@ impl<'ctx> StateGraph<'ctx> {
         });
     }
 
+    /// Modify all sound input nodes corresponding to the given sound input
+    /// to swap their targets in-place with the given, pre-allocated targets.
+    /// The removed targets are all tossed into the given GarbageChute. There
+    /// must be enough targets allocated for all replicated nodes in the graph.
     fn replace_sound_input_branch(
         &mut self,
         input_id: SoundInputId,
@@ -130,6 +149,8 @@ impl<'ctx> StateGraph<'ctx> {
         // TODO: toss the vec also
     }
 
+    /// Internal helper method for looking up all copies of and making
+    /// changes to the nodes of a sound input in the StateGraph.
     fn modify_sound_input_node<F: FnMut(&mut dyn SoundInputNode<'ctx>)>(
         _static_nodes: &mut [SharedProcessorNode<'ctx>],
         _owner_id: SoundProcessorId,
@@ -138,6 +159,8 @@ impl<'ctx> StateGraph<'ctx> {
         todo!()
     }
 
+    /// Internal helper method for looking up all copies of and making
+    /// changes to the nodes of a sound processor in the StateGraph.
     fn modify_processor_node<F: FnMut(&mut dyn StateGraphNode<'ctx>)>(
         _static_nodes: &mut [SharedProcessorNode<'ctx>],
         _processor_id: SoundProcessorId,

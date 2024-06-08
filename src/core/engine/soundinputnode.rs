@@ -24,6 +24,10 @@ pub trait SoundInputNode<'ctx>: Sync + Send {
     /// Mutably access the targets of the sound input node
     fn targets_mut(&mut self) -> &mut [NodeTarget<'ctx>];
 
+    /// Add the first branch for a newly-created sound input or add a branch
+    /// to an existing set of branches under an existing input. The exact
+    /// interpretation of what this means is largely up to the implementing
+    /// sound input type.
     fn insert_target(
         &mut self,
         _input_id: SoundInputId,
@@ -33,6 +37,9 @@ pub trait SoundInputNode<'ctx>: Sync + Send {
         panic!("This input node type does not support inserting targets");
     }
 
+    /// Remove a target from an existing set of branches, or remove an
+    /// existing sound input entirely. The exact interpretation is similarly
+    /// up to the implementing sound input type.
     fn erase_target(
         &mut self,
         _input_id: SoundInputId,
