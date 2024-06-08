@@ -1,7 +1,8 @@
 use crate::core::{
     engine::{
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
         nodegen::NodeGen,
     },
@@ -26,15 +27,15 @@ pub struct Resampler {
 }
 
 pub struct ResamplerExpressions<'ctx> {
-    speed_ratio: CompiledExpressionNode<'ctx>,
+    speed_ratio: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ResamplerExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for ResamplerExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.speed_ratio);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.speed_ratio);
     }
 }

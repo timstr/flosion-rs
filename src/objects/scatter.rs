@@ -3,8 +3,8 @@ use rand::prelude::*;
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -51,15 +51,15 @@ pub struct Scatter {
 }
 
 pub struct ScatterExpressions<'ctx> {
-    parameter: CompiledExpressionNode<'ctx>,
+    parameter: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ScatterExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for ScatterExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.parameter);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.parameter);
     }
 }

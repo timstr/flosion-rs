@@ -8,7 +8,7 @@ use serialization::Serializer;
 
 use crate::core::{
     engine::{
-        compiledexpressionnode::ExpressionCollection,
+        compiledexpression::CompiledExpressionCollection,
         nodegen::NodeGen,
         soundinputnode::SoundProcessorInput,
         stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
@@ -59,7 +59,7 @@ pub enum StreamStatus {
 pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
     type SoundInputType: SoundProcessorInput;
 
-    type Expressions<'ctx>: ExpressionCollection<'ctx>;
+    type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 
@@ -85,7 +85,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     type SoundInputType: SoundProcessorInput;
 
-    type Expressions<'ctx>: ExpressionCollection<'ctx>;
+    type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
 

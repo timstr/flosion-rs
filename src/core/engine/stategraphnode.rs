@@ -23,8 +23,9 @@ use crate::core::{
 };
 
 use super::{
-    compiledexpressionnode::{
-        CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+    compiledexpression::{
+        CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+        CompiledExpressionVisitorMut,
     },
     garbage::{Droppable, Garbage, GarbageChute},
     nodegen::NodeGen,
@@ -109,7 +110,7 @@ impl<'ctx, T: DynamicSoundProcessor> DynamicProcessorNode<'ctx, T> {
             t.timing_mut().flag_to_start_over();
         }
         self.expressions
-            .visit_expressions_mut(&mut |node: &mut CompiledExpressionNode<'ctx>| {
+            .visit_expressions_mut(&mut |node: &mut CompiledExpression<'ctx>| {
                 node.start_over();
             });
     }
@@ -142,9 +143,9 @@ pub trait StateGraphNode<'ctx>: Sync + Send {
     fn sound_input_node(&self) -> &dyn CompiledSoundInput<'ctx>;
     fn sound_input_node_mut(&mut self) -> &mut dyn CompiledSoundInput<'ctx>;
 
-    fn expressions(&mut self) -> &mut dyn ExpressionCollection<'ctx>;
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>);
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>);
+    fn expressions(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx>;
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>);
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>);
 }
 
 impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode<'ctx, T> {
@@ -181,15 +182,15 @@ impl<'ctx, T: StaticSoundProcessor> StateGraphNode<'ctx> for StaticProcessorNode
         &mut self.sound_input
     }
 
-    fn expressions(&mut self) -> &mut dyn ExpressionCollection<'ctx> {
+    fn expressions(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx> {
         &mut self.expressions
     }
 
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         self.expressions.visit_expressions(visitor);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         self.expressions.visit_expressions_mut(visitor);
     }
 
@@ -223,15 +224,15 @@ impl<'ctx, T: DynamicSoundProcessor> StateGraphNode<'ctx> for DynamicProcessorNo
         &mut self.sound_input
     }
 
-    fn expressions(&mut self) -> &mut dyn ExpressionCollection<'ctx> {
+    fn expressions(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx> {
         &mut self.expressions
     }
 
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         self.expressions.visit_expressions(visitor);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         self.expressions.visit_expressions_mut(visitor);
     }
 

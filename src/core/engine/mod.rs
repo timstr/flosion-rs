@@ -1,4 +1,4 @@
-pub mod compiledexpressionnode;
+pub mod compiledexpression;
 pub(crate) mod garbage;
 pub mod nodegen;
 pub(crate) mod scratcharena;

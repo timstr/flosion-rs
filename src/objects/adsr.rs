@@ -1,7 +1,7 @@
 use crate::core::{
     engine::{
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
         },
         nodegen::NodeGen,
     },
@@ -30,21 +30,21 @@ enum Phase {
 }
 
 pub struct ADSRExpressions<'ctx> {
-    attack_time: CompiledExpressionNode<'ctx>,
-    decay_time: CompiledExpressionNode<'ctx>,
-    sustain_level: CompiledExpressionNode<'ctx>,
-    release_time: CompiledExpressionNode<'ctx>,
+    attack_time: CompiledExpression<'ctx>,
+    decay_time: CompiledExpression<'ctx>,
+    sustain_level: CompiledExpression<'ctx>,
+    release_time: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ADSRExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for ADSRExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.attack_time);
         visitor.visit_node(&self.decay_time);
         visitor.visit_node(&self.sustain_level);
         visitor.visit_node(&self.release_time);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.attack_time);
         visitor.visit_node(&mut self.decay_time);
         visitor.visit_node(&mut self.sustain_level);

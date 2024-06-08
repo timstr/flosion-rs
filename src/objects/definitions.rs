@@ -1,7 +1,8 @@
 use crate::core::{
     engine::{
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
         nodegen::NodeGen,
     },
@@ -30,16 +31,16 @@ pub struct Definitions {
 }
 
 pub struct DefinitionsExpressions<'ctx> {
-    input: CompiledExpressionNode<'ctx>,
+    input: CompiledExpression<'ctx>,
     argument_id: SoundExpressionArgumentId,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for DefinitionsExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for DefinitionsExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.input);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.input);
     }
 }

@@ -2,10 +2,10 @@ use rand::prelude::*;
 
 use crate::core::{
     engine::{
-        nodegen::NodeGen,
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
         },
+        nodegen::NodeGen,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     sound::{
@@ -51,17 +51,17 @@ pub struct Ensemble {
 }
 
 pub struct EnsembleExpressions<'ctx> {
-    frequency_in: CompiledExpressionNode<'ctx>,
-    frequency_spread: CompiledExpressionNode<'ctx>,
+    frequency_in: CompiledExpression<'ctx>,
+    frequency_spread: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for EnsembleExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for EnsembleExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.frequency_in);
         visitor.visit_node(&self.frequency_spread);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.frequency_in);
         visitor.visit_node(&mut self.frequency_spread);
     }

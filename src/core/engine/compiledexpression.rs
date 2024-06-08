@@ -14,7 +14,7 @@ use crate::core::sound::soundgraphdata::SoundExpressionScope;
 
 /// A compiled expression and all the data needed to directly
 /// execute it within a StateGraph instance on the audio thread.
-pub struct CompiledExpressionNode<'ctx> {
+pub struct CompiledExpression<'ctx> {
     /// The expression which the node corresponds to
     id: SoundExpressionId,
 
@@ -26,15 +26,15 @@ pub struct CompiledExpressionNode<'ctx> {
     scope: SoundExpressionScope,
 }
 
-impl<'ctx> CompiledExpressionNode<'ctx> {
+impl<'ctx> CompiledExpression<'ctx> {
     #[cfg(not(debug_assertions))]
     /// Creates a new compiled expression node
     pub(crate) fn new<'a>(
         id: SoundExpressionId,
         nodegen: &NodeGen<'a, 'ctx>,
-    ) -> CompiledExpressionNode<'ctx> {
+    ) -> CompiledExpression<'ctx> {
         let function = nodegen.get_compiled_expression(id);
-        CompiledExpressionNode { id, function }
+        CompiledExpression { id, function }
     }
 
     #[cfg(debug_assertions)]
@@ -43,9 +43,9 @@ impl<'ctx> CompiledExpressionNode<'ctx> {
         id: SoundExpressionId,
         nodegen: &NodeGen<'a, 'ctx>,
         scope: SoundExpressionScope,
-    ) -> CompiledExpressionNode<'ctx> {
+    ) -> CompiledExpression<'ctx> {
         let function = nodegen.get_compiled_expression(id);
-        CompiledExpressionNode {
+        CompiledExpression {
             id,
             function,
             scope,
@@ -149,9 +149,9 @@ impl<'ctx> CompiledExpressionNode<'ctx> {
 /// and replacing the allocated nodes. The optional methods add_expression
 /// and remove_expression are only needed if expressions can be added and
 /// removed after the processor's construction.
-pub trait ExpressionCollection<'ctx>: Sync + Send {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>);
-    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>);
+pub trait CompiledExpressionCollection<'ctx>: Sync + Send {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>);
+    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>);
 
     fn add_expression(&self, _input_id: SoundExpressionId) {
         panic!("This ExpressionCollection type does not support adding expressions");
@@ -162,36 +162,36 @@ pub trait ExpressionCollection<'ctx>: Sync + Send {
 }
 
 /// A trait for inspecting each expression node in an ExpressionCollection
-pub trait ExpressionVisitor<'ctx> {
-    fn visit_node(&mut self, node: &CompiledExpressionNode<'ctx>);
+pub trait CompiledExpressionVisitor<'ctx> {
+    fn visit_node(&mut self, node: &CompiledExpression<'ctx>);
 }
 
 /// A trait for modifying each expression node in an ExpressionCollection
-pub trait ExpressionVisitorMut<'ctx> {
-    fn visit_node(&mut self, node: &mut CompiledExpressionNode<'ctx>);
+pub trait CompiledExpressionVisitorMut<'ctx> {
+    fn visit_node(&mut self, node: &mut CompiledExpression<'ctx>);
 }
 
 /// Blanket implementation of ExpressionVisitor for functions
-impl<'ctx, F: FnMut(&CompiledExpressionNode<'ctx>)> ExpressionVisitor<'ctx> for F {
-    fn visit_node(&mut self, node: &CompiledExpressionNode<'ctx>) {
+impl<'ctx, F: FnMut(&CompiledExpression<'ctx>)> CompiledExpressionVisitor<'ctx> for F {
+    fn visit_node(&mut self, node: &CompiledExpression<'ctx>) {
         (*self)(node);
     }
 }
 
 /// Blanket implementation of ExpressionVisitorMut for functions
-impl<'ctx, F: FnMut(&mut CompiledExpressionNode<'ctx>)> ExpressionVisitorMut<'ctx> for F {
-    fn visit_node(&mut self, node: &mut CompiledExpressionNode<'ctx>) {
+impl<'ctx, F: FnMut(&mut CompiledExpression<'ctx>)> CompiledExpressionVisitorMut<'ctx> for F {
+    fn visit_node(&mut self, node: &mut CompiledExpression<'ctx>) {
         (*self)(node);
     }
 }
 
 /// The unit type `()` can be used as an ExpressionCollection containing no expressions
-impl<'ctx> ExpressionCollection<'ctx> for () {
-    fn visit_expressions(&self, _visitor: &mut dyn ExpressionVisitor) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for () {
+    fn visit_expressions(&self, _visitor: &mut dyn CompiledExpressionVisitor) {
         // Nothing to do
     }
 
-    fn visit_expressions_mut(&mut self, _visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, _visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
         // Nothing to do
     }
 }

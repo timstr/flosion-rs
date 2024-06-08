@@ -12,7 +12,7 @@ use crate::core::{
 };
 
 use super::{
-    compiledexpressionnode::CompiledExpressionNode,
+    compiledexpression::CompiledExpression,
     stategraph::StateGraph,
     stategraphnode::{
         NodeTargetValue, SharedProcessorNode, SharedProcessorNodeData, StateGraphNode,
@@ -198,7 +198,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             proc_data.expressions().iter().cloned().collect();
         let mut unexpected_inputs: HashSet<SoundExpressionId> = HashSet::new();
 
-        node.visit_expressions(&mut |expression_node: &CompiledExpressionNode| {
+        node.visit_expressions(&mut |expression_node: &CompiledExpression| {
             if !remaining_inputs.remove(&expression_node.id()) {
                 unexpected_inputs.insert(expression_node.id());
             }

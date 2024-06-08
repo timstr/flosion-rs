@@ -1,5 +1,5 @@
 use crate::core::{
-    engine::{nodegen::NodeGen, compiledexpressionnode::CompiledExpressionNode},
+    engine::{nodegen::NodeGen, compiledexpression::CompiledExpression},
     uniqueid::UniqueId,
 };
 
@@ -55,13 +55,13 @@ impl SoundExpressionHandle {
     }
 
     #[cfg(not(debug_assertions))]
-    pub fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> CompiledExpressionNode<'ctx> {
-        CompiledExpressionNode::new(self.id, nodegen)
+    pub fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> CompiledExpression<'ctx> {
+        CompiledExpression::new(self.id, nodegen)
     }
 
     #[cfg(debug_assertions)]
-    pub fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> CompiledExpressionNode<'ctx> {
+    pub fn make_node<'a, 'ctx>(&self, nodegen: &NodeGen<'a, 'ctx>) -> CompiledExpression<'ctx> {
         // Pass scope to enable validation
-        CompiledExpressionNode::new(self.id, nodegen, self.scope.clone())
+        CompiledExpression::new(self.id, nodegen, self.scope.clone())
     }
 }

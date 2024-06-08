@@ -1,7 +1,8 @@
 use crate::core::{
     engine::{
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+            CompiledExpressionVisitorMut,
         },
         nodegen::NodeGen,
     },
@@ -29,17 +30,17 @@ pub struct ReadWriteWaveform {
 }
 
 pub struct ReadWriteWaveformExpressions<'ctx> {
-    waveform: CompiledExpressionNode<'ctx>,
+    waveform: CompiledExpression<'ctx>,
     input_l: SoundExpressionArgumentId,
     input_r: SoundExpressionArgumentId,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for ReadWriteWaveformExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for ReadWriteWaveformExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.waveform);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.waveform);
     }
 }

@@ -1,8 +1,8 @@
 use crate::core::{
     engine::{
         nodegen::NodeGen,
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
         },
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
@@ -22,15 +22,15 @@ pub struct WriteWaveform {
 }
 
 pub struct WriteWaveformExpressions<'ctx> {
-    waveform: CompiledExpressionNode<'ctx>,
+    waveform: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for WriteWaveformExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for WriteWaveformExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.waveform);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.waveform);
     }
 }

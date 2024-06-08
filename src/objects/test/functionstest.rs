@@ -9,9 +9,9 @@ use crate::{
         engine::{
             nodegen::NodeGen,
             scratcharena::ScratchArena,
-            compiledexpressionnode::{
-                CompiledExpressionNode, ExpressionCollection, ExpressionVisitor,
-                ExpressionVisitorMut,
+            compiledexpression::{
+                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+                CompiledExpressionVisitorMut,
             },
         },
         expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
@@ -49,15 +49,15 @@ struct TestSoundProcessor {
 }
 
 struct TestExpressions<'ctx> {
-    input: CompiledExpressionNode<'ctx>,
+    input: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for TestExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for TestExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.input);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.input);
     }
 }

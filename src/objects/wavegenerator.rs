@@ -1,10 +1,10 @@
 use crate::core::{
     anydata::AnyData,
     engine::{
-        nodegen::NodeGen,
-        compiledexpressionnode::{
-            CompiledExpressionNode, ExpressionCollection, ExpressionVisitor, ExpressionVisitorMut,
+        compiledexpression::{
+            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor, CompiledExpressionVisitorMut,
         },
+        nodegen::NodeGen,
     },
     graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
     jit::compiledexpression::Discretization,
@@ -28,17 +28,17 @@ pub struct WaveGenerator {
 }
 
 pub struct WaveGeneratorExpressions<'ctx> {
-    frequency: CompiledExpressionNode<'ctx>,
-    amplitude: CompiledExpressionNode<'ctx>,
+    frequency: CompiledExpression<'ctx>,
+    amplitude: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> ExpressionCollection<'ctx> for WaveGeneratorExpressions<'ctx> {
-    fn visit_expressions(&self, visitor: &mut dyn ExpressionVisitor<'ctx>) {
+impl<'ctx> CompiledExpressionCollection<'ctx> for WaveGeneratorExpressions<'ctx> {
+    fn visit_expressions(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
         visitor.visit_node(&self.frequency);
         visitor.visit_node(&self.amplitude);
     }
 
-    fn visit_expressions_mut(&mut self, visitor: &mut dyn ExpressionVisitorMut<'ctx>) {
+    fn visit_expressions_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
         visitor.visit_node(&mut self.frequency);
         visitor.visit_node(&mut self.amplitude);
     }
