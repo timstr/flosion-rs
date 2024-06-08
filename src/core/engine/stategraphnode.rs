@@ -553,12 +553,24 @@ impl<'ctx> Clone for SharedCompiledProcessor<'ctx> {
     }
 }
 
+/// The contents of a compiled sound input branch.
 pub enum StateGraphNodeValue<'ctx> {
+    /// A uniquely owned and directly invocable compiled sound processor
     Unique(UniqueCompiledSoundProcessor<'ctx>),
+
+    /// A co-owned and cached compiled sound processor
     Shared(SharedCompiledProcessor<'ctx>),
+
+    /// No compiled sound processor at all. The input is empty and will
+    /// produce silence if invoked.
     Empty,
 }
 
+/// CompiledSoundInputBranch combines the possible compiled nodes,
+/// timing information, and sound input and branch tracking needed
+/// for both invoking a sound input to produce audio within the
+/// state graph as well as communicate changes to a concrete sound
+/// input type, in terms of adding and removing compiled inputs and branches.
 pub struct CompiledSoundInputBranch<'ctx> {
     input_id: SoundInputId,
     branch_id: SoundInputBranchId,
@@ -567,6 +579,7 @@ pub struct CompiledSoundInputBranch<'ctx> {
 }
 
 impl<'ctx> CompiledSoundInputBranch<'ctx> {
+    /// Compile a new CompiledSoundInputBranch.
     pub(crate) fn new<'a>(
         input_id: SoundInputId,
         branch_id: SoundInputBranchId,
@@ -580,22 +593,28 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         }
     }
 
+    /// The sound input's id
     pub(crate) fn id(&self) -> SoundInputId {
         self.input_id
     }
 
+    /// The branch id within the sound input
     pub(crate) fn branch_id(&self) -> SoundInputBranchId {
         self.branch_id
     }
 
+    /// Access the input timing
     // TODO: consider hiding inputtiming and publicly re-exposing only those functions which make sense
     pub(crate) fn timing(&self) -> &InputTiming {
         &self.timing
     }
+    /// Mutably access the input timing
     pub(crate) fn timing_mut(&mut self) -> &mut InputTiming {
         &mut self.timing
     }
 
+    /// Get the id of the sound processor which the compiled input
+    /// is effectively connected to, if any.
     pub(crate) fn target_id(&self) -> Option<SoundProcessorId> {
         match &self.target {
             StateGraphNodeValue::Unique(proc) => Some(proc.id()),
@@ -604,17 +623,17 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         }
     }
 
+    /// Access the inner compiled state graph node
     pub(crate) fn target(&self) -> &StateGraphNodeValue<'ctx> {
         &self.target
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        match self.target {
-            StateGraphNodeValue::Empty => true,
-            _ => false,
-        }
-    }
-
+    /// Replace the inner compiled state graph node with
+    /// the given one, and return the old the one. If the
+    /// new node is a shared compiled processor, this input
+    /// will be added as a co-owner. Symmetrically, if the
+    /// node being removed is shared, this input will also
+    /// be removed from it.
     pub(crate) fn swap_target(
         &mut self,
         mut target: StateGraphNodeValue<'ctx>,
@@ -629,6 +648,9 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         target
     }
 
+    /// Make audio processing start over. Resets the timing and
+    /// regenerates any time-varying state of the inner compiled
+    /// processor.
     pub(crate) fn start_over(&mut self, sample_offset: usize) {
         self.timing.start_over(sample_offset);
         match &mut self.target {
@@ -638,6 +660,11 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         }
     }
 
+    /// Process the next chunk of audio
+    // TODO: this is a bit of a mess. It should be possible to
+    // fold 'state', 'input_state', and  'local_arrays' into one
+    // or two calls to push onto the Context stack, and thus
+    // removed here. This method really doesn't need to be generic.
     pub(crate) fn step<T: ProcessorState>(
         &mut self,
         state: &T,
