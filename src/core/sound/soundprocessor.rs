@@ -9,8 +9,8 @@ use serialization::Serializer;
 use crate::core::{
     engine::{
         compiledexpression::CompiledExpressionCollection,
+        compiledsoundinput::SoundProcessorInput,
         nodegen::NodeGen,
-        soundinputnode::SoundProcessorInput,
         stategraphnode::{DynamicProcessorNode, StateGraphNode, StaticProcessorNode},
     },
     graph::graphobject::{

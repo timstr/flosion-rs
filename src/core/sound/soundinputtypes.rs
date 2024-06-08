@@ -5,8 +5,8 @@ use parking_lot::RwLock;
 use crate::core::{
     anydata::AnyData,
     engine::{
+        compiledsoundinput::{CompiledSoundInput, SoundProcessorInput},
         nodegen::NodeGen,
-        soundinputnode::{CompiledSoundInput, SoundProcessorInput},
         stategraphnode::NodeTarget,
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},

@@ -2,7 +2,7 @@ use crate::core::sound::{soundinput::SoundInputId, soundprocessor::SoundProcesso
 
 use super::{
     garbage::{Garbage, GarbageChute},
-    soundinputnode::CompiledSoundInput,
+    compiledsoundinput::CompiledSoundInput,
     stategraphedit::StateGraphEdit,
     stategraphnode::StateGraphNode,
     stategraphnode::{NodeTargetValue, SharedProcessorNode},

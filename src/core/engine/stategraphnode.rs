@@ -30,7 +30,7 @@ use super::{
     garbage::{Droppable, Garbage, GarbageChute},
     nodegen::NodeGen,
     scratcharena::ScratchArena,
-    soundinputnode::{CompiledSoundInput, SoundProcessorInput},
+    compiledsoundinput::{CompiledSoundInput, SoundProcessorInput},
 };
 
 /// A compiled state graph node for a static processor. An Arc to the

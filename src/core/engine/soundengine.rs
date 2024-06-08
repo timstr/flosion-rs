@@ -8,7 +8,7 @@ use std::{
 };
 
 use super::{
-    garbage::{new_garbage_disposer, Garbage, GarbageChute, GarbageDisposer},
+    garbage::{new_garbage_disposer, GarbageChute, GarbageDisposer},
     nodegen::NodeGen,
     scratcharena::ScratchArena,
     stategraph::StateGraph,
