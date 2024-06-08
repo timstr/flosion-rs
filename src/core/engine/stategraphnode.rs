@@ -140,8 +140,7 @@ impl<'ctx, T: DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
 
 /// Trait for a compiled sound processor living in the state graph, intended
 /// to unify both static and dynamic sound processors.
-// TODO: make this not pub
-pub trait CompiledSoundProcessor<'ctx>: Sync + Send {
+pub(crate) trait CompiledSoundProcessor<'ctx>: Sync + Send {
     /// The sound processor's id
     fn id(&self) -> SoundProcessorId;
 
