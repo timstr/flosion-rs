@@ -16,11 +16,11 @@ use super::{
     expressionui::SoundExpressionUi,
     flosion_ui::Factories,
     graph_ui::GraphUiState,
+    interactions::AppInteractions,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuinames::SoundGraphUiNames,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    ui_factory::UiFactory,
 };
 
 pub struct SoundGraphUiState {
@@ -32,6 +32,11 @@ pub struct SoundGraphUiState {
 
     /// The cached names of all objects in the ui
     names: SoundGraphUiNames,
+
+    /// The top-level user interactions with the sound graph UI,
+    /// such as drag & drop, keyboard shortcuts, but not interactions
+    /// within individual processor UIs
+    interactions: AppInteractions,
 }
 
 impl SoundGraphUiState {
@@ -40,26 +45,34 @@ impl SoundGraphUiState {
             expression_uis: ExpressionUiCollection::new(),
             object_states: SoundObjectUiStates::new(),
             names: SoundGraphUiNames::new(),
+            interactions: AppInteractions::new(),
         }
-    }
-
-    pub(crate) fn expression_uis_mut(&mut self) -> &mut ExpressionUiCollection {
-        &mut self.expression_uis
     }
 
     pub(crate) fn object_states(&self) -> &SoundObjectUiStates {
         &self.object_states
     }
 
-    pub(super) fn create_state_for(
+    pub(crate) fn interactions_mut(&mut self) -> &mut AppInteractions {
+        &mut self.interactions
+    }
+
+    pub(crate) fn interact_and_draw(
         &mut self,
-        id: SoundObjectId,
-        topo: &SoundGraphTopology,
-        factory: &UiFactory<SoundGraphUi>,
+        ui: &mut egui::Ui,
+        factories: &Factories,
+        graph: &mut SoundGraph,
     ) {
-        let object_handle = topo.graph_object(id).unwrap();
-        let state = factory.create_default_state(&object_handle);
-        self.object_states.set_object_data(id, state);
+        ui.with_layer_id(
+            egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::new("foreground_interactions"),
+            ),
+            |ui| {
+                self.interactions
+                    .interact_and_draw(ui, factories, graph, &mut self.object_states);
+            },
+        );
     }
 
     /// Remove any state associated with objects that are no longer present
@@ -71,6 +84,7 @@ impl SoundGraphUiState {
             .cleanup(topo, factories.expression_uis());
 
         self.names.regenerate(topo);
+        self.interactions.cleanup(topo);
     }
 
     #[cfg(debug_assertions)]

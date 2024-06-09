@@ -283,6 +283,7 @@ impl SoundGraphLayout {
         for group in &self.groups {
             group.draw(ui, factories, ui_state, graph, available_arguments);
         }
+
         // TODO: draw wires between connected groups also
     }
 

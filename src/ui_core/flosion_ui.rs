@@ -18,9 +18,8 @@ use eframe::{
 };
 
 use super::{
-    expressiongraphui::ExpressionGraphUi, interactions::AppInteractions,
-    soundgraphlayout::SoundGraphLayout, soundgraphui::SoundGraphUi,
-    soundgraphuistate::SoundGraphUiState, ui_factory::UiFactory,
+    expressiongraphui::ExpressionGraphUi, soundgraphlayout::SoundGraphLayout,
+    soundgraphui::SoundGraphUi, soundgraphuistate::SoundGraphUiState, ui_factory::UiFactory,
 };
 
 /// Convenience struct for passing all the different factories together
@@ -77,10 +76,6 @@ pub struct FlosionApp {
     /// The on-screen layout of sound processors
     graph_layout: SoundGraphLayout,
 
-    /// Top-level user interactions with the app, such as selecting, dragging,
-    /// keyboard navigation, etc
-    interactions: AppInteractions,
-
     previous_clean_revision: Option<RevisionNumber>,
 
     /// A cache of which expression arguments are available to which expressions,
@@ -104,7 +99,6 @@ impl FlosionApp {
             factories: Factories::new(),
             ui_state: SoundGraphUiState::new(),
             graph_layout: SoundGraphLayout::new(),
-            interactions: AppInteractions::new(),
             previous_clean_revision: None,
             available_arguments: HashMap::new(),
         };
@@ -118,7 +112,7 @@ impl FlosionApp {
         app
     }
 
-    fn draw_and_interact(&mut self, ui: &mut egui::Ui) {
+    fn interact_and_draw(&mut self, ui: &mut egui::Ui) {
         self.graph_layout.draw(
             ui,
             &self.factories,
@@ -126,8 +120,9 @@ impl FlosionApp {
             &mut self.graph,
             &self.available_arguments,
         );
-        self.interactions
-            .interact(ui, &self.factories, &mut self.graph, &mut self.ui_state);
+
+        self.ui_state
+            .interact_and_draw(ui, &self.factories, &mut self.graph);
     }
 
     fn cleanup(&mut self) {
@@ -141,7 +136,6 @@ impl FlosionApp {
 
         self.ui_state.cleanup(topo, &self.factories);
         self.graph_layout.regenerate(topo);
-        self.interactions.cleanup(topo);
 
         self.available_arguments = available_sound_expression_arguments(topo);
 
@@ -161,7 +155,7 @@ impl eframe::App for FlosionApp {
             #[cfg(debug_assertions)]
             self.check_invariants();
 
-            self.draw_and_interact(ui);
+            self.interact_and_draw(ui);
 
             self.graph.flush_updates();
 

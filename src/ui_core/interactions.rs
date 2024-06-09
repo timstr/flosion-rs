@@ -16,6 +16,7 @@ use super::{
     keyboardfocus::KeyboardFocusState,
     soundgraphui::SoundGraphUi,
     soundgraphuistate::SoundGraphUiState,
+    soundobjectuistate::SoundObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
 };
@@ -30,7 +31,6 @@ pub struct DraggingProcessorData {
     pub processor_id: SoundProcessorId,
     pub rect: egui::Rect,
     original_rect: egui::Rect,
-    pub from_input: Option<SoundInputId>,
 }
 
 pub struct DroppingProcessorData {
@@ -86,12 +86,12 @@ impl AppInteractions {
     }
 
     /// Receive user input and handle and respond to all top-level interactions
-    pub(crate) fn interact(
+    pub(crate) fn interact_and_draw(
         &mut self,
         ui: &mut egui::Ui,
         factories: &Factories,
         graph: &mut SoundGraph,
-        ui_state: &mut SoundGraphUiState,
+        object_states: &mut SoundObjectUiStates,
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -106,7 +106,13 @@ impl AppInteractions {
             UiMode::UsingKeyboardNav(_) => todo!(),
             UiMode::MakingSelection(_) => todo!(),
             UiMode::HoldingSelection(_) => todo!(),
-            UiMode::DraggingProcessor(_) => todo!(),
+            UiMode::DraggingProcessor(drag) => {
+                let color = object_states.get_object_color(drag.processor_id.into());
+                let color =
+                    egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 64);
+                ui.painter()
+                    .rect_filled(drag.rect, egui::Rounding::same(5.0), color);
+            }
             UiMode::DroppingProcessor(_) => todo!(),
             UiMode::Summoning(summon_widget) => {
                 ui.add(SummonWidget::new(summon_widget));
@@ -116,11 +122,10 @@ impl AppInteractions {
                         .sound_objects()
                         .create_from_args(object_type.name(), graph, args)
                         .expect("Oops, failed to create object");
-                    ui_state.create_state_for(
-                        new_obj_handle.id(),
-                        graph.topology(),
-                        factories.sound_uis(),
-                    );
+
+                    let state = factories.sound_uis().create_default_state(&new_obj_handle);
+
+                    object_states.set_object_data(new_obj_handle.id(), state);
 
                     self.mode = UiMode::Passive;
                 } else if summon_widget.was_cancelled() {
@@ -128,6 +133,35 @@ impl AppInteractions {
                 }
             }
         }
+    }
+
+    pub(crate) fn start_dragging_processor(
+        &mut self,
+        processor_id: SoundProcessorId,
+        original_rect: egui::Rect,
+    ) {
+        self.mode = UiMode::DraggingProcessor(DraggingProcessorData {
+            processor_id,
+            rect: original_rect,
+            original_rect,
+        });
+    }
+
+    pub(crate) fn drag_processor(&mut self, delta: egui::Vec2) {
+        let UiMode::DraggingProcessor(drag) = &mut self.mode else {
+            panic!("Called drag_processor() while not dragging");
+        };
+
+        drag.rect = drag.rect.translate(delta);
+    }
+
+    pub(crate) fn drog_dragging_processor(&mut self) {
+        let UiMode::DraggingProcessor(_) = &mut self.mode else {
+            panic!("Called drog_dragging_processor() while not dragging");
+        };
+        // TODO: (arrange to) actually modify things
+        // self.mode = UiMode::DroppingProcessor(...);
+        self.mode = UiMode::Passive;
     }
 
     /// Remove any data associated with objects that are no longer present in

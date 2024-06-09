@@ -179,7 +179,7 @@ impl ProcessorUi {
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,
         add_contents: F,
-    ) -> egui::Response {
+    ) {
         // Clip to the entire screen, not just outside the area
         ui.set_clip_rect(ui.ctx().input(|i| i.screen_rect()));
 
@@ -207,53 +207,77 @@ impl ProcessorUi {
 
         ui.set_width(desired_width);
 
-        let response =
-            Self::show_inner_processor_contents(ui, left_of_body, desired_width, frame, |ui| {
-                ui.vertical(|ui| {
-                    for (input_id, input_label, config) in &self.expressions {
-                        self.show_expression(
-                            ui,
-                            ctx,
-                            *input_id,
-                            input_label,
-                            ui_state,
-                            sound_graph,
-                            config,
-                        );
+        Self::show_inner_processor_contents(ui, left_of_body, desired_width, frame, |ui| {
+            ui.vertical(|ui| {
+                // Make sure to use up the intended width consistently
+                ui.set_width(desired_width);
+
+                // Show all expressions in order
+                for (input_id, input_label, config) in &self.expressions {
+                    self.show_expression(
+                        ui,
+                        ctx,
+                        *input_id,
+                        input_label,
+                        ui_state,
+                        sound_graph,
+                        config,
+                    );
+                }
+
+                // Show the processor name and also type name if it differs
+                ui.horizontal(|ui| {
+                    ui.spacing();
+                    let name = ui_state
+                        .names()
+                        .sound_processor(self.processor_id)
+                        .unwrap()
+                        .name()
+                        .to_string();
+
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(&name)
+                                .color(egui::Color32::BLACK)
+                                .strong(),
+                        )
+                        .wrap(false),
+                    );
+
+                    if !name.to_lowercase().contains(&self.label.to_lowercase()) {
+                        ui.add(egui::Label::new(
+                            egui::RichText::new(self.label)
+                                .color(egui::Color32::from_black_alpha(192))
+                                .italics(),
+                        ));
                     }
-                    ui.set_width(desired_width);
-
-                    ui.horizontal(|ui| {
-                        ui.spacing();
-                        let name = ui_state
-                            .names()
-                            .sound_processor(self.processor_id)
-                            .unwrap()
-                            .name()
-                            .to_string();
-
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(&name)
-                                    .color(egui::Color32::BLACK)
-                                    .strong(),
-                            )
-                            .wrap(false),
-                        );
-
-                        if !name.to_lowercase().contains(&self.label.to_lowercase()) {
-                            ui.add(egui::Label::new(
-                                egui::RichText::new(self.label)
-                                    .color(egui::Color32::from_black_alpha(192))
-                                    .italics(),
-                            ));
-                        }
-                    });
-                    add_contents(ui, ui_state, sound_graph)
                 });
-            });
 
-        response
+                // Add any per-processor custom contents
+                add_contents(ui, ui_state, sound_graph);
+
+                // Check for interactions with the background of the
+                // processor so that it can be dragged
+                let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
+
+                // Handle drag & drop
+                if bg_response.drag_started() {
+                    ui_state
+                        .interactions_mut()
+                        .start_dragging_processor(self.processor_id, bg_response.rect);
+                }
+
+                if bg_response.dragged() {
+                    ui_state
+                        .interactions_mut()
+                        .drag_processor(bg_response.drag_delta());
+                }
+
+                if bg_response.drag_stopped() {
+                    ui_state.interactions_mut().drog_dragging_processor();
+                }
+            });
+        });
     }
 
     fn show_inner_processor_contents<F: FnOnce(&mut egui::Ui)>(
@@ -262,7 +286,7 @@ impl ProcessorUi {
         desired_width: f32,
         inner_frame: egui::Frame,
         f: F,
-    ) -> egui::Response {
+    ) {
         let body_rect = egui::Rect::from_x_y_ranges(
             left_of_body..=(left_of_body + desired_width),
             ui.cursor().top()..=f32::INFINITY,
@@ -272,15 +296,6 @@ impl ProcessorUi {
             ui.set_width(desired_width);
             inner_frame.show(ui, f).response
         });
-
-        let bottom_of_body = ui.cursor().top();
-
-        let body_rect = body_rect.intersect(egui::Rect::everything_above(bottom_of_body));
-
-        // check for click/drag interactions with the background of the processor body
-        r.response
-            .with_new_rect(body_rect)
-            .interact(egui::Sense::click_and_drag())
     }
 
     fn show_expression(
