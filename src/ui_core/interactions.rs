@@ -135,6 +135,13 @@ impl AppInteractions {
         }
     }
 
+    pub(crate) fn dragging_a_processor(&self) -> bool {
+        match &self.mode {
+            UiMode::DraggingProcessor(_) => true,
+            _ => false,
+        }
+    }
+
     pub(crate) fn start_dragging_processor(
         &mut self,
         processor_id: SoundProcessorId,

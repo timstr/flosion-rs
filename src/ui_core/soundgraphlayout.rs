@@ -81,9 +81,65 @@ impl StackedGroup {
                     let (initial_sidebar_rect, _) =
                         ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
 
+                    // TODO: elaborate on this to convey:
+                    // - sound inputs which are synchronous (parallel lines?)
+                    // - sound inputs which are non-synchronous (wavy/skewed lines?)
+                    // - no sound input (horizontal bars?)
+                    let draw_interconnect =
+                        |height: f32, ui: &mut egui::Ui, ui_state: &mut SoundGraphUiState| {
+                            let (rect, _) = ui.allocate_exact_size(
+                                egui::vec2(self.width_pixels as f32, height),
+                                egui::Sense::hover(),
+                            );
+
+                            let old_clip_rect = ui.clip_rect();
+
+                            // clip rendered things to the allocated area to gracefully
+                            // overflow contents. This needs to be undone below.
+                            ui.set_clip_rect(rect);
+
+                            if ui_state.interactions().dragging_a_processor() {
+                                ui.painter().rect_filled(
+                                    rect,
+                                    egui::Rounding::same(5.0),
+                                    egui::Color32::from_white_alpha(64),
+                                );
+                            }
+
+                            // Draw stripes
+                            let stripe_width = 5.0;
+                            let stripe_spacing = 10.0;
+
+                            let stripe_total_width = stripe_spacing + stripe_width;
+
+                            let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32)
+                                .ceil() as usize;
+
+                            for i in 0..num_stripes {
+                                let xmin = rect.min.x + (i as f32) * stripe_total_width;
+                                let xmax = xmin + stripe_width;
+                                let ymin = rect.min.y;
+                                let ymax = rect.max.y;
+                                ui.painter().rect_filled(
+                                    egui::Rect::from_min_max(
+                                        egui::pos2(xmin, ymin),
+                                        egui::pos2(xmax, ymax),
+                                    ),
+                                    egui::Rounding::ZERO,
+                                    egui::Color32::from_white_alpha(32),
+                                );
+                            }
+
+                            // Restore the previous clip rect
+                            ui.set_clip_rect(old_clip_rect);
+                        };
+
                     let processors_response = ui.vertical(|ui| {
+                        let mut first_processor_row = true;
+
+                        draw_interconnect(10.0, ui, ui_state);
+
                         for spid in &self.processors {
-                            // ui.label(format!("Processor {}", spid.value()));
                             let object = graph
                                 .topology()
                                 .sound_processor(*spid)
@@ -98,8 +154,16 @@ impl StackedGroup {
                             );
                             factories
                                 .sound_uis()
-                                .ui(&object, ui_state, ui, &mut ctx, graph)
+                                .ui(&object, ui_state, ui, &mut ctx, graph);
+
+                            if first_processor_row {
+                                first_processor_row = false;
+                            } else {
+                                draw_interconnect(5.0, ui, ui_state);
+                            }
                         }
+
+                        draw_interconnect(10.0, ui, ui_state);
                     });
 
                     let sidebar_rect =

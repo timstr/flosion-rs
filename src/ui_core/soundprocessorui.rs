@@ -292,7 +292,7 @@ impl ProcessorUi {
             ui.cursor().top()..=f32::INFINITY,
         );
 
-        let r = ui.allocate_ui_at_rect(body_rect, |ui| {
+        ui.allocate_ui_at_rect(body_rect, |ui| {
             ui.set_width(desired_width);
             inner_frame.show(ui, f).response
         });
@@ -316,8 +316,6 @@ impl ProcessorUi {
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
         expr_frame.show(ui, |ui| {
-            ui.set_width(ctx.width());
-
             ui_state
                 .names_mut()
                 .record_expression_name(input_id, input_label.to_string());
