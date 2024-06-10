@@ -1,10 +1,16 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::BitAnd,
+};
 
 use eframe::egui;
 
 use crate::core::sound::{
-    expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-    soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
+    expression::SoundExpressionId,
+    expressionargument::SoundExpressionArgumentId,
+    soundgraph::SoundGraph,
+    soundgraphtopology::SoundGraphTopology,
+    soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
 };
 
@@ -20,6 +26,14 @@ pub struct TimeAxis {
     /// How many seconds each horizontal pixel corresponds to
     pub time_per_x_pixel: f32,
     // TODO: offset to allow scrolling?
+}
+
+enum ProcessorInterconnect {
+    TopOfStackNoInput,
+    TopOfStackOneInput(SoundInputId, InputOptions),
+    TopOfStackManyInputs,
+    BetweenTwoProcessors(SoundInputId, InputOptions),
+    BottomOfStack(SoundProcessorId),
 }
 
 /// The visual representation of a sequency of sound processors,
@@ -81,68 +95,33 @@ impl StackedGroup {
                     let (initial_sidebar_rect, _) =
                         ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
 
-                    // TODO: elaborate on this to convey:
-                    // - sound inputs which are synchronous (parallel lines?)
-                    // - sound inputs which are non-synchronous (wavy/skewed lines?)
-                    // - no sound input (horizontal bars?)
-                    let draw_interconnect =
-                        |height: f32, ui: &mut egui::Ui, ui_state: &mut SoundGraphUiState| {
-                            let (rect, _) = ui.allocate_exact_size(
-                                egui::vec2(self.width_pixels as f32, height),
-                                egui::Sense::hover(),
-                            );
+                    let processors_response = ui.vertical(|ui| {
+                        let top_inputs = graph
+                            .topology()
+                            .sound_processor(self.processors[0])
+                            .unwrap()
+                            .sound_inputs();
 
-                            let old_clip_rect = ui.clip_rect();
-
-                            // clip rendered things to the allocated area to gracefully
-                            // overflow contents. This needs to be undone below.
-                            ui.set_clip_rect(rect);
-
-                            if ui_state.interactions().dragging_a_processor() {
-                                ui.painter().rect_filled(
-                                    rect,
-                                    egui::Rounding::same(5.0),
-                                    egui::Color32::from_white_alpha(64),
-                                );
-                            }
-
-                            // Draw stripes
-                            let stripe_width = 5.0;
-                            let stripe_spacing = 10.0;
-
-                            let stripe_total_width = stripe_spacing + stripe_width;
-
-                            let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32)
-                                .ceil() as usize;
-
-                            for i in 0..num_stripes {
-                                let xmin = rect.min.x + (i as f32) * stripe_total_width;
-                                let xmax = xmin + stripe_width;
-                                let ymin = rect.min.y;
-                                let ymax = rect.max.y;
-                                ui.painter().rect_filled(
-                                    egui::Rect::from_min_max(
-                                        egui::pos2(xmin, ymin),
-                                        egui::pos2(xmax, ymax),
-                                    ),
-                                    egui::Rounding::ZERO,
-                                    egui::Color32::from_white_alpha(32),
-                                );
-                            }
-
-                            // Restore the previous clip rect
-                            ui.set_clip_rect(old_clip_rect);
+                        let top_interconnect = if top_inputs.len() == 0 {
+                            ProcessorInterconnect::TopOfStackNoInput
+                        } else if top_inputs.len() == 1 {
+                            let siid = top_inputs[0];
+                            ProcessorInterconnect::TopOfStackOneInput(
+                                siid,
+                                graph.topology().sound_input(siid).unwrap().options(),
+                            )
+                        } else {
+                            ProcessorInterconnect::TopOfStackManyInputs
                         };
 
-                    let processors_response = ui.vertical(|ui| {
-                        let mut first_processor_row = true;
+                        self.draw_processor_interconnect(10.0, ui, ui_state, top_interconnect);
 
-                        draw_interconnect(10.0, ui, ui_state);
+                        for i in 0..self.processors.len() {
+                            let spid = self.processors[i];
 
-                        for spid in &self.processors {
                             let object = graph
                                 .topology()
-                                .sound_processor(*spid)
+                                .sound_processor(spid)
                                 .unwrap()
                                 .instance_arc()
                                 .as_graph_object();
@@ -156,14 +135,28 @@ impl StackedGroup {
                                 .sound_uis()
                                 .ui(&object, ui_state, ui, &mut ctx, graph);
 
-                            if first_processor_row {
-                                first_processor_row = false;
-                            } else {
-                                draw_interconnect(5.0, ui, ui_state);
+                            if let Some(next_spid) = self.processors.get(i + 1) {
+                                let next_inputs = graph
+                                    .topology()
+                                    .sound_processor(*next_spid)
+                                    .unwrap()
+                                    .sound_inputs();
+                                debug_assert_eq!(next_inputs.len(), 1);
+                                let siid = next_inputs[0];
+                                let interconnect = ProcessorInterconnect::BetweenTwoProcessors(
+                                    siid,
+                                    graph.topology().sound_input(siid).unwrap().options(),
+                                );
+                                self.draw_processor_interconnect(5.0, ui, ui_state, interconnect);
                             }
                         }
 
-                        draw_interconnect(10.0, ui, ui_state);
+                        self.draw_processor_interconnect(
+                            10.0,
+                            ui,
+                            ui_state,
+                            ProcessorInterconnect::BottomOfStack(*self.processors.last().unwrap()),
+                        );
                     });
 
                     let sidebar_rect =
@@ -177,6 +170,168 @@ impl StackedGroup {
                 });
             });
         });
+    }
+
+    fn draw_processor_interconnect(
+        &self,
+        height: f32,
+        ui: &mut egui::Ui,
+        ui_state: &mut SoundGraphUiState,
+        interconnect: ProcessorInterconnect,
+    ) {
+        // TODO: also depict branching inputs!
+        // possibly with literal branches in the interconnect
+
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(self.width_pixels as f32, height),
+            egui::Sense::hover(),
+        );
+
+        if ui_state.interactions().dragging_a_processor() {
+            // TODO: is this interconnect something you could drag
+            // a processor onto and thus connect? If not, don't
+            // highlight
+            ui.painter().rect_filled(
+                rect,
+                egui::Rounding::same(5.0),
+                egui::Color32::from_white_alpha(64),
+            );
+        }
+
+        match interconnect {
+            ProcessorInterconnect::TopOfStackNoInput => self.fill_with_horizontal_bars(ui, rect),
+            ProcessorInterconnect::TopOfStackOneInput(_, options) => match options {
+                InputOptions::Synchronous => self.fill_with_vertical_stripes(ui, rect),
+                InputOptions::NonSynchronous => self.fill_with_wonky_stripes(ui, rect),
+            },
+            ProcessorInterconnect::TopOfStackManyInputs => {
+                // ??? what to show here?
+                todo!()
+            }
+            ProcessorInterconnect::BetweenTwoProcessors(_, options) => match options {
+                InputOptions::Synchronous => self.fill_with_vertical_stripes(ui, rect),
+                InputOptions::NonSynchronous => self.fill_with_wonky_stripes(ui, rect),
+            },
+            ProcessorInterconnect::BottomOfStack(_) => self.fill_with_vertical_stripes(ui, rect),
+        }
+    }
+
+    fn fill_with_vertical_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+        let old_clip_rect = ui.clip_rect();
+
+        // clip rendered things to the allocated area to gracefully
+        // overflow contents. This needs to be undone below.
+        ui.set_clip_rect(rect);
+
+        let stripe_width = 5.0;
+        let stripe_spacing = 10.0;
+
+        let stripe_total_width = stripe_spacing + stripe_width;
+
+        let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize;
+
+        for i in 0..num_stripes {
+            let xmin = rect.min.x + (i as f32) * stripe_total_width;
+            let xmax = xmin + stripe_width;
+            let ymin = rect.min.y;
+            let ymax = rect.max.y;
+            ui.painter().rect_filled(
+                egui::Rect::from_min_max(egui::pos2(xmin, ymin), egui::pos2(xmax, ymax)),
+                egui::Rounding::ZERO,
+                egui::Color32::from_white_alpha(32),
+            );
+        }
+
+        // Restore the previous clip rect
+        ui.set_clip_rect(old_clip_rect);
+    }
+
+    fn fill_with_wonky_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+        let old_clip_rect = ui.clip_rect();
+
+        // clip rendered things to the allocated area to gracefully
+        // overflow contents. This needs to be undone below.
+        ui.set_clip_rect(rect);
+
+        let stripe_width = 5.0;
+        let stripe_spacing = 10.0;
+
+        let stripe_total_width = stripe_spacing + stripe_width;
+
+        let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize;
+
+        for i in 0..num_stripes {
+            let xmin = rect.min.x + (i as f32) * stripe_total_width;
+            let xmax = xmin + stripe_width;
+            let ymin = rect.min.y;
+            let ymax = rect.max.y;
+
+            let wonkiness = match i.bitand(3) {
+                0 => 0.0,
+                1 => 1.0,
+                2 => 0.0,
+                3 => -1.0,
+                _ => unreachable!(),
+            };
+
+            let wonkiness = stripe_total_width * 0.25 * wonkiness;
+
+            let points = vec![
+                egui::pos2(xmin + wonkiness, ymin),
+                egui::pos2(xmax + wonkiness, ymin),
+                egui::pos2(xmax - wonkiness, ymax),
+                egui::pos2(xmin - wonkiness, ymax),
+            ];
+
+            ui.painter().add(egui::Shape::convex_polygon(
+                points,
+                egui::Color32::from_white_alpha(32),
+                egui::Stroke::NONE,
+            ));
+        }
+
+        // Restore the previous clip rect
+        ui.set_clip_rect(old_clip_rect);
+    }
+
+    fn fill_with_horizontal_bars(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+        let old_clip_rect = ui.clip_rect();
+
+        // clip rendered things to the allocated area to gracefully
+        // overflow contents. This needs to be undone below.
+        ui.set_clip_rect(rect);
+
+        let stripe_width = 50.0;
+        let stripe_spacing = 10.0;
+
+        let stripe_total_width = stripe_spacing + stripe_width;
+
+        let num_stripes =
+            (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize + 1;
+
+        for i in 0..num_stripes {
+            let xmin = rect.min.x + (i as f32) * stripe_total_width;
+            let xmax = xmin + stripe_width;
+            let ymin = rect.min.y;
+            let ymax = rect.max.y;
+            let ymiddle = 0.5 * (ymin + ymax);
+            ui.painter().rect_filled(
+                egui::Rect::from_min_max(egui::pos2(xmin, ymin), egui::pos2(xmax, ymiddle - 2.0)),
+                egui::Rounding::ZERO,
+                egui::Color32::from_white_alpha(16),
+            );
+            ui.painter().rect_filled(
+                egui::Rect::from_min_max(
+                    egui::pos2(xmin - 0.5 * stripe_total_width, ymiddle + 2.0),
+                    egui::pos2(xmax - 0.5 * stripe_total_width, ymax),
+                ),
+                egui::Rounding::ZERO,
+                egui::Color32::from_white_alpha(16),
+            );
+        }
+
+        // Restore the previous clip rect
+        ui.set_clip_rect(old_clip_rect);
     }
 }
 
