@@ -49,6 +49,7 @@ impl SoundExpressionUi {
                                     .unwrap(),
                                 *ctx.time_axis(),
                                 plot_config,
+                                ctx.sound_graph_names(),
                             );
                         }
                     }
