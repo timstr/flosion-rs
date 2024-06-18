@@ -30,9 +30,9 @@ pub struct TimeAxis {
 
 enum ProcessorInterconnect {
     TopOfStackNoInput,
-    TopOfStackOneInput(SoundInputId, InputOptions),
+    TopOfStackOneInput(SoundInputId, InputOptions, usize),
     TopOfStackManyInputs,
-    BetweenTwoProcessors(SoundInputId, InputOptions),
+    BetweenTwoProcessors(SoundInputId, InputOptions, usize),
     BottomOfStack(SoundProcessorId),
 }
 
@@ -106,15 +106,17 @@ impl StackedGroup {
                             ProcessorInterconnect::TopOfStackNoInput
                         } else if top_inputs.len() == 1 {
                             let siid = top_inputs[0];
+                            let input = graph.topology().sound_input(siid).unwrap();
                             ProcessorInterconnect::TopOfStackOneInput(
                                 siid,
-                                graph.topology().sound_input(siid).unwrap().options(),
+                                input.options(),
+                                input.branches().len(),
                             )
                         } else {
                             ProcessorInterconnect::TopOfStackManyInputs
                         };
 
-                        self.draw_processor_interconnect(10.0, ui, ui_state, top_interconnect);
+                        self.draw_processor_interconnect(ui, ui_state, top_interconnect);
 
                         for i in 0..self.processors.len() {
                             let spid = self.processors[i];
@@ -143,16 +145,17 @@ impl StackedGroup {
                                     .sound_inputs();
                                 debug_assert_eq!(next_inputs.len(), 1);
                                 let siid = next_inputs[0];
+                                let input = graph.topology().sound_input(siid).unwrap();
                                 let interconnect = ProcessorInterconnect::BetweenTwoProcessors(
                                     siid,
-                                    graph.topology().sound_input(siid).unwrap().options(),
+                                    input.options(),
+                                    input.branches().len(),
                                 );
-                                self.draw_processor_interconnect(5.0, ui, ui_state, interconnect);
+                                self.draw_processor_interconnect(ui, ui_state, interconnect);
                             }
                         }
 
                         self.draw_processor_interconnect(
-                            10.0,
                             ui,
                             ui_state,
                             ProcessorInterconnect::BottomOfStack(*self.processors.last().unwrap()),
@@ -174,13 +177,11 @@ impl StackedGroup {
 
     fn draw_processor_interconnect(
         &self,
-        height: f32,
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
         interconnect: ProcessorInterconnect,
     ) {
-        // TODO: also depict branching inputs!
-        // possibly with literal branches in the interconnect
+        let height = 10.0;
 
         let (rect, _) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, height),
@@ -199,31 +200,31 @@ impl StackedGroup {
         }
 
         match interconnect {
-            ProcessorInterconnect::TopOfStackNoInput => self.fill_with_horizontal_bars(ui, rect),
-            ProcessorInterconnect::TopOfStackOneInput(_, options) => match options {
-                InputOptions::Synchronous => self.fill_with_vertical_stripes(ui, rect),
-                InputOptions::NonSynchronous => self.fill_with_wonky_stripes(ui, rect),
+            ProcessorInterconnect::TopOfStackNoInput => self.draw_barrier(ui, rect),
+            ProcessorInterconnect::TopOfStackOneInput(_, options, branches) => match options {
+                InputOptions::Synchronous => self.draw_even_stripes(ui, rect, branches),
+                InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, branches),
             },
             ProcessorInterconnect::TopOfStackManyInputs => {
                 // ??? what to show here?
                 todo!()
             }
-            ProcessorInterconnect::BetweenTwoProcessors(_, options) => match options {
-                InputOptions::Synchronous => self.fill_with_vertical_stripes(ui, rect),
-                InputOptions::NonSynchronous => self.fill_with_wonky_stripes(ui, rect),
+            ProcessorInterconnect::BetweenTwoProcessors(_, options, branches) => match options {
+                InputOptions::Synchronous => self.draw_even_stripes(ui, rect, branches),
+                InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, branches),
             },
-            ProcessorInterconnect::BottomOfStack(_) => self.fill_with_vertical_stripes(ui, rect),
+            ProcessorInterconnect::BottomOfStack(_) => self.draw_even_stripes(ui, rect, 1),
         }
     }
 
-    fn fill_with_vertical_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+    fn draw_even_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect, num_branches: usize) {
         let old_clip_rect = ui.clip_rect();
 
         // clip rendered things to the allocated area to gracefully
         // overflow contents. This needs to be undone below.
         ui.set_clip_rect(rect);
 
-        let stripe_width = 5.0;
+        let stripe_width = 3.0;
         let stripe_spacing = 10.0;
 
         let stripe_total_width = stripe_spacing + stripe_width;
@@ -232,28 +233,38 @@ impl StackedGroup {
 
         for i in 0..num_stripes {
             let xmin = rect.min.x + (i as f32) * stripe_total_width;
-            let xmax = xmin + stripe_width;
             let ymin = rect.min.y;
             let ymax = rect.max.y;
-            ui.painter().rect_filled(
-                egui::Rect::from_min_max(egui::pos2(xmin, ymin), egui::pos2(xmax, ymax)),
-                egui::Rounding::ZERO,
-                egui::Color32::from_white_alpha(32),
+
+            let top_left = egui::pos2(xmin, ymin);
+            let bottom_left = egui::pos2(xmin, ymax);
+
+            self.draw_stripe(
+                ui.painter(),
+                top_left,
+                bottom_left,
+                stripe_width,
+                num_branches,
             );
         }
 
         // Restore the previous clip rect
         ui.set_clip_rect(old_clip_rect);
+
+        // Write branch amount
+        if num_branches != 1 {
+            self.draw_bubbled_text(format!("×{}", num_branches), rect.center(), ui);
+        }
     }
 
-    fn fill_with_wonky_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+    fn draw_uneven_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect, num_branches: usize) {
         let old_clip_rect = ui.clip_rect();
 
         // clip rendered things to the allocated area to gracefully
         // overflow contents. This needs to be undone below.
         ui.set_clip_rect(rect);
 
-        let stripe_width = 5.0;
+        let stripe_width = 3.0;
         let stripe_spacing = 10.0;
 
         let stripe_total_width = stripe_spacing + stripe_width;
@@ -262,7 +273,6 @@ impl StackedGroup {
 
         for i in 0..num_stripes {
             let xmin = rect.min.x + (i as f32) * stripe_total_width;
-            let xmax = xmin + stripe_width;
             let ymin = rect.min.y;
             let ymax = rect.max.y;
 
@@ -276,25 +286,27 @@ impl StackedGroup {
 
             let wonkiness = stripe_total_width * 0.25 * wonkiness;
 
-            let points = vec![
-                egui::pos2(xmin + wonkiness, ymin),
-                egui::pos2(xmax + wonkiness, ymin),
-                egui::pos2(xmax - wonkiness, ymax),
-                egui::pos2(xmin - wonkiness, ymax),
-            ];
-
-            ui.painter().add(egui::Shape::convex_polygon(
-                points,
-                egui::Color32::from_white_alpha(32),
-                egui::Stroke::NONE,
-            ));
+            let top_left = egui::pos2(xmin + wonkiness, ymin);
+            let bottom_left = egui::pos2(xmin, ymax);
+            self.draw_stripe(
+                ui.painter(),
+                top_left,
+                bottom_left,
+                stripe_width,
+                num_branches,
+            );
         }
 
         // Restore the previous clip rect
         ui.set_clip_rect(old_clip_rect);
+
+        // Write branch amount
+        if num_branches != 1 {
+            self.draw_bubbled_text(format!("×{}", num_branches), rect.center(), ui);
+        }
     }
 
-    fn fill_with_horizontal_bars(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+    fn draw_barrier(&self, ui: &mut egui::Ui, rect: egui::Rect) {
         let old_clip_rect = ui.clip_rect();
 
         // clip rendered things to the allocated area to gracefully
@@ -332,6 +344,77 @@ impl StackedGroup {
 
         // Restore the previous clip rect
         ui.set_clip_rect(old_clip_rect);
+    }
+
+    fn draw_stripe(
+        &self,
+        painter: &egui::Painter,
+        top_left: egui::Pos2,
+        bottom_left: egui::Pos2,
+        width: f32,
+        num_branches: usize,
+    ) {
+        match num_branches {
+            0 => {
+                // no branches: taper to a point at top middle
+                let points = vec![
+                    egui::pos2(top_left.x + 0.5 * width, top_left.y),
+                    egui::pos2(bottom_left.x + width, bottom_left.y),
+                    bottom_left,
+                ];
+
+                painter.add(egui::Shape::convex_polygon(
+                    points,
+                    egui::Color32::from_white_alpha(32),
+                    egui::Stroke::NONE,
+                ));
+            }
+            1 => {
+                // 1 branch: basic single parallelogram
+                let points = vec![
+                    top_left,
+                    egui::pos2(top_left.x + width, top_left.y),
+                    egui::pos2(bottom_left.x + width, bottom_left.y),
+                    bottom_left,
+                ];
+
+                painter.add(egui::Shape::convex_polygon(
+                    points,
+                    egui::Color32::from_white_alpha(32),
+                    egui::Stroke::NONE,
+                ));
+            }
+            _ => {
+                // 2 or more branches: draw a trapezoid
+                let splay = width * 2.0; // hmmm
+                let points = vec![
+                    egui::pos2(top_left.x - 0.5 * splay, top_left.y),
+                    egui::pos2(top_left.x + width + 0.5 * splay, top_left.y),
+                    egui::pos2(bottom_left.x + width, bottom_left.y),
+                    egui::pos2(bottom_left.x, bottom_left.y),
+                ];
+                painter.add(egui::Shape::convex_polygon(
+                    points,
+                    egui::Color32::from_white_alpha(32),
+                    egui::Stroke::NONE,
+                ));
+            }
+        }
+    }
+
+    fn draw_bubbled_text(&self, text: String, position: egui::Pos2, ui: &mut egui::Ui) {
+        let galley = ui
+            .fonts(|f| f.layout_no_wrap(text, egui::FontId::monospace(10.0), egui::Color32::WHITE));
+        let rect = galley
+            .rect
+            .translate(position.to_vec2() - 0.5 * galley.rect.size());
+        ui.painter().rect_filled(
+            rect.expand(3.0),
+            egui::Rounding::same(3.0),
+            egui::Color32::from_black_alpha(128),
+        );
+        ui.painter()
+            .galley(rect.left_top(), galley, egui::Color32::WHITE);
     }
 }
 

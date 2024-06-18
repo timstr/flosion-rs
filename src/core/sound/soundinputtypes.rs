@@ -125,7 +125,22 @@ impl<S: State + Default> KeyedInput<S> {
         self.id
     }
 
-    // TODO: add/remove keys with SoundProcessorTools
+    pub fn num_branches(&self, tools: &SoundProcessorTools) -> usize {
+        tools
+            .topology()
+            .sound_input(self.id)
+            .unwrap()
+            .branches()
+            .len()
+    }
+
+    pub fn set_num_branches(&self, num_branches: usize, tools: &mut SoundProcessorTools) {
+        let input_data = tools.topology_mut().sound_input_mut(self.id).unwrap();
+        // TODO: make this a bit more fool proof
+        *input_data.branches_mut() = (1..=num_branches)
+            .map(|i| SoundInputBranchId::new(i))
+            .collect();
+    }
 }
 
 impl<S: State + Default> SoundProcessorInput for KeyedInput<S> {

@@ -170,8 +170,18 @@ impl<'a> SoundProcessorTools<'a> {
     }
 
     /// The id of the sound processor that the tools were created for
-    pub(super) fn processor_id(&self) -> SoundProcessorId {
+    pub(crate) fn processor_id(&self) -> SoundProcessorId {
         self.processor_id
+    }
+
+    /// Access the current sound graph topology
+    pub(crate) fn topology(&self) -> &SoundGraphTopology {
+        self.topology
+    }
+
+    /// Mutably access the current sound graph topology
+    pub(crate) fn topology_mut(&mut self) -> &mut SoundGraphTopology {
+        self.topology
     }
 
     /// Internal helper method for adding an expression argument to a sound input

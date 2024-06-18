@@ -51,6 +51,16 @@ pub struct Ensemble {
     pub voice_frequency: SoundExpressionArgumentHandle,
 }
 
+impl Ensemble {
+    pub fn num_voices(&self, tools: &SoundProcessorTools) -> usize {
+        self.input.num_branches(tools)
+    }
+
+    pub fn set_num_voices(&self, num_voices: usize, tools: &mut SoundProcessorTools) {
+        self.input.set_num_branches(num_voices, tools);
+    }
+}
+
 pub struct EnsembleExpressions<'ctx> {
     frequency_in: CompiledExpression<'ctx>,
     frequency_spread: CompiledExpression<'ctx>,
@@ -76,7 +86,7 @@ impl DynamicSoundProcessor for Ensemble {
     type Expressions<'ctx> = EnsembleExpressions<'ctx>;
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
-        let num_keys = 8; // idk
+        let num_keys = 4; // idk
         let input = KeyedInput::new(InputOptions::Synchronous, &mut tools, num_keys);
         let voice_frequency = tools.add_input_scalar_argument(input.id(), |state| {
             state.downcast_if::<VoiceState>().unwrap().frequency

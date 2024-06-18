@@ -1,3 +1,5 @@
+use eframe::egui;
+
 use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::ensemble::Ensemble,
@@ -42,7 +44,31 @@ impl ObjectUi for EnsembleUi {
                 PlotConfig::new(),
             )
             .add_argument(ensemble.voice_frequency.id(), "voice_frequency")
-            .show(ui, ctx, ui_state, sound_graph);
+            .show_with(
+                ui,
+                ctx,
+                ui_state,
+                sound_graph,
+                |ui, _ui_state, sound_graph| {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Label::new(
+                            egui::RichText::new("Voices")
+                                .color(egui::Color32::from_black_alpha(192))
+                                .italics(),
+                        ));
+                        sound_graph
+                            .with_processor_tools(ensemble.id(), |mut tools| {
+                                let mut num_voices = ensemble.num_voices(&tools);
+                                let r = ui.add(egui::Slider::new(&mut num_voices, 0..=16));
+                                if r.changed() {
+                                    ensemble.set_num_voices(num_voices, &mut tools);
+                                }
+                                Ok(())
+                            })
+                            .unwrap();
+                    });
+                },
+            );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {

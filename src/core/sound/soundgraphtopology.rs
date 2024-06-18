@@ -97,6 +97,14 @@ impl SoundGraphTopology {
         self.sound_inputs.get(&id)
     }
 
+    /// Look up a specific sound input by its id with mutable access
+    pub(crate) fn sound_input_mut(
+        &mut self,
+        id: SoundInputId,
+    ) -> Option<&mut Versioned<SoundInputData>> {
+        self.sound_inputs.get_mut(&id)
+    }
+
     /// Look up a specific expression argument by its id
     pub(crate) fn expression_argument(
         &self,
