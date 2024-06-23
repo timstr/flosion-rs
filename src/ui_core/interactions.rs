@@ -6,8 +6,7 @@ use crate::core::{
     graph::graphobject::ObjectType,
     sound::{
         soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-        soundprocessor::SoundProcessorId,
+        soundgraphtopology::SoundGraphTopology, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -15,7 +14,6 @@ use super::{
     flosion_ui::Factories,
     keyboardfocus::KeyboardFocusState,
     soundgraphui::SoundGraphUi,
-    soundgraphuistate::SoundGraphUiState,
     soundobjectuistate::SoundObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
@@ -36,8 +34,6 @@ pub struct DraggingProcessorData {
 pub struct DroppingProcessorData {
     pub processor_id: SoundProcessorId,
     pub rect: egui::Rect,
-    pub target_input: Option<SoundInputId>,
-    pub from_input: Option<SoundInputId>,
 }
 
 struct SelectionArea {
@@ -113,7 +109,16 @@ impl GlobalInteractions {
                 ui.painter()
                     .rect_filled(drag.rect, egui::Rounding::same(5.0), color);
             }
-            UiMode::DroppingProcessor(_) => todo!(),
+            UiMode::DroppingProcessor(_) => {
+                // Uhhh what to do?
+                // - determine how the processor's drop location relates to positions of interconnects
+                // - if the processor was dropped in free space, disconnect it, remove it from its ui group,
+                //   and place it in its own new group
+                // - if the processor was dropped on an interconnect:
+                //    - if the processor is static and interconnect is (transitively) non-sync, refuse and bail out
+                //    - otherwise, disconnect the processor, remove it from its ui group, and:
+                //       - if the
+            }
             UiMode::Summoning(summon_widget) => {
                 ui.add(SummonWidget::new(summon_widget));
 
@@ -163,12 +168,13 @@ impl GlobalInteractions {
     }
 
     pub(crate) fn drog_dragging_processor(&mut self) {
-        let UiMode::DraggingProcessor(_) = &mut self.mode else {
+        let UiMode::DraggingProcessor(drag_data) = &mut self.mode else {
             panic!("Called drog_dragging_processor() while not dragging");
         };
-        // TODO: (arrange to) actually modify things
-        // self.mode = UiMode::DroppingProcessor(...);
-        self.mode = UiMode::Passive;
+        self.mode = UiMode::DroppingProcessor(DroppingProcessorData {
+            processor_id: drag_data.processor_id,
+            rect: drag_data.rect,
+        });
     }
 
     /// Remove any data associated with objects that are no longer present in
