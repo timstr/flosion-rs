@@ -16,7 +16,7 @@ use super::{
     expressionui::SoundExpressionUi,
     flosion_ui::Factories,
     graph_ui::GraphUiState,
-    interactions::AppInteractions,
+    interactions::GlobalInteractions,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuinames::SoundGraphUiNames,
@@ -36,7 +36,7 @@ pub struct SoundGraphUiState {
     /// The top-level user interactions with the sound graph UI,
     /// such as drag & drop, keyboard shortcuts, but not interactions
     /// within individual processor UIs
-    interactions: AppInteractions,
+    interactions: GlobalInteractions,
 }
 
 impl SoundGraphUiState {
@@ -45,7 +45,7 @@ impl SoundGraphUiState {
             expression_uis: ExpressionUiCollection::new(),
             object_states: SoundObjectUiStates::new(),
             names: SoundGraphUiNames::new(),
-            interactions: AppInteractions::new(),
+            interactions: GlobalInteractions::new(),
         }
     }
 
@@ -53,11 +53,11 @@ impl SoundGraphUiState {
         &self.object_states
     }
 
-    pub(crate) fn interactions(&self) -> &AppInteractions {
+    pub(crate) fn interactions(&self) -> &GlobalInteractions {
         &self.interactions
     }
 
-    pub(crate) fn interactions_mut(&mut self) -> &mut AppInteractions {
+    pub(crate) fn interactions_mut(&mut self) -> &mut GlobalInteractions {
         &mut self.interactions
     }
 

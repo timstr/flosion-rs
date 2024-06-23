@@ -70,17 +70,17 @@ enum UiMode {
     Summoning(SummonWidgetState<ObjectType>),
 }
 
-pub(crate) struct AppInteractions {
+pub(crate) struct GlobalInteractions {
     /// The major mode through which the app is being interacted with,
     /// e.g. whether the user is drawing a selection, or doing nothing
     mode: UiMode,
 }
 
 /// Public methods
-impl AppInteractions {
-    /// Create a new AppInteractions instance
-    pub(crate) fn new() -> AppInteractions {
-        AppInteractions {
+impl GlobalInteractions {
+    /// Create a new GlobalInteractions instance
+    pub(crate) fn new() -> GlobalInteractions {
+        GlobalInteractions {
             mode: UiMode::Passive,
         }
     }
@@ -208,7 +208,7 @@ impl AppInteractions {
 }
 
 /// Internal methods
-impl AppInteractions {
+impl GlobalInteractions {
     /// Switch to using the summon widget
     fn start_summoning(&mut self, position: egui::Pos2, factory: &UiFactory<SoundGraphUi>) {
         let mut builder = SummonWidgetStateBuilder::new(position);
