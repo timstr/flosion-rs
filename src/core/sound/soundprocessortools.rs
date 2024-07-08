@@ -18,6 +18,7 @@ use super::{
         SoundExpressionArgumentData, SoundExpressionData, SoundExpressionScope, SoundInputBranchId,
         SoundInputData,
     },
+    soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
@@ -81,11 +82,28 @@ impl<'a> SoundProcessorTools<'a> {
     }
 
     /// Remove a sound input from the sound processor
-    pub fn remove_sound_input(&mut self, input_id: SoundInputId, owner: SoundProcessorId) {
-        // TODO: wtf what is 'owner' doing here? Is it every possibly separate from self.processor_id?
-        debug_assert!(owner == self.processor_id, "Huh.....");
-        // TODO: also remove the input's arguments?
-        self.topology.remove_sound_input(input_id, owner).unwrap();
+    pub fn remove_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
+        let input = self
+            .topology
+            .sound_input(input_id)
+            .ok_or(SoundError::SoundInputNotFound(input_id))?;
+
+        let has_target = input.target().is_some();
+
+        let args = input.arguments().clone();
+
+        if has_target {
+            self.topology.disconnect_sound_input(input_id).unwrap();
+        }
+
+        for arg in args {
+            self.topology.remove_expression_argument(arg).unwrap();
+        }
+
+        self.topology
+            .remove_sound_input(input_id, self.processor_id)
+            .unwrap();
+        Ok(())
     }
 
     /// Add an expression argument to the given sound input which

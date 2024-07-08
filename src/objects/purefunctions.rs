@@ -591,6 +591,8 @@ binary_expression_node!(
     (0.0, 1.0),
     |a, b| a.powf(b),
     LlvmImplementation::ExpressionBinary(|codegen, a, b| {
+        // TODO: use the intrinsic that already exists!
+        // https://llvm.org/docs/LangRef.html#llvm-pow-intrinsic
         // x = a^b
         // x = e^(ln(a^b))
         // x = e^(b * ln(a))

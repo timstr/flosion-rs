@@ -17,6 +17,7 @@ pub mod soundgraphui;
 pub mod soundgraphuicontext;
 pub mod soundgraphuinames;
 pub mod soundgraphuistate;
+pub mod soundobjectpositions;
 pub mod soundobjectuistate;
 pub mod soundprocessorui;
 mod summon_widget;

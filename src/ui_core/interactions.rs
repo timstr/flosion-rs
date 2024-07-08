@@ -1,19 +1,23 @@
 use std::collections::HashSet;
 
 use eframe::egui;
+use symphonia::core::conv::IntoSample;
 
 use crate::core::{
     graph::graphobject::ObjectType,
     sound::{
         soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-        soundgraphtopology::SoundGraphTopology, soundprocessor::SoundProcessorId,
+        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+        soundprocessor::SoundProcessorId,
     },
 };
 
 use super::{
     flosion_ui::Factories,
     keyboardfocus::KeyboardFocusState,
+    soundgraphlayout::SoundGraphLayout,
     soundgraphui::SoundGraphUi,
+    soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
@@ -31,9 +35,11 @@ pub struct DraggingProcessorData {
     original_rect: egui::Rect,
 }
 
+#[derive(Clone, Copy)]
 pub struct DroppingProcessorData {
     pub processor_id: SoundProcessorId,
     pub rect: egui::Rect,
+    pub original_rect: egui::Rect,
 }
 
 struct SelectionArea {
@@ -87,7 +93,9 @@ impl GlobalInteractions {
         ui: &mut egui::Ui,
         factories: &Factories,
         graph: &mut SoundGraph,
+        layout: &mut SoundGraphLayout,
         object_states: &mut SoundObjectUiStates,
+        positions: &SoundObjectPositions,
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -109,15 +117,8 @@ impl GlobalInteractions {
                 ui.painter()
                     .rect_filled(drag.rect, egui::Rounding::same(5.0), color);
             }
-            UiMode::DroppingProcessor(_) => {
-                // Uhhh what to do?
-                // - determine how the processor's drop location relates to positions of interconnects
-                // - if the processor was dropped in free space, disconnect it, remove it from its ui group,
-                //   and place it in its own new group
-                // - if the processor was dropped on an interconnect:
-                //    - if the processor is static and interconnect is (transitively) non-sync, refuse and bail out
-                //    - otherwise, disconnect the processor, remove it from its ui group, and:
-                //       - if the
+            UiMode::DroppingProcessor(dropped_proc) => {
+                Self::handle_processor_drop(*dropped_proc, graph, layout, positions);
             }
             UiMode::Summoning(summon_widget) => {
                 ui.add(SummonWidget::new(summon_widget));
@@ -174,6 +175,7 @@ impl GlobalInteractions {
         self.mode = UiMode::DroppingProcessor(DroppingProcessorData {
             processor_id: drag_data.processor_id,
             rect: drag_data.rect,
+            original_rect: drag_data.original_rect,
         });
     }
 
@@ -206,6 +208,90 @@ impl GlobalInteractions {
             }
             UiMode::Summoning(_) => (),
         }
+    }
+
+    fn handle_processor_drop(
+        dropped_proc: DroppingProcessorData,
+        graph: &mut SoundGraph,
+        layout: &mut SoundGraphLayout,
+        positions: &SoundObjectPositions,
+    ) {
+        let minimum_intersection = 1000.0; // idk
+        if dropped_proc
+            .rect
+            .intersect(dropped_proc.original_rect)
+            .area()
+            > minimum_intersection
+        {
+            // Didn't really move the processor, nothing to do
+            return;
+        }
+        let nearest_interconnect =
+            positions.find_closest_interconnect(dropped_proc.rect, minimum_intersection);
+        if let Some(nearest_interconnect) = nearest_interconnect {
+            let interconnect = nearest_interconnect.interconnect;
+            if [
+                interconnect.processor_above(),
+                interconnect.processor_below(),
+            ]
+            .contains(&Some(dropped_proc.processor_id))
+            {
+                // Moved the processor onto one of its adjacent interconnects,
+                // nothing to do
+                return;
+            }
+
+            // Otherwise, the processor was dropped onto a different interconnect,
+            // reconnect and move it there
+            let mut inputs_to_disconnect_from: Vec<SoundInputId> = graph
+                .topology()
+                .sound_processor_targets(dropped_proc.processor_id)
+                .collect();
+            for i in graph
+                .topology()
+                .sound_processor(dropped_proc.processor_id)
+                .unwrap()
+                .sound_inputs()
+            {
+                if graph.topology().sound_input(*i).unwrap().target().is_some() {
+                    inputs_to_disconnect_from.push(*i);
+                }
+            }
+            for i in inputs_to_disconnect_from {
+                graph.disconnect_sound_input(i).unwrap();
+            }
+
+            todo!("Try dropping processor on interconnect");
+        } else {
+            todo!("Remove the processor from its group and put it in a new one");
+        }
+        // Uhhh what to do?
+        // Much of the following logic should be cleanly delegated to SoundGraphLayout
+        // in terms of small, self-contained operations.
+        // If anything turns out to be visually and/or geometrically unintuitive, it
+        // (and the visualization) should be rethought
+        // ----
+        // rough workflow:
+        // - determine how the processor's drop location relates to positions of interconnects
+        // - if the processor was dropped in free space, disconnect it, remove it from its ui group,
+        //   and place it in its own new group
+        // - if the processor was dropped on an interconnect:
+        //    - if the processor is static and the interconnect is (transitively) non-sync, refuse and bail out
+        //    - if the processor has no input and was dropped onto the bottom interconnect of a stacked group
+        //       (e.g. the only implied thing to do is connect to the non-existent input), refuse and bail out
+        //    - otherwise, disconnect the processor, remove it from its ui group, and:
+        //       - if the processor has exactly one input:
+        //          - insert the processor at that location in the stack
+        //       - otherwise, if the processor has zero or more than one input:
+        //          - break the interconnect's connection, split everything above the interconnect into a
+        //            separate group, and connect the processor to the input below the interconnect
+        // ----
+        // common queries/operations used above:
+        // - where are the interconnects located?
+        // - which sound input and/or processor, does an interconnect refer to?
+        // - removing a processor from its stacked group
+        // - splitting a stacked group
+        // - inserting a processer within a stacked group
     }
 
     // TODO:

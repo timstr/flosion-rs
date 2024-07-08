@@ -84,6 +84,8 @@ impl<'ctx> CompiledExpression<'ctx> {
         self.function.eval(dst, context, discretization)
     }
 
+    // TODO: get rid of Discretization::None here and ask for it instead.
+    // For example, it could be advancing at one whole chunk
     pub fn eval_scalar(&mut self, context: &Context) -> f32 {
         let mut dst: f32 = 0.0;
         let s = slice::from_mut(&mut dst);

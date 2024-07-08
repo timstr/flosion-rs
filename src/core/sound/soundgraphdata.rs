@@ -14,11 +14,11 @@ use crate::core::{
 };
 
 use super::{
-    soundinput::{InputOptions, SoundInputId},
     expression::SoundExpressionId,
     expressionargument::{
         SoundExpressionArgument, SoundExpressionArgumentId, SoundExpressionArgumentOwner,
     },
+    soundinput::{InputOptions, SoundInputId},
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
@@ -108,6 +108,10 @@ impl SoundInputData {
     }
 
     pub(crate) fn expression_arguments(&self) -> &Vec<SoundExpressionArgumentId> {
+        &self.arguments
+    }
+
+    pub(crate) fn arguments(&self) -> &Vec<SoundExpressionArgumentId> {
         &self.arguments
     }
 

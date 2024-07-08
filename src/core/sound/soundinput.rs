@@ -24,6 +24,7 @@ impl UniqueId for SoundInputId {
     }
 }
 
+// TODO: rename to (an)isochronous
 #[derive(Copy, Clone, PartialEq)]
 pub enum InputOptions {
     Synchronous,

@@ -121,8 +121,12 @@ impl FlosionApp {
             &self.available_arguments,
         );
 
-        self.ui_state
-            .interact_and_draw(ui, &self.factories, &mut self.graph);
+        self.ui_state.interact_and_draw(
+            ui,
+            &self.factories,
+            &mut self.graph,
+            &mut self.graph_layout,
+        );
     }
 
     fn cleanup(&mut self) {

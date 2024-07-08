@@ -9,6 +9,7 @@ use crate::core::sound::{
     expression::SoundExpressionId,
     expressionargument::SoundExpressionArgumentId,
     soundgraph::SoundGraph,
+    soundgraphdata::SoundInputData,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
@@ -28,15 +29,88 @@ pub struct TimeAxis {
     // TODO: offset to allow scrolling?
 }
 
-enum ProcessorInterconnect {
-    TopOfStackNoInput,
-    TopOfStackOneInput(SoundInputId, InputOptions, usize),
-    TopOfStackManyInputs,
-    BetweenTwoProcessors(SoundInputId, InputOptions, usize),
+#[derive(Clone, Copy)]
+pub(crate) struct InterconnectInput {
+    id: SoundInputId,
+    options: InputOptions,
+    branches: usize,
+}
+
+impl InterconnectInput {
+    pub(crate) fn from_input_data(data: &SoundInputData) -> InterconnectInput {
+        InterconnectInput {
+            id: data.id(),
+            options: data.options(),
+            branches: data.branches().len(),
+        }
+    }
+}
+
+/// Describes the spaces around and between sound processors in a stacked
+/// group, in terms of which processors and which sound input meet at
+/// the region of space.
+#[derive(Clone, Copy)]
+pub(crate) enum ProcessorInterconnect {
+    /// The interconnect at the top of a stack and on above the top
+    /// sound processor. Note that a processor with no inputs does
+    /// not correspond to any interconnects, and similarly, a processor
+    /// with multiple inputs will have many interconnects.
+    TopOfStack(SoundProcessorId, InterconnectInput),
+
+    /// The interconnect between two sound processors in the interior
+    /// of a stacked group, where the bottom processor has exactly one
+    /// sound input which is connected to the top sound processor, and
+    /// by virtue of the stacked group, the top processor is not connected
+    /// to any other inputs.
+    BetweenTwoProcessors {
+        bottom: SoundProcessorId,
+        top: SoundProcessorId,
+        input: InterconnectInput,
+    },
+
+    /// The space below the lowest sound processor in the stacked group.
     BottomOfStack(SoundProcessorId),
 }
 
-/// The visual representation of a sequency of sound processors,
+impl ProcessorInterconnect {
+    pub(crate) fn processor_above(&self) -> Option<SoundProcessorId> {
+        match self {
+            ProcessorInterconnect::TopOfStack(_, _) => None,
+            ProcessorInterconnect::BetweenTwoProcessors {
+                bottom: _,
+                top,
+                input: _,
+            } => Some(*top),
+            ProcessorInterconnect::BottomOfStack(i) => Some(*i),
+        }
+    }
+
+    pub(crate) fn processor_below(&self) -> Option<SoundProcessorId> {
+        match self {
+            ProcessorInterconnect::TopOfStack(i, _) => Some(*i),
+            ProcessorInterconnect::BetweenTwoProcessors {
+                bottom,
+                top: _,
+                input: _,
+            } => Some(*bottom),
+            ProcessorInterconnect::BottomOfStack(_) => None,
+        }
+    }
+
+    pub(crate) fn unique_input(&self) -> Option<InterconnectInput> {
+        match self {
+            ProcessorInterconnect::TopOfStack(_, i) => Some(*i),
+            ProcessorInterconnect::BetweenTwoProcessors {
+                bottom: _,
+                top: _,
+                input,
+            } => Some(*input),
+            ProcessorInterconnect::BottomOfStack(_) => None,
+        }
+    }
+}
+
+/// The visual representation of a sequence of sound processors,
 /// connected end-to-end in a linear fashion. Each processor in
 /// the group must have exactly one sound input, with the exception
 /// of the top/leaf processor, which may have any number.
@@ -52,6 +126,8 @@ pub struct StackedGroup {
 }
 
 impl StackedGroup {
+    const INTERCONNECT_HEIGHT: f32 = 10.0;
+
     pub(crate) fn new() -> StackedGroup {
         StackedGroup {
             width_pixels: SoundGraphLayout::DEFAULT_WIDTH,
@@ -96,27 +172,35 @@ impl StackedGroup {
                         ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
 
                     let processors_response = ui.vertical(|ui| {
-                        let top_inputs = graph
+                        let top_processor = self.processors[0];
+                        let top_inputs: Vec<InterconnectInput> = graph
                             .topology()
-                            .sound_processor(self.processors[0])
+                            .sound_processor(top_processor)
                             .unwrap()
-                            .sound_inputs();
+                            .sound_inputs()
+                            .iter()
+                            .map(|siid| {
+                                InterconnectInput::from_input_data(
+                                    graph.topology().sound_input(*siid).unwrap(),
+                                )
+                            })
+                            .collect();
 
-                        let top_interconnect = if top_inputs.len() == 0 {
-                            ProcessorInterconnect::TopOfStackNoInput
-                        } else if top_inputs.len() == 1 {
-                            let siid = top_inputs[0];
-                            let input = graph.topology().sound_input(siid).unwrap();
-                            ProcessorInterconnect::TopOfStackOneInput(
-                                siid,
-                                input.options(),
-                                input.branches().len(),
-                            )
+                        if top_inputs.len() == 0 {
+                            let (rect, _) = ui.allocate_exact_size(
+                                egui::vec2(self.width_pixels as f32, Self::INTERCONNECT_HEIGHT),
+                                egui::Sense::hover(),
+                            );
+                            self.draw_barrier(ui, rect);
                         } else {
-                            ProcessorInterconnect::TopOfStackManyInputs
-                        };
-
-                        self.draw_processor_interconnect(ui, ui_state, top_interconnect);
+                            for input in top_inputs {
+                                self.draw_processor_interconnect(
+                                    ui,
+                                    ui_state,
+                                    ProcessorInterconnect::TopOfStack(top_processor, input),
+                                );
+                            }
+                        }
 
                         for i in 0..self.processors.len() {
                             let spid = self.processors[i];
@@ -146,11 +230,11 @@ impl StackedGroup {
                                 debug_assert_eq!(next_inputs.len(), 1);
                                 let siid = next_inputs[0];
                                 let input = graph.topology().sound_input(siid).unwrap();
-                                let interconnect = ProcessorInterconnect::BetweenTwoProcessors(
-                                    siid,
-                                    input.options(),
-                                    input.branches().len(),
-                                );
+                                let interconnect = ProcessorInterconnect::BetweenTwoProcessors {
+                                    bottom: *next_spid,
+                                    top: spid,
+                                    input: InterconnectInput::from_input_data(input),
+                                };
                                 self.draw_processor_interconnect(ui, ui_state, interconnect);
                             }
                         }
@@ -181,12 +265,15 @@ impl StackedGroup {
         ui_state: &mut SoundGraphUiState,
         interconnect: ProcessorInterconnect,
     ) {
-        let height = 10.0;
-
+        // TODO: make clickable to e.g. spawn summon widget, insert new (matching) processor
         let (rect, _) = ui.allocate_exact_size(
-            egui::vec2(self.width_pixels as f32, height),
+            egui::vec2(self.width_pixels as f32, Self::INTERCONNECT_HEIGHT),
             egui::Sense::hover(),
         );
+
+        ui_state
+            .positions_mut()
+            .record_interconnect(interconnect, rect);
 
         if ui_state.interactions().dragging_a_processor() {
             // TODO: is this interconnect something you could drag
@@ -200,20 +287,30 @@ impl StackedGroup {
         }
 
         match interconnect {
-            ProcessorInterconnect::TopOfStackNoInput => self.draw_barrier(ui, rect),
-            ProcessorInterconnect::TopOfStackOneInput(_, options, branches) => match options {
-                InputOptions::Synchronous => self.draw_even_stripes(ui, rect, branches),
-                InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, branches),
-            },
-            ProcessorInterconnect::TopOfStackManyInputs => {
-                // ??? what to show here?
-                todo!()
+            ProcessorInterconnect::TopOfStack(_, input) => {
+                self.draw_stripes(ui, rect, input.branches, input.options);
             }
-            ProcessorInterconnect::BetweenTwoProcessors(_, options, branches) => match options {
-                InputOptions::Synchronous => self.draw_even_stripes(ui, rect, branches),
-                InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, branches),
-            },
+            ProcessorInterconnect::BetweenTwoProcessors {
+                bottom: _,
+                top: _,
+                input,
+            } => {
+                self.draw_stripes(ui, rect, input.branches, input.options);
+            }
             ProcessorInterconnect::BottomOfStack(_) => self.draw_even_stripes(ui, rect, 1),
+        }
+    }
+
+    fn draw_stripes(
+        &self,
+        ui: &mut egui::Ui,
+        rect: egui::Rect,
+        num_branches: usize,
+        options: InputOptions,
+    ) {
+        match options {
+            InputOptions::Synchronous => self.draw_even_stripes(ui, rect, num_branches),
+            InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, num_branches),
         }
     }
 
@@ -239,7 +336,7 @@ impl StackedGroup {
             let top_left = egui::pos2(xmin, ymin);
             let bottom_left = egui::pos2(xmin, ymax);
 
-            self.draw_stripe(
+            self.draw_single_stripe(
                 ui.painter(),
                 top_left,
                 bottom_left,
@@ -288,7 +385,7 @@ impl StackedGroup {
 
             let top_left = egui::pos2(xmin + wonkiness, ymin);
             let bottom_left = egui::pos2(xmin, ymax);
-            self.draw_stripe(
+            self.draw_single_stripe(
                 ui.painter(),
                 top_left,
                 bottom_left,
@@ -346,7 +443,7 @@ impl StackedGroup {
         ui.set_clip_rect(old_clip_rect);
     }
 
-    fn draw_stripe(
+    fn draw_single_stripe(
         &self,
         painter: &egui::Painter,
         top_left: egui::Pos2,
@@ -572,6 +669,8 @@ impl SoundGraphLayout {
             remaining_processors.retain(|i| *i != added_processor);
         }
     }
+
+    // EeeEeeeeeEEEEEee
 
     /// Draw the layout and every group to the ui
     pub(crate) fn draw(

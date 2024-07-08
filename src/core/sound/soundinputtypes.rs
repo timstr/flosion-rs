@@ -302,7 +302,7 @@ impl SingleInputList {
     pub fn remove_input(&self, id: SoundInputId, tools: &mut SoundProcessorTools) {
         let mut input_ids = self.input_ids.write();
         assert!(input_ids.iter().filter(|i| **i == id).count() == 1);
-        tools.remove_sound_input(id, tools.processor_id());
+        tools.remove_sound_input(id).unwrap();
         input_ids.retain(|i| *i != id);
     }
 

@@ -18,6 +18,7 @@ use crate::core::{
 // TODO: random (LFSR?)
 // TODO: flip flop
 
+// TODO: consider renaming to LinearSmooth
 pub struct LinearApproach {
     _input: ExpressionNodeInputHandle,
     _speed: ExpressionNodeInputHandle,
@@ -120,6 +121,7 @@ impl WithObjectType for LinearApproach {
     const TYPE: ObjectType = ObjectType::new("linearapproach");
 }
 
+// TODO: consider renaming to ExponetialSmooth
 pub struct ExponentialApproach {
     _input: ExpressionNodeInputHandle,
     _decay_rate: ExpressionNodeInputHandle,
