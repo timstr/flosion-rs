@@ -3,13 +3,16 @@ use std::collections::HashSet;
 use eframe::egui;
 use symphonia::core::conv::IntoSample;
 
-use crate::core::{
-    graph::graphobject::ObjectType,
-    sound::{
-        soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-        soundprocessor::SoundProcessorId,
+use crate::{
+    core::{
+        graph::graphobject::ObjectType,
+        sound::{
+            soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+            soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+            soundprocessor::SoundProcessorId,
+        },
     },
+    ui_core::soundgraphlayout::ProcessorInterconnect,
 };
 
 use super::{
@@ -119,6 +122,7 @@ impl GlobalInteractions {
             }
             UiMode::DroppingProcessor(dropped_proc) => {
                 Self::handle_processor_drop(*dropped_proc, graph, layout, positions);
+                self.mode = UiMode::Passive;
             }
             UiMode::Summoning(summon_widget) => {
                 ui.add(SummonWidget::new(summon_widget));
@@ -217,12 +221,11 @@ impl GlobalInteractions {
         positions: &SoundObjectPositions,
     ) {
         let minimum_intersection = 1000.0; // idk
-        if dropped_proc
+        let intersection_area = dropped_proc
             .rect
             .intersect(dropped_proc.original_rect)
-            .area()
-            > minimum_intersection
-        {
+            .area();
+        if intersection_area > minimum_intersection {
             // Didn't really move the processor, nothing to do
             return;
         }
@@ -243,27 +246,73 @@ impl GlobalInteractions {
 
             // Otherwise, the processor was dropped onto a different interconnect,
             // reconnect and move it there
-            let mut inputs_to_disconnect_from: Vec<SoundInputId> = graph
-                .topology()
-                .sound_processor_targets(dropped_proc.processor_id)
-                .collect();
-            for i in graph
-                .topology()
-                .sound_processor(dropped_proc.processor_id)
-                .unwrap()
-                .sound_inputs()
-            {
-                if graph.topology().sound_input(*i).unwrap().target().is_some() {
-                    inputs_to_disconnect_from.push(*i);
+            Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
+
+            debug_assert!(layout.check_invariants(graph.topology()));
+            layout.split_processor_into_own_group(dropped_proc.processor_id);
+            debug_assert!(layout.check_invariants(graph.topology()));
+
+            match interconnect {
+                ProcessorInterconnect::TopOfStack(ic_proc, ic_input) => {
+                    graph
+                        .connect_sound_input(ic_input.id, dropped_proc.processor_id)
+                        .unwrap(); // fingers crossed
+                    layout.insert_processor_above(dropped_proc.processor_id, ic_proc);
+                    debug_assert!(layout.check_invariants(graph.topology()));
+                }
+                ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
+                    debug_assert_eq!(
+                        graph.topology().sound_input(input.id).unwrap().target(),
+                        Some(top)
+                    );
+                    graph.disconnect_sound_input(input.id).unwrap();
+                    graph
+                        .connect_sound_input(input.id, dropped_proc.processor_id)
+                        .unwrap();
+                    let inputs_on_dropped_proc = graph
+                        .topology()
+                        .sound_processor(dropped_proc.processor_id)
+                        .unwrap()
+                        .sound_inputs()
+                        .clone();
+                    layout.insert_processor_above(dropped_proc.processor_id, bottom);
+                    if inputs_on_dropped_proc.len() == 1 {
+                        graph
+                            .connect_sound_input(inputs_on_dropped_proc[0], top)
+                            .unwrap();
+                    } else {
+                        layout.split_group_above_processor(dropped_proc.processor_id);
+                    }
+                    debug_assert!(layout.check_invariants(graph.topology()));
+                }
+                ProcessorInterconnect::BottomOfStack(ic_proc) => {
+                    let inputs_on_dropped_proc = graph
+                        .topology()
+                        .sound_processor(dropped_proc.processor_id)
+                        .unwrap()
+                        .sound_inputs()
+                        .clone();
+                    if inputs_on_dropped_proc.len() == 1 {
+                        assert!(
+                            graph.topology().sound_processor_targets(ic_proc).count() == 0,
+                            "TODO: handle this"
+                        );
+                        graph
+                            .connect_sound_input(inputs_on_dropped_proc[0], ic_proc)
+                            .unwrap();
+                        layout.insert_processor_below(dropped_proc.processor_id, ic_proc);
+                    }
+                    debug_assert!(layout.check_invariants(graph.topology()));
                 }
             }
-            for i in inputs_to_disconnect_from {
-                graph.disconnect_sound_input(i).unwrap();
-            }
-
-            todo!("Try dropping processor on interconnect");
         } else {
-            todo!("Remove the processor from its group and put it in a new one");
+            Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
+
+            layout.split_processor_into_own_group(dropped_proc.processor_id);
+
+            debug_assert!(layout.check_invariants(graph.topology()));
+
+            // TODO: move the new group to where the processor was dropped
         }
         // Uhhh what to do?
         // Much of the following logic should be cleanly delegated to SoundGraphLayout
@@ -315,5 +364,25 @@ impl GlobalInteractions {
         }
         let widget = builder.build();
         self.mode = UiMode::Summoning(widget);
+    }
+
+    fn disconnect_processor_in_graph(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
+        let mut inputs_to_disconnect_from: Vec<SoundInputId> = graph
+            .topology()
+            .sound_processor_targets(processor_id)
+            .collect();
+        for i in graph
+            .topology()
+            .sound_processor(processor_id)
+            .unwrap()
+            .sound_inputs()
+        {
+            if graph.topology().sound_input(*i).unwrap().target().is_some() {
+                inputs_to_disconnect_from.push(*i);
+            }
+        }
+        for i in inputs_to_disconnect_from {
+            graph.disconnect_sound_input(i).unwrap();
+        }
     }
 }

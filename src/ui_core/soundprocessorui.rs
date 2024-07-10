@@ -125,14 +125,12 @@ impl ProcessorUi {
                 .unwrap();
             let missing_name =
                 |id: SoundExpressionArgumentId| ui_state.names().argument(id).is_none();
-            let processor_type_name = proc_data.instance_arc().as_graph_object().get_type().name();
             for nsid in proc_data.expression_arguments() {
                 if missing_name(*nsid) {
                     println!(
-                        "Warning: argument {} on processor {} ({}) is missing a name",
+                        "Warning: argument {} on processor {} is missing a name",
                         nsid.value(),
-                        self.processor_id.value(),
-                        processor_type_name
+                        proc_data.friendly_name()
                     );
                 }
             }
@@ -145,11 +143,10 @@ impl ProcessorUi {
                 {
                     if missing_name(*nsid) {
                         println!(
-                            "Warning: argument {} on sound input {} on processor {} ({}) is missing a name",
+                            "Warning: argument {} on sound input {} on processor {} is missing a name",
                             nsid.value(),
                             siid.value(),
-                            self.processor_id.value(),
-                            processor_type_name
+                            proc_data.friendly_name()
                         );
                     }
                 }
@@ -160,16 +157,17 @@ impl ProcessorUi {
                     .is_none()
                 {
                     println!(
-                        "Warning: sound input {} on proceessor {} ({}) is not listed in the ui",
+                        "Warning: sound input {} on proceessor {} is not listed in the ui",
                         siid.value(),
-                        self.processor_id.value(),
-                        processor_type_name
+                        proc_data.friendly_name()
                     )
                 }
             }
         }
 
-        self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
+        ui.push_id(self.processor_id, |ui| {
+            self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
+        });
     }
 
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(

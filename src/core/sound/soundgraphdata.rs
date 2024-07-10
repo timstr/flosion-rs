@@ -220,6 +220,14 @@ impl SoundProcessorData {
     pub(crate) fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
         Arc::clone(self.processor.as_ref().unwrap())
     }
+
+    pub(crate) fn friendly_name(&self) -> String {
+        format!(
+            "{}#{}",
+            self.instance_arc().as_graph_object().get_type().name(),
+            self.id.value()
+        )
+    }
 }
 
 impl Revision for SoundProcessorData {

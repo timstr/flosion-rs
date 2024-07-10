@@ -148,10 +148,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
             if !unexpected_input_branches.is_empty() {
                 println!(
-                    "state_graph_matches_topology: sound processor {} \"{}\" has the following \
+                    "state_graph_matches_topology: sound processor {}  has the following \
                     sound input branches which shouldn't exist: {}",
-                    proc.id().value(),
-                    proc_data.instance_arc().as_graph_object().get_type().name(),
+                    proc_data.friendly_name(),
                     comma_separated_list(unexpected_input_branches.iter().map(|x| format!(
                         "input {} (branch={})",
                         x.0.value(),
@@ -162,10 +161,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             }
             if !remaining_input_branches.is_empty() {
                 println!(
-                    "state_graph_matches_topology: sound processor {} \"{}\" is missing the \
+                    "state_graph_matches_topology: sound processor {} is missing the \
                     following sound input branches: {}",
-                    proc.id().value(),
-                    proc_data.instance_arc().as_graph_object().get_type().name(),
+                    proc_data.friendly_name(),
                     comma_separated_list(remaining_input_branches.iter().map(|x| format!(
                         "input {} (branch={})",
                         x.0.value(),
@@ -218,20 +216,18 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
         if !unexpected_inputs.is_empty() {
             println!(
-                "state_graph_matches_topology: sound processor {} \"{}\" has the \
+                "state_graph_matches_topology: sound processor {} has the \
                 following compiled expressions which shouldn't exist: {}",
-                proc.id().value(),
-                proc_data.instance_arc().as_graph_object().get_type().name(),
+                proc_data.friendly_name(),
                 comma_separated_list(unexpected_inputs.iter().map(|x| x.value().to_string()))
             );
             all_good = false;
         }
         if !remaining_inputs.is_empty() {
             println!(
-                "state_graph_matches_topology: sound processor {} \"{}\" is missing the \
+                "state_graph_matches_topology: sound processor {} is missing the \
                 following compiled expressions: {}",
-                proc.id().value(),
-                proc_data.instance_arc().as_graph_object().get_type().name(),
+                proc_data.friendly_name(),
                 comma_separated_list(remaining_inputs.iter().map(|x| x.value().to_string()))
             );
             all_good = false;

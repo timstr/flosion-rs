@@ -31,9 +31,9 @@ pub struct TimeAxis {
 
 #[derive(Clone, Copy)]
 pub(crate) struct InterconnectInput {
-    id: SoundInputId,
-    options: InputOptions,
-    branches: usize,
+    pub id: SoundInputId,
+    pub options: InputOptions,
+    pub branches: usize,
 }
 
 impl InterconnectInput {
@@ -194,6 +194,15 @@ impl StackedGroup {
                             self.draw_barrier(ui, rect);
                         } else {
                             for input in top_inputs {
+                                let (rect, _) = ui.allocate_exact_size(
+                                    egui::vec2(self.width_pixels as f32, 5.0),
+                                    egui::Sense::hover(),
+                                );
+                                ui.painter().rect_filled(
+                                    rect,
+                                    egui::Rounding::ZERO,
+                                    egui::Color32::WHITE,
+                                );
                                 self.draw_processor_interconnect(
                                     ui,
                                     ui_state,
@@ -691,6 +700,8 @@ impl SoundGraphLayout {
     #[cfg(debug_assertions)]
     pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
         // every sound processor in the topology must appear exactly once
+
+        use crate::core::uniqueid::UniqueId;
         for spid in topo.sound_processors().keys().cloned() {
             let number_of_appearances: usize = self
                 .groups
@@ -700,9 +711,15 @@ impl SoundGraphLayout {
 
             if number_of_appearances != 1 {
                 if number_of_appearances == 0 {
-                    println!("A sound processor does not appear any groups");
+                    println!(
+                        "The sound processor {} does not appear any groups",
+                        topo.sound_processor(spid).unwrap().friendly_name()
+                    );
                 } else {
-                    println!("A sound processor appears in more than one group");
+                    println!(
+                        "The sound processor {} appears in more than one group",
+                        topo.sound_processor(spid).unwrap().friendly_name()
+                    );
                 }
                 return false;
             }
@@ -712,7 +729,10 @@ impl SoundGraphLayout {
         for group in &self.groups {
             for spid in &group.processors {
                 if !topo.contains((*spid).into()) {
-                    println!("The layout contains a sound processor which no longer exists");
+                    println!(
+                        "The layout contains a sound processor #{} which no longer exists",
+                        spid.value()
+                    );
                     return false;
                 }
             }
@@ -726,7 +746,11 @@ impl SoundGraphLayout {
                 group.processors.iter().zip(group.processors.iter().skip(1))
             {
                 if !Self::connection_is_unique(*top_proc, *bottom_proc, topo) {
-                    println!("Two adjacent processors in a group do not have a unique connection");
+                    println!(
+                        "The processors {} and {} are adjacent in a group but do not have a unique connection",
+                        topo.sound_processor(*top_proc).unwrap().friendly_name(),
+                        topo.sound_processor(*bottom_proc).unwrap().friendly_name()
+                    );
                     return false;
                 }
             }
@@ -777,7 +801,7 @@ impl SoundGraphLayout {
     /// group. This would be done for example if the given processor
     /// just gained a new sound input, which breaks uniqueness of the
     /// group's implied connection above the processor.
-    fn split_group_above_processor(&mut self, processor_id: SoundProcessorId) {
+    pub(crate) fn split_group_above_processor(&mut self, processor_id: SoundProcessorId) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
             .processors
@@ -801,7 +825,7 @@ impl SoundGraphLayout {
     /// was just connected to another sound input elsewhere, which
     /// breaks uniqueness of the group's implied connection below the
     /// processor.
-    fn split_group_below_processor(&mut self, processor_id: SoundProcessorId) {
+    pub(crate) fn split_group_below_processor(&mut self, processor_id: SoundProcessorId) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
             .processors
@@ -813,6 +837,83 @@ impl SoundGraphLayout {
             self.groups
                 .push(StackedGroup::new_with_processors(rest_exclusive));
         }
+    }
+
+    pub(crate) fn split_processor_into_own_group(&mut self, processor_id: SoundProcessorId) {
+        let group = self.find_group_mut(processor_id).unwrap();
+        let i = group
+            .processors
+            .iter()
+            .position(|p| *p == processor_id)
+            .unwrap();
+
+        // split the group just after the processor into a separate vector
+        let rest_exclusive = group.processors.split_off(i + 1);
+
+        // remove the processor at the split point as well
+        let spid = group.processors.pop().unwrap();
+        debug_assert_eq!(spid, processor_id);
+
+        if i == 0 {
+            // if there are no processors before the split, we can just put it back
+            group.processors.push(processor_id);
+        } else {
+            // otherwise, create a new group for the lone processor
+            self.groups
+                .push(StackedGroup::new_with_processors(vec![processor_id]));
+        }
+
+        // if any processors exist after the split point, move them into their own new group
+        if !rest_exclusive.is_empty() {
+            self.groups
+                .push(StackedGroup::new_with_processors(rest_exclusive));
+        }
+    }
+
+    fn remove_processor(&mut self, processor_id: SoundProcessorId) {
+        let mut occurrences = 0;
+        self.groups.retain_mut(|group| {
+            group.processors.retain(|spid| {
+                if *spid == processor_id {
+                    occurrences += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+            !group.processors.is_empty()
+        });
+        debug_assert_eq!(occurrences, 1);
+    }
+
+    pub(crate) fn insert_processor_above(
+        &mut self,
+        processor_to_insert: SoundProcessorId,
+        processor_below: SoundProcessorId,
+    ) {
+        self.remove_processor(processor_to_insert);
+        let group = self.find_group_mut(processor_below).unwrap();
+        let i = group
+            .processors
+            .iter()
+            .position(|p| *p == processor_below)
+            .unwrap();
+        group.processors.insert(i, processor_to_insert);
+    }
+
+    pub(crate) fn insert_processor_below(
+        &mut self,
+        processor_to_insert: SoundProcessorId,
+        processor_below: SoundProcessorId,
+    ) {
+        self.remove_processor(processor_to_insert);
+        let group = self.find_group_mut(processor_below).unwrap();
+        let i = group
+            .processors
+            .iter()
+            .position(|p| *p == processor_below)
+            .unwrap();
+        group.processors.insert(i + 1, processor_to_insert);
     }
 
     /// Returns true if and only if:
