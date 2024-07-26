@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use eframe::egui;
-use symphonia::core::conv::IntoSample;
 
 use crate::{
     core::{
@@ -98,7 +97,7 @@ impl GlobalInteractions {
         graph: &mut SoundGraph,
         layout: &mut SoundGraphLayout,
         object_states: &mut SoundObjectUiStates,
-        positions: &SoundObjectPositions,
+        positions: &mut SoundObjectPositions,
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -218,129 +217,114 @@ impl GlobalInteractions {
         dropped_proc: DroppingProcessorData,
         graph: &mut SoundGraph,
         layout: &mut SoundGraphLayout,
-        positions: &SoundObjectPositions,
+        positions: &mut SoundObjectPositions,
     ) {
         let minimum_intersection = 1000.0; // idk
-        let intersection_area = dropped_proc
-            .rect
-            .intersect(dropped_proc.original_rect)
-            .area();
-        if intersection_area > minimum_intersection {
-            // Didn't really move the processor, nothing to do
-            return;
-        }
+
         let nearest_interconnect =
             positions.find_closest_interconnect(dropped_proc.rect, minimum_intersection);
         if let Some(nearest_interconnect) = nearest_interconnect {
             let interconnect = nearest_interconnect.interconnect;
-            if [
+            let dropped_onto_own_interconnect = [
                 interconnect.processor_above(),
                 interconnect.processor_below(),
             ]
-            .contains(&Some(dropped_proc.processor_id))
-            {
-                // Moved the processor onto one of its adjacent interconnects,
-                // nothing to do
-                return;
-            }
+            .contains(&Some(dropped_proc.processor_id));
 
-            // Otherwise, the processor was dropped onto a different interconnect,
-            // reconnect and move it there
-            Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
+            if !dropped_onto_own_interconnect {
+                // the processor was dropped onto a different interconnect,
+                // reconnect and move it there
+                Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
 
-            debug_assert!(layout.check_invariants(graph.topology()));
-            layout.split_processor_into_own_group(dropped_proc.processor_id);
-            debug_assert!(layout.check_invariants(graph.topology()));
+                #[cfg(debug_assertions)]
+                assert!(layout.check_invariants(graph.topology()));
 
-            match interconnect {
-                ProcessorInterconnect::TopOfStack(ic_proc, ic_input) => {
-                    graph
-                        .connect_sound_input(ic_input.id, dropped_proc.processor_id)
-                        .unwrap(); // fingers crossed
-                    layout.insert_processor_above(dropped_proc.processor_id, ic_proc);
-                    debug_assert!(layout.check_invariants(graph.topology()));
-                }
-                ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
-                    debug_assert_eq!(
-                        graph.topology().sound_input(input.id).unwrap().target(),
-                        Some(top)
-                    );
-                    graph.disconnect_sound_input(input.id).unwrap();
-                    graph
-                        .connect_sound_input(input.id, dropped_proc.processor_id)
-                        .unwrap();
-                    let inputs_on_dropped_proc = graph
-                        .topology()
-                        .sound_processor(dropped_proc.processor_id)
-                        .unwrap()
-                        .sound_inputs()
-                        .clone();
-                    layout.insert_processor_above(dropped_proc.processor_id, bottom);
-                    if inputs_on_dropped_proc.len() == 1 {
+                layout.split_processor_into_own_group(dropped_proc.processor_id, positions);
+
+                #[cfg(debug_assertions)]
+                assert!(layout.check_invariants(graph.topology()));
+
+                match interconnect {
+                    ProcessorInterconnect::TopOfStack(ic_proc, ic_input) => {
                         graph
-                            .connect_sound_input(inputs_on_dropped_proc[0], top)
-                            .unwrap();
-                    } else {
-                        layout.split_group_above_processor(dropped_proc.processor_id);
+                            .connect_sound_input(ic_input.id, dropped_proc.processor_id)
+                            .unwrap(); // fingers crossed
+                        layout.insert_processor_above(dropped_proc.processor_id, ic_proc);
+
+                        #[cfg(debug_assertions)]
+                        assert!(layout.check_invariants(graph.topology()));
                     }
-                    debug_assert!(layout.check_invariants(graph.topology()));
-                }
-                ProcessorInterconnect::BottomOfStack(ic_proc) => {
-                    let inputs_on_dropped_proc = graph
-                        .topology()
-                        .sound_processor(dropped_proc.processor_id)
-                        .unwrap()
-                        .sound_inputs()
-                        .clone();
-                    if inputs_on_dropped_proc.len() == 1 {
-                        assert!(
-                            graph.topology().sound_processor_targets(ic_proc).count() == 0,
-                            "TODO: handle this"
+                    ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
+                        debug_assert_eq!(
+                            graph.topology().sound_input(input.id).unwrap().target(),
+                            Some(top)
                         );
+                        graph.disconnect_sound_input(input.id).unwrap();
                         graph
-                            .connect_sound_input(inputs_on_dropped_proc[0], ic_proc)
+                            .connect_sound_input(input.id, dropped_proc.processor_id)
                             .unwrap();
-                        layout.insert_processor_below(dropped_proc.processor_id, ic_proc);
+                        let inputs_on_dropped_proc = graph
+                            .topology()
+                            .sound_processor(dropped_proc.processor_id)
+                            .unwrap()
+                            .sound_inputs()
+                            .clone();
+                        layout.insert_processor_above(dropped_proc.processor_id, bottom);
+                        if inputs_on_dropped_proc.len() == 1 {
+                            graph
+                                .connect_sound_input(inputs_on_dropped_proc[0], top)
+                                .unwrap();
+                        } else {
+                            layout
+                                .split_group_above_processor(dropped_proc.processor_id, positions);
+                        }
+
+                        #[cfg(debug_assertions)]
+                        assert!(layout.check_invariants(graph.topology()));
                     }
-                    debug_assert!(layout.check_invariants(graph.topology()));
+                    ProcessorInterconnect::BottomOfStack(ic_proc) => {
+                        let inputs_on_dropped_proc = graph
+                            .topology()
+                            .sound_processor(dropped_proc.processor_id)
+                            .unwrap()
+                            .sound_inputs()
+                            .clone();
+                        if inputs_on_dropped_proc.len() == 1 {
+                            assert!(
+                                graph.topology().sound_processor_targets(ic_proc).count() == 0,
+                                "TODO: handle this"
+                            );
+                            graph
+                                .connect_sound_input(inputs_on_dropped_proc[0], ic_proc)
+                                .unwrap();
+                            layout.insert_processor_below(dropped_proc.processor_id, ic_proc);
+                        }
+
+                        #[cfg(debug_assertions)]
+                        assert!(layout.check_invariants(graph.topology()));
+                    }
                 }
             }
         } else {
             Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
 
-            layout.split_processor_into_own_group(dropped_proc.processor_id);
+            layout.split_processor_into_own_group(dropped_proc.processor_id, positions);
 
-            debug_assert!(layout.check_invariants(graph.topology()));
-
-            // TODO: move the new group to where the processor was dropped
+            #[cfg(debug_assertions)]
+            assert!(layout.check_invariants(graph.topology()));
         }
-        // Uhhh what to do?
-        // Much of the following logic should be cleanly delegated to SoundGraphLayout
-        // in terms of small, self-contained operations.
-        // If anything turns out to be visually and/or geometrically unintuitive, it
-        // (and the visualization) should be rethought
-        // ----
-        // rough workflow:
-        // - determine how the processor's drop location relates to positions of interconnects
-        // - if the processor was dropped in free space, disconnect it, remove it from its ui group,
-        //   and place it in its own new group
-        // - if the processor was dropped on an interconnect:
-        //    - if the processor is static and the interconnect is (transitively) non-sync, refuse and bail out
-        //    - if the processor has no input and was dropped onto the bottom interconnect of a stacked group
-        //       (e.g. the only implied thing to do is connect to the non-existent input), refuse and bail out
-        //    - otherwise, disconnect the processor, remove it from its ui group, and:
-        //       - if the processor has exactly one input:
-        //          - insert the processor at that location in the stack
-        //       - otherwise, if the processor has zero or more than one input:
-        //          - break the interconnect's connection, split everything above the interconnect into a
-        //            separate group, and connect the processor to the input below the interconnect
-        // ----
-        // common queries/operations used above:
-        // - where are the interconnects located?
-        // - which sound input and/or processor, does an interconnect refer to?
-        // - removing a processor from its stacked group
-        // - splitting a stacked group
-        // - inserting a processer within a stacked group
+
+        // If the processor is in a lone group, move the group to where the processor
+        // was dropped
+        let group = layout.find_group_mut(dropped_proc.processor_id).unwrap();
+        if group.processors() == &[dropped_proc.processor_id] {
+            let rect = group.rect();
+            group.set_rect(
+                rect.translate(
+                    dropped_proc.rect.left_top() - dropped_proc.original_rect.left_top(),
+                ),
+            );
+        }
     }
 
     // TODO:

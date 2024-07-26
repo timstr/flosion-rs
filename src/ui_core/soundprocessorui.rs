@@ -165,9 +165,13 @@ impl ProcessorUi {
             }
         }
 
-        ui.push_id(self.processor_id, |ui| {
+        let r = ui.push_id(self.processor_id, |ui| {
             self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
         });
+
+        ui_state
+            .positions_mut()
+            .record_processor(self.processor_id, r.response.rect);
     }
 
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(

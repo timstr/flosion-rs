@@ -17,7 +17,7 @@ use crate::core::sound::{
 
 use super::{
     flosion_ui::Factories, soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState,
+    soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
 };
 
 /// A mapping between a portion of the sound processing timeline
@@ -115,38 +115,47 @@ impl ProcessorInterconnect {
 /// the group must have exactly one sound input, with the exception
 /// of the top/leaf processor, which may have any number.
 pub struct StackedGroup {
-    // TODO: why are these pub?
-    pub width_pixels: usize,
-    pub time_axis: TimeAxis,
+    width_pixels: usize,
+    time_axis: TimeAxis,
 
     /// The processors in the stacked group, ordered with the
     /// deepest dependency first. The root/bottom processor is
     /// thus the last in the vec.
     processors: Vec<SoundProcessorId>,
+
+    /// The on-screen location of the stack
+    rect: egui::Rect,
 }
 
 impl StackedGroup {
     const INTERCONNECT_HEIGHT: f32 = 10.0;
 
-    pub(crate) fn new() -> StackedGroup {
+    pub(crate) fn new(processors: Vec<SoundProcessorId>, position: egui::Rect) -> StackedGroup {
         StackedGroup {
             width_pixels: SoundGraphLayout::DEFAULT_WIDTH,
             time_axis: TimeAxis {
                 time_per_x_pixel: (SoundGraphLayout::DEFAULT_DURATION as f32)
                     / (SoundGraphLayout::DEFAULT_WIDTH as f32),
             },
-            processors: Vec::new(),
+            processors,
+            rect: position,
         }
     }
 
-    pub(crate) fn new_with_processors(processors: Vec<SoundProcessorId>) -> StackedGroup {
-        let mut g = Self::new();
-        g.processors = processors;
-        g
+    pub fn rect(&self) -> egui::Rect {
+        self.rect
+    }
+
+    pub fn set_rect(&mut self, rect: egui::Rect) {
+        self.rect = rect;
+    }
+
+    pub fn processors(&self) -> &[SoundProcessorId] {
+        &self.processors
     }
 
     pub(crate) fn draw(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         factories: &Factories,
         ui_state: &mut SoundGraphUiState,
@@ -156,9 +165,12 @@ impl StackedGroup {
         // For a unique id for egui, hash the processor ids in the group
         let area_id = egui::Id::new(&self.processors);
 
-        let area = egui::Area::new(area_id).constrain(false).movable(true);
+        let area = egui::Area::new(area_id)
+            .constrain(false)
+            .movable(true)
+            .current_pos(self.rect.left_top()); // Hmmmmmm
 
-        area.show(ui.ctx(), |ui| {
+        let r = area.show(ui.ctx(), |ui| {
             let frame = egui::Frame::default()
                 // .fill(egui::Color32::from_gray(64))
                 .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
@@ -266,6 +278,8 @@ impl StackedGroup {
                 });
             });
         });
+
+        self.rect = r.response.rect;
     }
 
     fn draw_processor_interconnect(
@@ -558,7 +572,7 @@ impl SoundGraphLayout {
     }
 
     /// Find the stacked group that a sound processor belongs to, if any.
-    fn find_group_mut(&mut self, id: SoundProcessorId) -> Option<&mut StackedGroup> {
+    pub(crate) fn find_group_mut(&mut self, id: SoundProcessorId) -> Option<&mut StackedGroup> {
         for g in &mut self.groups {
             if g.processors.contains(&id) {
                 return Some(g);
@@ -593,8 +607,12 @@ impl SoundGraphLayout {
     /// any newly-added sound processors, and generally keep things
     /// tidy and valid as the topology changes programmatically and
     /// without simultaneous changes to the layout.
-    pub(crate) fn regenerate(&mut self, topo: &SoundGraphTopology) {
-        self.remove_dangling_processor_ids(topo);
+    pub(crate) fn regenerate(
+        &mut self,
+        topo: &SoundGraphTopology,
+        positions: &SoundObjectPositions,
+    ) {
+        self.remove_dangling_processor_ids(topo, positions);
 
         // precompute the number of sound inputs that each processor
         // is connected to
@@ -622,10 +640,11 @@ impl SoundGraphLayout {
             // processors which should belong to the same group
             // will be added below.
             if self.find_group(proc.id().into()).is_some() {
-                self.split_group_above_processor(proc.id());
+                self.split_group_above_processor(proc.id(), positions);
             } else {
-                self.groups
-                    .push(StackedGroup::new_with_processors(vec![proc.id()]));
+                let procs = vec![proc.id()];
+                let rect = Self::bounding_rect_around_processors(&procs, positions);
+                self.groups.push(StackedGroup::new(procs, rect));
             }
         }
 
@@ -637,7 +656,7 @@ impl SoundGraphLayout {
                 // Otherwise, do nothing. It will be appended onto
                 // an existing group in the next phase.
                 if self.find_group(spid.into()).is_some() {
-                    self.split_group_below_processor(spid);
+                    self.split_group_below_processor(spid, positions);
                 }
             }
         }
@@ -679,18 +698,16 @@ impl SoundGraphLayout {
         }
     }
 
-    // EeeEeeeeeEEEEEee
-
     /// Draw the layout and every group to the ui
     pub(crate) fn draw(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         factories: &Factories,
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
         available_arguments: &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
     ) {
-        for group in &self.groups {
+        for group in &mut self.groups {
             group.draw(ui, factories, ui_state, graph, available_arguments);
         }
 
@@ -765,7 +782,11 @@ impl SoundGraphLayout {
     /// Remove sound processors which no longer exist from any groups they
     /// appear in, splitting groups where connections are broken and
     /// removing any empty groups that result.
-    fn remove_dangling_processor_ids(&mut self, topo: &SoundGraphTopology) {
+    fn remove_dangling_processor_ids(
+        &mut self,
+        topo: &SoundGraphTopology,
+        positions: &SoundObjectPositions,
+    ) {
         // delete any removed processor ids
         for group in &mut self.groups {
             group.processors.retain(|i| topo.contains((*i).into()));
@@ -786,9 +807,9 @@ impl SoundGraphLayout {
                 // If the connection isn't unique, split off the remainder
                 // of the stack into a separate group
                 if !Self::connection_is_unique(top_proc, bottom_proc, topo) {
-                    new_groups.push(StackedGroup::new_with_processors(
-                        group.processors.split_off(i),
-                    ));
+                    let procs = group.processors.split_off(i);
+                    let rect = Self::bounding_rect_around_processors(&procs, positions);
+                    new_groups.push(StackedGroup::new(procs, rect));
                 }
             }
         }
@@ -801,7 +822,11 @@ impl SoundGraphLayout {
     /// group. This would be done for example if the given processor
     /// just gained a new sound input, which breaks uniqueness of the
     /// group's implied connection above the processor.
-    pub(crate) fn split_group_above_processor(&mut self, processor_id: SoundProcessorId) {
+    pub(crate) fn split_group_above_processor(
+        &mut self,
+        processor_id: SoundProcessorId,
+        positions: &SoundObjectPositions,
+    ) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
             .processors
@@ -814,9 +839,8 @@ impl SoundGraphLayout {
         }
 
         let rest_inclusive = group.processors.split_off(i);
-
-        self.groups
-            .push(StackedGroup::new_with_processors(rest_inclusive));
+        let rect = Self::bounding_rect_around_processors(&rest_inclusive, positions);
+        self.groups.push(StackedGroup::new(rest_inclusive, rect));
     }
 
     /// Find the group that processor belongs to, and if there are
@@ -825,7 +849,11 @@ impl SoundGraphLayout {
     /// was just connected to another sound input elsewhere, which
     /// breaks uniqueness of the group's implied connection below the
     /// processor.
-    pub(crate) fn split_group_below_processor(&mut self, processor_id: SoundProcessorId) {
+    pub(crate) fn split_group_below_processor(
+        &mut self,
+        processor_id: SoundProcessorId,
+        positions: &SoundObjectPositions,
+    ) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
             .processors
@@ -834,12 +862,16 @@ impl SoundGraphLayout {
             .unwrap();
         let rest_exclusive = group.processors.split_off(i + 1);
         if !rest_exclusive.is_empty() {
-            self.groups
-                .push(StackedGroup::new_with_processors(rest_exclusive));
+            let rect = Self::bounding_rect_around_processors(&rest_exclusive, positions);
+            self.groups.push(StackedGroup::new(rest_exclusive, rect));
         }
     }
 
-    pub(crate) fn split_processor_into_own_group(&mut self, processor_id: SoundProcessorId) {
+    pub(crate) fn split_processor_into_own_group(
+        &mut self,
+        processor_id: SoundProcessorId,
+        positions: &SoundObjectPositions,
+    ) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
             .processors
@@ -859,14 +891,15 @@ impl SoundGraphLayout {
             group.processors.push(processor_id);
         } else {
             // otherwise, create a new group for the lone processor
-            self.groups
-                .push(StackedGroup::new_with_processors(vec![processor_id]));
+            let procs = vec![processor_id];
+            let rect = Self::bounding_rect_around_processors(&procs, positions);
+            self.groups.push(StackedGroup::new(procs, rect));
         }
 
         // if any processors exist after the split point, move them into their own new group
         if !rest_exclusive.is_empty() {
-            self.groups
-                .push(StackedGroup::new_with_processors(rest_exclusive));
+            let rect = Self::bounding_rect_around_processors(&rest_exclusive, positions);
+            self.groups.push(StackedGroup::new(rest_exclusive, rect));
         }
     }
 
@@ -954,5 +987,22 @@ impl SoundGraphLayout {
         }
 
         true
+    }
+
+    fn bounding_rect_around_processors(
+        processors: &[SoundProcessorId],
+        positions: &SoundObjectPositions,
+    ) -> egui::Rect {
+        let mut rect = egui::Rect::NOTHING;
+        for proc in processors {
+            if let Some(proc_rect) = positions.find_processor(*proc) {
+                rect = rect.union(proc_rect);
+            }
+        }
+        if rect.is_negative() {
+            egui::Rect::ZERO
+        } else {
+            rect
+        }
     }
 }

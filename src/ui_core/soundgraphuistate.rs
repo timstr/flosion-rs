@@ -86,7 +86,7 @@ impl SoundGraphUiState {
                     graph,
                     layout,
                     &mut self.object_states,
-                    &self.positions,
+                    &mut self.positions,
                 );
             },
         );

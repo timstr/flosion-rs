@@ -139,7 +139,8 @@ impl FlosionApp {
         }
 
         self.ui_state.cleanup(topo, &self.factories);
-        self.graph_layout.regenerate(topo);
+        self.graph_layout
+            .regenerate(topo, self.ui_state.positions());
 
         self.available_arguments = available_sound_expression_arguments(topo);
 

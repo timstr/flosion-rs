@@ -1,5 +1,7 @@
 use eframe::egui;
 
+use crate::core::sound::soundprocessor::SoundProcessorId;
+
 use super::soundgraphlayout::ProcessorInterconnect;
 
 #[derive(Clone, Copy)]
@@ -8,14 +10,21 @@ pub(crate) struct InterconnectPosition {
     pub(crate) rect: egui::Rect,
 }
 
+pub(crate) struct ProcessorPosition {
+    pub(crate) processor: SoundProcessorId,
+    pub(crate) rect: egui::Rect,
+}
+
 pub(crate) struct SoundObjectPositions {
     interconnects: Vec<InterconnectPosition>,
+    processors: Vec<ProcessorPosition>,
 }
 
 impl SoundObjectPositions {
     pub(crate) fn new() -> SoundObjectPositions {
         SoundObjectPositions {
             interconnects: Vec::new(),
+            processors: Vec::new(),
         }
     }
 
@@ -26,6 +35,20 @@ impl SoundObjectPositions {
     ) {
         self.interconnects
             .push(InterconnectPosition { interconnect, rect });
+    }
+
+    pub(crate) fn record_processor(&mut self, processor: SoundProcessorId, rect: egui::Rect) {
+        self.processors.push(ProcessorPosition { processor, rect });
+    }
+
+    pub(crate) fn find_processor(&self, processor: SoundProcessorId) -> Option<egui::Rect> {
+        self.processors.iter().find_map(|pp| {
+            if pp.processor == processor {
+                Some(pp.rect)
+            } else {
+                None
+            }
+        })
     }
 
     pub(crate) fn find_closest_interconnect(
@@ -47,5 +70,6 @@ impl SoundObjectPositions {
 
     pub(crate) fn clear(&mut self) {
         self.interconnects.clear();
+        self.processors.clear();
     }
 }
