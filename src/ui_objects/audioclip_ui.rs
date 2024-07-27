@@ -69,7 +69,11 @@ impl ObjectUi for AudioClipUi {
             |ui, _uistate, _sound_graph| {
                 ui.vertical(|ui| {
                     if !data.state.name.is_empty() {
-                        ui.label(&data.state.name);
+                        ui.add(egui::Label::new(
+                            egui::RichText::new(&data.state.name)
+                                .color(egui::Color32::BLACK)
+                                .strong(),
+                        ));
                     }
                     // TODO
                     // - button to save to a file
