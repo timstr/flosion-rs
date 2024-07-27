@@ -123,14 +123,46 @@ pub struct StackedGroup {
     /// thus the last in the vec.
     processors: Vec<SoundProcessorId>,
 
-    /// The on-screen location of the stack
+    /// The on-screen location of the stack, or None if it has
+    /// not been drawn yet.
     rect: egui::Rect,
 }
 
 impl StackedGroup {
     const INTERCONNECT_HEIGHT: f32 = 10.0;
 
-    pub(crate) fn new(processors: Vec<SoundProcessorId>, position: egui::Rect) -> StackedGroup {
+    /// Creates a new stacked group consisting of the given list of sound processors and
+    /// positions them according to the previously-known positions of thos processors.
+    /// This is intended to minimize movement of processors on-screen when processors
+    /// are added and removed from groups.
+    pub(crate) fn new_nearby(
+        processors: Vec<SoundProcessorId>,
+        positions: &SoundObjectPositions,
+    ) -> StackedGroup {
+        assert!(processors.len() > 0);
+
+        // Find the position of the first processor in the group.
+        // if not found, just put rect at 0,0
+        let first_processor_top_left = positions
+            .find_processor(*processors.first().unwrap())
+            .map_or(egui::Pos2::ZERO, |r| r.left_top());
+
+        // Experimentally determine the offset between the top-left
+        // of the highest processor and the top-left of the stacked
+        // group by finding the minimum among the positions
+        let group_to_first_processor_offset = positions
+            .processors()
+            .iter()
+            .map(|p| p.rect.left_top() - p.group_origin)
+            // NOTE: using reduce() because min() and friends do not support f32 >:(
+            .reduce(|smallest, v| if v.y < smallest.y { v } else { smallest })
+            .unwrap_or(egui::Vec2::ZERO);
+
+        // Move the rect to the position of the first processor
+        // minus that offset.
+        let group_origin = first_processor_top_left - group_to_first_processor_offset;
+        let rect = egui::Rect::from_min_size(group_origin, egui::Vec2::ZERO);
+
         StackedGroup {
             width_pixels: SoundGraphLayout::DEFAULT_WIDTH,
             time_axis: TimeAxis {
@@ -138,7 +170,7 @@ impl StackedGroup {
                     / (SoundGraphLayout::DEFAULT_WIDTH as f32),
             },
             processors,
-            rect: position,
+            rect,
         }
     }
 
@@ -168,9 +200,11 @@ impl StackedGroup {
         let area = egui::Area::new(area_id)
             .constrain(false)
             .movable(true)
-            .current_pos(self.rect.left_top()); // Hmmmmmm
+            .current_pos(self.rect.left_top());
 
         let r = area.show(ui.ctx(), |ui| {
+            let group_origin = ui.cursor().left_top();
+
             let frame = egui::Frame::default()
                 // .fill(egui::Color32::from_gray(64))
                 .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
@@ -236,6 +270,7 @@ impl StackedGroup {
                                 factories,
                                 self.time_axis,
                                 self.width_pixels as f32,
+                                group_origin,
                                 available_arguments,
                             );
                             factories
@@ -643,8 +678,7 @@ impl SoundGraphLayout {
                 self.split_group_above_processor(proc.id(), positions);
             } else {
                 let procs = vec![proc.id()];
-                let rect = Self::bounding_rect_around_processors(&procs, positions);
-                self.groups.push(StackedGroup::new(procs, rect));
+                self.groups.push(StackedGroup::new_nearby(procs, positions));
             }
         }
 
@@ -808,8 +842,7 @@ impl SoundGraphLayout {
                 // of the stack into a separate group
                 if !Self::connection_is_unique(top_proc, bottom_proc, topo) {
                     let procs = group.processors.split_off(i);
-                    let rect = Self::bounding_rect_around_processors(&procs, positions);
-                    new_groups.push(StackedGroup::new(procs, rect));
+                    new_groups.push(StackedGroup::new_nearby(procs, positions));
                 }
             }
         }
@@ -839,8 +872,8 @@ impl SoundGraphLayout {
         }
 
         let rest_inclusive = group.processors.split_off(i);
-        let rect = Self::bounding_rect_around_processors(&rest_inclusive, positions);
-        self.groups.push(StackedGroup::new(rest_inclusive, rect));
+        self.groups
+            .push(StackedGroup::new_nearby(rest_inclusive, positions));
     }
 
     /// Find the group that processor belongs to, and if there are
@@ -862,8 +895,8 @@ impl SoundGraphLayout {
             .unwrap();
         let rest_exclusive = group.processors.split_off(i + 1);
         if !rest_exclusive.is_empty() {
-            let rect = Self::bounding_rect_around_processors(&rest_exclusive, positions);
-            self.groups.push(StackedGroup::new(rest_exclusive, rect));
+            self.groups
+                .push(StackedGroup::new_nearby(rest_exclusive, positions));
         }
     }
 
@@ -892,14 +925,13 @@ impl SoundGraphLayout {
         } else {
             // otherwise, create a new group for the lone processor
             let procs = vec![processor_id];
-            let rect = Self::bounding_rect_around_processors(&procs, positions);
-            self.groups.push(StackedGroup::new(procs, rect));
+            self.groups.push(StackedGroup::new_nearby(procs, positions));
         }
 
         // if any processors exist after the split point, move them into their own new group
         if !rest_exclusive.is_empty() {
-            let rect = Self::bounding_rect_around_processors(&rest_exclusive, positions);
-            self.groups.push(StackedGroup::new(rest_exclusive, rect));
+            self.groups
+                .push(StackedGroup::new_nearby(rest_exclusive, positions));
         }
     }
 
@@ -987,22 +1019,5 @@ impl SoundGraphLayout {
         }
 
         true
-    }
-
-    fn bounding_rect_around_processors(
-        processors: &[SoundProcessorId],
-        positions: &SoundObjectPositions,
-    ) -> egui::Rect {
-        let mut rect = egui::Rect::NOTHING;
-        for proc in processors {
-            if let Some(proc_rect) = positions.find_processor(*proc) {
-                rect = rect.union(proc_rect);
-            }
-        }
-        if rect.is_negative() {
-            egui::Rect::ZERO
-        } else {
-            rect
-        }
     }
 }

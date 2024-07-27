@@ -11,8 +11,14 @@ pub(crate) struct InterconnectPosition {
 }
 
 pub(crate) struct ProcessorPosition {
+    /// The id of the processor
     pub(crate) processor: SoundProcessorId,
+
+    // The on-screen area occupied by the processor's UI
     pub(crate) rect: egui::Rect,
+
+    // The top-left corner of the stacked group currently containing the processor
+    pub(crate) group_origin: egui::Pos2,
 }
 
 pub(crate) struct SoundObjectPositions {
@@ -37,8 +43,21 @@ impl SoundObjectPositions {
             .push(InterconnectPosition { interconnect, rect });
     }
 
-    pub(crate) fn record_processor(&mut self, processor: SoundProcessorId, rect: egui::Rect) {
-        self.processors.push(ProcessorPosition { processor, rect });
+    pub(crate) fn processors(&self) -> &[ProcessorPosition] {
+        &self.processors
+    }
+
+    pub(crate) fn record_processor(
+        &mut self,
+        processor: SoundProcessorId,
+        rect: egui::Rect,
+        group_origin: egui::Pos2,
+    ) {
+        self.processors.push(ProcessorPosition {
+            processor,
+            rect,
+            group_origin,
+        });
     }
 
     pub(crate) fn find_processor(&self, processor: SoundProcessorId) -> Option<egui::Rect> {

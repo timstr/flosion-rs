@@ -169,9 +169,11 @@ impl ProcessorUi {
             self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
         });
 
-        ui_state
-            .positions_mut()
-            .record_processor(self.processor_id, r.response.rect);
+        ui_state.positions_mut().record_processor(
+            self.processor_id,
+            r.response.rect,
+            ctx.group_origin(),
+        );
     }
 
     fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(

@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use eframe::egui;
+
 use crate::core::sound::{
     expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
 };
@@ -10,6 +12,7 @@ pub struct SoundGraphUiContext<'a> {
     factories: &'a Factories,
     time_axis: TimeAxis,
     width: f32,
+    group_origin: egui::Pos2,
     available_arguments: &'a HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
 }
 
@@ -18,12 +21,14 @@ impl<'a> SoundGraphUiContext<'a> {
         factories: &'a Factories,
         time_axis: TimeAxis,
         width: f32,
+        group_origin: egui::Pos2,
         available_arguments: &'a HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
             factories,
             time_axis,
             width,
+            group_origin,
             available_arguments,
         }
     }
@@ -38,6 +43,10 @@ impl<'a> SoundGraphUiContext<'a> {
 
     pub fn width(&self) -> f32 {
         self.width
+    }
+
+    pub fn group_origin(&self) -> egui::Pos2 {
+        self.group_origin
     }
 
     pub fn available_arguments(
