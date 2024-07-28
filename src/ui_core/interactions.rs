@@ -251,6 +251,22 @@ impl GlobalInteractions {
                             .unwrap(); // fingers crossed
                         layout.insert_processor_above(dropped_proc.processor_id, ic_proc);
 
+                        // Move the existing stack up to make space for the new
+                        // processor while keeping the existing processors visually
+                        // at the same location
+
+                        // HACK assuming the processor came from a lone group to begin with
+                        let pp = positions.find_processor(dropped_proc.processor_id).unwrap();
+
+                        let group = layout.find_group_mut(dropped_proc.processor_id).unwrap();
+
+                        let magic_offset = 7.0;
+
+                        group.set_rect(group.rect().translate(egui::vec2(
+                            0.0,
+                            pp.group_origin.y - pp.rect.bottom() + magic_offset,
+                        )));
+
                         #[cfg(debug_assertions)]
                         assert!(layout.check_invariants(graph.topology()));
                     }

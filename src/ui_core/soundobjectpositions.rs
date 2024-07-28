@@ -60,14 +60,8 @@ impl SoundObjectPositions {
         });
     }
 
-    pub(crate) fn find_processor(&self, processor: SoundProcessorId) -> Option<egui::Rect> {
-        self.processors.iter().find_map(|pp| {
-            if pp.processor == processor {
-                Some(pp.rect)
-            } else {
-                None
-            }
-        })
+    pub(crate) fn find_processor(&self, processor: SoundProcessorId) -> Option<&ProcessorPosition> {
+        self.processors.iter().find(|pp| pp.processor == processor)
     }
 
     pub(crate) fn find_closest_interconnect(

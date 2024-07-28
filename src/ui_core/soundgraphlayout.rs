@@ -135,7 +135,7 @@ impl StackedGroup {
     /// positions them according to the previously-known positions of thos processors.
     /// This is intended to minimize movement of processors on-screen when processors
     /// are added and removed from groups.
-    pub(crate) fn new_nearby(
+    pub(crate) fn new_at_top_processor(
         processors: Vec<SoundProcessorId>,
         positions: &SoundObjectPositions,
     ) -> StackedGroup {
@@ -145,7 +145,7 @@ impl StackedGroup {
         // if not found, just put rect at 0,0
         let first_processor_top_left = positions
             .find_processor(*processors.first().unwrap())
-            .map_or(egui::Pos2::ZERO, |r| r.left_top());
+            .map_or(egui::Pos2::ZERO, |pp| pp.rect.left_top());
 
         // Experimentally determine the offset between the top-left
         // of the highest processor and the top-left of the stacked
@@ -240,15 +240,15 @@ impl StackedGroup {
                             self.draw_barrier(ui, rect);
                         } else {
                             for input in top_inputs {
-                                let (rect, _) = ui.allocate_exact_size(
-                                    egui::vec2(self.width_pixels as f32, 5.0),
-                                    egui::Sense::hover(),
-                                );
-                                ui.painter().rect_filled(
-                                    rect,
-                                    egui::Rounding::ZERO,
-                                    egui::Color32::WHITE,
-                                );
+                                // let (rect, _) = ui.allocate_exact_size(
+                                //     egui::vec2(self.width_pixels as f32, 5.0),
+                                //     egui::Sense::hover(),
+                                // );
+                                // ui.painter().rect_filled(
+                                //     rect,
+                                //     egui::Rounding::ZERO,
+                                //     egui::Color32::WHITE,
+                                // );
                                 self.draw_processor_interconnect(
                                     ui,
                                     ui_state,
@@ -678,7 +678,8 @@ impl SoundGraphLayout {
                 self.split_group_above_processor(proc.id(), positions);
             } else {
                 let procs = vec![proc.id()];
-                self.groups.push(StackedGroup::new_nearby(procs, positions));
+                self.groups
+                    .push(StackedGroup::new_at_top_processor(procs, positions));
             }
         }
 
@@ -842,7 +843,7 @@ impl SoundGraphLayout {
                 // of the stack into a separate group
                 if !Self::connection_is_unique(top_proc, bottom_proc, topo) {
                     let procs = group.processors.split_off(i);
-                    new_groups.push(StackedGroup::new_nearby(procs, positions));
+                    new_groups.push(StackedGroup::new_at_top_processor(procs, positions));
                 }
             }
         }
@@ -872,8 +873,10 @@ impl SoundGraphLayout {
         }
 
         let rest_inclusive = group.processors.split_off(i);
-        self.groups
-            .push(StackedGroup::new_nearby(rest_inclusive, positions));
+        self.groups.push(StackedGroup::new_at_top_processor(
+            rest_inclusive,
+            positions,
+        ));
     }
 
     /// Find the group that processor belongs to, and if there are
@@ -895,8 +898,10 @@ impl SoundGraphLayout {
             .unwrap();
         let rest_exclusive = group.processors.split_off(i + 1);
         if !rest_exclusive.is_empty() {
-            self.groups
-                .push(StackedGroup::new_nearby(rest_exclusive, positions));
+            self.groups.push(StackedGroup::new_at_top_processor(
+                rest_exclusive,
+                positions,
+            ));
         }
     }
 
@@ -925,13 +930,16 @@ impl SoundGraphLayout {
         } else {
             // otherwise, create a new group for the lone processor
             let procs = vec![processor_id];
-            self.groups.push(StackedGroup::new_nearby(procs, positions));
+            self.groups
+                .push(StackedGroup::new_at_top_processor(procs, positions));
         }
 
         // if any processors exist after the split point, move them into their own new group
         if !rest_exclusive.is_empty() {
-            self.groups
-                .push(StackedGroup::new_nearby(rest_exclusive, positions));
+            self.groups.push(StackedGroup::new_at_top_processor(
+                rest_exclusive,
+                positions,
+            ));
         }
     }
 
