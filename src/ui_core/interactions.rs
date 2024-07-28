@@ -136,6 +136,16 @@ impl GlobalInteractions {
 
                     object_states.set_object_data(new_obj_handle.id(), state);
 
+                    // Move the processor to the cursor location
+                    let pos = summon_widget.position();
+                    match new_obj_handle.id() {
+                        SoundObjectId::Sound(id) => positions.record_processor(
+                            id,
+                            egui::Rect::from_min_size(pos, egui::Vec2::ZERO),
+                            pos,
+                        ),
+                    }
+
                     self.mode = UiMode::Passive;
                 } else if summon_widget.was_cancelled() {
                     self.mode = UiMode::Passive;
