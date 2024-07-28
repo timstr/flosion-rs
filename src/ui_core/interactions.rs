@@ -255,17 +255,17 @@ impl GlobalInteractions {
                         // processor while keeping the existing processors visually
                         // at the same location
 
-                        // HACK assuming the processor came from a lone group to begin with
                         let pp = positions.find_processor(dropped_proc.processor_id).unwrap();
 
                         let group = layout.find_group_mut(dropped_proc.processor_id).unwrap();
 
-                        let magic_offset = 7.0;
+                        let magic_offset = 15.0;
 
-                        group.set_rect(group.rect().translate(egui::vec2(
-                            0.0,
-                            pp.group_origin.y - pp.rect.bottom() + magic_offset,
-                        )));
+                        group.set_rect(
+                            group
+                                .rect()
+                                .translate(egui::vec2(0.0, -pp.rect.height() - magic_offset)),
+                        );
 
                         #[cfg(debug_assertions)]
                         assert!(layout.check_invariants(graph.topology()));
