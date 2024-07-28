@@ -9,7 +9,7 @@ use std::{
 use parking_lot::{Condvar, Mutex, RwLock};
 
 use crate::core::{
-    revision::revision::RevisionNumber,
+    revision::revision::RevisionHash,
     sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology},
 };
 
@@ -32,7 +32,7 @@ struct Entry<'ctx> {
 }
 
 struct Cache<'ctx> {
-    artefacts: HashMap<(SoundExpressionId, RevisionNumber), Entry<'ctx>>,
+    artefacts: HashMap<(SoundExpressionId, RevisionHash), Entry<'ctx>>,
 }
 
 impl<'ctx> Cache<'ctx> {
@@ -45,7 +45,7 @@ impl<'ctx> Cache<'ctx> {
     fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
-        revision: RevisionNumber,
+        revision: RevisionHash,
     ) -> Option<CompiledExpressionFunction<'ctx>> {
         let key = (id, revision);
         self.artefacts.get(&key).map(|c| c.artefact.make_function())
@@ -54,7 +54,7 @@ impl<'ctx> Cache<'ctx> {
     fn insert(
         &mut self,
         input_id: SoundExpressionId,
-        revision_number: RevisionNumber,
+        revision_number: RevisionHash,
         artefact: CompiledExpressionArtefact<'ctx>,
     ) {
         self.artefacts
@@ -194,7 +194,7 @@ impl<'ctx> Drop for JitServer<'ctx> {
 }
 
 pub(crate) enum JitClientRequest {
-    PleaseCompile(SoundExpressionId, RevisionNumber),
+    PleaseCompile(SoundExpressionId, RevisionHash),
 }
 
 pub(crate) struct JitClient {
@@ -207,7 +207,7 @@ impl JitClient {
     pub(crate) fn get_compiled_expression<'a>(
         &'a self,
         id: SoundExpressionId,
-        revision: RevisionNumber,
+        revision: RevisionHash,
     ) -> Option<CompiledExpressionFunction<'a>> {
         let f = self.cache.read().get_compiled_expression(id, revision);
         if f.is_none() {

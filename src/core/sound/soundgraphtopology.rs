@@ -2,7 +2,7 @@ use std::hash::Hasher;
 
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
-    revision::revision::{Revision, RevisionNumber, Versioned, VersionedHashMap},
+    revision::revision::{Revised, RevisedHashMap, Revision, RevisionHash},
     sound::{expressionargument::SoundExpressionArgumentOwner, soundgrapherror::SoundError},
 };
 
@@ -35,44 +35,42 @@ enum SoundConnectionPart {
 /// checking, use SoundGraph instead.
 #[derive(Clone)]
 pub(crate) struct SoundGraphTopology {
-    sound_processors: VersionedHashMap<SoundProcessorId, SoundProcessorData>,
-    sound_inputs: VersionedHashMap<SoundInputId, SoundInputData>,
-    expression_arguments: VersionedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData>,
-    expressions: VersionedHashMap<SoundExpressionId, SoundExpressionData>,
+    sound_processors: RevisedHashMap<SoundProcessorId, SoundProcessorData>,
+    sound_inputs: RevisedHashMap<SoundInputId, SoundInputData>,
+    expression_arguments: RevisedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData>,
+    expressions: RevisedHashMap<SoundExpressionId, SoundExpressionData>,
 }
 
 impl SoundGraphTopology {
     /// Constructs a new instance without any processors or other components
     pub(crate) fn new() -> SoundGraphTopology {
         SoundGraphTopology {
-            sound_processors: VersionedHashMap::new(),
-            sound_inputs: VersionedHashMap::new(),
-            expression_arguments: VersionedHashMap::new(),
-            expressions: VersionedHashMap::new(),
+            sound_processors: RevisedHashMap::new(),
+            sound_inputs: RevisedHashMap::new(),
+            expression_arguments: RevisedHashMap::new(),
+            expressions: RevisedHashMap::new(),
         }
     }
 
     /// Access the set of sound processors stored in the topology
-    pub(crate) fn sound_processors(
-        &self,
-    ) -> &VersionedHashMap<SoundProcessorId, SoundProcessorData> {
+    pub(crate) fn sound_processors(&self) -> &RevisedHashMap<SoundProcessorId, SoundProcessorData> {
         &self.sound_processors
     }
 
     /// Access the set of sound inputs stored in the topology
-    pub(crate) fn sound_inputs(&self) -> &VersionedHashMap<SoundInputId, SoundInputData> {
+    pub(crate) fn sound_inputs(&self) -> &RevisedHashMap<SoundInputId, SoundInputData> {
         &self.sound_inputs
     }
 
     /// Access the set of expression arguments stored in the topology
     pub(crate) fn expression_arguments(
         &self,
-    ) -> &VersionedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData> {
+    ) -> &RevisedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData> {
         &self.expression_arguments
     }
 
     /// Access the set of expressions stored in the topology
-    pub(crate) fn expressions(&self) -> &VersionedHashMap<SoundExpressionId, SoundExpressionData> {
+    pub(crate) fn expressions(&self) -> &RevisedHashMap<SoundExpressionId, SoundExpressionData> {
         &self.expressions
     }
 
@@ -80,7 +78,7 @@ impl SoundGraphTopology {
     pub(crate) fn sound_processor(
         &self,
         id: SoundProcessorId,
-    ) -> Option<&Versioned<SoundProcessorData>> {
+    ) -> Option<&Revised<SoundProcessorData>> {
         self.sound_processors.get(&id)
     }
 
@@ -88,12 +86,12 @@ impl SoundGraphTopology {
     pub(crate) fn sound_processor_mut(
         &mut self,
         id: SoundProcessorId,
-    ) -> Option<&mut Versioned<SoundProcessorData>> {
+    ) -> Option<&mut Revised<SoundProcessorData>> {
         self.sound_processors.get_mut(&id)
     }
 
     /// Look up a specific sound input by its id
-    pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&Versioned<SoundInputData>> {
+    pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&Revised<SoundInputData>> {
         self.sound_inputs.get(&id)
     }
 
@@ -101,7 +99,7 @@ impl SoundGraphTopology {
     pub(crate) fn sound_input_mut(
         &mut self,
         id: SoundInputId,
-    ) -> Option<&mut Versioned<SoundInputData>> {
+    ) -> Option<&mut Revised<SoundInputData>> {
         self.sound_inputs.get_mut(&id)
     }
 
@@ -109,7 +107,7 @@ impl SoundGraphTopology {
     pub(crate) fn expression_argument(
         &self,
         id: SoundExpressionArgumentId,
-    ) -> Option<&Versioned<SoundExpressionArgumentData>> {
+    ) -> Option<&Revised<SoundExpressionArgumentData>> {
         self.expression_arguments.get(&id)
     }
 
@@ -117,7 +115,7 @@ impl SoundGraphTopology {
     pub(crate) fn expression(
         &self,
         id: SoundExpressionId,
-    ) -> Option<&Versioned<SoundExpressionData>> {
+    ) -> Option<&Revised<SoundExpressionData>> {
         self.expressions.get(&id)
     }
 
@@ -125,7 +123,7 @@ impl SoundGraphTopology {
     pub(crate) fn expression_mut(
         &mut self,
         id: SoundExpressionId,
-    ) -> Option<&mut Versioned<SoundExpressionData>> {
+    ) -> Option<&mut Revised<SoundExpressionData>> {
         self.expressions.get_mut(&id)
     }
 
@@ -470,12 +468,12 @@ impl SoundGraphTopology {
 }
 
 impl Revision for SoundGraphTopology {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u64(self.sound_processors.get_revision().value());
         hasher.write_u64(self.sound_inputs.get_revision().value());
         hasher.write_u64(self.expression_arguments.get_revision().value());
         hasher.write_u64(self.expressions.get_revision().value());
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }

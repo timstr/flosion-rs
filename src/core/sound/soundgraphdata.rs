@@ -9,7 +9,7 @@ use crate::core::{
         expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
         expressiongraphtopology::ExpressionGraphTopology,
     },
-    revision::revision::{Revision, RevisionNumber},
+    revision::revision::{Revision, RevisionHash},
     uniqueid::UniqueId,
 };
 
@@ -125,7 +125,7 @@ impl SoundInputData {
 }
 
 impl Revision for SoundInputData {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_u8(match &self.options {
@@ -145,7 +145,7 @@ impl Revision for SoundInputData {
         for nsid in &self.arguments {
             hasher.write_usize(nsid.value());
         }
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -231,7 +231,7 @@ impl SoundProcessorData {
 }
 
 impl Revision for SoundProcessorData {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_u8(if self.instance().is_static() { 1 } else { 2 });
@@ -248,7 +248,7 @@ impl Revision for SoundProcessorData {
         for niid in &self.expressions {
             hasher.write_usize(niid.value());
         }
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -369,14 +369,14 @@ impl SoundExpressionScope {
 }
 
 impl Revision for SoundExpressionScope {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u8(if self.processor_state_available { 1 } else { 0 });
         hasher.write_usize(self.available_local_arguments.len());
         for nsid in &self.available_local_arguments {
             hasher.write_usize(nsid.value());
         }
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -445,7 +445,7 @@ impl SoundExpressionData {
 }
 
 impl Revision for SoundExpressionData {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         let items_hash: u64 = 0;
@@ -457,7 +457,7 @@ impl Revision for SoundExpressionData {
         hasher.write_u64(self.expression_graph.topology().get_revision().value());
         hasher.write_usize(self.owner.value());
         hasher.write_u64(self.scope.get_revision().value());
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -499,7 +499,7 @@ impl SoundExpressionArgumentData {
 }
 
 impl Revision for SoundExpressionArgumentData {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         // Do not hash instance
@@ -513,6 +513,6 @@ impl Revision for SoundExpressionArgumentData {
                 hasher.write_usize(siid.value());
             }
         }
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }

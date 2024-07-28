@@ -16,7 +16,7 @@ use crate::core::{
     },
     graph::{graph::Graph, graphobject::ObjectInitialization},
     jit::server::{JitClient, JitServer, JitServerBuilder},
-    revision::revision::{Revision, RevisionNumber},
+    revision::revision::{Revision, RevisionHash},
     uniqueid::IdGenerator,
 };
 
@@ -88,7 +88,7 @@ impl SoundGraphIdGenerators {
 /// audio thread.
 pub struct SoundGraph {
     local_topology: SoundGraphTopology,
-    last_revision: Option<RevisionNumber>,
+    last_revision: Option<RevisionHash>,
 
     engine_interface_thread: Option<JoinHandle<()>>,
     stop_button: StopButton,

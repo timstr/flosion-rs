@@ -1,7 +1,7 @@
 use std::{hash::Hasher, sync::Arc};
 
 use crate::core::{
-    revision::revision::{Revision, RevisionNumber},
+    revision::revision::{Revision, RevisionHash},
     uniqueid::UniqueId,
 };
 
@@ -80,14 +80,14 @@ impl ExpressionNodeData {
 }
 
 impl Revision for ExpressionNodeData {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_usize(self.inputs.len());
         for niid in &self.inputs {
             hasher.write_usize(niid.value());
         }
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -193,13 +193,13 @@ fn hash_optional_target(target: Option<ExpressionTarget>, hasher: &mut seahash::
 }
 
 impl Revision for ExpressionNodeInputData {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hash_optional_target(self.target, &mut hasher);
         hasher.write_usize(self.owner.value());
         hasher.write_u32(self.default_value.to_bits());
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -248,11 +248,11 @@ impl ExpressionGraphResultData {
 }
 
 impl Revision for ExpressionGraphResultData {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
         hash_optional_target(self.target, &mut hasher);
         hasher.write_u32(self.default_value.to_bits());
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }

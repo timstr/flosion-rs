@@ -1,7 +1,7 @@
 use std::hash::Hasher;
 
 use crate::core::{
-    revision::revision::{Revision, RevisionNumber, Versioned, VersionedHashMap},
+    revision::revision::{Revised, RevisedHashMap, Revision, RevisionHash},
     uniqueid::UniqueId,
 };
 
@@ -18,8 +18,8 @@ use super::{
 
 #[derive(Clone)]
 pub(crate) struct ExpressionGraphTopology {
-    nodes: VersionedHashMap<ExpressionNodeId, ExpressionNodeData>,
-    node_inputs: VersionedHashMap<ExpressionNodeInputId, ExpressionNodeInputData>,
+    nodes: RevisedHashMap<ExpressionNodeId, ExpressionNodeData>,
+    node_inputs: RevisedHashMap<ExpressionNodeInputId, ExpressionNodeInputData>,
     parameters: Vec<ExpressionGraphParameterId>,
     results: Vec<ExpressionGraphResultData>,
 }
@@ -27,8 +27,8 @@ pub(crate) struct ExpressionGraphTopology {
 impl ExpressionGraphTopology {
     pub(crate) fn new() -> ExpressionGraphTopology {
         ExpressionGraphTopology {
-            nodes: VersionedHashMap::new(),
-            node_inputs: VersionedHashMap::new(),
+            nodes: RevisedHashMap::new(),
+            node_inputs: RevisedHashMap::new(),
             parameters: Vec::new(),
             results: Vec::new(),
         }
@@ -37,28 +37,28 @@ impl ExpressionGraphTopology {
     pub(crate) fn node_input(
         &self,
         id: ExpressionNodeInputId,
-    ) -> Option<&Versioned<ExpressionNodeInputData>> {
+    ) -> Option<&Revised<ExpressionNodeInputData>> {
         self.node_inputs.get(&id)
     }
 
-    pub(crate) fn node(&self, id: ExpressionNodeId) -> Option<&Versioned<ExpressionNodeData>> {
+    pub(crate) fn node(&self, id: ExpressionNodeId) -> Option<&Revised<ExpressionNodeData>> {
         self.nodes.get(&id)
     }
 
     pub(super) fn node_mut(
         &mut self,
         id: ExpressionNodeId,
-    ) -> Option<&mut Versioned<ExpressionNodeData>> {
+    ) -> Option<&mut Revised<ExpressionNodeData>> {
         self.nodes.get_mut(&id)
     }
 
     pub(crate) fn node_inputs(
         &self,
-    ) -> &VersionedHashMap<ExpressionNodeInputId, ExpressionNodeInputData> {
+    ) -> &RevisedHashMap<ExpressionNodeInputId, ExpressionNodeInputData> {
         &self.node_inputs
     }
 
-    pub(crate) fn nodes(&self) -> &VersionedHashMap<ExpressionNodeId, ExpressionNodeData> {
+    pub(crate) fn nodes(&self) -> &RevisedHashMap<ExpressionNodeId, ExpressionNodeData> {
         &self.nodes
     }
 
@@ -348,7 +348,7 @@ impl ExpressionGraphTopology {
 }
 
 impl Revision for ExpressionGraphTopology {
-    fn get_revision(&self) -> RevisionNumber {
+    fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u64(self.nodes.get_revision().value());
         hasher.write_u64(self.node_inputs.get_revision().value());
@@ -360,6 +360,6 @@ impl Revision for ExpressionGraphTopology {
         for o in &self.results {
             hasher.write_u64(o.get_revision().value());
         }
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }

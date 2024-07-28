@@ -4,7 +4,7 @@ use crate::{
     core::{
         expression::expressiongraph::ExpressionGraph,
         graph::objectfactory::ObjectFactory,
-        revision::revision::{Revision, RevisionNumber},
+        revision::revision::{Revision, RevisionHash},
         sound::{
             expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
             soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
@@ -76,7 +76,7 @@ pub struct FlosionApp {
     /// The on-screen layout of sound processors
     graph_layout: SoundGraphLayout,
 
-    previous_clean_revision: Option<RevisionNumber>,
+    previous_clean_revision: Option<RevisionHash>,
 
     /// A cache of which expression arguments are available to which expressions,
     /// to avoid repeatedly traversing the graph to find out

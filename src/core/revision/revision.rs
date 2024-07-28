@@ -10,13 +10,12 @@ use std::{
 
 use crate::core::uniqueid::UniqueId;
 
-// TODO: rename to revision hash
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct RevisionNumber(u64);
+pub(crate) struct RevisionHash(u64);
 
-impl RevisionNumber {
-    pub(crate) fn new(value: u64) -> RevisionNumber {
-        RevisionNumber(value)
+impl RevisionHash {
+    pub(crate) fn new(value: u64) -> RevisionHash {
+        RevisionHash(value)
     }
 
     pub(crate) fn value(&self) -> u64 {
@@ -25,30 +24,30 @@ impl RevisionNumber {
 }
 
 pub(crate) trait Revision {
-    fn get_revision(&self) -> RevisionNumber;
+    fn get_revision(&self) -> RevisionHash;
 }
 
 impl<T: UniqueId> Revision for T {
-    fn get_revision(&self) -> RevisionNumber {
-        RevisionNumber::new(self.value() as u64)
+    fn get_revision(&self) -> RevisionHash {
+        RevisionHash::new(self.value() as u64)
     }
 }
 
 #[derive(Clone)]
-pub(crate) struct Versioned<T> {
+pub(crate) struct Revised<T> {
     value: T,
-    revision: Cell<Option<RevisionNumber>>,
+    revision: Cell<Option<RevisionHash>>,
 }
 
-impl<T: Revision> Versioned<T> {
-    pub(crate) fn new(value: T) -> Versioned<T> {
-        Versioned {
+impl<T: Revision> Revised<T> {
+    pub(crate) fn new(value: T) -> Revised<T> {
+        Revised {
             value,
             revision: Cell::new(None),
         }
     }
 
-    pub(crate) fn get_revision(&self) -> RevisionNumber {
+    pub(crate) fn get_revision(&self) -> RevisionHash {
         match self.revision.get() {
             Some(v) => v,
             None => {
@@ -60,7 +59,7 @@ impl<T: Revision> Versioned<T> {
     }
 }
 
-impl<T: Revision> Deref for Versioned<T> {
+impl<T: Revision> Deref for Revised<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -68,27 +67,27 @@ impl<T: Revision> Deref for Versioned<T> {
     }
 }
 
-impl<T: Revision> DerefMut for Versioned<T> {
+impl<T: Revision> DerefMut for Revised<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.revision.set(None);
         &mut self.value
     }
 }
 
-impl<T: Revision> Revision for Versioned<T> {
-    fn get_revision(&self) -> RevisionNumber {
-        Versioned::get_revision(&self)
+impl<T: Revision> Revision for Revised<T> {
+    fn get_revision(&self) -> RevisionHash {
+        Revised::get_revision(&self)
     }
 }
 
 #[derive(Clone)]
-pub(crate) struct VersionedHashMap<K, V> {
-    map: HashMap<K, Versioned<V>>,
+pub(crate) struct RevisedHashMap<K, V> {
+    map: HashMap<K, Revised<V>>,
 }
 
-impl<K: Hash + Eq + PartialEq, V: Revision> VersionedHashMap<K, V> {
-    pub(crate) fn new() -> VersionedHashMap<K, V> {
-        VersionedHashMap {
+impl<K: Hash + Eq + PartialEq, V: Revision> RevisedHashMap<K, V> {
+    pub(crate) fn new() -> RevisedHashMap<K, V> {
+        RevisedHashMap {
             map: HashMap::new(),
         }
     }
@@ -97,11 +96,11 @@ impl<K: Hash + Eq + PartialEq, V: Revision> VersionedHashMap<K, V> {
         self.map.len()
     }
 
-    pub(crate) fn get(&self, k: &K) -> Option<&Versioned<V>> {
+    pub(crate) fn get(&self, k: &K) -> Option<&Revised<V>> {
         self.map.get(k)
     }
 
-    pub(crate) fn get_mut(&mut self, k: &K) -> Option<&mut Versioned<V>> {
+    pub(crate) fn get_mut(&mut self, k: &K) -> Option<&mut Revised<V>> {
         self.map.get_mut(k)
     }
 
@@ -109,59 +108,59 @@ impl<K: Hash + Eq + PartialEq, V: Revision> VersionedHashMap<K, V> {
         self.map.contains_key(k)
     }
 
-    pub(crate) fn insert(&mut self, k: K, v: V) -> Option<Versioned<V>> {
-        self.map.insert(k, Versioned::new(v))
+    pub(crate) fn insert(&mut self, k: K, v: V) -> Option<Revised<V>> {
+        self.map.insert(k, Revised::new(v))
     }
 
-    pub(crate) fn remove(&mut self, k: &K) -> Option<Versioned<V>> {
+    pub(crate) fn remove(&mut self, k: &K) -> Option<Revised<V>> {
         self.map.remove(k)
     }
 
-    pub(crate) fn keys(&self) -> hash_map::Keys<K, Versioned<V>> {
+    pub(crate) fn keys(&self) -> hash_map::Keys<K, Revised<V>> {
         self.map.keys()
     }
 
-    pub(crate) fn values(&self) -> hash_map::Values<K, Versioned<V>> {
+    pub(crate) fn values(&self) -> hash_map::Values<K, Revised<V>> {
         self.map.values()
     }
 
-    pub(crate) fn values_mut(&mut self) -> hash_map::ValuesMut<K, Versioned<V>> {
+    pub(crate) fn values_mut(&mut self) -> hash_map::ValuesMut<K, Revised<V>> {
         self.map.values_mut()
     }
 }
 
-impl<'a, K: Hash + Eq + PartialEq, V: Revision> IntoIterator for &'a VersionedHashMap<K, V> {
-    type Item = (&'a K, &'a Versioned<V>);
+impl<'a, K: Hash + Eq + PartialEq, V: Revision> IntoIterator for &'a RevisedHashMap<K, V> {
+    type Item = (&'a K, &'a Revised<V>);
 
-    type IntoIter = hash_map::Iter<'a, K, Versioned<V>>;
+    type IntoIter = hash_map::Iter<'a, K, Revised<V>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.map.iter()
     }
 }
 
-impl<'a, K: Hash + Eq + PartialEq, V: Revision> IntoIterator for &'a mut VersionedHashMap<K, V> {
-    type Item = (&'a K, &'a mut Versioned<V>);
+impl<'a, K: Hash + Eq + PartialEq, V: Revision> IntoIterator for &'a mut RevisedHashMap<K, V> {
+    type Item = (&'a K, &'a mut Revised<V>);
 
-    type IntoIter = hash_map::IterMut<'a, K, Versioned<V>>;
+    type IntoIter = hash_map::IterMut<'a, K, Revised<V>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.map.iter_mut()
     }
 }
 
-impl<K: Hash + Eq + PartialEq, V: Revision> IntoIterator for VersionedHashMap<K, V> {
-    type Item = (K, Versioned<V>);
+impl<K: Hash + Eq + PartialEq, V: Revision> IntoIterator for RevisedHashMap<K, V> {
+    type Item = (K, Revised<V>);
 
-    type IntoIter = hash_map::IntoIter<K, Versioned<V>>;
+    type IntoIter = hash_map::IntoIter<K, Revised<V>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.map.into_iter()
     }
 }
 
-impl<K: Revision, V: Revision> Revision for VersionedHashMap<K, V> {
-    fn get_revision(&self) -> RevisionNumber {
+impl<K: Revision, V: Revision> Revision for RevisedHashMap<K, V> {
+    fn get_revision(&self) -> RevisionHash {
         let mut items_hash: u64 = 0;
         for (key, value) in &self.map {
             let mut item_hasher = seahash::SeaHasher::new();
@@ -176,6 +175,6 @@ impl<K: Revision, V: Revision> Revision for VersionedHashMap<K, V> {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.map.len());
         hasher.write_u64(items_hash);
-        RevisionNumber::new(hasher.finish())
+        RevisionHash::new(hasher.finish())
     }
 }
