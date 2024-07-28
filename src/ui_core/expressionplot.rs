@@ -6,7 +6,7 @@ use crate::core::{
         compiledexpression::{CompiledExpressionFunction, Discretization},
         server::JitClient,
     },
-    revision::revision::Revision,
+    revision::revision::Revisable,
     sound::{expressionargument::SoundExpressionArgumentId, soundgraphdata::SoundExpressionData},
 };
 

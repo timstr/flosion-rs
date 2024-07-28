@@ -1,7 +1,7 @@
 use std::{hash::Hasher, sync::Arc};
 
 use crate::core::{
-    revision::revision::{Revision, RevisionHash},
+    revision::revision::{Revisable, RevisionHash},
     uniqueid::UniqueId,
 };
 
@@ -79,14 +79,11 @@ impl ExpressionNodeData {
     }
 }
 
-impl Revision for ExpressionNodeData {
+impl Revisable for ExpressionNodeData {
     fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
-        hasher.write_usize(self.inputs.len());
-        for niid in &self.inputs {
-            hasher.write_usize(niid.value());
-        }
+        hasher.write_u64(self.inputs.get_revision().value());
         RevisionHash::new(hasher.finish())
     }
 }
@@ -192,7 +189,7 @@ fn hash_optional_target(target: Option<ExpressionTarget>, hasher: &mut seahash::
     }
 }
 
-impl Revision for ExpressionNodeInputData {
+impl Revisable for ExpressionNodeInputData {
     fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());
@@ -247,7 +244,7 @@ impl ExpressionGraphResultData {
     }
 }
 
-impl Revision for ExpressionGraphResultData {
+impl Revisable for ExpressionGraphResultData {
     fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_usize(self.id.value());

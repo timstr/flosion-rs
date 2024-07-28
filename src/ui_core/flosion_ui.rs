@@ -4,7 +4,7 @@ use crate::{
     core::{
         expression::expressiongraph::ExpressionGraph,
         graph::objectfactory::ObjectFactory,
-        revision::revision::{Revision, RevisionHash},
+        revision::revision::{Revisable, RevisionHash},
         sound::{
             expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
             soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,

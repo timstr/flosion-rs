@@ -1,45 +1,67 @@
 use std::{
     cell::Cell,
-    collections::{
-        hash_map::{self},
-        HashMap,
-    },
+    collections::HashMap,
     hash::{Hash, Hasher},
     ops::{BitXor, Deref, DerefMut},
 };
 
 use crate::core::uniqueid::UniqueId;
 
+/// RevisionHash is an integer summary of the contents of a data structure,
+/// based on hashing, intended to be used in distinguishing whether data
+/// structures have changed or not.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct RevisionHash(u64);
 
 impl RevisionHash {
+    /// Create a new RevisionHash with the given integer value
     pub(crate) fn new(value: u64) -> RevisionHash {
         RevisionHash(value)
     }
 
+    /// Get the integer value of the RevisionHash
     pub(crate) fn value(&self) -> u64 {
         self.0
     }
 }
 
-pub(crate) trait Revision {
+/// Revisable is a trait for types for which a RevisionHash can be computed.
+/// Something that implements Revisable can have changes to its contents
+/// tracked by watching its RevisionHash alone.
+pub(crate) trait Revisable {
+    /// Compute the RevisionHash of the object's contents. This should hash
+    /// together everything that is relevant to the meaning of the object's
+    /// contents and should be a pure function, i.e. it should produce the
+    /// exact same result if the object is unchanged or has been changed to
+    /// something which is semantically identical.
     fn get_revision(&self) -> RevisionHash;
 }
 
-impl<T: UniqueId> Revision for T {
+/// Blanket implementation for UniqueId
+impl<T: UniqueId> Revisable for T {
     fn get_revision(&self) -> RevisionHash {
         RevisionHash::new(self.value() as u64)
     }
 }
 
+/// Revised is a wrapper struct for efficiently tracking the RevisionHash of
+/// a desired type T. The RevisionHash is computed lazily and is only
+/// recomputed when the object has been accessed mutably. This is achieved
+/// transparently using the Deref and DerefMut traits such that Revised<T>
+/// behaves in code just like a plain old T, except that computing its
+/// RevisionHash is optimized to avoid redundant recursions through all its
+/// contents to compute hash values.
 #[derive(Clone)]
 pub(crate) struct Revised<T> {
+    /// The stored object
     value: T,
+
+    /// The revision hash of the stored object, if its up to date
     revision: Cell<Option<RevisionHash>>,
 }
 
-impl<T: Revision> Revised<T> {
+impl<T: Revisable> Revised<T> {
+    /// Construct a new Revised object containing the given object
     pub(crate) fn new(value: T) -> Revised<T> {
         Revised {
             value,
@@ -47,6 +69,9 @@ impl<T: Revision> Revised<T> {
         }
     }
 
+    /// Get the contained object's RevisionHash. If the object is
+    /// not mutated, this will compute the RevisionHash only once
+    /// and cache it for reuse.
     pub(crate) fn get_revision(&self) -> RevisionHash {
         match self.revision.get() {
             Some(v) => v,
@@ -59,7 +84,8 @@ impl<T: Revision> Revised<T> {
     }
 }
 
-impl<T: Revision> Deref for Revised<T> {
+/// Revised<T> can deref to &T
+impl<T: Revisable> Deref for Revised<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -67,102 +93,51 @@ impl<T: Revision> Deref for Revised<T> {
     }
 }
 
-impl<T: Revision> DerefMut for Revised<T> {
+/// Revised<T> can deref to &mut T
+impl<T: Revisable> DerefMut for Revised<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.revision.set(None);
         &mut self.value
     }
 }
 
-impl<T: Revision> Revision for Revised<T> {
+/// Revised<T> is Revisable (obviously?)
+impl<T: Revisable> Revisable for Revised<T> {
     fn get_revision(&self) -> RevisionHash {
         Revised::get_revision(&self)
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct RevisedHashMap<K, V> {
-    map: HashMap<K, Revised<V>>,
-}
-
-impl<K: Hash + Eq + PartialEq, V: Revision> RevisedHashMap<K, V> {
-    pub(crate) fn new() -> RevisedHashMap<K, V> {
-        RevisedHashMap {
-            map: HashMap::new(),
-        }
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.map.len()
-    }
-
-    pub(crate) fn get(&self, k: &K) -> Option<&Revised<V>> {
-        self.map.get(k)
-    }
-
-    pub(crate) fn get_mut(&mut self, k: &K) -> Option<&mut Revised<V>> {
-        self.map.get_mut(k)
-    }
-
-    pub(crate) fn contains_key(&self, k: &K) -> bool {
-        self.map.contains_key(k)
-    }
-
-    pub(crate) fn insert(&mut self, k: K, v: V) -> Option<Revised<V>> {
-        self.map.insert(k, Revised::new(v))
-    }
-
-    pub(crate) fn remove(&mut self, k: &K) -> Option<Revised<V>> {
-        self.map.remove(k)
-    }
-
-    pub(crate) fn keys(&self) -> hash_map::Keys<K, Revised<V>> {
-        self.map.keys()
-    }
-
-    pub(crate) fn values(&self) -> hash_map::Values<K, Revised<V>> {
-        self.map.values()
-    }
-
-    pub(crate) fn values_mut(&mut self) -> hash_map::ValuesMut<K, Revised<V>> {
-        self.map.values_mut()
-    }
-}
-
-impl<'a, K: Hash + Eq + PartialEq, V: Revision> IntoIterator for &'a RevisedHashMap<K, V> {
-    type Item = (&'a K, &'a Revised<V>);
-
-    type IntoIter = hash_map::Iter<'a, K, Revised<V>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.map.iter()
-    }
-}
-
-impl<'a, K: Hash + Eq + PartialEq, V: Revision> IntoIterator for &'a mut RevisedHashMap<K, V> {
-    type Item = (&'a K, &'a mut Revised<V>);
-
-    type IntoIter = hash_map::IterMut<'a, K, Revised<V>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.map.iter_mut()
-    }
-}
-
-impl<K: Hash + Eq + PartialEq, V: Revision> IntoIterator for RevisedHashMap<K, V> {
-    type Item = (K, Revised<V>);
-
-    type IntoIter = hash_map::IntoIter<K, Revised<V>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.map.into_iter()
-    }
-}
-
-impl<K: Revision, V: Revision> Revision for RevisedHashMap<K, V> {
+/// [T] where T is Revisable is also Revisable
+impl<T> Revisable for [T]
+where
+    T: Revisable,
+{
     fn get_revision(&self) -> RevisionHash {
+        let mut hasher = seahash::SeaHasher::new();
+
+        // Hash the length first
+        hasher.write_usize(self.len());
+
+        // Hash the individual items
+        for item in self {
+            hasher.write_u64(item.get_revision().value());
+        }
+
+        RevisionHash::new(hasher.finish())
+    }
+}
+
+/// HashMap<K, T> where K and T are both Revisable is also Revisable
+impl<K, T> Revisable for HashMap<K, T>
+where
+    K: Revisable,
+    T: Revisable,
+{
+    fn get_revision(&self) -> RevisionHash {
+        // Get an order-independent hash of all items
         let mut items_hash: u64 = 0;
-        for (key, value) in &self.map {
+        for (key, value) in self {
             let mut item_hasher = seahash::SeaHasher::new();
             item_hasher.write_u8(0x1);
             item_hasher.write_u64(key.get_revision().value());
@@ -172,9 +147,20 @@ impl<K: Revision, V: Revision> Revision for RevisedHashMap<K, V> {
             // to not depend on the order of items in the hash map
             items_hash = items_hash.bitxor(item_hasher.finish());
         }
+
         let mut hasher = seahash::SeaHasher::new();
-        hasher.write_usize(self.map.len());
+
+        // Hash the length first
+        hasher.write_usize(self.len());
+
+        // Add the hash value of all items
         hasher.write_u64(items_hash);
+
         RevisionHash::new(hasher.finish())
     }
 }
+
+/// RevisedHashMap<K, T> is shorthand for HashMap<K, Revised<T>>.
+/// K and T should be Revisable (but generic type aliases do not
+/// enforce constraints currently)
+pub(crate) type RevisedHashMap<K, T> = HashMap<K, Revised<T>>;

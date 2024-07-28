@@ -2,7 +2,7 @@ use std::hash::Hasher;
 
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
-    revision::revision::{Revised, RevisedHashMap, Revision, RevisionHash},
+    revision::revision::{Revisable, Revised, RevisedHashMap, RevisionHash},
     sound::{expressionargument::SoundExpressionArgumentOwner, soundgrapherror::SoundError},
 };
 
@@ -184,7 +184,7 @@ impl SoundGraphTopology {
         if self.sound_processors.contains_key(&data.id()) {
             return Err(SoundError::ProcessorIdTaken(data.id()));
         }
-        let prev = self.sound_processors.insert(data.id(), data);
+        let prev = self.sound_processors.insert(data.id(), Revised::new(data));
         debug_assert!(prev.is_none());
         Ok(())
     }
@@ -229,7 +229,7 @@ impl SoundGraphTopology {
             .ok_or(SoundError::ProcessorNotFound(processor_id))?;
         debug_assert!(!proc_data.sound_inputs().contains(&data.id()));
         proc_data.sound_inputs_mut().push(data.id());
-        let prev = self.sound_inputs.insert(data.id(), data);
+        let prev = self.sound_inputs.insert(data.id(), Revised::new(data));
         debug_assert!(prev.is_none());
         Ok(())
     }
@@ -351,7 +351,7 @@ impl SoundGraphTopology {
             }
         }
 
-        let prev = self.expression_arguments.insert(id, data);
+        let prev = self.expression_arguments.insert(id, Revised::new(data));
         debug_assert!(prev.is_none());
 
         Ok(())
@@ -409,7 +409,7 @@ impl SoundGraphTopology {
 
         proc_data.expressions_mut().push(id);
 
-        let prev = self.expressions.insert(id, data);
+        let prev = self.expressions.insert(id, Revised::new(data));
         debug_assert!(prev.is_none());
 
         Ok(())
@@ -467,7 +467,7 @@ impl SoundGraphTopology {
     }
 }
 
-impl Revision for SoundGraphTopology {
+impl Revisable for SoundGraphTopology {
     fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u64(self.sound_processors.get_revision().value());

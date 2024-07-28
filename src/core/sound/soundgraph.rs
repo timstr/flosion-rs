@@ -16,7 +16,7 @@ use crate::core::{
     },
     graph::{graph::Graph, graphobject::ObjectInitialization},
     jit::server::{JitClient, JitServer, JitServerBuilder},
-    revision::revision::{Revision, RevisionHash},
+    revision::revision::{Revisable, RevisionHash},
     uniqueid::IdGenerator,
 };
 

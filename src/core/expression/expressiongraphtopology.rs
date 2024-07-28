@@ -1,7 +1,7 @@
 use std::hash::Hasher;
 
 use crate::core::{
-    revision::revision::{Revised, RevisedHashMap, Revision, RevisionHash},
+    revision::revision::{Revisable, Revised, RevisedHashMap, RevisionHash},
     uniqueid::UniqueId,
 };
 
@@ -115,7 +115,7 @@ impl ExpressionGraphTopology {
 
         ns_data.inputs_mut().push(data.id());
 
-        self.node_inputs.insert(data.id(), data);
+        self.node_inputs.insert(data.id(), Revised::new(data));
 
         Ok(())
     }
@@ -149,7 +149,7 @@ impl ExpressionGraphTopology {
         if self.nodes.contains_key(&data.id()) {
             return Err(ExpressionError::NodeIdTaken(data.id()));
         }
-        self.nodes.insert(data.id(), data);
+        self.nodes.insert(data.id(), Revised::new(data));
 
         Ok(())
     }
@@ -347,19 +347,13 @@ impl ExpressionGraphTopology {
     }
 }
 
-impl Revision for ExpressionGraphTopology {
+impl Revisable for ExpressionGraphTopology {
     fn get_revision(&self) -> RevisionHash {
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u64(self.nodes.get_revision().value());
         hasher.write_u64(self.node_inputs.get_revision().value());
-        hasher.write_usize(self.parameters.len());
-        for giid in &self.parameters {
-            hasher.write_usize(giid.value());
-        }
-        hasher.write_usize(self.results.len());
-        for o in &self.results {
-            hasher.write_u64(o.get_revision().value());
-        }
+        hasher.write_u64(self.parameters.get_revision().value());
+        hasher.write_u64(self.results.get_revision().value());
         RevisionHash::new(hasher.finish())
     }
 }
