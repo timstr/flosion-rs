@@ -231,13 +231,15 @@ impl GlobalInteractions {
             ]
             .contains(&Some(dropped_proc.processor_id));
 
+            // No point in checking invariants later if they aren't
+            // already upheld
+            #[cfg(debug_assertions)]
+            assert!(layout.check_invariants(graph.topology()));
+
             if !dropped_onto_own_interconnect {
                 // the processor was dropped onto a different interconnect,
                 // reconnect and move it there
                 Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
-
-                #[cfg(debug_assertions)]
-                assert!(layout.check_invariants(graph.topology()));
 
                 layout.split_processor_into_own_group(dropped_proc.processor_id, positions);
 
