@@ -1,17 +1,9 @@
 use super::uniqueid::{IdGenerator, UniqueId};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct TimePointId(usize);
+pub struct TimePointTag;
 
-impl UniqueId for TimePointId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> Self {
-        TimePointId(self.0 + 1)
-    }
-}
+type TimePointId = UniqueId<TimePointTag>;
 
 // TODO: ??? remove or move elsewhere
 #[derive(Clone, Copy)]

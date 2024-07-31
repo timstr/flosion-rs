@@ -5,6 +5,7 @@ use eframe::egui;
 use crate::{
     core::{
         graph::graphobject::ObjectType,
+        revision::revision::RevisedProperty,
         sound::{
             soundgraph::SoundGraph, soundgraphid::SoundObjectId,
             soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
@@ -31,10 +32,38 @@ pub enum SelectionChange {
     Subtract,
 }
 
+// TODO:
+// - create a standalone function which carries out the changes of dropping
+//   a given processor onto a given interconnect on the soundgraphtopology only
+// - use that function to precompute which interconnects would be legal
+//   by testing all of them and checking for errors.
+// - pass the precomputed legal interconnects to the UI context/state, using
+//   the new RevisedProperty construct to ensure it accurately reflects
+//   the current graph and interconnects and does not suffer from weird
+//   stale state bugs or wasted computation.
+// - create a separate standalone function for carrying out a processor drop
+//   onto an interconnect to the layout only
+// - when drawing the layout while dragging a processor, highlight only those
+//   interconnects which are legal
+// - when a processor is droppped onto an interconnect, use the pair of functions
+//   for editing the topology and layout to make the actual change. Using the
+//   same topology-editing function for finding legal connections and for
+//   actually making edits will guarantee consistency and prevent me from
+//   duplicating code or writing another ridiculous and fragile graph traversal
+//   algorithm.
+
+fn compute_legal_interconnects(
+    topo: &SoundGraphTopology,
+    interconnects: &[ProcessorInterconnect],
+) -> Vec<ProcessorInterconnect> {
+    todo!()
+}
+
 pub struct DraggingProcessorData {
     pub processor_id: SoundProcessorId,
     pub rect: egui::Rect,
     original_rect: egui::Rect,
+    legal_connections: RevisedProperty<Vec<ProcessorInterconnect>>,
 }
 
 #[derive(Clone, Copy)]
@@ -98,6 +127,7 @@ impl GlobalInteractions {
         layout: &mut SoundGraphLayout,
         object_states: &mut SoundObjectUiStates,
         positions: &mut SoundObjectPositions,
+        interconnects: &[ProcessorInterconnect],
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -118,6 +148,12 @@ impl GlobalInteractions {
                     egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 64);
                 ui.painter()
                     .rect_filled(drag.rect, egui::Rounding::same(5.0), color);
+
+                drag.legal_connections.refresh2(
+                    compute_legal_interconnects,
+                    graph.topology(),
+                    interconnects,
+                );
             }
             UiMode::DroppingProcessor(dropped_proc) => {
                 Self::handle_processor_drop(*dropped_proc, graph, layout, positions);
@@ -170,6 +206,7 @@ impl GlobalInteractions {
             processor_id,
             rect: original_rect,
             original_rect,
+            legal_connections: RevisedProperty::new(),
         });
     }
 

@@ -1,28 +1,8 @@
 use crate::core::{soundchunk::CHUNK_SIZE, uniqueid::UniqueId};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundInputId(usize);
+pub struct SoundInputTag;
 
-impl SoundInputId {
-    pub(crate) fn new(id: usize) -> SoundInputId {
-        SoundInputId(id)
-    }
-}
-
-impl Default for SoundInputId {
-    fn default() -> SoundInputId {
-        SoundInputId(1)
-    }
-}
-
-impl UniqueId for SoundInputId {
-    fn value(&self) -> usize {
-        self.0
-    }
-    fn next(&self) -> SoundInputId {
-        SoundInputId(self.0 + 1)
-    }
-}
+pub type SoundInputId = UniqueId<SoundInputTag>;
 
 // TODO: rename to (an)isochronous
 #[derive(Copy, Clone, PartialEq)]

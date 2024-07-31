@@ -18,24 +18,9 @@ use crate::core::{
     uniqueid::{IdGenerator, UniqueId},
 };
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NoteId(usize);
+pub struct NoteTag;
 
-impl UniqueId for NoteId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> Self {
-        NoteId(self.0 + 1)
-    }
-}
-
-impl Default for NoteId {
-    fn default() -> Self {
-        NoteId(1)
-    }
-}
+pub type NoteId = UniqueId<NoteTag>;
 
 pub struct NoteState {
     frequency: f32,
@@ -209,7 +194,7 @@ impl DynamicSoundProcessor for Melody {
                     // TODO: use offset when queueing note
                     sound_input.start_key(
                         Some(note.duration_samples),
-                        note_id.0,
+                        note_id.value(),
                         NoteState {
                             frequency: note.frequency,
                             length_seconds: note.duration_samples as f32 / SAMPLE_FREQUENCY as f32,

@@ -1,14 +1,11 @@
 use eframe::egui;
 
-use crate::core::{
-    sound::{
-        expression::SoundExpressionId,
-        expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph,
-        soundinput::SoundInputId,
-        soundprocessor::{ProcessorHandle, SoundProcessorId},
-    },
-    uniqueid::UniqueId,
+use crate::core::sound::{
+    expression::SoundExpressionId,
+    expressionargument::SoundExpressionArgumentId,
+    soundgraph::SoundGraph,
+    soundinput::SoundInputId,
+    soundprocessor::{ProcessorHandle, SoundProcessorId},
 };
 
 use super::{

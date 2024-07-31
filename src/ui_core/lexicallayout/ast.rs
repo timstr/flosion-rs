@@ -119,31 +119,9 @@ impl ASTPath {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct VariableId(usize);
+pub struct VariableTag;
 
-impl VariableId {
-    #[cfg(test)]
-    pub(super) fn new(id: usize) -> VariableId {
-        VariableId(id)
-    }
-}
-
-impl Default for VariableId {
-    fn default() -> Self {
-        VariableId(1)
-    }
-}
-
-impl UniqueId for VariableId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> Self {
-        VariableId(self.0 + 1)
-    }
-}
+pub(crate) type VariableId = UniqueId<VariableTag>;
 
 pub(crate) struct VariableDefinition {
     pub(super) id: VariableId,

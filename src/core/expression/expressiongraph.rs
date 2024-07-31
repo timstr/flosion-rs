@@ -20,55 +20,19 @@ use super::{
     expressionnodetools::ExpressionNodeTools,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ExpressionGraphParameterId(usize);
+pub struct ExpressionGraphParameterTag;
 
 /// A unique integer identifier for an expression graph parameter.
 /// No two parameters of the same expression graph may share
 /// the same id.
-impl ExpressionGraphParameterId {
-    pub(crate) fn new(value: usize) -> ExpressionGraphParameterId {
-        ExpressionGraphParameterId(value)
-    }
-}
+pub type ExpressionGraphParameterId = UniqueId<ExpressionGraphParameterTag>;
 
-impl Default for ExpressionGraphParameterId {
-    fn default() -> ExpressionGraphParameterId {
-        ExpressionGraphParameterId(1)
-    }
-}
-
-impl UniqueId for ExpressionGraphParameterId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> Self {
-        ExpressionGraphParameterId(self.0 + 1)
-    }
-}
+pub struct ExpressionGraphResultTag;
 
 /// A unique integer identifier for an expression graph result.
 /// No two results of the same expression graph may share
 /// the same id.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ExpressionGraphResultId(usize);
-
-impl Default for ExpressionGraphResultId {
-    fn default() -> ExpressionGraphResultId {
-        ExpressionGraphResultId(1)
-    }
-}
-
-impl UniqueId for ExpressionGraphResultId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> Self {
-        ExpressionGraphResultId(self.0 + 1)
-    }
-}
+pub type ExpressionGraphResultId = UniqueId<ExpressionGraphResultTag>;
 
 /// Convenience struct for passing the various id generators
 /// used by a expression graph together as a whole

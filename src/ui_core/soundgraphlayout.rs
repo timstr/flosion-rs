@@ -1,18 +1,22 @@
 use std::{
     collections::{HashMap, HashSet},
+    hash::Hasher,
     ops::BitAnd,
 };
 
 use eframe::egui;
 
-use crate::core::sound::{
-    expression::SoundExpressionId,
-    expressionargument::SoundExpressionArgumentId,
-    soundgraph::SoundGraph,
-    soundgraphdata::SoundInputData,
-    soundgraphtopology::SoundGraphTopology,
-    soundinput::{InputOptions, SoundInputId},
-    soundprocessor::SoundProcessorId,
+use crate::core::{
+    revision::revision::{Revisable, RevisionHash},
+    sound::{
+        expression::SoundExpressionId,
+        expressionargument::SoundExpressionArgumentId,
+        soundgraph::SoundGraph,
+        soundgraphdata::SoundInputData,
+        soundgraphtopology::SoundGraphTopology,
+        soundinput::{InputOptions, SoundInputId},
+        soundprocessor::SoundProcessorId,
+    },
 };
 
 use super::{
@@ -43,6 +47,19 @@ impl InterconnectInput {
             options: data.options(),
             branches: data.branches().len(),
         }
+    }
+}
+
+impl Revisable for InterconnectInput {
+    fn get_revision(&self) -> RevisionHash {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_u64(self.id.get_revision().value());
+        hasher.write_u8(match self.options {
+            InputOptions::Synchronous => 0,
+            InputOptions::NonSynchronous => 1,
+        });
+        hasher.write_usize(self.branches);
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -107,6 +124,30 @@ impl ProcessorInterconnect {
             } => Some(*input),
             ProcessorInterconnect::BottomOfStack(_) => None,
         }
+    }
+}
+
+impl Revisable for ProcessorInterconnect {
+    fn get_revision(&self) -> RevisionHash {
+        let mut hasher = seahash::SeaHasher::new();
+        match self {
+            ProcessorInterconnect::TopOfStack(spid, input) => {
+                hasher.write_u8(0);
+                hasher.write_u64(spid.get_revision().value());
+                hasher.write_u64(input.get_revision().value());
+            }
+            ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
+                hasher.write_u8(1);
+                hasher.write_u64(bottom.get_revision().value());
+                hasher.write_u64(top.get_revision().value());
+                hasher.write_u64(input.get_revision().value());
+            }
+            ProcessorInterconnect::BottomOfStack(spid) => {
+                hasher.write_u8(2);
+                hasher.write_u64(spid.get_revision().value());
+            }
+        }
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -332,6 +373,8 @@ impl StackedGroup {
         ui_state
             .positions_mut()
             .record_interconnect(interconnect, rect);
+
+        ui_state.record_interconnect(interconnect);
 
         if ui_state.interactions().dragging_a_processor() {
             // TODO: is this interconnect something you could drag
@@ -753,7 +796,6 @@ impl SoundGraphLayout {
     pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
         // every sound processor in the topology must appear exactly once
 
-        use crate::core::uniqueid::UniqueId;
         for spid in topo.sound_processors().keys().cloned() {
             let number_of_appearances: usize = self
                 .groups

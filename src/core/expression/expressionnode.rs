@@ -14,30 +14,9 @@ use crate::core::{
 
 use super::{expressiongraph::ExpressionGraph, expressionnodetools::ExpressionNodeTools};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct ExpressionNodeId(usize);
+pub struct ExpressionNodeTag;
 
-impl ExpressionNodeId {
-    pub(crate) fn new(value: usize) -> ExpressionNodeId {
-        ExpressionNodeId(value)
-    }
-}
-
-impl Default for ExpressionNodeId {
-    fn default() -> ExpressionNodeId {
-        ExpressionNodeId(1)
-    }
-}
-
-impl UniqueId for ExpressionNodeId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> ExpressionNodeId {
-        ExpressionNodeId(self.0 + 1)
-    }
-}
+pub type ExpressionNodeId = UniqueId<ExpressionNodeTag>;
 
 /// An ExpressionNode whose values are computed as a pure function of the inputs,
 /// with no side effects or hidden state. Intended to be used for elementary

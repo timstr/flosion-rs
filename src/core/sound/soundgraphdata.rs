@@ -22,32 +22,11 @@ use super::{
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
+pub struct SoundInputBranchTag;
+
 /// Unique integer identifier for each of the branches stemming
 /// from a given sound input.
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct SoundInputBranchId(usize);
-
-impl SoundInputBranchId {
-    pub const fn new(id: usize) -> SoundInputBranchId {
-        SoundInputBranchId(id)
-    }
-}
-
-impl Default for SoundInputBranchId {
-    fn default() -> Self {
-        SoundInputBranchId(1)
-    }
-}
-
-impl UniqueId for SoundInputBranchId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> Self {
-        SoundInputBranchId(self.0 + 1)
-    }
-}
+pub type SoundInputBranchId = UniqueId<SoundInputBranchTag>;
 
 #[derive(Clone)]
 pub(crate) struct SoundInputData {

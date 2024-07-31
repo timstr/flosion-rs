@@ -28,29 +28,9 @@ use super::{
     soundgraphid::SoundObjectId, soundprocessortools::SoundProcessorTools, state::State,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundProcessorId(usize);
+pub struct SoundProcessorTag;
 
-impl SoundProcessorId {
-    pub(crate) fn new(id: usize) -> SoundProcessorId {
-        SoundProcessorId(id)
-    }
-}
-
-impl Default for SoundProcessorId {
-    fn default() -> SoundProcessorId {
-        SoundProcessorId(1)
-    }
-}
-
-impl UniqueId for SoundProcessorId {
-    fn value(&self) -> usize {
-        self.0
-    }
-    fn next(&self) -> SoundProcessorId {
-        SoundProcessorId(self.0 + 1)
-    }
-}
+pub type SoundProcessorId = UniqueId<SoundProcessorTag>;
 
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub enum StreamStatus {

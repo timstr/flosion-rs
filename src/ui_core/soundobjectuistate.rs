@@ -100,8 +100,6 @@ impl SoundObjectUiStates {
 
     #[cfg(debug_assertions)]
     pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
-        use crate::core::uniqueid::UniqueId;
-
         let mut good = true;
         for i in topo.sound_processors().keys() {
             if !self.data.contains_key(&i.into()) {

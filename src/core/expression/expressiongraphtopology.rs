@@ -1,9 +1,6 @@
 use std::hash::Hasher;
 
-use crate::core::{
-    revision::revision::{Revisable, Revised, RevisedHashMap, RevisionHash},
-    uniqueid::UniqueId,
-};
+use crate::core::revision::revision::{Revisable, Revised, RevisedHashMap, RevisionHash};
 
 use super::{
     expressiongraph::{ExpressionGraphParameterId, ExpressionGraphResultId},

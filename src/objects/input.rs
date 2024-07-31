@@ -23,6 +23,7 @@ pub struct Input {
     // TODO: how to do without mutex? In principle, only
     // the one state graph node corresponding to this
     // static processor will ever access this.
+    // Maybe it's time to relax some trait bounds on StaticSoundProcessor WOOP WOOP
     chunk_receiver: Mutex<spmcq::Reader<SoundChunk>>,
     stream_end_barrier: Arc<Barrier>,
 }

@@ -1,12 +1,9 @@
 use std::collections::HashSet;
 
 use crate::{
-    core::{
-        expression::{
-            expressiongraph::ExpressionGraphParameterId, expressiongraphdata::ExpressionTarget,
-            expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
-        },
-        uniqueid::UniqueId,
+    core::expression::{
+        expressiongraph::ExpressionGraphParameterId, expressiongraphdata::ExpressionTarget,
+        expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
     },
     ui_core::lexicallayout::ast::{
         find_variable_definition, ASTNode, ASTNodeValue, VariableDefinition,

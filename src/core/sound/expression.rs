@@ -5,30 +5,9 @@ use crate::core::{
 
 use super::{soundgraphdata::SoundExpressionScope, soundprocessor::SoundProcessorId};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundExpressionId(usize);
+pub struct SoundExpressionTag;
 
-impl SoundExpressionId {
-    pub(crate) fn new(id: usize) -> SoundExpressionId {
-        SoundExpressionId(id)
-    }
-}
-
-impl Default for SoundExpressionId {
-    fn default() -> Self {
-        SoundExpressionId(1)
-    }
-}
-
-impl UniqueId for SoundExpressionId {
-    fn value(&self) -> usize {
-        self.0
-    }
-
-    fn next(&self) -> Self {
-        SoundExpressionId(self.0 + 1)
-    }
-}
+pub type SoundExpressionId = UniqueId<SoundExpressionTag>;
 
 pub struct SoundExpressionHandle {
     id: SoundExpressionId,

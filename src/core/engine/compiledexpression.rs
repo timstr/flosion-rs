@@ -96,7 +96,7 @@ impl<'ctx> CompiledExpression<'ctx> {
     #[cfg(debug_assertions)]
     /// Test whether the provided context matches the scope that the expression expects
     pub(crate) fn validate_context(&self, expected_len: usize, context: &Context) -> bool {
-        use crate::core::{sound::context::StackFrame, uniqueid::UniqueId};
+        use crate::core::sound::context::StackFrame;
 
         let stack = context.stack();
         let StackFrame::Processor(frame) = stack else {

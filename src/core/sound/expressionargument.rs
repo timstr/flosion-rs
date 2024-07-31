@@ -12,29 +12,9 @@ use super::{
     soundgraphid::SoundGraphId, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SoundExpressionArgumentId(usize);
+pub struct SoundExpressionArgumentTag;
 
-impl SoundExpressionArgumentId {
-    pub(crate) fn new(id: usize) -> SoundExpressionArgumentId {
-        SoundExpressionArgumentId(id)
-    }
-}
-
-impl Default for SoundExpressionArgumentId {
-    fn default() -> SoundExpressionArgumentId {
-        SoundExpressionArgumentId(1)
-    }
-}
-
-impl UniqueId for SoundExpressionArgumentId {
-    fn value(&self) -> usize {
-        self.0
-    }
-    fn next(&self) -> SoundExpressionArgumentId {
-        SoundExpressionArgumentId(self.0 + 1)
-    }
-}
+pub type SoundExpressionArgumentId = UniqueId<SoundExpressionArgumentTag>;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SoundExpressionArgumentOwner {

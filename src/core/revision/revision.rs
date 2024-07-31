@@ -37,10 +37,44 @@ pub(crate) trait Revisable {
     fn get_revision(&self) -> RevisionHash;
 }
 
+/// Blanket implementation for references
+impl<T> Revisable for &T
+where
+    T: Revisable + ?Sized,
+{
+    fn get_revision(&self) -> RevisionHash {
+        T::get_revision(self)
+    }
+}
+
 /// Blanket implementation for UniqueId
-impl<T: UniqueId> Revisable for T {
+impl<T> Revisable for UniqueId<T> {
     fn get_revision(&self) -> RevisionHash {
         RevisionHash::new(self.value() as u64)
+    }
+}
+
+/// Blanket implementation for 1-tuples
+impl<T> Revisable for (T,)
+where
+    T: Revisable,
+{
+    fn get_revision(&self) -> RevisionHash {
+        self.0.get_revision()
+    }
+}
+
+/// Blanket implementation for 2-tuples
+impl<T0, T1> Revisable for (T0, T1)
+where
+    T0: Revisable,
+    T1: Revisable,
+{
+    fn get_revision(&self) -> RevisionHash {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_u64(self.0.get_revision().value());
+        hasher.write_u64(self.1.get_revision().value());
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -164,3 +198,46 @@ where
 /// K and T should be Revisable (but generic type aliases do not
 /// enforce constraints currently)
 pub(crate) type RevisedHashMap<K, T> = HashMap<K, Revised<T>>;
+
+pub(crate) struct RevisedProperty<T> {
+    revision: Option<RevisionHash>,
+    value: Option<T>,
+}
+
+impl<T> RevisedProperty<T> {
+    pub(crate) fn new() -> RevisedProperty<T> {
+        RevisedProperty {
+            revision: None,
+            value: None,
+        }
+    }
+
+    pub(crate) fn refresh1<F, A0>(&mut self, f: F, arg0: A0)
+    where
+        F: Fn(A0) -> T,
+        A0: Revisable,
+    {
+        let current_revision = arg0.get_revision();
+        if self.revision != Some(current_revision) {
+            self.value = Some(f(arg0));
+            self.revision = Some(current_revision);
+        }
+    }
+
+    pub(crate) fn refresh2<F, A0, A1>(&mut self, f: F, arg0: A0, arg1: A1)
+    where
+        F: Fn(A0, A1) -> T,
+        A0: Revisable,
+        A1: Revisable,
+    {
+        let current_revision = (&arg0, &arg1).get_revision();
+        if self.revision != Some(current_revision) {
+            self.value = Some(f(arg0, arg1));
+            self.revision = Some(current_revision);
+        }
+    }
+
+    pub(crate) fn get_cached(&self) -> Option<&T> {
+        self.value.as_ref()
+    }
+}

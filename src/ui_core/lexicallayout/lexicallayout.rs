@@ -11,7 +11,7 @@ use crate::{
             graphobject::{ObjectType, WithObjectType},
             objectfactory::ObjectFactory,
         },
-        uniqueid::{IdGenerator, UniqueId},
+        uniqueid::IdGenerator,
     },
     objects::purefunctions::Constant,
     ui_core::{
