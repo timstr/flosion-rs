@@ -1,7 +1,7 @@
 use std::{
     cell::Cell,
     collections::HashMap,
-    hash::{Hash, Hasher},
+    hash::Hasher,
     ops::{BitXor, Deref, DerefMut},
 };
 
@@ -10,7 +10,7 @@ use crate::core::uniqueid::UniqueId;
 /// RevisionHash is an integer summary of the contents of a data structure,
 /// based on hashing, intended to be used in distinguishing whether data
 /// structures have changed or not.
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct RevisionHash(u64);
 
 impl RevisionHash {
@@ -50,7 +50,9 @@ where
 /// Blanket implementation for UniqueId
 impl<T> Revisable for UniqueId<T> {
     fn get_revision(&self) -> RevisionHash {
-        RevisionHash::new(self.value() as u64)
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_usize(self.value());
+        RevisionHash::new(hasher.finish())
     }
 }
 
@@ -74,6 +76,22 @@ where
         let mut hasher = seahash::SeaHasher::new();
         hasher.write_u64(self.0.get_revision().value());
         hasher.write_u64(self.1.get_revision().value());
+        RevisionHash::new(hasher.finish())
+    }
+}
+
+/// Blanket implementation for 3-tuples
+impl<T0, T1, T2> Revisable for (T0, T1, T2)
+where
+    T0: Revisable,
+    T1: Revisable,
+    T2: Revisable,
+{
+    fn get_revision(&self) -> RevisionHash {
+        let mut hasher = seahash::SeaHasher::new();
+        hasher.write_u64(self.0.get_revision().value());
+        hasher.write_u64(self.1.get_revision().value());
+        hasher.write_u64(self.2.get_revision().value());
         RevisionHash::new(hasher.finish())
     }
 }
@@ -233,6 +251,20 @@ impl<T> RevisedProperty<T> {
         let current_revision = (&arg0, &arg1).get_revision();
         if self.revision != Some(current_revision) {
             self.value = Some(f(arg0, arg1));
+            self.revision = Some(current_revision);
+        }
+    }
+
+    pub(crate) fn refresh3<F, A0, A1, A2>(&mut self, f: F, arg0: A0, arg1: A1, arg2: A2)
+    where
+        F: Fn(A0, A1, A2) -> T,
+        A0: Revisable,
+        A1: Revisable,
+        A2: Revisable,
+    {
+        let current_revision = (&arg0, &arg1, &arg2).get_revision();
+        if self.revision != Some(current_revision) {
+            self.value = Some(f(arg0, arg1, arg2));
             self.revision = Some(current_revision);
         }
     }

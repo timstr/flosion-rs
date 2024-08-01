@@ -475,6 +475,13 @@ impl SoundGraph {
         })
     }
 
+    pub(crate) fn edit_topology<R, F: FnOnce(&mut SoundGraphTopology) -> Result<R, SoundError>>(
+        &mut self,
+        f: F,
+    ) -> Result<R, SoundError> {
+        self.try_make_change(|topo, _| f(topo))
+    }
+
     /// Make changes to an expression using the given closure,
     /// which is passed a mutable instance of the input's
     /// SoundExpressionData.
@@ -501,7 +508,7 @@ impl SoundGraph {
     /// Internal helper method for modifying the topology locally,
     /// checking for any errors, rolling back on failure, and
     /// committing to the audio thread on success. Updates are NOT
-    /// ent to the audio thread yet. Call flush_updates() to send
+    /// sent to the audio thread yet. Call flush_updates() to send
     /// an update to the audio thread.
     fn try_make_change<
         R,

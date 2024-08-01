@@ -134,18 +134,19 @@ impl FlosionApp {
 
         let current_revision = topo.get_revision();
 
-        if self.previous_clean_revision == Some(current_revision) {
-            return;
+        if self.previous_clean_revision != Some(current_revision) {
+            self.graph_layout
+                .regenerate(topo, self.ui_state.positions());
+
+            self.ui_state
+                .cleanup_stale_graph_objects(topo, &self.factories);
+
+            self.available_arguments = available_sound_expression_arguments(topo);
+
+            self.previous_clean_revision = Some(current_revision);
         }
 
-        self.graph_layout
-            .regenerate(topo, self.ui_state.positions());
-
-        self.ui_state.cleanup(topo, &self.factories);
-
-        self.available_arguments = available_sound_expression_arguments(topo);
-
-        self.previous_clean_revision = Some(current_revision);
+        self.ui_state.cleanup_frame_data();
     }
 
     #[cfg(debug_assertions)]

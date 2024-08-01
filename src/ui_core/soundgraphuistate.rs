@@ -99,7 +99,11 @@ impl SoundGraphUiState {
 
     /// Remove any state associated with objects that are no longer present
     /// in the topology, and create new states for new objects
-    pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology, factories: &Factories) {
+    pub(super) fn cleanup_stale_graph_objects(
+        &mut self,
+        topo: &SoundGraphTopology,
+        factories: &Factories,
+    ) {
         self.object_states.cleanup(topo);
 
         self.expression_uis
@@ -107,6 +111,9 @@ impl SoundGraphUiState {
 
         self.names.regenerate(topo);
         self.interactions.cleanup(topo);
+    }
+
+    pub(super) fn cleanup_frame_data(&mut self) {
         self.positions.clear();
         self.interconnects.clear();
     }

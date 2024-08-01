@@ -7,9 +7,9 @@ use crate::{
         graph::graphobject::ObjectType,
         revision::revision::RevisedProperty,
         sound::{
-            soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-            soundprocessor::SoundProcessorId,
+            soundgraph::SoundGraph, soundgrapherror::SoundError, soundgraphid::SoundObjectId,
+            soundgraphtopology::SoundGraphTopology, soundgraphvalidation::find_sound_error,
+            soundinput::SoundInputId, soundprocessor::SoundProcessorId,
         },
     },
     ui_core::soundgraphlayout::ProcessorInterconnect,
@@ -52,11 +52,94 @@ pub enum SelectionChange {
 //   duplicating code or writing another ridiculous and fragile graph traversal
 //   algorithm.
 
+fn drag_and_drop_processor_in_graph(
+    topo: &mut SoundGraphTopology,
+    processor: SoundProcessorId,
+    interconnect: ProcessorInterconnect,
+) -> Result<(), ()> {
+    // Disconnect the processor from everything
+    let mut inputs_to_disconnect = Vec::new();
+    for i in topo.sound_processor(processor).unwrap().sound_inputs() {
+        if topo.sound_input(*i).unwrap().target().is_some() {
+            inputs_to_disconnect.push(*i);
+        }
+    }
+
+    for i in topo.sound_processor_targets(processor) {
+        inputs_to_disconnect.push(i)
+    }
+
+    for i in inputs_to_disconnect {
+        topo.disconnect_sound_input(i).or(Err(()))?;
+    }
+
+    // Connect the processor at the interconnect
+    match interconnect {
+        ProcessorInterconnect::TopOfStack(_top_proc, input) => {
+            topo.connect_sound_input(input.id, processor).or(Err(()))?;
+        }
+        ProcessorInterconnect::BetweenTwoProcessors {
+            bottom: _,
+            top,
+            input,
+        } => {
+            debug_assert_eq!(topo.sound_input(input.id).unwrap().target(), Some(top));
+            topo.disconnect_sound_input(input.id).or(Err(()))?;
+
+            let dropped_inputs = topo.sound_processor(processor).unwrap().sound_inputs();
+            if dropped_inputs.len() != 1 {
+                // TODO: what should it mean to drag a processor with multiple inputs
+                // onto the middle of a stack?
+                return Err(());
+            }
+            let dropped_input = dropped_inputs[0];
+
+            topo.connect_sound_input(input.id, processor).or(Err(()))?;
+            topo.connect_sound_input(dropped_input, top).or(Err(()))?;
+        }
+        ProcessorInterconnect::BottomOfStack(bottom_proc) => {
+            let inputs = topo.sound_processor(processor).unwrap().sound_inputs();
+            if inputs.len() != 1 {
+                // TODO: what should it mean to drag a processor with multiple inputs
+                // onto the bottom end of a stack?
+                return Err(());
+            }
+            let input = inputs[0];
+            topo.connect_sound_input(input, bottom_proc).or(Err(()))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn drag_and_drop_processor_in_layout(
+    layout: &mut SoundGraphLayout,
+    processor: SoundProcessorId,
+    interconnect: ProcessorInterconnect,
+) {
+    // TODO: assume that changes have already happened in graph,
+    // e.g. drag_and_drop_processor_in_graph has already run
+    // It would be cool if a simple call to regenerate() can do
+    // most or all of the work here.
+    todo!()
+}
+
 fn compute_legal_interconnects(
     topo: &SoundGraphTopology,
+    processor: SoundProcessorId,
     interconnects: &[ProcessorInterconnect],
 ) -> Vec<ProcessorInterconnect> {
-    todo!()
+    let mut legal_interconnects = Vec::new();
+    for interconnect in interconnects {
+        let mut topo_clone = topo.clone();
+        if drag_and_drop_processor_in_graph(&mut topo_clone, processor, *interconnect).is_err() {
+            continue;
+        }
+        if find_sound_error(&topo_clone).is_none() {
+            legal_interconnects.push(*interconnect);
+        }
+    }
+    legal_interconnects
 }
 
 pub struct DraggingProcessorData {
@@ -149,9 +232,10 @@ impl GlobalInteractions {
                 ui.painter()
                     .rect_filled(drag.rect, egui::Rounding::same(5.0), color);
 
-                drag.legal_connections.refresh2(
+                drag.legal_connections.refresh3(
                     compute_legal_interconnects,
                     graph.topology(),
+                    drag.processor_id,
                     interconnects,
                 );
             }
@@ -194,6 +278,16 @@ impl GlobalInteractions {
         match &self.mode {
             UiMode::DraggingProcessor(_) => true,
             _ => false,
+        }
+    }
+
+    pub(crate) fn legal_processors_to_drop_onto(&self) -> Option<&[ProcessorInterconnect]> {
+        match &self.mode {
+            UiMode::DraggingProcessor(drag) => drag
+                .legal_connections
+                .get_cached()
+                .map(|v| -> &[ProcessorInterconnect] { &*v }),
+            _ => None,
         }
     }
 
@@ -272,104 +366,24 @@ impl GlobalInteractions {
             positions.find_closest_interconnect(dropped_proc.rect, minimum_intersection);
         if let Some(nearest_interconnect) = nearest_interconnect {
             let interconnect = nearest_interconnect.interconnect;
-            let dropped_onto_own_interconnect = [
-                interconnect.processor_above(),
-                interconnect.processor_below(),
-            ]
-            .contains(&Some(dropped_proc.processor_id));
 
             // No point in checking invariants later if they aren't
             // already upheld
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph.topology()));
 
-            if !dropped_onto_own_interconnect {
-                // the processor was dropped onto a different interconnect,
-                // reconnect and move it there
-                Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
-
-                layout.split_processor_into_own_group(dropped_proc.processor_id, positions);
-
-                #[cfg(debug_assertions)]
-                assert!(layout.check_invariants(graph.topology()));
-
-                match interconnect {
-                    ProcessorInterconnect::TopOfStack(ic_proc, ic_input) => {
-                        graph
-                            .connect_sound_input(ic_input.id, dropped_proc.processor_id)
-                            .unwrap(); // fingers crossed
-                        layout.insert_processor_above(dropped_proc.processor_id, ic_proc);
-
-                        // Move the existing stack up to make space for the new
-                        // processor while keeping the existing processors visually
-                        // at the same location
-
-                        let pp = positions.find_processor(dropped_proc.processor_id).unwrap();
-
-                        let group = layout.find_group_mut(dropped_proc.processor_id).unwrap();
-
-                        let magic_offset = 15.0;
-
-                        group.set_rect(
-                            group
-                                .rect()
-                                .translate(egui::vec2(0.0, -pp.rect.height() - magic_offset)),
-                        );
-
-                        #[cfg(debug_assertions)]
-                        assert!(layout.check_invariants(graph.topology()));
-                    }
-                    ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
-                        debug_assert_eq!(
-                            graph.topology().sound_input(input.id).unwrap().target(),
-                            Some(top)
-                        );
-                        graph.disconnect_sound_input(input.id).unwrap();
-                        graph
-                            .connect_sound_input(input.id, dropped_proc.processor_id)
-                            .unwrap();
-                        let inputs_on_dropped_proc = graph
-                            .topology()
-                            .sound_processor(dropped_proc.processor_id)
-                            .unwrap()
-                            .sound_inputs()
-                            .clone();
-                        layout.insert_processor_above(dropped_proc.processor_id, bottom);
-                        if inputs_on_dropped_proc.len() == 1 {
-                            graph
-                                .connect_sound_input(inputs_on_dropped_proc[0], top)
-                                .unwrap();
-                        } else {
-                            layout
-                                .split_group_above_processor(dropped_proc.processor_id, positions);
-                        }
-
-                        #[cfg(debug_assertions)]
-                        assert!(layout.check_invariants(graph.topology()));
-                    }
-                    ProcessorInterconnect::BottomOfStack(ic_proc) => {
-                        let inputs_on_dropped_proc = graph
-                            .topology()
-                            .sound_processor(dropped_proc.processor_id)
-                            .unwrap()
-                            .sound_inputs()
-                            .clone();
-                        if inputs_on_dropped_proc.len() == 1 {
-                            assert!(
-                                graph.topology().sound_processor_targets(ic_proc).count() == 0,
-                                "TODO: handle this"
-                            );
-                            graph
-                                .connect_sound_input(inputs_on_dropped_proc[0], ic_proc)
-                                .unwrap();
-                            layout.insert_processor_below(dropped_proc.processor_id, ic_proc);
-                        }
-
-                        #[cfg(debug_assertions)]
-                        assert!(layout.check_invariants(graph.topology()));
-                    }
-                }
+            if let Err(e) = graph.edit_topology(|topo| {
+                drag_and_drop_processor_in_graph(topo, dropped_proc.processor_id, interconnect)
+                    .unwrap();
+                Ok(())
+            }) {
+                println!("Can't drop that there: {:?}", e);
+                return;
             }
+            drag_and_drop_processor_in_layout(layout, dropped_proc.processor_id, interconnect);
+
+            #[cfg(debug_assertions)]
+            assert!(layout.check_invariants(graph.topology()));
         } else {
             Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
 

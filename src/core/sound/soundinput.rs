@@ -5,7 +5,7 @@ pub struct SoundInputTag;
 pub type SoundInputId = UniqueId<SoundInputTag>;
 
 // TODO: rename to (an)isochronous
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum InputOptions {
     Synchronous,
     NonSynchronous,

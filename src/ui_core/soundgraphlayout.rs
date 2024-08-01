@@ -33,7 +33,7 @@ pub struct TimeAxis {
     // TODO: offset to allow scrolling?
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct InterconnectInput {
     pub id: SoundInputId,
     pub options: InputOptions,
@@ -66,7 +66,7 @@ impl Revisable for InterconnectInput {
 /// Describes the spaces around and between sound processors in a stacked
 /// group, in terms of which processors and which sound input meet at
 /// the region of space.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProcessorInterconnect {
     /// The interconnect at the top of a stack and on above the top
     /// sound processor. Note that a processor with no inputs does
@@ -376,15 +376,20 @@ impl StackedGroup {
 
         ui_state.record_interconnect(interconnect);
 
-        if ui_state.interactions().dragging_a_processor() {
-            // TODO: is this interconnect something you could drag
-            // a processor onto and thus connect? If not, don't
-            // highlight
-            ui.painter().rect_filled(
-                rect,
-                egui::Rounding::same(5.0),
-                egui::Color32::from_white_alpha(64),
-            );
+        if let Some(legal_interconnects) = ui_state.interactions().legal_processors_to_drop_onto() {
+            if legal_interconnects.contains(&interconnect) {
+                ui.painter().rect_filled(
+                    rect,
+                    egui::Rounding::same(5.0),
+                    egui::Color32::from_white_alpha(64),
+                );
+            } else {
+                ui.painter().rect_filled(
+                    rect,
+                    egui::Rounding::same(5.0),
+                    egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64),
+                );
+            }
         }
 
         match interconnect {
