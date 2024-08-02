@@ -1,8 +1,7 @@
-use std::hash::Hasher;
+use hashrevise::{Revisable, Revised, RevisedHashMap, RevisionHash, RevisionHasher};
 
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
-    revision::revision::{Revisable, Revised, RevisedHashMap, RevisionHash},
     sound::{expressionargument::SoundExpressionArgumentOwner, soundgrapherror::SoundError},
 };
 
@@ -469,11 +468,11 @@ impl SoundGraphTopology {
 
 impl Revisable for SoundGraphTopology {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
-        hasher.write_u64(self.sound_processors.get_revision().value());
-        hasher.write_u64(self.sound_inputs.get_revision().value());
-        hasher.write_u64(self.expression_arguments.get_revision().value());
-        hasher.write_u64(self.expressions.get_revision().value());
-        RevisionHash::new(hasher.finish())
+        let mut hasher = RevisionHasher::new();
+        hasher.write_revisable(&self.sound_processors);
+        hasher.write_revisable(&self.sound_inputs);
+        hasher.write_revisable(&self.expression_arguments);
+        hasher.write_revisable(&self.expressions);
+        hasher.into_revision()
     }
 }

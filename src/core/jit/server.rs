@@ -6,19 +6,15 @@ use std::{
     },
 };
 
+use hashrevise::RevisionHash;
 use parking_lot::{Condvar, Mutex, RwLock};
 
-use crate::core::{
-    revision::revision::RevisionHash,
-    sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology},
-};
+use crate::core::sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology};
 
 use super::{
     codegen::CodeGen,
     compiledexpression::{CompiledExpressionArtefact, CompiledExpressionFunction},
 };
-
-// TODO: put one of these on the all-purpose inkwell worker thread
 
 // An object to receive and serve requests for compiled expressions,
 // as well as stored cached artefacts according to their revision

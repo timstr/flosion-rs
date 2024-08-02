@@ -1367,11 +1367,11 @@ dependencies = [
  "base64",
  "cpal",
  "eframe",
+ "hashrevise",
  "inkwell",
  "parking_lot 0.11.2",
  "rand",
  "rfd",
- "seahash",
  "send_wrapper",
  "serialization",
  "slicemath",
@@ -1758,6 +1758,15 @@ checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
  "allocator-api2",
+]
+
+[[package]]
+name = "hashrevise"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae5f5ef64e507ce96ce570c32a2adb427c94d14627bfbaf5f7eef41702864ada"
+dependencies = [
+ "seahash",
 ]
 
 [[package]]

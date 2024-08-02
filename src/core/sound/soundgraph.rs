@@ -7,6 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hashrevise::{Revisable, RevisionHash};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use crate::core::{
@@ -16,7 +17,6 @@ use crate::core::{
     },
     graph::{graph::Graph, graphobject::ObjectInitialization},
     jit::server::{JitClient, JitServer, JitServerBuilder},
-    revision::revision::{Revisable, RevisionHash},
     uniqueid::IdGenerator,
 };
 

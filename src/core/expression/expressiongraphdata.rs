@@ -1,6 +1,6 @@
 use std::{hash::Hasher, sync::Arc};
 
-use crate::core::revision::revision::{Revisable, RevisionHash};
+use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
 use super::{
     expressiongraph::{ExpressionGraphParameterId, ExpressionGraphResultId},
@@ -78,10 +78,10 @@ impl ExpressionNodeData {
 
 impl Revisable for ExpressionNodeData {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
+        let mut hasher = RevisionHasher::new();
         hasher.write_usize(self.id.value());
-        hasher.write_u64(self.inputs.get_revision().value());
-        RevisionHash::new(hasher.finish())
+        hasher.write_revisable(&self.inputs);
+        hasher.into_revision()
     }
 }
 
@@ -170,7 +170,7 @@ impl ExpressionNodeInputData {
 }
 
 /// Helper method for computing revision numbers with expression targets
-fn hash_optional_target(target: Option<ExpressionTarget>, hasher: &mut seahash::SeaHasher) {
+fn hash_optional_target(target: Option<ExpressionTarget>, hasher: &mut RevisionHasher) {
     match target {
         Some(ExpressionTarget::Parameter(giid)) => {
             hasher.write_u8(1);
@@ -188,12 +188,12 @@ fn hash_optional_target(target: Option<ExpressionTarget>, hasher: &mut seahash::
 
 impl Revisable for ExpressionNodeInputData {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
+        let mut hasher = RevisionHasher::new();
         hasher.write_usize(self.id.value());
         hash_optional_target(self.target, &mut hasher);
         hasher.write_usize(self.owner.value());
         hasher.write_u32(self.default_value.to_bits());
-        RevisionHash::new(hasher.finish())
+        hasher.into_revision()
     }
 }
 
@@ -243,10 +243,10 @@ impl ExpressionGraphResultData {
 
 impl Revisable for ExpressionGraphResultData {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
+        let mut hasher = RevisionHasher::new();
         hasher.write_usize(self.id.value());
         hash_optional_target(self.target, &mut hasher);
         hasher.write_u32(self.default_value.to_bits());
-        RevisionHash::new(hasher.finish())
+        hasher.into_revision()
     }
 }

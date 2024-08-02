@@ -4,7 +4,6 @@ use crate::{
     core::{
         expression::expressiongraph::ExpressionGraph,
         graph::objectfactory::ObjectFactory,
-        revision::revision::{Revisable, RevisionHash},
         sound::{
             expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
             soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
@@ -16,6 +15,7 @@ use eframe::{
     self,
     egui::{self},
 };
+use hashrevise::{Revisable, RevisionHash};
 
 use super::{
     expressiongraphui::ExpressionGraphUi, soundgraphlayout::SoundGraphLayout,

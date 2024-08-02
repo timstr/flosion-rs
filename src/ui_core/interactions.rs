@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
 use eframe::egui;
+use hashrevise::RevisedProperty;
 
 use crate::{
     core::{
         graph::graphobject::ObjectType,
-        revision::revision::RevisedProperty,
         sound::{
-            soundgraph::SoundGraph, soundgrapherror::SoundError, soundgraphid::SoundObjectId,
+            soundgraph::SoundGraph, soundgraphid::SoundObjectId,
             soundgraphtopology::SoundGraphTopology, soundgraphvalidation::find_sound_error,
             soundinput::SoundInputId, soundprocessor::SoundProcessorId,
         },

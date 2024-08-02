@@ -1,4 +1,10 @@
-use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+use std::{
+    fmt::Debug,
+    hash::{Hash, Hasher},
+    marker::PhantomData,
+};
+
+use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
 pub struct UniqueId<T> {
     value: usize,
@@ -41,6 +47,14 @@ impl<T> Debug for UniqueId<T> {
         f.debug_struct("UniqueId")
             .field("value", &self.value)
             .finish()
+    }
+}
+
+impl<T> Revisable for UniqueId<T> {
+    fn get_revision(&self) -> RevisionHash {
+        let mut hasher = RevisionHasher::new();
+        hasher.write_usize(self.value());
+        hasher.into_revision()
     }
 }
 

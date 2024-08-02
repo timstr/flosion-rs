@@ -4,12 +4,13 @@ use std::{
     sync::Arc,
 };
 
+use hashrevise::{Revisable, RevisionHash, RevisionHasher};
+
 use crate::core::{
     expression::{
         expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
         expressiongraphtopology::ExpressionGraphTopology,
     },
-    revision::revision::{Revisable, RevisionHash},
     uniqueid::UniqueId,
 };
 
@@ -105,20 +106,20 @@ impl SoundInputData {
 
 impl Revisable for SoundInputData {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
+        let mut hasher = RevisionHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_u8(match &self.options {
             InputOptions::Synchronous => 0x1,
             InputOptions::NonSynchronous => 0x2,
         });
-        hasher.write_u64(self.branches.get_revision().value());
+        hasher.write_revisable(&self.branches);
         hasher.write_usize(match &self.target {
             Some(id) => id.value(),
             None => usize::MAX,
         });
         hasher.write_usize(self.owner.value());
-        hasher.write_u64(self.arguments.get_revision().value());
-        RevisionHash::new(hasher.finish())
+        hasher.write_revisable(&self.arguments);
+        hasher.into_revision()
     }
 }
 
@@ -205,14 +206,14 @@ impl SoundProcessorData {
 
 impl Revisable for SoundProcessorData {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
+        let mut hasher = RevisionHasher::new();
         hasher.write_usize(self.id.value());
         hasher.write_u8(if self.instance().is_static() { 1 } else { 2 });
         // Do not hash processor instance
-        hasher.write_u64(self.sound_inputs.get_revision().value());
-        hasher.write_u64(self.arguments.get_revision().value());
-        hasher.write_u64(self.expressions.get_revision().value());
-        RevisionHash::new(hasher.finish())
+        hasher.write_revisable(&self.sound_inputs);
+        hasher.write_revisable(&self.arguments);
+        hasher.write_revisable(&self.expressions);
+        hasher.into_revision()
     }
 }
 
@@ -297,6 +298,12 @@ impl ExpressionParameterMapping {
     }
 }
 
+impl Revisable for ExpressionParameterMapping {
+    fn get_revision(&self) -> RevisionHash {
+        self.mapping.get_revision()
+    }
+}
+
 #[derive(Clone)]
 pub struct SoundExpressionScope {
     processor_state_available: bool,
@@ -334,10 +341,10 @@ impl SoundExpressionScope {
 
 impl Revisable for SoundExpressionScope {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
+        let mut hasher = RevisionHasher::new();
         hasher.write_u8(if self.processor_state_available { 1 } else { 0 });
-        hasher.write_u64(self.available_local_arguments.get_revision().value());
-        RevisionHash::new(hasher.finish())
+        hasher.write_revisable(&self.available_local_arguments);
+        hasher.into_revision()
     }
 }
 
@@ -407,18 +414,13 @@ impl SoundExpressionData {
 
 impl Revisable for SoundExpressionData {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
-        hasher.write_usize(self.id.value());
-        let items_hash: u64 = 0;
-        for (giid, nsid) in self.target_mapping.items() {
-            hasher.write_usize(giid.value());
-            hasher.write_usize(nsid.value());
-        }
-        hasher.write_u64(items_hash);
-        hasher.write_u64(self.expression_graph.topology().get_revision().value());
-        hasher.write_usize(self.owner.value());
-        hasher.write_u64(self.scope.get_revision().value());
-        RevisionHash::new(hasher.finish())
+        let mut hasher = RevisionHasher::new();
+        hasher.write_revisable(&self.id);
+        hasher.write_revisable(&self.target_mapping);
+        hasher.write_revisable(&self.expression_graph.topology());
+        hasher.write_revisable(&self.owner);
+        hasher.write_revisable(&self.scope);
+        hasher.into_revision()
     }
 }
 
@@ -461,19 +463,19 @@ impl SoundExpressionArgumentData {
 
 impl Revisable for SoundExpressionArgumentData {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
-        hasher.write_usize(self.id.value());
+        let mut hasher = RevisionHasher::new();
+        hasher.write_revisable(&self.id);
         // Do not hash instance
         match &self.owner {
             SoundExpressionArgumentOwner::SoundProcessor(spid) => {
                 hasher.write_u8(1);
-                hasher.write_usize(spid.value());
+                hasher.write_revisable(&spid);
             }
             SoundExpressionArgumentOwner::SoundInput(siid) => {
                 hasher.write_u8(2);
-                hasher.write_usize(siid.value());
+                hasher.write_revisable(siid);
             }
         }
-        RevisionHash::new(hasher.finish())
+        hasher.into_revision()
     }
 }

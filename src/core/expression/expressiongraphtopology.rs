@@ -1,6 +1,4 @@
-use std::hash::Hasher;
-
-use crate::core::revision::revision::{Revisable, Revised, RevisedHashMap, RevisionHash};
+use hashrevise::{Revisable, Revised, RevisedHashMap, RevisionHash, RevisionHasher};
 
 use super::{
     expressiongraph::{ExpressionGraphParameterId, ExpressionGraphResultId},
@@ -346,11 +344,11 @@ impl ExpressionGraphTopology {
 
 impl Revisable for ExpressionGraphTopology {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
-        hasher.write_u64(self.nodes.get_revision().value());
-        hasher.write_u64(self.node_inputs.get_revision().value());
-        hasher.write_u64(self.parameters.get_revision().value());
-        hasher.write_u64(self.results.get_revision().value());
-        RevisionHash::new(hasher.finish())
+        let mut hasher = RevisionHasher::new();
+        hasher.write_revisable(&self.nodes);
+        hasher.write_revisable(&self.node_inputs);
+        hasher.write_revisable(&self.parameters);
+        hasher.write_revisable(&self.results);
+        hasher.into_revision()
     }
 }

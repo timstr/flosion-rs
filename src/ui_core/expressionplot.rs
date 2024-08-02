@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashrevise::Revisable;
 
 use crate::core::{
     expression::context::MockExpressionContext,
@@ -6,7 +7,6 @@ use crate::core::{
         compiledexpression::{CompiledExpressionFunction, Discretization},
         server::JitClient,
     },
-    revision::revision::Revisable,
     sound::{expressionargument::SoundExpressionArgumentId, soundgraphdata::SoundExpressionData},
 };
 

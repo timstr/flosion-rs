@@ -5,18 +5,16 @@ use std::{
 };
 
 use eframe::egui;
+use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
-use crate::core::{
-    revision::revision::{Revisable, RevisionHash},
-    sound::{
-        expression::SoundExpressionId,
-        expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph,
-        soundgraphdata::SoundInputData,
-        soundgraphtopology::SoundGraphTopology,
-        soundinput::{InputOptions, SoundInputId},
-        soundprocessor::SoundProcessorId,
-    },
+use crate::core::sound::{
+    expression::SoundExpressionId,
+    expressionargument::SoundExpressionArgumentId,
+    soundgraph::SoundGraph,
+    soundgraphdata::SoundInputData,
+    soundgraphtopology::SoundGraphTopology,
+    soundinput::{InputOptions, SoundInputId},
+    soundprocessor::SoundProcessorId,
 };
 
 use super::{
@@ -52,14 +50,14 @@ impl InterconnectInput {
 
 impl Revisable for InterconnectInput {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
-        hasher.write_u64(self.id.get_revision().value());
+        let mut hasher = RevisionHasher::new();
+        hasher.write_revisable(&self.id);
         hasher.write_u8(match self.options {
             InputOptions::Synchronous => 0,
             InputOptions::NonSynchronous => 1,
         });
         hasher.write_usize(self.branches);
-        RevisionHash::new(hasher.finish())
+        hasher.into_revision()
     }
 }
 
@@ -129,25 +127,25 @@ impl ProcessorInterconnect {
 
 impl Revisable for ProcessorInterconnect {
     fn get_revision(&self) -> RevisionHash {
-        let mut hasher = seahash::SeaHasher::new();
+        let mut hasher = RevisionHasher::new();
         match self {
             ProcessorInterconnect::TopOfStack(spid, input) => {
                 hasher.write_u8(0);
-                hasher.write_u64(spid.get_revision().value());
-                hasher.write_u64(input.get_revision().value());
+                hasher.write_revisable(spid);
+                hasher.write_revisable(input);
             }
             ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
                 hasher.write_u8(1);
-                hasher.write_u64(bottom.get_revision().value());
-                hasher.write_u64(top.get_revision().value());
-                hasher.write_u64(input.get_revision().value());
+                hasher.write_revisable(bottom);
+                hasher.write_revisable(top);
+                hasher.write_revisable(input);
             }
             ProcessorInterconnect::BottomOfStack(spid) => {
                 hasher.write_u8(2);
-                hasher.write_u64(spid.get_revision().value());
+                hasher.write_revisable(spid);
             }
         }
-        RevisionHash::new(hasher.finish())
+        hasher.into_revision()
     }
 }
 
