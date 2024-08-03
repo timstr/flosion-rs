@@ -248,7 +248,22 @@ impl GlobalInteractions {
                 }
             }
             UiMode::HoldingSelection(objects) => {
-                // TODO: delete, cut, copy, paste
+                let (pressed_esc, pressed_delete) = ui.input_mut(|i| {
+                    (
+                        i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
+                        i.consume_key(egui::Modifiers::NONE, egui::Key::Delete),
+                    )
+                });
+
+                if pressed_esc {
+                    self.mode = UiMode::Passive;
+                } else if pressed_delete {
+                    let objects: Vec<SoundObjectId> = objects.iter().cloned().collect();
+                    graph.remove_objects_batch(&objects).unwrap();
+                    self.mode = UiMode::Passive;
+                }
+
+                // TODO: cut, copy
             }
             UiMode::DraggingProcessor(drag) => {
                 let color = object_states.get_object_color(drag.processor_id.into());
