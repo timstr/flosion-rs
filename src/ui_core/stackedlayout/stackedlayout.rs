@@ -1,659 +1,25 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hasher,
-    ops::BitAnd,
-};
+use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
-use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
 use crate::{
     core::sound::{
-        expression::SoundExpressionId,
-        expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph,
-        soundgraphdata::SoundInputData,
-        soundgraphtopology::SoundGraphTopology,
-        soundinput::{InputOptions, SoundInputId},
+        expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
+        soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        flosion_ui::Factories, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
+        flosion_ui::Factories, soundgraphuistate::SoundGraphUiState,
+        soundobjectpositions::SoundObjectPositions,
     },
 };
 
-/// A mapping between a portion of the sound processing timeline
-/// and a spatial region on screen.
-#[derive(Clone, Copy)]
-pub struct TimeAxis {
-    /// How many seconds each horizontal pixel corresponds to
-    pub time_per_x_pixel: f32,
-    // TODO: offset to allow scrolling?
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct InterconnectInput {
-    pub id: SoundInputId,
-    pub options: InputOptions,
-    pub branches: usize,
-}
-
-impl InterconnectInput {
-    pub(crate) fn from_input_data(data: &SoundInputData) -> InterconnectInput {
-        InterconnectInput {
-            id: data.id(),
-            options: data.options(),
-            branches: data.branches().len(),
-        }
-    }
-}
-
-impl Revisable for InterconnectInput {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_revisable(&self.id);
-        hasher.write_u8(match self.options {
-            InputOptions::Synchronous => 0,
-            InputOptions::NonSynchronous => 1,
-        });
-        hasher.write_usize(self.branches);
-        hasher.into_revision()
-    }
-}
-
-/// Describes the spaces around and between sound processors in a stacked
-/// group, in terms of which processors and which sound input meet at
-/// the region of space.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ProcessorInterconnect {
-    /// The interconnect at the top of a stack and on above the top
-    /// sound processor. Note that a processor with no inputs does
-    /// not correspond to any interconnects, and similarly, a processor
-    /// with multiple inputs will have many interconnects.
-    TopOfStack(SoundProcessorId, InterconnectInput),
-
-    /// The interconnect between two sound processors in the interior
-    /// of a stacked group, where the bottom processor has exactly one
-    /// sound input which is connected to the top sound processor, and
-    /// by virtue of the stacked group, the top processor is not connected
-    /// to any other inputs.
-    BetweenTwoProcessors {
-        bottom: SoundProcessorId,
-        top: SoundProcessorId,
-        input: InterconnectInput,
-    },
-
-    /// The space below the lowest sound processor in the stacked group.
-    BottomOfStack(SoundProcessorId),
-}
-
-impl ProcessorInterconnect {
-    pub(crate) fn processor_above(&self) -> Option<SoundProcessorId> {
-        match self {
-            ProcessorInterconnect::TopOfStack(_, _) => None,
-            ProcessorInterconnect::BetweenTwoProcessors {
-                bottom: _,
-                top,
-                input: _,
-            } => Some(*top),
-            ProcessorInterconnect::BottomOfStack(i) => Some(*i),
-        }
-    }
-
-    pub(crate) fn processor_below(&self) -> Option<SoundProcessorId> {
-        match self {
-            ProcessorInterconnect::TopOfStack(i, _) => Some(*i),
-            ProcessorInterconnect::BetweenTwoProcessors {
-                bottom,
-                top: _,
-                input: _,
-            } => Some(*bottom),
-            ProcessorInterconnect::BottomOfStack(_) => None,
-        }
-    }
-
-    pub(crate) fn unique_input(&self) -> Option<InterconnectInput> {
-        match self {
-            ProcessorInterconnect::TopOfStack(_, i) => Some(*i),
-            ProcessorInterconnect::BetweenTwoProcessors {
-                bottom: _,
-                top: _,
-                input,
-            } => Some(*input),
-            ProcessorInterconnect::BottomOfStack(_) => None,
-        }
-    }
-
-    pub(crate) fn includes_processor(&self, processor: SoundProcessorId) -> bool {
-        match self {
-            ProcessorInterconnect::TopOfStack(spid, _) => processor == *spid,
-            ProcessorInterconnect::BetweenTwoProcessors {
-                bottom,
-                top,
-                input: _,
-            } => [*bottom, *top].contains(&processor),
-            ProcessorInterconnect::BottomOfStack(spid) => processor == *spid,
-        }
-    }
-
-    /// Returns true iff the graph ids belonging to the interconnect
-    /// all refer to objects that exist in the given topology
-    pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
-        match self {
-            ProcessorInterconnect::TopOfStack(spid, ii) => {
-                topo.contains(spid) && topo.contains(ii.id)
-            }
-            ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
-                topo.contains(bottom) && topo.contains(top) && topo.contains(input.id)
-            }
-            ProcessorInterconnect::BottomOfStack(spid) => topo.contains(spid),
-        }
-    }
-}
-
-impl Revisable for ProcessorInterconnect {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        match self {
-            ProcessorInterconnect::TopOfStack(spid, input) => {
-                hasher.write_u8(0);
-                hasher.write_revisable(spid);
-                hasher.write_revisable(input);
-            }
-            ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
-                hasher.write_u8(1);
-                hasher.write_revisable(bottom);
-                hasher.write_revisable(top);
-                hasher.write_revisable(input);
-            }
-            ProcessorInterconnect::BottomOfStack(spid) => {
-                hasher.write_u8(2);
-                hasher.write_revisable(spid);
-            }
-        }
-        hasher.into_revision()
-    }
-}
-
-/// The visual representation of a sequence of sound processors,
-/// connected end-to-end in a linear fashion. Each processor in
-/// the group must have exactly one sound input, with the exception
-/// of the top/leaf processor, which may have any number.
-pub struct StackedGroup {
-    width_pixels: usize,
-    time_axis: TimeAxis,
-
-    /// The processors in the stacked group, ordered with the
-    /// deepest dependency first. The root/bottom processor is
-    /// thus the last in the vec.
-    processors: Vec<SoundProcessorId>,
-
-    /// The on-screen location of the stack, or None if it has
-    /// not been drawn yet.
-    rect: egui::Rect,
-}
-
-impl StackedGroup {
-    const INTERCONNECT_HEIGHT: f32 = 10.0;
-
-    /// Creates a new stacked group consisting of the given list of sound processors and
-    /// positions them according to the previously-known positions of thos processors.
-    /// This is intended to minimize movement of processors on-screen when processors
-    /// are added and removed from groups.
-    pub(crate) fn new_at_top_processor(
-        processors: Vec<SoundProcessorId>,
-        positions: &SoundObjectPositions,
-    ) -> StackedGroup {
-        assert!(processors.len() > 0);
-
-        // Find the position of the first processor in the group.
-        // if not found, just put rect at 0,0
-        let first_processor_top_left = positions
-            .find_processor(*processors.first().unwrap())
-            .map_or(egui::Pos2::ZERO, |pp| pp.rect.left_top());
-
-        // Experimentally determine the offset between the top-left
-        // of the highest processor and the top-left of the stacked
-        // group by finding the minimum among the positions
-        let group_to_first_processor_offset = positions
-            .processors()
-            .iter()
-            .map(|p| p.rect.left_top() - p.group_origin)
-            // NOTE: using reduce() because min() and friends do not support f32 >:(
-            .reduce(|smallest, v| if v.y < smallest.y { v } else { smallest })
-            .unwrap_or(egui::Vec2::ZERO);
-
-        // Move the rect to the position of the first processor
-        // minus that offset.
-        let group_origin = first_processor_top_left - group_to_first_processor_offset;
-        let rect = egui::Rect::from_min_size(group_origin, egui::Vec2::ZERO);
-
-        StackedGroup {
-            width_pixels: SoundGraphLayout::DEFAULT_WIDTH,
-            time_axis: TimeAxis {
-                time_per_x_pixel: (SoundGraphLayout::DEFAULT_DURATION as f32)
-                    / (SoundGraphLayout::DEFAULT_WIDTH as f32),
-            },
-            processors,
-            rect,
-        }
-    }
-
-    pub fn rect(&self) -> egui::Rect {
-        self.rect
-    }
-
-    pub fn set_rect(&mut self, rect: egui::Rect) {
-        self.rect = rect;
-    }
-
-    pub fn processors(&self) -> &[SoundProcessorId] {
-        &self.processors
-    }
-
-    pub(crate) fn draw(
-        &mut self,
-        ui: &mut egui::Ui,
-        factories: &Factories,
-        ui_state: &mut SoundGraphUiState,
-        graph: &mut SoundGraph,
-        available_arguments: &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
-    ) {
-        // For a unique id for egui, hash the processor ids in the group
-        let area_id = egui::Id::new(&self.processors);
-
-        let area = egui::Area::new(area_id)
-            .constrain(false)
-            .movable(true)
-            .current_pos(self.rect.left_top());
-
-        let r = area.show(ui.ctx(), |ui| {
-            let group_origin = ui.cursor().left_top();
-
-            let frame = egui::Frame::default()
-                // .fill(egui::Color32::from_gray(64))
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
-                .rounding(10.0)
-                .inner_margin(10.0);
-            frame.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    // Allocate some width for the sidebar (full height is not known until
-                    // the after the processors are laid out)
-                    let (initial_sidebar_rect, _) =
-                        ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
-
-                    let processors_response = ui.vertical(|ui| {
-                        let top_processor = self.processors[0];
-                        let top_inputs: Vec<InterconnectInput> = graph
-                            .topology()
-                            .sound_processor(top_processor)
-                            .unwrap()
-                            .sound_inputs()
-                            .iter()
-                            .map(|siid| {
-                                InterconnectInput::from_input_data(
-                                    graph.topology().sound_input(*siid).unwrap(),
-                                )
-                            })
-                            .collect();
-
-                        if top_inputs.len() == 0 {
-                            let (rect, _) = ui.allocate_exact_size(
-                                egui::vec2(self.width_pixels as f32, Self::INTERCONNECT_HEIGHT),
-                                egui::Sense::hover(),
-                            );
-                            self.draw_barrier(ui, rect);
-                        } else {
-                            for input in top_inputs {
-                                // let (rect, _) = ui.allocate_exact_size(
-                                //     egui::vec2(self.width_pixels as f32, 5.0),
-                                //     egui::Sense::hover(),
-                                // );
-                                // ui.painter().rect_filled(
-                                //     rect,
-                                //     egui::Rounding::ZERO,
-                                //     egui::Color32::WHITE,
-                                // );
-                                self.draw_processor_interconnect(
-                                    ui,
-                                    ui_state,
-                                    ProcessorInterconnect::TopOfStack(top_processor, input),
-                                );
-                            }
-                        }
-
-                        for i in 0..self.processors.len() {
-                            let spid = self.processors[i];
-
-                            let object = graph
-                                .topology()
-                                .sound_processor(spid)
-                                .unwrap()
-                                .instance_arc()
-                                .as_graph_object();
-                            let mut ctx = SoundGraphUiContext::new(
-                                factories,
-                                self.time_axis,
-                                self.width_pixels as f32,
-                                group_origin,
-                                available_arguments,
-                            );
-                            factories
-                                .sound_uis()
-                                .ui(&object, ui_state, ui, &mut ctx, graph);
-
-                            if let Some(next_spid) = self.processors.get(i + 1) {
-                                let next_inputs = graph
-                                    .topology()
-                                    .sound_processor(*next_spid)
-                                    .unwrap()
-                                    .sound_inputs();
-                                debug_assert_eq!(next_inputs.len(), 1);
-                                let siid = next_inputs[0];
-                                let input = graph.topology().sound_input(siid).unwrap();
-                                let interconnect = ProcessorInterconnect::BetweenTwoProcessors {
-                                    bottom: *next_spid,
-                                    top: spid,
-                                    input: InterconnectInput::from_input_data(input),
-                                };
-                                self.draw_processor_interconnect(ui, ui_state, interconnect);
-                            }
-                        }
-
-                        self.draw_processor_interconnect(
-                            ui,
-                            ui_state,
-                            ProcessorInterconnect::BottomOfStack(*self.processors.last().unwrap()),
-                        );
-                    });
-
-                    let sidebar_rect =
-                        initial_sidebar_rect.with_max_y(processors_response.response.rect.max.y);
-
-                    ui.painter().rect_filled(
-                        sidebar_rect,
-                        egui::Rounding::same(5.0),
-                        egui::Color32::from_white_alpha(32),
-                    );
-                });
-            });
-        });
-
-        self.rect = r.response.rect;
-    }
-
-    fn draw_processor_interconnect(
-        &self,
-        ui: &mut egui::Ui,
-        ui_state: &mut SoundGraphUiState,
-        interconnect: ProcessorInterconnect,
-    ) {
-        // TODO: make clickable to e.g. spawn summon widget, insert new (matching) processor
-        let (rect, _) = ui.allocate_exact_size(
-            egui::vec2(self.width_pixels as f32, Self::INTERCONNECT_HEIGHT),
-            egui::Sense::hover(),
-        );
-
-        ui_state
-            .positions_mut()
-            .record_interconnect(interconnect, rect);
-
-        ui_state.record_interconnect(interconnect);
-
-        if let Some(legal_interconnects) = ui_state.interactions().legal_processors_to_drop_onto() {
-            if legal_interconnects.contains(&interconnect) {
-                // If the interconnect is legal to drop a processor onto, highlight it
-                ui.painter().rect_filled(
-                    rect,
-                    egui::Rounding::same(5.0),
-                    egui::Color32::from_white_alpha(64),
-                );
-            } else if !interconnect
-                .includes_processor(ui_state.interactions().processor_being_dragged().unwrap())
-            {
-                // Otherwise, if the interconnect isn't immediately next to the processor,
-                // colour it red to show that the processor can't be dropped there
-                ui.painter().rect_filled(
-                    rect,
-                    egui::Rounding::same(5.0),
-                    egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64),
-                );
-            }
-        }
-
-        match interconnect {
-            ProcessorInterconnect::TopOfStack(_, input) => {
-                self.draw_stripes(ui, rect, input.branches, input.options);
-            }
-            ProcessorInterconnect::BetweenTwoProcessors {
-                bottom: _,
-                top: _,
-                input,
-            } => {
-                self.draw_stripes(ui, rect, input.branches, input.options);
-            }
-            ProcessorInterconnect::BottomOfStack(_) => self.draw_even_stripes(ui, rect, 1),
-        }
-    }
-
-    fn draw_stripes(
-        &self,
-        ui: &mut egui::Ui,
-        rect: egui::Rect,
-        num_branches: usize,
-        options: InputOptions,
-    ) {
-        match options {
-            InputOptions::Synchronous => self.draw_even_stripes(ui, rect, num_branches),
-            InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, num_branches),
-        }
-    }
-
-    fn draw_even_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect, num_branches: usize) {
-        let old_clip_rect = ui.clip_rect();
-
-        // clip rendered things to the allocated area to gracefully
-        // overflow contents. This needs to be undone below.
-        ui.set_clip_rect(rect);
-
-        let stripe_width = 3.0;
-        let stripe_spacing = 10.0;
-
-        let stripe_total_width = stripe_spacing + stripe_width;
-
-        let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize;
-
-        for i in 0..num_stripes {
-            let xmin = rect.min.x + (i as f32) * stripe_total_width;
-            let ymin = rect.min.y;
-            let ymax = rect.max.y;
-
-            let top_left = egui::pos2(xmin, ymin);
-            let bottom_left = egui::pos2(xmin, ymax);
-
-            self.draw_single_stripe(
-                ui.painter(),
-                top_left,
-                bottom_left,
-                stripe_width,
-                num_branches,
-            );
-        }
-
-        // Restore the previous clip rect
-        ui.set_clip_rect(old_clip_rect);
-
-        // Write branch amount
-        if num_branches != 1 {
-            self.draw_bubbled_text(format!("×{}", num_branches), rect.center(), ui);
-        }
-    }
-
-    fn draw_uneven_stripes(&self, ui: &mut egui::Ui, rect: egui::Rect, num_branches: usize) {
-        let old_clip_rect = ui.clip_rect();
-
-        // clip rendered things to the allocated area to gracefully
-        // overflow contents. This needs to be undone below.
-        ui.set_clip_rect(rect);
-
-        let stripe_width = 3.0;
-        let stripe_spacing = 10.0;
-
-        let stripe_total_width = stripe_spacing + stripe_width;
-
-        let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize;
-
-        for i in 0..num_stripes {
-            let xmin = rect.min.x + (i as f32) * stripe_total_width;
-            let ymin = rect.min.y;
-            let ymax = rect.max.y;
-
-            let wonkiness = match i.bitand(3) {
-                0 => 0.0,
-                1 => 1.0,
-                2 => 0.0,
-                3 => -1.0,
-                _ => unreachable!(),
-            };
-
-            let wonkiness = stripe_total_width * 0.25 * wonkiness;
-
-            let top_left = egui::pos2(xmin + wonkiness, ymin);
-            let bottom_left = egui::pos2(xmin, ymax);
-            self.draw_single_stripe(
-                ui.painter(),
-                top_left,
-                bottom_left,
-                stripe_width,
-                num_branches,
-            );
-        }
-
-        // Restore the previous clip rect
-        ui.set_clip_rect(old_clip_rect);
-
-        // Write branch amount
-        if num_branches != 1 {
-            self.draw_bubbled_text(format!("×{}", num_branches), rect.center(), ui);
-        }
-    }
-
-    fn draw_barrier(&self, ui: &mut egui::Ui, rect: egui::Rect) {
-        let old_clip_rect = ui.clip_rect();
-
-        // clip rendered things to the allocated area to gracefully
-        // overflow contents. This needs to be undone below.
-        ui.set_clip_rect(rect);
-
-        let stripe_width = 50.0;
-        let stripe_spacing = 10.0;
-
-        let stripe_total_width = stripe_spacing + stripe_width;
-
-        let num_stripes =
-            (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize + 1;
-
-        for i in 0..num_stripes {
-            let xmin = rect.min.x + (i as f32) * stripe_total_width;
-            let xmax = xmin + stripe_width;
-            let ymin = rect.min.y;
-            let ymax = rect.max.y;
-            let ymiddle = 0.5 * (ymin + ymax);
-            ui.painter().rect_filled(
-                egui::Rect::from_min_max(egui::pos2(xmin, ymin), egui::pos2(xmax, ymiddle - 2.0)),
-                egui::Rounding::ZERO,
-                egui::Color32::from_white_alpha(16),
-            );
-            ui.painter().rect_filled(
-                egui::Rect::from_min_max(
-                    egui::pos2(xmin - 0.5 * stripe_total_width, ymiddle + 2.0),
-                    egui::pos2(xmax - 0.5 * stripe_total_width, ymax),
-                ),
-                egui::Rounding::ZERO,
-                egui::Color32::from_white_alpha(16),
-            );
-        }
-
-        // Restore the previous clip rect
-        ui.set_clip_rect(old_clip_rect);
-    }
-
-    fn draw_single_stripe(
-        &self,
-        painter: &egui::Painter,
-        top_left: egui::Pos2,
-        bottom_left: egui::Pos2,
-        width: f32,
-        num_branches: usize,
-    ) {
-        match num_branches {
-            0 => {
-                // no branches: taper to a point at top middle
-                let points = vec![
-                    egui::pos2(top_left.x + 0.5 * width, top_left.y),
-                    egui::pos2(bottom_left.x + width, bottom_left.y),
-                    bottom_left,
-                ];
-
-                painter.add(egui::Shape::convex_polygon(
-                    points,
-                    egui::Color32::from_white_alpha(32),
-                    egui::Stroke::NONE,
-                ));
-            }
-            1 => {
-                // 1 branch: basic single parallelogram
-                let points = vec![
-                    top_left,
-                    egui::pos2(top_left.x + width, top_left.y),
-                    egui::pos2(bottom_left.x + width, bottom_left.y),
-                    bottom_left,
-                ];
-
-                painter.add(egui::Shape::convex_polygon(
-                    points,
-                    egui::Color32::from_white_alpha(32),
-                    egui::Stroke::NONE,
-                ));
-            }
-            _ => {
-                // 2 or more branches: draw a trapezoid
-                let splay = width * 2.0; // hmmm
-                let points = vec![
-                    egui::pos2(top_left.x - 0.5 * splay, top_left.y),
-                    egui::pos2(top_left.x + width + 0.5 * splay, top_left.y),
-                    egui::pos2(bottom_left.x + width, bottom_left.y),
-                    egui::pos2(bottom_left.x, bottom_left.y),
-                ];
-                painter.add(egui::Shape::convex_polygon(
-                    points,
-                    egui::Color32::from_white_alpha(32),
-                    egui::Stroke::NONE,
-                ));
-            }
-        }
-    }
-
-    fn draw_bubbled_text(&self, text: String, position: egui::Pos2, ui: &mut egui::Ui) {
-        let galley = ui
-            .fonts(|f| f.layout_no_wrap(text, egui::FontId::monospace(10.0), egui::Color32::WHITE));
-        let rect = galley
-            .rect
-            .translate(position.to_vec2() - 0.5 * galley.rect.size());
-        ui.painter().rect_filled(
-            rect.expand(3.0),
-            egui::Rounding::same(3.0),
-            egui::Color32::from_black_alpha(128),
-        );
-        ui.painter()
-            .galley(rect.left_top(), galley, egui::Color32::WHITE);
-    }
-}
+use super::stackedgroup::StackedGroup;
 
 /// Visual layout of all processor groups and the connections between them.
 /// Intended to be the entry point of the main UI for all things pertaining
 /// to sound processors, their inputs, connections, and numeric UIs.
+// TODO: rename to StackedLayout
 pub struct SoundGraphLayout {
     /// The set of top-level stacked groups of sound processors
     groups: Vec<StackedGroup>,
@@ -662,10 +28,10 @@ pub struct SoundGraphLayout {
 /// Public methods
 impl SoundGraphLayout {
     /// The default on-screen width of a stacked group, in pixels
-    const DEFAULT_WIDTH: usize = 600;
+    pub(crate) const DEFAULT_WIDTH: usize = 600;
 
     /// The default temporal duration of a stacked group, in seconds
-    const DEFAULT_DURATION: f32 = 4.0;
+    pub(crate) const DEFAULT_DURATION: f32 = 4.0;
 
     /// Construct a new, empty SoundGraphLayout. See `renegerate` below for
     /// how to populate a SoundGraphLayout automatically from an existing
@@ -677,7 +43,7 @@ impl SoundGraphLayout {
     /// Find the stacked group that a sound processor belongs to, if any.
     pub(crate) fn find_group(&self, id: SoundProcessorId) -> Option<&StackedGroup> {
         for g in &self.groups {
-            if g.processors.contains(&id) {
+            if g.processors().contains(&id) {
                 return Some(g);
             }
         }
@@ -687,7 +53,7 @@ impl SoundGraphLayout {
     /// Find the stacked group that a sound processor belongs to, if any.
     pub(crate) fn find_group_mut(&mut self, id: SoundProcessorId) -> Option<&mut StackedGroup> {
         for g in &mut self.groups {
-            if g.processors.contains(&id) {
+            if g.processors().contains(&id) {
                 return Some(g);
             }
         }
@@ -701,7 +67,7 @@ impl SoundGraphLayout {
             return false;
         };
 
-        let top_id: SoundProcessorId = *group.processors.first().unwrap();
+        let top_id: SoundProcessorId = *group.processors().first().unwrap();
         top_id == id
     }
 
@@ -712,7 +78,7 @@ impl SoundGraphLayout {
             return false;
         };
 
-        let bottom_id: SoundProcessorId = *group.processors.last().unwrap();
+        let bottom_id: SoundProcessorId = *group.processors().last().unwrap();
         bottom_id == id
     }
 
@@ -797,7 +163,7 @@ impl SoundGraphLayout {
 
                 if self.is_bottom_of_group(target) {
                     let existing_group = self.find_group_mut(target).unwrap();
-                    existing_group.processors.push(*spid);
+                    existing_group.processors_mut().push(*spid);
                     added_processor = Some(target);
                     break;
                 }
@@ -835,7 +201,7 @@ impl SoundGraphLayout {
             let number_of_appearances: usize = self
                 .groups
                 .iter()
-                .map(|group| group.processors.iter().filter(|i| **i == spid).count())
+                .map(|group| group.processors().iter().filter(|i| **i == spid).count())
                 .sum();
 
             if number_of_appearances != 1 {
@@ -856,7 +222,7 @@ impl SoundGraphLayout {
 
         // every sound processor in the layout must exist in the topology
         for group in &self.groups {
-            for spid in &group.processors {
+            for spid in group.processors() {
                 if !topo.contains(spid) {
                     println!(
                         "The layout contains a sound processor #{} which no longer exists",
@@ -871,8 +237,10 @@ impl SoundGraphLayout {
         // group must exist and be unique (see `connection_is_unique` for
         // a definition)
         for group in &self.groups {
-            for (top_proc, bottom_proc) in
-                group.processors.iter().zip(group.processors.iter().skip(1))
+            for (top_proc, bottom_proc) in group
+                .processors()
+                .iter()
+                .zip(group.processors().iter().skip(1))
             {
                 if !Self::connection_is_unique(*top_proc, *bottom_proc, topo) {
                     println!(
@@ -901,25 +269,25 @@ impl SoundGraphLayout {
     ) {
         // delete any removed processor ids
         for group in &mut self.groups {
-            group.processors.retain(|i| topo.contains(i));
+            group.processors_mut().retain(|i| topo.contains(i));
         }
 
         // Remove any empty groups
-        self.groups.retain(|g| !g.processors.is_empty());
+        self.groups.retain(|g| !g.processors().is_empty());
 
         // split any groups where they imply connections that no longer exist
         let mut new_groups = Vec::new();
         for group in &mut self.groups {
             // Iterate over the group connections in reverse so that
             // we can repeatedly split off the remaining end of the vector
-            for i in (1..group.processors.len()).rev() {
-                let top_proc = group.processors[i - 1];
-                let bottom_proc = group.processors[i];
+            for i in (1..group.processors().len()).rev() {
+                let top_proc = group.processors()[i - 1];
+                let bottom_proc = group.processors()[i];
 
                 // If the connection isn't unique, split off the remainder
                 // of the stack into a separate group
                 if !Self::connection_is_unique(top_proc, bottom_proc, topo) {
-                    let procs = group.processors.split_off(i);
+                    let procs = group.processors_mut().split_off(i);
                     new_groups.push(StackedGroup::new_at_top_processor(procs, positions));
                 }
             }
@@ -940,7 +308,7 @@ impl SoundGraphLayout {
     ) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
-            .processors
+            .processors()
             .iter()
             .position(|p| *p == processor_id)
             .unwrap();
@@ -949,7 +317,7 @@ impl SoundGraphLayout {
             return;
         }
 
-        let rest_inclusive = group.processors.split_off(i);
+        let rest_inclusive = group.processors_mut().split_off(i);
         self.groups.push(StackedGroup::new_at_top_processor(
             rest_inclusive,
             positions,
@@ -969,11 +337,11 @@ impl SoundGraphLayout {
     ) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
-            .processors
+            .processors()
             .iter()
             .position(|p| *p == processor_id)
             .unwrap();
-        let rest_exclusive = group.processors.split_off(i + 1);
+        let rest_exclusive = group.processors_mut().split_off(i + 1);
         if !rest_exclusive.is_empty() {
             self.groups.push(StackedGroup::new_at_top_processor(
                 rest_exclusive,
@@ -989,21 +357,21 @@ impl SoundGraphLayout {
     ) {
         let group = self.find_group_mut(processor_id).unwrap();
         let i = group
-            .processors
+            .processors()
             .iter()
             .position(|p| *p == processor_id)
             .unwrap();
 
         // split the group just after the processor into a separate vector
-        let rest_exclusive = group.processors.split_off(i + 1);
+        let rest_exclusive = group.processors_mut().split_off(i + 1);
 
         // remove the processor at the split point as well
-        let spid = group.processors.pop().unwrap();
+        let spid = group.processors_mut().pop().unwrap();
         debug_assert_eq!(spid, processor_id);
 
         if i == 0 {
             // if there are no processors before the split, we can just put it back
-            group.processors.push(processor_id);
+            group.processors_mut().push(processor_id);
         } else {
             // otherwise, create a new group for the lone processor
             let procs = vec![processor_id];
@@ -1023,7 +391,7 @@ impl SoundGraphLayout {
     fn remove_processor(&mut self, processor_id: SoundProcessorId) {
         let mut occurrences = 0;
         self.groups.retain_mut(|group| {
-            group.processors.retain(|spid| {
+            group.processors_mut().retain(|spid| {
                 if *spid == processor_id {
                     occurrences += 1;
                     false
@@ -1031,7 +399,7 @@ impl SoundGraphLayout {
                     true
                 }
             });
-            !group.processors.is_empty()
+            !group.processors().is_empty()
         });
         debug_assert_eq!(occurrences, 1);
     }
@@ -1044,11 +412,11 @@ impl SoundGraphLayout {
         self.remove_processor(processor_to_insert);
         let group = self.find_group_mut(processor_below).unwrap();
         let i = group
-            .processors
+            .processors()
             .iter()
             .position(|p| *p == processor_below)
             .unwrap();
-        group.processors.insert(i, processor_to_insert);
+        group.processors_mut().insert(i, processor_to_insert);
     }
 
     pub(crate) fn insert_processor_below(
@@ -1059,11 +427,11 @@ impl SoundGraphLayout {
         self.remove_processor(processor_to_insert);
         let group = self.find_group_mut(processor_below).unwrap();
         let i = group
-            .processors
+            .processors()
             .iter()
             .position(|p| *p == processor_below)
             .unwrap();
-        group.processors.insert(i + 1, processor_to_insert);
+        group.processors_mut().insert(i + 1, processor_to_insert);
     }
 
     /// Returns true if and only if:

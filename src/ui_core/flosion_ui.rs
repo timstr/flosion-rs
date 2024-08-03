@@ -142,6 +142,7 @@ impl FlosionApp {
             self.ui_state
                 .cleanup_stale_graph_objects(topo, &self.factories);
 
+            // TODO: use RevisedProperty and a dedicated type
             self.available_arguments = available_sound_expression_arguments(topo);
 
             self.previous_clean_revision = Some(current_revision);

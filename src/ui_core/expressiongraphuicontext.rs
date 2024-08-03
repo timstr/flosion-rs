@@ -12,7 +12,7 @@ use crate::core::{
 
 use super::{
     expressiongraphui::ExpressionGraphUi, soundgraphuinames::SoundGraphUiNames,
-    stackedlayout::stackedlayout::TimeAxis, ui_factory::UiFactory,
+    stackedlayout::timeaxis::TimeAxis, ui_factory::UiFactory,
 };
 
 pub(crate) struct OuterProcessorExpressionContext<'a> {

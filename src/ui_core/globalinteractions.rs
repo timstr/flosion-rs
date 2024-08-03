@@ -18,7 +18,7 @@ use super::{
     soundgraphui::SoundGraphUi,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
-    stackedlayout::stackedlayout::{ProcessorInterconnect, SoundGraphLayout},
+    stackedlayout::{interconnect::ProcessorInterconnect, stackedlayout::SoundGraphLayout},
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
 };

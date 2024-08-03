@@ -5,7 +5,7 @@ use crate::core::sound::{
 
 use super::{
     lexicallayout::lexicallayout::LexicalLayoutFocus,
-    stackedlayout::stackedlayout::ProcessorInterconnect,
+    stackedlayout::interconnect::ProcessorInterconnect,
 };
 
 pub(super) enum KeyboardFocusState {

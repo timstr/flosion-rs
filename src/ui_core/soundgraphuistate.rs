@@ -22,7 +22,7 @@ use super::{
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    stackedlayout::stackedlayout::{ProcessorInterconnect, SoundGraphLayout},
+    stackedlayout::{interconnect::ProcessorInterconnect, stackedlayout::SoundGraphLayout},
 };
 
 pub struct SoundGraphUiState {
