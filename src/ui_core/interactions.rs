@@ -100,7 +100,10 @@ fn drag_and_drop_processor_in_layout(
     layout: &mut SoundGraphLayout,
     processor: SoundProcessorId,
     interconnect: ProcessorInterconnect,
+    positions: &SoundObjectPositions,
 ) {
+    layout.split_processor_into_own_group(processor, positions);
+
     match interconnect {
         ProcessorInterconnect::TopOfStack(top_proc, _) => {
             layout.insert_processor_above(processor, top_proc);
@@ -395,7 +398,12 @@ impl GlobalInteractions {
                 }
             }
 
-            drag_and_drop_processor_in_layout(layout, dropped_proc.processor_id, interconnect);
+            drag_and_drop_processor_in_layout(
+                layout,
+                dropped_proc.processor_id,
+                interconnect,
+                positions,
+            );
 
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph.topology()));
