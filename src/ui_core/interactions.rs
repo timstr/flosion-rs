@@ -58,19 +58,21 @@ fn drag_and_drop_processor_in_graph(
     interconnect: ProcessorInterconnect,
 ) -> Result<(), ()> {
     // Disconnect the processor from everything
-    let mut inputs_to_disconnect = Vec::new();
-    for i in topo.sound_processor(processor).unwrap().sound_inputs() {
-        if topo.sound_input(*i).unwrap().target().is_some() {
-            inputs_to_disconnect.push(*i);
+    {
+        let mut inputs_to_disconnect = Vec::new();
+        for i in topo.sound_processor(processor).unwrap().sound_inputs() {
+            if topo.sound_input(*i).unwrap().target().is_some() {
+                inputs_to_disconnect.push(*i);
+            }
         }
-    }
 
-    for i in topo.sound_processor_targets(processor) {
-        inputs_to_disconnect.push(i)
-    }
+        for i in topo.sound_processor_targets(processor) {
+            inputs_to_disconnect.push(i)
+        }
 
-    for i in inputs_to_disconnect {
-        topo.disconnect_sound_input(i).or(Err(()))?;
+        for i in inputs_to_disconnect {
+            topo.disconnect_sound_input(i).or(Err(()))?;
+        }
     }
 
     // Connect the processor at the interconnect
@@ -83,8 +85,10 @@ fn drag_and_drop_processor_in_graph(
             top,
             input,
         } => {
-            debug_assert_eq!(topo.sound_input(input.id).unwrap().target(), Some(top));
-            topo.disconnect_sound_input(input.id).or(Err(()))?;
+            // NOTE: this connection might just have been broken above!
+            if topo.sound_input(input.id).unwrap().target().is_some() {
+                topo.disconnect_sound_input(input.id).or(Err(()))?;
+            }
 
             let dropped_inputs = topo.sound_processor(processor).unwrap().sound_inputs();
             if dropped_inputs.len() != 1 {
@@ -117,11 +121,19 @@ fn drag_and_drop_processor_in_layout(
     processor: SoundProcessorId,
     interconnect: ProcessorInterconnect,
 ) {
-    // TODO: assume that changes have already happened in graph,
-    // e.g. drag_and_drop_processor_in_graph has already run
-    // It would be cool if a simple call to regenerate() can do
-    // most or all of the work here.
-    todo!()
+    match interconnect {
+        ProcessorInterconnect::TopOfStack(top_proc, _) => {
+            layout.insert_processor_above(processor, top_proc);
+        }
+        ProcessorInterconnect::BetweenTwoProcessors {
+            bottom,
+            top: _,
+            input: _,
+        } => layout.insert_processor_above(processor, bottom),
+        ProcessorInterconnect::BottomOfStack(bottom_proc) => {
+            layout.insert_processor_below(processor, bottom_proc);
+        }
+    }
 }
 
 fn compute_legal_interconnects(
