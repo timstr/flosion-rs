@@ -70,15 +70,19 @@ impl SoundObjectPositions {
         minimum_intersection: f32,
     ) -> Option<InterconnectPosition> {
         let mut best_intersection = minimum_intersection;
-        let mut best_interconnect = None;
+        let mut best_overlap = None;
         for interconnect in &self.interconnects {
-            let intersection = interconnect.rect.intersect(query).area();
-            if intersection > best_intersection {
-                best_intersection = intersection;
-                best_interconnect = Some(*interconnect);
+            let intersection = interconnect.rect.intersect(query);
+            if !intersection.is_positive() {
+                continue;
+            }
+            let area = intersection.area();
+            if area > best_intersection {
+                best_intersection = area;
+                best_overlap = Some(*interconnect);
             }
         }
-        best_interconnect
+        best_overlap
     }
 
     pub(crate) fn clear(&mut self) {
