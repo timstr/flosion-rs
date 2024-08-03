@@ -163,7 +163,7 @@ impl SoundGraphLayout {
 
                 if self.is_bottom_of_group(target) {
                     let existing_group = self.find_group_mut(target).unwrap();
-                    existing_group.processors_mut().push(*spid);
+                    existing_group.insert_processor_at_bottom(*spid);
                     added_processor = Some(target);
                     break;
                 }
@@ -269,7 +269,7 @@ impl SoundGraphLayout {
     ) {
         // delete any removed processor ids
         for group in &mut self.groups {
-            group.processors_mut().retain(|i| topo.contains(i));
+            group.remove_dangling_processor_ids(topo);
         }
 
         // Remove any empty groups
@@ -280,6 +280,7 @@ impl SoundGraphLayout {
         for group in &mut self.groups {
             // Iterate over the group connections in reverse so that
             // we can repeatedly split off the remaining end of the vector
+
             for i in (1..group.processors().len()).rev() {
                 let top_proc = group.processors()[i - 1];
                 let bottom_proc = group.processors()[i];
@@ -287,7 +288,7 @@ impl SoundGraphLayout {
                 // If the connection isn't unique, split off the remainder
                 // of the stack into a separate group
                 if !Self::connection_is_unique(top_proc, bottom_proc, topo) {
-                    let procs = group.processors_mut().split_off(i);
+                    let procs = group.split_off_everything_below_processor(top_proc);
                     new_groups.push(StackedGroup::new_at_top_processor(procs, positions));
                 }
             }
@@ -307,21 +308,14 @@ impl SoundGraphLayout {
         positions: &SoundObjectPositions,
     ) {
         let group = self.find_group_mut(processor_id).unwrap();
-        let i = group
-            .processors()
-            .iter()
-            .position(|p| *p == processor_id)
-            .unwrap();
-
-        if i == 0 {
+        if group.processor_is_at_top(processor_id) {
             return;
         }
 
-        let rest_inclusive = group.processors_mut().split_off(i);
-        self.groups.push(StackedGroup::new_at_top_processor(
-            rest_inclusive,
-            positions,
-        ));
+        let rest = group.split_off_processor_and_everything_below(processor_id);
+
+        self.groups
+            .push(StackedGroup::new_at_top_processor(rest, positions));
     }
 
     /// Find the group that processor belongs to, and if there are
@@ -336,12 +330,7 @@ impl SoundGraphLayout {
         positions: &SoundObjectPositions,
     ) {
         let group = self.find_group_mut(processor_id).unwrap();
-        let i = group
-            .processors()
-            .iter()
-            .position(|p| *p == processor_id)
-            .unwrap();
-        let rest_exclusive = group.processors_mut().split_off(i + 1);
+        let rest_exclusive = group.split_off_processor_and_everything_below(processor_id);
         if !rest_exclusive.is_empty() {
             self.groups.push(StackedGroup::new_at_top_processor(
                 rest_exclusive,
@@ -356,22 +345,14 @@ impl SoundGraphLayout {
         positions: &SoundObjectPositions,
     ) {
         let group = self.find_group_mut(processor_id).unwrap();
-        let i = group
-            .processors()
-            .iter()
-            .position(|p| *p == processor_id)
-            .unwrap();
-
-        // split the group just after the processor into a separate vector
-        let rest_exclusive = group.processors_mut().split_off(i + 1);
+        let rest_exclusive = group.split_off_everything_below_processor(processor_id);
 
         // remove the processor at the split point as well
-        let spid = group.processors_mut().pop().unwrap();
-        debug_assert_eq!(spid, processor_id);
+        group.remove_processor(processor_id);
 
-        if i == 0 {
+        if group.processors().is_empty() {
             // if there are no processors before the split, we can just put it back
-            group.processors_mut().push(processor_id);
+            group.insert_processor_at_bottom(processor_id);
         } else {
             // otherwise, create a new group for the lone processor
             let procs = vec![processor_id];
@@ -389,49 +370,32 @@ impl SoundGraphLayout {
     }
 
     fn remove_processor(&mut self, processor_id: SoundProcessorId) {
-        let mut occurrences = 0;
         self.groups.retain_mut(|group| {
-            group.processors_mut().retain(|spid| {
-                if *spid == processor_id {
-                    occurrences += 1;
-                    false
-                } else {
-                    true
-                }
-            });
+            group.remove_processor(processor_id);
             !group.processors().is_empty()
         });
-        debug_assert_eq!(occurrences, 1);
     }
 
     pub(crate) fn insert_processor_above(
         &mut self,
         processor_to_insert: SoundProcessorId,
-        processor_below: SoundProcessorId,
+        other_processor: SoundProcessorId,
     ) {
         self.remove_processor(processor_to_insert);
-        let group = self.find_group_mut(processor_below).unwrap();
-        let i = group
-            .processors()
-            .iter()
-            .position(|p| *p == processor_below)
-            .unwrap();
-        group.processors_mut().insert(i, processor_to_insert);
+        self.find_group_mut(other_processor)
+            .unwrap()
+            .insert_processor_above(processor_to_insert, other_processor);
     }
 
     pub(crate) fn insert_processor_below(
         &mut self,
         processor_to_insert: SoundProcessorId,
-        processor_below: SoundProcessorId,
+        other_processor: SoundProcessorId,
     ) {
         self.remove_processor(processor_to_insert);
-        let group = self.find_group_mut(processor_below).unwrap();
-        let i = group
-            .processors()
-            .iter()
-            .position(|p| *p == processor_below)
-            .unwrap();
-        group.processors_mut().insert(i + 1, processor_to_insert);
+        self.find_group_mut(other_processor)
+            .unwrap()
+            .insert_processor_below(processor_to_insert, other_processor);
     }
 
     /// Returns true if and only if:

@@ -8,7 +8,8 @@ use eframe::egui::{self};
 use crate::{
     core::sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph, soundinput::InputOptions, soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology, soundinput::InputOptions,
+        soundprocessor::SoundProcessorId,
     },
     ui_core::{
         flosion_ui::Factories, soundgraphuicontext::SoundGraphUiContext,
@@ -98,10 +99,72 @@ impl StackedGroup {
         &self.processors
     }
 
-    // TODO: provide more high-level operations rather instead of
-    // modifying contents directly
-    pub(super) fn processors_mut(&mut self) -> &mut Vec<SoundProcessorId> {
-        &mut self.processors
+    pub(crate) fn processor_is_at_top(&self, processor: SoundProcessorId) -> bool {
+        self.processors.first() == Some(&processor)
+    }
+
+    pub(crate) fn insert_processor_at_bottom(&mut self, processor: SoundProcessorId) {
+        self.processors.push(processor);
+    }
+
+    pub(crate) fn insert_processor_above(
+        &mut self,
+        processor: SoundProcessorId,
+        other_processor: SoundProcessorId,
+    ) {
+        let i = self
+            .processors
+            .iter()
+            .position(|p| *p == other_processor)
+            .unwrap();
+        self.processors.insert(i, processor);
+    }
+
+    pub(crate) fn insert_processor_below(
+        &mut self,
+        processor: SoundProcessorId,
+        other_processor: SoundProcessorId,
+    ) {
+        let i = self
+            .processors
+            .iter()
+            .position(|p| *p == other_processor)
+            .unwrap();
+        self.processors.insert(i + 1, processor);
+    }
+
+    pub(crate) fn remove_processor(&mut self, processor: SoundProcessorId) {
+        self.processors.retain(|i| *i != processor);
+    }
+
+    pub(crate) fn split_off_processor_and_everything_below(
+        &mut self,
+        processor: SoundProcessorId,
+    ) -> Vec<SoundProcessorId> {
+        let i = self
+            .processors
+            .iter()
+            .position(|p| *p == processor)
+            .unwrap();
+
+        self.processors.split_off(i)
+    }
+
+    pub(crate) fn split_off_everything_below_processor(
+        &mut self,
+        processor: SoundProcessorId,
+    ) -> Vec<SoundProcessorId> {
+        let i = self
+            .processors
+            .iter()
+            .position(|p| *p == processor)
+            .unwrap();
+
+        self.processors.split_off(i + 1)
+    }
+
+    pub(crate) fn remove_dangling_processor_ids(&mut self, topo: &SoundGraphTopology) {
+        self.processors.retain(|i| topo.contains(i));
     }
 
     pub(crate) fn draw(
