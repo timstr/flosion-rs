@@ -330,7 +330,7 @@ impl SoundGraphLayout {
         positions: &SoundObjectPositions,
     ) {
         let group = self.find_group_mut(processor_id).unwrap();
-        let rest_exclusive = group.split_off_processor_and_everything_below(processor_id);
+        let rest_exclusive = group.split_off_everything_below_processor(processor_id);
         if !rest_exclusive.is_empty() {
             self.groups.push(StackedGroup::new_at_top_processor(
                 rest_exclusive,
