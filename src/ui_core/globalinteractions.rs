@@ -151,9 +151,14 @@ pub struct DroppingProcessorData {
     pub original_rect: egui::Rect,
 }
 
-struct SelectionArea {
+struct SelectingArea {
     start_location: egui::Pos2,
     end_location: egui::Pos2,
+}
+
+struct SelectingState {
+    objects: HashSet<SoundObjectId>,
+    selecting_area: Option<SelectingArea>,
 }
 
 /// The set of mutually-exclusive top level behaviours that the app allows
@@ -164,11 +169,9 @@ enum UiMode {
     /// Jumping between sound processors and their components using the keyboard
     UsingKeyboardNav(KeyboardFocusState),
 
-    /// Clicking and dragging a rectangular area to define a new selection
-    MakingSelection(SelectionArea),
-
-    /// A set of objects is selected and highlighted
-    HoldingSelection(HashSet<SoundObjectId>),
+    /// Optionally clicking and dragging a rectangular area to define a new
+    /// selection while a set of objects is selected and highlighted
+    Selecting(SelectingState),
 
     /// A processor was clicked and is being dragged
     DraggingProcessor(DraggingProcessorData),
@@ -210,44 +213,34 @@ impl GlobalInteractions {
     ) {
         match &mut self.mode {
             UiMode::Passive => {
-                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)) {
+                let pressed_tab =
+                    ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab));
+
+                if pressed_tab {
+                    // If tab was pressed, start summon an object over the background
                     let position = ui
                         .ctx()
                         .pointer_latest_pos()
                         .unwrap_or(egui::pos2(50.0, 50.0));
                     self.start_summoning(position, factories.sound_uis())
+                } else if bg_response.drag_started() {
+                    // If the background was just clicked and dragged, start making a selection
+                    let pointer_pos = bg_response.interact_pointer_pos().unwrap();
+                    self.mode = UiMode::Selecting(SelectingState {
+                        objects: HashSet::new(),
+                        selecting_area: Some(SelectingArea {
+                            start_location: pointer_pos,
+                            end_location: pointer_pos + bg_response.drag_delta(),
+                        }),
+                    });
                 }
             }
             UiMode::UsingKeyboardNav(_) => {
                 // ????
-                // TODO: handle arrow keys / enter / escape to change focus, tab to summon
+                // TODO: handle arrow keys / enter / escape to change focus, tab to summon,
+                // delete to delete, shortcuts for extracting/moving/reconnecting processors???
             }
-            UiMode::MakingSelection(select) => {
-                select.end_location = select.end_location + bg_response.drag_delta();
-
-                let select_rect =
-                    egui::Rect::from_two_pos(select.start_location, select.end_location);
-
-                ui.painter().rect_filled(
-                    select_rect,
-                    egui::Rounding::same(3.0),
-                    egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
-                );
-
-                ui.painter().rect_stroke(
-                    select_rect,
-                    egui::Rounding::same(3.0),
-                    egui::Stroke::new(2.0, egui::Color32::YELLOW),
-                );
-
-                if bg_response.drag_stopped() {
-                    self.mode = UiMode::HoldingSelection(Self::find_objects_touching_rect(
-                        select_rect,
-                        positions,
-                    ));
-                }
-            }
-            UiMode::HoldingSelection(objects) => {
+            UiMode::Selecting(selection) => {
                 let (pressed_esc, pressed_delete) = ui.input_mut(|i| {
                     (
                         i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
@@ -257,9 +250,56 @@ impl GlobalInteractions {
 
                 if pressed_esc {
                     self.mode = UiMode::Passive;
+                    return;
                 } else if pressed_delete {
-                    let objects: Vec<SoundObjectId> = objects.iter().cloned().collect();
+                    let objects: Vec<SoundObjectId> = selection.objects.iter().cloned().collect();
                     graph.remove_objects_batch(&objects).unwrap();
+                    self.mode = UiMode::Passive;
+                    return;
+                } else {
+                    // If the background was clicked and dragged, start another selection area while
+                    // still holding the currently-selected objects
+                    if bg_response.drag_started() {
+                        let pos = bg_response.interact_pointer_pos().unwrap();
+                        selection.selecting_area = Some(SelectingArea {
+                            start_location: pos,
+                            end_location: pos,
+                        });
+                    }
+
+                    if let Some(area) = &mut selection.selecting_area {
+                        Self::draw_selecting_area(ui, area);
+
+                        area.end_location += bg_response.drag_delta();
+
+                        let (shift_held, alt_held) =
+                            ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
+
+                        if bg_response.drag_stopped() {
+                            let new_objects =
+                                Self::find_objects_touching_selection_area(area, positions);
+
+                            if shift_held {
+                                // If shift is held, add the new objects to the selection
+                                selection.objects =
+                                    selection.objects.union(&new_objects).cloned().collect();
+                            } else if alt_held {
+                                // If alt is held, remove the new objects from the selection
+                                selection.objects = selection
+                                    .objects
+                                    .difference(&new_objects)
+                                    .cloned()
+                                    .collect();
+                            } else {
+                                // Otherwise, select only the new objects
+                                selection.objects = new_objects;
+                            }
+                            selection.selecting_area = None;
+                        }
+                    }
+                }
+
+                if selection.objects.is_empty() && selection.selecting_area.is_none() {
                     self.mode = UiMode::Passive;
                 }
 
@@ -316,15 +356,6 @@ impl GlobalInteractions {
         // If the background was just clicked, go into passive mode
         if bg_response.clicked() {
             self.mode = UiMode::Passive;
-        }
-
-        // If the background was just clicked and dragged, start making a selection
-        if bg_response.drag_started() {
-            let pointer_pos = bg_response.interact_pointer_pos().unwrap();
-            self.mode = UiMode::MakingSelection(SelectionArea {
-                start_location: pointer_pos,
-                end_location: pointer_pos + bg_response.drag_delta(),
-            });
         }
     }
 
@@ -392,7 +423,7 @@ impl GlobalInteractions {
 
     pub(crate) fn processor_is_selected(&self, processor: SoundProcessorId) -> bool {
         match &self.mode {
-            UiMode::HoldingSelection(objects) => objects.contains(&processor.into()),
+            UiMode::Selecting(selection) => selection.objects.contains(&processor.into()),
             _ => false,
         }
     }
@@ -401,10 +432,9 @@ impl GlobalInteractions {
     /// the topology
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         match &mut self.mode {
-            UiMode::MakingSelection(_) => (),
-            UiMode::HoldingSelection(s) => {
-                s.retain(|id| topo.contains(id));
-                if s.is_empty() {
+            UiMode::Selecting(s) => {
+                s.objects.retain(|id| topo.contains(id));
+                if s.objects.is_empty() {
                     self.mode = UiMode::Passive;
                 }
             }
@@ -499,10 +529,11 @@ impl GlobalInteractions {
         }
     }
 
-    fn find_objects_touching_rect(
-        rect: egui::Rect,
+    fn find_objects_touching_selection_area(
+        area: &SelectingArea,
         positions: &SoundObjectPositions,
     ) -> HashSet<SoundObjectId> {
+        let rect = egui::Rect::from_two_pos(area.start_location, area.end_location);
         positions
             .processors()
             .iter()
@@ -514,6 +545,22 @@ impl GlobalInteractions {
                 }
             })
             .collect()
+    }
+
+    fn draw_selecting_area(ui: &mut egui::Ui, area: &SelectingArea) {
+        let select_rect = egui::Rect::from_two_pos(area.start_location, area.end_location);
+
+        ui.painter().rect_filled(
+            select_rect,
+            egui::Rounding::same(3.0),
+            egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
+        );
+
+        ui.painter().rect_stroke(
+            select_rect,
+            egui::Rounding::same(3.0),
+            egui::Stroke::new(2.0, egui::Color32::YELLOW),
+        );
     }
 
     // TODO:
