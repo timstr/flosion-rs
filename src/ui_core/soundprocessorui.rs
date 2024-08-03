@@ -300,6 +300,22 @@ impl ProcessorUi {
             ui.painter().rect_stroke(
                 response.rect,
                 egui::Rounding::same(3.0),
+                egui::Stroke::new(2.0, egui::Color32::WHITE),
+            );
+        }
+
+        if ui_state
+            .interactions()
+            .processor_is_selected(self.processor_id)
+        {
+            ui.painter().rect_filled(
+                response.rect,
+                egui::Rounding::same(3.0),
+                egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
+            );
+            ui.painter().rect_stroke(
+                response.rect,
+                egui::Rounding::same(3.0),
                 egui::Stroke::new(2.0, egui::Color32::YELLOW),
             );
         }

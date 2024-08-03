@@ -241,11 +241,15 @@ impl GlobalInteractions {
                 );
 
                 if bg_response.drag_stopped() {
-                    println!("TODO: select those things");
-                    self.mode = UiMode::Passive;
+                    self.mode = UiMode::HoldingSelection(Self::find_objects_touching_rect(
+                        select_rect,
+                        positions,
+                    ));
                 }
             }
-            UiMode::HoldingSelection(_) => todo!(),
+            UiMode::HoldingSelection(objects) => {
+                // TODO: delete, cut, copy, paste
+            }
             UiMode::DraggingProcessor(drag) => {
                 let color = object_states.get_object_color(drag.processor_id.into());
                 let color =
@@ -371,6 +375,13 @@ impl GlobalInteractions {
         }
     }
 
+    pub(crate) fn processor_is_selected(&self, processor: SoundProcessorId) -> bool {
+        match &self.mode {
+            UiMode::HoldingSelection(objects) => objects.contains(&processor.into()),
+            _ => false,
+        }
+    }
+
     /// Remove any data associated with objects that are no longer present in
     /// the topology
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
@@ -471,6 +482,23 @@ impl GlobalInteractions {
                 ),
             );
         }
+    }
+
+    fn find_objects_touching_rect(
+        rect: egui::Rect,
+        positions: &SoundObjectPositions,
+    ) -> HashSet<SoundObjectId> {
+        positions
+            .processors()
+            .iter()
+            .filter_map(|pp| -> Option<SoundObjectId> {
+                if pp.rect.intersects(rect) {
+                    Some(pp.processor.into())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     // TODO:
