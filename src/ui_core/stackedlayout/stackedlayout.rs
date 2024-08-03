@@ -7,19 +7,20 @@ use std::{
 use eframe::egui;
 use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
-use crate::core::sound::{
-    expression::SoundExpressionId,
-    expressionargument::SoundExpressionArgumentId,
-    soundgraph::SoundGraph,
-    soundgraphdata::SoundInputData,
-    soundgraphtopology::SoundGraphTopology,
-    soundinput::{InputOptions, SoundInputId},
-    soundprocessor::SoundProcessorId,
-};
-
-use super::{
-    flosion_ui::Factories, soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
+use crate::{
+    core::sound::{
+        expression::SoundExpressionId,
+        expressionargument::SoundExpressionArgumentId,
+        soundgraph::SoundGraph,
+        soundgraphdata::SoundInputData,
+        soundgraphtopology::SoundGraphTopology,
+        soundinput::{InputOptions, SoundInputId},
+        soundprocessor::SoundProcessorId,
+    },
+    ui_core::{
+        flosion_ui::Factories, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
+    },
 };
 
 /// A mapping between a portion of the sound processing timeline

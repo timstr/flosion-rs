@@ -3,25 +3,22 @@ use std::collections::HashSet;
 use eframe::egui;
 use hashrevise::RevisedProperty;
 
-use crate::{
-    core::{
-        graph::graphobject::ObjectType,
-        sound::{
-            soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-            soundgraphtopology::SoundGraphTopology, soundgraphvalidation::find_sound_error,
-            soundinput::SoundInputId, soundprocessor::SoundProcessorId,
-        },
+use crate::core::{
+    graph::graphobject::ObjectType,
+    sound::{
+        soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+        soundgraphtopology::SoundGraphTopology, soundgraphvalidation::find_sound_error,
+        soundinput::SoundInputId, soundprocessor::SoundProcessorId,
     },
-    ui_core::soundgraphlayout::ProcessorInterconnect,
 };
 
 use super::{
     flosion_ui::Factories,
     keyboardfocus::KeyboardFocusState,
-    soundgraphlayout::SoundGraphLayout,
     soundgraphui::SoundGraphUi,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
+    stackedlayout::stackedlayout::{ProcessorInterconnect, SoundGraphLayout},
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
 };

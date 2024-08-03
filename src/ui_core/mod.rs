@@ -12,7 +12,6 @@ pub mod keyboardfocus;
 pub mod lexicallayout;
 pub mod object_ui;
 pub mod object_ui_states;
-pub mod soundgraphlayout;
 pub mod soundgraphui;
 pub mod soundgraphuicontext;
 pub mod soundgraphuinames;
@@ -20,6 +19,7 @@ pub mod soundgraphuistate;
 pub mod soundobjectpositions;
 pub mod soundobjectuistate;
 pub mod soundprocessorui;
+pub mod stackedlayout;
 mod summon_widget;
 pub mod ui_factory;
 

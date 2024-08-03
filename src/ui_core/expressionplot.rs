@@ -10,7 +10,7 @@ use crate::core::{
     sound::{expressionargument::SoundExpressionArgumentId, soundgraphdata::SoundExpressionData},
 };
 
-use super::{soundgraphlayout::TimeAxis, soundgraphuinames::SoundGraphUiNames};
+use super::{soundgraphuinames::SoundGraphUiNames, stackedlayout::stackedlayout::TimeAxis};
 
 enum VerticalRange {
     Automatic,

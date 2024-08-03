@@ -18,8 +18,9 @@ use eframe::{
 use hashrevise::{Revisable, RevisionHash};
 
 use super::{
-    expressiongraphui::ExpressionGraphUi, soundgraphlayout::SoundGraphLayout,
-    soundgraphui::SoundGraphUi, soundgraphuistate::SoundGraphUiState, ui_factory::UiFactory,
+    expressiongraphui::ExpressionGraphUi, soundgraphui::SoundGraphUi,
+    soundgraphuistate::SoundGraphUiState, stackedlayout::stackedlayout::SoundGraphLayout,
+    ui_factory::UiFactory,
 };
 
 /// Convenience struct for passing all the different factories together

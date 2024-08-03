@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::core::sound::soundprocessor::SoundProcessorId;
 
-use super::soundgraphlayout::ProcessorInterconnect;
+use super::stackedlayout::stackedlayout::ProcessorInterconnect;
 
 #[derive(Clone, Copy)]
 pub(crate) struct InterconnectPosition {

@@ -6,7 +6,7 @@ use crate::core::sound::{
     expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
 };
 
-use super::{flosion_ui::Factories, soundgraphlayout::TimeAxis};
+use super::{flosion_ui::Factories, stackedlayout::stackedlayout::TimeAxis};
 
 pub struct SoundGraphUiContext<'a> {
     factories: &'a Factories,

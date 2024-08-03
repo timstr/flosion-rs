@@ -17,12 +17,12 @@ use super::{
     flosion_ui::Factories,
     globalinteractions::GlobalInteractions,
     graph_ui::GraphUiState,
-    soundgraphlayout::{ProcessorInterconnect, SoundGraphLayout},
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
+    stackedlayout::stackedlayout::{ProcessorInterconnect, SoundGraphLayout},
 };
 
 pub struct SoundGraphUiState {
