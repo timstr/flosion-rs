@@ -123,6 +123,18 @@ impl ProcessorInterconnect {
             ProcessorInterconnect::BottomOfStack(_) => None,
         }
     }
+
+    pub(crate) fn includes_processor(&self, processor: SoundProcessorId) -> bool {
+        match self {
+            ProcessorInterconnect::TopOfStack(spid, _) => processor == *spid,
+            ProcessorInterconnect::BetweenTwoProcessors {
+                bottom,
+                top,
+                input: _,
+            } => [*bottom, *top].contains(&processor),
+            ProcessorInterconnect::BottomOfStack(spid) => processor == *spid,
+        }
+    }
 }
 
 impl Revisable for ProcessorInterconnect {
@@ -376,12 +388,17 @@ impl StackedGroup {
 
         if let Some(legal_interconnects) = ui_state.interactions().legal_processors_to_drop_onto() {
             if legal_interconnects.contains(&interconnect) {
+                // If the interconnect is legal to drop a processor onto, highlight it
                 ui.painter().rect_filled(
                     rect,
                     egui::Rounding::same(5.0),
                     egui::Color32::from_white_alpha(64),
                 );
-            } else {
+            } else if !interconnect
+                .includes_processor(ui_state.interactions().processor_being_dragged().unwrap())
+            {
+                // Otherwise, if the interconnect isn't immediately next to the processor,
+                // colour it red to show that the processor can't be dropped there
                 ui.painter().rect_filled(
                     rect,
                     egui::Rounding::same(5.0),

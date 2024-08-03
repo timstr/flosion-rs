@@ -32,26 +32,6 @@ pub enum SelectionChange {
     Subtract,
 }
 
-// TODO:
-// - create a standalone function which carries out the changes of dropping
-//   a given processor onto a given interconnect on the soundgraphtopology only
-// - use that function to precompute which interconnects would be legal
-//   by testing all of them and checking for errors.
-// - pass the precomputed legal interconnects to the UI context/state, using
-//   the new RevisedProperty construct to ensure it accurately reflects
-//   the current graph and interconnects and does not suffer from weird
-//   stale state bugs or wasted computation.
-// - create a separate standalone function for carrying out a processor drop
-//   onto an interconnect to the layout only
-// - when drawing the layout while dragging a processor, highlight only those
-//   interconnects which are legal
-// - when a processor is droppped onto an interconnect, use the pair of functions
-//   for editing the topology and layout to make the actual change. Using the
-//   same topology-editing function for finding legal connections and for
-//   actually making edits will guarantee consistency and prevent me from
-//   duplicating code or writing another ridiculous and fragile graph traversal
-//   algorithm.
-
 fn drag_and_drop_processor_in_graph(
     topo: &mut SoundGraphTopology,
     processor: SoundProcessorId,
@@ -293,6 +273,13 @@ impl GlobalInteractions {
         }
     }
 
+    pub(crate) fn processor_being_dragged(&self) -> Option<SoundProcessorId> {
+        match &self.mode {
+            UiMode::DraggingProcessor(drag) => Some(drag.processor_id),
+            _ => None,
+        }
+    }
+
     pub(crate) fn legal_processors_to_drop_onto(&self) -> Option<&[ProcessorInterconnect]> {
         match &self.mode {
             UiMode::DraggingProcessor(drag) => drag
@@ -379,19 +366,35 @@ impl GlobalInteractions {
         if let Some(nearest_interconnect) = nearest_interconnect {
             let interconnect = nearest_interconnect.interconnect;
 
+            if interconnect.includes_processor(dropped_proc.processor_id) {
+                return;
+            }
+
             // No point in checking invariants later if they aren't
             // already upheld
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph.topology()));
 
-            if let Err(e) = graph.edit_topology(|topo| {
-                drag_and_drop_processor_in_graph(topo, dropped_proc.processor_id, interconnect)
-                    .unwrap();
-                Ok(())
-            }) {
-                println!("Can't drop that there: {:?}", e);
-                return;
+            let drag_and_drop_result = graph.edit_topology(|topo| {
+                Ok(drag_and_drop_processor_in_graph(
+                    topo,
+                    dropped_proc.processor_id,
+                    interconnect,
+                ))
+            });
+
+            match drag_and_drop_result {
+                Ok(Ok(_)) => { /* nice */ }
+                Ok(Err(_)) => {
+                    println!("Nope, can't drop that there.");
+                    return;
+                }
+                Err(e) => {
+                    println!("Can't drop that there: {:?}", e);
+                    return;
+                }
             }
+
             drag_and_drop_processor_in_layout(layout, dropped_proc.processor_id, interconnect);
 
             #[cfg(debug_assertions)]
