@@ -73,3 +73,30 @@ impl From<SoundObjectId> for SoundGraphId {
         }
     }
 }
+impl From<&SoundInputId> for SoundGraphId {
+    fn from(id: &SoundInputId) -> SoundGraphId {
+        SoundGraphId::SoundInput(*id)
+    }
+}
+impl From<&SoundProcessorId> for SoundGraphId {
+    fn from(id: &SoundProcessorId) -> SoundGraphId {
+        SoundGraphId::SoundProcessor(*id)
+    }
+}
+impl From<&SoundExpressionId> for SoundGraphId {
+    fn from(id: &SoundExpressionId) -> SoundGraphId {
+        SoundGraphId::Expression(*id)
+    }
+}
+impl From<&SoundExpressionArgumentId> for SoundGraphId {
+    fn from(id: &SoundExpressionArgumentId) -> SoundGraphId {
+        SoundGraphId::ExpressionArgument(*id)
+    }
+}
+impl From<&SoundObjectId> for SoundGraphId {
+    fn from(id: &SoundObjectId) -> SoundGraphId {
+        match id {
+            SoundObjectId::Sound(i) => SoundGraphId::SoundProcessor(*i),
+        }
+    }
+}

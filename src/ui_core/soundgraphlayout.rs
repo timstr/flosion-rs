@@ -135,6 +135,20 @@ impl ProcessorInterconnect {
             ProcessorInterconnect::BottomOfStack(spid) => processor == *spid,
         }
     }
+
+    /// Returns true iff the graph ids belonging to the interconnect
+    /// all refer to objects that exist in the given topology
+    pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
+        match self {
+            ProcessorInterconnect::TopOfStack(spid, ii) => {
+                topo.contains(spid) && topo.contains(ii.id)
+            }
+            ProcessorInterconnect::BetweenTwoProcessors { bottom, top, input } => {
+                topo.contains(bottom) && topo.contains(top) && topo.contains(input.id)
+            }
+            ProcessorInterconnect::BottomOfStack(spid) => topo.contains(spid),
+        }
+    }
 }
 
 impl Revisable for ProcessorInterconnect {
@@ -737,7 +751,7 @@ impl SoundGraphLayout {
             // Otherwise, add a new group for it. Other newly-added
             // processors which should belong to the same group
             // will be added below.
-            if self.find_group(proc.id().into()).is_some() {
+            if self.find_group(proc.id()).is_some() {
                 self.split_group_above_processor(proc.id(), positions);
             } else {
                 let procs = vec![proc.id()];
@@ -753,7 +767,7 @@ impl SoundGraphLayout {
                 // If the processor is already in a group, split it.
                 // Otherwise, do nothing. It will be appended onto
                 // an existing group in the next phase.
-                if self.find_group(spid.into()).is_some() {
+                if self.find_group(spid).is_some() {
                     self.split_group_below_processor(spid, positions);
                 }
             }
@@ -842,7 +856,7 @@ impl SoundGraphLayout {
         // every sound processor in the layout must exist in the topology
         for group in &self.groups {
             for spid in &group.processors {
-                if !topo.contains((*spid).into()) {
+                if !topo.contains(spid) {
                     println!(
                         "The layout contains a sound processor #{} which no longer exists",
                         spid.value()
@@ -886,7 +900,7 @@ impl SoundGraphLayout {
     ) {
         // delete any removed processor ids
         for group in &mut self.groups {
-            group.processors.retain(|i| topo.contains((*i).into()));
+            group.processors.retain(|i| topo.contains(i));
         }
 
         // Remove any empty groups

@@ -17,14 +17,14 @@ pub(crate) fn find_sound_error(topology: &SoundGraphTopology) -> Option<SoundErr
     check_missing_ids(topology);
 
     if let Some(path) = find_sound_cycle(topology) {
-        return Some(SoundError::CircularDependency { cycle: path }.into());
+        return Some(SoundError::CircularDependency { cycle: path });
     }
     if let Some(err) = validate_sound_connections(topology) {
         return Some(err);
     }
     let bad_dependencies = find_invalid_expression_arguments(topology);
     if bad_dependencies.len() > 0 {
-        return Some(SoundError::StateNotInScope { bad_dependencies }.into());
+        return Some(SoundError::StateNotInScope { bad_dependencies });
     }
     None
 }

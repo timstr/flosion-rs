@@ -377,24 +377,24 @@ impl GlobalInteractions {
         match &mut self.mode {
             UiMode::MakingSelection(_) => (),
             UiMode::HoldingSelection(s) => {
-                s.retain(|id| topo.contains((*id).into()));
+                s.retain(|id| topo.contains(id));
                 if s.is_empty() {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::Passive => (),
             UiMode::UsingKeyboardNav(kbd_focus) => {
-                if !topo.contains(kbd_focus.graph_id()) {
+                if !kbd_focus.is_valid(topo) {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::DraggingProcessor(data) => {
-                if !topo.contains(data.processor_id.into()) {
+                if !topo.contains(data.processor_id) {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::DroppingProcessor(data) => {
-                if !topo.contains(data.processor_id.into()) {
+                if !topo.contains(data.processor_id) {
                     self.mode = UiMode::Passive;
                 }
             }

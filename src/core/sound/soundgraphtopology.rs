@@ -431,7 +431,8 @@ impl SoundGraphTopology {
     }
 
     /// Check whether the entity referred to by the given id exists in the topology
-    pub fn contains(&self, graph_id: SoundGraphId) -> bool {
+    pub fn contains<I: Into<SoundGraphId>>(&self, id: I) -> bool {
+        let graph_id: SoundGraphId = id.into();
         match graph_id {
             SoundGraphId::SoundInput(siid) => self.sound_inputs.contains_key(&siid),
             SoundGraphId::SoundProcessor(spid) => self.sound_processors.contains_key(&spid),
