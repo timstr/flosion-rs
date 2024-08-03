@@ -206,6 +206,7 @@ impl GlobalInteractions {
         object_states: &mut SoundObjectUiStates,
         positions: &mut SoundObjectPositions,
         interconnects: &[ProcessorInterconnect],
+        bg_response: egui::Response,
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -217,8 +218,33 @@ impl GlobalInteractions {
                     self.start_summoning(position, factories.sound_uis())
                 }
             }
-            UiMode::UsingKeyboardNav(_) => todo!(),
-            UiMode::MakingSelection(_) => todo!(),
+            UiMode::UsingKeyboardNav(_) => {
+                // ????
+                // TODO: handle arrow keys / enter / escape to change focus, tab to summon
+            }
+            UiMode::MakingSelection(select) => {
+                select.end_location = select.end_location + bg_response.drag_delta();
+
+                let select_rect =
+                    egui::Rect::from_two_pos(select.start_location, select.end_location);
+
+                ui.painter().rect_filled(
+                    select_rect,
+                    egui::Rounding::same(3.0),
+                    egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
+                );
+
+                ui.painter().rect_stroke(
+                    select_rect,
+                    egui::Rounding::same(3.0),
+                    egui::Stroke::new(2.0, egui::Color32::YELLOW),
+                );
+
+                if bg_response.drag_stopped() {
+                    println!("TODO: select those things");
+                    self.mode = UiMode::Passive;
+                }
+            }
             UiMode::HoldingSelection(_) => todo!(),
             UiMode::DraggingProcessor(drag) => {
                 let color = object_states.get_object_color(drag.processor_id.into());
@@ -267,12 +293,19 @@ impl GlobalInteractions {
                 }
             }
         }
-    }
 
-    pub(crate) fn dragging_a_processor(&self) -> bool {
-        match &self.mode {
-            UiMode::DraggingProcessor(_) => true,
-            _ => false,
+        // If the background was just clicked, go into passive mode
+        if bg_response.clicked() {
+            self.mode = UiMode::Passive;
+        }
+
+        // If the background was just clicked and dragged, start making a selection
+        if bg_response.drag_started() {
+            let pointer_pos = bg_response.interact_pointer_pos().unwrap();
+            self.mode = UiMode::MakingSelection(SelectionArea {
+                start_location: pointer_pos,
+                end_location: pointer_pos + bg_response.drag_delta(),
+            });
         }
     }
 
@@ -325,6 +358,19 @@ impl GlobalInteractions {
         });
     }
 
+    pub(crate) fn focus_on_processor(&mut self, processor: SoundProcessorId) {
+        self.mode = UiMode::UsingKeyboardNav(KeyboardFocusState::AroundSoundProcessor(processor));
+    }
+
+    pub(crate) fn processor_is_in_focus(&self, processor: SoundProcessorId) -> bool {
+        match &self.mode {
+            UiMode::UsingKeyboardNav(KeyboardFocusState::AroundSoundProcessor(spid)) => {
+                processor == *spid
+            }
+            _ => false,
+        }
+    }
+
     /// Remove any data associated with objects that are no longer present in
     /// the topology
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
@@ -369,44 +415,42 @@ impl GlobalInteractions {
         if let Some(nearest_interconnect) = nearest_interconnect {
             let interconnect = nearest_interconnect.interconnect;
 
-            if interconnect.includes_processor(dropped_proc.processor_id) {
-                return;
-            }
+            if !interconnect.includes_processor(dropped_proc.processor_id) {
+                // No point in checking invariants later if they aren't
+                // already upheld
+                #[cfg(debug_assertions)]
+                assert!(layout.check_invariants(graph.topology()));
 
-            // No point in checking invariants later if they aren't
-            // already upheld
-            #[cfg(debug_assertions)]
-            assert!(layout.check_invariants(graph.topology()));
+                let drag_and_drop_result = graph.edit_topology(|topo| {
+                    Ok(drag_and_drop_processor_in_graph(
+                        topo,
+                        dropped_proc.processor_id,
+                        interconnect,
+                    ))
+                });
 
-            let drag_and_drop_result = graph.edit_topology(|topo| {
-                Ok(drag_and_drop_processor_in_graph(
-                    topo,
+                match drag_and_drop_result {
+                    Ok(Ok(_)) => { /* nice */ }
+                    Ok(Err(_)) => {
+                        println!("Nope, can't drop that there.");
+                        return;
+                    }
+                    Err(e) => {
+                        println!("Can't drop that there: {:?}", e);
+                        return;
+                    }
+                }
+
+                drag_and_drop_processor_in_layout(
+                    layout,
                     dropped_proc.processor_id,
                     interconnect,
-                ))
-            });
+                    positions,
+                );
 
-            match drag_and_drop_result {
-                Ok(Ok(_)) => { /* nice */ }
-                Ok(Err(_)) => {
-                    println!("Nope, can't drop that there.");
-                    return;
-                }
-                Err(e) => {
-                    println!("Can't drop that there: {:?}", e);
-                    return;
-                }
+                #[cfg(debug_assertions)]
+                assert!(layout.check_invariants(graph.topology()));
             }
-
-            drag_and_drop_processor_in_layout(
-                layout,
-                dropped_proc.processor_id,
-                interconnect,
-                positions,
-            );
-
-            #[cfg(debug_assertions)]
-            assert!(layout.check_invariants(graph.topology()));
         } else {
             Self::disconnect_processor_in_graph(dropped_proc.processor_id, graph);
 

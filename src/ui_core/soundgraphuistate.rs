@@ -15,8 +15,8 @@ use super::{
     expressionplot::PlotConfig,
     expressionui::SoundExpressionUi,
     flosion_ui::Factories,
+    globalinteractions::GlobalInteractions,
     graph_ui::GraphUiState,
-    interactions::GlobalInteractions,
     soundgraphlayout::{ProcessorInterconnect, SoundGraphLayout},
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
@@ -78,6 +78,8 @@ impl SoundGraphUiState {
         graph: &mut SoundGraph,
         layout: &mut SoundGraphLayout,
     ) {
+        let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
+
         ui.with_layer_id(
             egui::LayerId::new(
                 egui::Order::Foreground,
@@ -92,6 +94,7 @@ impl SoundGraphUiState {
                     &mut self.object_states,
                     &mut self.positions,
                     &mut self.interconnects,
+                    bg_response,
                 );
             },
         );
