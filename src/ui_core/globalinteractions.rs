@@ -16,7 +16,7 @@ use super::{
     flosion_ui::Factories,
     keyboardfocus::KeyboardFocusState,
     soundgraphui::SoundGraphUi,
-    soundobjectpositions::{InterconnectPosition, SoundObjectPositions},
+    soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::{interconnect::ProcessorInterconnect, stackedlayout::SoundGraphLayout},
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
@@ -119,16 +119,16 @@ fn drag_and_drop_processor_in_layout(
 fn compute_legal_interconnects(
     topo: &SoundGraphTopology,
     processor: SoundProcessorId,
-    interconnect_positions: &[InterconnectPosition],
+    interconnects: &[ProcessorInterconnect],
 ) -> Vec<ProcessorInterconnect> {
     let mut legal_interconnects = Vec::new();
-    for ip in interconnect_positions {
+    for interconnect in interconnects {
         let mut topo_clone = topo.clone();
-        if drag_and_drop_processor_in_graph(&mut topo_clone, processor, ip.interconnect).is_err() {
+        if drag_and_drop_processor_in_graph(&mut topo_clone, processor, *interconnect).is_err() {
             continue;
         }
         if find_sound_error(&topo_clone).is_none() {
-            legal_interconnects.push(ip.interconnect);
+            legal_interconnects.push(*interconnect);
         }
     }
     legal_interconnects
@@ -330,11 +330,16 @@ impl GlobalInteractions {
 
                 // Ensure that the legal connections are up to date, since these are used
                 // to highlight legal/illegal interconnects to drop onto
+                let interconnects: Vec<ProcessorInterconnect> = positions
+                    .interconnects()
+                    .iter()
+                    .map(|i| i.interconnect)
+                    .collect();
                 drag.legal_connections.refresh3(
                     compute_legal_interconnects,
                     graph.topology(),
                     drag.processor_id,
-                    positions.interconnects(),
+                    &interconnects,
                 );
             }
             UiMode::DroppingProcessor(dropped_proc) => {
