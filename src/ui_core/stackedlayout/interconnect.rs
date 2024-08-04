@@ -115,6 +115,18 @@ impl ProcessorInterconnect {
         }
     }
 
+    pub(crate) fn is_below_processor(&self, processor: SoundProcessorId) -> bool {
+        match self {
+            ProcessorInterconnect::TopOfStack(_, _) => false,
+            ProcessorInterconnect::BetweenTwoProcessors {
+                bottom: _,
+                top,
+                input: _,
+            } => *top == processor,
+            ProcessorInterconnect::BottomOfStack(spid) => *spid == processor,
+        }
+    }
+
     /// Returns true iff the graph ids belonging to the interconnect
     /// all refer to objects that exist in the given topology
     pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {

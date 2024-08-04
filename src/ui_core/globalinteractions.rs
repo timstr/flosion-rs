@@ -16,7 +16,7 @@ use super::{
     flosion_ui::Factories,
     keyboardfocus::KeyboardFocusState,
     soundgraphui::SoundGraphUi,
-    soundobjectpositions::SoundObjectPositions,
+    soundobjectpositions::{InterconnectPosition, SoundObjectPositions},
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::{interconnect::ProcessorInterconnect, stackedlayout::SoundGraphLayout},
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
@@ -119,16 +119,16 @@ fn drag_and_drop_processor_in_layout(
 fn compute_legal_interconnects(
     topo: &SoundGraphTopology,
     processor: SoundProcessorId,
-    interconnects: &[ProcessorInterconnect],
+    interconnect_positions: &[InterconnectPosition],
 ) -> Vec<ProcessorInterconnect> {
     let mut legal_interconnects = Vec::new();
-    for interconnect in interconnects {
+    for ip in interconnect_positions {
         let mut topo_clone = topo.clone();
-        if drag_and_drop_processor_in_graph(&mut topo_clone, processor, *interconnect).is_err() {
+        if drag_and_drop_processor_in_graph(&mut topo_clone, processor, ip.interconnect).is_err() {
             continue;
         }
         if find_sound_error(&topo_clone).is_none() {
-            legal_interconnects.push(*interconnect);
+            legal_interconnects.push(ip.interconnect);
         }
     }
     legal_interconnects
@@ -205,7 +205,6 @@ impl GlobalInteractions {
         layout: &mut SoundGraphLayout,
         object_states: &mut SoundObjectUiStates,
         positions: &mut SoundObjectPositions,
-        interconnects: &[ProcessorInterconnect],
         bg_response: egui::Response,
     ) {
         match &mut self.mode {
@@ -303,21 +302,44 @@ impl GlobalInteractions {
                 // TODO: cut, copy
             }
             UiMode::DraggingProcessor(drag) => {
+                // Draw a basic coloured rectangle tracking the cursor as a preview of
+                // the processor being dragged, without drawing the processor's ui twice
                 let color = object_states.get_object_color(drag.processor_id.into());
                 let color =
                     egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 64);
                 ui.painter()
                     .rect_filled(drag.rect, egui::Rounding::same(5.0), color);
 
+                let shift_held = ui.input(|i| i.modifiers.shift);
+
+                if shift_held {
+                    let interconnect_pos = positions
+                        .find_interconnect_below_processor(drag.processor_id)
+                        .unwrap();
+
+                    // Draw a goofy pair of lines if shift is held
+                    ui.painter().line_segment(
+                        [interconnect_pos.rect.left_bottom(), drag.rect.left_top()],
+                        egui::Stroke::new(2.0, egui::Color32::DEBUG_COLOR),
+                    );
+                    ui.painter().line_segment(
+                        [interconnect_pos.rect.right_bottom(), drag.rect.right_top()],
+                        egui::Stroke::new(2.0, egui::Color32::DEBUG_COLOR),
+                    );
+                }
+
+                // Ensure that the legal connections are up to date, since these are used
+                // to highlight legal/illegal interconnects to drop onto
                 drag.legal_connections.refresh3(
                     compute_legal_interconnects,
                     graph.topology(),
                     drag.processor_id,
-                    interconnects,
+                    positions.interconnects(),
                 );
             }
             UiMode::DroppingProcessor(dropped_proc) => {
-                Self::handle_processor_drop(*dropped_proc, graph, layout, positions);
+                let shift_held = ui.input(|i| i.modifiers.shift);
+                Self::handle_processor_drop(*dropped_proc, graph, layout, positions, shift_held);
                 self.mode = UiMode::Passive;
             }
             UiMode::Summoning(summon_widget) => {
@@ -460,6 +482,7 @@ impl GlobalInteractions {
         graph: &mut SoundGraph,
         layout: &mut SoundGraphLayout,
         positions: &mut SoundObjectPositions,
+        shift_held: bool,
     ) {
         let minimum_intersection = 1000.0; // idk
 

@@ -22,7 +22,7 @@ use super::{
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    stackedlayout::{interconnect::ProcessorInterconnect, stackedlayout::SoundGraphLayout},
+    stackedlayout::stackedlayout::SoundGraphLayout,
 };
 
 pub struct SoundGraphUiState {
@@ -42,9 +42,6 @@ pub struct SoundGraphUiState {
 
     /// The positions of on-screen things that need tracking for later lookup
     positions: SoundObjectPositions,
-
-    /// The set of all interconnects that currently exist
-    interconnects: Vec<ProcessorInterconnect>,
 }
 
 impl SoundGraphUiState {
@@ -55,7 +52,6 @@ impl SoundGraphUiState {
             names: SoundGraphUiNames::new(),
             interactions: GlobalInteractions::new(),
             positions: SoundObjectPositions::new(),
-            interconnects: Vec::new(),
         }
     }
 
@@ -93,7 +89,6 @@ impl SoundGraphUiState {
                     layout,
                     &mut self.object_states,
                     &mut self.positions,
-                    &mut self.interconnects,
                     bg_response,
                 );
             },
@@ -118,7 +113,6 @@ impl SoundGraphUiState {
 
     pub(super) fn cleanup_frame_data(&mut self) {
         self.positions.clear();
-        self.interconnects.clear();
     }
 
     #[cfg(debug_assertions)]
@@ -140,14 +134,6 @@ impl SoundGraphUiState {
 
     pub(crate) fn positions_mut(&mut self) -> &mut SoundObjectPositions {
         &mut self.positions
-    }
-
-    pub(crate) fn interconnects(&self) -> &[ProcessorInterconnect] {
-        &self.interconnects
-    }
-
-    pub(crate) fn record_interconnect(&mut self, interconnect: ProcessorInterconnect) {
-        self.interconnects.push(interconnect);
     }
 
     pub(crate) fn show_expression_graph_ui(

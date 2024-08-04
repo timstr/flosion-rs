@@ -314,8 +314,6 @@ impl StackedGroup {
             .positions_mut()
             .record_interconnect(interconnect, rect);
 
-        ui_state.record_interconnect(interconnect);
-
         if let Some(legal_interconnects) = ui_state.interactions().legal_processors_to_drop_onto() {
             if legal_interconnects.contains(&interconnect) {
                 // If the interconnect is legal to drop a processor onto, highlight it

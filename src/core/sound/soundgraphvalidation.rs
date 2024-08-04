@@ -321,6 +321,9 @@ pub(super) fn find_sound_cycle(topology: &SoundGraphTopology) -> Option<SoundPat
     }
 }
 
+// TODO: error if there are any static sound processors connected directly or indirectly
+// to a non-synchronous input, even if that input belongs to a dynamic processor which
+// is not instanced
 pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Option<SoundError> {
     fn visit(
         proc_id: SoundProcessorId,

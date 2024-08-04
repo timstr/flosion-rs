@@ -1,4 +1,7 @@
+use std::hash::Hasher;
+
 use eframe::egui;
+use hashrevise::{Revisable, RevisionHasher};
 
 use crate::core::sound::soundprocessor::SoundProcessorId;
 
@@ -8,6 +11,24 @@ use super::stackedlayout::interconnect::ProcessorInterconnect;
 pub(crate) struct InterconnectPosition {
     pub(crate) interconnect: ProcessorInterconnect,
     pub(crate) rect: egui::Rect,
+}
+
+// TODO: this is only here for the sake of caching
+// the result of compute_legal_interconnects(),
+// which uses the interconnects but not their
+// positions. It would be cleaner and more efficient
+// if Revised worked with iterators so that
+// just the interconnects could be passed here.
+impl Revisable for InterconnectPosition {
+    fn get_revision(&self) -> hashrevise::RevisionHash {
+        let mut hasher = RevisionHasher::new();
+        hasher.write_revisable(&self.interconnect);
+        hasher.write_i32(self.rect.min.x.round() as _);
+        hasher.write_i32(self.rect.min.y.round() as _);
+        hasher.write_i32(self.rect.max.x.round() as _);
+        hasher.write_i32(self.rect.max.y.round() as _);
+        hasher.into_revision()
+    }
 }
 
 pub(crate) struct ProcessorPosition {
@@ -32,6 +53,10 @@ impl SoundObjectPositions {
             interconnects: Vec::new(),
             processors: Vec::new(),
         }
+    }
+
+    pub(crate) fn interconnects(&self) -> &[InterconnectPosition] {
+        &self.interconnects
     }
 
     pub(crate) fn record_interconnect(
@@ -83,6 +108,15 @@ impl SoundObjectPositions {
             }
         }
         best_overlap
+    }
+
+    pub(crate) fn find_interconnect_below_processor(
+        &self,
+        processor: SoundProcessorId,
+    ) -> Option<&InterconnectPosition> {
+        self.interconnects
+            .iter()
+            .find(|i| i.interconnect.is_below_processor(processor))
     }
 
     pub(crate) fn clear(&mut self) {
