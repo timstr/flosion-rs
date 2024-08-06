@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    interconnect::{InterconnectInput, ProcessorInterconnect},
+    interconnect::{InputSocket, ProcessorPlug},
     timeaxis::TimeAxis,
 };
 
@@ -42,7 +42,10 @@ pub struct StackedGroup {
 }
 
 impl StackedGroup {
-    const INTERCONNECT_HEIGHT: f32 = 10.0;
+    const SOCKET_HEIGHT: f32 = 10.0;
+    const PLUG_HEIGHT: f32 = 10.0;
+    const STRIPE_WIDTH: f32 = 3.0;
+    const STRIPE_SPACING: f32 = 10.0;
 
     /// Creates a new stacked group consisting of the given list of sound processors and
     /// positions them according to the previously-known positions of thos processors.
@@ -199,54 +202,26 @@ impl StackedGroup {
                         ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
 
                     let processors_response = ui.vertical(|ui| {
-                        let top_processor = self.processors[0];
-                        let top_inputs: Vec<InterconnectInput> = graph
-                            .topology()
-                            .sound_processor(top_processor)
-                            .unwrap()
-                            .sound_inputs()
-                            .iter()
-                            .map(|siid| {
-                                InterconnectInput::from_input_data(
-                                    graph.topology().sound_input(*siid).unwrap(),
-                                )
-                            })
-                            .collect();
+                        for spid in &self.processors {
+                            let processor_data = graph.topology().sound_processor(*spid).unwrap();
 
-                        if top_inputs.len() == 0 {
-                            let (rect, _) = ui.allocate_exact_size(
-                                egui::vec2(self.width_pixels as f32, Self::INTERCONNECT_HEIGHT),
-                                egui::Sense::hover(),
-                            );
-                            self.draw_barrier(ui, rect);
-                        } else {
-                            for input in top_inputs {
-                                // let (rect, _) = ui.allocate_exact_size(
-                                //     egui::vec2(self.width_pixels as f32, 5.0),
-                                //     egui::Sense::hover(),
-                                // );
-                                // ui.painter().rect_filled(
-                                //     rect,
-                                //     egui::Rounding::ZERO,
-                                //     egui::Color32::WHITE,
-                                // );
-                                self.draw_processor_interconnect(
-                                    ui,
-                                    ui_state,
-                                    ProcessorInterconnect::TopOfStack(top_processor, input),
-                                );
+                            let inputs = processor_data.sound_inputs();
+
+                            if inputs.is_empty() {
+                                self.draw_barrier(ui);
+                            } else {
+                                for input_id in inputs {
+                                    let input_data =
+                                        graph.topology().sound_input(*input_id).unwrap();
+                                    self.draw_input_socket(
+                                        ui,
+                                        ui_state,
+                                        InputSocket::from_input_data(input_data),
+                                    );
+                                }
                             }
-                        }
 
-                        for i in 0..self.processors.len() {
-                            let spid = self.processors[i];
-
-                            let object = graph
-                                .topology()
-                                .sound_processor(spid)
-                                .unwrap()
-                                .instance_arc()
-                                .as_graph_object();
+                            let object = processor_data.instance_arc().as_graph_object();
                             let mut ctx = SoundGraphUiContext::new(
                                 factories,
                                 self.time_axis,
@@ -258,29 +233,13 @@ impl StackedGroup {
                                 .sound_uis()
                                 .ui(&object, ui_state, ui, &mut ctx, graph);
 
-                            if let Some(next_spid) = self.processors.get(i + 1) {
-                                let next_inputs = graph
-                                    .topology()
-                                    .sound_processor(*next_spid)
-                                    .unwrap()
-                                    .sound_inputs();
-                                debug_assert_eq!(next_inputs.len(), 1);
-                                let siid = next_inputs[0];
-                                let input = graph.topology().sound_input(siid).unwrap();
-                                let interconnect = ProcessorInterconnect::BetweenTwoProcessors {
-                                    bottom: *next_spid,
-                                    top: spid,
-                                    input: InterconnectInput::from_input_data(input),
-                                };
-                                self.draw_processor_interconnect(ui, ui_state, interconnect);
-                            }
+                            let processor_data = graph.topology().sound_processor(*spid).unwrap();
+                            self.draw_processor_plug(
+                                ui,
+                                ui_state,
+                                ProcessorPlug::from_processor_data(processor_data),
+                            );
                         }
-
-                        self.draw_processor_interconnect(
-                            ui,
-                            ui_state,
-                            ProcessorInterconnect::BottomOfStack(*self.processors.last().unwrap()),
-                        );
                     });
 
                     let sidebar_rect =
@@ -298,68 +257,70 @@ impl StackedGroup {
         self.rect = r.response.rect;
     }
 
-    fn draw_processor_interconnect(
+    fn draw_input_socket(
         &self,
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
-        interconnect: ProcessorInterconnect,
+        socket: InputSocket,
     ) {
-        // TODO: make clickable to e.g. spawn summon widget, insert new (matching) processor
         let (rect, _) = ui.allocate_exact_size(
-            egui::vec2(self.width_pixels as f32, Self::INTERCONNECT_HEIGHT),
+            egui::vec2(self.width_pixels as f32, Self::SOCKET_HEIGHT),
             egui::Sense::hover(),
         );
 
-        ui_state
-            .positions_mut()
-            .record_interconnect(interconnect, rect);
+        ui_state.positions_mut().record_socket(socket, rect);
 
-        if let Some(legal_interconnects) = ui_state.interactions().legal_processors_to_drop_onto() {
-            if legal_interconnects.contains(&interconnect) {
-                // If the interconnect is legal to drop a processor onto, highlight it
-                ui.painter().rect_filled(
-                    rect,
-                    egui::Rounding::same(5.0),
-                    egui::Color32::from_white_alpha(64),
-                );
-            } else if !interconnect
-                .includes_processor(ui_state.interactions().processor_being_dragged().unwrap())
-            {
-                // Otherwise, if the interconnect isn't immediately next to the processor,
-                // colour it red to show that the processor can't be dropped there
-                ui.painter().rect_filled(
-                    rect,
-                    egui::Rounding::same(5.0),
-                    egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64),
-                );
-            }
+        if let Some(sockets) = ui_state
+            .interactions()
+            .legal_sockets_to_drop_processor_onto()
+        {
+            let legal = sockets.contains(&socket);
+            ui.painter().rect_filled(
+                rect,
+                egui::Rounding::same(5.0),
+                if legal {
+                    egui::Color32::from_white_alpha(64)
+                } else {
+                    egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64)
+                },
+            );
+        } else {
         }
 
-        match interconnect {
-            ProcessorInterconnect::TopOfStack(_, input) => {
-                self.draw_stripes(ui, rect, input.branches, input.options);
-            }
-            ProcessorInterconnect::BetweenTwoProcessors {
-                bottom: _,
-                top: _,
-                input,
-            } => {
-                self.draw_stripes(ui, rect, input.branches, input.options);
-            }
-            ProcessorInterconnect::BottomOfStack(_) => self.draw_even_stripes(ui, rect, 1),
+        match socket.options {
+            InputOptions::Synchronous => self.draw_even_stripes(ui, rect, socket.branches),
+            InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, socket.branches),
         }
     }
 
-    fn draw_stripes(
+    fn draw_processor_plug(
         &self,
         ui: &mut egui::Ui,
-        rect: egui::Rect,
-        num_branches: usize,
-        options: InputOptions,
+        ui_state: &mut SoundGraphUiState,
+        plug: ProcessorPlug,
     ) {
-        match options {
-            InputOptions::Synchronous => self.draw_even_stripes(ui, rect, num_branches),
-            InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, num_branches),
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
+            egui::Sense::hover(),
+        );
+
+        ui_state.positions_mut().record_plug(plug, rect);
+
+        // TODO: highlight if dragging something compatible
+
+        if plug.is_static {
+            self.draw_even_stripes(ui, rect, 1);
+        } else {
+            let y_middle = rect.center().y;
+            let half_dot_height = Self::STRIPE_WIDTH * 0.5;
+            self.draw_even_stripes(
+                ui,
+                egui::Rect::from_x_y_ranges(
+                    rect.left()..=rect.right(),
+                    (y_middle - half_dot_height)..=(y_middle + half_dot_height),
+                ),
+                1,
+            );
         }
     }
 
@@ -370,10 +331,7 @@ impl StackedGroup {
         // overflow contents. This needs to be undone below.
         ui.set_clip_rect(rect);
 
-        let stripe_width = 3.0;
-        let stripe_spacing = 10.0;
-
-        let stripe_total_width = stripe_spacing + stripe_width;
+        let stripe_total_width = Self::STRIPE_SPACING + Self::STRIPE_WIDTH;
 
         let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize;
 
@@ -385,13 +343,7 @@ impl StackedGroup {
             let top_left = egui::pos2(xmin, ymin);
             let bottom_left = egui::pos2(xmin, ymax);
 
-            self.draw_single_stripe(
-                ui.painter(),
-                top_left,
-                bottom_left,
-                stripe_width,
-                num_branches,
-            );
+            self.draw_single_stripe(ui.painter(), top_left, bottom_left, num_branches);
         }
 
         // Restore the previous clip rect
@@ -410,10 +362,7 @@ impl StackedGroup {
         // overflow contents. This needs to be undone below.
         ui.set_clip_rect(rect);
 
-        let stripe_width = 3.0;
-        let stripe_spacing = 10.0;
-
-        let stripe_total_width = stripe_spacing + stripe_width;
+        let stripe_total_width = Self::STRIPE_SPACING + Self::STRIPE_WIDTH;
 
         let num_stripes = (self.width_pixels as f32 / stripe_total_width as f32).ceil() as usize;
 
@@ -434,13 +383,7 @@ impl StackedGroup {
 
             let top_left = egui::pos2(xmin + wonkiness, ymin);
             let bottom_left = egui::pos2(xmin, ymax);
-            self.draw_single_stripe(
-                ui.painter(),
-                top_left,
-                bottom_left,
-                stripe_width,
-                num_branches,
-            );
+            self.draw_single_stripe(ui.painter(), top_left, bottom_left, num_branches);
         }
 
         // Restore the previous clip rect
@@ -452,7 +395,12 @@ impl StackedGroup {
         }
     }
 
-    fn draw_barrier(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+    fn draw_barrier(&self, ui: &mut egui::Ui) {
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(self.width_pixels as f32, Self::SOCKET_HEIGHT),
+            egui::Sense::hover(),
+        );
+
         let old_clip_rect = ui.clip_rect();
 
         // clip rendered things to the allocated area to gracefully
@@ -497,9 +445,9 @@ impl StackedGroup {
         painter: &egui::Painter,
         top_left: egui::Pos2,
         bottom_left: egui::Pos2,
-        width: f32,
         num_branches: usize,
     ) {
+        let width = Self::STRIPE_WIDTH;
         match num_branches {
             0 => {
                 // no branches: taper to a point at top middle

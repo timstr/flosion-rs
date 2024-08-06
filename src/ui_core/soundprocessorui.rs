@@ -280,7 +280,7 @@ impl ProcessorUi {
                         }
 
                         if bg_response.drag_stopped() {
-                            ui_state.interactions_mut().drog_dragging_processor();
+                            ui_state.interactions_mut().drop_dragging_processor();
                         }
                     }
 

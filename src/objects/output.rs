@@ -31,6 +31,7 @@ pub struct OutputData {
 }
 
 // TODO: rename to e.g. "SoundOut", "Output" is too vague and overloaded
+// AudioOut?
 pub struct Output {
     pub input: SingleInput,
     shared_data: Arc<OutputData>,

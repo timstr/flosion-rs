@@ -19,6 +19,9 @@ use crate::core::{
     soundchunk::{SoundChunk, CHUNK_SIZE},
 };
 
+// TODO: rename to something less vague
+// AudioIn?
+
 pub struct Input {
     // TODO: how to do without mutex? In principle, only
     // the one state graph node corresponding to this

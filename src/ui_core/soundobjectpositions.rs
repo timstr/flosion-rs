@@ -2,12 +2,73 @@ use eframe::egui;
 
 use crate::core::sound::soundprocessor::SoundProcessorId;
 
-use super::stackedlayout::interconnect::ProcessorInterconnect;
+use super::stackedlayout::interconnect::{InputSocket, ProcessorPlug};
 
-#[derive(Clone, Copy)]
-pub(crate) struct InterconnectPosition {
-    pub(crate) interconnect: ProcessorInterconnect,
-    pub(crate) rect: egui::Rect,
+pub(crate) struct ItemsAndPositions<T> {
+    items: Vec<T>,
+    positions: Vec<egui::Rect>,
+}
+
+impl<T> ItemsAndPositions<T> {
+    pub(crate) fn new() -> ItemsAndPositions<T> {
+        ItemsAndPositions {
+            items: Vec::new(),
+            positions: Vec::new(),
+        }
+    }
+
+    pub(crate) fn push(&mut self, item: T, rect: egui::Rect) {
+        self.items.push(item);
+        self.positions.push(rect);
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.items.clear();
+        self.positions.clear();
+    }
+
+    pub(crate) fn items(&self) -> &[T] {
+        &self.items
+    }
+
+    pub(crate) fn position(&self, item: &T) -> Option<egui::Rect>
+    where
+        T: PartialEq,
+    {
+        debug_assert_eq!(self.items.len(), self.positions.len());
+        self.items
+            .iter()
+            .position(|i| i == item)
+            .map(|idx| self.positions[idx])
+    }
+
+    pub(crate) fn find_position<P>(&self, predicate: P) -> Option<egui::Rect>
+    where
+        P: FnMut(&T) -> bool,
+    {
+        debug_assert_eq!(self.items.len(), self.positions.len());
+        self.items
+            .iter()
+            .position(predicate)
+            .map(|idx| self.positions[idx])
+    }
+
+    pub(crate) fn find_closest(&self, query: egui::Rect, minimum_overlap_area: f32) -> Option<&T> {
+        let mut best_overlap = minimum_overlap_area;
+        let mut best_index = None;
+        for (index, rect) in self.positions.iter().enumerate() {
+            let intersection = rect.intersect(query);
+            if !intersection.is_positive() {
+                continue;
+            }
+            let area = intersection.area();
+            if area > best_overlap {
+                best_overlap = area;
+                best_index = Some(index);
+            }
+        }
+        best_index.map(|idx| &self.items[idx])
+    }
 }
 
 pub(crate) struct ProcessorPosition {
@@ -22,33 +83,38 @@ pub(crate) struct ProcessorPosition {
 }
 
 pub(crate) struct SoundObjectPositions {
-    interconnects: Vec<InterconnectPosition>,
+    plugs: ItemsAndPositions<ProcessorPlug>,
+    sockets: ItemsAndPositions<InputSocket>,
     processors: Vec<ProcessorPosition>,
 }
 
 impl SoundObjectPositions {
     pub(crate) fn new() -> SoundObjectPositions {
         SoundObjectPositions {
-            interconnects: Vec::new(),
+            plugs: ItemsAndPositions::new(),
+            sockets: ItemsAndPositions::new(),
             processors: Vec::new(),
         }
     }
 
-    pub(crate) fn interconnects(&self) -> &[InterconnectPosition] {
-        &self.interconnects
+    pub(crate) fn plugs(&self) -> &ItemsAndPositions<ProcessorPlug> {
+        &self.plugs
     }
 
-    pub(crate) fn record_interconnect(
-        &mut self,
-        interconnect: ProcessorInterconnect,
-        rect: egui::Rect,
-    ) {
-        self.interconnects
-            .push(InterconnectPosition { interconnect, rect });
+    pub(crate) fn sockets(&self) -> &ItemsAndPositions<InputSocket> {
+        &self.sockets
     }
 
     pub(crate) fn processors(&self) -> &[ProcessorPosition] {
         &self.processors
+    }
+
+    pub(crate) fn record_plug(&mut self, plug: ProcessorPlug, rect: egui::Rect) {
+        self.plugs.push(plug, rect);
+    }
+
+    pub(crate) fn record_socket(&mut self, socket: InputSocket, rect: egui::Rect) {
+        self.sockets.push(socket, rect);
     }
 
     pub(crate) fn record_processor(
@@ -68,38 +134,9 @@ impl SoundObjectPositions {
         self.processors.iter().find(|pp| pp.processor == processor)
     }
 
-    pub(crate) fn find_closest_interconnect(
-        &self,
-        query: egui::Rect,
-        minimum_intersection: f32,
-    ) -> Option<InterconnectPosition> {
-        let mut best_intersection = minimum_intersection;
-        let mut best_overlap = None;
-        for interconnect in &self.interconnects {
-            let intersection = interconnect.rect.intersect(query);
-            if !intersection.is_positive() {
-                continue;
-            }
-            let area = intersection.area();
-            if area > best_intersection {
-                best_intersection = area;
-                best_overlap = Some(*interconnect);
-            }
-        }
-        best_overlap
-    }
-
-    pub(crate) fn find_interconnect_below_processor(
-        &self,
-        processor: SoundProcessorId,
-    ) -> Option<&InterconnectPosition> {
-        self.interconnects
-            .iter()
-            .find(|i| i.interconnect.is_below_processor(processor))
-    }
-
     pub(crate) fn clear(&mut self) {
-        self.interconnects.clear();
+        self.plugs.clear();
+        self.sockets.clear();
         self.processors.clear();
     }
 }

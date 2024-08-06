@@ -5,13 +5,14 @@ use crate::core::sound::{
 
 use super::{
     lexicallayout::lexicallayout::LexicalLayoutFocus,
-    stackedlayout::interconnect::ProcessorInterconnect,
+    stackedlayout::interconnect::{InputSocket, ProcessorPlug},
 };
 
 pub(super) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
     OnSoundProcessorName(SoundProcessorId),
-    AroundInterconnect(ProcessorInterconnect),
+    AroundProcessorPlug(ProcessorPlug),
+    AroundInputSocket(InputSocket),
     AroundExpression(SoundExpressionId),
     InsideExpression(SoundExpressionId, LexicalLayoutFocus),
 }
@@ -39,7 +40,8 @@ impl KeyboardFocusState {
         match self {
             KeyboardFocusState::AroundSoundProcessor(spid) => topo.contains(spid),
             KeyboardFocusState::OnSoundProcessorName(spid) => topo.contains(spid),
-            KeyboardFocusState::AroundInterconnect(i) => i.is_valid(topo),
+            KeyboardFocusState::AroundProcessorPlug(p) => topo.contains(p.processor),
+            KeyboardFocusState::AroundInputSocket(s) => topo.contains(s.input),
             KeyboardFocusState::AroundExpression(eid) => topo.contains(eid),
             KeyboardFocusState::InsideExpression(eid, _) => topo.contains(eid),
         }
