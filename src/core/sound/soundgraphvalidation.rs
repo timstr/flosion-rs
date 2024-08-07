@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use super::{
     expression::SoundExpressionId,
@@ -321,52 +321,112 @@ pub(super) fn find_sound_cycle(topology: &SoundGraphTopology) -> Option<SoundPat
     }
 }
 
-// TODO: error if there are any static sound processors connected directly or indirectly
-// to a non-synchronous input, even if that input belongs to a dynamic processor which
-// is not instanced
-pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Option<SoundError> {
+struct ProcessorAllocation {
+    implied_num_states: usize,
+    is_ever_nonsync: bool,
+}
+
+fn compute_implied_processor_allocations(
+    topo: &SoundGraphTopology,
+) -> HashMap<SoundProcessorId, ProcessorAllocation> {
     fn visit(
-        proc_id: SoundProcessorId,
+        processor_id: SoundProcessorId,
         states_to_add: usize,
-        is_synchronous: bool,
+        is_sync: bool,
         topo: &SoundGraphTopology,
-        init: bool,
-    ) -> Option<SoundError> {
-        let proc_desc = topo.sound_processor(proc_id).unwrap();
-        if proc_desc.instance().is_static() {
-            if states_to_add > 1 {
-                return Some(SoundError::StaticTooManyStates(proc_id));
-            }
-            if !is_synchronous {
-                return Some(SoundError::StaticNotSynchronous(proc_id));
-            }
-            if !init {
-                return None;
-            }
-        }
-        for input_id in proc_desc.sound_inputs() {
-            let input_desc = topo.sound_input(*input_id).unwrap();
-            if let Some(t) = input_desc.target() {
-                if let Some(err) = visit(
-                    t,
-                    states_to_add * input_desc.branches().len(),
-                    is_synchronous && (input_desc.options() == InputOptions::Synchronous),
-                    topo,
-                    false,
-                ) {
-                    return Some(err);
+        allocations: &mut HashMap<SoundProcessorId, ProcessorAllocation>,
+    ) {
+        let proc_data = topo.sound_processor(processor_id).unwrap();
+        let is_static = proc_data.instance().is_static();
+
+        match allocations.entry(processor_id) {
+            Entry::Occupied(mut entry) => {
+                // The processor has been visited already.
+                let proc_sum = entry.get_mut();
+                proc_sum.implied_num_states += states_to_add;
+                proc_sum.is_ever_nonsync |= !is_sync;
+
+                // If it is static, it always implies a single
+                // state being added via its inputs, so it
+                // only needs to be visited once.
+                if is_static {
+                    return;
                 }
             }
+            Entry::Vacant(entry) => {
+                // The processor is being visited for the first time.
+                entry.insert(ProcessorAllocation {
+                    implied_num_states: states_to_add,
+                    is_ever_nonsync: !is_sync,
+                });
+            }
         }
-        None
+
+        let processor_states = if is_static { 1 } else { states_to_add };
+        let processor_is_sync = is_sync || is_static;
+
+        for input_id in proc_data.sound_inputs() {
+            let input_data = topo.sound_input(*input_id).unwrap();
+            let Some(target_proc_id) = input_data.target() else {
+                continue;
+            };
+
+            let input_states = processor_states * input_data.branches().len();
+
+            let input_is_sync = match input_data.options() {
+                InputOptions::Synchronous => processor_is_sync,
+                InputOptions::NonSynchronous => false,
+            };
+
+            visit(
+                target_proc_id,
+                input_states,
+                input_is_sync,
+                topo,
+                allocations,
+            );
+        }
     }
-    for proc_desc in topology.sound_processors().values() {
-        if proc_desc.instance().is_static() {
-            if let Some(err) = visit(proc_desc.id(), 1, true, topology, true) {
-                return Some(err);
+
+    let mut allocations = HashMap::new();
+
+    // Visit all static processors first and populate them and their
+    // dependency
+    for proc_data in topo.sound_processors().values() {
+        if proc_data.instance().is_static() {
+            visit(proc_data.id(), 1, true, topo, &mut allocations);
+        }
+    }
+
+    // Then, visit any processors which haven't been visited
+    // yet. These will necessarily be dynamic processors which
+    // are not a depedency of any static processors.
+    for proc_data in topo.sound_processors().values() {
+        if !allocations.contains_key(&proc_data.id()) {
+            visit(proc_data.id(), 0, true, topo, &mut allocations);
+        }
+    }
+
+    allocations
+}
+
+pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Option<SoundError> {
+    let allocations = compute_implied_processor_allocations(topology);
+
+    for (proc_id, allocation) in allocations {
+        let proc_data = topology.sound_processor(proc_id).unwrap();
+
+        if proc_data.instance().is_static() {
+            if allocation.is_ever_nonsync {
+                return Some(SoundError::StaticNotSynchronous(proc_id));
+            }
+
+            if allocation.implied_num_states != 1 {
+                return Some(SoundError::StaticTooManyStates(proc_id));
             }
         }
     }
+
     None
 }
 
