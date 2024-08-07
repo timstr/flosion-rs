@@ -73,7 +73,9 @@ fn drag_and_drop_processor_in_layout(
     socket: InputSocket,
     positions: &SoundObjectPositions,
 ) {
+    layout.split_processor_into_own_group(processor, positions);
     let processor_below = topo.sound_input(socket.input).unwrap().owner();
+    layout.split_group_above_processor(processor_below, positions);
     layout.insert_processor_above(processor, processor_below);
 }
 

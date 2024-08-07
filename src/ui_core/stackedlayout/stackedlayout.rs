@@ -244,7 +244,7 @@ impl SoundGraphLayout {
             {
                 if !Self::connection_is_unique(*top_proc, *bottom_proc, topo) {
                     println!(
-                        "The processors {} and {} are adjacent in a group but do not have a unique connection",
+                        "Processor {} is above processor {} in a group but the two do not have a unique connection",
                         topo.sound_processor(*top_proc).unwrap().friendly_name(),
                         topo.sound_processor(*bottom_proc).unwrap().friendly_name()
                     );
@@ -314,6 +314,10 @@ impl SoundGraphLayout {
 
         let rest = group.split_off_processor_and_everything_below(processor_id);
 
+        group.set_rect(group.rect().translate(egui::vec2(0.0, -50.0)));
+
+        debug_assert!(!group.processors().is_empty());
+
         self.groups
             .push(StackedGroup::new_at_top_processor(rest, positions));
     }
@@ -332,10 +336,9 @@ impl SoundGraphLayout {
         let group = self.find_group_mut(processor_id).unwrap();
         let rest_exclusive = group.split_off_everything_below_processor(processor_id);
         if !rest_exclusive.is_empty() {
-            self.groups.push(StackedGroup::new_at_top_processor(
-                rest_exclusive,
-                positions,
-            ));
+            let mut new_group = StackedGroup::new_at_top_processor(rest_exclusive, positions);
+            new_group.set_rect(new_group.rect().translate(egui::vec2(0.0, 50.0)));
+            self.groups.push(new_group);
         }
     }
 
