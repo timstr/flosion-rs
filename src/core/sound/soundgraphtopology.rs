@@ -2,7 +2,7 @@ use hashrevise::{Revisable, Revised, RevisedHashMap, RevisionHash, RevisionHashe
 
 use crate::core::{
     graph::graphobject::GraphObjectHandle,
-    sound::{expressionargument::SoundExpressionArgumentOwner, soundgrapherror::SoundError},
+    sound::{expressionargument::SoundExpressionArgumentOwner, sounderror::SoundError},
 };
 
 use super::{

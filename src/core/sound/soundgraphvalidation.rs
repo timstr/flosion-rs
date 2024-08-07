@@ -6,7 +6,7 @@ use super::{
         SoundExpressionArgumentId, SoundExpressionArgumentOrigin, SoundExpressionArgumentOwner,
     },
     path::SoundPath,
-    soundgrapherror::SoundError,
+    sounderror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
@@ -322,7 +322,8 @@ pub(super) fn find_sound_cycle(topology: &SoundGraphTopology) -> Option<SoundPat
 }
 
 struct ProcessorAllocation {
-    implied_num_states: usize,
+    minimum_states: usize,
+    maximum_states: usize,
     is_ever_nonsync: bool,
 }
 
@@ -342,35 +343,34 @@ fn compute_implied_processor_allocations(
         match allocations.entry(processor_id) {
             Entry::Occupied(mut entry) => {
                 // The processor has been visited already.
+
                 let proc_sum = entry.get_mut();
                 proc_sum.is_ever_nonsync |= !is_sync;
+
+                // Record the minimum and maximum number of states that
+                // would be allocated for a dependent. For dynamic
+                // processors, this could be anything, but for static
+                //processors, it only ever makes sense to add one state.
+                proc_sum.minimum_states = proc_sum.minimum_states.min(states_to_add);
+                proc_sum.maximum_states = proc_sum.maximum_states.max(states_to_add);
 
                 if is_static {
                     // If it is static, it always implies a single
                     // state being added via its inputs, so it
-                    // only needs to be visited once. However,
-                    // any input which is attempting to allocate
-                    // more than one state would violate the static
-                    // processor's single state, so we track the
-                    // maximum here.
-                    proc_sum.implied_num_states = proc_sum.implied_num_states.max(states_to_add);
+                    // only needs to be visited once.
                     return;
-                } else {
-                    // Dynamic processors simply allocate an extra
-                    // state for each state of each connected input
-                    proc_sum.implied_num_states += states_to_add;
                 }
             }
             Entry::Vacant(entry) => {
                 // The processor is being visited for the first time.
                 entry.insert(ProcessorAllocation {
-                    implied_num_states: states_to_add,
+                    minimum_states: states_to_add,
+                    maximum_states: states_to_add,
                     is_ever_nonsync: !is_sync,
                 });
             }
         }
 
-        let processor_states = if is_static { 1 } else { states_to_add };
         let processor_is_sync = is_sync || is_static;
 
         for input_id in proc_data.sound_inputs() {
@@ -379,7 +379,7 @@ fn compute_implied_processor_allocations(
                 continue;
             };
 
-            let input_states = processor_states * input_data.branches().len();
+            let input_states = input_data.branches().len();
 
             let input_is_sync = match input_data.options() {
                 InputOptions::Synchronous => processor_is_sync,
@@ -429,8 +429,8 @@ pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Optio
                 return Some(SoundError::StaticNotSynchronous(proc_id));
             }
 
-            if allocation.implied_num_states != 1 {
-                return Some(SoundError::StaticTooManyStates(proc_id));
+            if allocation.minimum_states != 1 || allocation.maximum_states != 1 {
+                return Some(SoundError::StaticNotOneState(proc_id));
             }
         }
     }

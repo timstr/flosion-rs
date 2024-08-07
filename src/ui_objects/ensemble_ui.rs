@@ -56,16 +56,17 @@ impl ObjectUi for EnsembleUi {
                                 .color(egui::Color32::from_black_alpha(192))
                                 .italics(),
                         ));
-                        sound_graph
-                            .with_processor_tools(ensemble.id(), |mut tools| {
-                                let mut num_voices = ensemble.num_voices(&tools);
-                                let r = ui.add(egui::Slider::new(&mut num_voices, 0..=16));
-                                if r.changed() {
-                                    ensemble.set_num_voices(num_voices, &mut tools);
-                                }
-                                Ok(())
-                            })
-                            .unwrap();
+                        let res = sound_graph.with_processor_tools(ensemble.id(), |mut tools| {
+                            let mut num_voices = ensemble.num_voices(&tools);
+                            let r = ui.add(egui::Slider::new(&mut num_voices, 0..=16));
+                            if r.changed() {
+                                ensemble.set_num_voices(num_voices, &mut tools);
+                            }
+                            Ok(())
+                        });
+                        if let Err(e) = res {
+                            println!("Can't do that: {}", e.explain(sound_graph.topology()));
+                        }
                     });
                 },
             );

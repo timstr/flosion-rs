@@ -477,7 +477,7 @@ impl GlobalInteractions {
                     return;
                 }
                 Err(e) => {
-                    println!("Can't drop that there: {:?}", e);
+                    println!("Can't drop that there: {}", e.explain(graph.topology()));
                     return;
                 }
             }

@@ -13,12 +13,12 @@ use super::{
         ScalarProcessorExpressionArgument, SoundExpressionArgument, SoundExpressionArgumentHandle,
         SoundExpressionArgumentId, SoundExpressionArgumentOwner,
     },
+    sounderror::SoundError,
     soundgraph::SoundGraphIdGenerators,
     soundgraphdata::{
         SoundExpressionArgumentData, SoundExpressionData, SoundExpressionScope, SoundInputBranchId,
         SoundInputData,
     },
-    soundgrapherror::SoundError,
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,

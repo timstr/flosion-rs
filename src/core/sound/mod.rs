@@ -6,7 +6,7 @@ pub mod expressionargument;
 mod path;
 pub mod soundgraph;
 pub(crate) mod soundgraphdata;
-pub mod soundgrapherror;
+pub mod sounderror;
 pub mod soundgraphproperties;
 pub(crate) mod soundgraphtopology;
 pub(crate) mod soundgraphvalidation;

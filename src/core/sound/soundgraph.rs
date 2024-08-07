@@ -25,8 +25,8 @@ use super::{
     expressionargument::{
         ProcessorTimeExpressionArgument, SoundExpressionArgumentId, SoundExpressionArgumentOwner,
     },
+    sounderror::SoundError,
     soundgraphdata::{SoundExpressionArgumentData, SoundExpressionData, SoundProcessorData},
-    soundgrapherror::SoundError,
     soundgraphid::SoundObjectId,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::find_sound_error,
