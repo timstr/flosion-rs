@@ -343,14 +343,22 @@ fn compute_implied_processor_allocations(
             Entry::Occupied(mut entry) => {
                 // The processor has been visited already.
                 let proc_sum = entry.get_mut();
-                proc_sum.implied_num_states += states_to_add;
                 proc_sum.is_ever_nonsync |= !is_sync;
 
-                // If it is static, it always implies a single
-                // state being added via its inputs, so it
-                // only needs to be visited once.
                 if is_static {
+                    // If it is static, it always implies a single
+                    // state being added via its inputs, so it
+                    // only needs to be visited once. However,
+                    // any input which is attempting to allocate
+                    // more than one state would violate the static
+                    // processor's single state, so we track the
+                    // maximum here.
+                    proc_sum.implied_num_states = proc_sum.implied_num_states.max(states_to_add);
                     return;
+                } else {
+                    // Dynamic processors simply allocate an extra
+                    // state for each state of each connected input
+                    proc_sum.implied_num_states += states_to_add;
                 }
             }
             Entry::Vacant(entry) => {

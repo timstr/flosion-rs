@@ -193,7 +193,7 @@ impl StackedGroup {
                 // .fill(egui::Color32::from_gray(64))
                 .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
                 .rounding(10.0)
-                .inner_margin(10.0);
+                .inner_margin(5.0);
             frame.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     // Allocate some width for the sidebar (full height is not known until
@@ -202,6 +202,9 @@ impl StackedGroup {
                         ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
 
                     let processors_response = ui.vertical(|ui| {
+                        // Tighten the spacing
+                        ui.spacing_mut().item_spacing.y = 0.0;
+
                         for spid in &self.processors {
                             let processor_data = graph.topology().sound_processor(*spid).unwrap();
 
