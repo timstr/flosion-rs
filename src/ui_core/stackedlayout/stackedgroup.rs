@@ -190,7 +190,6 @@ impl StackedGroup {
             let group_origin = ui.cursor().left_top();
 
             let frame = egui::Frame::default()
-                // .fill(egui::Color32::from_gray(64))
                 .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
                 .rounding(10.0)
                 .inner_margin(5.0);
@@ -210,6 +209,9 @@ impl StackedGroup {
 
                             let inputs = processor_data.sound_inputs();
 
+                            let processor_color =
+                                ui_state.object_states().get_object_color(spid.into());
+
                             if inputs.is_empty() {
                                 self.draw_barrier(ui);
                             } else {
@@ -220,6 +222,7 @@ impl StackedGroup {
                                         ui,
                                         ui_state,
                                         InputSocket::from_input_data(input_data),
+                                        processor_color,
                                     );
                                 }
                             }
@@ -241,6 +244,7 @@ impl StackedGroup {
                                 ui,
                                 ui_state,
                                 ProcessorPlug::from_processor_data(processor_data),
+                                processor_color,
                             );
                         }
                     });
@@ -265,6 +269,7 @@ impl StackedGroup {
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
         socket: InputSocket,
+        color: egui::Color32,
     ) {
         let (rect, _) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, Self::SOCKET_HEIGHT),
@@ -272,6 +277,22 @@ impl StackedGroup {
         );
 
         ui_state.positions_mut().record_socket(socket, rect);
+
+        // Draw a background gradient fading from transparent
+        // to the processor's colour
+        {
+            let mut mesh = egui::Mesh::default();
+
+            mesh.colored_vertex(rect.left_top(), egui::Color32::TRANSPARENT);
+            mesh.colored_vertex(rect.right_top(), egui::Color32::TRANSPARENT);
+            mesh.colored_vertex(rect.left_bottom(), color);
+            mesh.colored_vertex(rect.right_bottom(), color);
+
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(1, 3, 2);
+
+            ui.painter().add(mesh);
+        }
 
         if let Some(sockets) = ui_state
             .interactions()
@@ -301,6 +322,7 @@ impl StackedGroup {
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
         plug: ProcessorPlug,
+        color: egui::Color32,
     ) {
         let (rect, _) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
@@ -308,6 +330,22 @@ impl StackedGroup {
         );
 
         ui_state.positions_mut().record_plug(plug, rect);
+
+        // Draw a background gradient fading from the processor's colour
+        // to transparent
+        {
+            let mut mesh = egui::Mesh::default();
+
+            mesh.colored_vertex(rect.left_top(), color);
+            mesh.colored_vertex(rect.right_top(), color);
+            mesh.colored_vertex(rect.left_bottom(), egui::Color32::TRANSPARENT);
+            mesh.colored_vertex(rect.right_bottom(), egui::Color32::TRANSPARENT);
+
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(1, 3, 2);
+
+            ui.painter().add(mesh);
+        }
 
         // TODO: highlight if dragging something compatible
 

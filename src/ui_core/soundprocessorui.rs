@@ -189,7 +189,6 @@ impl ProcessorUi {
         let frame = egui::Frame::default()
             .fill(self.color)
             .inner_margin(egui::vec2(0.0, 5.0))
-            .rounding(5.0)
             .stroke(darkish_stroke);
 
         let props = ProcessorUiProps {
