@@ -322,9 +322,8 @@ pub(super) fn find_sound_cycle(topology: &SoundGraphTopology) -> Option<SoundPat
 }
 
 struct ProcessorAllocation {
-    minimum_states: usize,
-    maximum_states: usize,
-    is_ever_nonsync: bool,
+    implied_num_states: usize,
+    always_sync: bool,
 }
 
 fn compute_implied_processor_allocations(
@@ -345,33 +344,29 @@ fn compute_implied_processor_allocations(
                 // The processor has been visited already.
 
                 let proc_sum = entry.get_mut();
-                proc_sum.is_ever_nonsync |= !is_sync;
 
-                // Record the minimum and maximum number of states that
-                // would be allocated for a dependent. For dynamic
-                // processors, this could be anything, but for static
-                //processors, it only ever makes sense to add one state.
-                proc_sum.minimum_states = proc_sum.minimum_states.min(states_to_add);
-                proc_sum.maximum_states = proc_sum.maximum_states.max(states_to_add);
+                proc_sum.always_sync &= is_sync;
 
                 if is_static {
                     // If it is static, it always implies a single
                     // state being added via its inputs, so it
                     // only needs to be visited once.
                     return;
+                } else {
+                    proc_sum.implied_num_states += states_to_add;
                 }
             }
             Entry::Vacant(entry) => {
                 // The processor is being visited for the first time.
                 entry.insert(ProcessorAllocation {
-                    minimum_states: states_to_add,
-                    maximum_states: states_to_add,
-                    is_ever_nonsync: !is_sync,
+                    implied_num_states: states_to_add,
+                    always_sync: is_sync,
                 });
             }
         }
 
         let processor_is_sync = is_sync || is_static;
+        let processor_states = if is_static { 1 } else { states_to_add };
 
         for input_id in proc_data.sound_inputs() {
             let input_data = topo.sound_input(*input_id).unwrap();
@@ -379,20 +374,15 @@ fn compute_implied_processor_allocations(
                 continue;
             };
 
-            let input_states = input_data.branches().len();
+            let states = processor_states * input_data.branches().len();
 
             let input_is_sync = match input_data.options() {
                 InputOptions::Synchronous => processor_is_sync,
                 InputOptions::NonSynchronous => false,
             };
+            let sync = is_sync && input_is_sync;
 
-            visit(
-                target_proc_id,
-                input_states,
-                input_is_sync,
-                topo,
-                allocations,
-            );
+            visit(target_proc_id, states, sync, topo, allocations);
         }
     }
 
@@ -409,9 +399,15 @@ fn compute_implied_processor_allocations(
     // Then, visit any processors which haven't been visited
     // yet. These will necessarily be dynamic processors which
     // are not a depedency of any static processors.
+    // While these processors aren't allocated any states,
+    // we pass '1' as the number of states and 'true' for the processor
+    // being sync anyway, to see what _would_ happen if the processor
+    // were connected to a static processor through a sync input.
+    // This serves to catch setups that would be illegal but are
+    // unused. Hence "implied" in the nomenclature here.
     for proc_data in topo.sound_processors().values() {
         if !allocations.contains_key(&proc_data.id()) {
-            visit(proc_data.id(), 0, true, topo, &mut allocations);
+            visit(proc_data.id(), 1, true, topo, &mut allocations);
         }
     }
 
@@ -421,16 +417,25 @@ fn compute_implied_processor_allocations(
 pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Option<SoundError> {
     let allocations = compute_implied_processor_allocations(topology);
 
-    for (proc_id, allocation) in allocations {
-        let proc_data = topology.sound_processor(proc_id).unwrap();
+    for (proc_id, allocation) in &allocations {
+        let proc_data = topology.sound_processor(*proc_id).unwrap();
 
         if proc_data.instance().is_static() {
-            if allocation.is_ever_nonsync {
-                return Some(SoundError::StaticNotSynchronous(proc_id));
+            // Static processors must always be sync
+            if !allocation.always_sync {
+                return Some(SoundError::StaticNotSynchronous(*proc_id));
             }
 
-            if allocation.minimum_states != 1 || allocation.maximum_states != 1 {
-                return Some(SoundError::StaticNotOneState(proc_id));
+            // Static processors must be allocated one state per input
+            // We don't check the processor's own implied number of states
+            // because that would overcount if there are multiple inputs.
+            for input_id in topology.sound_processor_targets(*proc_id) {
+                let input = topology.sound_input(input_id).unwrap();
+                if input.branches().len() != 1
+                    || allocations.get(&input.owner()).unwrap().implied_num_states != 1
+                {
+                    return Some(SoundError::StaticNotOneState(*proc_id));
+                }
             }
         }
     }
