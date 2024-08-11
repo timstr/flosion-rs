@@ -15,7 +15,7 @@ atomicslice = "0.1.0"
 base64 = "0.13.0"
 cpal = "0.13.3"
 eframe = "0.27.2"
-hashrevise = "0.1.1"
+hashrevise = "0.1.2"
 inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm14-0"] }
 parking_lot = "0.11.2"
 rand = "0.8.3"

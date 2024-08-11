@@ -14,7 +14,10 @@ use super::{
     },
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
+    soundprocessor::{
+        DynamicSoundProcessor, DynamicSoundProcessorHandle, SoundProcessorId, StaticSoundProcessor,
+        StaticSoundProcessorHandle,
+    },
 };
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -170,6 +173,7 @@ impl SoundGraphTopology {
     /// The provided SoundProcessorData must be empty (i.e. it must have
     /// no sound inputs, expressions, or expression arguments) and its id must
     /// not yet be in use.
+    /// See also `build_static_sound_processor` and `build_dynamic_sound_processor`.
     pub(crate) fn add_sound_processor(
         &mut self,
         data: SoundProcessorData,

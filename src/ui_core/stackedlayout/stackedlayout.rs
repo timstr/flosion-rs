@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-use super::stackedgroup::StackedGroup;
+use super::{interconnect::ProcessorPlug, stackedgroup::StackedGroup};
 
 /// Visual layout of all processor groups and the connections between them.
 /// Intended to be the entry point of the main UI for all things pertaining
@@ -186,11 +186,47 @@ impl SoundGraphLayout {
         graph: &mut SoundGraph,
         available_arguments: &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
     ) {
+        // Draw each stacked group
         for group in &mut self.groups {
             group.draw(ui, factories, ui_state, graph, available_arguments);
         }
 
-        // TODO: draw wires between connected groups also
+        // draw wires between connected groups
+        for (jumper_input, jumper_pos) in ui_state.positions().socket_jumpers().items() {
+            let Some(target_spid) = graph
+                .topology()
+                .sound_input(*jumper_input)
+                .unwrap()
+                .target()
+            else {
+                continue;
+            };
+
+            let processor_data = graph.topology().sound_processor(target_spid).unwrap();
+            let plug_pos = ui_state
+                .positions()
+                .plugs()
+                .position(&ProcessorPlug::from_processor_data(&processor_data))
+                .unwrap();
+
+            let color = ui_state
+                .object_states()
+                .get_object_color(target_spid.into());
+
+            let src_pos = jumper_pos.left_center();
+            let dst_pos = plug_pos.left_center();
+
+            let via_x = src_pos.x.min(dst_pos.x) - 30.0;
+
+            let via_pos_1 = egui::pos2(via_x, src_pos.y);
+            let via_pos_2 = egui::pos2(via_x, dst_pos.y);
+
+            let stroke = egui::Stroke::new(5.0, color);
+
+            ui.painter().line_segment([src_pos, via_pos_1], stroke);
+            ui.painter().line_segment([via_pos_1, via_pos_2], stroke);
+            ui.painter().line_segment([via_pos_2, dst_pos], stroke);
+        }
     }
 
     #[cfg(debug_assertions)]

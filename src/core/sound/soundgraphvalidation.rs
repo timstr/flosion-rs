@@ -351,7 +351,7 @@ fn compute_implied_processor_allocations(
                     // If it is static, it always implies a single
                     // state being added via its inputs, so it
                     // only needs to be visited once.
-                    return;
+                    // return;
                 } else {
                     proc_sum.implied_num_states += states_to_add;
                 }
@@ -386,29 +386,35 @@ fn compute_implied_processor_allocations(
         }
     }
 
-    let mut allocations = HashMap::new();
-
-    // Visit all static processors first and populate them and their
-    // dependency
-    for proc_data in topo.sound_processors().values() {
-        if proc_data.instance().is_static() {
-            visit(proc_data.id(), 1, true, topo, &mut allocations);
+    // find all processors with no dependents
+    let roots: Vec<SoundProcessorId>;
+    {
+        let mut processors_with_dependents = HashSet::<SoundProcessorId>::new();
+        for proc in topo.sound_processors().values() {
+            for input_id in proc.sound_inputs() {
+                let input = topo.sound_input(*input_id).unwrap();
+                if let Some(target) = input.target() {
+                    processors_with_dependents.insert(target);
+                }
+            }
         }
+
+        let mut processors_without_dependents = Vec::<SoundProcessorId>::new();
+
+        for proc_id in topo.sound_processors().keys() {
+            if !processors_with_dependents.contains(proc_id) {
+                processors_without_dependents.push(*proc_id);
+            }
+        }
+
+        roots = processors_without_dependents;
     }
 
-    // Then, visit any processors which haven't been visited
-    // yet. These will necessarily be dynamic processors which
-    // are not a depedency of any static processors.
-    // While these processors aren't allocated any states,
-    // we pass '1' as the number of states and 'true' for the processor
-    // being sync anyway, to see what _would_ happen if the processor
-    // were connected to a static processor through a sync input.
-    // This serves to catch setups that would be illegal but are
-    // unused. Hence "implied" in the nomenclature here.
-    for proc_data in topo.sound_processors().values() {
-        if !allocations.contains_key(&proc_data.id()) {
-            visit(proc_data.id(), 1, true, topo, &mut allocations);
-        }
+    let mut allocations = HashMap::new();
+
+    // Visit all root processors and populate them and their dependencies
+    for spid in roots {
+        visit(spid, 1, true, topo, &mut allocations);
     }
 
     allocations

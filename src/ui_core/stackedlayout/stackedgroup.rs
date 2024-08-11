@@ -204,6 +204,8 @@ impl StackedGroup {
                         // Tighten the spacing
                         ui.spacing_mut().item_spacing.y = 0.0;
 
+                        let mut top_of_stack = true;
+
                         for spid in &self.processors {
                             let processor_data = graph.topology().sound_processor(*spid).unwrap();
 
@@ -221,11 +223,15 @@ impl StackedGroup {
                                     self.draw_input_socket(
                                         ui,
                                         ui_state,
+                                        graph.topology(),
                                         InputSocket::from_input_data(input_data),
                                         processor_color,
+                                        top_of_stack,
                                     );
                                 }
                             }
+
+                            top_of_stack = false;
 
                             let object = processor_data.instance_arc().as_graph_object();
                             let mut ctx = SoundGraphUiContext::new(
@@ -268,9 +274,30 @@ impl StackedGroup {
         &self,
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
+        topo: &SoundGraphTopology,
         socket: InputSocket,
         color: egui::Color32,
+        top_of_stack: bool,
     ) {
+        if top_of_stack {
+            // If the input is at the top of the stack, draw an extra field
+            // to hold end of a jumper cable to the target processor, if any
+            let (jumper_rect, _) = ui.allocate_exact_size(
+                egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
+                egui::Sense::hover(),
+            );
+            if let Some(target_spid) = topo.sound_input(socket.input).unwrap().target() {
+                let jumper_color = ui_state
+                    .object_states()
+                    .get_object_color(target_spid.into());
+                ui.painter()
+                    .rect_filled(jumper_rect, egui::Rounding::ZERO, jumper_color);
+            }
+            ui_state
+                .positions_mut()
+                .record_socket_jumper(socket.input, jumper_rect);
+        }
+
         let (rect, _) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, Self::SOCKET_HEIGHT),
             egui::Sense::hover(),
@@ -278,27 +305,16 @@ impl StackedGroup {
 
         ui_state.positions_mut().record_socket(socket, rect);
 
-        // Draw a background gradient fading from transparent
-        // to the processor's colour
-        {
-            let mut mesh = egui::Mesh::default();
-
-            mesh.colored_vertex(rect.left_top(), egui::Color32::TRANSPARENT);
-            mesh.colored_vertex(rect.right_top(), egui::Color32::TRANSPARENT);
-            mesh.colored_vertex(rect.left_bottom(), color);
-            mesh.colored_vertex(rect.right_bottom(), color);
-
-            mesh.add_triangle(0, 1, 2);
-            mesh.add_triangle(1, 3, 2);
-
-            ui.painter().add(mesh);
-        }
+        ui.painter()
+            .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
         if let Some(sockets) = ui_state
             .interactions()
             .legal_sockets_to_drop_processor_onto()
         {
             let legal = sockets.contains(&socket);
+            // TODO: highlight extra if this is the socket that would be
+            // chosen if the processor was dropped right now
             ui.painter().rect_filled(
                 rect,
                 egui::Rounding::same(5.0),
@@ -331,21 +347,8 @@ impl StackedGroup {
 
         ui_state.positions_mut().record_plug(plug, rect);
 
-        // Draw a background gradient fading from the processor's colour
-        // to transparent
-        {
-            let mut mesh = egui::Mesh::default();
-
-            mesh.colored_vertex(rect.left_top(), color);
-            mesh.colored_vertex(rect.right_top(), color);
-            mesh.colored_vertex(rect.left_bottom(), egui::Color32::TRANSPARENT);
-            mesh.colored_vertex(rect.right_bottom(), egui::Color32::TRANSPARENT);
-
-            mesh.add_triangle(0, 1, 2);
-            mesh.add_triangle(1, 3, 2);
-
-            ui.painter().add(mesh);
-        }
+        ui.painter()
+            .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
         // TODO: highlight if dragging something compatible
 

@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        mpsc::{sync_channel, Receiver, SyncSender, TryRecvError, TrySendError},
-        Arc,
-    },
+    sync::mpsc::{sync_channel, Receiver, SyncSender, TryRecvError, TrySendError},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -17,47 +14,25 @@ use crate::core::{
     },
     graph::{graph::Graph, graphobject::ObjectInitialization},
     jit::server::{JitClient, JitServer, JitServerBuilder},
-    uniqueid::IdGenerator,
 };
 
 use super::{
     expression::SoundExpressionId,
-    expressionargument::{
-        ProcessorTimeExpressionArgument, SoundExpressionArgumentId, SoundExpressionArgumentOwner,
-    },
     sounderror::SoundError,
-    soundgraphdata::{SoundExpressionArgumentData, SoundExpressionData, SoundProcessorData},
+    soundgraphdata::SoundExpressionData,
     soundgraphid::SoundObjectId,
     soundgraphtopology::SoundGraphTopology,
     soundgraphvalidation::find_sound_error,
     soundinput::SoundInputId,
     soundprocessor::{
-        DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
-        SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
-        StaticSoundProcessorWithId,
+        DynamicSoundProcessor, DynamicSoundProcessorHandle, SoundProcessorId, StaticSoundProcessor,
+        StaticSoundProcessorHandle,
     },
     soundprocessortools::SoundProcessorTools,
+    topologyedits::{
+        build_dynamic_sound_processor, build_static_sound_processor, SoundGraphIdGenerators,
+    },
 };
-
-/// Convenience struct for passing all sound graph id
-/// generators around as a whole
-pub(crate) struct SoundGraphIdGenerators {
-    pub sound_processor: IdGenerator<SoundProcessorId>,
-    pub sound_input: IdGenerator<SoundInputId>,
-    pub expression_argument: IdGenerator<SoundExpressionArgumentId>,
-    pub expression: IdGenerator<SoundExpressionId>,
-}
-
-impl SoundGraphIdGenerators {
-    pub(crate) fn new() -> SoundGraphIdGenerators {
-        SoundGraphIdGenerators {
-            sound_processor: IdGenerator::new(),
-            sound_input: IdGenerator::new(),
-            expression_argument: IdGenerator::new(),
-            expression: IdGenerator::new(),
-        }
-    }
-}
 
 /// A network of connected sound processors which are processing
 /// audio in real time. SoundGraph combines both the individual
@@ -249,52 +224,9 @@ impl SoundGraph {
         &mut self,
         init: ObjectInitialization,
     ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
-        let id = self.id_generators.sound_processor.next_id();
-
-        // Every sound processor gets a 'time' expression argument
-        let time_data = SoundExpressionArgumentData::new(
-            self.id_generators.expression_argument.next_id(),
-            Arc::new(ProcessorTimeExpressionArgument::new(id)),
-            SoundExpressionArgumentOwner::SoundProcessor(id),
-        );
-
-        let processor = self.try_make_change(move |topo, idgens| {
-            // Add a new processor data item to the topology,
-            // but without the processor instance. This allows
-            // the processor's topology to be modified within
-            // the processor's new() method, e.g. to add inputs.
-            let data = SoundProcessorData::new_empty(id);
-            topo.add_sound_processor(data)?;
-
-            // The tools which the processor can use to give itself
-            // new inputs, etc
-            let tools = SoundProcessorTools::new(id, topo, idgens);
-
-            // construct the actual processor instance by its
-            // concrete type
-            let processor = T::new(tools, init).map_err(|_| SoundError::BadProcessorInit(id))?;
-
-            // wrap the processor in a type-erased Arc
-            let processor = Arc::new(StaticSoundProcessorWithId::new(
-                processor,
-                id,
-                time_data.id(),
-            ));
-            let processor2 = Arc::clone(&processor);
-
-            // add the missing processor instance to the
-            // newly created processor data in the topology
-            topo.sound_processor_mut(id)
-                .unwrap()
-                .set_processor(processor);
-
-            // Add the 'time' expression argument
-            topo.add_expression_argument(time_data)?;
-
-            Ok(processor2)
-        })?;
-
-        Ok(StaticSoundProcessorHandle::new(processor))
+        self.try_make_change(move |topo, idgens| {
+            build_static_sound_processor::<T>(topo, idgens, init)
+        })
     }
 
     /// Add a dynamic sound processor to the sound graph,
@@ -307,52 +239,9 @@ impl SoundGraph {
         &mut self,
         init: ObjectInitialization,
     ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
-        let id = self.id_generators.sound_processor.next_id();
-
-        // Every sound processor gets a 'time' expression argument
-        let time_data = SoundExpressionArgumentData::new(
-            self.id_generators.expression_argument.next_id(),
-            Arc::new(ProcessorTimeExpressionArgument::new(id)),
-            SoundExpressionArgumentOwner::SoundProcessor(id),
-        );
-
-        let processor = self.try_make_change(move |topo, idgens| {
-            // Add a new processor data item to the topology,
-            // but without the processor instance. This allows
-            // the processor's topology to be modified within
-            // the processor's new() method, e.g. to add inputs.
-            let data = SoundProcessorData::new_empty(id);
-            topo.add_sound_processor(data)?;
-
-            // The tools which the processor can use to give itself
-            // new inputs, etc
-            let tools = SoundProcessorTools::new(id, topo, idgens);
-
-            // construct the actual processor instance by its
-            // concrete type
-            let processor = T::new(tools, init).map_err(|_| SoundError::BadProcessorInit(id))?;
-
-            // wrap the processor in a type-erased Arc
-            let processor = Arc::new(DynamicSoundProcessorWithId::new(
-                processor,
-                id,
-                time_data.id(),
-            ));
-            let processor2 = Arc::clone(&processor);
-
-            // add the missing processor instance to the
-            // newly created processor data in the topology
-            topo.sound_processor_mut(id)
-                .unwrap()
-                .set_processor(processor);
-
-            // Add the 'time' expression argument
-            topo.add_expression_argument(time_data)?;
-
-            Ok(processor2)
-        })?;
-
-        Ok(DynamicSoundProcessorHandle::new(processor))
+        self.try_make_change(move |topo, idgens| {
+            build_dynamic_sound_processor::<T>(topo, idgens, init)
+        })
     }
 
     /// Connect a sound processor to a sound input. The processor

@@ -1,7 +1,5 @@
 use rand::prelude::*;
 
-use std::sync::Arc;
-
 use parking_lot::Mutex;
 
 use crate::{
@@ -21,15 +19,14 @@ use crate::{
             context::{Context, LocalArrayList},
             expression::SoundExpressionHandle,
             expressionargument::SoundExpressionArgumentHandle,
-            soundgraph::SoundGraphIdGenerators,
-            soundgraphdata::{SoundExpressionScope, SoundProcessorData},
+            soundgraphdata::SoundExpressionScope,
             soundgraphtopology::SoundGraphTopology,
             soundprocessor::{
-                DynamicSoundProcessor, DynamicSoundProcessorWithId, SoundProcessorId,
-                StateAndTiming, StreamStatus,
+                DynamicSoundProcessor, SoundProcessorId, StateAndTiming, StreamStatus,
             },
             soundprocessortools::SoundProcessorTools,
             state::State,
+            topologyedits::{build_dynamic_sound_processor, SoundGraphIdGenerators},
         },
         soundchunk::SoundChunk,
     },
@@ -168,40 +165,23 @@ fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
     test_function: F,
 ) {
     let mut topo = SoundGraphTopology::new();
-
     let mut idgens = SoundGraphIdGenerators::new();
 
-    let test_spid = idgens.sound_processor.next_id();
-    let time_nsid = idgens.expression_argument.next_id();
-
-    // Add an empty sound processor first to allow topology changes inside
-    // the processor's new() method
-    topo.add_sound_processor(SoundProcessorData::new_empty(test_spid))
-        .unwrap();
-
-    // create test sound processor
-    let tools = SoundProcessorTools::new(test_spid, &mut topo, &mut idgens);
-    let init = ObjectInitialization::Default;
-    let sp_instance = Arc::new(DynamicSoundProcessorWithId::new(
-        TestSoundProcessor::new(tools, init).unwrap(),
-        test_spid,
-        time_nsid,
-    ));
-    let sp_instance_2 = Arc::clone(&sp_instance);
-
-    // add the actual sound processor to topology
-    topo.sound_processor_mut(test_spid)
-        .unwrap()
-        .set_processor(sp_instance_2);
+    let proc = build_dynamic_sound_processor::<TestSoundProcessor>(
+        &mut topo,
+        &mut idgens,
+        ObjectInitialization::Default,
+    )
+    .unwrap();
 
     {
-        let expression_data = topo.expression_mut(sp_instance.expression.id()).unwrap();
+        let expression_data = topo.expression_mut(proc.expression.id()).unwrap();
 
         let (expr_graph, mapping) = expression_data.expression_graph_and_mapping_mut();
 
-        let giid0 = mapping.add_argument(sp_instance.argument_0.id(), expr_graph);
-        let giid1 = mapping.add_argument(sp_instance.argument_1.id(), expr_graph);
-        let giid2 = mapping.add_argument(sp_instance.argument_2.id(), expr_graph);
+        let giid0 = mapping.add_argument(proc.argument_0.id(), expr_graph);
+        let giid1 = mapping.add_argument(proc.argument_1.id(), expr_graph);
+        let giid2 = mapping.add_argument(proc.argument_2.id(), expr_graph);
 
         let ns_handle = expr_graph
             .add_pure_expression_node::<T>(ObjectInitialization::Default)
@@ -245,7 +225,7 @@ fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let codegen = CodeGen::new(&inkwell_context);
 
-    let compiled_input = codegen.compile_expression(sp_instance.expression.id(), &topo);
+    let compiled_input = codegen.compile_expression(proc.expression.id(), &topo);
 
     let mut compiled_function = compiled_input.make_function();
 
@@ -263,7 +243,7 @@ fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
         }
     }
 
-    sp_instance.set_input_values(input_values);
+    proc.set_input_values(input_values);
 
     let mut expected_values = [0.0_f32; TEST_ARRAY_SIZE];
     let mut inputs_arr = [0.0_f32; MAX_NUM_INPUTS];
@@ -277,10 +257,10 @@ fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     //------------------------
 
-    let sp_state = StateAndTiming::new(sp_instance.make_state());
+    let sp_state = StateAndTiming::new(proc.make_state());
     let context = context.push_processor_state(&sp_state, LocalArrayList::new());
 
-    let state_from_context = context.find_processor_state(sp_instance.id());
+    let state_from_context = context.find_processor_state(proc.id());
     let state_from_context = state_from_context
         .downcast_if::<TestSoundProcessorState>()
         .unwrap();

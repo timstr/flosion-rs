@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::{
-    jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
-    sound::expressionargument::InputTimeExpressionArgument,
-};
+use crate::core::jit::wrappers::{ArrayReadFunc, ScalarReadFunc};
 
 use super::{
     expression::SoundExpressionHandle,
@@ -14,14 +11,13 @@ use super::{
         SoundExpressionArgumentId, SoundExpressionArgumentOwner,
     },
     sounderror::SoundError,
-    soundgraph::SoundGraphIdGenerators,
     soundgraphdata::{
         SoundExpressionArgumentData, SoundExpressionData, SoundExpressionScope, SoundInputBranchId,
-        SoundInputData,
     },
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
+    topologyedits::{build_sound_input, SoundGraphIdGenerators},
 };
 
 /// An interface for making changes to the sound graph from the view of
@@ -63,22 +59,13 @@ impl<'a> SoundProcessorTools<'a> {
         options: InputOptions,
         branches: Vec<SoundInputBranchId>,
     ) -> SoundInputId {
-        let id = self.id_generators.sound_input.next_id();
-
-        let time_data = SoundExpressionArgumentData::new(
-            self.id_generators.expression_argument.next_id(),
-            Arc::new(InputTimeExpressionArgument::new(id)),
-            SoundExpressionArgumentOwner::SoundInput(id),
-        );
-
-        let input_data =
-            SoundInputData::new(id, options, branches, self.processor_id, time_data.id());
-
-        self.topology.add_sound_input(input_data).unwrap();
-
-        self.topology.add_expression_argument(time_data).unwrap();
-
-        id
+        build_sound_input(
+            self.topology,
+            self.id_generators,
+            self.processor_id,
+            options,
+            branches,
+        )
     }
 
     /// Remove a sound input from the sound processor

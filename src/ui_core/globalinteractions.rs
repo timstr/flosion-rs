@@ -33,11 +33,10 @@ fn drag_and_drop_processor_in_graph(
     topo: &mut SoundGraphTopology,
     processor: SoundProcessorId,
     socket: InputSocket,
+    shift_held: bool,
 ) -> Result<(), ()> {
-    // TODO: add ways to insert/splice without disconnecting everything first
-
-    // Disconnect the processor from everything
-    {
+    if !shift_held {
+        // Disconnect the processor from everything
         let mut inputs_to_disconnect = Vec::new();
         for i in topo.sound_processor(processor).unwrap().sound_inputs() {
             if topo.sound_input(*i).unwrap().target().is_some() {
@@ -72,22 +71,28 @@ fn drag_and_drop_processor_in_layout(
     processor: SoundProcessorId,
     socket: InputSocket,
     positions: &SoundObjectPositions,
+    shift_held: bool,
 ) {
-    layout.split_processor_into_own_group(processor, positions);
-    let processor_below = topo.sound_input(socket.input).unwrap().owner();
-    layout.split_group_above_processor(processor_below, positions);
-    layout.insert_processor_above(processor, processor_below);
+    if !shift_held {
+        layout.split_processor_into_own_group(processor, positions);
+        let processor_below = topo.sound_input(socket.input).unwrap().owner();
+        layout.split_group_above_processor(processor_below, positions);
+        layout.insert_processor_above(processor, processor_below);
+    }
 }
 
 fn compute_legal_sockets_for_process(
     topo: &SoundGraphTopology,
     processor: SoundProcessorId,
     sockets: &[InputSocket],
+    shift_held: bool,
 ) -> Vec<InputSocket> {
     let mut legal_sockets = Vec::new();
     for socket in sockets {
         let mut topo_clone = topo.clone();
-        if drag_and_drop_processor_in_graph(&mut topo_clone, processor, *socket).is_err() {
+        if drag_and_drop_processor_in_graph(&mut topo_clone, processor, *socket, shift_held)
+            .is_err()
+        {
             continue;
         }
         if find_sound_error(&topo_clone).is_none() {
@@ -294,11 +299,13 @@ impl GlobalInteractions {
 
                 // Ensure that the legal connections are up to date, since these are used
                 // to highlight legal/illegal interconnects to drop onto
-                drag.legal_connections.refresh3(
+                let shift_held = ui.input(|i| i.modifiers.shift);
+                drag.legal_connections.refresh4(
                     compute_legal_sockets_for_process,
                     graph.topology(),
                     drag.processor_id,
-                    positions.sockets().items(),
+                    positions.sockets().values(),
+                    shift_held,
                 );
             }
             UiMode::DroppingProcessor(dropped_proc) => {
@@ -467,6 +474,7 @@ impl GlobalInteractions {
                     topo,
                     dropped_proc.processor_id,
                     nearest_socket,
+                    shift_held,
                 ))
             });
 
@@ -488,6 +496,7 @@ impl GlobalInteractions {
                 dropped_proc.processor_id,
                 nearest_socket,
                 positions,
+                shift_held,
             );
 
             #[cfg(debug_assertions)]
@@ -501,16 +510,16 @@ impl GlobalInteractions {
             assert!(layout.check_invariants(graph.topology()));
         }
 
-        // If the processor is in a lone group, move the group to where the processor
-        // was dropped
-        let group = layout.find_group_mut(dropped_proc.processor_id).unwrap();
-        if group.processors() == &[dropped_proc.processor_id] {
-            let rect = group.rect();
-            group.set_rect(
-                rect.translate(
+        if !shift_held {
+            // If the processor is in a lone group, move the group to where the processor
+            // was dropped
+            let group = layout.find_group_mut(dropped_proc.processor_id).unwrap();
+            if group.processors() == &[dropped_proc.processor_id] {
+                let rect = group.rect();
+                group.set_rect(rect.translate(
                     dropped_proc.rect.left_top() - dropped_proc.original_rect.left_top(),
-                ),
-            );
+                ));
+            }
         }
     }
 

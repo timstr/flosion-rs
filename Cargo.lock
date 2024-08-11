@@ -1762,9 +1762,9 @@ dependencies = [
 
 [[package]]
 name = "hashrevise"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae5f5ef64e507ce96ce570c32a2adb427c94d14627bfbaf5f7eef41702864ada"
+checksum = "3c325b4c890454918a14d6e5ef4f2e9aa6864116d51d26dabdda437859dd064e"
 dependencies = [
  "seahash",
 ]
