@@ -10,7 +10,9 @@ fn score_match(query: &str, content: &str) -> f32 {
     let mut qc = qi.next();
     let mut first = true;
     for cc in content.chars() {
+        let cc = cc.to_ascii_lowercase();
         if let Some(c) = qc {
+            let c = c.to_ascii_lowercase();
             if cc == c {
                 score += if first { 2.0 } else { 1.0 };
                 qc = qi.next();
