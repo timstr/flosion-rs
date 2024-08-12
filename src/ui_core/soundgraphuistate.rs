@@ -2,9 +2,16 @@ use std::rc::Rc;
 
 use eframe::egui;
 
-use crate::core::sound::{
-    expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-    soundgraphtopology::SoundGraphTopology,
+use crate::{
+    core::{
+        audiofileio::load_audio_file,
+        graph::graphobject::ObjectInitialization,
+        sound::{
+            expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+            soundgraphtopology::SoundGraphTopology,
+        },
+    },
+    objects::audioclip::AudioClip,
 };
 
 use super::{
@@ -93,6 +100,22 @@ impl SoundGraphUiState {
                 );
             },
         );
+
+        let dropped_files = ui.input(|i| i.raw.dropped_files.clone());
+
+        for dropped_file in dropped_files {
+            let path = dropped_file.path.as_ref().unwrap();
+            println!("Loading {}", path.display());
+            if let Ok(buf) = load_audio_file(path) {
+                let audioclip = graph
+                    .add_dynamic_sound_processor::<AudioClip>(ObjectInitialization::Default)
+                    .unwrap();
+                audioclip.set_data(buf);
+                println!("Loaded {}", path.display());
+            } else {
+                println!("Failed to load {}", path.display());
+            }
+        }
     }
 
     /// Remove any state associated with objects that are no longer present
