@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use eframe::egui;
+use hashrevise::{Revisable, RevisionHash};
 
 use crate::{
     core::sound::{
@@ -475,5 +476,11 @@ impl SoundGraphLayout {
         }
 
         true
+    }
+}
+
+impl Revisable for SoundGraphLayout {
+    fn get_revision(&self) -> RevisionHash {
+        self.groups.get_revision()
     }
 }

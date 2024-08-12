@@ -57,10 +57,21 @@ impl<T> PositionedItems<T> {
             .map(|idx| self.positions[idx])
     }
 
-    pub(crate) fn find_closest(&self, query: egui::Rect, minimum_overlap_area: f32) -> Option<&T> {
+    pub(crate) fn find_closest_where<F>(
+        &self,
+        query: egui::Rect,
+        minimum_overlap_area: f32,
+        mut f: F,
+    ) -> Option<(&T, f32)>
+    where
+        F: FnMut(&T) -> bool,
+    {
         let mut best_overlap = minimum_overlap_area;
         let mut best_index = None;
         for (index, rect) in self.positions.iter().enumerate() {
+            if !f(&self.values[index]) {
+                continue;
+            }
             let intersection = rect.intersect(query);
             if !intersection.is_positive() {
                 continue;
@@ -71,7 +82,7 @@ impl<T> PositionedItems<T> {
                 best_index = Some(index);
             }
         }
-        best_index.map(|idx| &self.values[idx])
+        best_index.map(|idx| (&self.values[idx], best_overlap))
     }
 }
 

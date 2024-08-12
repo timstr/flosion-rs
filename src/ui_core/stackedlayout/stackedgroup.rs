@@ -1,9 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
+    hash::Hasher,
     ops::BitAnd,
 };
 
 use eframe::egui::{self};
+use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
 use crate::{
     core::sound::{
@@ -308,13 +310,10 @@ impl StackedGroup {
         ui.painter()
             .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        if let Some(sockets) = ui_state
-            .interactions()
-            .legal_sockets_to_drop_processor_onto()
-        {
+        if let Some(sockets) = ui_state.interactions().legal_sockets_to_drop_onto() {
             let legal = sockets.contains(&socket);
             // TODO: highlight extra if this is the socket that would be
-            // chosen if the processor was dropped right now
+            // chosen if the user dropped right now
             ui.painter().rect_filled(
                 rect,
                 egui::Rounding::same(5.0),
@@ -324,7 +323,6 @@ impl StackedGroup {
                     egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64)
                 },
             );
-        } else {
         }
 
         match socket.options {
@@ -350,7 +348,20 @@ impl StackedGroup {
         ui.painter()
             .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        // TODO: highlight if dragging something compatible
+        if let Some(plugs) = ui_state.interactions().legal_plugs_to_drop_onto() {
+            let legal = plugs.contains(&plug);
+            // TODO: highlight extra if this is the plug that would be
+            // chosen if the user dropped right now
+            ui.painter().rect_filled(
+                rect,
+                egui::Rounding::same(5.0),
+                if legal {
+                    egui::Color32::from_white_alpha(64)
+                } else {
+                    egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64)
+                },
+            );
+        }
 
         if plug.is_static {
             self.draw_even_stripes(ui, rect, 1);
@@ -553,5 +564,19 @@ impl StackedGroup {
         );
         ui.painter()
             .galley(rect.left_top(), galley, egui::Color32::WHITE);
+    }
+}
+
+impl Revisable for StackedGroup {
+    fn get_revision(&self) -> RevisionHash {
+        let mut hasher = RevisionHasher::new();
+        hasher.write_usize(self.width_pixels);
+        hasher.write_u32(self.time_axis.time_per_x_pixel.to_bits());
+        hasher.write_revisable(&self.processors);
+        hasher.write_u32(self.rect.left().to_bits());
+        hasher.write_u32(self.rect.right().to_bits());
+        hasher.write_u32(self.rect.top().to_bits());
+        hasher.write_u32(self.rect.bottom().to_bits());
+        hasher.into_revision()
     }
 }
