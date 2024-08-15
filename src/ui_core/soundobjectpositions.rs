@@ -2,7 +2,10 @@ use eframe::egui;
 
 use crate::core::sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
 
-use super::stackedlayout::interconnect::{InputSocket, ProcessorPlug};
+use super::{
+    globalinteractions::DragDropSubject,
+    stackedlayout::interconnect::{InputSocket, ProcessorPlug},
+};
 
 pub(crate) struct PositionedItems<T> {
     values: Vec<T>,
@@ -62,7 +65,7 @@ impl<T> PositionedItems<T> {
         query: egui::Rect,
         minimum_overlap_area: f32,
         mut f: F,
-    ) -> Option<(&T, f32)>
+    ) -> Option<&T>
     where
         F: FnMut(&T) -> bool,
     {
@@ -82,7 +85,7 @@ impl<T> PositionedItems<T> {
                 best_index = Some(index);
             }
         }
-        best_index.map(|idx| (&self.values[idx], best_overlap))
+        best_index.map(|idx| &self.values[idx])
     }
 }
 
@@ -98,28 +101,18 @@ pub(crate) struct ProcessorPosition {
 }
 
 pub(crate) struct SoundObjectPositions {
-    plugs: PositionedItems<ProcessorPlug>,
-    sockets: PositionedItems<InputSocket>,
     socket_jumpers: PositionedItems<SoundInputId>,
     processors: Vec<ProcessorPosition>,
+    drag_drop_subjects: PositionedItems<DragDropSubject>,
 }
 
 impl SoundObjectPositions {
     pub(crate) fn new() -> SoundObjectPositions {
         SoundObjectPositions {
-            plugs: PositionedItems::new(),
-            sockets: PositionedItems::new(),
             socket_jumpers: PositionedItems::new(),
             processors: Vec::new(),
+            drag_drop_subjects: PositionedItems::new(),
         }
-    }
-
-    pub(crate) fn plugs(&self) -> &PositionedItems<ProcessorPlug> {
-        &self.plugs
-    }
-
-    pub(crate) fn sockets(&self) -> &PositionedItems<InputSocket> {
-        &self.sockets
     }
 
     pub(crate) fn socket_jumpers(&self) -> &PositionedItems<SoundInputId> {
@@ -130,12 +123,18 @@ impl SoundObjectPositions {
         &self.processors
     }
 
+    pub(crate) fn drag_drop_subjects(&self) -> &PositionedItems<DragDropSubject> {
+        &self.drag_drop_subjects
+    }
+
     pub(crate) fn record_plug(&mut self, plug: ProcessorPlug, rect: egui::Rect) {
-        self.plugs.push(plug, rect);
+        self.drag_drop_subjects
+            .push(DragDropSubject::Plug(plug.processor), rect);
     }
 
     pub(crate) fn record_socket(&mut self, socket: InputSocket, rect: egui::Rect) {
-        self.sockets.push(socket, rect);
+        self.drag_drop_subjects
+            .push(DragDropSubject::Socket(socket.input), rect);
     }
 
     pub(crate) fn record_socket_jumper(&mut self, input_id: SoundInputId, rect: egui::Rect) {
@@ -153,6 +152,8 @@ impl SoundObjectPositions {
             rect,
             group_origin,
         });
+        self.drag_drop_subjects
+            .push(DragDropSubject::Processor(processor), rect);
     }
 
     pub(crate) fn find_processor(&self, processor: SoundProcessorId) -> Option<&ProcessorPosition> {
@@ -160,9 +161,8 @@ impl SoundObjectPositions {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.plugs.clear();
-        self.sockets.clear();
         self.socket_jumpers.clear();
         self.processors.clear();
+        self.drag_drop_subjects.clear();
     }
 }

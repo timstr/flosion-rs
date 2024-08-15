@@ -14,8 +14,11 @@ use crate::{
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        flosion_ui::Factories, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
+        flosion_ui::Factories,
+        globalinteractions::{DragDropLegality, DragDropSubject},
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState,
+        soundobjectpositions::SoundObjectPositions,
         stackedlayout::stackedlayout::SoundGraphLayout,
     },
 };
@@ -300,29 +303,53 @@ impl StackedGroup {
                 .record_socket_jumper(socket.input, jumper_rect);
         }
 
-        let (rect, _) = ui.allocate_exact_size(
+        let (rect, response) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, Self::SOCKET_HEIGHT),
-            egui::Sense::hover(),
+            egui::Sense::click_and_drag(),
         );
+
+        if response.drag_started() {
+            ui_state
+                .interactions_mut()
+                .start_dragging(DragDropSubject::Socket(socket.input), rect);
+        }
+
+        if response.dragged() {
+            ui_state
+                .interactions_mut()
+                .continue_dragging(response.drag_delta());
+        }
+
+        if response.drag_stopped() {
+            ui_state.interactions_mut().drop_dragging();
+        }
 
         ui_state.positions_mut().record_socket(socket, rect);
 
         ui.painter()
             .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        if let Some(sockets) = ui_state.interactions().legal_sockets_to_drop_onto() {
-            let legal = sockets.contains(&socket);
-            // TODO: highlight extra if this is the socket that would be
+        if let Some(sites) = ui_state.interactions().legal_sites_to_drop_onto() {
+            let status = sites
+                .get(&DragDropSubject::Socket(socket.input))
+                .cloned()
+                .unwrap_or(DragDropLegality::Irrelevant);
+
+            // TODO: highlight extra if this is the plug that would be
             // chosen if the user dropped right now
-            ui.painter().rect_filled(
-                rect,
-                egui::Rounding::same(5.0),
-                if legal {
-                    egui::Color32::from_white_alpha(64)
-                } else {
-                    egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64)
-                },
-            );
+
+            let color = match status {
+                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(64)),
+                DragDropLegality::Illegal => {
+                    Some(egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64))
+                }
+                DragDropLegality::Irrelevant => None,
+            };
+
+            if let Some(color) = color {
+                ui.painter()
+                    .rect_filled(rect, egui::Rounding::same(5.0), color);
+            }
         }
 
         match socket.options {
@@ -338,29 +365,53 @@ impl StackedGroup {
         plug: ProcessorPlug,
         color: egui::Color32,
     ) {
-        let (rect, _) = ui.allocate_exact_size(
+        let (rect, response) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
-            egui::Sense::hover(),
+            egui::Sense::click_and_drag(),
         );
+
+        if response.drag_started() {
+            ui_state
+                .interactions_mut()
+                .start_dragging(DragDropSubject::Plug(plug.processor), rect);
+        }
+
+        if response.dragged() {
+            ui_state
+                .interactions_mut()
+                .continue_dragging(response.drag_delta());
+        }
+
+        if response.drag_stopped() {
+            ui_state.interactions_mut().drop_dragging();
+        }
 
         ui_state.positions_mut().record_plug(plug, rect);
 
         ui.painter()
             .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        if let Some(plugs) = ui_state.interactions().legal_plugs_to_drop_onto() {
-            let legal = plugs.contains(&plug);
+        if let Some(sites) = ui_state.interactions().legal_sites_to_drop_onto() {
+            let status = sites
+                .get(&DragDropSubject::Plug(plug.processor))
+                .cloned()
+                .unwrap_or(DragDropLegality::Irrelevant);
+
             // TODO: highlight extra if this is the plug that would be
             // chosen if the user dropped right now
-            ui.painter().rect_filled(
-                rect,
-                egui::Rounding::same(5.0),
-                if legal {
-                    egui::Color32::from_white_alpha(64)
-                } else {
-                    egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64)
-                },
-            );
+
+            let color = match status {
+                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(64)),
+                DragDropLegality::Illegal => {
+                    Some(egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64))
+                }
+                DragDropLegality::Irrelevant => None,
+            };
+
+            if let Some(color) = color {
+                ui.painter()
+                    .rect_filled(rect, egui::Rounding::same(5.0), color);
+            }
         }
 
         if plug.is_static {

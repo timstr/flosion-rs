@@ -9,8 +9,8 @@ use crate::core::sound::{
 };
 
 use super::{
-    expressionplot::PlotConfig, soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState,
+    expressionplot::PlotConfig, globalinteractions::DragDropSubject,
+    soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
 };
 
 pub struct ProcessorUi {
@@ -267,19 +267,20 @@ impl ProcessorUi {
                     // Handle drag & drop
                     {
                         if bg_response.drag_started() {
-                            ui_state
-                                .interactions_mut()
-                                .start_dragging_processor(self.processor_id, bg_response.rect);
+                            ui_state.interactions_mut().start_dragging(
+                                DragDropSubject::Processor(self.processor_id),
+                                bg_response.rect,
+                            );
                         }
 
                         if bg_response.dragged() {
                             ui_state
                                 .interactions_mut()
-                                .drag_processor(bg_response.drag_delta());
+                                .continue_dragging(bg_response.drag_delta());
                         }
 
                         if bg_response.drag_stopped() {
-                            ui_state.interactions_mut().drop_dragging_processor();
+                            ui_state.interactions_mut().drop_dragging();
                         }
                     }
 

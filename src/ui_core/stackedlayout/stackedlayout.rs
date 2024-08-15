@@ -10,12 +10,12 @@ use crate::{
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        flosion_ui::Factories, soundgraphuistate::SoundGraphUiState,
-        soundobjectpositions::SoundObjectPositions,
+        flosion_ui::Factories, globalinteractions::DragDropSubject,
+        soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
     },
 };
 
-use super::{interconnect::ProcessorPlug, stackedgroup::StackedGroup};
+use super::stackedgroup::StackedGroup;
 
 /// Visual layout of all processor groups and the connections between them.
 /// Intended to be the entry point of the main UI for all things pertaining
@@ -203,11 +203,10 @@ impl SoundGraphLayout {
                 continue;
             };
 
-            let processor_data = graph.topology().sound_processor(target_spid).unwrap();
             let plug_pos = ui_state
                 .positions()
-                .plugs()
-                .position(&ProcessorPlug::from_processor_data(&processor_data))
+                .drag_drop_subjects()
+                .position(&DragDropSubject::Plug(target_spid))
                 .unwrap();
 
             let color = ui_state
