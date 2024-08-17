@@ -72,7 +72,7 @@ impl Revisable for DragDropSubject {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DragDropLegality {
     Legal,
     Illegal,
@@ -588,7 +588,7 @@ impl GlobalInteractions {
         let nearest_drop_site = positions.drag_drop_subjects().find_closest_where(
             drop_data.rect,
             minimum_overlap_area,
-            |site| drop_data.legal_sites.contains_key(site),
+            |site| drop_data.legal_sites.get(site).cloned() == Some(DragDropLegality::Legal),
         );
 
         if let Some(nearest_drop_site) = nearest_drop_site {
