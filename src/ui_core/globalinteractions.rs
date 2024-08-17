@@ -95,6 +95,7 @@ fn drag_and_drop_in_graph(
     match drag_from {
         DragDropSubject::Processor(spid) => {
             // If dragging a processor, disconnect it from everything
+            // (for now)
             let mut inputs_to_disconnect = Vec::new();
             for i in topo.sound_processor(spid).unwrap().sound_inputs() {
                 if topo.sound_input(*i).unwrap().target().is_some() {
@@ -189,9 +190,7 @@ fn drag_and_drop_in_layout(
             layout.split_processor_into_own_group(proc, positions);
             let input_data = topo.sound_input(input).unwrap();
             let proc_below = input_data.owner();
-            if input_data.target() != Some(proc) {
-                layout.split_group_above_processor(proc_below, positions);
-            }
+            layout.split_group_above_processor(proc_below, positions);
             layout.insert_processor_above(proc, proc_below);
         }
         (DragDropSubject::Processor(proc), DragDropSubject::Plug(plug)) => {
@@ -202,8 +201,8 @@ fn drag_and_drop_in_layout(
             layout.insert_processor_below(proc, plug);
         }
         _ => {
-            // Otherwise, only plugs/sockets are being dragged, no layout are needed
-            // that can't be resolved normally by SoundGraphLayout::regenerate
+            // Otherwise, only plugs/sockets are being dragged, no layout changes
+            // are needed that can't be resolved normally by SoundGraphLayout::regenerate
         }
     }
 }
