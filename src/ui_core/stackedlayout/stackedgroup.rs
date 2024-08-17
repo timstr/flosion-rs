@@ -203,7 +203,7 @@ impl StackedGroup {
                     // Allocate some width for the sidebar (full height is not known until
                     // the after the processors are laid out)
                     let (initial_sidebar_rect, _) =
-                        ui.allocate_exact_size(egui::vec2(30.0, 30.0), egui::Sense::hover());
+                        ui.allocate_exact_size(egui::vec2(15.0, 15.0), egui::Sense::hover());
 
                     let processors_response = ui.vertical(|ui| {
                         // Tighten the spacing
@@ -268,6 +268,25 @@ impl StackedGroup {
                         egui::Rounding::same(5.0),
                         egui::Color32::from_white_alpha(32),
                     );
+
+                    let dot_spacing = 15.0;
+                    let dot_radius = 4.0;
+
+                    let dot_x = sidebar_rect.center().x;
+                    let top_dot_y = sidebar_rect.top() + 0.5 * sidebar_rect.width();
+                    let bottom_dot_y = sidebar_rect.bottom() - 0.5 * sidebar_rect.width();
+
+                    let num_dots = ((bottom_dot_y - top_dot_y) / dot_spacing).floor() as usize;
+
+                    for i in 0..=num_dots {
+                        let dot_y = top_dot_y + (i as f32) * dot_spacing;
+
+                        ui.painter().circle_filled(
+                            egui::pos2(dot_x, dot_y),
+                            dot_radius,
+                            egui::Color32::from_black_alpha(64),
+                        );
+                    }
                 });
             });
         });
