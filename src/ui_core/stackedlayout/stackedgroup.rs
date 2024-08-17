@@ -457,7 +457,7 @@ impl StackedGroup {
 
         // Write branch amount
         if num_branches != 1 {
-            self.draw_bubbled_text(format!("×{}", num_branches), rect.center(), ui);
+            self.draw_bubbled_text(format!("×{}", num_branches), rect.left_center(), ui);
         }
     }
 
@@ -497,7 +497,7 @@ impl StackedGroup {
 
         // Write branch amount
         if num_branches != 1 {
-            self.draw_bubbled_text(format!("×{}", num_branches), rect.center(), ui);
+            self.draw_bubbled_text(format!("×{}", num_branches), rect.left_center(), ui);
         }
     }
 
@@ -607,7 +607,7 @@ impl StackedGroup {
             .fonts(|f| f.layout_no_wrap(text, egui::FontId::monospace(10.0), egui::Color32::WHITE));
         let rect = galley
             .rect
-            .translate(position.to_vec2() - 0.5 * galley.rect.size());
+            .translate(position.to_vec2() - egui::vec2(0.0, galley.rect.height()));
         ui.painter().rect_filled(
             rect.expand(3.0),
             egui::Rounding::same(3.0),
