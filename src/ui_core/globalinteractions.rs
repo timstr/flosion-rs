@@ -472,6 +472,26 @@ impl GlobalInteractions {
             }
         }
 
+        let (pressed_ctrl_a, pressed_esc) = ui.input_mut(|i| {
+            (
+                i.consume_key(egui::Modifiers::CTRL, egui::Key::A),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
+            )
+        });
+
+        // If ctrl+A was pressed, select everything
+        if pressed_ctrl_a {
+            self.mode = UiMode::Selecting(SelectingState {
+                objects: graph.topology().graph_object_ids().collect(),
+                selecting_area: None,
+            })
+        }
+
+        // If escape was pressed, go into passive mode
+        if pressed_esc {
+            self.mode = UiMode::Passive;
+        }
+
         // If the background was just clicked, go into passive mode
         if bg_response.clicked() {
             self.mode = UiMode::Passive;
