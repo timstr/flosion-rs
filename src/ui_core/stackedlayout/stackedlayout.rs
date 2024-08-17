@@ -26,7 +26,6 @@ pub struct SoundGraphLayout {
     groups: Vec<StackedGroup>,
 }
 
-/// Public methods
 impl SoundGraphLayout {
     /// The default on-screen width of a stacked group, in pixels
     pub(crate) const DEFAULT_WIDTH: usize = 600;
@@ -59,6 +58,14 @@ impl SoundGraphLayout {
             }
         }
         None
+    }
+
+    pub(crate) fn is_processor_alone(&self, id: SoundProcessorId) -> bool {
+        if let Some(g) = self.find_group(id) {
+            g.processors() == &[id]
+        } else {
+            false
+        }
     }
 
     /// Returns true if the given sound processor belongs to a group
@@ -291,10 +298,7 @@ impl SoundGraphLayout {
 
         true
     }
-}
 
-/// Internal helper methods
-impl SoundGraphLayout {
     /// Remove sound processors which no longer exist from any groups they
     /// appear in, splitting groups where connections are broken and
     /// removing any empty groups that result.

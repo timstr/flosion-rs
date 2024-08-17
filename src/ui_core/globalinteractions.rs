@@ -655,12 +655,14 @@ impl GlobalInteractions {
             // If a processor was dropped far away from anything, split
             // it into its own group
             if let DragDropSubject::Processor(spid) = drop_data.subject {
-                Self::disconnect_processor_in_graph(spid, graph);
+                if !layout.is_processor_alone(spid) {
+                    Self::disconnect_processor_in_graph(spid, graph);
 
-                layout.split_processor_into_own_group(spid, positions);
+                    layout.split_processor_into_own_group(spid, positions);
 
-                #[cfg(debug_assertions)]
-                assert!(layout.check_invariants(graph.topology()));
+                    #[cfg(debug_assertions)]
+                    assert!(layout.check_invariants(graph.topology()));
+                }
             }
         }
 
