@@ -49,6 +49,8 @@ pub struct StackedGroup {
 impl StackedGroup {
     const SOCKET_HEIGHT: f32 = 10.0;
     const PLUG_HEIGHT: f32 = 10.0;
+    const TAB_HEIGHT: f32 = 20.0;
+    const TAB_WIDTH: f32 = 50.0;
     const STRIPE_WIDTH: f32 = 3.0;
     const STRIPE_SPACING: f32 = 10.0;
 
@@ -322,15 +324,49 @@ impl StackedGroup {
                 .record_socket_jumper(socket.input, jumper_rect);
         }
 
-        let (rect, response) = ui.allocate_exact_size(
+        let (bar_rect, bar_response) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, Self::SOCKET_HEIGHT),
             egui::Sense::click_and_drag(),
         );
 
+        // Add a tab sticking up, biased to the left
+        let screen_rect = ui.input(|i| i.screen_rect());
+        let tab_left = (bar_rect.center().x - Self::TAB_WIDTH)
+            .clamp(screen_rect.left(), screen_rect.right() - Self::TAB_WIDTH)
+            .clamp(bar_rect.left(), bar_rect.right() - Self::TAB_WIDTH);
+
+        let tab_rect = egui::Rect::from_x_y_ranges(
+            tab_left..=(tab_left + Self::TAB_WIDTH),
+            (bar_rect.bottom() - Self::TAB_HEIGHT)..=bar_rect.bottom(),
+        );
+
+        let tab_response = ui.interact(
+            tab_rect,
+            ui.id().with("socket").with(socket.input),
+            egui::Sense::click_and_drag(),
+        );
+
+        let bevel = 5.0;
+
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![
+                tab_rect.left_bottom(),
+                tab_rect.left_top() + egui::vec2(0.0, bevel),
+                tab_rect.left_top() + egui::vec2(bevel, 0.0),
+                tab_rect.right_top() + egui::vec2(-bevel, 0.0),
+                tab_rect.right_top() + egui::vec2(0.0, bevel),
+                tab_rect.right_bottom(),
+            ],
+            color,
+            egui::Stroke::NONE,
+        ));
+
+        let response = bar_response.union(tab_response);
+
         if response.drag_started() {
             ui_state
                 .interactions_mut()
-                .start_dragging(DragDropSubject::Socket(socket.input), rect);
+                .start_dragging(DragDropSubject::Socket(socket.input), bar_rect);
         }
 
         if response.dragged() {
@@ -343,10 +379,12 @@ impl StackedGroup {
             ui_state.interactions_mut().drop_dragging();
         }
 
-        ui_state.positions_mut().record_socket(socket, rect);
+        ui_state
+            .positions_mut()
+            .record_socket(socket, bar_rect, tab_rect);
 
         ui.painter()
-            .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
+            .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
         if let Some(sites) = ui_state.interactions().legal_sites_to_drop_onto() {
             let status = sites
@@ -354,11 +392,16 @@ impl StackedGroup {
                 .cloned()
                 .unwrap_or(DragDropLegality::Irrelevant);
 
-            // TODO: highlight extra if this is the plug that would be
-            // chosen if the user dropped right now
+            let highlight_alpha = if ui_state.interactions().closest_legal_site_to_drop_onto()
+                == Some(DragDropSubject::Socket(socket.input))
+            {
+                128
+            } else {
+                64
+            };
 
             let color = match status {
-                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(64)),
+                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(highlight_alpha)),
                 DragDropLegality::Illegal => {
                     Some(egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64))
                 }
@@ -367,13 +410,13 @@ impl StackedGroup {
 
             if let Some(color) = color {
                 ui.painter()
-                    .rect_filled(rect, egui::Rounding::same(5.0), color);
+                    .rect_filled(bar_rect, egui::Rounding::same(5.0), color);
             }
         }
 
         match socket.options {
-            InputOptions::Synchronous => self.draw_even_stripes(ui, rect, socket.branches),
-            InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, rect, socket.branches),
+            InputOptions::Synchronous => self.draw_even_stripes(ui, bar_rect, socket.branches),
+            InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, bar_rect, socket.branches),
         }
     }
 
@@ -384,15 +427,51 @@ impl StackedGroup {
         plug: ProcessorPlug,
         color: egui::Color32,
     ) {
-        let (rect, response) = ui.allocate_exact_size(
+        let (bar_rect, bar_response) = ui.allocate_exact_size(
             egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
             egui::Sense::click_and_drag(),
         );
 
+        // Add a tab sticking down, biased to the right
+        let screen_rect = ui.input(|i| i.screen_rect());
+        let tab_left = bar_rect
+            .center()
+            .x
+            .clamp(screen_rect.left() + Self::TAB_WIDTH, screen_rect.right())
+            .clamp(bar_rect.left() + Self::TAB_WIDTH, bar_rect.right());
+
+        let tab_rect = egui::Rect::from_x_y_ranges(
+            tab_left..=(tab_left + Self::TAB_WIDTH),
+            bar_rect.top()..=(bar_rect.top() + Self::TAB_HEIGHT),
+        );
+
+        let tab_response = ui.interact(
+            tab_rect,
+            ui.id().with("plug").with(plug.processor),
+            egui::Sense::click_and_drag(),
+        );
+
+        let response = bar_response.union(tab_response);
+
+        let bevel = 5.0;
+
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![
+                tab_rect.left_top(),
+                tab_rect.right_top(),
+                tab_rect.right_bottom() + egui::vec2(0.0, -bevel),
+                tab_rect.right_bottom() + egui::vec2(-bevel, 0.0),
+                tab_rect.left_bottom() + egui::vec2(bevel, 0.0),
+                tab_rect.left_bottom() + egui::vec2(0.0, -bevel),
+            ],
+            color,
+            egui::Stroke::NONE,
+        ));
+
         if response.drag_started() {
             ui_state
                 .interactions_mut()
-                .start_dragging(DragDropSubject::Plug(plug.processor), rect);
+                .start_dragging(DragDropSubject::Plug(plug.processor), bar_rect);
         }
 
         if response.dragged() {
@@ -405,10 +484,12 @@ impl StackedGroup {
             ui_state.interactions_mut().drop_dragging();
         }
 
-        ui_state.positions_mut().record_plug(plug, rect);
+        ui_state
+            .positions_mut()
+            .record_plug(plug, bar_rect, tab_rect);
 
         ui.painter()
-            .rect_filled(rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
+            .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
         if let Some(sites) = ui_state.interactions().legal_sites_to_drop_onto() {
             let status = sites
@@ -416,11 +497,16 @@ impl StackedGroup {
                 .cloned()
                 .unwrap_or(DragDropLegality::Irrelevant);
 
-            // TODO: highlight extra if this is the plug that would be
-            // chosen if the user dropped right now
+            let highlight_alpha = if ui_state.interactions().closest_legal_site_to_drop_onto()
+                == Some(DragDropSubject::Plug(plug.processor))
+            {
+                128
+            } else {
+                64
+            };
 
             let color = match status {
-                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(64)),
+                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(highlight_alpha)),
                 DragDropLegality::Illegal => {
                     Some(egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64))
                 }
@@ -429,19 +515,19 @@ impl StackedGroup {
 
             if let Some(color) = color {
                 ui.painter()
-                    .rect_filled(rect, egui::Rounding::same(5.0), color);
+                    .rect_filled(bar_rect, egui::Rounding::same(5.0), color);
             }
         }
 
         if plug.is_static {
-            self.draw_even_stripes(ui, rect, 1);
+            self.draw_even_stripes(ui, bar_rect, 1);
         } else {
-            let y_middle = rect.center().y;
+            let y_middle = bar_rect.center().y;
             let half_dot_height = Self::STRIPE_WIDTH * 0.5;
             self.draw_even_stripes(
                 ui,
                 egui::Rect::from_x_y_ranges(
-                    rect.left()..=rect.right(),
+                    bar_rect.left()..=bar_rect.right(),
                     (y_middle - half_dot_height)..=(y_middle + half_dot_height),
                 ),
                 1,

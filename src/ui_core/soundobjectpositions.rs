@@ -104,6 +104,8 @@ pub(crate) struct SoundObjectPositions {
     socket_jumpers: PositionedItems<SoundInputId>,
     processors: Vec<ProcessorPosition>,
     drag_drop_subjects: PositionedItems<DragDropSubject>,
+    socket_tabs: PositionedItems<SoundInputId>,
+    plug_tabs: PositionedItems<SoundProcessorId>,
 }
 
 impl SoundObjectPositions {
@@ -112,6 +114,8 @@ impl SoundObjectPositions {
             socket_jumpers: PositionedItems::new(),
             processors: Vec::new(),
             drag_drop_subjects: PositionedItems::new(),
+            socket_tabs: PositionedItems::new(),
+            plug_tabs: PositionedItems::new(),
         }
     }
 
@@ -127,14 +131,26 @@ impl SoundObjectPositions {
         &self.drag_drop_subjects
     }
 
-    pub(crate) fn record_plug(&mut self, plug: ProcessorPlug, rect: egui::Rect) {
+    pub(crate) fn record_plug(
+        &mut self,
+        plug: ProcessorPlug,
+        rect: egui::Rect,
+        tab_rect: egui::Rect,
+    ) {
         self.drag_drop_subjects
             .push(DragDropSubject::Plug(plug.processor), rect);
+        self.plug_tabs.push(plug.processor, tab_rect);
     }
 
-    pub(crate) fn record_socket(&mut self, socket: InputSocket, rect: egui::Rect) {
+    pub(crate) fn record_socket(
+        &mut self,
+        socket: InputSocket,
+        rect: egui::Rect,
+        tab_rect: egui::Rect,
+    ) {
         self.drag_drop_subjects
             .push(DragDropSubject::Socket(socket.input), rect);
+        self.socket_tabs.push(socket.input, tab_rect);
     }
 
     pub(crate) fn record_socket_jumper(&mut self, input_id: SoundInputId, rect: egui::Rect) {
@@ -164,5 +180,7 @@ impl SoundObjectPositions {
         self.socket_jumpers.clear();
         self.processors.clear();
         self.drag_drop_subjects.clear();
+        self.socket_tabs.clear();
+        self.plug_tabs.clear();
     }
 }

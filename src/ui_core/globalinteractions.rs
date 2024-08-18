@@ -241,6 +241,7 @@ pub struct DraggingData {
     rect: egui::Rect,
     original_rect: egui::Rect,
     legal_drop_sites: RevisedProperty<HashMap<DragDropSubject, DragDropLegality>>,
+    closest_legal_site: Option<DragDropSubject>,
 }
 
 #[derive(Clone)]
@@ -429,6 +430,15 @@ impl GlobalInteractions {
                     drag.subject,
                     positions.drag_drop_subjects().values(),
                 );
+                let site_is_legal = |s: &DragDropSubject| -> bool {
+                    drag.legal_drop_sites.get_cached().unwrap().get(s).cloned()
+                        == Some(DragDropLegality::Legal)
+                };
+                let minimum_overlap = 1000.0; // TODO: deduplicate
+                drag.closest_legal_site = positions
+                    .drag_drop_subjects()
+                    .find_closest_where(drag.rect, minimum_overlap, site_is_legal)
+                    .cloned();
             }
             UiMode::Dropping(dropped_proc) => {
                 let shift_held = ui.input(|i| i.modifiers.shift);
@@ -506,12 +516,20 @@ impl GlobalInteractions {
         }
     }
 
+    pub(crate) fn closest_legal_site_to_drop_onto(&self) -> Option<DragDropSubject> {
+        match &self.mode {
+            UiMode::Dragging(drag) => drag.closest_legal_site,
+            _ => None,
+        }
+    }
+
     pub(crate) fn start_dragging(&mut self, subject: DragDropSubject, original_rect: egui::Rect) {
         self.mode = UiMode::Dragging(DraggingData {
             subject,
             rect: original_rect,
             original_rect,
             legal_drop_sites: RevisedProperty::new(),
+            closest_legal_site: None,
         });
     }
 
