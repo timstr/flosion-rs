@@ -340,26 +340,33 @@ impl StackedGroup {
             (bar_rect.bottom() - Self::TAB_HEIGHT)..=bar_rect.bottom(),
         );
 
-        let tab_response = ui.interact(
-            tab_rect,
+        let tab_layer = egui::LayerId::new(
+            egui::Order::Foreground,
             ui.id().with("socket").with(socket.input),
-            egui::Sense::click_and_drag(),
         );
+        let tab_response = ui
+            .with_layer_id(tab_layer, |ui| {
+                let bevel = 5.0;
+                ui.painter().add(egui::Shape::convex_polygon(
+                    vec![
+                        tab_rect.left_bottom(),
+                        tab_rect.left_top() + egui::vec2(0.0, bevel),
+                        tab_rect.left_top() + egui::vec2(bevel, 0.0),
+                        tab_rect.right_top() + egui::vec2(-bevel, 0.0),
+                        tab_rect.right_top() + egui::vec2(0.0, bevel),
+                        tab_rect.right_bottom(),
+                    ],
+                    color,
+                    egui::Stroke::NONE,
+                ));
 
-        let bevel = 5.0;
-
-        ui.painter().add(egui::Shape::convex_polygon(
-            vec![
-                tab_rect.left_bottom(),
-                tab_rect.left_top() + egui::vec2(0.0, bevel),
-                tab_rect.left_top() + egui::vec2(bevel, 0.0),
-                tab_rect.right_top() + egui::vec2(-bevel, 0.0),
-                tab_rect.right_top() + egui::vec2(0.0, bevel),
-                tab_rect.right_bottom(),
-            ],
-            color,
-            egui::Stroke::NONE,
-        ));
+                ui.interact(
+                    tab_rect,
+                    ui.id().with("socket").with(socket.input),
+                    egui::Sense::click_and_drag(),
+                )
+            })
+            .inner;
 
         let response = bar_response.union(tab_response);
 
@@ -445,28 +452,35 @@ impl StackedGroup {
             bar_rect.top()..=(bar_rect.top() + Self::TAB_HEIGHT),
         );
 
-        let tab_response = ui.interact(
-            tab_rect,
+        let tab_layer = egui::LayerId::new(
+            egui::Order::Foreground,
             ui.id().with("plug").with(plug.processor),
-            egui::Sense::click_and_drag(),
         );
+        let tab_response = ui
+            .with_layer_id(tab_layer, |ui| {
+                let bevel = 5.0;
+                ui.painter().add(egui::Shape::convex_polygon(
+                    vec![
+                        tab_rect.left_top(),
+                        tab_rect.right_top(),
+                        tab_rect.right_bottom() + egui::vec2(0.0, -bevel),
+                        tab_rect.right_bottom() + egui::vec2(-bevel, 0.0),
+                        tab_rect.left_bottom() + egui::vec2(bevel, 0.0),
+                        tab_rect.left_bottom() + egui::vec2(0.0, -bevel),
+                    ],
+                    color,
+                    egui::Stroke::NONE,
+                ));
+
+                ui.interact(
+                    tab_rect,
+                    ui.id().with("plug").with(plug.processor),
+                    egui::Sense::click_and_drag(),
+                )
+            })
+            .inner;
 
         let response = bar_response.union(tab_response);
-
-        let bevel = 5.0;
-
-        ui.painter().add(egui::Shape::convex_polygon(
-            vec![
-                tab_rect.left_top(),
-                tab_rect.right_top(),
-                tab_rect.right_bottom() + egui::vec2(0.0, -bevel),
-                tab_rect.right_bottom() + egui::vec2(-bevel, 0.0),
-                tab_rect.left_bottom() + egui::vec2(bevel, 0.0),
-                tab_rect.left_bottom() + egui::vec2(0.0, -bevel),
-            ],
-            color,
-            egui::Stroke::NONE,
-        ));
 
         if response.drag_started() {
             ui_state
