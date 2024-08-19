@@ -14,12 +14,9 @@ use crate::{
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        flosion_ui::Factories,
-        interactions::draganddrop::{DragDropLegality, DragDropSubject},
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectpositions::SoundObjectPositions,
-        stackedlayout::stackedlayout::SoundGraphLayout,
+        flosion_ui::Factories, interactions::draganddrop::DragDropSubject,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectpositions::SoundObjectPositions, stackedlayout::stackedlayout::SoundGraphLayout,
     },
 };
 
@@ -393,42 +390,6 @@ impl StackedGroup {
         ui.painter()
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        if let Some(sites) = ui_state
-            .interactions()
-            .dragging()
-            .and_then(|d| d.legal_sites_to_drop_onto())
-        {
-            let status = sites
-                .get(&DragDropSubject::Socket(socket.input))
-                .cloned()
-                .unwrap_or(DragDropLegality::Irrelevant);
-
-            let highlight_alpha = if ui_state
-                .interactions()
-                .dragging()
-                .unwrap()
-                .closest_legal_site_to_drop_onto()
-                == Some(DragDropSubject::Socket(socket.input))
-            {
-                128
-            } else {
-                64
-            };
-
-            let color = match status {
-                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(highlight_alpha)),
-                DragDropLegality::Illegal => {
-                    Some(egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64))
-                }
-                DragDropLegality::Irrelevant => None,
-            };
-
-            if let Some(color) = color {
-                ui.painter()
-                    .rect_filled(bar_rect, egui::Rounding::same(5.0), color);
-            }
-        }
-
         match socket.options {
             InputOptions::Synchronous => self.draw_even_stripes(ui, bar_rect, socket.branches),
             InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, bar_rect, socket.branches),
@@ -512,42 +473,6 @@ impl StackedGroup {
 
         ui.painter()
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
-
-        if let Some(sites) = ui_state
-            .interactions()
-            .dragging()
-            .and_then(|d| d.legal_sites_to_drop_onto())
-        {
-            let status = sites
-                .get(&DragDropSubject::Plug(plug.processor))
-                .cloned()
-                .unwrap_or(DragDropLegality::Irrelevant);
-
-            let highlight_alpha = if ui_state
-                .interactions()
-                .dragging()
-                .unwrap()
-                .closest_legal_site_to_drop_onto()
-                == Some(DragDropSubject::Plug(plug.processor))
-            {
-                128
-            } else {
-                64
-            };
-
-            let color = match status {
-                DragDropLegality::Legal => Some(egui::Color32::from_white_alpha(highlight_alpha)),
-                DragDropLegality::Illegal => {
-                    Some(egui::Color32::from_rgba_unmultiplied(255, 0, 0, 64))
-                }
-                DragDropLegality::Irrelevant => None,
-            };
-
-            if let Some(color) = color {
-                ui.painter()
-                    .rect_filled(bar_rect, egui::Rounding::same(5.0), color);
-            }
-        }
 
         if plug.is_static {
             self.draw_even_stripes(ui, bar_rect, 1);

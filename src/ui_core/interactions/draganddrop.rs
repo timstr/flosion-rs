@@ -64,6 +64,7 @@ impl Revisable for DragDropSubject {
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum DragDropLegality {
     Legal,
+    LegalButInvisible,
     Illegal,
     Irrelevant,
 }
@@ -158,7 +159,14 @@ fn drag_and_drop_in_graph(
         // Connect the input to the processor
         topo.connect_sound_input(input, proc).unwrap();
 
-        DragDropLegality::Legal
+        // Colouring all the processors is visually noisy,
+        // and the effect is the same as dropping onto the
+        // processor's plug right below it.
+        if let DragDropSubject::Plug(_) = drop_onto {
+            DragDropLegality::Legal
+        } else {
+            DragDropLegality::LegalButInvisible
+        }
     } else {
         // Dragging and dropping an unsupported combination of things
         DragDropLegality::Irrelevant
@@ -205,16 +213,23 @@ fn compute_legal_drop_sites(
     let mut site_statuses = HashMap::new();
     for drop_site in drop_sites {
         let mut topo_clone = topo.clone();
+        // drag_and_drop_in_graph only does superficial error
+        // detection, here we additionally check whether the
+        // resulting topology is valid.
         let status = match drag_and_drop_in_graph(&mut topo_clone, layout, drag_subject, *drop_site)
         {
             DragDropLegality::Legal => {
-                // drag_and_drop_in_graph only does superficial error
-                // detection, here we additionally check whether the
-                // resulting topology is valid.
                 if find_sound_error(&topo_clone).is_some() {
                     DragDropLegality::Illegal
                 } else {
                     DragDropLegality::Legal
+                }
+            }
+            DragDropLegality::LegalButInvisible => {
+                if find_sound_error(&topo_clone).is_some() {
+                    DragDropLegality::Irrelevant
+                } else {
+                    DragDropLegality::LegalButInvisible
                 }
             }
             DragDropLegality::Illegal => DragDropLegality::Illegal,
@@ -252,18 +267,6 @@ impl DragInteraction {
         layout: &SoundGraphLayout,
         positions: &SoundObjectPositions,
     ) {
-        // Draw a basic coloured rectangle tracking the cursor as a preview of
-        // the subject being dragged, without drawing its ui twice
-        let drag_subject_processor = match self.subject {
-            DragDropSubject::Processor(spid) => spid,
-            DragDropSubject::Plug(spid) => spid,
-            DragDropSubject::Socket(siid) => topo.sound_input(siid).unwrap().owner(),
-        };
-        let color = object_states.get_object_color(drag_subject_processor.into());
-        let color = egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 64);
-        ui.painter()
-            .rect_filled(self.rect, egui::Rounding::same(5.0), color);
-
         // Ensure that the legal connections are up to date, since these are used
         // to highlight legal/illegal interconnects to drop onto
         self.legal_drop_sites.refresh4(
@@ -282,16 +285,42 @@ impl DragInteraction {
             .drag_drop_subjects()
             .find_closest_where(self.rect, minimum_overlap, site_is_legal)
             .cloned();
-    }
 
-    pub(crate) fn legal_sites_to_drop_onto(
-        &self,
-    ) -> Option<&HashMap<DragDropSubject, DragDropLegality>> {
-        self.legal_drop_sites.get_cached()
-    }
+        // Highlight the legal and illegal drop sites
+        for (drop_site, legality) in self.legal_drop_sites.get_cached().unwrap() {
+            let color = match legality {
+                DragDropLegality::Legal => egui::Color32::WHITE,
+                DragDropLegality::LegalButInvisible => continue,
+                DragDropLegality::Illegal => egui::Color32::RED,
+                DragDropLegality::Irrelevant => continue,
+            };
 
-    pub(crate) fn closest_legal_site_to_drop_onto(&self) -> Option<DragDropSubject> {
-        self.closest_legal_site
+            let alpha = if self.closest_legal_site == Some(*drop_site) {
+                128
+            } else {
+                64
+            };
+
+            let color =
+                egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha);
+
+            ui.painter().rect_filled(
+                positions.drag_drop_subjects().position(drop_site).unwrap(),
+                egui::Rounding::same(2.0),
+                color,
+            );
+        }
+        // Draw a basic coloured rectangle tracking the cursor as a preview of
+        // the subject being dragged, without drawing its ui twice
+        let drag_subject_processor = match self.subject {
+            DragDropSubject::Processor(spid) => spid,
+            DragDropSubject::Plug(spid) => spid,
+            DragDropSubject::Socket(siid) => topo.sound_input(siid).unwrap().owner(),
+        };
+        let color = object_states.get_object_color(drag_subject_processor.into());
+        let color = egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 64);
+        ui.painter()
+            .rect_filled(self.rect, egui::Rounding::same(5.0), color);
     }
 
     pub(crate) fn translate(&mut self, delta: egui::Vec2) {
@@ -356,6 +385,7 @@ impl DropInteraction {
 
             match drag_and_drop_result {
                 Ok(DragDropLegality::Legal) => { /* nice */ }
+                Ok(DragDropLegality::LegalButInvisible) => { /* nice */ }
                 Ok(DragDropLegality::Illegal) => {
                     println!("Nope, can't drop that there.");
                     return;
