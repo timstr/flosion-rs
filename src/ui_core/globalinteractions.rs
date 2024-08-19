@@ -173,6 +173,25 @@ impl GlobalInteractions {
                     }
                 }
 
+                // Highlight all selected objects
+                for oid in &selection.objects {
+                    let rect = match oid {
+                        SoundObjectId::Sound(spid) => positions.find_processor(*spid).unwrap().rect,
+                    };
+
+                    ui.painter().rect_filled(
+                        rect,
+                        egui::Rounding::same(3.0),
+                        egui::Color32::from_rgba_unmultiplied(255, 255, 0, 16),
+                    );
+                    ui.painter().rect_stroke(
+                        rect,
+                        egui::Rounding::same(3.0),
+                        egui::Stroke::new(2.0, egui::Color32::YELLOW),
+                    );
+                }
+
+                // Leave selection mode if nothing is selected or being selected
                 if selection.objects.is_empty() && selection.selecting_area.is_none() {
                     self.mode = UiMode::Passive;
                 }
@@ -242,13 +261,6 @@ impl GlobalInteractions {
         }
     }
 
-    pub(crate) fn dragging(&self) -> Option<&DragInteraction> {
-        match &self.mode {
-            UiMode::Dragging(drag) => Some(drag),
-            _ => None,
-        }
-    }
-
     pub(crate) fn start_dragging(&mut self, subject: DragDropSubject, original_rect: egui::Rect) {
         self.mode = UiMode::Dragging(DragInteraction::new(subject, original_rect));
     }
@@ -278,13 +290,6 @@ impl GlobalInteractions {
             UiMode::UsingKeyboardNav(KeyboardNavInteraction::AroundSoundProcessor(spid)) => {
                 processor == *spid
             }
-            _ => false,
-        }
-    }
-
-    pub(crate) fn processor_is_selected(&self, processor: SoundProcessorId) -> bool {
-        match &self.mode {
-            UiMode::Selecting(selection) => selection.objects.contains(&processor.into()),
             _ => false,
         }
     }
