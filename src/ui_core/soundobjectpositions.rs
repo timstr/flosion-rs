@@ -3,7 +3,7 @@ use eframe::egui;
 use crate::core::sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
 
 use super::{
-    globalinteractions::DragDropSubject,
+    interactions::draganddrop::DragDropSubject,
     stackedlayout::interconnect::{InputSocket, ProcessorPlug},
 };
 

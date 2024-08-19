@@ -15,7 +15,7 @@ use crate::{
     },
     ui_core::{
         flosion_ui::Factories,
-        globalinteractions::{DragDropLegality, DragDropSubject},
+        interactions::draganddrop::{DragDropLegality, DragDropSubject},
         soundgraphuicontext::SoundGraphUiContext,
         soundgraphuistate::SoundGraphUiState,
         soundobjectpositions::SoundObjectPositions,
@@ -393,13 +393,21 @@ impl StackedGroup {
         ui.painter()
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        if let Some(sites) = ui_state.interactions().legal_sites_to_drop_onto() {
+        if let Some(sites) = ui_state
+            .interactions()
+            .dragging()
+            .and_then(|d| d.legal_sites_to_drop_onto())
+        {
             let status = sites
                 .get(&DragDropSubject::Socket(socket.input))
                 .cloned()
                 .unwrap_or(DragDropLegality::Irrelevant);
 
-            let highlight_alpha = if ui_state.interactions().closest_legal_site_to_drop_onto()
+            let highlight_alpha = if ui_state
+                .interactions()
+                .dragging()
+                .unwrap()
+                .closest_legal_site_to_drop_onto()
                 == Some(DragDropSubject::Socket(socket.input))
             {
                 128
@@ -505,13 +513,21 @@ impl StackedGroup {
         ui.painter()
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        if let Some(sites) = ui_state.interactions().legal_sites_to_drop_onto() {
+        if let Some(sites) = ui_state
+            .interactions()
+            .dragging()
+            .and_then(|d| d.legal_sites_to_drop_onto())
+        {
             let status = sites
                 .get(&DragDropSubject::Plug(plug.processor))
                 .cloned()
                 .unwrap_or(DragDropLegality::Irrelevant);
 
-            let highlight_alpha = if ui_state.interactions().closest_legal_site_to_drop_onto()
+            let highlight_alpha = if ui_state
+                .interactions()
+                .dragging()
+                .unwrap()
+                .closest_legal_site_to_drop_onto()
                 == Some(DragDropSubject::Plug(plug.processor))
             {
                 128

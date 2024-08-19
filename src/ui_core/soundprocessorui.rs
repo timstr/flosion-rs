@@ -9,7 +9,7 @@ use crate::core::sound::{
 };
 
 use super::{
-    expressionplot::PlotConfig, globalinteractions::DragDropSubject,
+    expressionplot::PlotConfig, interactions::draganddrop::DragDropSubject,
     soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
 };
 
@@ -186,7 +186,10 @@ impl ProcessorUi {
 
         let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
 
-        let bg_color = if ui_state.interactions().closest_legal_site_to_drop_onto()
+        let bg_color = if ui_state
+            .interactions()
+            .dragging()
+            .and_then(|d| d.closest_legal_site_to_drop_onto())
             == Some(DragDropSubject::Processor(self.processor_id))
         {
             self.color.gamma_multiply(1.5)

@@ -10,7 +10,7 @@ use crate::{
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        flosion_ui::Factories, globalinteractions::DragDropSubject,
+        flosion_ui::Factories, interactions::draganddrop::DragDropSubject,
         soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
     },
 };
