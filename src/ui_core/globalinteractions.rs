@@ -44,6 +44,8 @@ enum UiMode {
 
     /// Optionally clicking and dragging a rectangular area to define a new
     /// selection while a set of objects is selected and highlighted
+    // TODO: selections should be integrated into drag & drop, cut & paste,
+    // etc, and should thus be persistent across modes (and thus not a mode)
     Selecting(SelectingState),
 
     /// Something was clicked and is being dragged
