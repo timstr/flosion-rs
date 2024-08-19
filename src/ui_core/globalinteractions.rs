@@ -13,8 +13,8 @@ use crate::core::{
 use super::{
     flosion_ui::Factories,
     interactions::{
-        draganddrop::{DragDropSubject, DraggingData, DroppingData},
-        keyboardfocus::KeyboardFocusState,
+        draganddrop::{DragDropSubject, DragInteraction, DropInteraction},
+        keyboardnav::KeyboardNavInteraction,
     },
     soundgraphui::SoundGraphUi,
     soundobjectpositions::SoundObjectPositions,
@@ -40,17 +40,17 @@ enum UiMode {
     Passive,
 
     /// Jumping between sound processors and their components using the keyboard
-    UsingKeyboardNav(KeyboardFocusState),
+    UsingKeyboardNav(KeyboardNavInteraction),
 
     /// Optionally clicking and dragging a rectangular area to define a new
     /// selection while a set of objects is selected and highlighted
     Selecting(SelectingState),
 
     /// Something was clicked and is being dragged
-    Dragging(DraggingData),
+    Dragging(DragInteraction),
 
     /// Something that was being dragged is being dropped
-    Dropping(DroppingData),
+    Dropping(DropInteraction),
 
     /// The summon widget is open and an object's name is being typed
     /// along with any of its options
@@ -240,7 +240,7 @@ impl GlobalInteractions {
         }
     }
 
-    pub(crate) fn dragging(&self) -> Option<&DraggingData> {
+    pub(crate) fn dragging(&self) -> Option<&DragInteraction> {
         match &self.mode {
             UiMode::Dragging(drag) => Some(drag),
             _ => None,
@@ -248,7 +248,7 @@ impl GlobalInteractions {
     }
 
     pub(crate) fn start_dragging(&mut self, subject: DragDropSubject, original_rect: egui::Rect) {
-        self.mode = UiMode::Dragging(DraggingData::new(subject, original_rect));
+        self.mode = UiMode::Dragging(DragInteraction::new(subject, original_rect));
     }
 
     pub(crate) fn continue_dragging(&mut self, delta: egui::Vec2) {
@@ -263,16 +263,17 @@ impl GlobalInteractions {
         let UiMode::Dragging(drag_data) = &mut self.mode else {
             panic!("Called drop_dragging() while not dragging");
         };
-        self.mode = UiMode::Dropping(DroppingData::new_from_drag(drag_data));
+        self.mode = UiMode::Dropping(DropInteraction::new_from_drag(drag_data));
     }
 
     pub(crate) fn focus_on_processor(&mut self, processor: SoundProcessorId) {
-        self.mode = UiMode::UsingKeyboardNav(KeyboardFocusState::AroundSoundProcessor(processor));
+        self.mode =
+            UiMode::UsingKeyboardNav(KeyboardNavInteraction::AroundSoundProcessor(processor));
     }
 
     pub(crate) fn processor_is_in_focus(&self, processor: SoundProcessorId) -> bool {
         match &self.mode {
-            UiMode::UsingKeyboardNav(KeyboardFocusState::AroundSoundProcessor(spid)) => {
+            UiMode::UsingKeyboardNav(KeyboardNavInteraction::AroundSoundProcessor(spid)) => {
                 processor == *spid
             }
             _ => false,

@@ -225,7 +225,7 @@ fn compute_legal_drop_sites(
     site_statuses
 }
 
-pub struct DraggingData {
+pub struct DragInteraction {
     subject: DragDropSubject,
     rect: egui::Rect,
     original_rect: egui::Rect,
@@ -233,9 +233,9 @@ pub struct DraggingData {
     closest_legal_site: Option<DragDropSubject>,
 }
 
-impl DraggingData {
-    pub(crate) fn new(subject: DragDropSubject, original_rect: egui::Rect) -> DraggingData {
-        DraggingData {
+impl DragInteraction {
+    pub(crate) fn new(subject: DragDropSubject, original_rect: egui::Rect) -> DragInteraction {
+        DragInteraction {
             subject,
             rect: original_rect,
             original_rect,
@@ -308,16 +308,16 @@ impl DraggingData {
 }
 
 #[derive(Clone)]
-pub struct DroppingData {
+pub struct DropInteraction {
     subject: DragDropSubject,
     rect: egui::Rect,
     original_rect: egui::Rect,
     legal_sites: HashMap<DragDropSubject, DragDropLegality>,
 }
 
-impl DroppingData {
-    pub(crate) fn new_from_drag(drag: &DraggingData) -> DroppingData {
-        DroppingData {
+impl DropInteraction {
+    pub(crate) fn new_from_drag(drag: &DragInteraction) -> DropInteraction {
+        DropInteraction {
             subject: drag.subject,
             rect: drag.rect,
             original_rect: drag.original_rect,
