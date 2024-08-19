@@ -12,8 +12,10 @@ use crate::core::{
 
 use super::{
     flosion_ui::Factories,
-    interactions::draganddrop::{DragDropSubject, DraggingData, DroppingData},
-    keyboardfocus::KeyboardFocusState,
+    interactions::{
+        draganddrop::{DragDropSubject, DraggingData, DroppingData},
+        keyboardfocus::KeyboardFocusState,
+    },
     soundgraphui::SoundGraphUi,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,

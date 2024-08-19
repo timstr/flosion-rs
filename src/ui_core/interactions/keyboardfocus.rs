@@ -1,14 +1,15 @@
-use crate::core::sound::{
-    expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology,
-    soundprocessor::SoundProcessorId,
+use crate::{
+    core::sound::{
+        expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology,
+        soundprocessor::SoundProcessorId,
+    },
+    ui_core::{
+        lexicallayout::lexicallayout::LexicalLayoutFocus,
+        stackedlayout::interconnect::{InputSocket, ProcessorPlug},
+    },
 };
 
-use super::{
-    lexicallayout::lexicallayout::LexicalLayoutFocus,
-    stackedlayout::interconnect::{InputSocket, ProcessorPlug},
-};
-
-pub(super) enum KeyboardFocusState {
+pub(crate) enum KeyboardFocusState {
     AroundSoundProcessor(SoundProcessorId),
     OnSoundProcessorName(SoundProcessorId),
     AroundProcessorPlug(ProcessorPlug),
@@ -18,7 +19,7 @@ pub(super) enum KeyboardFocusState {
 }
 
 impl KeyboardFocusState {
-    pub(super) fn expression_focus(
+    pub(crate) fn expression_focus(
         &mut self,
         id: SoundExpressionId,
     ) -> Option<&mut LexicalLayoutFocus> {
@@ -36,7 +37,7 @@ impl KeyboardFocusState {
 
     /// Returns true iff all graph ids referenced by the keyboard focus
     /// refer to objects that exist in the given topology
-    pub(super) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
+    pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
         match self {
             KeyboardFocusState::AroundSoundProcessor(spid) => topo.contains(spid),
             KeyboardFocusState::OnSoundProcessorName(spid) => topo.contains(spid),

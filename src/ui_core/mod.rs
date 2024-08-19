@@ -9,7 +9,6 @@ pub mod flosion_ui;
 pub mod globalinteractions;
 pub mod graph_ui;
 pub mod interactions;
-pub mod keyboardfocus;
 pub mod lexicallayout;
 pub mod object_ui;
 pub mod object_ui_states;
