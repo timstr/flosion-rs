@@ -287,13 +287,13 @@ impl GlobalInteractions {
     /// the topology
     pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
         match &mut self.mode {
+            UiMode::Passive => (),
             UiMode::Selecting(s) => {
                 s.objects.retain(|id| topo.contains(id));
                 if s.objects.is_empty() {
                     self.mode = UiMode::Passive;
                 }
             }
-            UiMode::Passive => (),
             UiMode::UsingKeyboardNav(kbd_focus) => {
                 if !kbd_focus.is_valid(topo) {
                     self.mode = UiMode::Passive;

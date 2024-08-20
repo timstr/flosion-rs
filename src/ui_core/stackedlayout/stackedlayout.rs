@@ -28,7 +28,7 @@ pub struct SoundGraphLayout {
 
 impl SoundGraphLayout {
     /// The default on-screen width of a stacked group, in pixels
-    pub(crate) const DEFAULT_WIDTH: usize = 600;
+    pub(crate) const DEFAULT_WIDTH: f32 = 600.0;
 
     /// The default temporal duration of a stacked group, in seconds
     pub(crate) const DEFAULT_DURATION: f32 = 4.0;

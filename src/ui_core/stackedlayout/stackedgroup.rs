@@ -30,7 +30,7 @@ use super::{
 /// the group must have exactly one sound input, with the exception
 /// of the top/leaf processor, which may have any number.
 pub struct StackedGroup {
-    width_pixels: usize,
+    width_pixels: f32,
     time_axis: TimeAxis,
 
     /// The processors in the stacked group, ordered with the
@@ -187,8 +187,8 @@ impl StackedGroup {
 
         let area = egui::Area::new(area_id)
             .constrain(false)
-            .movable(true)
-            .current_pos(self.rect.left_top());
+            .movable(false)
+            .fixed_pos(self.rect.left_top());
 
         let r = area.show(ui.ctx(), |ui| {
             let group_origin = ui.cursor().left_top();
@@ -259,8 +259,23 @@ impl StackedGroup {
                         }
                     });
 
-                    let sidebar_rect =
-                        initial_sidebar_rect.with_max_y(processors_response.response.rect.max.y);
+                    let combined_height = processors_response.response.rect.height();
+
+                    // Left sidebar, for dragging the entire group
+                    let sidebar_rect = initial_sidebar_rect
+                        .with_max_y(initial_sidebar_rect.min.y + combined_height);
+
+                    let sidebar_response = ui
+                        .interact(
+                            sidebar_rect,
+                            ui.id().with("sidebar"),
+                            egui::Sense::click_and_drag(),
+                        )
+                        .on_hover_and_drag_cursor(egui::CursorIcon::Grab);
+
+                    if sidebar_response.dragged() {
+                        self.rect = self.rect.translate(sidebar_response.drag_delta());
+                    }
 
                     ui.painter().rect_filled(
                         sidebar_rect,
@@ -286,11 +301,36 @@ impl StackedGroup {
                             egui::Color32::from_black_alpha(64),
                         );
                     }
+
+                    // Right sidebar, for widening and slimming the group
+                    let (resize_rect, resize_response) = ui.allocate_exact_size(
+                        egui::vec2(5.0, combined_height),
+                        egui::Sense::click_and_drag(),
+                    );
+
+                    let resize_response =
+                        resize_response.on_hover_and_drag_cursor(egui::CursorIcon::ResizeColumn);
+
+                    if resize_response.dragged() {
+                        // TODO: what should the minimum width be? What should happen when
+                        // UI things have no room?
+                        self.width_pixels =
+                            (self.width_pixels + resize_response.drag_delta().x).max(50.0);
+                    }
+
+                    ui.painter().rect_filled(
+                        resize_rect,
+                        egui::Rounding::same(5.0),
+                        egui::Color32::from_white_alpha(32),
+                    );
                 });
             });
         });
 
-        self.rect = r.response.rect;
+        self.rect
+            .set_right(self.rect.left() + r.response.rect.width());
+        self.rect
+            .set_bottom(self.rect.top() + r.response.rect.height());
     }
 
     fn draw_input_socket(
@@ -681,7 +721,7 @@ impl StackedGroup {
 impl Revisable for StackedGroup {
     fn get_revision(&self) -> RevisionHash {
         let mut hasher = RevisionHasher::new();
-        hasher.write_usize(self.width_pixels);
+        hasher.write_u32(self.width_pixels.to_bits());
         hasher.write_u32(self.time_axis.time_per_x_pixel.to_bits());
         hasher.write_revisable(&self.processors);
         hasher.write_u32(self.rect.left().to_bits());
