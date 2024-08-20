@@ -292,17 +292,6 @@ impl ProcessorUi {
                     }
                 });
             });
-
-        if ui_state
-            .interactions()
-            .processor_is_in_focus(self.processor_id)
-        {
-            ui.painter().rect_stroke(
-                response.rect,
-                egui::Rounding::same(3.0),
-                egui::Stroke::new(2.0, egui::Color32::WHITE),
-            );
-        }
     }
 
     fn show_inner_processor_contents<F: FnOnce(&mut egui::Ui)>(

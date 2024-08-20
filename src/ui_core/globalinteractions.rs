@@ -109,10 +109,8 @@ impl GlobalInteractions {
                     });
                 }
             }
-            UiMode::UsingKeyboardNav(_) => {
-                // ????
-                // TODO: handle arrow keys / enter / escape to change focus, tab to summon,
-                // delete to delete, shortcuts for extracting/moving/reconnecting processors???
+            UiMode::UsingKeyboardNav(keyboard_nav) => {
+                keyboard_nav.interact_and_draw(ui, positions);
             }
             UiMode::Selecting(selection) => {
                 let (pressed_esc, pressed_delete) = ui.input_mut(|i| {
@@ -283,15 +281,6 @@ impl GlobalInteractions {
     pub(crate) fn focus_on_processor(&mut self, processor: SoundProcessorId) {
         self.mode =
             UiMode::UsingKeyboardNav(KeyboardNavInteraction::AroundSoundProcessor(processor));
-    }
-
-    pub(crate) fn processor_is_in_focus(&self, processor: SoundProcessorId) -> bool {
-        match &self.mode {
-            UiMode::UsingKeyboardNav(KeyboardNavInteraction::AroundSoundProcessor(spid)) => {
-                processor == *spid
-            }
-            _ => false,
-        }
     }
 
     /// Remove any data associated with objects that are no longer present in
