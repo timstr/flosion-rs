@@ -110,7 +110,7 @@ impl GlobalInteractions {
                 }
             }
             UiMode::UsingKeyboardNav(keyboard_nav) => {
-                keyboard_nav.interact_and_draw(ui, positions);
+                keyboard_nav.interact_and_draw(ui, graph.topology(), layout, positions);
             }
             UiMode::Selecting(selection) => {
                 let (pressed_esc, pressed_delete) = ui.input_mut(|i| {

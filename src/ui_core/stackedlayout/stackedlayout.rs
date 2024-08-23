@@ -68,6 +68,34 @@ impl SoundGraphLayout {
         }
     }
 
+    pub(crate) fn processor_above(&self, id: SoundProcessorId) -> Option<SoundProcessorId> {
+        if let Some(g) = self.find_group(id) {
+            let procs = g.processors();
+            let i = procs.iter().position(|x| *x == id).unwrap();
+            if i > 0 {
+                Some(procs[i - 1])
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn processor_below(&self, id: SoundProcessorId) -> Option<SoundProcessorId> {
+        if let Some(g) = self.find_group(id) {
+            let procs = g.processors();
+            let i = procs.iter().position(|x| *x == id).unwrap();
+            if i + 1 == procs.len() {
+                None
+            } else {
+                Some(procs[i + 1])
+            }
+        } else {
+            None
+        }
+    }
+
     /// Returns true if the given sound processor belongs to a group
     /// and is the very first/top processor in that group.
     pub(crate) fn is_top_of_group(&self, id: SoundProcessorId) -> bool {
