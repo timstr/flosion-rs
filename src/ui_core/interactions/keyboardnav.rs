@@ -37,19 +37,40 @@ impl KeyboardNavInteraction {
             )
         });
 
-        let rect = match self {
+        let rect;
+        let can_go_up;
+        let can_go_down;
+
+        match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
-                positions.find_processor(*spid).unwrap().rect
+                rect = positions.find_processor(*spid).unwrap().rect;
+                can_go_up = !topo
+                    .sound_processor(*spid)
+                    .unwrap()
+                    .sound_inputs()
+                    .is_empty();
+                can_go_down = true;
             }
             KeyboardNavInteraction::OnSoundProcessorName(_) => todo!(),
-            KeyboardNavInteraction::AroundProcessorPlug(spid) => positions
-                .drag_drop_subjects()
-                .position(&DragDropSubject::Plug(*spid))
-                .unwrap(),
-            KeyboardNavInteraction::AroundInputSocket(siid) => positions
-                .drag_drop_subjects()
-                .position(&DragDropSubject::Socket(*siid))
-                .unwrap(),
+            KeyboardNavInteraction::AroundProcessorPlug(spid) => {
+                rect = positions
+                    .drag_drop_subjects()
+                    .position(&DragDropSubject::Plug(*spid))
+                    .unwrap();
+                can_go_up = true;
+                can_go_down = !layout.is_bottom_of_group(*spid);
+            }
+            KeyboardNavInteraction::AroundInputSocket(siid) => {
+                rect = positions
+                    .drag_drop_subjects()
+                    .position(&DragDropSubject::Socket(*siid))
+                    .unwrap();
+                let owner = topo.sound_input(*siid).unwrap().owner();
+                let other_inputs = topo.sound_processor(owner).unwrap().sound_inputs();
+                let index = other_inputs.iter().position(|i| *i == *siid).unwrap();
+                can_go_up = index > 0 || !layout.is_top_of_group(owner);
+                can_go_down = true;
+            }
             KeyboardNavInteraction::AroundExpression(_) => todo!(),
             KeyboardNavInteraction::InsideExpression(_, _) => todo!(),
         };
@@ -61,6 +82,40 @@ impl KeyboardNavInteraction {
             egui::Rounding::same(3.0),
             egui::Stroke::new(2.0, egui::Color32::WHITE),
         );
+
+        if can_go_up {
+            let mut mesh = egui::Mesh::default();
+            mesh.colored_vertex(rect.left_top(), egui::Color32::WHITE);
+            mesh.colored_vertex(
+                rect.left_top() + egui::vec2(0.0, -10.0),
+                egui::Color32::TRANSPARENT,
+            );
+            mesh.colored_vertex(
+                rect.right_top() + egui::vec2(0.0, -10.0),
+                egui::Color32::TRANSPARENT,
+            );
+            mesh.colored_vertex(rect.right_top(), egui::Color32::WHITE);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(2, 3, 0);
+            ui.painter().add(mesh);
+        }
+
+        if can_go_down {
+            let mut mesh = egui::Mesh::default();
+            mesh.colored_vertex(rect.left_bottom(), egui::Color32::WHITE);
+            mesh.colored_vertex(
+                rect.left_bottom() + egui::vec2(0.0, 10.0),
+                egui::Color32::TRANSPARENT,
+            );
+            mesh.colored_vertex(
+                rect.right_bottom() + egui::vec2(0.0, 10.0),
+                egui::Color32::TRANSPARENT,
+            );
+            mesh.colored_vertex(rect.right_bottom(), egui::Color32::WHITE);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(2, 3, 0);
+            ui.painter().add(mesh);
+        }
 
         match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
@@ -105,7 +160,7 @@ impl KeyboardNavInteraction {
                     if index == 0 {
                         // go to the target processor if there is one
                         if let Some(proc_above) = layout.processor_above(owner) {
-                            *self = KeyboardNavInteraction::AroundSoundProcessor(proc_above);
+                            *self = KeyboardNavInteraction::AroundProcessorPlug(proc_above);
                         } else {
                             // TODO: ???
                         }
