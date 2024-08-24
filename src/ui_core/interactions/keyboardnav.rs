@@ -1,13 +1,23 @@
+use std::collections::HashSet;
+
 use eframe::egui;
 
 use crate::{
     core::sound::{
-        expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+        expression::SoundExpressionId, soundgraph::SoundGraph,
+        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+        soundprocessor::SoundProcessorId,
     },
     ui_core::{
+        expressiongraphuicontext::{
+            OuterExpressionGraphUiContext, OuterProcessorExpressionContext,
+        },
+        expressiongraphuistate::ExpressionUiCollection,
+        flosion_ui::Factories,
         lexicallayout::lexicallayout::LexicalLayoutFocus,
-        soundobjectpositions::SoundObjectPositions, stackedlayout::stackedlayout::SoundGraphLayout,
+        soundgraphuinames::SoundGraphUiNames,
+        soundobjectpositions::SoundObjectPositions,
+        stackedlayout::stackedlayout::SoundGraphLayout,
     },
 };
 
@@ -39,27 +49,24 @@ impl DirectionsToGo {
         })
     }
 
-    fn draw_highlights(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+    fn draw_highlights(&self, ui: &mut egui::Ui, rect: egui::Rect, faint: bool) {
+        let color_hi = egui::Color32::from_white_alpha(if faint { 128 } else { 255 });
+        let color_lo = egui::Color32::TRANSPARENT;
+
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::same(3.0),
-            egui::Stroke::new(2.0, egui::Color32::WHITE),
+            egui::Stroke::new(2.0, color_hi),
         );
 
         if self.go_up {
             // Draw a fading white trapezoid above the top edge
-            let glow_width = 10.0;
+            let width = 10.0;
             let mut mesh = egui::Mesh::default();
-            mesh.colored_vertex(rect.left_top(), egui::Color32::WHITE);
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(glow_width, -glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.right_top() + egui::vec2(-glow_width, -glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(rect.right_top(), egui::Color32::WHITE);
+            mesh.colored_vertex(rect.left_top(), color_hi);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(width, -width), color_lo);
+            mesh.colored_vertex(rect.right_top() + egui::vec2(-width, -width), color_lo);
+            mesh.colored_vertex(rect.right_top(), color_hi);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(2, 3, 0);
             ui.painter().add(mesh);
@@ -67,18 +74,12 @@ impl DirectionsToGo {
 
         if self.go_down {
             // Draw a fading white trapezoid below the top edge
-            let glow_width = 10.0;
+            let width = 10.0;
             let mut mesh = egui::Mesh::default();
-            mesh.colored_vertex(rect.left_bottom(), egui::Color32::WHITE);
-            mesh.colored_vertex(
-                rect.left_bottom() + egui::vec2(glow_width, glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.right_bottom() + egui::vec2(-glow_width, glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(rect.right_bottom(), egui::Color32::WHITE);
+            mesh.colored_vertex(rect.left_bottom(), color_hi);
+            mesh.colored_vertex(rect.left_bottom() + egui::vec2(width, width), color_lo);
+            mesh.colored_vertex(rect.right_bottom() + egui::vec2(-width, width), color_lo);
+            mesh.colored_vertex(rect.right_bottom(), color_hi);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(2, 3, 0);
             ui.painter().add(mesh);
@@ -86,31 +87,16 @@ impl DirectionsToGo {
 
         if self.go_in {
             // Draw a trimmed glowing corner going inside from the top left
-            let glow_width = 15.0;
+            let width = 15.0;
             let mut mesh = egui::Mesh::default();
-            mesh.colored_vertex(rect.left_top(), egui::Color32::WHITE);
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(glow_width, 0.0),
-                egui::Color32::WHITE,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(2.0 * glow_width, glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(glow_width, glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(glow_width, 2.0 * glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(0.0, glow_width),
-                egui::Color32::WHITE,
-            );
+            mesh.colored_vertex(rect.left_top(), color_hi);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(width, 0.0), color_hi);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(2.0 * width, width), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(width, width), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(width, 2.0 * width), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(0.0, width), color_hi);
 
-            mesh.colored_vertex(rect.right_bottom(), egui::Color32::WHITE);
+            mesh.colored_vertex(rect.right_bottom(), color_hi);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(0, 2, 3);
             mesh.add_triangle(0, 3, 4);
@@ -120,31 +106,16 @@ impl DirectionsToGo {
 
         if self.go_out {
             // Draw a trimmed glowing corner going outside from the top left
-            let glow_width = 15.0;
+            let width = 15.0;
             let mut mesh = egui::Mesh::default();
-            mesh.colored_vertex(rect.left_top(), egui::Color32::WHITE);
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(2.0 * glow_width, 0.0),
-                egui::Color32::WHITE,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(glow_width, -glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(-glow_width, -glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(-glow_width, glow_width),
-                egui::Color32::TRANSPARENT,
-            );
-            mesh.colored_vertex(
-                rect.left_top() + egui::vec2(0.0, 2.0 * glow_width),
-                egui::Color32::WHITE,
-            );
+            mesh.colored_vertex(rect.left_top(), color_hi);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(2.0 * width, 0.0), color_hi);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(width, -width), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(-width, -width), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(-width, width), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(0.0, 2.0 * width), color_hi);
 
-            mesh.colored_vertex(rect.right_bottom(), egui::Color32::WHITE);
+            mesh.colored_vertex(rect.right_bottom(), color_hi);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(0, 2, 3);
             mesh.add_triangle(0, 3, 4);
@@ -168,12 +139,18 @@ impl KeyboardNavInteraction {
     pub(crate) fn interact_and_draw(
         &mut self,
         ui: &mut egui::Ui,
-        topo: &SoundGraphTopology,
+        graph: &mut SoundGraph,
         layout: &SoundGraphLayout,
         positions: &SoundObjectPositions,
+        expression_uis: &mut ExpressionUiCollection,
+        factories: &Factories,
+        names: &SoundGraphUiNames,
     ) {
         let rect;
         let mut allowed_dirs = DirectionsToGo::nowhere();
+        let mut faint_highlight = false;
+
+        let topo = graph.topology();
 
         match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
@@ -313,13 +290,58 @@ impl KeyboardNavInteraction {
                 }
             }
             KeyboardNavInteraction::InsideExpression(eid, ll_focus) => {
-                rect = todo!();
+                rect = positions.expressions().position(eid).unwrap();
+                faint_highlight = true;
 
                 allowed_dirs.go_out = true;
+
+                let requested_dirs = allowed_dirs.filter_keypresses(ui);
+
+                if requested_dirs.go_out {
+                    *self = KeyboardNavInteraction::AroundExpression(*eid);
+                } else {
+                    let owner = topo.expression(*eid).unwrap().owner();
+
+                    let (expr_ui_state, ll) = expression_uis.get_mut(*eid).unwrap();
+
+                    let node_rect = ll_focus.cursor().get_node(ll).unwrap().rect();
+
+                    ui.painter().rect_stroke(
+                        node_rect,
+                        egui::Rounding::same(3.0),
+                        egui::Stroke::new(2.0, egui::Color32::WHITE),
+                    );
+
+                    let time_axis = layout.find_group(owner).unwrap().time_axis();
+
+                    // HACK
+                    // TODO: cache this for the whole graph using RevisedProperty
+                    let available_arguments = HashSet::new();
+
+                    let outer_context = OuterProcessorExpressionContext::new(
+                        *eid,
+                        owner,
+                        graph,
+                        names,
+                        time_axis,
+                        &available_arguments,
+                    );
+                    let mut outer_context: OuterExpressionGraphUiContext = outer_context.into();
+
+                    ll.handle_keypress(
+                        ui,
+                        ll_focus,
+                        factories.expression_objects(),
+                        factories.expression_uis(),
+                        expr_ui_state.object_states_mut(),
+                        // TODO: why is this borrowed? It's just a bunch of references, pass it by value.
+                        &mut outer_context,
+                    );
+                }
             }
         };
 
-        allowed_dirs.draw_highlights(ui, rect);
+        allowed_dirs.draw_highlights(ui, rect, faint_highlight);
 
         // TODO: handle arrow keys / enter / escape to change focus, tab to summon,
         // delete to delete, shortcuts for extracting/moving/reconnecting processors???

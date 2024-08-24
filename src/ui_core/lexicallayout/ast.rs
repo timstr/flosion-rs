@@ -322,7 +322,7 @@ impl ASTNode {
             .unwrap_or(0)
     }
 
-    pub(super) fn rect(&self) -> egui::Rect {
+    pub(crate) fn rect(&self) -> egui::Rect {
         self.rect.get()
     }
 

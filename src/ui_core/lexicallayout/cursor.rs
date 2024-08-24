@@ -16,7 +16,7 @@ pub(super) enum LexicalLayoutCursorValue<'a> {
 }
 
 #[derive(Clone)]
-pub(super) enum LexicalLayoutCursor {
+pub(crate) enum LexicalLayoutCursor {
     AtVariableName(usize),
     AtVariableValue(usize, ASTPath),
     AtFinalExpression(ASTPath),
@@ -171,7 +171,7 @@ impl LexicalLayoutCursor {
         }
     }
 
-    pub(super) fn get_node<'a>(&self, layout: &'a LexicalLayout) -> Option<&'a ASTNode> {
+    pub(crate) fn get_node<'a>(&self, layout: &'a LexicalLayout) -> Option<&'a ASTNode> {
         match self {
             LexicalLayoutCursor::AtVariableName(_) => None,
             LexicalLayoutCursor::AtVariableValue(i, p) => Some(

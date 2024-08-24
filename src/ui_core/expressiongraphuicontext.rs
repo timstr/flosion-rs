@@ -6,7 +6,7 @@ use crate::core::{
     },
     sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph, sounderror::SoundError, soundprocessor::SoundProcessorId,
+        sounderror::SoundError, soundgraph::SoundGraph, soundprocessor::SoundProcessorId,
     },
 };
 

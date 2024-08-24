@@ -11,12 +11,15 @@ use crate::core::{
 };
 
 use super::{
+    expressiongraphuistate::ExpressionUiCollection,
     flosion_ui::Factories,
     interactions::{
         draganddrop::{DragDropSubject, DragInteraction, DropInteraction},
         keyboardnav::KeyboardNavInteraction,
     },
     soundgraphui::SoundGraphUi,
+    soundgraphuinames::SoundGraphUiNames,
+    soundgraphuistate::SoundGraphUiState,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::stackedlayout::SoundGraphLayout,
@@ -83,6 +86,8 @@ impl GlobalInteractions {
         layout: &mut SoundGraphLayout,
         object_states: &mut SoundObjectUiStates,
         positions: &mut SoundObjectPositions,
+        expression_uis: &mut ExpressionUiCollection,
+        names: &SoundGraphUiNames,
         bg_response: egui::Response,
     ) {
         match &mut self.mode {
@@ -110,7 +115,15 @@ impl GlobalInteractions {
                 }
             }
             UiMode::UsingKeyboardNav(keyboard_nav) => {
-                keyboard_nav.interact_and_draw(ui, graph.topology(), layout, positions);
+                keyboard_nav.interact_and_draw(
+                    ui,
+                    graph,
+                    layout,
+                    positions,
+                    expression_uis,
+                    factories,
+                    names,
+                );
             }
             UiMode::Selecting(selection) => {
                 let (pressed_esc, pressed_delete) = ui.input_mut(|i| {

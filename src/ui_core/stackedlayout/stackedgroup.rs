@@ -94,15 +94,19 @@ impl StackedGroup {
         }
     }
 
-    pub fn rect(&self) -> egui::Rect {
+    pub(crate) fn time_axis(&self) -> TimeAxis {
+        self.time_axis
+    }
+
+    pub(crate) fn rect(&self) -> egui::Rect {
         self.rect
     }
 
-    pub fn set_rect(&mut self, rect: egui::Rect) {
+    pub(crate) fn set_rect(&mut self, rect: egui::Rect) {
         self.rect = rect;
     }
 
-    pub fn processors(&self) -> &[SoundProcessorId] {
+    pub(crate) fn processors(&self) -> &[SoundProcessorId] {
         &self.processors
     }
 

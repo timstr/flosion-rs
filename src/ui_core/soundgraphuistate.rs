@@ -96,6 +96,8 @@ impl SoundGraphUiState {
                     layout,
                     &mut self.object_states,
                     &mut self.positions,
+                    &mut self.expression_uis,
+                    &self.names,
                     bg_response,
                 );
             },
@@ -179,7 +181,12 @@ impl SoundGraphUiState {
         let mut outer_ctx = OuterExpressionGraphUiContext::ProcessorExpression(outer_ctx);
         let inner_ctx = ExpressionGraphUiContext::new(ctx.factories().expression_uis());
 
-        let expr_ui_focus = None; // TODO
+        // TODO:
+        // - forget mutating the expression graph and its UI here
+        // - do a straightforward render
+        // - later, in KeyboardNav, do interactions and mutations.
+        //   This includes highlighting the cursor and drawing the summon widget.
+        let expr_ui_focus = todo!();
 
         let expr_ui = SoundExpressionUi::new(expression_id);
 

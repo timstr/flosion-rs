@@ -166,7 +166,7 @@ impl ExpressionGraphUiState {
     }
 
     /// Get a mutable reference to the object ui states
-    fn object_states_mut(&mut self) -> &mut ExpressionNodeObjectUiStates {
+    pub(crate) fn object_states_mut(&mut self) -> &mut ExpressionNodeObjectUiStates {
         &mut self.object_states
     }
 
@@ -189,7 +189,7 @@ impl GraphUiState for ExpressionGraphUiState {
 /// This exists because a single sound graph can contain multiple expressions, and
 /// so the single top-level sound graph UI likewise can contain many separate
 /// expression graph UIs.
-pub(super) struct ExpressionUiCollection {
+pub(crate) struct ExpressionUiCollection {
     data: HashMap<SoundExpressionId, (ExpressionGraphUiState, LexicalLayout)>,
 }
 
@@ -204,20 +204,20 @@ impl ExpressionUiCollection {
     /// Replace the ui state for a single expression
     pub(super) fn set_ui_data(
         &mut self,
-        niid: SoundExpressionId,
+        eid: SoundExpressionId,
         ui_state: ExpressionGraphUiState,
         layout: LexicalLayout,
     ) {
-        self.data.insert(niid, (ui_state, layout));
+        self.data.insert(eid, (ui_state, layout));
     }
 
     /// Get a mutable reference to the ui state for the given expression,
     /// if any exists.
     pub(crate) fn get_mut(
         &mut self,
-        niid: SoundExpressionId,
+        eid: SoundExpressionId,
     ) -> Option<(&mut ExpressionGraphUiState, &mut LexicalLayout)> {
-        self.data.get_mut(&niid).map(|(a, b)| (a, b))
+        self.data.get_mut(&eid).map(|(a, b)| (a, b))
     }
 
     /// Remove any data associated with expressions or their components
@@ -232,9 +232,9 @@ impl ExpressionUiCollection {
             .retain(|id, _| topology.expressions().contains_key(id));
 
         // Clean up the internal ui data of individual expressions
-        for (niid, (expr_ui_state, layout)) in &mut self.data {
+        for (eid, (expr_ui_state, layout)) in &mut self.data {
             let expr_topo = topology
-                .expression(*niid)
+                .expression(*eid)
                 .unwrap()
                 .expression_graph()
                 .topology();

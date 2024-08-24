@@ -92,11 +92,11 @@ impl LexicalLayoutFocus {
         }
     }
 
-    pub(super) fn cursor(&self) -> &LexicalLayoutCursor {
+    pub(crate) fn cursor(&self) -> &LexicalLayoutCursor {
         &self.cursor
     }
 
-    pub(super) fn cursor_mut(&mut self) -> &mut LexicalLayoutCursor {
+    pub(crate) fn cursor_mut(&mut self) -> &mut LexicalLayoutCursor {
         &mut self.cursor
     }
 
