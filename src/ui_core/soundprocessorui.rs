@@ -62,11 +62,11 @@ impl ProcessorUi {
 
     pub fn add_expression(
         mut self,
-        input_id: SoundExpressionId,
+        expr_id: SoundExpressionId,
         label: impl Into<String>,
         config: PlotConfig,
     ) -> Self {
-        self.expressions.push((input_id, label.into(), config));
+        self.expressions.push((expr_id, label.into(), config));
         self
     }
 
@@ -182,6 +182,8 @@ impl ProcessorUi {
         add_contents: F,
     ) {
         // Clip to the entire screen, not just outside the area
+        // TODO: is this still needed? IIRC this was just to prevent
+        // tooltips from getting cut off
         ui.set_clip_rect(ui.ctx().input(|i| i.screen_rect()));
 
         let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
@@ -207,91 +209,90 @@ impl ProcessorUi {
 
         ui.set_width(desired_width);
 
-        let response =
-            Self::show_inner_processor_contents(ui, left_of_body, desired_width, frame, |ui| {
-                ui.vertical(|ui| {
-                    // Make sure to use up the intended width consistently
-                    ui.set_width(desired_width);
+        Self::show_inner_processor_contents(ui, left_of_body, desired_width, frame, |ui| {
+            ui.vertical(|ui| {
+                // Make sure to use up the intended width consistently
+                ui.set_width(desired_width);
 
-                    // Show all expressions in order
-                    for (input_id, input_label, config) in &self.expressions {
-                        self.show_expression(
-                            ui,
-                            ctx,
-                            *input_id,
-                            input_label,
-                            ui_state,
-                            sound_graph,
-                            config,
-                        );
-                    }
+                // Show all expressions in order
+                for (input_id, input_label, config) in &self.expressions {
+                    self.show_expression(
+                        ui,
+                        ctx,
+                        *input_id,
+                        input_label,
+                        ui_state,
+                        sound_graph,
+                        config,
+                    );
+                }
 
-                    // Show the processor name and also type name if it differs
-                    ui.horizontal(|ui| {
-                        ui.spacing();
-                        let name = ui_state
-                            .names()
-                            .sound_processor(self.processor_id)
-                            .unwrap()
-                            .name()
-                            .to_string();
+                // Show the processor name and also type name if it differs
+                ui.horizontal(|ui| {
+                    ui.spacing();
+                    let name = ui_state
+                        .names()
+                        .sound_processor(self.processor_id)
+                        .unwrap()
+                        .name()
+                        .to_string();
 
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(&name)
+                                .color(egui::Color32::BLACK)
+                                .strong(),
+                        )
+                        .wrap(false),
+                    );
+
+                    if !name.to_lowercase().contains(&self.label.to_lowercase()) {
                         ui.add(
                             egui::Label::new(
-                                egui::RichText::new(&name)
-                                    .color(egui::Color32::BLACK)
-                                    .strong(),
+                                egui::RichText::new(self.label)
+                                    .color(egui::Color32::from_black_alpha(192))
+                                    .italics(),
                             )
-                            .wrap(false),
+                            .selectable(false),
                         );
-
-                        if !name.to_lowercase().contains(&self.label.to_lowercase()) {
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(self.label)
-                                        .color(egui::Color32::from_black_alpha(192))
-                                        .italics(),
-                                )
-                                .selectable(false),
-                            );
-                        }
-                    });
-
-                    // Add any per-processor custom contents
-                    add_contents(ui, ui_state, sound_graph);
-
-                    // Check for interactions with the background of the
-                    // processor so that it can be dragged
-                    let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
-
-                    // Handle drag & drop
-                    {
-                        if bg_response.drag_started() {
-                            ui_state.interactions_mut().start_dragging(
-                                DragDropSubject::Processor(self.processor_id),
-                                bg_response.rect,
-                            );
-                        }
-
-                        if bg_response.dragged() {
-                            ui_state
-                                .interactions_mut()
-                                .continue_dragging(bg_response.drag_delta());
-                        }
-
-                        if bg_response.drag_stopped() {
-                            ui_state.interactions_mut().drop_dragging();
-                        }
-                    }
-
-                    // Handle click to focus
-                    if bg_response.clicked() {
-                        ui_state
-                            .interactions_mut()
-                            .focus_on_processor(self.processor_id);
                     }
                 });
+
+                // Add any per-processor custom contents
+                add_contents(ui, ui_state, sound_graph);
+
+                // Check for interactions with the background of the
+                // processor so that it can be dragged
+                let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
+
+                // Handle drag & drop
+                {
+                    if bg_response.drag_started() {
+                        ui_state.interactions_mut().start_dragging(
+                            DragDropSubject::Processor(self.processor_id),
+                            bg_response.rect,
+                        );
+                    }
+
+                    if bg_response.dragged() {
+                        ui_state
+                            .interactions_mut()
+                            .continue_dragging(bg_response.drag_delta());
+                    }
+
+                    if bg_response.drag_stopped() {
+                        ui_state.interactions_mut().drop_dragging();
+                    }
+                }
+
+                // Handle click to focus
+                if bg_response.clicked() {
+                    ui_state
+                        .interactions_mut()
+                        .focus_on_processor(self.processor_id);
+                }
             });
+        });
     }
 
     fn show_inner_processor_contents<F: FnOnce(&mut egui::Ui)>(
@@ -317,8 +318,8 @@ impl ProcessorUi {
         &self,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        input_id: SoundExpressionId,
-        input_label: &str,
+        expr_id: SoundExpressionId,
+        expr_label: &str,
         ui_state: &mut SoundGraphUiState,
         sound_graph: &mut SoundGraph,
         plot_config: &PlotConfig,
@@ -330,12 +331,17 @@ impl ProcessorUi {
             .inner_margin(egui::vec2(5.0, 5.0))
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
-        expr_frame.show(ui, |ui| {
+        let r = expr_frame.show(ui, |ui| {
             ui_state
                 .names_mut()
-                .record_expression_name(input_id, input_label.to_string());
+                .record_expression_name(expr_id, expr_label.to_string());
 
-            ui_state.show_expression_graph_ui(input_id, sound_graph, ctx, plot_config, ui);
+            ui_state.show_expression_graph_ui(expr_id, sound_graph, ctx, plot_config, ui);
         });
+
+        // Track the expression's position
+        ui_state
+            .positions_mut()
+            .record_expression(expr_id, r.response.rect);
     }
 }

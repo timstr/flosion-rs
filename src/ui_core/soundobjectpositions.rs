@@ -1,6 +1,8 @@
 use eframe::egui;
 
-use crate::core::sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
+use crate::core::sound::{
+    expression::SoundExpressionId, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+};
 
 use super::{
     interactions::draganddrop::DragDropSubject,
@@ -106,6 +108,7 @@ pub(crate) struct SoundObjectPositions {
     drag_drop_subjects: PositionedItems<DragDropSubject>,
     socket_tabs: PositionedItems<SoundInputId>,
     plug_tabs: PositionedItems<SoundProcessorId>,
+    expressions: PositionedItems<SoundExpressionId>,
 }
 
 impl SoundObjectPositions {
@@ -116,6 +119,7 @@ impl SoundObjectPositions {
             drag_drop_subjects: PositionedItems::new(),
             socket_tabs: PositionedItems::new(),
             plug_tabs: PositionedItems::new(),
+            expressions: PositionedItems::new(),
         }
     }
 
@@ -129,6 +133,10 @@ impl SoundObjectPositions {
 
     pub(crate) fn drag_drop_subjects(&self) -> &PositionedItems<DragDropSubject> {
         &self.drag_drop_subjects
+    }
+
+    pub(crate) fn expressions(&self) -> &PositionedItems<SoundExpressionId> {
+        &self.expressions
     }
 
     pub(crate) fn record_plug(
@@ -157,6 +165,10 @@ impl SoundObjectPositions {
         self.socket_jumpers.push(input_id, rect);
     }
 
+    pub(crate) fn record_expression(&mut self, expr_id: SoundExpressionId, rect: egui::Rect) {
+        self.expressions.push(expr_id, rect);
+    }
+
     pub(crate) fn record_processor(
         &mut self,
         processor: SoundProcessorId,
@@ -182,5 +194,6 @@ impl SoundObjectPositions {
         self.drag_drop_subjects.clear();
         self.socket_tabs.clear();
         self.plug_tabs.clear();
+        self.expressions.clear();
     }
 }

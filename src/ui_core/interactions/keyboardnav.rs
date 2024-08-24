@@ -14,8 +14,9 @@ use crate::{
 use super::draganddrop::DragDropSubject;
 
 pub(crate) enum KeyboardNavInteraction {
+    // AroundGroup(???)
+    // OnJumperCable(???)
     AroundSoundProcessor(SoundProcessorId),
-    OnSoundProcessorName(SoundProcessorId),
     AroundProcessorPlug(SoundProcessorId),
     AroundInputSocket(SoundInputId),
     AroundExpression(SoundExpressionId),
@@ -30,28 +31,33 @@ impl KeyboardNavInteraction {
         layout: &SoundGraphLayout,
         positions: &SoundObjectPositions,
     ) {
-        let (pressed_up, pressed_down) = ui.input_mut(|i| {
+        // TODO: deduplicate!
+        // interact, modify, gather drawing info, THEN draw.
+        // one `match self` should suffice.
+
+        let (pressed_up, pressed_down, pressed_enter, pressed_escape) = ui.input_mut(|i| {
             (
                 i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
                 i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
             )
         });
 
         let rect;
         let can_go_up;
         let can_go_down;
+        let can_go_in;
+        // let can_go_out;
 
         match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
                 rect = positions.find_processor(*spid).unwrap().rect;
-                can_go_up = !topo
-                    .sound_processor(*spid)
-                    .unwrap()
-                    .sound_inputs()
-                    .is_empty();
+                let proc_data = topo.sound_processor(*spid).unwrap();
+                can_go_up = !proc_data.sound_inputs().is_empty();
                 can_go_down = true;
+                can_go_in = !proc_data.expressions().is_empty();
             }
-            KeyboardNavInteraction::OnSoundProcessorName(_) => todo!(),
             KeyboardNavInteraction::AroundProcessorPlug(spid) => {
                 rect = positions
                     .drag_drop_subjects()
@@ -59,6 +65,7 @@ impl KeyboardNavInteraction {
                     .unwrap();
                 can_go_up = true;
                 can_go_down = !layout.is_bottom_of_group(*spid);
+                can_go_in = false;
             }
             KeyboardNavInteraction::AroundInputSocket(siid) => {
                 rect = positions
@@ -70,28 +77,46 @@ impl KeyboardNavInteraction {
                 let index = other_inputs.iter().position(|i| *i == *siid).unwrap();
                 can_go_up = index > 0 || !layout.is_top_of_group(owner);
                 can_go_down = true;
+                can_go_in = false;
             }
-            KeyboardNavInteraction::AroundExpression(_) => todo!(),
+            KeyboardNavInteraction::AroundExpression(eid) => {
+                rect = positions.expressions().position(eid).unwrap();
+
+                let owner = topo.expression(*eid).unwrap().owner();
+
+                let other_exprs: Vec<SoundExpressionId> = positions
+                    .expressions()
+                    .values()
+                    .iter()
+                    .cloned()
+                    .filter(|eid| topo.expression(*eid).unwrap().owner() == owner)
+                    .collect();
+                let index = other_exprs.iter().position(|e| *e == *eid).unwrap();
+
+                can_go_up = index > 0;
+                can_go_down = (index + 1) < other_exprs.len();
+                can_go_in = true;
+            }
             KeyboardNavInteraction::InsideExpression(_, _) => todo!(),
         };
 
-        // TODO: visual cues about what can be done, e.g. highlights/fades
-        // pointing up and down to suggest the up and down arrow keys
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::same(3.0),
             egui::Stroke::new(2.0, egui::Color32::WHITE),
         );
 
+        let glow_width = 10.0;
+
         if can_go_up {
             let mut mesh = egui::Mesh::default();
             mesh.colored_vertex(rect.left_top(), egui::Color32::WHITE);
             mesh.colored_vertex(
-                rect.left_top() + egui::vec2(0.0, -10.0),
+                rect.left_top() + egui::vec2(glow_width, -glow_width),
                 egui::Color32::TRANSPARENT,
             );
             mesh.colored_vertex(
-                rect.right_top() + egui::vec2(0.0, -10.0),
+                rect.right_top() + egui::vec2(-glow_width, -glow_width),
                 egui::Color32::TRANSPARENT,
             );
             mesh.colored_vertex(rect.right_top(), egui::Color32::WHITE);
@@ -104,13 +129,37 @@ impl KeyboardNavInteraction {
             let mut mesh = egui::Mesh::default();
             mesh.colored_vertex(rect.left_bottom(), egui::Color32::WHITE);
             mesh.colored_vertex(
-                rect.left_bottom() + egui::vec2(0.0, 10.0),
+                rect.left_bottom() + egui::vec2(glow_width, glow_width),
                 egui::Color32::TRANSPARENT,
             );
             mesh.colored_vertex(
-                rect.right_bottom() + egui::vec2(0.0, 10.0),
+                rect.right_bottom() + egui::vec2(-glow_width, glow_width),
                 egui::Color32::TRANSPARENT,
             );
+            mesh.colored_vertex(rect.right_bottom(), egui::Color32::WHITE);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(2, 3, 0);
+            ui.painter().add(mesh);
+        }
+
+        if can_go_in {
+            let glow_width = 30.0;
+            let mut mesh = egui::Mesh::default();
+            // Top left corner
+            mesh.colored_vertex(rect.left_top(), egui::Color32::WHITE);
+            mesh.colored_vertex(
+                rect.left_top() + egui::vec2(glow_width, 0.0),
+                egui::Color32::TRANSPARENT,
+            );
+            mesh.colored_vertex(
+                rect.left_top() + egui::vec2(glow_width, glow_width),
+                egui::Color32::TRANSPARENT,
+            );
+            mesh.colored_vertex(
+                rect.left_top() + egui::vec2(0.0, glow_width),
+                egui::Color32::TRANSPARENT,
+            );
+
             mesh.colored_vertex(rect.right_bottom(), egui::Color32::WHITE);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(2, 3, 0);
@@ -129,9 +178,22 @@ impl KeyboardNavInteraction {
                 } else if pressed_down {
                     // go to the processor's plug
                     *self = KeyboardNavInteraction::AroundProcessorPlug(*spid);
+                } else if pressed_enter {
+                    // go to the processor's first expression
+
+                    let exprs: Vec<SoundExpressionId> = positions
+                        .expressions()
+                        .values()
+                        .iter()
+                        .cloned()
+                        .filter(|eid| topo.expression(*eid).unwrap().owner() == *spid)
+                        .collect();
+
+                    if let Some(eid) = exprs.first() {
+                        *self = KeyboardNavInteraction::AroundExpression(*eid);
+                    }
                 }
             }
-            KeyboardNavInteraction::OnSoundProcessorName(spid) => todo!(),
             KeyboardNavInteraction::AroundProcessorPlug(spid) => {
                 if pressed_up {
                     // go to the processor
@@ -178,7 +240,33 @@ impl KeyboardNavInteraction {
                     }
                 }
             }
-            KeyboardNavInteraction::AroundExpression(expr) => todo!(),
+            KeyboardNavInteraction::AroundExpression(eid) => {
+                let owner = topo.expression(*eid).unwrap().owner();
+
+                let other_exprs: Vec<SoundExpressionId> = positions
+                    .expressions()
+                    .values()
+                    .iter()
+                    .cloned()
+                    .filter(|eid| topo.expression(*eid).unwrap().owner() == owner)
+                    .collect();
+                let index = other_exprs.iter().position(|e| *e == *eid).unwrap();
+
+                if pressed_up {
+                    if index > 0 {
+                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index - 1]);
+                    }
+                } else if pressed_down {
+                    if index + 1 < other_exprs.len() {
+                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index + 1])
+                    }
+                } else if pressed_enter {
+                    *self =
+                        KeyboardNavInteraction::InsideExpression(*eid, LexicalLayoutFocus::new())
+                } else if pressed_escape {
+                    *self = KeyboardNavInteraction::AroundSoundProcessor(owner);
+                }
+            }
             KeyboardNavInteraction::InsideExpression(expr, focus) => todo!(),
         }
 
@@ -207,7 +295,6 @@ impl KeyboardNavInteraction {
     pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
         match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => topo.contains(spid),
-            KeyboardNavInteraction::OnSoundProcessorName(spid) => topo.contains(spid),
             KeyboardNavInteraction::AroundProcessorPlug(spid) => topo.contains(spid),
             KeyboardNavInteraction::AroundInputSocket(siid) => topo.contains(siid),
             KeyboardNavInteraction::AroundExpression(eid) => topo.contains(eid),
