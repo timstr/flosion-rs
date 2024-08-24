@@ -54,18 +54,62 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
                 rect = positions.find_processor(*spid).unwrap().rect;
                 let proc_data = topo.sound_processor(*spid).unwrap();
-                can_go_up = !proc_data.sound_inputs().is_empty();
+                let last_input = proc_data.sound_inputs().last();
+
+                let first_expr: Option<SoundExpressionId> = positions
+                    .expressions()
+                    .values()
+                    .iter()
+                    .cloned()
+                    .find(|eid| topo.expression(*eid).unwrap().owner() == *spid);
+
+                can_go_up = last_input.is_some();
                 can_go_down = true;
-                can_go_in = !proc_data.expressions().is_empty();
+                can_go_in = first_expr.is_some();
+
+                if pressed_up {
+                    // go the processor's last input, if it has any inputs
+                    if let Some(last_input) = last_input {
+                        *self = KeyboardNavInteraction::AroundInputSocket(*last_input);
+                    }
+                } else if pressed_down {
+                    // go to the processor's plug
+                    *self = KeyboardNavInteraction::AroundProcessorPlug(*spid);
+                } else if pressed_enter {
+                    // go to the processor's first expression
+
+                    if let Some(eid) = first_expr {
+                        *self = KeyboardNavInteraction::AroundExpression(eid);
+                    }
+                }
             }
             KeyboardNavInteraction::AroundProcessorPlug(spid) => {
                 rect = positions
                     .drag_drop_subjects()
                     .position(&DragDropSubject::Plug(*spid))
                     .unwrap();
+                let proc_below = layout.processor_below(*spid);
                 can_go_up = true;
-                can_go_down = !layout.is_bottom_of_group(*spid);
+                can_go_down = proc_below.is_some();
                 can_go_in = false;
+
+                if pressed_up {
+                    // go to the processor
+                    *self = KeyboardNavInteraction::AroundSoundProcessor(*spid);
+                } else if pressed_down {
+                    // if there's a processor below, go to its first input
+                    if let Some(proc_below) = proc_below {
+                        let first_input = topo
+                            .sound_processor(proc_below)
+                            .unwrap()
+                            .sound_inputs()
+                            .first()
+                            .unwrap();
+                        *self = KeyboardNavInteraction::AroundInputSocket(*first_input);
+                    } else {
+                        // TODO: ???
+                    }
+                }
             }
             KeyboardNavInteraction::AroundInputSocket(siid) => {
                 rect = positions
@@ -74,10 +118,32 @@ impl KeyboardNavInteraction {
                     .unwrap();
                 let owner = topo.sound_input(*siid).unwrap().owner();
                 let other_inputs = topo.sound_processor(owner).unwrap().sound_inputs();
-                let index = other_inputs.iter().position(|i| *i == *siid).unwrap();
+                let index = other_inputs.iter().position(|id| *id == *siid).unwrap();
                 can_go_up = index > 0 || !layout.is_top_of_group(owner);
                 can_go_down = true;
                 can_go_in = false;
+
+                if pressed_up {
+                    if index == 0 {
+                        // go to the target processor if there is one
+                        if let Some(proc_above) = layout.processor_above(owner) {
+                            *self = KeyboardNavInteraction::AroundProcessorPlug(proc_above);
+                        } else {
+                            // TODO: ???
+                        }
+                    } else {
+                        // go the previous input
+                        *self = KeyboardNavInteraction::AroundInputSocket(other_inputs[index - 1]);
+                    }
+                } else if pressed_down {
+                    if index + 1 == other_inputs.len() {
+                        // go to the processor
+                        *self = KeyboardNavInteraction::AroundSoundProcessor(owner);
+                    } else {
+                        // go the the next input
+                        *self = KeyboardNavInteraction::AroundInputSocket(other_inputs[index + 1]);
+                    }
+                }
             }
             KeyboardNavInteraction::AroundExpression(eid) => {
                 rect = positions.expressions().position(eid).unwrap();
@@ -91,11 +157,26 @@ impl KeyboardNavInteraction {
                     .cloned()
                     .filter(|eid| topo.expression(*eid).unwrap().owner() == owner)
                     .collect();
-                let index = other_exprs.iter().position(|e| *e == *eid).unwrap();
+                let index = other_exprs.iter().position(|id| *id == *eid).unwrap();
 
                 can_go_up = index > 0;
                 can_go_down = (index + 1) < other_exprs.len();
                 can_go_in = true;
+
+                if pressed_up {
+                    if index > 0 {
+                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index - 1]);
+                    }
+                } else if pressed_down {
+                    if index + 1 < other_exprs.len() {
+                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index + 1])
+                    }
+                } else if pressed_enter {
+                    *self =
+                        KeyboardNavInteraction::InsideExpression(*eid, LexicalLayoutFocus::new())
+                } else if pressed_escape {
+                    *self = KeyboardNavInteraction::AroundSoundProcessor(owner);
+                }
             }
             KeyboardNavInteraction::InsideExpression(_, _) => todo!(),
         };
@@ -164,110 +245,6 @@ impl KeyboardNavInteraction {
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(2, 3, 0);
             ui.painter().add(mesh);
-        }
-
-        match self {
-            KeyboardNavInteraction::AroundSoundProcessor(spid) => {
-                if pressed_up {
-                    // go the processor's last input, if it has any inputs
-                    if let Some(last_input) =
-                        topo.sound_processor(*spid).unwrap().sound_inputs().last()
-                    {
-                        *self = KeyboardNavInteraction::AroundInputSocket(*last_input);
-                    }
-                } else if pressed_down {
-                    // go to the processor's plug
-                    *self = KeyboardNavInteraction::AroundProcessorPlug(*spid);
-                } else if pressed_enter {
-                    // go to the processor's first expression
-
-                    let exprs: Vec<SoundExpressionId> = positions
-                        .expressions()
-                        .values()
-                        .iter()
-                        .cloned()
-                        .filter(|eid| topo.expression(*eid).unwrap().owner() == *spid)
-                        .collect();
-
-                    if let Some(eid) = exprs.first() {
-                        *self = KeyboardNavInteraction::AroundExpression(*eid);
-                    }
-                }
-            }
-            KeyboardNavInteraction::AroundProcessorPlug(spid) => {
-                if pressed_up {
-                    // go to the processor
-                    *self = KeyboardNavInteraction::AroundSoundProcessor(*spid);
-                } else if pressed_down {
-                    // if there's a processor below, go to its first input
-                    if let Some(proc_below) = layout.processor_below(*spid) {
-                        let first_input = topo
-                            .sound_processor(proc_below)
-                            .unwrap()
-                            .sound_inputs()
-                            .first()
-                            .unwrap();
-                        *self = KeyboardNavInteraction::AroundInputSocket(*first_input);
-                    } else {
-                        // TODO: ???
-                    }
-                }
-            }
-            KeyboardNavInteraction::AroundInputSocket(siid) => {
-                let owner = topo.sound_input(*siid).unwrap().owner();
-                let other_inputs = topo.sound_processor(owner).unwrap().sound_inputs();
-                let index = other_inputs.iter().position(|id| *id == *siid).unwrap();
-
-                if pressed_up {
-                    if index == 0 {
-                        // go to the target processor if there is one
-                        if let Some(proc_above) = layout.processor_above(owner) {
-                            *self = KeyboardNavInteraction::AroundProcessorPlug(proc_above);
-                        } else {
-                            // TODO: ???
-                        }
-                    } else {
-                        // go the previous input
-                        *self = KeyboardNavInteraction::AroundInputSocket(other_inputs[index - 1]);
-                    }
-                } else if pressed_down {
-                    if index + 1 == other_inputs.len() {
-                        // go to the processor
-                        *self = KeyboardNavInteraction::AroundSoundProcessor(owner);
-                    } else {
-                        // go the the next input
-                        *self = KeyboardNavInteraction::AroundInputSocket(other_inputs[index + 1]);
-                    }
-                }
-            }
-            KeyboardNavInteraction::AroundExpression(eid) => {
-                let owner = topo.expression(*eid).unwrap().owner();
-
-                let other_exprs: Vec<SoundExpressionId> = positions
-                    .expressions()
-                    .values()
-                    .iter()
-                    .cloned()
-                    .filter(|eid| topo.expression(*eid).unwrap().owner() == owner)
-                    .collect();
-                let index = other_exprs.iter().position(|e| *e == *eid).unwrap();
-
-                if pressed_up {
-                    if index > 0 {
-                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index - 1]);
-                    }
-                } else if pressed_down {
-                    if index + 1 < other_exprs.len() {
-                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index + 1])
-                    }
-                } else if pressed_enter {
-                    *self =
-                        KeyboardNavInteraction::InsideExpression(*eid, LexicalLayoutFocus::new())
-                } else if pressed_escape {
-                    *self = KeyboardNavInteraction::AroundSoundProcessor(owner);
-                }
-            }
-            KeyboardNavInteraction::InsideExpression(expr, focus) => todo!(),
         }
 
         // TODO: handle arrow keys / enter / escape to change focus, tab to summon,
