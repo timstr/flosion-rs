@@ -15,9 +15,7 @@ use crate::{
 };
 
 use super::{
-    expressiongraphuicontext::{
-        ExpressionGraphUiContext, OuterExpressionGraphUiContext, OuterProcessorExpressionContext,
-    },
+    expressiongraphuicontext::{ExpressionGraphUiContext, OuterProcessorExpressionContext},
     expressiongraphuistate::ExpressionUiCollection,
     expressionplot::PlotConfig,
     expressionui::SoundExpressionUi,
@@ -164,29 +162,24 @@ impl SoundGraphUiState {
     pub(crate) fn show_expression_graph_ui(
         &mut self,
         expression_id: SoundExpressionId,
-        graph: &mut SoundGraph,
+        sound_graph: &mut SoundGraph,
         ctx: &SoundGraphUiContext,
         plot_config: &PlotConfig,
         ui: &mut egui::Ui,
     ) {
-        let parent_proc = graph.topology().expression(expression_id).unwrap().owner();
+        let parent_proc = sound_graph
+            .topology()
+            .expression(expression_id)
+            .unwrap()
+            .owner();
         let outer_ctx = OuterProcessorExpressionContext::new(
             expression_id,
             parent_proc,
-            graph,
             &self.names,
             *ctx.time_axis(),
             ctx.available_arguments().get(&expression_id).unwrap(),
         );
-        let mut outer_ctx = OuterExpressionGraphUiContext::ProcessorExpression(outer_ctx);
         let inner_ctx = ExpressionGraphUiContext::new(ctx.factories().expression_uis());
-
-        // TODO:
-        // - forget mutating the expression graph and its UI here
-        // - do a straightforward render
-        // - later, in KeyboardNav, do interactions and mutations.
-        //   This includes highlighting the cursor and drawing the summon widget.
-        let expr_ui_focus = todo!();
 
         let expr_ui = SoundExpressionUi::new(expression_id);
 
@@ -197,8 +190,8 @@ impl SoundGraphUiState {
             expr_ui_state,
             &inner_ctx,
             expr_ui_layout,
-            expr_ui_focus,
-            &mut outer_ctx,
+            sound_graph,
+            &outer_ctx.into(),
             plot_config,
         );
     }

@@ -1,12 +1,12 @@
 use eframe::egui;
 
-use crate::core::sound::expression::SoundExpressionId;
+use crate::core::sound::{expression::SoundExpressionId, soundgraph::SoundGraph};
 
 use super::{
     expressiongraphuicontext::{ExpressionGraphUiContext, OuterExpressionGraphUiContext},
     expressiongraphuistate::ExpressionGraphUiState,
     expressionplot::{ExpressionPlot, PlotConfig},
-    lexicallayout::lexicallayout::{LexicalLayout, LexicalLayoutFocus},
+    lexicallayout::lexicallayout::LexicalLayout,
 };
 
 pub(super) struct SoundExpressionUi {
@@ -24,8 +24,8 @@ impl SoundExpressionUi {
         ui_state: &mut ExpressionGraphUiState,
         ctx: &ExpressionGraphUiContext,
         layout: &mut LexicalLayout,
-        focus: Option<&mut LexicalLayoutFocus>,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        sound_graph: &mut SoundGraph,
+        outer_context: &OuterExpressionGraphUiContext,
         plot_config: &PlotConfig,
     ) {
         // TODO: expandable/collapsible popup window with full layout
@@ -37,13 +37,13 @@ impl SoundExpressionUi {
             .show(ui, |ui| {
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
-                    layout.show(ui, ui_state, ctx, focus, outer_context);
+                    layout.show(ui, ui_state, sound_graph, ctx, outer_context);
                     match outer_context {
                         OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
                             ExpressionPlot::new().show(
                                 ui,
-                                ctx.sound_graph().jit_client(),
-                                ctx.sound_graph()
+                                sound_graph.jit_client(),
+                                sound_graph
                                     .topology()
                                     .expression(ctx.expression_id())
                                     .unwrap(),

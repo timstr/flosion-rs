@@ -126,12 +126,18 @@ pub(crate) type VariableId = UniqueId<VariableTag>;
 pub(crate) struct VariableDefinition {
     pub(super) id: VariableId,
     pub(super) name: String,
+    pub(super) name_rect: Cell<egui::Rect>,
     pub(super) value: ASTNode,
 }
 
 impl VariableDefinition {
     pub(super) fn new(id: VariableId, name: String, value: ASTNode) -> VariableDefinition {
-        VariableDefinition { id, name, value }
+        VariableDefinition {
+            id,
+            name,
+            name_rect: Cell::new(egui::Rect::NOTHING),
+            value,
+        }
     }
 
     pub(crate) fn id(&self) -> VariableId {
@@ -142,8 +148,8 @@ impl VariableDefinition {
         &self.name
     }
 
-    pub(crate) fn name_mut(&mut self) -> &mut String {
-        &mut self.name
+    pub(crate) fn name_rect(&self) -> egui::Rect {
+        self.name_rect.get()
     }
 
     pub(crate) fn value(&self) -> &ASTNode {
@@ -330,21 +336,6 @@ impl ASTNode {
         self.rect.set(rect);
     }
 
-    fn is_over(&self, p: egui::Pos2) -> bool {
-        self.rect().contains(p)
-    }
-
-    pub(super) fn is_directly_over(&self, p: egui::Pos2) -> bool {
-        if !self.is_over(p) {
-            return false;
-        }
-        if let ASTNodeValue::Internal(n) = &self.value {
-            !(n.over_self(p) || n.over_children(p))
-        } else {
-            false
-        }
-    }
-
     pub(super) fn get_along_path(&self, path: &[usize]) -> &ASTNode {
         if let Some((head, tail)) = path.split_first() {
             self.as_internal_node()
@@ -452,25 +443,8 @@ impl InternalASTNode {
         }
     }
 
-    pub(super) fn self_rect(&self) -> egui::Rect {
-        self.self_rect.get()
-    }
-
     pub(super) fn set_self_rect(&self, rect: egui::Rect) {
         self.self_rect.set(rect);
-    }
-
-    pub(crate) fn over_self(&self, p: egui::Pos2) -> bool {
-        self.self_rect().contains(p)
-    }
-
-    pub(super) fn over_children(&self, p: egui::Pos2) -> bool {
-        match &self.value {
-            InternalASTNodeValue::Prefix(_, c) => c.is_over(p),
-            InternalASTNodeValue::Infix(c1, _, c2) => c1.is_over(p) || c2.is_over(p),
-            InternalASTNodeValue::Postfix(c, _) => c.is_over(p),
-            InternalASTNodeValue::Function(_, cs) => cs.iter().any(|c| c.is_over(p)),
-        }
     }
 
     pub(super) fn get_child(&self, index: usize) -> &ASTNode {

@@ -1,9 +1,12 @@
 use core::panic;
 
 use crate::{
-    core::expression::{
-        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
-        expressiongraphdata::ExpressionTarget,
+    core::{
+        expression::{
+            expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+            expressiongraphdata::ExpressionTarget,
+        },
+        sound::soundgraph::SoundGraph,
     },
     ui_core::{
         expressiongraphuicontext::OuterExpressionGraphUiContext,
@@ -23,9 +26,10 @@ use super::{
 pub(super) fn delete_from_graph_at_cursor(
     layout: &mut LexicalLayout,
     cursor: &mut LexicalLayoutCursor,
-    outer_context: &mut OuterExpressionGraphUiContext,
+    outer_context: &OuterExpressionGraphUiContext,
+    sound_graph: &mut SoundGraph,
 ) {
-    delete_ast_nodes_from_graph(cursor, layout, outer_context);
+    delete_nodes_from_graph_at_cursor(cursor, layout, outer_context, sound_graph);
 
     match cursor {
         LexicalLayoutCursor::AtVariableName(i) => {
@@ -52,10 +56,11 @@ pub(super) fn insert_to_graph_at_cursor(
     layout: &mut LexicalLayout,
     cursor: &mut LexicalLayoutCursor,
     node: ASTNode,
-    outer_context: &mut OuterExpressionGraphUiContext,
+    outer_context: &OuterExpressionGraphUiContext,
+    sound_graph: &mut SoundGraph,
 ) {
-    // TODO: allow inserting operators in-place
-    delete_from_graph_at_cursor(layout, cursor, outer_context);
+    // TODO: allow inserting operators in-place (e.g. wrap a value in a function call?)
+    delete_from_graph_at_cursor(layout, cursor, outer_context, sound_graph);
 
     if let Some(target) = node.indirect_target(cursor.get_variables_in_scope(layout)) {
         let (root_node, path) = match cursor.get(layout) {
@@ -65,7 +70,7 @@ pub(super) fn insert_to_graph_at_cursor(
             LexicalLayoutCursorValue::AtVariableValue(v, p) => {
                 if p.is_at_beginning() {
                     // if the cursor points to a variable definition, reconnect each use
-                    connect_each_variable_use(layout, v.id(), target, outer_context);
+                    connect_each_variable_use(layout, v.id(), target, outer_context, sound_graph);
                 }
                 (v.value(), p)
             }
@@ -74,7 +79,7 @@ pub(super) fn insert_to_graph_at_cursor(
                     // if the cursor points to the final expression, reconnect
                     // the graph output
                     outer_context
-                        .edit_expression_graph(|graph| {
+                        .edit_expression_graph(sound_graph, |graph| {
                             // if the cursor points to the final expression, reconnect
                             // the graph output
                             let results = graph.topology().results();
@@ -93,7 +98,7 @@ pub(super) fn insert_to_graph_at_cursor(
         // just its parent
         if let Some((parent_node, child_index)) = root_node.find_parent_along_path(path.steps()) {
             outer_context
-                .edit_expression_graph(|graph| {
+                .edit_expression_graph(sound_graph, |graph| {
                     let parent_nsid = parent_node.expression_node_id();
                     let parent_ns = graph.topology().node(parent_nsid).unwrap();
                     let parent_inputs = parent_ns.inputs();
@@ -108,10 +113,11 @@ pub(super) fn insert_to_graph_at_cursor(
     cursor.set_node(layout, node);
 }
 
-fn delete_ast_nodes_from_graph(
+fn delete_nodes_from_graph_at_cursor(
     cursor: &LexicalLayoutCursor,
     layout: &mut LexicalLayout,
-    outer_context: &mut OuterExpressionGraphUiContext,
+    outer_context: &OuterExpressionGraphUiContext,
+    sound_graph: &mut SoundGraph,
 ) {
     fn remove_node(node: &ASTNode, graph: &mut ExpressionGraph) {
         if let Some(internal_node) = node.as_internal_node() {
@@ -146,7 +152,7 @@ fn delete_ast_nodes_from_graph(
     }
 
     outer_context
-        .edit_expression_graph(|graph| {
+        .edit_expression_graph(sound_graph, |graph| {
             let (root_node, path) = match cursor.get(layout) {
                 LexicalLayoutCursorValue::AtVariableName(v) => {
                     disconnect_each_variable_use(layout, cursor, v.id(), graph);
@@ -237,13 +243,14 @@ fn connect_each_variable_use(
     layout: &LexicalLayout,
     id: VariableId,
     target: ExpressionTarget,
-    outer_context: &mut OuterExpressionGraphUiContext,
+    outer_context: &OuterExpressionGraphUiContext,
+    sound_graph: &mut SoundGraph,
 ) {
     let mut variables_to_connect = vec![id];
 
     while let Some(id) = variables_to_connect.pop() {
         outer_context
-            .edit_expression_graph(|graph| {
+            .edit_expression_graph(sound_graph, |graph| {
                 layout.visit(|node, path| {
                     let ASTNodeValue::Variable(node_id) = node.value() else {
                         return;
@@ -292,11 +299,12 @@ fn delete_matching_variable_nodes_from_layout(layout: &mut LexicalLayout, id: Va
 
 pub(super) fn remove_unreferenced_parameters(
     layout: &LexicalLayout,
-    outer_context: &mut OuterExpressionGraphUiContext,
+    outer_context: &OuterExpressionGraphUiContext,
+    sound_graph: &mut SoundGraph,
 ) {
     let mut referenced_parameters = Vec::<ExpressionGraphParameterId>::new();
 
-    let all_parameters = outer_context.inspect_expression_graph(|graph| {
+    let all_parameters = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
         layout.visit(|node, _path| {
             if let ASTNodeValue::Parameter(giid) = node.value() {
                 if !referenced_parameters.contains(&giid) {
@@ -320,7 +328,7 @@ pub(super) fn remove_unreferenced_parameters(
 
     for giid in all_parameters {
         if !referenced_parameters.contains(&giid) {
-            outer_context.remove_parameter(giid);
+            outer_context.remove_parameter(sound_graph, giid);
         }
     }
 }

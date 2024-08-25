@@ -1,3 +1,5 @@
+use eframe::egui;
+
 use super::{
     ast::{ASTNode, ASTPath, VariableDefinition},
     lexicallayout::LexicalLayout,
@@ -171,7 +173,17 @@ impl LexicalLayoutCursor {
         }
     }
 
-    pub(crate) fn get_node<'a>(&self, layout: &'a LexicalLayout) -> Option<&'a ASTNode> {
+    pub(crate) fn get_bounding_rect(&self, layout: &LexicalLayout) -> Option<egui::Rect> {
+        match self {
+            LexicalLayoutCursor::AtVariableName(var_idx) => layout
+                .variable_definitions()
+                .get(*var_idx)
+                .map(|vd| vd.name_rect()),
+            _ => self.get_node(layout).map(|n| n.rect()),
+        }
+    }
+
+    pub(super) fn get_node<'a>(&self, layout: &'a LexicalLayout) -> Option<&'a ASTNode> {
         match self {
             LexicalLayoutCursor::AtVariableName(_) => None,
             LexicalLayoutCursor::AtVariableValue(i, p) => Some(

@@ -9,15 +9,10 @@ use crate::{
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        expressiongraphuicontext::{
-            OuterExpressionGraphUiContext, OuterProcessorExpressionContext,
-        },
-        expressiongraphuistate::ExpressionUiCollection,
-        flosion_ui::Factories,
-        lexicallayout::lexicallayout::LexicalLayoutFocus,
-        soundgraphuinames::SoundGraphUiNames,
-        soundobjectpositions::SoundObjectPositions,
-        stackedlayout::stackedlayout::SoundGraphLayout,
+        expressiongraphuicontext::OuterProcessorExpressionContext,
+        expressiongraphuistate::ExpressionUiCollection, flosion_ui::Factories,
+        lexicallayout::lexicallayout::LexicalLayoutFocus, soundgraphuinames::SoundGraphUiNames,
+        soundobjectpositions::SoundObjectPositions, stackedlayout::stackedlayout::SoundGraphLayout,
     },
 };
 
@@ -304,38 +299,38 @@ impl KeyboardNavInteraction {
 
                     let (expr_ui_state, ll) = expression_uis.get_mut(*eid).unwrap();
 
-                    let node_rect = ll_focus.cursor().get_node(ll).unwrap().rect();
-
-                    ui.painter().rect_stroke(
-                        node_rect,
-                        egui::Rounding::same(3.0),
-                        egui::Stroke::new(2.0, egui::Color32::WHITE),
-                    );
+                    // TODO: why does this sometimes not find a node?
+                    // Answer: because the cursor is over a variable name.
+                    if let Some(rect) = ll_focus.cursor().get_bounding_rect(ll) {
+                        ui.painter().rect_stroke(
+                            rect,
+                            egui::Rounding::same(3.0),
+                            egui::Stroke::new(2.0, egui::Color32::WHITE),
+                        );
+                    }
 
                     let time_axis = layout.find_group(owner).unwrap().time_axis();
 
-                    // HACK
+                    // HACK no args 4 u
                     // TODO: cache this for the whole graph using RevisedProperty
                     let available_arguments = HashSet::new();
 
                     let outer_context = OuterProcessorExpressionContext::new(
                         *eid,
                         owner,
-                        graph,
                         names,
                         time_axis,
                         &available_arguments,
                     );
-                    let mut outer_context: OuterExpressionGraphUiContext = outer_context.into();
 
                     ll.handle_keypress(
                         ui,
                         ll_focus,
+                        graph,
                         factories.expression_objects(),
                         factories.expression_uis(),
                         expr_ui_state.object_states_mut(),
-                        // TODO: why is this borrowed? It's just a bunch of references, pass it by value.
-                        &mut outer_context,
+                        &outer_context.into(),
                     );
                 }
             }

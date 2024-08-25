@@ -6,7 +6,8 @@ use crate::core::{
     },
     sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-        sounderror::SoundError, soundgraph::SoundGraph, soundprocessor::SoundProcessorId,
+        sounderror::SoundError, soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
+        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -15,10 +16,10 @@ use super::{
     stackedlayout::timeaxis::TimeAxis, ui_factory::UiFactory,
 };
 
+#[derive(Clone, Copy)]
 pub(crate) struct OuterProcessorExpressionContext<'a> {
     expression_id: SoundExpressionId,
     parent_sound_processor_id: SoundProcessorId,
-    sound_graph: &'a mut SoundGraph,
     sound_graph_names: &'a SoundGraphUiNames,
     time_axis: TimeAxis,
     available_arguments: &'a HashSet<SoundExpressionArgumentId>,
@@ -28,7 +29,6 @@ impl<'a> OuterProcessorExpressionContext<'a> {
     pub(super) fn new(
         expression_id: SoundExpressionId,
         parent_sound_processor_id: SoundProcessorId,
-        sound_graph: &'a mut SoundGraph,
         sound_graph_names: &'a SoundGraphUiNames,
         time_axis: TimeAxis,
         available_arguments: &'a HashSet<SoundExpressionArgumentId>,
@@ -36,7 +36,6 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         Self {
             expression_id,
             parent_sound_processor_id,
-            sound_graph,
             sound_graph_names,
             time_axis,
             available_arguments,
@@ -55,14 +54,6 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         self.available_arguments
     }
 
-    pub(crate) fn sound_graph(&self) -> &SoundGraph {
-        self.sound_graph
-    }
-
-    pub(crate) fn sound_graph_mut(&mut self) -> &mut SoundGraph {
-        self.sound_graph
-    }
-
     pub(crate) fn sound_graph_names(&self) -> &SoundGraphUiNames {
         self.sound_graph_names
     }
@@ -73,10 +64,10 @@ impl<'a> OuterProcessorExpressionContext<'a> {
 
     pub(crate) fn find_graph_id_for_argument(
         &self,
+        topology: &SoundGraphTopology,
         argument_id: SoundExpressionArgumentId,
     ) -> Option<ExpressionGraphParameterId> {
-        self.sound_graph
-            .topology()
+        topology
             .expression(self.expression_id)
             .unwrap()
             .parameter_mapping()
@@ -84,10 +75,11 @@ impl<'a> OuterProcessorExpressionContext<'a> {
     }
 
     pub(crate) fn connect_to_argument(
-        &mut self,
+        &self,
+        sound_graph: &mut SoundGraph,
         argument_id: SoundExpressionArgumentId,
     ) -> ExpressionGraphParameterId {
-        self.sound_graph
+        sound_graph
             .edit_expression(self.expression_id, |ni_data| {
                 let (expr_graph, mapping) = ni_data.expression_graph_and_mapping_mut();
                 mapping.add_argument(argument_id, expr_graph)
@@ -95,8 +87,12 @@ impl<'a> OuterProcessorExpressionContext<'a> {
             .unwrap()
     }
 
-    pub(crate) fn disconnect_from_argument(&mut self, nsid: SoundExpressionArgumentId) {
-        self.sound_graph
+    pub(crate) fn disconnect_from_argument(
+        &self,
+        sound_graph: &mut SoundGraph,
+        nsid: SoundExpressionArgumentId,
+    ) {
+        sound_graph
             .edit_expression(self.expression_id, |ni_data| {
                 let (expr_graph, mapping) = ni_data.expression_graph_and_mapping_mut();
                 mapping.remove_argument(nsid, expr_graph);
@@ -105,6 +101,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum OuterExpressionGraphUiContext<'a> {
     // TODO: top level expression graph/function also
     ProcessorExpression(OuterProcessorExpressionContext<'a>),
@@ -117,12 +114,14 @@ impl<'a> From<OuterProcessorExpressionContext<'a>> for OuterExpressionGraphUiCon
 }
 
 impl<'a> OuterExpressionGraphUiContext<'a> {
-    pub(crate) fn parameter_name(&self, input_id: ExpressionGraphParameterId) -> String {
+    pub(crate) fn parameter_name(
+        &self,
+        topology: &SoundGraphTopology,
+        input_id: ExpressionGraphParameterId,
+    ) -> String {
         match self {
             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
-                let nsid = ctx
-                    .sound_graph()
-                    .topology()
+                let nsid = topology
                     .expression(ctx.expression_id())
                     .unwrap()
                     .parameter_mapping()
@@ -135,26 +134,22 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 
     pub(crate) fn result_name(&self, output_id: ExpressionGraphResultId) -> String {
         match self {
-            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
-                assert!(self.inspect_expression_graph(|g| {
-                    let outputs = g.topology().results();
-                    assert_eq!(outputs.len(), 1);
-                    outputs[0].id() == output_id
-                }));
-                ctx.sound_graph_names()
-                    .expression(ctx.expression_id())
-                    .unwrap()
-                    .name()
-                    .to_string()
-            }
+            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx
+                .sound_graph_names()
+                .expression(ctx.expression_id())
+                .unwrap()
+                .name()
+                .to_string(),
         }
     }
 
-    pub(crate) fn inspect_expression_graph<R, F: FnOnce(&ExpressionGraph) -> R>(&self, f: F) -> R {
+    pub(crate) fn inspect_expression_graph<R, F: FnOnce(&ExpressionGraph) -> R>(
+        &self,
+        topology: &SoundGraphTopology,
+        f: F,
+    ) -> R {
         match self {
-            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => f(ctx
-                .sound_graph()
-                .topology()
+            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => f(topology
                 .expression(ctx.expression_id())
                 .unwrap()
                 .expression_graph()),
@@ -162,23 +157,27 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
     }
 
     pub(crate) fn edit_expression_graph<R, F: FnOnce(&mut ExpressionGraph) -> R>(
-        &mut self,
+        &self,
+        sound_graph: &mut SoundGraph,
         f: F,
     ) -> Result<R, SoundError> {
         match self {
             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
                 let niid = ctx.expression_id();
-                ctx.sound_graph_mut()
-                    .edit_expression(niid, |ni_data| f(ni_data.expression_graph_mut()))
+                sound_graph.edit_expression(niid, |ni_data| f(ni_data.expression_graph_mut()))
             }
         }
     }
 
-    pub(crate) fn remove_parameter(&mut self, giid: ExpressionGraphParameterId) {
+    pub(crate) fn remove_parameter(
+        &self,
+        sound_graph: &mut SoundGraph,
+        giid: ExpressionGraphParameterId,
+    ) {
         match self {
             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
                 let niid = ctx.expression_id();
-                ctx.sound_graph_mut()
+                sound_graph
                     .edit_expression(niid, |ni_data| {
                         let (expr_graph, mapping) = ni_data.expression_graph_and_mapping_mut();
                         let argument_id = mapping.argument_from_parameter(giid).unwrap();

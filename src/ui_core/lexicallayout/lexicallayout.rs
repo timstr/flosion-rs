@@ -11,6 +11,7 @@ use crate::{
             graphobject::{ObjectType, WithObjectType},
             objectfactory::ObjectFactory,
         },
+        sound::soundgraph::SoundGraph,
         uniqueid::IdGenerator,
     },
     objects::purefunctions::Constant,
@@ -104,12 +105,14 @@ impl LexicalLayoutFocus {
         self.summon_widget_state.as_ref()
     }
 
-    // TODO: return just Option<&mut SummonWidgetState...>,
-    // add separate method to write the option itself
     pub(super) fn summon_widget_state_mut(
         &mut self,
-    ) -> &mut Option<SummonWidgetState<ExpressionSummonValue>> {
-        &mut self.summon_widget_state
+    ) -> Option<&mut SummonWidgetState<ExpressionSummonValue>> {
+        self.summon_widget_state.as_mut()
+    }
+
+    pub(super) fn open_summon_widget(&mut self, state: SummonWidgetState<ExpressionSummonValue>) {
+        self.summon_widget_state = Some(state);
     }
 
     pub(super) fn close_summon_widget(&mut self) {
@@ -320,16 +323,18 @@ impl LexicalLayout {
     }
 
     pub(crate) fn show(
-        &mut self,
+        &self,
         ui: &mut egui::Ui,
         ui_state: &mut ExpressionGraphUiState,
+        sound_graph: &mut SoundGraph,
         ctx: &ExpressionGraphUiContext,
-        mut focus: Option<&mut LexicalLayoutFocus>,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(outer_context.inspect_expression_graph(|g| {
-            lexical_layout_matches_expression_graph(self, g.topology())
-        }));
+        debug_assert!(
+            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
+                lexical_layout_matches_expression_graph(self, g.topology())
+            })
+        );
 
         let num_variable_definitions = self.variable_definitions.len();
 
@@ -338,8 +343,8 @@ impl LexicalLayout {
                 self.show_line(
                     ui,
                     LineLocation::VariableDefinition(i),
-                    &mut focus,
                     ui_state,
+                    sound_graph,
                     ctx,
                     outer_context,
                 );
@@ -350,57 +355,30 @@ impl LexicalLayout {
             self.show_line(
                 ui,
                 LineLocation::FinalExpression,
-                &mut focus,
                 ui_state,
+                sound_graph,
                 ctx,
                 outer_context,
             );
         });
 
-        if let Some(focus) = focus {
-            if let Some(summon_widget_state) = focus.summon_widget_state_mut().as_mut() {
-                let summon_widget = SummonWidget::new(summon_widget_state);
-                ui.add(summon_widget);
-
-                if summon_widget_state.was_cancelled() {
-                    focus.close_summon_widget();
-                }
-            }
-        }
-
-        debug_assert!(outer_context.inspect_expression_graph(|g| {
-            lexical_layout_matches_expression_graph(self, g.topology())
-        }));
+        debug_assert!(
+            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
+                lexical_layout_matches_expression_graph(self, g.topology())
+            })
+        );
     }
 
     fn show_line(
-        &mut self,
+        &self,
         ui: &mut egui::Ui,
         line: LineLocation,
-        focus: &mut Option<&mut LexicalLayoutFocus>,
         ui_state: &mut ExpressionGraphUiState,
+        sound_graph: &mut SoundGraph,
         ctx: &ExpressionGraphUiContext,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
     ) {
         ui.spacing_mut().item_spacing.x = 0.0;
-        let mut cursor_path = if let Some(focus) = focus {
-            let cursor = focus.cursor();
-            if cursor.line() == line {
-                cursor.path().cloned()
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        let focused_variable_name_index = focus.as_ref().and_then(|f| {
-            if let LexicalLayoutCursor::AtVariableName(v) = f.cursor() {
-                Some(*v)
-            } else {
-                None
-            }
-        });
 
         ui.horizontal(|ui| {
             match line {
@@ -411,37 +389,24 @@ impl LexicalLayout {
                             .background_color(egui::Color32::TRANSPARENT),
                     ));
 
-                    let name_in_focus = focused_variable_name_index == Some(i);
+                    let defn = &self.variable_definitions[i];
 
-                    // Self::with_flashing_frame(ui, name_in_focus, |ui| {
-                    //     ui.add(egui::Label::new(
-                    //         egui::RichText::new(self.variable_definitions[i].name())
-                    //             .text_style(egui::TextStyle::Monospace)
-                    //             .strong()
-                    //             .background_color(egui::Color32::TRANSPARENT),
-                    //     ));
-                    // });
-                    if name_in_focus {
-                        let r = ui.add(
-                            egui::TextEdit::singleline(self.variable_definitions[i].name_mut())
-                                .font(egui::FontSelection::Style(egui::TextStyle::Monospace)),
-                        );
-                        r.request_focus();
-                    } else {
-                        ui.add(egui::Label::new(
-                            egui::RichText::new(self.variable_definitions[i].name())
-                                .text_style(egui::TextStyle::Monospace)
-                                .strong()
-                                .background_color(egui::Color32::TRANSPARENT),
-                        ));
-                    }
+                    let name_response = ui.add(egui::Label::new(
+                        egui::RichText::new(defn.name())
+                            .text_style(egui::TextStyle::Monospace)
+                            .strong()
+                            .background_color(egui::Color32::TRANSPARENT),
+                    ));
+
+                    defn.name_rect.set(name_response.rect);
                 }
                 LineLocation::FinalExpression => {
-                    let output_id = outer_context.inspect_expression_graph(|g| {
-                        let outputs = g.topology().results();
-                        assert_eq!(outputs.len(), 1);
-                        outputs[0].id()
-                    });
+                    let output_id =
+                        outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
+                            let outputs = g.topology().results();
+                            assert_eq!(outputs.len(), 1);
+                            outputs[0].id()
+                        });
                     ui.add(egui::Label::new(
                         egui::RichText::new(outer_context.result_name(output_id))
                             .text_style(egui::TextStyle::Monospace)
@@ -467,9 +432,9 @@ impl LexicalLayout {
                 ui,
                 node,
                 ui_state,
+                sound_graph,
                 ctx,
                 ASTPathBuilder::Root(ast_root),
-                &mut cursor_path,
                 outer_context,
                 &self.variable_definitions,
             );
@@ -479,90 +444,58 @@ impl LexicalLayout {
                 LineLocation::FinalExpression => ui.label("."),
             };
         });
-
-        // TODO: focus to this line if the path was written to
-        // Will need to make sure that add_contents writes to it
-
-        let Some(focus) = focus.as_mut() else {
-            return;
-        };
-
-        if focus.cursor().line() != line {
-            return;
-        }
-
-        let (pressed_left, pressed_right) = ui.input_mut(|i| {
-            (
-                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft),
-                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight),
-            )
-        });
-
-        if pressed_left || pressed_right {
-            focus.close_summon_widget();
-        }
-
-        if pressed_left {
-            focus.cursor_mut().go_left(self);
-        }
-        if pressed_right {
-            focus.cursor_mut().go_right(self);
-        }
     }
 
     fn show_child_ast_node(
         ui: &mut egui::Ui,
         node: &ASTNode,
         ui_state: &mut ExpressionGraphUiState,
+        sound_graph: &mut SoundGraph,
         ctx: &ExpressionGraphUiContext,
         path: ASTPathBuilder,
-        cursor: &mut Option<ASTPath>,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
         variable_definitions: &[VariableDefinition],
     ) {
-        let hovering = ui
-            .input(|i| i.pointer.hover_pos())
-            .and_then(|p| Some(node.is_directly_over(p)))
-            .unwrap_or(false);
-        Self::with_cursor(ui, path, cursor, hovering, |ui, cursor| {
-            let rect = match node.value() {
+        Self::highlight_on_hover(ui, |ui| {
+            let rect;
+
+            match node.value() {
                 ASTNodeValue::Empty => {
-                    let r = ui.label("???");
-                    r.rect
+                    rect = ui.label("???").rect;
                 }
                 ASTNodeValue::Internal(n) => {
-                    let r = Self::show_internal_node(
+                    rect = Self::show_internal_node(
                         ui,
                         n,
                         ui_state,
+                        sound_graph,
                         ctx,
                         path,
-                        cursor,
                         outer_context,
                         variable_definitions,
-                    );
-                    r.rect
-                }
-                ASTNodeValue::Variable(id) => {
-                    ui.add(egui::Label::new(
-                        egui::RichText::new(
-                            find_variable_definition(*id, variable_definitions)
-                                .unwrap()
-                                .name(),
-                        )
-                        .code()
-                        .color(egui::Color32::WHITE),
-                    ))
+                    )
                     .rect
                 }
+                ASTNodeValue::Variable(id) => {
+                    rect = ui
+                        .add(egui::Label::new(
+                            egui::RichText::new(
+                                find_variable_definition(*id, variable_definitions)
+                                    .unwrap()
+                                    .name(),
+                            )
+                            .code()
+                            .color(egui::Color32::WHITE),
+                        ))
+                        .rect;
+                }
                 ASTNodeValue::Parameter(giid) => {
-                    let name = outer_context.parameter_name(*giid);
-                    let r = ui
+                    let name = outer_context.parameter_name(sound_graph.topology(), *giid);
+                    rect = ui
                         .add(egui::Label::new(
                             egui::RichText::new(name).code().color(egui::Color32::WHITE),
                         ))
                         .rect;
-                    r
                 }
             };
             node.set_rect(rect);
@@ -573,10 +506,10 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         node: &InternalASTNode,
         ui_state: &mut ExpressionGraphUiState,
+        sound_graph: &mut SoundGraph,
         ctx: &ExpressionGraphUiContext,
         path: ASTPathBuilder,
-        cursor: &mut Option<ASTPath>,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
         variable_definitions: &[VariableDefinition],
     ) -> egui::Response {
         let styled_text = |ui: &mut egui::Ui, s: String| -> egui::Response {
@@ -587,124 +520,143 @@ impl LexicalLayout {
         // TODO: clean this up also
 
         let ir = ui.horizontal_centered(|ui| {
-            let hovering_over_self = ui
-                .input(|i| i.pointer.hover_pos())
-                .and_then(|p| Some(node.over_self(p)))
-                .unwrap_or(false);
-            let own_rect = match &node.value() {
+            let own_rect;
+
+            match &node.value() {
                 InternalASTNodeValue::Prefix(nsid, expr) => {
-                    let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
+                    own_rect = Self::highlight_on_hover(ui, |ui| {
+                        Self::show_expression_node_ui(
+                            ui,
+                            *nsid,
+                            ui_state,
+                            sound_graph,
+                            ctx,
+                            outer_context,
+                        )
                     });
                     Self::show_child_ast_node(
                         ui,
                         expr,
                         ui_state,
+                        sound_graph,
                         ctx,
                         path.push(node, 0),
-                        cursor,
                         outer_context,
                         variable_definitions,
                     );
-                    r
                 }
                 InternalASTNodeValue::Infix(expr1, nsid, expr2) => {
                     Self::show_child_ast_node(
                         ui,
                         expr1,
                         ui_state,
+                        sound_graph,
                         ctx,
                         path.push(node, 0),
-                        cursor,
                         outer_context,
                         variable_definitions,
                     );
-                    let r = Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
+                    own_rect = Self::highlight_on_hover(ui, |ui| {
+                        Self::show_expression_node_ui(
+                            ui,
+                            *nsid,
+                            ui_state,
+                            sound_graph,
+                            ctx,
+                            outer_context,
+                        )
                     });
                     Self::show_child_ast_node(
                         ui,
                         expr2,
                         ui_state,
+                        sound_graph,
                         ctx,
                         path.push(node, 1),
-                        cursor,
                         outer_context,
                         variable_definitions,
                     );
-                    r
                 }
                 InternalASTNodeValue::Postfix(expr, nsid) => {
                     Self::show_child_ast_node(
                         ui,
                         expr,
                         ui_state,
+                        sound_graph,
                         ctx,
                         path.push(node, 0),
-                        cursor,
                         outer_context,
                         variable_definitions,
                     );
-                    Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                        Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
-                    })
+                    own_rect = Self::highlight_on_hover(ui, |ui| {
+                        Self::show_expression_node_ui(
+                            ui,
+                            *nsid,
+                            ui_state,
+                            sound_graph,
+                            ctx,
+                            outer_context,
+                        )
+                    });
                 }
                 InternalASTNodeValue::Function(nsid, exprs) => {
                     if exprs.is_empty() {
-                        Self::with_cursor(ui, path, cursor, hovering_over_self, |ui, _| {
-                            Self::show_expression_node_ui(ui, *nsid, ui_state, ctx, outer_context)
+                        own_rect = Self::highlight_on_hover(ui, |ui| {
+                            Self::show_expression_node_ui(
+                                ui,
+                                *nsid,
+                                ui_state,
+                                sound_graph,
+                                ctx,
+                                outer_context,
+                            )
                         })
                     } else {
                         let frame = egui::Frame::default()
                             .inner_margin(2.0)
                             .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(32)));
-                        frame
-                            .show(ui, |ui| {
-                                let r = Self::with_cursor(
+                        let r = frame.show(ui, |ui| {
+                            let r = Self::highlight_on_hover(ui, |ui| {
+                                Self::show_expression_node_ui(
                                     ui,
-                                    path,
-                                    cursor,
-                                    hovering_over_self,
-                                    |ui, _| {
-                                        Self::show_expression_node_ui(
-                                            ui,
-                                            *nsid,
-                                            ui_state,
-                                            ctx,
-                                            outer_context,
-                                        )
-                                    },
-                                );
-                                styled_text(ui, "(".to_string());
-                                if let Some((last_expr, other_exprs)) = exprs.split_last() {
-                                    for (i, expr) in other_exprs.iter().enumerate() {
-                                        Self::show_child_ast_node(
-                                            ui,
-                                            expr,
-                                            ui_state,
-                                            ctx,
-                                            path.push(node, i),
-                                            cursor,
-                                            outer_context,
-                                            variable_definitions,
-                                        );
-                                        styled_text(ui, ",".to_string());
-                                    }
+                                    *nsid,
+                                    ui_state,
+                                    sound_graph,
+                                    ctx,
+                                    outer_context,
+                                )
+                            });
+                            styled_text(ui, "(".to_string());
+                            if let Some((last_expr, other_exprs)) = exprs.split_last() {
+                                for (i, expr) in other_exprs.iter().enumerate() {
                                     Self::show_child_ast_node(
                                         ui,
-                                        last_expr,
+                                        expr,
                                         ui_state,
+                                        sound_graph,
                                         ctx,
-                                        path.push(node, other_exprs.len()),
-                                        cursor,
+                                        path.push(node, i),
                                         outer_context,
                                         variable_definitions,
                                     );
+                                    styled_text(ui, ",".to_string());
                                 }
-                                styled_text(ui, ")".to_string());
-                                r
-                            })
-                            .inner
+                                Self::show_child_ast_node(
+                                    ui,
+                                    last_expr,
+                                    ui_state,
+                                    sound_graph,
+                                    ctx,
+                                    path.push(node, other_exprs.len()),
+                                    outer_context,
+                                    variable_definitions,
+                                );
+                            }
+                            styled_text(ui, ")".to_string());
+                            r
+                        });
+
+                        own_rect = r.inner;
                     }
                 }
             };
@@ -719,20 +671,22 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         id: ExpressionNodeId,
         ui_state: &mut ExpressionGraphUiState,
+        sound_graph: &mut SoundGraph,
         ctx: &ExpressionGraphUiContext,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
     ) -> egui::Rect {
-        let graph_object = outer_context.inspect_expression_graph(|graph| {
-            graph
-                .topology()
-                .node(id)
-                .unwrap()
-                .instance_arc()
-                .as_graph_object()
-        });
+        let graph_object =
+            outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
+                graph
+                    .topology()
+                    .node(id)
+                    .unwrap()
+                    .instance_arc()
+                    .as_graph_object()
+            });
         ui.horizontal_centered(|ui| {
             outer_context
-                .edit_expression_graph(|g| {
+                .edit_expression_graph(sound_graph, |g| {
                     ctx.ui_factory().ui(&graph_object, ui_state, ui, ctx, g);
                 })
                 .unwrap();
@@ -741,101 +695,57 @@ impl LexicalLayout {
         .rect
     }
 
-    fn flashing_highlight_color(ui: &mut egui::Ui) -> egui::Color32 {
-        let t = ui.input(|i| i.time);
-        let a = (((t - t.floor()) * 2.0 * std::f64::consts::TAU).sin() * 16.0 + 64.0) as u8;
-        ui.ctx().request_repaint();
-        egui::Color32::from_rgba_unmultiplied(0xff, 0xff, 0xff, a)
-    }
-
-    fn with_flashing_frame<R, F: FnOnce(&mut egui::Ui) -> R>(
+    fn highlight_on_hover<R, F: FnOnce(&mut egui::Ui) -> R>(
         ui: &mut egui::Ui,
-        highlight: bool,
-        add_contents: F,
-    ) -> egui::InnerResponse<R> {
-        let color = if highlight {
-            Self::flashing_highlight_color(ui)
-        } else {
-            egui::Color32::TRANSPARENT
-        };
-        let frame = egui::Frame::default()
-            .inner_margin(2.0)
-            .fill(color)
-            .stroke(egui::Stroke::new(2.0, color));
-        frame.show(ui, add_contents)
-    }
-
-    fn with_cursor<R, F: FnOnce(&mut egui::Ui, &mut Option<ASTPath>) -> R>(
-        ui: &mut egui::Ui,
-        path: ASTPathBuilder,
-        cursor: &mut Option<ASTPath>,
-        hovering: bool,
         add_contents: F,
     ) -> R {
-        let highlight = cursor
-            .as_ref()
-            .and_then(|c| Some(path.matches_path(c)))
-            .unwrap_or(false);
-        let ret;
-        {
-            let r = Self::with_flashing_frame(ui, highlight, |ui| add_contents(ui, cursor));
-
-            ret = r.inner;
-
-            let r = r.response.interact(egui::Sense::click_and_drag());
-
-            if r.clicked() || r.dragged() {
-                *cursor = Some(path.build());
-            }
-            // if r.hovered() {
-            //     ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            // }
-
-            let hover_amount = ui.ctx().animate_bool(r.id, hovering);
-            if hover_amount > 0.0 {
-                ui.painter().rect_stroke(
-                    r.rect,
-                    egui::Rounding::ZERO,
-                    egui::Stroke::new(
-                        2.0,
-                        egui::Color32::from_white_alpha((hover_amount * 64.0) as u8),
-                    ),
-                );
-            }
-        }
-        ret
+        // TODO: get size of contents, highlight
+        add_contents(ui)
     }
 
     pub(crate) fn handle_keypress(
         &mut self,
-        ui: &egui::Ui,
+        ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
+        sound_graph: &mut SoundGraph,
         object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<ExpressionGraphUi>,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(outer_context.inspect_expression_graph(|g| {
-            lexical_layout_matches_expression_graph(self, g.topology())
-        }));
+        debug_assert!(
+            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
+                lexical_layout_matches_expression_graph(self, g.topology())
+            })
+        );
 
         self.handle_summon_widget(
             ui,
             focus,
+            sound_graph,
             object_factory,
             ui_factory,
             object_ui_states,
-            outer_context,
+            &outer_context,
         );
 
         if focus.summon_widget_state().is_none() {
             let cursor = focus.cursor_mut();
-            let (pressed_up, pressed_down) = ui.input_mut(|i| {
+            let (pressed_left, pressed_right, pressed_up, pressed_down) = ui.input_mut(|i| {
                 (
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft),
+                    i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight),
                     i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
                     i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
                 )
             });
+
+            if pressed_left {
+                cursor.go_left(self);
+            }
+            if pressed_right {
+                cursor.go_right(self);
+            }
             if pressed_up {
                 cursor.go_up(self);
             }
@@ -852,8 +762,8 @@ impl LexicalLayout {
             });
 
             if pressed_delete {
-                delete_from_graph_at_cursor(self, cursor, outer_context);
-                remove_unreferenced_parameters(self, outer_context);
+                delete_from_graph_at_cursor(self, cursor, outer_context, sound_graph);
+                remove_unreferenced_parameters(self, outer_context, sound_graph);
             }
 
             if pressed_enter || pressed_shift_enter {
@@ -881,29 +791,34 @@ impl LexicalLayout {
             }
         }
 
-        debug_assert!(outer_context.inspect_expression_graph(|g| {
-            lexical_layout_matches_expression_graph(self, g.topology())
-        }));
+        debug_assert!(
+            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
+                lexical_layout_matches_expression_graph(self, g.topology())
+            })
+        );
     }
 
     fn handle_summon_widget(
         &mut self,
-        ui: &egui::Ui,
+        ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
+        sound_graph: &mut SoundGraph,
         object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<ExpressionGraphUi>,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
     ) {
         if focus.cursor().get_node(self).is_none() {
             return;
         }
 
+        // Check for space/tab presses
         let pressed_space_or_tab = ui.input_mut(|i| {
             i.consume_key(egui::Modifiers::NONE, egui::Key::Space)
                 || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
         });
 
+        // Check for typing
         let algebraic_keys_pressed = ui.input_mut(|input| {
             let mut out_chars = Vec::new();
             input.events = input
@@ -932,9 +847,9 @@ impl LexicalLayout {
             out_chars
         });
 
-        if focus.summon_widget_state_mut().is_none() {
+        // open summon widget when space/tab is pressed or something was typed
+        if focus.summon_widget_state().is_none() {
             if pressed_space_or_tab || !algebraic_keys_pressed.is_empty() {
-                //  open summon widget when space/tab is pressed
                 if let Some(node_at_cursor) = focus.cursor().get_node(self) {
                     let mut widget_state = match outer_context {
                         OuterExpressionGraphUiContext::ProcessorExpression(sni_ctx) => {
@@ -949,90 +864,113 @@ impl LexicalLayout {
                     let s = String::from_iter(algebraic_keys_pressed);
                     widget_state.set_text(s);
 
-                    *focus.summon_widget_state_mut() = Some(widget_state);
-                } else {
-                    *focus.summon_widget_state_mut() = None;
+                    focus.open_summon_widget(widget_state);
                 }
             }
         }
 
+        // Show and interact with the summon widget
         if let Some(summon_widget_state) = focus.summon_widget_state_mut() {
-            if let Some(choice) = summon_widget_state.final_choice() {
-                let (summon_value, arguments) = choice;
+            let summon_widget = SummonWidget::new(summon_widget_state);
+            ui.add(summon_widget);
 
-                debug_assert!(outer_context.inspect_expression_graph(|g| {
+            if summon_widget_state.was_cancelled() {
+                focus.close_summon_widget();
+            }
+        }
+
+        let Some(summon_widget_state) = focus.summon_widget_state_mut() else {
+            return;
+        };
+
+        // If something was chosen, add it to the expression graph
+        // and the layout
+        if let Some(choice) = summon_widget_state.final_choice() {
+            let (summon_value, arguments) = choice;
+
+            debug_assert!(
+                outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
                     lexical_layout_matches_expression_graph(self, g.topology())
-                }));
+                })
+            );
 
-                let (new_node, layout) = match summon_value {
-                    ExpressionSummonValue::ExpressionNodeType(ns_type) => self
+            let (new_node, layout) = match summon_value {
+                ExpressionSummonValue::ExpressionNodeType(ns_type) => self
+                    .create_new_expression_node_from_type(
+                        ns_type,
+                        arguments,
+                        object_factory,
+                        ui_factory,
+                        object_ui_states,
+                        outer_context,
+                        sound_graph,
+                    )
+                    .unwrap(),
+                ExpressionSummonValue::Argument(snsid) => {
+                    let node;
+                    {
+                        let outer_context = match outer_context {
+                            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx,
+                        };
+                        let giid = if let Some(giid) =
+                            outer_context.find_graph_id_for_argument(sound_graph.topology(), snsid)
+                        {
+                            giid
+                        } else {
+                            let giid = outer_context.connect_to_argument(sound_graph, snsid);
+                            giid
+                        };
+                        node = ASTNode::new(ASTNodeValue::Parameter(giid));
+                    }
+                    (node, ExpressionNodeLayout::Function)
+                }
+                ExpressionSummonValue::Variable(variable_id) => (
+                    ASTNode::new(ASTNodeValue::Variable(variable_id)),
+                    ExpressionNodeLayout::Function,
+                ),
+                ExpressionSummonValue::Constant(constant_value) => {
+                    let (node, layout) = self
                         .create_new_expression_node_from_type(
-                            ns_type,
-                            arguments,
+                            Constant::TYPE,
+                            arguments.add_or_replace(&Constant::ARG_VALUE, constant_value as f64),
                             object_factory,
                             ui_factory,
                             object_ui_states,
                             outer_context,
+                            sound_graph,
                         )
-                        .unwrap(),
-                    ExpressionSummonValue::Argument(snsid) => {
-                        let node;
-                        {
-                            let outer_context = match outer_context {
-                                OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx,
-                            };
-                            let giid = if let Some(giid) =
-                                outer_context.find_graph_id_for_argument(snsid)
-                            {
-                                giid
-                            } else {
-                                let giid = outer_context.connect_to_argument(snsid);
-                                giid
-                            };
-                            node = ASTNode::new(ASTNodeValue::Parameter(giid));
-                        }
-                        (node, ExpressionNodeLayout::Function)
-                    }
-                    ExpressionSummonValue::Variable(variable_id) => (
-                        ASTNode::new(ASTNodeValue::Variable(variable_id)),
-                        ExpressionNodeLayout::Function,
-                    ),
-                    ExpressionSummonValue::Constant(constant_value) => {
-                        let (node, layout) = self
-                            .create_new_expression_node_from_type(
-                                Constant::TYPE,
-                                arguments
-                                    .add_or_replace(&Constant::ARG_VALUE, constant_value as f64),
-                                object_factory,
-                                ui_factory,
-                                object_ui_states,
-                                outer_context,
-                            )
-                            .unwrap();
-                        (node, layout)
-                    }
-                };
-                let num_children = new_node.num_children();
-                insert_to_graph_at_cursor(self, focus.cursor_mut(), new_node, outer_context);
-                remove_unreferenced_parameters(self, outer_context);
+                        .unwrap();
+                    (node, layout)
+                }
+            };
+            let num_children = new_node.num_children();
+            insert_to_graph_at_cursor(
+                self,
+                focus.cursor_mut(),
+                new_node,
+                outer_context,
+                sound_graph,
+            );
+            remove_unreferenced_parameters(self, outer_context, sound_graph);
 
-                debug_assert!(outer_context.inspect_expression_graph(|g| {
+            debug_assert!(
+                outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
                     lexical_layout_matches_expression_graph(self, g.topology())
-                }));
+                })
+            );
 
-                let cursor_path = focus.cursor_mut().path_mut().unwrap();
-                match layout {
-                    ExpressionNodeLayout::Prefix => cursor_path.go_into(0),
-                    ExpressionNodeLayout::Infix => cursor_path.go_into(0),
-                    ExpressionNodeLayout::Postfix => cursor_path.go_into(0),
-                    ExpressionNodeLayout::Function => {
-                        if num_children > 0 {
-                            cursor_path.go_into(0);
-                        }
+            let cursor_path = focus.cursor_mut().path_mut().unwrap();
+            match layout {
+                ExpressionNodeLayout::Prefix => cursor_path.go_into(0),
+                ExpressionNodeLayout::Infix => cursor_path.go_into(0),
+                ExpressionNodeLayout::Postfix => cursor_path.go_into(0),
+                ExpressionNodeLayout::Function => {
+                    if num_children > 0 {
+                        cursor_path.go_into(0);
                     }
                 }
-                focus.close_summon_widget();
             }
+            focus.close_summon_widget();
         }
     }
 
@@ -1043,10 +981,11 @@ impl LexicalLayout {
         object_factory: &ObjectFactory<ExpressionGraph>,
         ui_factory: &UiFactory<ExpressionGraphUi>,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
-        outer_context: &mut OuterExpressionGraphUiContext,
+        outer_context: &OuterExpressionGraphUiContext,
+        sound_graph: &mut SoundGraph,
     ) -> Result<(ASTNode, ExpressionNodeLayout), String> {
         let new_object = outer_context
-            .edit_expression_graph(|graph| {
+            .edit_expression_graph(sound_graph, |graph| {
                 object_factory.create_from_args(ns_type.name(), graph, arguments.clone())
             })
             .unwrap();
@@ -1065,7 +1004,7 @@ impl LexicalLayout {
             .create_state_from_arguments(&new_object, arguments)
             .map_err(|e| format!("Failed to create ui state: {:?}", e))?;
 
-        let num_inputs = outer_context.inspect_expression_graph(|graph| {
+        let num_inputs = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
             graph
                 .topology()
                 .node(new_object.id())
@@ -1099,7 +1038,12 @@ impl LexicalLayout {
 
     pub(super) fn visit_mut<F: FnMut(&mut ASTNode, ASTPathBuilder)>(&mut self, mut f: F) {
         for vardef in &mut self.variable_definitions {
-            let VariableDefinition { id, name, value } = vardef;
+            let VariableDefinition {
+                id,
+                name: _,
+                name_rect: _,
+                value,
+            } = vardef;
             value.visit_mut(
                 ASTPathBuilder::Root(ASTRoot::VariableDefinition(*id)),
                 &mut f,
