@@ -21,6 +21,7 @@ use super::{
     expressionui::SoundExpressionUi,
     flosion_ui::Factories,
     globalinteractions::GlobalInteractions,
+    graph_properties::GraphProperties,
     graph_ui::GraphUiState,
     soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
@@ -77,6 +78,7 @@ impl SoundGraphUiState {
         ui: &mut egui::Ui,
         factories: &Factories,
         graph: &mut SoundGraph,
+        properties: &GraphProperties,
         layout: &mut SoundGraphLayout,
     ) {
         let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
@@ -91,6 +93,7 @@ impl SoundGraphUiState {
                     ui,
                     factories,
                     graph,
+                    properties,
                     layout,
                     &mut self.object_states,
                     &mut self.positions,
@@ -177,7 +180,10 @@ impl SoundGraphUiState {
             parent_proc,
             &self.names,
             *ctx.time_axis(),
-            ctx.available_arguments().get(&expression_id).unwrap(),
+            ctx.properties()
+                .available_arguments()
+                .get(&expression_id)
+                .unwrap(),
         );
         let inner_ctx = ExpressionGraphUiContext::new(ctx.factories().expression_uis());
 

@@ -11,8 +11,9 @@ use crate::{
     ui_core::{
         expressiongraphuicontext::OuterProcessorExpressionContext,
         expressiongraphuistate::ExpressionUiCollection, flosion_ui::Factories,
-        lexicallayout::lexicallayout::LexicalLayoutFocus, soundgraphuinames::SoundGraphUiNames,
-        soundobjectpositions::SoundObjectPositions, stackedlayout::stackedlayout::SoundGraphLayout,
+        graph_properties::GraphProperties, lexicallayout::lexicallayout::LexicalLayoutFocus,
+        soundgraphuinames::SoundGraphUiNames, soundobjectpositions::SoundObjectPositions,
+        stackedlayout::stackedlayout::SoundGraphLayout,
     },
 };
 
@@ -140,6 +141,7 @@ impl KeyboardNavInteraction {
         expression_uis: &mut ExpressionUiCollection,
         factories: &Factories,
         names: &SoundGraphUiNames,
+        properties: &GraphProperties,
     ) {
         let rect;
         let mut allowed_dirs = DirectionsToGo::nowhere();
@@ -311,9 +313,7 @@ impl KeyboardNavInteraction {
 
                     let time_axis = layout.find_group(owner).unwrap().time_axis();
 
-                    // HACK no args 4 u
-                    // TODO: cache this for the whole graph using RevisedProperty
-                    let available_arguments = HashSet::new();
+                    let available_arguments = properties.available_arguments().get(eid).unwrap();
 
                     let outer_context = OuterProcessorExpressionContext::new(
                         *eid,

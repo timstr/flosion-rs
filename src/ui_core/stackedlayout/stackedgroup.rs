@@ -1,22 +1,18 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hasher,
-    ops::BitAnd,
-};
+use std::{hash::Hasher, ops::BitAnd};
 
 use eframe::egui::{self};
 use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
 use crate::{
     core::sound::{
-        expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
         soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology, soundinput::InputOptions,
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        flosion_ui::Factories, interactions::draganddrop::DragDropSubject,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
-        soundobjectpositions::SoundObjectPositions, stackedlayout::stackedlayout::SoundGraphLayout,
+        flosion_ui::Factories, graph_properties::GraphProperties,
+        interactions::draganddrop::DragDropSubject, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
+        stackedlayout::stackedlayout::SoundGraphLayout,
     },
 };
 
@@ -184,7 +180,7 @@ impl StackedGroup {
         factories: &Factories,
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
-        available_arguments: &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
+        properties: &GraphProperties,
     ) {
         // For a unique id for egui, hash the processor ids in the group
         let area_id = egui::Id::new(&self.processors);
@@ -247,7 +243,7 @@ impl StackedGroup {
                                 self.time_axis,
                                 self.width_pixels as f32,
                                 group_origin,
-                                available_arguments,
+                                properties,
                             );
                             factories
                                 .sound_uis()

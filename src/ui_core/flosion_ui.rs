@@ -1,13 +1,7 @@
-use std::collections::{HashMap, HashSet};
-
 use crate::{
     core::{
-        expression::expressiongraph::ExpressionGraph,
-        graph::objectfactory::ObjectFactory,
-        sound::{
-            expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-            soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
-        },
+        expression::expressiongraph::ExpressionGraph, graph::objectfactory::ObjectFactory,
+        sound::soundgraph::SoundGraph,
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
 };
@@ -18,9 +12,9 @@ use eframe::{
 use hashrevise::{Revisable, RevisionHash};
 
 use super::{
-    expressiongraphui::ExpressionGraphUi, soundgraphui::SoundGraphUi,
-    soundgraphuistate::SoundGraphUiState, stackedlayout::stackedlayout::SoundGraphLayout,
-    ui_factory::UiFactory,
+    expressiongraphui::ExpressionGraphUi, graph_properties::GraphProperties,
+    soundgraphui::SoundGraphUi, soundgraphuistate::SoundGraphUiState,
+    stackedlayout::stackedlayout::SoundGraphLayout, ui_factory::UiFactory,
 };
 
 /// Convenience struct for passing all the different factories together
@@ -77,16 +71,9 @@ pub struct FlosionApp {
     /// The on-screen layout of sound processors
     graph_layout: SoundGraphLayout,
 
-    previous_clean_revision: Option<RevisionHash>,
+    properties: GraphProperties,
 
-    /// A cache of which expression arguments are available to which expressions,
-    /// to avoid repeatedly traversing the graph to find out
-    // TODO: it will be useful to cache other derived sound graph properties,
-    // such as:
-    // - number/set of sound inputs each processor is connected to
-    // - number of times each dynamic processor is implicitly replicated (needed for the state graph)
-    // consider creating a solution for this
-    available_arguments: HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
+    previous_clean_revision: Option<RevisionHash>,
 }
 
 impl FlosionApp {
@@ -95,13 +82,15 @@ impl FlosionApp {
 
         let graph = SoundGraph::new();
 
+        let properties = GraphProperties::new(graph.topology());
+
         let mut app = FlosionApp {
             graph,
             factories: Factories::new(),
             ui_state: SoundGraphUiState::new(),
             graph_layout: SoundGraphLayout::new(),
+            properties,
             previous_clean_revision: None,
-            available_arguments: HashMap::new(),
         };
 
         // Initialize all necessary ui state
@@ -119,19 +108,22 @@ impl FlosionApp {
             &self.factories,
             &mut self.ui_state,
             &mut self.graph,
-            &self.available_arguments,
+            &self.properties,
         );
 
         self.ui_state.interact_and_draw(
             ui,
             &self.factories,
             &mut self.graph,
+            &self.properties,
             &mut self.graph_layout,
         );
     }
 
     fn cleanup(&mut self) {
         let topo = self.graph.topology();
+
+        self.properties.refresh(topo);
 
         let current_revision = topo.get_revision();
 
@@ -141,9 +133,6 @@ impl FlosionApp {
 
             self.ui_state
                 .cleanup_stale_graph_objects(topo, &self.factories);
-
-            // TODO: use RevisedProperty and a dedicated type
-            self.available_arguments = available_sound_expression_arguments(topo);
 
             self.previous_clean_revision = Some(current_revision);
         }

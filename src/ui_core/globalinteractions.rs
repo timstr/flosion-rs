@@ -13,13 +13,13 @@ use crate::core::{
 use super::{
     expressiongraphuistate::ExpressionUiCollection,
     flosion_ui::Factories,
+    graph_properties::GraphProperties,
     interactions::{
         draganddrop::{DragDropSubject, DragInteraction, DropInteraction},
         keyboardnav::KeyboardNavInteraction,
     },
     soundgraphui::SoundGraphUi,
     soundgraphuinames::SoundGraphUiNames,
-    soundgraphuistate::SoundGraphUiState,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::stackedlayout::SoundGraphLayout,
@@ -83,6 +83,7 @@ impl GlobalInteractions {
         ui: &mut egui::Ui,
         factories: &Factories,
         graph: &mut SoundGraph,
+        properties: &GraphProperties,
         layout: &mut SoundGraphLayout,
         object_states: &mut SoundObjectUiStates,
         positions: &mut SoundObjectPositions,
@@ -123,6 +124,7 @@ impl GlobalInteractions {
                     expression_uis,
                     factories,
                     names,
+                    properties,
                 );
             }
             UiMode::Selecting(selection) => {

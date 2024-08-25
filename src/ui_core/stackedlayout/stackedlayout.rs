@@ -1,17 +1,17 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use eframe::egui;
 use hashrevise::{Revisable, RevisionHash};
 
 use crate::{
     core::sound::{
-        expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
         soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        flosion_ui::Factories, interactions::draganddrop::DragDropSubject,
-        soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
+        flosion_ui::Factories, graph_properties::GraphProperties,
+        interactions::draganddrop::DragDropSubject, soundgraphuistate::SoundGraphUiState,
+        soundobjectpositions::SoundObjectPositions,
     },
 };
 
@@ -220,11 +220,11 @@ impl SoundGraphLayout {
         factories: &Factories,
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
-        available_arguments: &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
+        properties: &GraphProperties,
     ) {
         // Draw each stacked group
         for group in &mut self.groups {
-            group.draw(ui, factories, ui_state, graph, available_arguments);
+            group.draw(ui, factories, ui_state, graph, properties);
         }
 
         // draw wires between connected groups

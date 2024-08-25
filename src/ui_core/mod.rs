@@ -7,6 +7,7 @@ pub mod expressionplot;
 pub mod expressionui;
 pub mod flosion_ui;
 pub mod globalinteractions;
+pub mod graph_properties;
 pub mod graph_ui;
 pub mod interactions;
 pub mod lexicallayout;

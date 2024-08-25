@@ -1,19 +1,15 @@
-use std::collections::{HashMap, HashSet};
-
 use eframe::egui;
 
-use crate::core::sound::{
-    expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
+use super::{
+    flosion_ui::Factories, graph_properties::GraphProperties, stackedlayout::timeaxis::TimeAxis,
 };
-
-use super::{flosion_ui::Factories, stackedlayout::timeaxis::TimeAxis};
 
 pub struct SoundGraphUiContext<'a> {
     factories: &'a Factories,
     time_axis: TimeAxis,
     width: f32,
     group_origin: egui::Pos2,
-    available_arguments: &'a HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
+    properties: &'a GraphProperties,
 }
 
 impl<'a> SoundGraphUiContext<'a> {
@@ -22,14 +18,14 @@ impl<'a> SoundGraphUiContext<'a> {
         time_axis: TimeAxis,
         width: f32,
         group_origin: egui::Pos2,
-        available_arguments: &'a HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>>,
+        properties: &'a GraphProperties,
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
             factories,
             time_axis,
             width,
             group_origin,
-            available_arguments,
+            properties,
         }
     }
 
@@ -49,9 +45,7 @@ impl<'a> SoundGraphUiContext<'a> {
         self.group_origin
     }
 
-    pub fn available_arguments(
-        &self,
-    ) -> &HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>> {
-        self.available_arguments
+    pub fn properties(&self) -> &GraphProperties {
+        self.properties
     }
 }
