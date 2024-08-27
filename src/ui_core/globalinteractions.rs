@@ -22,7 +22,7 @@ use super::{
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
-    stackedlayout::stackedlayout::SoundGraphLayout,
+    stackedlayout::stackedlayout::StackedLayout,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
     ui_factory::UiFactory,
 };
@@ -84,7 +84,7 @@ impl GlobalInteractions {
         factories: &Factories,
         graph: &mut SoundGraph,
         properties: &GraphProperties,
-        layout: &mut SoundGraphLayout,
+        layout: &mut StackedLayout,
         object_states: &mut SoundObjectUiStates,
         positions: &mut SoundObjectPositions,
         expression_uis: &mut ExpressionUiCollection,

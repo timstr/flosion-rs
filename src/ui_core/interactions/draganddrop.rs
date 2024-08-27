@@ -11,7 +11,7 @@ use crate::{
     },
     ui_core::{
         soundobjectpositions::SoundObjectPositions, soundobjectuistate::SoundObjectUiStates,
-        stackedlayout::stackedlayout::SoundGraphLayout,
+        stackedlayout::stackedlayout::StackedLayout,
     },
 };
 
@@ -77,7 +77,7 @@ pub enum SelectionChange {
 
 fn drag_and_drop_in_graph(
     topo: &mut SoundGraphTopology,
-    layout: &SoundGraphLayout,
+    layout: &StackedLayout,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
 ) -> DragDropLegality {
@@ -174,7 +174,7 @@ fn drag_and_drop_in_graph(
 }
 
 fn drag_and_drop_in_layout(
-    layout: &mut SoundGraphLayout,
+    layout: &mut StackedLayout,
     topo: &SoundGraphTopology,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
@@ -206,7 +206,7 @@ fn drag_and_drop_in_layout(
 
 fn compute_legal_drop_sites(
     topo: &SoundGraphTopology,
-    layout: &SoundGraphLayout,
+    layout: &StackedLayout,
     drag_subject: DragDropSubject,
     drop_sites: &[DragDropSubject],
 ) -> HashMap<DragDropSubject, DragDropLegality> {
@@ -264,7 +264,7 @@ impl DragInteraction {
         ui: &mut egui::Ui,
         topo: &SoundGraphTopology,
         object_states: &SoundObjectUiStates,
-        layout: &SoundGraphLayout,
+        layout: &StackedLayout,
         positions: &SoundObjectPositions,
     ) {
         // Ensure that the legal connections are up to date, since these are used
@@ -357,7 +357,7 @@ impl DropInteraction {
     pub(crate) fn handle_drop(
         &self,
         graph: &mut SoundGraph,
-        layout: &mut SoundGraphLayout,
+        layout: &mut StackedLayout,
         positions: &mut SoundObjectPositions,
     ) {
         let minimum_overlap_area = 1000.0; // idk

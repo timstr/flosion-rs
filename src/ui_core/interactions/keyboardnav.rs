@@ -13,7 +13,7 @@ use crate::{
         expressiongraphuistate::ExpressionUiCollection, flosion_ui::Factories,
         graph_properties::GraphProperties, lexicallayout::lexicallayout::LexicalLayoutFocus,
         soundgraphuinames::SoundGraphUiNames, soundobjectpositions::SoundObjectPositions,
-        stackedlayout::stackedlayout::SoundGraphLayout,
+        stackedlayout::stackedlayout::StackedLayout,
     },
 };
 
@@ -136,7 +136,7 @@ impl KeyboardNavInteraction {
         &mut self,
         ui: &mut egui::Ui,
         graph: &mut SoundGraph,
-        layout: &SoundGraphLayout,
+        layout: &StackedLayout,
         positions: &SoundObjectPositions,
         expression_uis: &mut ExpressionUiCollection,
         factories: &Factories,

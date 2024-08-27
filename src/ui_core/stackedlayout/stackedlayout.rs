@@ -20,13 +20,12 @@ use super::stackedgroup::StackedGroup;
 /// Visual layout of all processor groups and the connections between them.
 /// Intended to be the entry point of the main UI for all things pertaining
 /// to sound processors, their inputs, connections, and numeric UIs.
-// TODO: rename to StackedLayout
-pub struct SoundGraphLayout {
+pub struct StackedLayout {
     /// The set of top-level stacked groups of sound processors
     groups: Vec<StackedGroup>,
 }
 
-impl SoundGraphLayout {
+impl StackedLayout {
     /// The default on-screen width of a stacked group, in pixels
     pub(crate) const DEFAULT_WIDTH: f32 = 600.0;
 
@@ -36,8 +35,8 @@ impl SoundGraphLayout {
     /// Construct a new, empty SoundGraphLayout. See `renegerate` below for
     /// how to populate a SoundGraphLayout automatically from an existing
     /// SoundGraphTopology instance.
-    pub(crate) fn new() -> SoundGraphLayout {
-        SoundGraphLayout { groups: Vec::new() }
+    pub(crate) fn new() -> StackedLayout {
+        StackedLayout { groups: Vec::new() }
     }
 
     /// Find the stacked group that a sound processor belongs to, if any.
@@ -510,7 +509,7 @@ impl SoundGraphLayout {
     }
 }
 
-impl Revisable for SoundGraphLayout {
+impl Revisable for StackedLayout {
     fn get_revision(&self) -> RevisionHash {
         self.groups.get_revision()
     }

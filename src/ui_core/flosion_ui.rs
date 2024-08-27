@@ -14,7 +14,7 @@ use hashrevise::{Revisable, RevisionHash};
 use super::{
     expressiongraphui::ExpressionGraphUi, graph_properties::GraphProperties,
     soundgraphui::SoundGraphUi, soundgraphuistate::SoundGraphUiState,
-    stackedlayout::stackedlayout::SoundGraphLayout, ui_factory::UiFactory,
+    stackedlayout::stackedlayout::StackedLayout, ui_factory::UiFactory,
 };
 
 /// Convenience struct for passing all the different factories together
@@ -69,7 +69,7 @@ pub struct FlosionApp {
     ui_state: SoundGraphUiState,
 
     /// The on-screen layout of sound processors
-    graph_layout: SoundGraphLayout,
+    graph_layout: StackedLayout,
 
     properties: GraphProperties,
 
@@ -88,7 +88,7 @@ impl FlosionApp {
             graph,
             factories: Factories::new(),
             ui_state: SoundGraphUiState::new(),
-            graph_layout: SoundGraphLayout::new(),
+            graph_layout: StackedLayout::new(),
             properties,
             previous_clean_revision: None,
         };

@@ -28,7 +28,7 @@ use super::{
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
-    stackedlayout::stackedlayout::SoundGraphLayout,
+    stackedlayout::stackedlayout::StackedLayout,
 };
 
 pub struct SoundGraphUiState {
@@ -79,7 +79,7 @@ impl SoundGraphUiState {
         factories: &Factories,
         graph: &mut SoundGraph,
         properties: &GraphProperties,
-        layout: &mut SoundGraphLayout,
+        layout: &mut StackedLayout,
     ) {
         let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
 

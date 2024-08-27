@@ -12,7 +12,7 @@ use crate::{
         flosion_ui::Factories, graph_properties::GraphProperties,
         interactions::draganddrop::DragDropSubject, soundgraphuicontext::SoundGraphUiContext,
         soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
-        stackedlayout::stackedlayout::SoundGraphLayout,
+        stackedlayout::stackedlayout::StackedLayout,
     },
 };
 
@@ -80,10 +80,10 @@ impl StackedGroup {
         let rect = egui::Rect::from_min_size(group_origin, egui::Vec2::ZERO);
 
         StackedGroup {
-            width_pixels: SoundGraphLayout::DEFAULT_WIDTH,
+            width_pixels: StackedLayout::DEFAULT_WIDTH,
             time_axis: TimeAxis {
-                time_per_x_pixel: (SoundGraphLayout::DEFAULT_DURATION as f32)
-                    / (SoundGraphLayout::DEFAULT_WIDTH as f32),
+                time_per_x_pixel: (StackedLayout::DEFAULT_DURATION as f32)
+                    / (StackedLayout::DEFAULT_WIDTH as f32),
             },
             processors,
             rect,
