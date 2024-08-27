@@ -11,6 +11,7 @@ use crate::{
 };
 
 use super::{
+    adsr_ui::ADSRUi,
     audioclip_ui::AudioClipUi,
     definitions_ui::DefinitionsUi,
     ensemble_ui::EnsembleUi,
@@ -74,7 +75,7 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     helper.register::<OscilloscopeUi>();
 
     // Dynamic sound processors
-    // helper.register_dynamic_sound_processor::<ADSRUi>();
+    helper.register::<ADSRUi>();
     helper.register::<AudioClipUi>();
     helper.register::<DefinitionsUi>();
     helper.register::<EnsembleUi>();
