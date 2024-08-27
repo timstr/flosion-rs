@@ -179,11 +179,22 @@ fn drag_and_drop_in_layout(
         (DragDropSubject::Processor(proc), DragDropSubject::Socket(input)) => {
             // Dragging a processor onto an input. Move the processor
             // and insert it at the group under the input.
-            layout.split_processor_into_own_group(proc, positions);
             let input_data = topo.sound_input(input).unwrap();
             let proc_below = input_data.owner();
-            layout.split_group_above_processor(proc_below, positions);
-            layout.insert_processor_above(proc, proc_below);
+
+            if layout.is_top_of_group(proc_below) {
+                layout.insert_processor_above(proc, proc_below);
+                let group = layout.find_group_mut(proc).unwrap();
+                let proc_pos = positions.find_processor(proc).unwrap();
+                let magic_offset = -5.0;
+                let delta = proc_pos.rect.bottom() - proc_pos.group_origin.y + magic_offset;
+                let rect = group.rect().translate(egui::vec2(0.0, -delta));
+                group.set_rect(rect);
+            } else {
+                layout.split_processor_into_own_group(proc, positions);
+                layout.split_group_above_processor(proc_below, positions);
+                layout.insert_processor_above(proc, proc_below);
+            }
         }
         (DragDropSubject::Processor(proc), DragDropSubject::Plug(plug)) => {
             // Dragging a processor onto the bottom plug of a stacked group

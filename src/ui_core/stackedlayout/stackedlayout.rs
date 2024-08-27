@@ -433,10 +433,10 @@ impl StackedLayout {
 
         // if any processors exist after the split point, move them into their own new group
         if !rest_exclusive.is_empty() {
-            self.groups.push(StackedGroup::new_at_top_processor(
-                rest_exclusive,
-                positions,
-            ));
+            let mut rest_group = StackedGroup::new_at_top_processor(rest_exclusive, positions);
+            let magic_offset = -10.0;
+            rest_group.set_rect(rest_group.rect().translate(egui::vec2(0.0, magic_offset)));
+            self.groups.push(rest_group);
         }
     }
 
