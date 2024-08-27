@@ -227,6 +227,7 @@ impl StackedLayout {
         }
 
         // draw wires between connected groups
+        // TODO: make this prettier
         for (jumper_input, jumper_pos) in ui_state.positions().socket_jumpers().items() {
             let Some(target_spid) = graph
                 .topology()

@@ -86,20 +86,7 @@ fn drag_and_drop_in_graph(
         DragDropSubject::Processor(spid) => {
             // If dragging a processor, disconnect it from everything
             // (for now)
-            let mut inputs_to_disconnect = Vec::new();
-            for i in topo.sound_processor(spid).unwrap().sound_inputs() {
-                if topo.sound_input(*i).unwrap().target().is_some() {
-                    inputs_to_disconnect.push(*i);
-                }
-            }
-
-            for i in topo.sound_processor_targets(spid) {
-                inputs_to_disconnect.push(i)
-            }
-
-            for i in inputs_to_disconnect {
-                topo.disconnect_sound_input(i).unwrap();
-            }
+            disconnect_processor_in_graph(spid, topo);
         }
         DragDropSubject::Plug(_) => {
             // If dragging a processor plug, don't disconnect it
@@ -135,6 +122,14 @@ fn drag_and_drop_in_graph(
         if !layout.is_bottom_of_group(plug) {
             // TODO: soft error, e.g. just ignore this
             return DragDropLegality::Irrelevant;
+        }
+
+        // Disconnect any jumpers leaving the bottom processor.
+        // Otherwise, the processor would not be able to be
+        // inserted at the bottom of the stack.
+        let inputs_to_disconnect: Vec<SoundInputId> = topo.sound_processor_targets(plug).collect();
+        for siid in inputs_to_disconnect {
+            topo.disconnect_sound_input(siid).unwrap();
         }
 
         let inputs = topo.sound_processor(proc).unwrap().sound_inputs();
@@ -202,6 +197,8 @@ fn drag_and_drop_in_layout(
             // are needed that can't be resolved normally by SoundGraphLayout::regenerate
         }
     }
+
+    layout.regenerate(topo, positions);
 }
 
 fn compute_legal_drop_sites(
@@ -239,6 +236,8 @@ fn compute_legal_drop_sites(
     }
     site_statuses
 }
+
+const MIN_DROP_OVERLAP: f32 = 1000.0;
 
 pub struct DragInteraction {
     subject: DragDropSubject,
@@ -280,10 +279,9 @@ impl DragInteraction {
             self.legal_drop_sites.get_cached().unwrap().get(s).cloned()
                 == Some(DragDropLegality::Legal)
         };
-        let minimum_overlap = 1000.0; // TODO: deduplicate
         self.closest_legal_site = positions
             .drag_drop_subjects()
-            .find_closest_where(self.rect, minimum_overlap, site_is_legal)
+            .find_closest_where(self.rect, MIN_DROP_OVERLAP, site_is_legal)
             .cloned();
 
         // Highlight the legal and illegal drop sites
@@ -360,11 +358,9 @@ impl DropInteraction {
         layout: &mut StackedLayout,
         positions: &mut SoundObjectPositions,
     ) {
-        let minimum_overlap_area = 1000.0; // idk
-
         let nearest_drop_site = positions.drag_drop_subjects().find_closest_where(
             self.rect,
-            minimum_overlap_area,
+            MIN_DROP_OVERLAP,
             |site| self.legal_sites.get(site).cloned() == Some(DragDropLegality::Legal),
         );
 
