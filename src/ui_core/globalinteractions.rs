@@ -278,12 +278,20 @@ impl GlobalInteractions {
         self.mode = UiMode::Dragging(DragInteraction::new(subject, original_rect));
     }
 
-    pub(crate) fn continue_dragging(&mut self, delta: egui::Vec2) {
+    pub(crate) fn continue_drag_move_by(&mut self, delta: egui::Vec2) {
         let UiMode::Dragging(drag) = &mut self.mode else {
-            panic!("Called continue_dragging() while not dragging");
+            panic!("Called continue_drag_move_by() while not dragging");
         };
 
-        drag.translate(delta);
+        drag.set_rect(drag.rect().translate(delta));
+    }
+
+    pub(crate) fn continue_drag_move_to(&mut self, rect: egui::Rect) {
+        let UiMode::Dragging(drag) = &mut self.mode else {
+            panic!("Called continue_drag_move_to() while not dragging");
+        };
+
+        drag.set_rect(rect);
     }
 
     pub(crate) fn drop_dragging(&mut self) {

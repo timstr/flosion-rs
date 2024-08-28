@@ -273,8 +273,22 @@ impl StackedGroup {
                         )
                         .on_hover_and_drag_cursor(egui::CursorIcon::Grab);
 
+                    if sidebar_response.drag_started() {
+                        ui_state.interactions_mut().start_dragging(
+                            DragDropSubject::Group {
+                                top_processor: self.processors.first().unwrap().clone(),
+                            },
+                            self.rect,
+                        );
+                    }
+
                     if sidebar_response.dragged() {
                         self.rect = self.rect.translate(sidebar_response.drag_delta());
+                        ui_state.interactions_mut().continue_drag_move_to(self.rect);
+                    }
+
+                    if sidebar_response.drag_stopped() {
+                        ui_state.interactions_mut().drop_dragging();
                     }
 
                     ui.painter().rect_filled(
@@ -416,7 +430,7 @@ impl StackedGroup {
         if response.dragged() {
             ui_state
                 .interactions_mut()
-                .continue_dragging(response.drag_delta());
+                .continue_drag_move_by(response.drag_delta());
         }
 
         if response.drag_stopped() {
@@ -500,7 +514,7 @@ impl StackedGroup {
         if response.dragged() {
             ui_state
                 .interactions_mut()
-                .continue_dragging(response.drag_delta());
+                .continue_drag_move_by(response.drag_delta());
         }
 
         if response.drag_stopped() {

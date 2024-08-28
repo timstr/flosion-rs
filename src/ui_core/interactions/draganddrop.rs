@@ -20,6 +20,7 @@ pub enum DragDropSubject {
     Processor(SoundProcessorId),
     Plug(SoundProcessorId),
     Socket(SoundInputId),
+    Group { top_processor: SoundProcessorId },
 }
 
 impl DragDropSubject {
@@ -27,15 +28,32 @@ impl DragDropSubject {
         match self {
             DragDropSubject::Processor(spid) => Some(*spid),
             DragDropSubject::Plug(spid) => Some(*spid),
-            DragDropSubject::Socket(_) => None,
+            _ => None,
         }
     }
 
     fn as_input(&self) -> Option<SoundInputId> {
         match self {
-            DragDropSubject::Processor(_) => None,
-            DragDropSubject::Plug(_) => None,
             DragDropSubject::Socket(siid) => Some(*siid),
+            _ => None,
+        }
+    }
+
+    fn parent_processor(&self, topo: &SoundGraphTopology) -> Option<SoundProcessorId> {
+        match self {
+            DragDropSubject::Processor(spid) => Some(*spid),
+            DragDropSubject::Plug(spid) => Some(*spid),
+            DragDropSubject::Socket(siid) => Some(topo.sound_input(*siid).unwrap().owner()),
+            DragDropSubject::Group { top_processor: _ } => None,
+        }
+    }
+
+    fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
+        match self {
+            DragDropSubject::Processor(spid) => topo.contains(spid),
+            DragDropSubject::Plug(spid) => topo.contains(spid),
+            DragDropSubject::Socket(siid) => topo.contains(siid),
+            DragDropSubject::Group { top_processor } => topo.contains(top_processor),
         }
     }
 }
@@ -55,6 +73,10 @@ impl Revisable for DragDropSubject {
             DragDropSubject::Socket(siid) => {
                 hasher.write_u8(2);
                 hasher.write_revisable(siid);
+            }
+            DragDropSubject::Group { top_processor } => {
+                hasher.write_u8(3);
+                hasher.write_revisable(top_processor);
             }
         }
         hasher.into_revision()
@@ -81,6 +103,44 @@ fn drag_and_drop_in_graph(
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
 ) -> DragDropLegality {
+    // ignore some things first
+    match drag_from {
+        DragDropSubject::Processor(spid) => {
+            // If dragging a processor, ignore that processor's own things
+            if drop_onto.parent_processor(topo) == Some(spid) {
+                return DragDropLegality::Irrelevant;
+            }
+        }
+        DragDropSubject::Plug(spid) => {
+            // If dragging a processor's plug, ignore its own things
+            if drop_onto.parent_processor(topo) == Some(spid) {
+                return DragDropLegality::Irrelevant;
+            }
+        }
+        DragDropSubject::Socket(siid) => {
+            // If dragging an input socket, ignore its own processor
+            let owner = topo.sound_input(siid).unwrap().owner();
+            if drop_onto.parent_processor(topo) == Some(owner) {
+                return DragDropLegality::Irrelevant;
+            }
+        }
+        DragDropSubject::Group { top_processor } => {
+            // If dragging a group, ignore anything in the group
+            if let Some(parent) = drop_onto.parent_processor(topo) {
+                let parents_top_proc = layout
+                    .find_group(parent)
+                    .unwrap()
+                    .processors()
+                    .first()
+                    .unwrap()
+                    .clone();
+                if parents_top_proc == top_processor {
+                    return DragDropLegality::Irrelevant;
+                }
+            }
+        }
+    }
+
     // Disconnect things as needed
     match drag_from {
         DragDropSubject::Processor(spid) => {
@@ -96,6 +156,9 @@ fn drag_and_drop_in_graph(
             if topo.sound_input(siid).unwrap().target().is_some() {
                 topo.disconnect_sound_input(siid).unwrap();
             }
+        }
+        DragDropSubject::Group { top_processor: _ } => {
+            // Nothing to do
         }
     }
 
@@ -120,7 +183,6 @@ fn drag_and_drop_in_graph(
         // okay if the plug is at the bottom of a stack and
         // the processor being dragged has exactly one input
         if !layout.is_bottom_of_group(plug) {
-            // TODO: soft error, e.g. just ignore this
             return DragDropLegality::Irrelevant;
         }
 
@@ -162,6 +224,20 @@ fn drag_and_drop_in_graph(
         } else {
             DragDropLegality::LegalButInvisible
         }
+    } else if let (DragDropSubject::Group { top_processor }, DragDropSubject::Plug(input)) =
+        (drag_from, drop_onto)
+    {
+        // Dropping an entire group onto an input socket.
+
+        // TODO: connect things
+        DragDropLegality::Legal
+    } else if let (DragDropSubject::Group { top_processor }, DragDropSubject::Socket(socket_proc)) =
+        (drag_from, drop_onto)
+    {
+        // Dropping an entire group onto a processor plug.
+
+        // TODO: connect things
+        DragDropLegality::Legal
     } else {
         // Dragging and dropping an unsupported combination of things
         DragDropLegality::Irrelevant
@@ -322,26 +398,33 @@ impl DragInteraction {
         // Draw a basic coloured rectangle tracking the cursor as a preview of
         // the subject being dragged, without drawing its ui twice
         let drag_subject_processor = match self.subject {
-            DragDropSubject::Processor(spid) => spid,
-            DragDropSubject::Plug(spid) => spid,
-            DragDropSubject::Socket(siid) => topo.sound_input(siid).unwrap().owner(),
+            DragDropSubject::Processor(spid) => Some(spid),
+            DragDropSubject::Plug(spid) => Some(spid),
+            DragDropSubject::Socket(siid) => Some(topo.sound_input(siid).unwrap().owner()),
+            DragDropSubject::Group { top_processor: _ } => {
+                // Groups get dragged directly and so don't need a
+                // preview. They don't have just one colour anyway.
+                None
+            }
         };
-        let color = object_states.get_object_color(drag_subject_processor.into());
-        let color = egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 64);
-        ui.painter()
-            .rect_filled(self.rect, egui::Rounding::same(5.0), color);
+        if let Some(drag_subject_processor) = drag_subject_processor {
+            let color = object_states.get_object_color(drag_subject_processor.into());
+            let color = egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 64);
+            ui.painter()
+                .rect_filled(self.rect, egui::Rounding::same(5.0), color);
+        }
     }
 
-    pub(crate) fn translate(&mut self, delta: egui::Vec2) {
-        self.rect = self.rect.translate(delta);
+    pub(crate) fn rect(&self) -> egui::Rect {
+        self.rect
+    }
+
+    pub(crate) fn set_rect(&mut self, rect: egui::Rect) {
+        self.rect = rect;
     }
 
     pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
-        match self.subject {
-            DragDropSubject::Processor(spid) => topo.contains(spid),
-            DragDropSubject::Plug(spid) => topo.contains(spid),
-            DragDropSubject::Socket(siid) => topo.contains(siid),
-        }
+        self.subject.is_valid(topo)
     }
 }
 
@@ -450,11 +533,7 @@ impl DropInteraction {
     }
 
     pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
-        match self.subject {
-            DragDropSubject::Processor(spid) => topo.contains(spid),
-            DragDropSubject::Plug(spid) => topo.contains(spid),
-            DragDropSubject::Socket(siid) => topo.contains(siid),
-        }
+        self.subject.is_valid(topo)
     }
 }
 

@@ -277,7 +277,7 @@ impl ProcessorUi {
                     if bg_response.dragged() {
                         ui_state
                             .interactions_mut()
-                            .continue_dragging(bg_response.drag_delta());
+                            .continue_drag_move_by(bg_response.drag_delta());
                     }
 
                     if bg_response.drag_stopped() {
