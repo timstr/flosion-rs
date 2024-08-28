@@ -87,11 +87,11 @@ impl SoundInputData {
         self.owner
     }
 
-    pub(crate) fn expression_arguments(&self) -> &Vec<SoundExpressionArgumentId> {
+    pub(crate) fn expression_arguments(&self) -> &[SoundExpressionArgumentId] {
         &self.arguments
     }
 
-    pub(crate) fn arguments(&self) -> &Vec<SoundExpressionArgumentId> {
+    pub(crate) fn arguments(&self) -> &[SoundExpressionArgumentId] {
         &self.arguments
     }
 
@@ -163,7 +163,7 @@ impl SoundProcessorData {
         self.id
     }
 
-    pub(crate) fn sound_inputs(&self) -> &Vec<SoundInputId> {
+    pub(crate) fn sound_inputs(&self) -> &[SoundInputId] {
         &self.sound_inputs
     }
 
@@ -171,7 +171,7 @@ impl SoundProcessorData {
         &mut self.sound_inputs
     }
 
-    pub(crate) fn expression_arguments(&self) -> &Vec<SoundExpressionArgumentId> {
+    pub(crate) fn expression_arguments(&self) -> &[SoundExpressionArgumentId] {
         &self.arguments
     }
 
@@ -179,7 +179,7 @@ impl SoundProcessorData {
         &mut self.arguments
     }
 
-    pub(crate) fn expressions(&self) -> &Vec<SoundExpressionId> {
+    pub(crate) fn expressions(&self) -> &[SoundExpressionId] {
         &self.expressions
     }
 

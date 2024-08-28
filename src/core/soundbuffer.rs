@@ -38,7 +38,7 @@ impl SoundBuffer {
         self.chunks.capacity()
     }
 
-    pub fn chunks(&self) -> &Vec<SoundChunk> {
+    pub fn chunks(&self) -> &[SoundChunk] {
         &self.chunks
     }
 

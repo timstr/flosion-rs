@@ -232,8 +232,8 @@ impl StackedLayout {
             let Some(target_spid) = graph
                 .topology()
                 .sound_input(*jumper_input)
-                .unwrap()
-                .target()
+                .map(|i| i.target())
+                .flatten()
             else {
                 continue;
             };

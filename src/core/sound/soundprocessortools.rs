@@ -77,7 +77,7 @@ impl<'a> SoundProcessorTools<'a> {
 
         let has_target = input.target().is_some();
 
-        let args = input.arguments().clone();
+        let args = input.arguments().to_vec();
 
         if has_target {
             self.topology.disconnect_sound_input(input_id).unwrap();

@@ -165,15 +165,29 @@ fn drag_and_drop_in_graph(
     if let (Some(proc), Some(input)) = (drag_from.as_processor(), drop_onto.as_input()) {
         // Dropping a processor onto an input. Connect the two.
 
+        let previous_target = topo.sound_input(input).unwrap().target();
+
         // Disconnect the input if it's occupied
-        if topo.sound_input(input).unwrap().target().is_some() {
-            // TODO: re-connect the processor below in the layout after?
-            // Only if dragging processor and not its plug?
+        if previous_target.is_some() {
             topo.disconnect_sound_input(input).unwrap();
         }
 
         // Connect the input to the processor
         topo.connect_sound_input(input, proc).unwrap();
+
+        // If dragging an entire processor which has exactly one
+        // input, AND there is something above that we just
+        // disconnected, connect the newly-dropped processor's
+        // input to the thing above. This allows splicing
+        // in compatible processors.
+        if let (Some(previous_target), DragDropSubject::Processor(_), [dragged_input]) = (
+            previous_target,
+            drag_from,
+            topo.sound_processor(proc).unwrap().sound_inputs(),
+        ) {
+            topo.connect_sound_input(*dragged_input, previous_target)
+                .unwrap();
+        }
 
         DragDropLegality::Legal
     } else if let (DragDropSubject::Processor(proc), DragDropSubject::Plug(plug)) =
