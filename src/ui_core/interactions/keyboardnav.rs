@@ -57,11 +57,11 @@ impl DirectionsToGo {
 
         if self.go_up {
             // Draw a fading white trapezoid above the top edge
-            let width = 10.0;
+            let w = 10.0;
             let mut mesh = egui::Mesh::default();
             mesh.colored_vertex(rect.left_top(), color_hi);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(width, -width), color_lo);
-            mesh.colored_vertex(rect.right_top() + egui::vec2(-width, -width), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(w, -w), color_lo);
+            mesh.colored_vertex(rect.right_top() + egui::vec2(-w, -w), color_lo);
             mesh.colored_vertex(rect.right_top(), color_hi);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(2, 3, 0);
@@ -70,11 +70,11 @@ impl DirectionsToGo {
 
         if self.go_down {
             // Draw a fading white trapezoid below the top edge
-            let width = 10.0;
+            let w = 10.0;
             let mut mesh = egui::Mesh::default();
             mesh.colored_vertex(rect.left_bottom(), color_hi);
-            mesh.colored_vertex(rect.left_bottom() + egui::vec2(width, width), color_lo);
-            mesh.colored_vertex(rect.right_bottom() + egui::vec2(-width, width), color_lo);
+            mesh.colored_vertex(rect.left_bottom() + egui::vec2(w, w), color_lo);
+            mesh.colored_vertex(rect.right_bottom() + egui::vec2(-w, w), color_lo);
             mesh.colored_vertex(rect.right_bottom(), color_hi);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(2, 3, 0);
@@ -82,34 +82,30 @@ impl DirectionsToGo {
         }
 
         if self.go_in {
-            // Draw a trimmed glowing corner going inside from the top left
-            let width = 15.0;
+            // Draw a trimmed glowing corner going inside from the bottom right
+            let w = 30.0;
             let mut mesh = egui::Mesh::default();
-            mesh.colored_vertex(rect.left_top(), color_hi);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(width, 0.0), color_hi);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(2.0 * width, width), color_lo);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(width, width), color_lo);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(width, 2.0 * width), color_lo);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(0.0, width), color_hi);
+            mesh.colored_vertex(rect.right_bottom(), color_hi);
+            mesh.colored_vertex(rect.right_bottom() + egui::vec2(-2.0 * w, 0.0), color_hi);
+            mesh.colored_vertex(rect.right_bottom() + egui::vec2(-w, -w), color_lo);
+            mesh.colored_vertex(rect.right_bottom() + egui::vec2(0.0, -2.0 * w), color_hi);
 
             mesh.colored_vertex(rect.right_bottom(), color_hi);
             mesh.add_triangle(0, 1, 2);
             mesh.add_triangle(0, 2, 3);
-            mesh.add_triangle(0, 3, 4);
-            mesh.add_triangle(0, 4, 5);
             ui.painter().add(mesh);
         }
 
         if self.go_out {
             // Draw a trimmed glowing corner going outside from the top left
-            let width = 15.0;
+            let w = 15.0;
             let mut mesh = egui::Mesh::default();
             mesh.colored_vertex(rect.left_top(), color_hi);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(2.0 * width, 0.0), color_hi);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(width, -width), color_lo);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(-width, -width), color_lo);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(-width, width), color_lo);
-            mesh.colored_vertex(rect.left_top() + egui::vec2(0.0, 2.0 * width), color_hi);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(2.0 * w, 0.0), color_hi);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(w, -w), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(-w, -w), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(-w, w), color_lo);
+            mesh.colored_vertex(rect.left_top() + egui::vec2(0.0, 2.0 * w), color_hi);
 
             mesh.colored_vertex(rect.right_bottom(), color_hi);
             mesh.add_triangle(0, 1, 2);
