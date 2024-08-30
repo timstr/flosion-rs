@@ -440,7 +440,7 @@ impl StackedLayout {
         }
     }
 
-    fn remove_processor(&mut self, processor_id: SoundProcessorId) {
+    pub(crate) fn remove_processor(&mut self, processor_id: SoundProcessorId) {
         self.groups.retain_mut(|group| {
             group.remove_processor(processor_id);
             !group.processors().is_empty()
