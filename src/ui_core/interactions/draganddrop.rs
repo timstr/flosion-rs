@@ -309,7 +309,6 @@ fn drag_and_drop_in_layout(
             } else {
                 for proc in processors {
                     layout.remove_processor(proc);
-                    // layout.split_group_above_processor(proc_below, positions);
                     layout.insert_processor_above(proc, proc_below);
                 }
             }
