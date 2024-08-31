@@ -15,13 +15,6 @@ pub(crate) struct ProcessorPlug {
 }
 
 impl ProcessorPlug {
-    pub(crate) fn new(processor: SoundProcessorId, is_static: bool) -> ProcessorPlug {
-        ProcessorPlug {
-            processor,
-            is_static,
-        }
-    }
-
     pub(crate) fn from_processor_data(data: &SoundProcessorData) -> ProcessorPlug {
         ProcessorPlug {
             processor: data.id(),
@@ -47,14 +40,6 @@ pub(crate) struct InputSocket {
 }
 
 impl InputSocket {
-    pub(crate) fn new(input: SoundInputId, options: InputOptions, branches: usize) -> InputSocket {
-        InputSocket {
-            input,
-            options,
-            branches,
-        }
-    }
-
     pub(crate) fn from_input_data(data: &SoundInputData) -> InputSocket {
         InputSocket {
             input: data.id(),

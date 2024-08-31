@@ -1,30 +1,19 @@
 use hashrevise::{Revisable, Revised, RevisedHashMap, RevisionHash, RevisionHasher};
 
-use crate::core::{
-    graph::graphobject::GraphObjectHandle,
-    sound::{expressionargument::SoundExpressionArgumentOwner, sounderror::SoundError},
+use crate::core::sound::{
+    expressionargument::SoundExpressionArgumentOwner, sounderror::SoundError,
 };
 
 use super::{
     expression::SoundExpressionId,
     expressionargument::SoundExpressionArgumentId,
-    soundgraph::SoundGraph,
     soundgraphdata::{
         SoundExpressionArgumentData, SoundExpressionData, SoundInputData, SoundProcessorData,
     },
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundinput::SoundInputId,
-    soundprocessor::{
-        DynamicSoundProcessor, DynamicSoundProcessorHandle, SoundProcessorId, StaticSoundProcessor,
-        StaticSoundProcessorHandle,
-    },
+    soundprocessor::SoundProcessorId,
 };
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-enum SoundConnectionPart {
-    Processor(SoundProcessorId),
-    Input(SoundInputId),
-}
 
 /// A set of sound processors, all their constituent sound inputs, expressions,
 /// and expression argument, and the relationships and connections
@@ -142,22 +131,6 @@ impl SoundGraphTopology {
                 None
             }
         })
-    }
-
-    /// Look up a graph object by its id and return a handle to it.
-    ///
-    /// NOTE that currently the only graph objects are sound processors.
-    /// This may be expanded upon in the future.
-    pub(crate) fn graph_object(
-        &self,
-        object_id: SoundObjectId,
-    ) -> Option<GraphObjectHandle<SoundGraph>> {
-        match object_id {
-            SoundObjectId::Sound(spid) => self
-                .sound_processors
-                .get(&spid)
-                .map(|p| p.instance_arc().as_graph_object()),
-        }
     }
 
     /// Returns an iterator over the ids of all graph objects in the topology.
@@ -442,31 +415,6 @@ impl SoundGraphTopology {
             SoundGraphId::SoundProcessor(spid) => self.sound_processors.contains_key(&spid),
             SoundGraphId::Expression(niid) => self.expressions.contains_key(&niid),
             SoundGraphId::ExpressionArgument(nsid) => self.expression_arguments.contains_key(&nsid),
-        }
-    }
-
-    /// Check whether one sound processor or input directly or indirectly is connected
-    /// to another.
-    fn depends_on(&self, part: SoundConnectionPart, other_part: SoundConnectionPart) -> bool {
-        if part == other_part {
-            return true;
-        }
-        match part {
-            SoundConnectionPart::Processor(spid) => {
-                for siid in self.sound_processor(spid).unwrap().sound_inputs() {
-                    if self.depends_on(SoundConnectionPart::Input(*siid), other_part) {
-                        return true;
-                    }
-                }
-                false
-            }
-            SoundConnectionPart::Input(siid) => {
-                if let Some(target) = self.sound_input(siid).unwrap().target() {
-                    self.depends_on(SoundConnectionPart::Processor(target), other_part)
-                } else {
-                    false
-                }
-            }
         }
     }
 }

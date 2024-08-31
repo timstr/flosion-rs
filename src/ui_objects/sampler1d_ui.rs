@@ -26,7 +26,7 @@ impl ObjectUi for Sampler1dUi {
     fn ui<'a, 'b>(
         &self,
         sampler1d: StatefulExpressionNodeHandle<Sampler1d>,
-        ui_state: &mut ExpressionGraphUiState,
+        _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
         _data: ExpressionNodeObjectUiData<()>,

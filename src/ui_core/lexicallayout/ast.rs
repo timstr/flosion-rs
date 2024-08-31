@@ -11,7 +11,7 @@ use crate::core::{
 };
 
 #[derive(Clone)]
-pub(super) struct ASTPath {
+pub(crate) struct ASTPath {
     steps: Vec<usize>,
 }
 
@@ -220,38 +220,6 @@ impl<'a> ASTPathBuilder<'a> {
         child_index: usize,
     ) -> ASTPathBuilder<'a> {
         ASTPathBuilder::ChildOf(self, parent, child_index)
-    }
-
-    pub(super) fn build(&self) -> ASTPath {
-        fn helper(builder: &ASTPathBuilder, vec: &mut Vec<usize>) {
-            if let ASTPathBuilder::ChildOf(parent_path, _parent_node, child_index) = builder {
-                helper(parent_path, vec);
-                vec.push(*child_index);
-            }
-        }
-
-        let mut steps = Vec::new();
-        helper(self, &mut steps);
-        ASTPath { steps }
-    }
-
-    pub(super) fn matches_path(&self, path: &ASTPath) -> bool {
-        fn helper(builder: &ASTPathBuilder, steps: &[usize]) -> bool {
-            match builder {
-                ASTPathBuilder::Root(_) => steps.is_empty(),
-                ASTPathBuilder::ChildOf(parent_path, _parent_node, child_index) => {
-                    let Some((last_step, other_steps)) = steps.split_last() else {
-                        return false;
-                    };
-                    if last_step != child_index {
-                        return false;
-                    }
-                    helper(parent_path, other_steps)
-                }
-            }
-        }
-
-        helper(self, &path.steps)
     }
 }
 

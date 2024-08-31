@@ -170,14 +170,8 @@ impl SoundGraphUiState {
         plot_config: &PlotConfig,
         ui: &mut egui::Ui,
     ) {
-        let parent_proc = sound_graph
-            .topology()
-            .expression(expression_id)
-            .unwrap()
-            .owner();
         let outer_ctx = OuterProcessorExpressionContext::new(
             expression_id,
-            parent_proc,
             &self.names,
             *ctx.time_axis(),
             ctx.properties()

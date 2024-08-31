@@ -7,7 +7,6 @@ use crate::core::{
     sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
         sounderror::SoundError, soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
-        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -19,7 +18,6 @@ use super::{
 #[derive(Clone, Copy)]
 pub(crate) struct OuterProcessorExpressionContext<'a> {
     expression_id: SoundExpressionId,
-    parent_sound_processor_id: SoundProcessorId,
     sound_graph_names: &'a SoundGraphUiNames,
     time_axis: TimeAxis,
     available_arguments: &'a HashSet<SoundExpressionArgumentId>,
@@ -28,14 +26,12 @@ pub(crate) struct OuterProcessorExpressionContext<'a> {
 impl<'a> OuterProcessorExpressionContext<'a> {
     pub(super) fn new(
         expression_id: SoundExpressionId,
-        parent_sound_processor_id: SoundProcessorId,
         sound_graph_names: &'a SoundGraphUiNames,
         time_axis: TimeAxis,
         available_arguments: &'a HashSet<SoundExpressionArgumentId>,
     ) -> Self {
         Self {
             expression_id,
-            parent_sound_processor_id,
             sound_graph_names,
             time_axis,
             available_arguments,
@@ -44,10 +40,6 @@ impl<'a> OuterProcessorExpressionContext<'a> {
 
     pub(super) fn expression_id(&self) -> SoundExpressionId {
         self.expression_id
-    }
-
-    pub(super) fn parent_sound_processor_id(&self) -> SoundProcessorId {
-        self.parent_sound_processor_id
     }
 
     pub(super) fn available_arguments(&self) -> &HashSet<SoundExpressionArgumentId> {

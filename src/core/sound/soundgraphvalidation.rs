@@ -10,7 +10,6 @@ use super::{
     soundgraphtopology::SoundGraphTopology,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
-    state::StateOwner,
 };
 
 pub(crate) fn find_sound_error(topology: &SoundGraphTopology) -> Option<SoundError> {
@@ -447,38 +446,6 @@ pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Optio
     }
 
     None
-}
-
-fn state_owner_has_dependency(
-    topology: &SoundGraphTopology,
-    owner: StateOwner,
-    dependency: StateOwner,
-) -> bool {
-    if owner == dependency {
-        return true;
-    }
-    match owner {
-        StateOwner::SoundInput(siid) => {
-            let input_desc = topology.sound_input(siid).unwrap();
-            if let Some(spid) = input_desc.target() {
-                return state_owner_has_dependency(
-                    topology,
-                    StateOwner::SoundProcessor(spid),
-                    dependency,
-                );
-            }
-            return false;
-        }
-        StateOwner::SoundProcessor(spid) => {
-            let proc_desc = topology.sound_processor(spid).unwrap();
-            for siid in proc_desc.sound_inputs() {
-                if state_owner_has_dependency(topology, StateOwner::SoundInput(*siid), dependency) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
 }
 
 fn input_depends_on_processor(

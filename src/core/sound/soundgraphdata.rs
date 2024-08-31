@@ -452,10 +452,6 @@ impl SoundExpressionArgumentData {
         &*self.instance
     }
 
-    pub(crate) fn instance_arc(&self) -> Arc<dyn SoundExpressionArgument> {
-        Arc::clone(&self.instance)
-    }
-
     pub(crate) fn owner(&self) -> SoundExpressionArgumentOwner {
         self.owner
     }

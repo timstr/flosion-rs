@@ -15,12 +15,6 @@ use crate::core::{
 
 pub(super) struct TestStaticSoundProcessor {}
 
-impl TestStaticSoundProcessor {
-    pub(super) fn new() -> Self {
-        Self {}
-    }
-}
-
 impl StaticSoundProcessor for TestStaticSoundProcessor {
     type SoundInputType = ();
 
@@ -58,12 +52,6 @@ impl WithObjectType for TestStaticSoundProcessor {
 
 pub(super) struct TestDynamicSoundProcessor {}
 
-impl TestDynamicSoundProcessor {
-    pub(super) fn new() -> Self {
-        Self {}
-    }
-}
-
 pub(super) struct TestDynamicSoundProcessorStatic {}
 
 impl State for TestDynamicSoundProcessorStatic {
@@ -97,11 +85,11 @@ impl DynamicSoundProcessor for TestDynamicSoundProcessor {
     }
 
     fn process_audio<'ctx>(
-        state: &mut StateAndTiming<TestDynamicSoundProcessorStatic>,
+        _state: &mut StateAndTiming<TestDynamicSoundProcessorStatic>,
         _sound_inputs: &mut (),
         _expressions: &mut (),
-        dst: &mut SoundChunk,
-        context: Context,
+        _dst: &mut SoundChunk,
+        _context: Context,
     ) -> StreamStatus {
         StreamStatus::Done
     }

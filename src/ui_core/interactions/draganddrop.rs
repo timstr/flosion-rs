@@ -599,7 +599,7 @@ fn disconnect_processor_from_all_inputs(
     processor_id: SoundProcessorId,
     topo: &mut SoundGraphTopology,
 ) {
-    let mut inputs_to_disconnect_from: Vec<SoundInputId> =
+    let inputs_to_disconnect_from: Vec<SoundInputId> =
         topo.sound_processor_targets(processor_id).collect();
     for i in inputs_to_disconnect_from {
         topo.disconnect_sound_input(i).unwrap();

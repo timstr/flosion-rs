@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use eframe::egui;
 
 use crate::{
@@ -313,7 +311,6 @@ impl KeyboardNavInteraction {
 
                     let outer_context = OuterProcessorExpressionContext::new(
                         *eid,
-                        owner,
                         names,
                         time_axis,
                         &available_arguments,
