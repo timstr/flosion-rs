@@ -744,6 +744,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "chive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c01ad447cfee01916cdf2ea6199c3353b158d8ca990fc773a90801e9bdc71c9"
+
+[[package]]
 name = "clang-sys"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1365,6 +1371,7 @@ dependencies = [
  "atomic_float",
  "atomicslice",
  "base64",
+ "chive",
  "cpal",
  "eframe",
  "hashrevise",
@@ -1373,7 +1380,6 @@ dependencies = [
  "rand",
  "rfd",
  "send_wrapper",
- "serialization",
  "slicemath",
  "spin_sleep",
  "spmcq",
@@ -3050,11 +3056,6 @@ checksum = "eb3622f419d1296904700073ea6cc23ad690adbd66f13ea683df73298736f0c1"
 dependencies = [
  "serde",
 ]
-
-[[package]]
-name = "serialization"
-version = "0.1.0"
-source = "git+https://github.com/timstr/serialization?branch=main#c9d200b94947cdc88ed7976d8e70f679938db6ef"
 
 [[package]]
 name = "sha1"

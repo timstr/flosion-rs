@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use chive::{Chivable, ChiveIn};
 use parking_lot::RwLock;
-use serialization::{Serializable, Serializer};
 
 use crate::core::{
     engine::soundgraphcompiler::SoundGraphCompiler,
@@ -71,7 +71,7 @@ impl StaticSoundProcessor for Recorder {
 
     fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
         let buf = match _init {
-            ObjectInitialization::Archive(mut a) => SoundBuffer::deserialize(&mut a)?,
+            ObjectInitialization::Deserialize(mut a) => SoundBuffer::chive_out(&mut a)?,
             _ => SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP),
         };
         let r = Recorder {
@@ -119,9 +119,9 @@ impl StaticSoundProcessor for Recorder {
         }
     }
 
-    fn serialize(&self, mut serializer: Serializer) {
+    fn serialize(&self, mut chive_in: ChiveIn) {
         let data = self.recorded_chunk_groups.read();
-        serializer.array_iter_f32(data.iter().flat_map(|b| b.samples()).flatten());
+        chive_in.array_iter_f32(data.iter().flat_map(|b| b.samples()).flatten());
     }
 }
 

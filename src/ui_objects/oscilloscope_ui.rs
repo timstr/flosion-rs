@@ -1,5 +1,5 @@
+use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
-use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
@@ -35,10 +35,10 @@ pub struct OscilloscopeUiState {
 }
 
 // TODO: this doesn't make sense
-impl Serializable for OscilloscopeUiState {
-    fn serialize(&self, serializer: &mut Serializer) {}
+impl Chivable for OscilloscopeUiState {
+    fn chive_in(&self, chive_in: &mut ChiveIn) {}
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
         Err(())
     }
 }

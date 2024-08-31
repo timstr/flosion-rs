@@ -1,4 +1,4 @@
-use serialization::Serializer;
+use chive::ChiveIn;
 
 use crate::{
     core::{
@@ -49,7 +49,7 @@ impl DynamicSoundProcessor for Mixer {
 
     fn new(mut tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
         let num_inputs: usize = match init {
-            ObjectInitialization::Archive(mut a) => a.u8()? as usize,
+            ObjectInitialization::Deserialize(mut a) => a.u8()? as usize,
             ObjectInitialization::Default => 2,
             ObjectInitialization::Arguments(args) => args.get(&Mixer::ARG_NUM_INPUTS).unwrap_or(2),
         };
@@ -111,8 +111,8 @@ impl DynamicSoundProcessor for Mixer {
         }
     }
 
-    fn serialize(&self, mut serializer: Serializer) {
-        serializer.u8(self.inputs.length() as u8);
+    fn serialize(&self, mut chive_in: ChiveIn) {
+        chive_in.u8(self.inputs.length() as u8);
     }
 }
 

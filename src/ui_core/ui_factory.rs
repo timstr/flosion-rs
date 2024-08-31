@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
+use chive::ChiveOut;
 use eframe::egui;
-use serialization::Deserializer;
 
 use crate::core::graph::graphobject::{
     GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
@@ -95,9 +95,9 @@ impl<G: GraphUi> UiFactory<G> {
     pub fn create_state_from_archive(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        deserializer: Deserializer,
+        chive_out: ChiveOut,
     ) -> Result<G::ObjectUiData, ()> {
-        self.create_state_impl(object, ObjectInitialization::Archive(deserializer))
+        self.create_state_impl(object, ObjectInitialization::Deserialize(chive_out))
     }
 
     pub fn create_state_from_arguments(

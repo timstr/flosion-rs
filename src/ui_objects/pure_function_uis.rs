@@ -1,6 +1,5 @@
+use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
-
-use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::expression::{
@@ -93,18 +92,18 @@ impl Default for SliderUiState {
     }
 }
 
-impl Serializable for SliderUiState {
-    fn serialize(&self, serializer: &mut Serializer) {
-        serializer.f32(self.min_value);
-        serializer.f32(self.max_value);
-        serializer.string(&self.name);
+impl Chivable for SliderUiState {
+    fn chive_in(&self, chive_in: &mut ChiveIn) {
+        chive_in.f32(self.min_value);
+        chive_in.f32(self.max_value);
+        chive_in.string(&self.name);
     }
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
         Ok(SliderUiState {
-            min_value: deserializer.f32()?,
-            max_value: deserializer.f32()?,
-            name: deserializer.string()?,
+            min_value: chive_out.f32()?,
+            max_value: chive_out.f32()?,
+            name: chive_out.string()?,
             show_settings: false,
         })
     }

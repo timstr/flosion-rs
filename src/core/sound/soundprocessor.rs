@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use serialization::Serializer;
+use chive::ChiveIn;
 
 use crate::core::{
     engine::{
@@ -61,7 +61,7 @@ pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
         context: Context,
     );
 
-    fn serialize(&self, _serializer: Serializer) {}
+    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
@@ -90,7 +90,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
         context: Context,
     ) -> StreamStatus;
 
-    fn serialize(&self, _serializer: Serializer) {}
+    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
@@ -260,7 +260,7 @@ impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
 pub(crate) trait SoundProcessor: 'static + Sync + Send {
     fn id(&self) -> SoundProcessorId;
 
-    fn serialize(&self, serializer: Serializer);
+    fn serialize(&self, chive_in: ChiveIn);
 
     fn is_static(&self) -> bool;
 
@@ -277,8 +277,8 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
         self.id
     }
 
-    fn serialize(&self, serializer: Serializer) {
-        self.processor.serialize(serializer);
+    fn serialize(&self, chive_in: ChiveIn) {
+        self.processor.serialize(chive_in);
     }
 
     fn is_static(&self) -> bool {
@@ -303,8 +303,8 @@ impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T>
         self.id
     }
 
-    fn serialize(&self, serializer: Serializer) {
-        self.processor.serialize(serializer);
+    fn serialize(&self, chive_in: ChiveIn) {
+        self.processor.serialize(chive_in);
     }
 
     fn is_static(&self) -> bool {
@@ -497,8 +497,8 @@ impl<T: StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWi
         type_name::<Self>()
     }
 
-    fn serialize(&self, serializer: Serializer) {
-        (&*self as &T).serialize(serializer);
+    fn serialize(&self, chive_in: ChiveIn) {
+        (&*self as &T).serialize(chive_in);
     }
 }
 
@@ -533,9 +533,9 @@ impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessor
         type_name::<Self>()
     }
 
-    fn serialize(&self, serializer: Serializer) {
+    fn serialize(&self, chive_in: ChiveIn) {
         let s: &T = &*self;
-        s.serialize(serializer);
+        s.serialize(chive_in);
     }
 }
 

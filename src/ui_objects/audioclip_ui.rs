@@ -1,5 +1,5 @@
+use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
-use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
@@ -34,14 +34,14 @@ impl Default for AudioClipUiState {
     }
 }
 
-impl Serializable for AudioClipUiState {
-    fn serialize(&self, serializer: &mut Serializer) {
-        serializer.string(&self.name);
+impl Chivable for AudioClipUiState {
+    fn chive_in(&self, chive_in: &mut ChiveIn) {
+        chive_in.string(&self.name);
     }
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
         Ok(AudioClipUiState {
-            name: deserializer.string()?,
+            name: chive_out.string()?,
         })
     }
 }

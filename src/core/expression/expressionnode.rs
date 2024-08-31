@@ -1,7 +1,7 @@
 use std::{any::type_name, ops::Deref, sync::Arc};
 
+use chive::ChiveIn;
 use inkwell::values::{FloatValue, PointerValue};
-use serialization::Serializer;
 
 use crate::core::{
     graph::graphobject::{
@@ -33,7 +33,7 @@ pub trait PureExpressionNode: 'static + Sync + Send + WithObjectType {
         inputs: &[FloatValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
-    fn serialize(&self, _serializer: Serializer) {}
+    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 /// A trait representing any type of expression node, both
@@ -129,8 +129,8 @@ impl<T: PureExpressionNode> GraphObject<ExpressionGraph> for PureExpressionNodeW
         type_name::<Self>()
     }
 
-    fn serialize(&self, serializer: Serializer) {
-        (&*self as &T).serialize(serializer);
+    fn serialize(&self, chive_in: ChiveIn) {
+        (&*self as &T).serialize(chive_in);
     }
 }
 
@@ -240,7 +240,7 @@ pub trait StatefulExpressionNode: 'static + Sync + Send + WithObjectType {
         compile_state: &Self::CompileState<'ctx>,
     ) -> FloatValue<'ctx>;
 
-    fn serialize(&self, _serializer: Serializer) {}
+    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 pub struct StatefulExpressionNodeWithId<T: StatefulExpressionNode> {
@@ -395,8 +395,8 @@ impl<T: StatefulExpressionNode> GraphObject<ExpressionGraph> for StatefulExpress
         type_name::<Self>()
     }
 
-    fn serialize(&self, serializer: Serializer) {
-        (&*self as &T).serialize(serializer);
+    fn serialize(&self, chive_in: ChiveIn) {
+        (&*self as &T).serialize(chive_in);
     }
 }
 

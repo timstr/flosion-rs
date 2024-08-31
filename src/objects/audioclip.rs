@@ -1,7 +1,7 @@
 use std::{ops::Deref, sync::Arc};
 
+use chive::{Chivable, ChiveIn};
 use parking_lot::RwLock;
-use serialization::Serializer;
 
 use crate::{
     core::{
@@ -55,30 +55,23 @@ impl DynamicSoundProcessor for AudioClip {
     type Expressions<'ctx> = ();
 
     fn new(_tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
-        let mut buffer = SoundBuffer::new_empty();
-        match init {
-            ObjectInitialization::Archive(mut a) => {
-                let l = a.peek_length()?;
-                if l % 2 != 0 {
-                    return Err(());
-                }
-                buffer.reserve_chunks(l / (2 * CHUNK_SIZE));
-                let mut samples = a.array_iter_f32()?;
-                while let Some(l) = samples.next() {
-                    let r = samples.next().unwrap();
-                    buffer.push_sample(l, r);
-                }
+        let mut buffer = match init {
+            ObjectInitialization::Deserialize(mut chive_out) => {
+                SoundBuffer::chive_out(&mut chive_out)?
             }
             ObjectInitialization::Arguments(args) => {
                 if let Some(path) = args.get(&Self::ARG_PATH) {
                     if let Ok(b) = load_audio_file(&path) {
-                        buffer = b;
+                        b
                     } else {
                         println!("Failed to load audio file from \"{}\"", path.display());
+                        SoundBuffer::new_empty()
                     }
+                } else {
+                    SoundBuffer::new_empty()
                 }
             }
-            _ => (),
+            ObjectInitialization::Default => SoundBuffer::new_empty(),
         };
         Ok(AudioClip {
             data: Arc::new(RwLock::new(buffer)),
@@ -137,9 +130,10 @@ impl DynamicSoundProcessor for AudioClip {
         StreamStatus::Playing
     }
 
-    fn serialize(&self, mut serializer: Serializer) {
+    // TODO: replace with impl Chivable
+    fn serialize(&self, mut chive_in: ChiveIn) {
         let data = self.data.read();
-        serializer.array_iter_f32(data.samples().flatten());
+        chive_in.array_iter_f32(data.samples().flatten());
     }
 }
 

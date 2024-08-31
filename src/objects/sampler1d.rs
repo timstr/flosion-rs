@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use atomicslice::AtomicSlice;
+use chive::ChiveIn;
 use inkwell::{
     values::{FloatValue, IntValue, PointerValue},
     AtomicOrdering, AtomicRMWBinOp, IntPredicate,
 };
-use serialization::Serializer;
 
 use crate::core::{
     expression::{
@@ -48,7 +48,7 @@ impl StatefulExpressionNode for Sampler1d {
 
     type CompileState<'ctx> = Sampler1dCompileState<'ctx>;
 
-    fn serialize(&self, mut serializer: Serializer) {
+    fn serialize(&self, mut chive_in: ChiveIn) {
         // TODO
     }
 

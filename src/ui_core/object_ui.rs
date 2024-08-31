@@ -1,9 +1,9 @@
+use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::{
     egui::{self},
     epaint::ecolor::{self},
 };
 use rand::{thread_rng, Rng};
-use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::core::graph::{
     graph::Graph,
@@ -27,13 +27,13 @@ impl Default for Color {
     }
 }
 
-impl Serializable for Color {
-    fn serialize(&self, serializer: &mut Serializer) {
-        serializer.u32(u32::from_be_bytes(self.color.to_array()))
+impl Chivable for Color {
+    fn chive_in(&self, chive_in: &mut ChiveIn) {
+        chive_in.u32(u32::from_be_bytes(self.color.to_array()))
     }
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
-        let i = deserializer.u32()?;
+    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
+        let i = chive_out.u32()?;
         let [r, g, b, a] = i.to_be_bytes();
         Ok(Color {
             color: egui::Color32::from_rgba_premultiplied(r, g, b, a),
@@ -150,10 +150,9 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
     ) -> Result<G::ObjectUiData, ()> {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
         let (state, required_data) = match init {
-            ObjectInitialization::Archive(mut a) => (
-                T::StateType::deserialize(&mut a)?,
-                Serializable::deserialize(&mut a)?,
-            ),
+            ObjectInitialization::Deserialize(mut a) => {
+                (Chivable::chive_out(&mut a)?, Chivable::chive_out(&mut a)?)
+            }
             ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
             ObjectInitialization::Arguments(parsed_args) => {
                 self.make_ui_state(&handle, UiInitialization::Arguments(parsed_args))

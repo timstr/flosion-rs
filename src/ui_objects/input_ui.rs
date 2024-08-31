@@ -1,5 +1,5 @@
+use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
-use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
@@ -27,10 +27,10 @@ pub struct InputUiState {
 }
 
 // TODO: this doesn't make sense
-impl Serializable for InputUiState {
-    fn serialize(&self, serializer: &mut Serializer) {}
+impl Chivable for InputUiState {
+    fn chive_in(&self, chive_in: &mut ChiveIn) {}
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
+    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
         Err(())
     }
 }

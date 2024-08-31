@@ -1,5 +1,5 @@
+use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
-use serialization::{Deserializer, Serializable, Serializer};
 
 use crate::{
     core::{
@@ -51,9 +51,9 @@ impl Default for ExpressionNodeLayout {
     }
 }
 
-impl Serializable for ExpressionNodeLayout {
-    fn serialize(&self, serializer: &mut Serializer) {
-        serializer.u8(match self {
+impl Chivable for ExpressionNodeLayout {
+    fn chive_in(&self, chive_in: &mut ChiveIn) {
+        chive_in.u8(match self {
             ExpressionNodeLayout::Prefix => 1,
             ExpressionNodeLayout::Infix => 2,
             ExpressionNodeLayout::Postfix => 3,
@@ -61,8 +61,8 @@ impl Serializable for ExpressionNodeLayout {
         });
     }
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
-        Ok(match deserializer.u8()? {
+    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
+        Ok(match chive_out.u8()? {
             1 => ExpressionNodeLayout::Prefix,
             2 => ExpressionNodeLayout::Infix,
             3 => ExpressionNodeLayout::Postfix,

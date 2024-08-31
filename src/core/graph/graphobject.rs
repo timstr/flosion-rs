@@ -1,6 +1,6 @@
 use std::{any::Any, sync::Arc};
 
-use serialization::{Deserializer, Serializer};
+use chive::{ChiveIn, ChiveOut};
 
 use crate::ui_core::arguments::ParsedArguments;
 
@@ -35,7 +35,7 @@ pub trait GraphObject<G: Graph>: 'static + Send + Sync {
     fn get_id(&self) -> G::ObjectId;
     fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
     fn get_language_type_name(&self) -> &'static str;
-    fn serialize(&self, serializer: Serializer);
+    fn serialize(&self, chive_in: ChiveIn);
 }
 
 pub struct GraphObjectHandle<G: Graph> {
@@ -80,7 +80,7 @@ pub trait ObjectHandle<G: Graph>: Sized {
 }
 
 pub enum ObjectInitialization<'a> {
-    Archive(Deserializer<'a>),
+    Deserialize(ChiveOut<'a>),
     Arguments(ParsedArguments),
     Default,
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serialization::Deserializer;
+use chive::ChiveOut;
 
 use crate::ui_core::arguments::ParsedArguments;
 
@@ -76,12 +76,12 @@ impl<G: Graph> ObjectFactory<G> {
         &self,
         object_type_str: &str,
         graph: &mut G,
-        deserializer: Deserializer,
+        chive_out: ChiveOut,
     ) -> Result<GraphObjectHandle<G>, ()> {
         self.create_impl(
             object_type_str,
             graph,
-            ObjectInitialization::Archive(deserializer),
+            ObjectInitialization::Deserialize(chive_out),
         )
     }
 }

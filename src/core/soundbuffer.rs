@@ -1,4 +1,4 @@
-use serialization::{Deserializer, Serializable, Serializer};
+use chive::{Chivable, ChiveIn, ChiveOut};
 
 use super::soundchunk::{SoundChunk, CHUNK_SIZE};
 
@@ -90,21 +90,18 @@ impl SoundBuffer {
     }
 }
 
-impl Serializable for SoundBuffer {
-    fn serialize(&self, serializer: &mut Serializer) {
-        serializer.array_iter_f32(self.samples().flatten());
+impl Chivable for SoundBuffer {
+    fn chive_in(&self, chive_in: &mut ChiveIn) {
+        chive_in.array_iter_f32(self.samples().flatten());
     }
 
-    fn deserialize(deserializer: &mut Deserializer) -> Result<Self, ()> {
-        let n_samples_x2 = deserializer.peek_length()?;
-        if n_samples_x2 % 2 != 0 {
-            return Err(());
-        }
-        let n_samples = n_samples_x2 / 2;
-        let mut sample_iter = deserializer.array_iter_f32()?;
+    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
+        // TODO: peek array length and preallocate
+        let mut sample_iter = chive_out.array_iter_f32()?;
         let mut ch = SoundChunk::new();
         let mut i_ch: usize = 0;
-        let mut chunks = Vec::<SoundChunk>::with_capacity(n_samples / CHUNK_SIZE);
+        let mut chunks = Vec::<SoundChunk>::new();
+        let mut n_samples = 0;
         while let Some(l) = sample_iter.next() {
             let r = sample_iter.next().unwrap();
             if i_ch == CHUNK_SIZE {
@@ -114,6 +111,7 @@ impl Serializable for SoundBuffer {
             }
             ch.l[i_ch] = l;
             ch.r[i_ch] = r;
+            n_samples += 1;
         }
         Ok(SoundBuffer {
             chunks,

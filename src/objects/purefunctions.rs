@@ -10,8 +10,8 @@ use crate::{
     ui_core::arguments::FloatArgument,
 };
 use atomic_float::AtomicF32;
+use chive::ChiveIn;
 use inkwell::{values::FloatValue, FloatPredicate};
-use serialization::Serializer;
 use std::sync::{atomic::Ordering, Arc};
 
 pub struct Constant {
@@ -30,7 +30,7 @@ impl PureExpressionNode for Constant {
     fn new(_tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
             // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
-            ObjectInitialization::Archive(mut d) => d.f32()?,
+            ObjectInitialization::Deserialize(mut d) => d.f32()?,
             ObjectInitialization::Default => 0.0,
             ObjectInitialization::Arguments(args) => {
                 args.get(&Constant::ARG_VALUE).unwrap_or(0.0) as f32
@@ -39,8 +39,8 @@ impl PureExpressionNode for Constant {
         Ok(Constant { value })
     }
 
-    fn serialize(&self, mut serializer: Serializer) {
-        serializer.f32(self.value);
+    fn serialize(&self, mut chive_in: ChiveIn) {
+        chive_in.f32(self.value);
     }
 
     fn compile<'ctx>(
@@ -80,7 +80,7 @@ impl PureExpressionNode for Variable {
     fn new(_tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {
             // ObjectInitialization::Args(a) => a.get("value").as_float().unwrap_or(0.0),
-            ObjectInitialization::Archive(mut d) => d.f32()?,
+            ObjectInitialization::Deserialize(mut d) => d.f32()?,
             ObjectInitialization::Default => 0.0,
             ObjectInitialization::Arguments(args) => {
                 args.get(&Variable::ARG_VALUE).unwrap_or(0.0) as f32
@@ -91,8 +91,8 @@ impl PureExpressionNode for Variable {
         })
     }
 
-    fn serialize(&self, mut serializer: Serializer) {
-        serializer.f32(self.get_value());
+    fn serialize(&self, mut chive_in: ChiveIn) {
+        chive_in.f32(self.get_value());
     }
 
     fn compile<'ctx>(

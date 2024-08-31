@@ -1,10 +1,15 @@
 use std::{any::Any, rc::Rc};
 
-use serialization::Serializable;
+use chive::Chivable;
 
 use crate::core::graph::graph::Graph;
 
-pub trait ObjectUiState: Any + Serializable {}
+// TODO: DON'T require Chivable here, it doesn't
+// make sense for ui states which merely cache
+// things between UI redraws. Instead, create
+// member functions for serialization that
+// are optional.
+pub trait ObjectUiState: Any + Chivable {}
 
 pub trait GraphUi {
     /// the graph type being represented in the ui
@@ -41,7 +46,8 @@ pub trait ObjectUiData {
     type GraphUi: GraphUi;
 
     // TODO: think of a better name
-    type RequiredData: Default + Serializable;
+    // TODO: does this need to be Chivable?
+    type RequiredData: Default + Chivable;
 
     fn new<S: ObjectUiState>(
         id: <<Self::GraphUi as GraphUi>::Graph as Graph>::ObjectId,
