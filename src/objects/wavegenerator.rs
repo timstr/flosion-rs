@@ -1,25 +1,28 @@
-use crate::core::{
-    anydata::AnyData,
-    engine::{
-        compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-            CompiledExpressionVisitorMut,
+use crate::{
+    core::{
+        anydata::AnyData,
+        engine::{
+            compiledexpression::{
+                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+                CompiledExpressionVisitorMut,
+            },
+            soundgraphcompiler::SoundGraphCompiler,
         },
-        soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        jit::compiledexpression::Discretization,
+        samplefrequency::SAMPLE_FREQUENCY,
+        sound::{
+            context::{Context, LocalArrayList},
+            expression::SoundExpressionHandle,
+            expressionargument::SoundExpressionArgumentHandle,
+            soundgraphdata::SoundExpressionScope,
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+            state::State,
+        },
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compiledexpression::Discretization,
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{
-        context::{Context, LocalArrayList},
-        expression::SoundExpressionHandle,
-        expressionargument::SoundExpressionArgumentHandle,
-        soundgraphdata::SoundExpressionScope,
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-        state::State,
-    },
-    soundchunk::{SoundChunk, CHUNK_SIZE},
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct WaveGenerator {
@@ -60,7 +63,7 @@ impl DynamicSoundProcessor for WaveGenerator {
     type SoundInputType = ();
     type Expressions<'ctx> = WaveGeneratorExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(WaveGenerator {
             // TODO: bypass this array entirely?
             phase: tools.add_processor_array_argument(|state: &AnyData| -> &[f32] {

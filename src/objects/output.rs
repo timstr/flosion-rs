@@ -4,19 +4,22 @@ use std::sync::{
     Arc, Barrier,
 };
 
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    resample::resample_interleave,
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{
-        context::{Context, LocalArrayList},
-        soundinput::InputOptions,
-        soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
-        soundprocessortools::SoundProcessorTools,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        resample::resample_interleave,
+        samplefrequency::SAMPLE_FREQUENCY,
+        sound::{
+            context::{Context, LocalArrayList},
+            soundinput::InputOptions,
+            soundinputtypes::{SingleInput, SingleInputNode},
+            soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    soundchunk::{SoundChunk, CHUNK_SIZE},
+    ui_core::arguments::ParsedArguments,
 };
 
 use cpal::{
@@ -55,7 +58,7 @@ impl StaticSoundProcessor for Output {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let host = cpal::default_host();
         // TODO: propagate these errors
         let device = host

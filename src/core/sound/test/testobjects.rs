@@ -1,16 +1,19 @@
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::Context,
-        soundprocessor::{
-            DynamicSoundProcessor, ProcessorTiming, StateAndTiming, StaticSoundProcessor,
-            StaticSoundProcessorWithId, StreamStatus,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        sound::{
+            context::Context,
+            soundprocessor::{
+                DynamicSoundProcessor, ProcessorTiming, StateAndTiming, StaticSoundProcessor,
+                StaticSoundProcessorWithId, StreamStatus,
+            },
+            soundprocessortools::SoundProcessorTools,
+            state::State,
         },
-        soundprocessortools::SoundProcessorTools,
-        state::State,
+        soundchunk::SoundChunk,
     },
-    soundchunk::SoundChunk,
+    ui_core::arguments::ParsedArguments,
 };
 
 pub(super) struct TestStaticSoundProcessor {}
@@ -20,7 +23,7 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
 
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(Self {})
     }
 
@@ -63,7 +66,7 @@ impl DynamicSoundProcessor for TestDynamicSoundProcessor {
 
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(Self {})
     }
 

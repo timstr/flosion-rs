@@ -1,22 +1,25 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use chive::{Chivable, ChiveIn};
+use chive::ChiveIn;
 use parking_lot::RwLock;
 
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::{Context, LocalArrayList},
-        soundinput::InputOptions,
-        soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::{
-            ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        sound::{
+            context::{Context, LocalArrayList},
+            soundinput::InputOptions,
+            soundinputtypes::{SingleInput, SingleInputNode},
+            soundprocessor::{
+                ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
+            },
+            soundprocessortools::SoundProcessorTools,
         },
-        soundprocessortools::SoundProcessorTools,
+        soundbuffer::SoundBuffer,
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    soundbuffer::SoundBuffer,
-    soundchunk::{SoundChunk, CHUNK_SIZE},
+    ui_core::arguments::ParsedArguments,
 };
 
 const CHUNKS_PER_GROUP: usize = 64;
@@ -69,11 +72,8 @@ impl StaticSoundProcessor for Recorder {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
-        let buf = match _init {
-            ObjectInitialization::Deserialize(mut a) => SoundBuffer::chive_out(&mut a)?,
-            _ => SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP),
-        };
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+        let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
         let r = Recorder {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             recorded_chunk_groups: RwLock::new(vec![buf]),

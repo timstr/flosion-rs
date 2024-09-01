@@ -1,26 +1,29 @@
 use rand::prelude::*;
 
-use crate::core::{
-    engine::{
-        compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-            CompiledExpressionVisitorMut,
+use crate::{
+    core::{
+        engine::{
+            compiledexpression::{
+                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+                CompiledExpressionVisitorMut,
+            },
+            soundgraphcompiler::SoundGraphCompiler,
         },
-        soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        sound::{
+            context::{Context, LocalArrayList},
+            expression::SoundExpressionHandle,
+            expressionargument::SoundExpressionArgumentHandle,
+            soundgraphdata::SoundExpressionScope,
+            soundinput::InputOptions,
+            soundinputtypes::{KeyedInput, KeyedInputNode},
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+            state::State,
+        },
+        soundchunk::SoundChunk,
     },
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::{Context, LocalArrayList},
-        expression::SoundExpressionHandle,
-        expressionargument::SoundExpressionArgumentHandle,
-        soundgraphdata::SoundExpressionScope,
-        soundinput::InputOptions,
-        soundinputtypes::{KeyedInput, KeyedInputNode},
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-        state::State,
-    },
-    soundchunk::SoundChunk,
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct VoiceState {
@@ -85,7 +88,7 @@ impl DynamicSoundProcessor for Ensemble {
 
     type Expressions<'ctx> = EnsembleExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let num_keys = 4; // idk
         let input = KeyedInput::new(InputOptions::Synchronous, &mut tools, num_keys);
         let voice_frequency = tools.add_input_scalar_argument(input.id(), |state| {

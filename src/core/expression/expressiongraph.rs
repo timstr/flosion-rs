@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
-use crate::core::{
-    expression::expressiongraphvalidation::find_expression_error,
-    graph::{graph::Graph, graphobject::ObjectInitialization},
-    uniqueid::{IdGenerator, UniqueId},
+use crate::{
+    core::{
+        expression::expressiongraphvalidation::find_expression_error,
+        graph::graph::Graph,
+        uniqueid::{IdGenerator, UniqueId},
+    },
+    ui_core::arguments::ParsedArguments,
 };
 
 use super::{
@@ -167,14 +170,14 @@ impl ExpressionGraph {
     /// Returns a handle to the expression node.
     pub fn add_pure_expression_node<T: PureExpressionNode>(
         &mut self,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<PureExpressionNodeHandle<T>, ExpressionError> {
         self.try_make_change(|topo, idgens| {
             let id = idgens.node.next_id();
             topo.add_node(ExpressionNodeData::new_empty(id))?;
             let tools = ExpressionNodeTools::new(id, topo, idgens);
             let node = Arc::new(PureExpressionNodeWithId::new(
-                T::new(tools, init).map_err(|_| ExpressionError::BadNodeInit(id))?,
+                T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
                 id,
             ));
             let node2 = Arc::clone(&node);
@@ -192,14 +195,14 @@ impl ExpressionGraph {
     /// Returns a handle to the expression node.
     pub fn add_stateful_expression_node<T: StatefulExpressionNode>(
         &mut self,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<StatefulExpressionNodeHandle<T>, ExpressionError> {
         self.try_make_change(|topo, idgens| {
             let id = idgens.node.next_id();
             topo.add_node(ExpressionNodeData::new_empty(id))?;
             let tools = ExpressionNodeTools::new(id, topo, idgens);
             let node = Arc::new(StatefulExpressionNodeWithId::new(
-                T::new(tools, init).map_err(|_| ExpressionError::BadNodeInit(id))?,
+                T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
                 id,
             ));
             let node2 = Arc::clone(&node);

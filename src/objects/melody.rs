@@ -2,20 +2,23 @@ use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
 
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{
-        context::{Context, LocalArrayList},
-        expressionargument::SoundExpressionArgumentHandle,
-        soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-        state::State,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        samplefrequency::SAMPLE_FREQUENCY,
+        sound::{
+            context::{Context, LocalArrayList},
+            expressionargument::SoundExpressionArgumentHandle,
+            soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+            state::State,
+        },
+        soundchunk::{SoundChunk, CHUNK_SIZE},
+        uniqueid::{IdGenerator, UniqueId},
     },
-    soundchunk::{SoundChunk, CHUNK_SIZE},
-    uniqueid::{IdGenerator, UniqueId},
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct NoteTag;
@@ -117,7 +120,7 @@ impl DynamicSoundProcessor for Melody {
 
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let queue_size = 8; // idk
         let input = KeyedInputQueue::new(queue_size, &mut tools);
         let note_frequency = tools.add_input_scalar_argument(input.id(), |state| {

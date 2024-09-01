@@ -2,18 +2,21 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 
 use parking_lot::Mutex;
 
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::{Context, LocalArrayList},
-        expressionargument::SoundExpressionArgumentHandle,
-        soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
-        soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
-        soundprocessortools::SoundProcessorTools,
-        state::State,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        sound::{
+            context::{Context, LocalArrayList},
+            expressionargument::SoundExpressionArgumentHandle,
+            soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
+            soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessortools::SoundProcessorTools,
+            state::State,
+        },
+        soundchunk::SoundChunk,
     },
-    soundchunk::SoundChunk,
+    ui_core::arguments::ParsedArguments,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -67,7 +70,7 @@ impl StaticSoundProcessor for Keyboard {
 
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let message_queue_size = 16; // idk
         let input_queue_size = 8; // idk
         let (command_sender, command_receiver) = sync_channel(message_queue_size);

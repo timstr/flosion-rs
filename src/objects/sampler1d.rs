@@ -7,13 +7,16 @@ use inkwell::{
     AtomicOrdering, AtomicRMWBinOp, IntPredicate,
 };
 
-use crate::core::{
-    expression::{
-        expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
-        expressionnodetools::ExpressionNodeTools,
+use crate::{
+    core::{
+        expression::{
+            expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
+            expressionnodetools::ExpressionNodeTools,
+        },
+        graph::graphobject::{ObjectType, WithObjectType},
+        jit::codegen::CodeGen,
     },
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::codegen::CodeGen,
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct Sampler1d {
@@ -34,8 +37,8 @@ pub struct Sampler1dCompileState<'ctx> {
 }
 
 impl StatefulExpressionNode for Sampler1d {
-    fn new(mut tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
-        // TODO: use init
+    fn new(mut tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()> {
+        // TODO: use args?
         let mut value = Vec::new();
         value.resize(256, 0.0);
         Ok(Sampler1d {

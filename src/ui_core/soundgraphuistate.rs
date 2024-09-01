@@ -5,13 +5,13 @@ use eframe::egui;
 use crate::{
     core::{
         audiofileio::load_audio_file,
-        graph::graphobject::ObjectInitialization,
         sound::{
             expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
             soundgraphtopology::SoundGraphTopology,
         },
     },
     objects::audioclip::AudioClip,
+    ui_core::arguments::ParsedArguments,
 };
 
 use super::{
@@ -111,7 +111,7 @@ impl SoundGraphUiState {
             println!("Loading {}", path.display());
             if let Ok(buf) = load_audio_file(path) {
                 let audioclip = graph
-                    .add_dynamic_sound_processor::<AudioClip>(ObjectInitialization::Default)
+                    .add_dynamic_sound_processor::<AudioClip>(ParsedArguments::new_empty())
                     .unwrap();
                 audioclip.set_data(buf);
                 println!("Loaded {}", path.display());

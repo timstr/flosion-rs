@@ -13,7 +13,7 @@ use crate::{
             soundgraphcompiler::SoundGraphCompiler,
         },
         expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
-        graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        graph::graphobject::{ObjectType, WithObjectType},
         jit::{codegen::CodeGen, compiledexpression::Discretization},
         sound::{
             context::{Context, LocalArrayList},
@@ -31,6 +31,7 @@ use crate::{
         soundchunk::SoundChunk,
     },
     objects::purefunctions::*,
+    ui_core::arguments::ParsedArguments,
 };
 
 const TEST_ARRAY_SIZE: usize = 1024;
@@ -80,7 +81,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
 
     type Expressions<'ctx> = TestExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(TestSoundProcessor {
             expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
             input_values: Mutex::new([[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]),
@@ -170,7 +171,7 @@ fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
     let proc = build_dynamic_sound_processor::<TestSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -184,7 +185,7 @@ fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
         let giid2 = mapping.add_argument(proc.argument_2.id(), expr_graph);
 
         let ns_handle = expr_graph
-            .add_pure_expression_node::<T>(ObjectInitialization::Default)
+            .add_pure_expression_node::<T>(ParsedArguments::new_empty())
             .unwrap();
 
         let input_ids = expr_graph

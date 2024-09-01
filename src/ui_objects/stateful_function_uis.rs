@@ -1,14 +1,12 @@
 use crate::{
-    core::{
-        expression::{
-            expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
-        },
-        graph::graphobject::ObjectInitialization,
+    core::expression::{
+        expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
     },
     objects::statefulfunctions::{
         ExponentialApproach, Integrator, LinearApproach, WrappingIntegrator,
     },
     ui_core::{
+        arguments::ParsedArguments,
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
@@ -51,11 +49,7 @@ impl ObjectUi for LinearApproachUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }
@@ -93,11 +87,7 @@ impl ObjectUi for ExponentialApproachUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }
@@ -131,11 +121,7 @@ impl ObjectUi for IntegratorUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }
@@ -173,11 +159,7 @@ impl ObjectUi for WrappingIntegratorUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

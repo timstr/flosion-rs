@@ -1,14 +1,12 @@
 pub(crate) use eframe::egui;
 
 use crate::{
-    core::{
-        graph::graphobject::ObjectInitialization,
-        sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
-    },
+    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
     objects::output::Output,
     ui_core::{
-        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -54,11 +52,7 @@ impl ObjectUi for OutputUi {
         ()
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

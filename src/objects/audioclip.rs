@@ -1,13 +1,13 @@
 use std::{ops::Deref, sync::Arc};
 
-use chive::{Chivable, ChiveIn};
+use chive::ChiveIn;
 use parking_lot::RwLock;
 
 use crate::{
     core::{
         audiofileio::load_audio_file,
         engine::soundgraphcompiler::SoundGraphCompiler,
-        graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        graph::graphobject::{ObjectType, WithObjectType},
         sound::{
             context::Context,
             soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
@@ -17,7 +17,7 @@ use crate::{
         soundbuffer::SoundBuffer,
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    ui_core::arguments::FilePathArgument,
+    ui_core::arguments::{FilePathArgument, ParsedArguments},
 };
 
 pub struct AudioClip {
@@ -54,24 +54,16 @@ impl DynamicSoundProcessor for AudioClip {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
-        let mut buffer = match init {
-            ObjectInitialization::Deserialize(mut chive_out) => {
-                SoundBuffer::chive_out(&mut chive_out)?
+    fn new(_tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()> {
+        let buffer = if let Some(path) = args.get(&Self::ARG_PATH) {
+            if let Ok(b) = load_audio_file(&path) {
+                b
+            } else {
+                println!("Failed to load audio file from \"{}\"", path.display());
+                SoundBuffer::new_empty()
             }
-            ObjectInitialization::Arguments(args) => {
-                if let Some(path) = args.get(&Self::ARG_PATH) {
-                    if let Ok(b) = load_audio_file(&path) {
-                        b
-                    } else {
-                        println!("Failed to load audio file from \"{}\"", path.display());
-                        SoundBuffer::new_empty()
-                    }
-                } else {
-                    SoundBuffer::new_empty()
-                }
-            }
-            ObjectInitialization::Default => SoundBuffer::new_empty(),
+        } else {
+            SoundBuffer::new_empty()
         };
         Ok(AudioClip {
             data: Arc::new(RwLock::new(buffer)),

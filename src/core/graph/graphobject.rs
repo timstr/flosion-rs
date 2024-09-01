@@ -1,6 +1,6 @@
 use std::{any::Any, sync::Arc};
 
-use chive::{ChiveIn, ChiveOut};
+use chive::ChiveIn;
 
 use crate::ui_core::arguments::ParsedArguments;
 
@@ -22,7 +22,7 @@ impl ObjectType {
 }
 
 pub trait GraphObject<G: Graph>: 'static + Send + Sync {
-    fn create(graph: &mut G, init: ObjectInitialization) -> Result<GraphObjectHandle<G>, ()>
+    fn create(graph: &mut G, args: ParsedArguments) -> Result<GraphObjectHandle<G>, ()>
     where
         Self: Sized;
 
@@ -77,12 +77,6 @@ pub trait ObjectHandle<G: Graph>: Sized {
     fn from_graph_object(object: GraphObjectHandle<G>) -> Option<Self>;
 
     fn object_type() -> ObjectType;
-}
-
-pub enum ObjectInitialization<'a> {
-    Deserialize(ChiveOut<'a>),
-    Arguments(ParsedArguments),
-    Default,
 }
 
 pub trait WithObjectType: 'static {

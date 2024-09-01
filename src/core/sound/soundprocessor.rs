@@ -6,21 +6,23 @@ use std::{
 
 use chive::ChiveIn;
 
-use crate::core::{
-    engine::{
-        compiledexpression::CompiledExpressionCollection,
-        compiledsoundinput::SoundProcessorInput,
-        soundgraphcompiler::SoundGraphCompiler,
-        stategraphnode::{
-            CompiledDynamicProcessor, CompiledSoundProcessor, CompiledStaticProcessor,
+use crate::{
+    core::{
+        engine::{
+            compiledexpression::CompiledExpressionCollection,
+            compiledsoundinput::SoundProcessorInput,
+            soundgraphcompiler::SoundGraphCompiler,
+            stategraphnode::{
+                CompiledDynamicProcessor, CompiledSoundProcessor, CompiledStaticProcessor,
+            },
         },
+        graph::graphobject::{
+            GraphObject, GraphObjectHandle, ObjectHandle, ObjectType, WithObjectType,
+        },
+        soundchunk::SoundChunk,
+        uniqueid::UniqueId,
     },
-    graph::graphobject::{
-        GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
-        WithObjectType,
-    },
-    soundchunk::SoundChunk,
-    uniqueid::UniqueId,
+    ui_core::arguments::ParsedArguments,
 };
 
 use super::{
@@ -43,7 +45,7 @@ pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
 
     type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
 
-    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
+    fn new(tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()>;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
@@ -71,7 +73,7 @@ pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType 
 
     type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
 
-    fn new(tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()>;
+    fn new(tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()>;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
@@ -469,10 +471,10 @@ impl<T: DynamicSoundProcessor> ObjectHandle<SoundGraph> for DynamicSoundProcesso
 impl<T: StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWithId<T> {
     fn create(
         graph: &mut SoundGraph,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<GraphObjectHandle<SoundGraph>, ()> {
         graph
-            .add_static_sound_processor::<T>(init)
+            .add_static_sound_processor::<T>(args)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }
@@ -505,10 +507,10 @@ impl<T: StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWi
 impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessorWithId<T> {
     fn create(
         graph: &mut SoundGraph,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<GraphObjectHandle<SoundGraph>, ()> {
         graph
-            .add_dynamic_sound_processor::<T>(init)
+            .add_dynamic_sound_processor::<T>(args)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }

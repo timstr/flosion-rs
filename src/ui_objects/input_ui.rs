@@ -2,14 +2,14 @@ use eframe::egui;
 
 use crate::{
     core::{
-        graph::graphobject::ObjectInitialization,
         sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
     objects::input::Input,
     ui_core::{
-        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -100,7 +100,7 @@ impl ObjectUi for InputUi {
     fn make_ui_state(
         &self,
         handle: &Self::HandleType,
-        _init: ObjectInitialization,
+        _args: ParsedArguments,
     ) -> Result<InputUiState, ()> {
         let mut amplitude_history = Vec::new();
         amplitude_history.resize(100, 0.0);

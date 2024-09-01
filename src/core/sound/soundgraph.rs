@@ -7,13 +7,16 @@ use std::{
 use hashrevise::{Revisable, RevisionHash};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use crate::core::{
-    engine::{
-        garbage::GarbageDisposer,
-        soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
+use crate::{
+    core::{
+        engine::{
+            garbage::GarbageDisposer,
+            soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
+        },
+        graph::graph::Graph,
+        jit::server::{JitClient, JitServer, JitServerBuilder},
     },
-    graph::{graph::Graph, graphobject::ObjectInitialization},
-    jit::server::{JitClient, JitServer, JitServerBuilder},
+    ui_core::arguments::ParsedArguments,
 };
 
 use super::{
@@ -222,10 +225,10 @@ impl SoundGraph {
     /// see ObjectFactory.
     pub fn add_static_sound_processor<T: StaticSoundProcessor>(
         &mut self,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
         self.try_make_change(move |topo, idgens| {
-            build_static_sound_processor::<T>(topo, idgens, init)
+            build_static_sound_processor::<T>(topo, idgens, args)
         })
     }
 
@@ -237,10 +240,10 @@ impl SoundGraph {
     /// see ObjectFactory.
     pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
         &mut self,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
         self.try_make_change(move |topo, idgens| {
-            build_dynamic_sound_processor::<T>(topo, idgens, init)
+            build_dynamic_sound_processor::<T>(topo, idgens, args)
         })
     }
 

@@ -4,13 +4,15 @@ use eframe::egui;
 use crate::{
     core::{
         audiofileio::load_audio_file,
-        graph::graphobject::ObjectInitialization,
         sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     },
     objects::audioclip::AudioClip,
     ui_core::{
-        arguments::ArgumentList, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        arguments::{ArgumentList, ParsedArguments},
+        object_ui::ObjectUi,
+        soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -107,7 +109,7 @@ impl ObjectUi for AudioClipUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: ObjectInitialization,
+        _args: ParsedArguments,
     ) -> Result<AudioClipUiState, ()> {
         // TODO: use init
         Ok(AudioClipUiState {

@@ -3,7 +3,7 @@ use chive::ChiveIn;
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
-        graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
+        graph::graphobject::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
             soundinput::{InputOptions, SoundInputId},
@@ -13,7 +13,7 @@ use crate::{
         },
         soundchunk::SoundChunk,
     },
-    ui_core::arguments::NaturalNumberArgument,
+    ui_core::arguments::{NaturalNumberArgument, ParsedArguments},
 };
 
 pub struct Mixer {
@@ -47,12 +47,8 @@ impl DynamicSoundProcessor for Mixer {
     type SoundInputType = SingleInputList;
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, init: ObjectInitialization) -> Result<Self, ()> {
-        let num_inputs: usize = match init {
-            ObjectInitialization::Deserialize(mut a) => a.u8()? as usize,
-            ObjectInitialization::Default => 2,
-            ObjectInitialization::Arguments(args) => args.get(&Mixer::ARG_NUM_INPUTS).unwrap_or(2),
-        };
+    fn new(mut tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()> {
+        let num_inputs = args.get(&Mixer::ARG_NUM_INPUTS).unwrap_or(2);
         Ok(Mixer {
             inputs: SingleInputList::new(num_inputs, MIXER_INPUT_OPTIONS, &mut tools),
         })

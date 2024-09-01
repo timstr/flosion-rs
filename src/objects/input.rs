@@ -7,16 +7,19 @@ use cpal::{
 use parking_lot::Mutex;
 use spmcq::ReadResult;
 
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{
-        context::Context,
-        soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
-        soundprocessortools::SoundProcessorTools,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        samplefrequency::SAMPLE_FREQUENCY,
+        sound::{
+            context::Context,
+            soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    soundchunk::{SoundChunk, CHUNK_SIZE},
+    ui_core::arguments::ParsedArguments,
 };
 
 // TODO: rename to something less vague
@@ -47,7 +50,7 @@ impl StaticSoundProcessor for Input {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let host = cpal::default_host();
         let device = host
             .default_input_device()

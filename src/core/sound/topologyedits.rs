@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::{graph::graphobject::ObjectInitialization, uniqueid::IdGenerator};
+use crate::{core::uniqueid::IdGenerator, ui_core::arguments::ParsedArguments};
 
 use super::{
     expression::SoundExpressionId,
@@ -47,7 +47,7 @@ impl SoundGraphIdGenerators {
 pub(crate) fn build_static_sound_processor<T: StaticSoundProcessor>(
     topo: &mut SoundGraphTopology,
     idgens: &mut SoundGraphIdGenerators,
-    init: ObjectInitialization,
+    args: ParsedArguments,
 ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
     let id = idgens.sound_processor.next_id();
 
@@ -71,7 +71,7 @@ pub(crate) fn build_static_sound_processor<T: StaticSoundProcessor>(
 
     // construct the actual processor instance by its
     // concrete type
-    let processor = T::new(tools, init).map_err(|_| SoundError::BadProcessorInit(id))?;
+    let processor = T::new(tools, args).map_err(|_| SoundError::BadProcessorInit(id))?;
 
     // wrap the processor in a type-erased Arc
     let processor = Arc::new(StaticSoundProcessorWithId::new(
@@ -98,7 +98,7 @@ pub(crate) fn build_static_sound_processor<T: StaticSoundProcessor>(
 pub(crate) fn build_dynamic_sound_processor<T: DynamicSoundProcessor>(
     topo: &mut SoundGraphTopology,
     idgens: &mut SoundGraphIdGenerators,
-    init: ObjectInitialization,
+    args: ParsedArguments,
 ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
     let id = idgens.sound_processor.next_id();
 
@@ -122,7 +122,7 @@ pub(crate) fn build_dynamic_sound_processor<T: DynamicSoundProcessor>(
 
     // construct the actual processor instance by its
     // concrete type
-    let processor = T::new(tools, init).map_err(|_| SoundError::BadProcessorInit(id))?;
+    let processor = T::new(tools, args).map_err(|_| SoundError::BadProcessorInit(id))?;
 
     // wrap the processor in a type-erased Arc
     let processor = Arc::new(DynamicSoundProcessorWithId::new(

@@ -1,24 +1,27 @@
-use crate::core::{
-    engine::{
-        compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-            CompiledExpressionVisitorMut,
+use crate::{
+    core::{
+        engine::{
+            compiledexpression::{
+                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+                CompiledExpressionVisitorMut,
+            },
+            soundgraphcompiler::SoundGraphCompiler,
         },
-        soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        samplefrequency::SAMPLE_FREQUENCY,
+        sound::{
+            context::{Context, LocalArrayList},
+            expression::SoundExpressionHandle,
+            soundgraphdata::SoundExpressionScope,
+            soundinput::InputOptions,
+            soundinputtypes::{SingleInput, SingleInputNode},
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+            state::State,
+        },
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{
-        context::{Context, LocalArrayList},
-        expression::SoundExpressionHandle,
-        soundgraphdata::SoundExpressionScope,
-        soundinput::InputOptions,
-        soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-        state::State,
-    },
-    soundchunk::{SoundChunk, CHUNK_SIZE},
+    ui_core::arguments::ParsedArguments,
 };
 
 #[derive(Debug)]
@@ -126,7 +129,7 @@ impl DynamicSoundProcessor for ADSR {
 
     type Expressions<'ctx> = ADSRExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(ADSR {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             attack_time: tools

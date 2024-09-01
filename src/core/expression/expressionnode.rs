@@ -3,13 +3,15 @@ use std::{any::type_name, ops::Deref, sync::Arc};
 use chive::ChiveIn;
 use inkwell::values::{FloatValue, PointerValue};
 
-use crate::core::{
-    graph::graphobject::{
-        GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
-        WithObjectType,
+use crate::{
+    core::{
+        graph::graphobject::{
+            GraphObject, GraphObjectHandle, ObjectHandle, ObjectType, WithObjectType,
+        },
+        jit::codegen::CodeGen,
+        uniqueid::UniqueId,
     },
-    jit::codegen::CodeGen,
-    uniqueid::UniqueId,
+    ui_core::arguments::ParsedArguments,
 };
 
 use super::{expressiongraph::ExpressionGraph, expressionnodetools::ExpressionNodeTools};
@@ -22,7 +24,7 @@ pub type ExpressionNodeId = UniqueId<ExpressionNodeTag>;
 /// with no side effects or hidden state. Intended to be used for elementary
 /// mathematical functions and easy, closed-form calculations.
 pub trait PureExpressionNode: 'static + Sync + Send + WithObjectType {
-    fn new(tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
+    fn new(tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
 
@@ -101,10 +103,10 @@ impl<T: PureExpressionNode> ExpressionNode for PureExpressionNodeWithId<T> {
 impl<T: PureExpressionNode> GraphObject<ExpressionGraph> for PureExpressionNodeWithId<T> {
     fn create(
         graph: &mut ExpressionGraph,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<GraphObjectHandle<ExpressionGraph>, ()> {
         graph
-            .add_pure_expression_node::<T>(init)
+            .add_pure_expression_node::<T>(args)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }
@@ -193,7 +195,7 @@ impl<T: PureExpressionNode> ObjectHandle<ExpressionGraph> for PureExpressionNode
 /// involving reccurences, e.g. relying on previous results, as well
 /// as data structures that e.g. require locking in order to read safely.
 pub trait StatefulExpressionNode: 'static + Sync + Send + WithObjectType {
-    fn new(tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()>
+    fn new(tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
 
@@ -367,10 +369,10 @@ impl<T: StatefulExpressionNode> ExpressionNode for StatefulExpressionNodeWithId<
 impl<T: StatefulExpressionNode> GraphObject<ExpressionGraph> for StatefulExpressionNodeWithId<T> {
     fn create(
         graph: &mut ExpressionGraph,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<GraphObjectHandle<ExpressionGraph>, ()> {
         graph
-            .add_stateful_expression_node::<T>(init)
+            .add_stateful_expression_node::<T>(args)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }

@@ -1,14 +1,17 @@
 use rand::prelude::*;
 
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::Context,
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        sound::{
+            context::Context,
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::SoundChunk,
     },
-    soundchunk::SoundChunk,
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct WhiteNoise {}
@@ -18,7 +21,7 @@ impl DynamicSoundProcessor for WhiteNoise {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(WhiteNoise {})
     }
 

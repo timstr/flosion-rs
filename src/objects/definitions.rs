@@ -1,24 +1,27 @@
-use crate::core::{
-    engine::{
-        compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-            CompiledExpressionVisitorMut,
+use crate::{
+    core::{
+        engine::{
+            compiledexpression::{
+                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+                CompiledExpressionVisitorMut,
+            },
+            soundgraphcompiler::SoundGraphCompiler,
         },
-        soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        jit::compiledexpression::Discretization,
+        sound::{
+            context::{Context, LocalArrayList},
+            expression::SoundExpressionHandle,
+            expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
+            soundgraphdata::SoundExpressionScope,
+            soundinput::InputOptions,
+            soundinputtypes::{SingleInput, SingleInputNode},
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::{SoundChunk, CHUNK_SIZE},
     },
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compiledexpression::Discretization,
-    sound::{
-        context::{Context, LocalArrayList},
-        expression::SoundExpressionHandle,
-        expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
-        soundgraphdata::SoundExpressionScope,
-        soundinput::InputOptions,
-        soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-    },
-    soundchunk::{SoundChunk, CHUNK_SIZE},
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct Definitions {
@@ -52,7 +55,7 @@ impl DynamicSoundProcessor for Definitions {
 
     type Expressions<'ctx> = DefinitionsExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),

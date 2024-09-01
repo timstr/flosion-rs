@@ -1,6 +1,5 @@
-use crate::core::{
-    graph::graphobject::ObjectInitialization,
-    sound::{
+use crate::{
+    core::sound::{
         sounderror::SoundError,
         soundgraphdata::SoundInputBranchId,
         soundgraphtopology::SoundGraphTopology,
@@ -12,6 +11,7 @@ use crate::core::{
             SoundGraphIdGenerators,
         },
     },
+    ui_core::arguments::ParsedArguments,
 };
 
 #[test]
@@ -27,7 +27,7 @@ fn find_error_one_static_proc() {
     build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
     assert_eq!(find_sound_error(&topo), None);
@@ -40,7 +40,7 @@ fn find_error_one_dynamic_proc() {
     build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
     assert_eq!(find_sound_error(&topo), None);
@@ -54,7 +54,7 @@ fn find_error_static_to_self_cycle() {
     let proc = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -82,14 +82,14 @@ fn find_error_static_to_dynamic_no_branches() {
     let static_proc = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let dynamic_proc = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -115,14 +115,14 @@ fn find_error_static_to_dynamic_one_branch() {
     let static_proc = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let dynamic_proc = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -148,14 +148,14 @@ fn find_error_static_to_dynamic_two_branches() {
     let static_proc = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let dynamic_proc = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -181,14 +181,14 @@ fn find_error_static_to_static_no_branches() {
     let proc1 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -216,14 +216,14 @@ fn find_error_static_to_static_one_branch() {
     let proc1 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -248,14 +248,14 @@ fn find_error_static_to_static_two_branches() {
     let proc1 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -283,14 +283,14 @@ fn find_error_static_to_dynamic_one_branch_nonsync() {
     let proc1 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -315,14 +315,14 @@ fn find_error_static_to_static_one_branch_nonsync() {
     let proc1 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -350,14 +350,14 @@ fn find_error_dynamic_to_static_no_branches() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -385,14 +385,14 @@ fn find_error_dynamic_to_static_one_branch() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -417,14 +417,14 @@ fn find_error_dynamic_to_static_two_branches() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -452,14 +452,14 @@ fn find_error_dynamic_to_static_nonsync() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -487,21 +487,21 @@ fn find_error_dynamic_to_dynamic_to_static_no_branches() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc3 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -538,21 +538,21 @@ fn find_error_dynamic_to_dynamic_to_static_one_branch() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc3 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -586,21 +586,21 @@ fn find_error_dynamic_to_dynamic_to_static_cycle() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc3 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -646,21 +646,21 @@ fn find_error_dynamic_to_dynamic_to_static_two_branches() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc3 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -697,21 +697,21 @@ fn find_error_dynamic_to_dynamic_to_static_nonsync() {
     let proc1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc3 = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -748,28 +748,28 @@ fn find_error_dynamic_indirect_fork_to_static_nonsync() {
     let proc_root1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc_root2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc_middle = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc_leaf = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -818,21 +818,21 @@ fn find_error_dynamic_direct_fork_to_static_nonsync() {
     let proc_root1 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc_root2 = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc_leaf = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
@@ -868,21 +868,21 @@ fn find_error_dynamic_split_to_static_two_inputs() {
     let proc_root = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc_side = build_dynamic_sound_processor::<TestDynamicSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 
     let proc_leaf = build_static_sound_processor::<TestStaticSoundProcessor>(
         &mut topo,
         &mut idgens,
-        ObjectInitialization::Default,
+        ParsedArguments::new_empty(),
     )
     .unwrap();
 

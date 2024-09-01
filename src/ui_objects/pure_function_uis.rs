@@ -2,13 +2,12 @@ use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
 
 use crate::{
-    core::{
-        expression::{expressiongraph::ExpressionGraph, expressionnode::PureExpressionNodeHandle},
-        graph::graphobject::ObjectInitialization,
+    core::expression::{
+        expressiongraph::ExpressionGraph, expressionnode::PureExpressionNodeHandle,
     },
     objects::purefunctions::*,
     ui_core::{
-        arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
+        arguments::{ArgumentList, FloatRangeArgument, ParsedArguments, StringIdentifierArgument},
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
@@ -61,11 +60,7 @@ impl ObjectUi for ConstantUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }
@@ -165,53 +160,34 @@ impl ObjectUi for SliderUi {
     fn make_ui_state(
         &self,
         object: &PureExpressionNodeHandle<Variable>,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<SliderUiState, ()> {
-        let min_value;
-        let max_value;
-        let name;
-
-        match init {
-            ObjectInitialization::Default => {
-                let v = object.get_value();
-                min_value = if v < 0.0 { 2.0 * v } else { 0.0 };
-                max_value = 2.0 * v.abs();
-                name = "".to_string();
-            }
-            ObjectInitialization::Arguments(args) => {
-                let value = args.get(&Variable::ARG_VALUE);
-                let range = args.get(&SliderUi::ARG_RANGE);
-                let (value, range) = match (value, range) {
-                    (Some(v), Some(r)) => (v, r),
-                    (None, Some(r)) => (0.5 * (r.start() + r.end()), r),
-                    (Some(v), None) => (
-                        v,
-                        if v == 0.0 {
-                            0.0..=1.0
-                        } else if v < 0.0 {
-                            (2.0 * v)..=(-2.0 * v)
-                        } else {
-                            0.0..=(2.0 * v)
-                        },
-                    ),
-                    (None, None) => (1.0, 0.0..=2.0),
-                };
-
-                object.set_value(value as f32);
-
-                min_value = *range.start() as f32;
-                max_value = *range.end() as f32;
-                name = args
-                    .get(&SliderUi::ARG_NAME)
-                    .unwrap_or_else(|| "".to_string());
-            }
-            ObjectInitialization::Deserialize(mut chive_out) => {
-                // TODO: propagate errors
-                min_value = chive_out.f32().unwrap();
-                max_value = chive_out.f32().unwrap();
-                name = chive_out.string().unwrap();
-            }
+        let value = args.get(&Variable::ARG_VALUE);
+        let range = args.get(&SliderUi::ARG_RANGE);
+        let (value, range) = match (value, range) {
+            (Some(v), Some(r)) => (v, r),
+            (None, Some(r)) => (0.5 * (r.start() + r.end()), r),
+            (Some(v), None) => (
+                v,
+                if v == 0.0 {
+                    0.0..=1.0
+                } else if v < 0.0 {
+                    (2.0 * v)..=(-2.0 * v)
+                } else {
+                    0.0..=(2.0 * v)
+                },
+            ),
+            (None, None) => (1.0, 0.0..=2.0),
         };
+
+        object.set_value(value as f32);
+
+        let min_value = *range.start() as f32;
+        let max_value = *range.end() as f32;
+        let name = args
+            .get(&SliderUi::ARG_NAME)
+            .unwrap_or_else(|| "".to_string());
+
         Ok(SliderUiState {
             min_value,
             max_value,
@@ -254,7 +230,7 @@ macro_rules! unary_expression_node_ui {
             fn make_ui_state(
                 &self,
                 _object: &PureExpressionNodeHandle<$object>,
-                _init: ObjectInitialization,
+                _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())
             }
@@ -295,7 +271,7 @@ macro_rules! binary_expression_node_ui {
             fn make_ui_state(
                 &self,
                 _object: &PureExpressionNodeHandle<$object>,
-                _init: ObjectInitialization,
+                _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())
             }
@@ -336,7 +312,7 @@ macro_rules! ternary_expression_node_ui {
             fn make_ui_state(
                 &self,
                 _handle: &Self::HandleType,
-                _init: ObjectInitialization,
+                _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())
             }

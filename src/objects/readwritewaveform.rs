@@ -1,24 +1,27 @@
-use crate::core::{
-    engine::{
-        compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-            CompiledExpressionVisitorMut,
+use crate::{
+    core::{
+        engine::{
+            compiledexpression::{
+                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+                CompiledExpressionVisitorMut,
+            },
+            soundgraphcompiler::SoundGraphCompiler,
         },
-        soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        jit::compiledexpression::Discretization,
+        sound::{
+            context::{Context, LocalArrayList},
+            expression::SoundExpressionHandle,
+            expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
+            soundgraphdata::SoundExpressionScope,
+            soundinput::InputOptions,
+            soundinputtypes::{SingleInput, SingleInputNode},
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::SoundChunk,
     },
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compiledexpression::Discretization,
-    sound::{
-        context::{Context, LocalArrayList},
-        expression::SoundExpressionHandle,
-        expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
-        soundgraphdata::SoundExpressionScope,
-        soundinput::InputOptions,
-        soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-    },
-    soundchunk::SoundChunk,
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct ReadWriteWaveform {
@@ -50,7 +53,7 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ReadWriteWaveformExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let input_l = tools.add_local_array_argument();
         let input_r = tools.add_local_array_argument();
         let waveform_scope = SoundExpressionScope::with_processor_state()

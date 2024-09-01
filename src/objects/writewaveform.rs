@@ -1,21 +1,24 @@
-use crate::core::{
-    engine::{
-        compiledexpression::{
-            CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-            CompiledExpressionVisitorMut,
+use crate::{
+    core::{
+        engine::{
+            compiledexpression::{
+                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
+                CompiledExpressionVisitorMut,
+            },
+            soundgraphcompiler::SoundGraphCompiler,
         },
-        soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        jit::compiledexpression::Discretization,
+        sound::{
+            context::{Context, LocalArrayList},
+            expression::SoundExpressionHandle,
+            soundgraphdata::SoundExpressionScope,
+            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::SoundChunk,
     },
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    jit::compiledexpression::Discretization,
-    sound::{
-        context::{Context, LocalArrayList},
-        expression::SoundExpressionHandle,
-        soundgraphdata::SoundExpressionScope,
-        soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-        soundprocessortools::SoundProcessorTools,
-    },
-    soundchunk::SoundChunk,
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct WriteWaveform {
@@ -41,7 +44,7 @@ impl DynamicSoundProcessor for WriteWaveform {
     type SoundInputType = ();
     type Expressions<'ctx> = WriteWaveformExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(WriteWaveform {
             waveform: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
         })

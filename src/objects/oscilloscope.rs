@@ -1,16 +1,19 @@
 use parking_lot::Mutex;
 
-use crate::core::{
-    engine::soundgraphcompiler::SoundGraphCompiler,
-    graph::graphobject::{ObjectInitialization, ObjectType, WithObjectType},
-    sound::{
-        context::{Context, LocalArrayList},
-        soundinput::InputOptions,
-        soundinputtypes::{SingleInput, SingleInputNode},
-        soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
-        soundprocessortools::SoundProcessorTools,
+use crate::{
+    core::{
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        graph::graphobject::{ObjectType, WithObjectType},
+        sound::{
+            context::{Context, LocalArrayList},
+            soundinput::InputOptions,
+            soundinputtypes::{SingleInput, SingleInputNode},
+            soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessortools::SoundProcessorTools,
+        },
+        soundchunk::SoundChunk,
     },
-    soundchunk::SoundChunk,
+    ui_core::arguments::ParsedArguments,
 };
 
 pub struct Oscilloscope {
@@ -38,7 +41,7 @@ impl StaticSoundProcessor for Oscilloscope {
 
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, _init: ObjectInitialization) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let (reader, writer) = spmcq::ring_buffer(64);
         Ok(Oscilloscope {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),

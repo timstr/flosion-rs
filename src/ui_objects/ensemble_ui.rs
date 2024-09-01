@@ -1,15 +1,12 @@
 use eframe::egui;
 
 use crate::{
-    core::{
-        graph::graphobject::ObjectInitialization,
-        sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
-    },
+    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::ensemble::Ensemble,
     ui_core::{
-        expressionplot::PlotConfig, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
-        soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::ObjectUi,
+        soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -82,11 +79,7 @@ impl ObjectUi for EnsembleUi {
         ()
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

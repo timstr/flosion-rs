@@ -6,11 +6,11 @@ use crate::ui_core::arguments::ParsedArguments;
 
 use super::{
     graph::Graph,
-    graphobject::{GraphObject, GraphObjectHandle, ObjectInitialization},
+    graphobject::{GraphObject, GraphObjectHandle},
 };
 
 struct ObjectData<G: Graph> {
-    create: Box<dyn Fn(&mut G, ObjectInitialization) -> Result<GraphObjectHandle<G>, ()>>,
+    create: Box<dyn Fn(&mut G, ParsedArguments) -> Result<GraphObjectHandle<G>, ()>>,
 }
 
 pub struct ObjectFactory<G: Graph> {
@@ -25,8 +25,8 @@ impl<G: Graph> ObjectFactory<G> {
     }
 
     pub fn register<T: GraphObject<G>>(&mut self) {
-        let create = |g: &mut G, init: ObjectInitialization| -> Result<GraphObjectHandle<G>, ()> {
-            T::create(g, init)
+        let create = |g: &mut G, args: ParsedArguments| -> Result<GraphObjectHandle<G>, ()> {
+            T::create(g, args)
         };
         self.mapping.insert(
             T::get_type().name(),
@@ -40,10 +40,10 @@ impl<G: Graph> ObjectFactory<G> {
         &self,
         object_type_str: &str,
         graph: &mut G,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<GraphObjectHandle<G>, ()> {
         match self.mapping.get(object_type_str) {
-            Some(data) => (*data.create)(graph, init),
+            Some(data) => (*data.create)(graph, args),
             None => panic!(
                 "Tried to create an object of unrecognized type \"{}\"",
                 object_type_str
@@ -51,37 +51,34 @@ impl<G: Graph> ObjectFactory<G> {
         }
     }
 
+    // TODO: is this needed?
     pub(crate) fn create_default(
         &self,
         object_type_str: &str,
         graph: &mut G,
     ) -> Result<GraphObjectHandle<G>, ()> {
-        self.create_impl(object_type_str, graph, ObjectInitialization::Default)
+        self.create_impl(object_type_str, graph, ParsedArguments::new_empty())
     }
 
     pub(crate) fn create_from_args(
         &self,
         object_type_str: &str,
         graph: &mut G,
-        arguments: ParsedArguments,
+        args: ParsedArguments,
     ) -> Result<GraphObjectHandle<G>, ()> {
-        self.create_impl(
-            object_type_str,
-            graph,
-            ObjectInitialization::Arguments(arguments),
-        )
+        self.create_impl(object_type_str, graph, args)
     }
 
+    // TODO: is this needed?
     pub(crate) fn create_from_archive(
         &self,
         object_type_str: &str,
         graph: &mut G,
         chive_out: ChiveOut,
     ) -> Result<GraphObjectHandle<G>, ()> {
-        self.create_impl(
-            object_type_str,
-            graph,
-            ObjectInitialization::Deserialize(chive_out),
-        )
+        self.create_impl(object_type_str, graph, ParsedArguments::new_empty())
+            .map(|hande| {
+                todo!("Restore the state of the object from the Chive using e.g. rollback()")
+            })
     }
 }

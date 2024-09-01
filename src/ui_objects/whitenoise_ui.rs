@@ -1,14 +1,12 @@
 use eframe::egui;
 
 use crate::{
-    core::{
-        graph::graphobject::ObjectInitialization,
-        sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
-    },
+    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::whitenoise::WhiteNoise,
     ui_core::{
-        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -40,11 +38,7 @@ impl ObjectUi for WhiteNoiseUi {
         ()
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

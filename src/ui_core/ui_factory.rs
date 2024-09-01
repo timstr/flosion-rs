@@ -3,9 +3,7 @@ use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 use chive::ChiveOut;
 use eframe::egui;
 
-use crate::core::graph::graphobject::{
-    GraphObject, GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
-};
+use crate::core::graph::graphobject::{GraphObject, GraphObjectHandle, ObjectHandle, ObjectType};
 
 use super::{
     arguments::ParsedArguments,
@@ -72,11 +70,11 @@ impl<G: GraphUi> UiFactory<G> {
     fn create_state_impl(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         let object_type = object.get_type();
         match self.mapping.get(&object_type) {
-            Some(data) => data.ui.make_ui_state(object, init),
+            Some(data) => data.ui.make_ui_state(object, args),
             None => panic!(
                 "Tried to create ui state for an object of unrecognized type \"{}\"",
                 object_type.name()
@@ -88,7 +86,7 @@ impl<G: GraphUi> UiFactory<G> {
         &self,
         object: &GraphObjectHandle<G::Graph>,
     ) -> Rc<RefCell<dyn Any>> {
-        self.create_state_impl(object, ObjectInitialization::Default)
+        self.create_state_impl(object, ParsedArguments::new_empty())
             .unwrap()
     }
 
@@ -97,14 +95,17 @@ impl<G: GraphUi> UiFactory<G> {
         object: &GraphObjectHandle<G::Graph>,
         chive_out: ChiveOut,
     ) -> Result<Rc<RefCell<dyn Any>>, ()> {
-        self.create_state_impl(object, ObjectInitialization::Deserialize(chive_out))
+        self.create_state_impl(object, ParsedArguments::new_empty())
+            .map(|s| {
+                todo!("Does anything need to be deserialized here??? Why does this even exist?")
+            })
     }
 
     pub(crate) fn create_state_from_arguments(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        arguments: ParsedArguments,
+        args: ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()> {
-        self.create_state_impl(object, ObjectInitialization::Arguments(arguments))
+        self.create_state_impl(object, args)
     }
 }

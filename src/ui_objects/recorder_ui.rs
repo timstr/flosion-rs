@@ -1,14 +1,12 @@
 use eframe::egui::{self, Button};
 
 use crate::{
-    core::{
-        graph::graphobject::ObjectInitialization,
-        sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
-    },
+    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
-        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundprocessorui::ProcessorUi,
     },
 };
 
@@ -60,7 +58,7 @@ impl ObjectUi for RecorderUi {
                         if ui.add(Button::new("Create AudioClip")).clicked() {
                             let a = recorder.copy_audio();
                             let ac = sound_graph.add_dynamic_sound_processor::<AudioClip>(
-                                ObjectInitialization::Default,
+                                ParsedArguments::new_empty(),
                             );
                             // TODO: move the audio clip nearby
                             match ac {
@@ -81,11 +79,7 @@ impl ObjectUi for RecorderUi {
         ()
     }
 
-    fn make_ui_state(
-        &self,
-        _handle: &Self::HandleType,
-        _init: ObjectInitialization,
-    ) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

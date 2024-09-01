@@ -7,11 +7,12 @@ use eframe::{
 };
 use rand::{thread_rng, Rng};
 
-use crate::core::graph::graphobject::{
-    GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
-};
+use crate::core::graph::graphobject::{GraphObjectHandle, ObjectHandle, ObjectType};
 
-use super::{arguments::ArgumentList, graph_ui::GraphUi};
+use super::{
+    arguments::{ArgumentList, ParsedArguments},
+    graph_ui::GraphUi,
+};
 
 pub struct Color {
     pub color: egui::Color32,
@@ -72,7 +73,7 @@ pub trait ObjectUi: 'static + Default {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: ObjectInitialization,
+        _args: ParsedArguments,
     ) -> Result<Self::StateType, ()>;
 }
 
@@ -98,7 +99,7 @@ pub trait AnyObjectUi<G: GraphUi> {
     fn make_ui_state(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()>;
 }
 
@@ -142,10 +143,10 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
     fn make_ui_state(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        init: ObjectInitialization,
+        args: ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let state = self.make_ui_state(&handle, init)?;
+        let state = self.make_ui_state(&handle, args)?;
         Ok(Rc::new(RefCell::new(state)))
     }
 }
