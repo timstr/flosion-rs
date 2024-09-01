@@ -46,7 +46,7 @@ pub fn random_object_color() -> egui::Color32 {
     color.into()
 }
 
-pub trait ObjectUi: 'static + Default {
+pub trait ObjectUi: Default {
     // TODO: find a way to clean up these darn nested types
     type GraphUi: GraphUi;
     type HandleType: ObjectHandle<<Self::GraphUi as GraphUi>::Graph>;
@@ -103,7 +103,7 @@ pub trait AnyObjectUi<G: GraphUi> {
     ) -> Result<Rc<RefCell<dyn Any>>, ()>;
 }
 
-impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
+impl<G: GraphUi, T: 'static + ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
     fn apply(
         &self,
         object: &GraphObjectHandle<G::Graph>,

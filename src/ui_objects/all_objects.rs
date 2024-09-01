@@ -55,7 +55,7 @@ impl<'a, G: GraphUi> RegistrationHelper<'a, G> {
         }
     }
 
-    fn register<T: ObjectUi<GraphUi = G>>(&mut self) {
+    fn register<T: 'static + ObjectUi<GraphUi = G>>(&mut self) {
         self.object_factory
             .register::<<T::HandleType as ObjectHandle<G::Graph>>::ObjectType>();
         self.ui_factory.register::<T>();

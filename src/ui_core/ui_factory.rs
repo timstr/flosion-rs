@@ -26,7 +26,7 @@ impl<G: GraphUi> UiFactory<G> {
         }
     }
 
-    pub(crate) fn register<T: ObjectUi<GraphUi = G>>(&mut self) {
+    pub(crate) fn register<T: 'static + ObjectUi<GraphUi = G>>(&mut self) {
         let object_type = <T::HandleType as ObjectHandle<G::Graph>>::ObjectType::get_type();
         self.mapping.insert(
             object_type,

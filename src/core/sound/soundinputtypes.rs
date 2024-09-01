@@ -437,7 +437,7 @@ impl<S: State> KeyedInputQueue<S> {
     }
 }
 
-impl<S: State> SoundProcessorInput for KeyedInputQueue<S> {
+impl<S: 'static + State> SoundProcessorInput for KeyedInputQueue<S> {
     type NodeType<'ctx> = KeyedInputQueueNode<'ctx, S>;
 
     fn make_node<'a, 'ctx>(
@@ -459,7 +459,7 @@ pub struct KeyedInputQueueNode<'ctx, S: State> {
     active: bool,
 }
 
-impl<'ctx, S: State> KeyedInputQueueNode<'ctx, S> {
+impl<'ctx, S: 'static + State> KeyedInputQueueNode<'ctx, S> {
     fn new<'a>(
         id: SoundInputId,
         branches: &[SoundInputBranchId],

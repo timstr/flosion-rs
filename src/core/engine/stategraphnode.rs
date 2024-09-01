@@ -77,7 +77,7 @@ pub struct CompiledDynamicProcessor<'ctx, T: DynamicSoundProcessor> {
     expressions: T::Expressions<'ctx>,
 }
 
-impl<'ctx, T: DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
+impl<'ctx, T: 'static + DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
     /// Compile a new dynamic sound processor for the state graph
     pub(crate) fn new<'a>(
         processor: &DynamicSoundProcessorWithId<T>,
@@ -180,7 +180,7 @@ pub(crate) trait CompiledSoundProcessor<'ctx>: Sync + Send {
     fn expressions_mut(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx>;
 }
 
-impl<'ctx, T: StaticSoundProcessor> CompiledSoundProcessor<'ctx>
+impl<'ctx, T: 'static + StaticSoundProcessor> CompiledSoundProcessor<'ctx>
     for CompiledStaticProcessor<'ctx, T>
 {
     fn id(&self) -> SoundProcessorId {
@@ -229,7 +229,7 @@ impl<'ctx, T: StaticSoundProcessor> CompiledSoundProcessor<'ctx>
     }
 }
 
-impl<'ctx, T: DynamicSoundProcessor> CompiledSoundProcessor<'ctx>
+impl<'ctx, T: 'static + DynamicSoundProcessor> CompiledSoundProcessor<'ctx>
     for CompiledDynamicProcessor<'ctx, T>
 {
     fn id(&self) -> SoundProcessorId {

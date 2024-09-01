@@ -21,7 +21,7 @@ impl ObjectType {
     }
 }
 
-pub trait GraphObject<G: Graph>: 'static + Send + Sync {
+pub trait GraphObject<G: Graph>: Send + Sync {
     fn create(graph: &mut G, args: ParsedArguments) -> Result<GraphObjectHandle<G>, ()>
     where
         Self: Sized;
@@ -79,6 +79,6 @@ pub trait ObjectHandle<G: Graph>: Sized {
     fn object_type() -> ObjectType;
 }
 
-pub trait WithObjectType: 'static {
+pub trait WithObjectType {
     const TYPE: ObjectType;
 }

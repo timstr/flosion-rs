@@ -17,13 +17,13 @@ pub struct AnyArgumentValue {
 }
 
 impl AnyArgumentValue {
-    pub fn new<T: ArgumentValue>(value: T) -> AnyArgumentValue {
+    pub fn new<T: 'static + ArgumentValue>(value: T) -> AnyArgumentValue {
         AnyArgumentValue {
             value: Box::new(value),
         }
     }
 
-    fn downcast<T: ArgumentValue + Clone>(&self) -> Option<T> {
+    fn downcast<T: 'static + ArgumentValue + Clone>(&self) -> Option<T> {
         self.value.as_any().downcast_ref::<T>().cloned()
     }
 }
@@ -36,7 +36,7 @@ impl Clone for AnyArgumentValue {
     }
 }
 
-pub trait ArgumentValue: 'static {
+pub trait ArgumentValue {
     fn box_clone(&self) -> Box<dyn ArgumentValue>;
 
     fn as_any(&self) -> &dyn Any;
@@ -85,7 +85,7 @@ pub trait AnyArgument {
     fn try_parse(&self, s: &str) -> Option<AnyArgumentValue>;
 }
 
-impl<T: Argument> AnyArgument for T {
+impl<T: 'static + Argument> AnyArgument for T {
     fn name(&self) -> &str {
         Argument::name(self)
     }

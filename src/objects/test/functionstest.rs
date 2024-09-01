@@ -161,7 +161,7 @@ macro_rules! assert_near {
     };
 }
 
-fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
+fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     input_ranges: &[(f32, f32)],
     test_function: F,
 ) {
@@ -288,14 +288,14 @@ fn do_expression_test<T: PureExpressionNode, F: Fn(&[f32]) -> f32>(
     }
 }
 
-fn do_expression_test_unary<T: PureExpressionNode>(
+fn do_expression_test_unary<T: 'static + PureExpressionNode>(
     input_range: (f32, f32),
     test_function: fn(f32) -> f32,
 ) {
     do_expression_test::<T, _>(&[input_range], |inputs| test_function(inputs[0]))
 }
 
-fn do_expression_test_binary<T: PureExpressionNode>(
+fn do_expression_test_binary<T: 'static + PureExpressionNode>(
     input0_range: (f32, f32),
     input1_range: (f32, f32),
     test_function: fn(f32, f32) -> f32,
@@ -305,7 +305,7 @@ fn do_expression_test_binary<T: PureExpressionNode>(
     })
 }
 
-fn do_expression_test_ternary<T: PureExpressionNode>(
+fn do_expression_test_ternary<T: 'static + PureExpressionNode>(
     input0_range: (f32, f32),
     input1_range: (f32, f32),
     input2_range: (f32, f32),

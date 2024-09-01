@@ -179,7 +179,7 @@ pub struct StaticSoundProcessorHandle<T: StaticSoundProcessor> {
     instance: Arc<StaticSoundProcessorWithId<T>>,
 }
 
-impl<T: StaticSoundProcessor> StaticSoundProcessorHandle<T> {
+impl<T: 'static + StaticSoundProcessor> StaticSoundProcessorHandle<T> {
     pub(super) fn new(instance: Arc<StaticSoundProcessorWithId<T>>) -> Self {
         Self { instance }
     }
@@ -221,7 +221,7 @@ pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
     instance: Arc<DynamicSoundProcessorWithId<T>>,
 }
 
-impl<T: DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
+impl<T: 'static + DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
     pub(super) fn new(instance: Arc<DynamicSoundProcessorWithId<T>>) -> Self {
         Self { instance }
     }
@@ -259,7 +259,7 @@ impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
     }
 }
 
-pub(crate) trait SoundProcessor: 'static + Sync + Send {
+pub(crate) trait SoundProcessor: Sync + Send {
     fn id(&self) -> SoundProcessorId;
 
     fn serialize(&self, chive_in: ChiveIn);
@@ -274,7 +274,7 @@ pub(crate) trait SoundProcessor: 'static + Sync + Send {
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>;
 }
 
-impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
+impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
@@ -300,7 +300,7 @@ impl<T: StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
     }
 }
 
-impl<T: DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T> {
+impl<T: 'static + DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
@@ -358,7 +358,7 @@ pub struct StateAndTiming<T: State> {
     pub(crate) timing: ProcessorTiming,
 }
 
-pub trait ProcessorState: 'static + Sync + Send {
+pub trait ProcessorState: Sync + Send {
     fn state(&self) -> &dyn Any;
 
     fn is_static(&self) -> bool;
@@ -386,7 +386,7 @@ impl ProcessorState for ProcessorTiming {
     }
 }
 
-impl<T: State> ProcessorState for StateAndTiming<T> {
+impl<T: 'static + State> ProcessorState for StateAndTiming<T> {
     fn state(&self) -> &dyn Any {
         (self as &StateAndTiming<T>).state()
     }
@@ -444,7 +444,7 @@ impl<T: State> DerefMut for StateAndTiming<T> {
     }
 }
 
-impl<T: StaticSoundProcessor> ObjectHandle<SoundGraph> for StaticSoundProcessorHandle<T> {
+impl<T: 'static + StaticSoundProcessor> ObjectHandle<SoundGraph> for StaticSoundProcessorHandle<T> {
     type ObjectType = StaticSoundProcessorWithId<T>;
 
     fn from_graph_object(object: GraphObjectHandle<SoundGraph>) -> Option<Self> {
@@ -456,7 +456,9 @@ impl<T: StaticSoundProcessor> ObjectHandle<SoundGraph> for StaticSoundProcessorH
     }
 }
 
-impl<T: DynamicSoundProcessor> ObjectHandle<SoundGraph> for DynamicSoundProcessorHandle<T> {
+impl<T: 'static + DynamicSoundProcessor> ObjectHandle<SoundGraph>
+    for DynamicSoundProcessorHandle<T>
+{
     type ObjectType = DynamicSoundProcessorWithId<T>;
 
     fn from_graph_object(object: GraphObjectHandle<SoundGraph>) -> Option<Self> {
@@ -468,7 +470,7 @@ impl<T: DynamicSoundProcessor> ObjectHandle<SoundGraph> for DynamicSoundProcesso
     }
 }
 
-impl<T: StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWithId<T> {
+impl<T: 'static + StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWithId<T> {
     fn create(
         graph: &mut SoundGraph,
         args: ParsedArguments,
@@ -504,7 +506,9 @@ impl<T: StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWi
     }
 }
 
-impl<T: DynamicSoundProcessor> GraphObject<SoundGraph> for DynamicSoundProcessorWithId<T> {
+impl<T: 'static + DynamicSoundProcessor> GraphObject<SoundGraph>
+    for DynamicSoundProcessorWithId<T>
+{
     fn create(
         graph: &mut SoundGraph,
         args: ParsedArguments,
@@ -547,7 +551,7 @@ pub trait ProcessorHandle {
     fn time_argument(&self) -> SoundExpressionArgumentId;
 }
 
-impl<T: StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> {
+impl<T: 'static + StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> {
     fn id(&self) -> SoundProcessorId {
         StaticSoundProcessorHandle::id(self)
     }
@@ -557,7 +561,7 @@ impl<T: StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> 
     }
 }
 
-impl<T: DynamicSoundProcessor> ProcessorHandle for DynamicSoundProcessorHandle<T> {
+impl<T: 'static + DynamicSoundProcessor> ProcessorHandle for DynamicSoundProcessorHandle<T> {
     fn id(&self) -> SoundProcessorId {
         DynamicSoundProcessorHandle::id(self)
     }

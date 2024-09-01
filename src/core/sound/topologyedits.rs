@@ -44,7 +44,7 @@ impl SoundGraphIdGenerators {
 
 /// Creates a new static sound processor using its StaticSoundProcessor::new()
 /// method, adds it to the topology, and returns a handle to the processor.
-pub(crate) fn build_static_sound_processor<T: StaticSoundProcessor>(
+pub(crate) fn build_static_sound_processor<T: 'static + StaticSoundProcessor>(
     topo: &mut SoundGraphTopology,
     idgens: &mut SoundGraphIdGenerators,
     args: ParsedArguments,
@@ -95,7 +95,7 @@ pub(crate) fn build_static_sound_processor<T: StaticSoundProcessor>(
 
 /// Creates a new dynamic sound processor using its DynamicSoundProcessor::new()
 /// method, adds it to the topology, and returns a handle to the processor.
-pub(crate) fn build_dynamic_sound_processor<T: DynamicSoundProcessor>(
+pub(crate) fn build_dynamic_sound_processor<T: 'static + DynamicSoundProcessor>(
     topo: &mut SoundGraphTopology,
     idgens: &mut SoundGraphIdGenerators,
     args: ParsedArguments,

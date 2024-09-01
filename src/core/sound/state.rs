@@ -1,4 +1,4 @@
-pub trait State: Sync + Send + 'static {
+pub trait State: Sync + Send {
     fn start_over(&mut self);
 }
 

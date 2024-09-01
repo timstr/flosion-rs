@@ -77,7 +77,7 @@ impl<T: PureExpressionNode> Deref for PureExpressionNodeWithId<T> {
     }
 }
 
-impl<T: PureExpressionNode> ExpressionNode for PureExpressionNodeWithId<T> {
+impl<T: 'static + PureExpressionNode> ExpressionNode for PureExpressionNodeWithId<T> {
     fn num_variables(&self) -> usize {
         0
     }
@@ -100,7 +100,7 @@ impl<T: PureExpressionNode> ExpressionNode for PureExpressionNodeWithId<T> {
     }
 }
 
-impl<T: PureExpressionNode> GraphObject<ExpressionGraph> for PureExpressionNodeWithId<T> {
+impl<T: 'static + PureExpressionNode> GraphObject<ExpressionGraph> for PureExpressionNodeWithId<T> {
     fn create(
         graph: &mut ExpressionGraph,
         args: ParsedArguments,
@@ -140,7 +140,7 @@ pub struct PureExpressionNodeHandle<T: PureExpressionNode> {
     instance: Arc<PureExpressionNodeWithId<T>>,
 }
 
-impl<T: PureExpressionNode> PureExpressionNodeHandle<T> {
+impl<T: 'static + PureExpressionNode> PureExpressionNodeHandle<T> {
     pub(super) fn new(instance: Arc<PureExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
@@ -178,7 +178,9 @@ impl<T: PureExpressionNode> Clone for PureExpressionNodeHandle<T> {
     }
 }
 
-impl<T: PureExpressionNode> ObjectHandle<ExpressionGraph> for PureExpressionNodeHandle<T> {
+impl<T: 'static + PureExpressionNode> ObjectHandle<ExpressionGraph>
+    for PureExpressionNodeHandle<T>
+{
     type ObjectType = PureExpressionNodeWithId<T>;
 
     fn from_graph_object(object: GraphObjectHandle<ExpressionGraph>) -> Option<Self> {
@@ -268,7 +270,7 @@ impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeWithId<T> {
     }
 }
 
-impl<T: StatefulExpressionNode> ExpressionNode for StatefulExpressionNodeWithId<T> {
+impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionNodeWithId<T> {
     fn num_variables(&self) -> usize {
         T::NUM_VARIABLES
     }
@@ -366,7 +368,9 @@ impl<T: StatefulExpressionNode> ExpressionNode for StatefulExpressionNodeWithId<
     }
 }
 
-impl<T: StatefulExpressionNode> GraphObject<ExpressionGraph> for StatefulExpressionNodeWithId<T> {
+impl<T: 'static + StatefulExpressionNode> GraphObject<ExpressionGraph>
+    for StatefulExpressionNodeWithId<T>
+{
     fn create(
         graph: &mut ExpressionGraph,
         args: ParsedArguments,
@@ -406,7 +410,7 @@ pub struct StatefulExpressionNodeHandle<T: StatefulExpressionNode> {
     instance: Arc<StatefulExpressionNodeWithId<T>>,
 }
 
-impl<T: StatefulExpressionNode> StatefulExpressionNodeHandle<T> {
+impl<T: 'static + StatefulExpressionNode> StatefulExpressionNodeHandle<T> {
     pub(super) fn new(instance: Arc<StatefulExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
@@ -443,7 +447,9 @@ impl<T: StatefulExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
     }
 }
 
-impl<T: StatefulExpressionNode> ObjectHandle<ExpressionGraph> for StatefulExpressionNodeHandle<T> {
+impl<T: 'static + StatefulExpressionNode> ObjectHandle<ExpressionGraph>
+    for StatefulExpressionNodeHandle<T>
+{
     type ObjectType = StatefulExpressionNodeWithId<T>;
 
     fn from_graph_object(object: GraphObjectHandle<ExpressionGraph>) -> Option<Self> {

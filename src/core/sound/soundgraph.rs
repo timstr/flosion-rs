@@ -223,7 +223,7 @@ impl SoundGraph {
     /// The type must be known statically and given.
     /// For other ways of creating a sound processor,
     /// see ObjectFactory.
-    pub fn add_static_sound_processor<T: StaticSoundProcessor>(
+    pub fn add_static_sound_processor<T: 'static + StaticSoundProcessor>(
         &mut self,
         args: ParsedArguments,
     ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
@@ -238,7 +238,7 @@ impl SoundGraph {
     /// The type must be known statically and given.
     /// For other ways of creating a sound processor,
     /// see ObjectFactory.
-    pub fn add_dynamic_sound_processor<T: DynamicSoundProcessor>(
+    pub fn add_dynamic_sound_processor<T: 'static + DynamicSoundProcessor>(
         &mut self,
         args: ParsedArguments,
     ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {

@@ -1,3 +1,3 @@
-pub trait Graph: 'static {
+pub trait Graph {
     type ObjectId;
 }

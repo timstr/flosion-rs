@@ -168,7 +168,7 @@ impl ExpressionGraph {
     /// The type must be known statically and given. For
     /// other ways of creating an expression node, see ObjectFactory.
     /// Returns a handle to the expression node.
-    pub fn add_pure_expression_node<T: PureExpressionNode>(
+    pub fn add_pure_expression_node<T: 'static + PureExpressionNode>(
         &mut self,
         args: ParsedArguments,
     ) -> Result<PureExpressionNodeHandle<T>, ExpressionError> {
@@ -193,7 +193,7 @@ impl ExpressionGraph {
     /// The type must be known statically and given. For
     /// other ways of creating an expression node, see ObjectFactory.
     /// Returns a handle to the expression node.
-    pub fn add_stateful_expression_node<T: StatefulExpressionNode>(
+    pub fn add_stateful_expression_node<T: 'static + StatefulExpressionNode>(
         &mut self,
         args: ParsedArguments,
     ) -> Result<StatefulExpressionNodeHandle<T>, ExpressionError> {
