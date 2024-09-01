@@ -1,17 +1,19 @@
 use eframe::egui;
 
 use crate::{
-    core::expression::{
-        expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
+    core::{
+        expression::{
+            expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
+        },
+        graph::graphobject::ObjectInitialization,
     },
     objects::sampler1d::Sampler1d,
     ui_core::{
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressiongraphuistate::ExpressionGraphUiState,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
-        lexicallayout::lexicallayout::ExpressionNodeLayout,
-        object_ui::{ObjectUi, UiInitialization},
+        object_ui::ObjectUi,
     },
 };
 
@@ -26,10 +28,10 @@ impl ObjectUi for Sampler1dUi {
     fn ui<'a, 'b>(
         &self,
         sampler1d: StatefulExpressionNodeHandle<Sampler1d>,
-        _ui_state: &mut ExpressionGraphUiState,
+        _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _data: ExpressionNodeObjectUiData<()>,
+        _state: &mut (),
         _graph: &mut ExpressionGraph,
     ) {
         // TODO: detect drags, edit samples
@@ -109,8 +111,8 @@ impl ObjectUi for Sampler1dUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, ExpressionNodeLayout) {
-        ((), ExpressionNodeLayout::Function)
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }

@@ -1,76 +1,18 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
-
-#[cfg(debug_assertions)]
-use std::any::type_name;
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use eframe::egui;
 
 use crate::core::sound::{soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology};
 
-use super::{
-    graph_ui::{ObjectUiData, ObjectUiState},
-    object_ui::Color,
-    object_ui_states::AnyObjectUiState,
-    soundgraphui::SoundGraphUi,
-    soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState,
-};
+use super::object_ui::random_object_color;
 
-pub struct AnySoundObjectUiData {
-    id: SoundObjectId,
-    state: RefCell<Box<dyn AnyObjectUiState>>,
-    color: Color,
-}
-
-impl ObjectUiData for AnySoundObjectUiData {
-    type GraphUi = SoundGraphUi;
-    type ConcreteType<'a, T: ObjectUiState> = SoundObjectUiData<'a, T>;
-
-    type RequiredData = Color;
-
-    fn new<S: ObjectUiState>(id: SoundObjectId, state: S, data: Self::RequiredData) -> Self {
-        AnySoundObjectUiData {
-            id,
-            state: RefCell::new(Box::new(state)),
-            color: data,
-        }
-    }
-
-    fn downcast_with<
-        T: ObjectUiState,
-        F: FnOnce(SoundObjectUiData<'_, T>, &mut SoundGraphUiState, &SoundGraphUiContext<'_>),
-    >(
-        &self,
-        ui_state: &mut SoundGraphUiState,
-        ctx: &SoundGraphUiContext<'_>,
-        f: F,
-    ) {
-        let mut state_mut = self.state.borrow_mut();
-        #[cfg(debug_assertions)]
-        {
-            let actual_name = state_mut.get_language_type_name();
-            let state_any = state_mut.as_mut_any();
-            debug_assert!(
-                state_any.is::<T>(),
-                "AnySoundObjectUiData expected to receive state type {}, but got {:?} instead",
-                type_name::<T>(),
-                actual_name
-            );
-        }
-        let state_any = state_mut.as_mut_any();
-        let state = state_any.downcast_mut::<T>().unwrap();
-        let color = ui_state.object_states().get_object_color(self.id);
-        f(SoundObjectUiData { state, color }, ui_state, ctx);
-    }
-}
-
-pub struct SoundObjectUiData<'a, T: ObjectUiState> {
-    pub state: &'a mut T,
-    pub color: egui::Color32,
+struct SoundObjectUiData {
+    state: Rc<RefCell<dyn Any>>,
+    color: egui::Color32,
 }
 
 pub struct SoundObjectUiStates {
-    data: HashMap<SoundObjectId, Rc<AnySoundObjectUiData>>,
+    data: HashMap<SoundObjectId, SoundObjectUiData>,
 }
 
 impl SoundObjectUiStates {
@@ -80,16 +22,22 @@ impl SoundObjectUiStates {
         }
     }
 
-    pub(super) fn set_object_data(&mut self, id: SoundObjectId, state: AnySoundObjectUiData) {
-        self.data.insert(id, Rc::new(state));
+    pub(super) fn set_object_data(&mut self, id: SoundObjectId, state: Rc<RefCell<dyn Any>>) {
+        self.data.insert(
+            id,
+            SoundObjectUiData {
+                state,
+                color: random_object_color(),
+            },
+        );
     }
 
-    pub(super) fn get_object_data(&self, id: SoundObjectId) -> Rc<AnySoundObjectUiData> {
-        Rc::clone(self.data.get(&id).unwrap())
+    pub(super) fn get_object_data(&self, id: SoundObjectId) -> Rc<RefCell<dyn Any>> {
+        Rc::clone(&self.data.get(&id).unwrap().state)
     }
 
     pub(super) fn get_object_color(&self, id: SoundObjectId) -> egui::Color32 {
-        self.data.get(&id).unwrap().color.color
+        self.data.get(&id).unwrap().color
     }
 
     pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {

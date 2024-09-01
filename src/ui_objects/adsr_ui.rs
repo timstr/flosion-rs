@@ -1,13 +1,12 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::{
+        graph::graphobject::ObjectInitialization,
+        sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    },
     objects::adsr::ADSR,
     ui_core::{
-        expressionplot::PlotConfig,
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
+        expressionplot::PlotConfig, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -22,19 +21,19 @@ impl ObjectUi for ADSRUi {
     fn ui(
         &self,
         adsr: DynamicSoundProcessorHandle<ADSR>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<()>,
+        _state: &mut (),
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&adsr, "ADSR", data.color)
+        ProcessorUi::new(&adsr, "ADSR")
             .add_sound_input(adsr.input.id(), "input", sound_graph)
             .add_expression(adsr.attack_time.id(), "attack_time", PlotConfig::new())
             .add_expression(adsr.decay_time.id(), "decay_time", PlotConfig::new())
             .add_expression(adsr.sustain_level.id(), "sustain_level", PlotConfig::new())
             .add_expression(adsr.release_time.id(), "release_time", PlotConfig::new())
-            .show(ui, ctx, ui_state, sound_graph);
+            .show(ui, ctx, graph_ui_state, sound_graph);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -44,8 +43,8 @@ impl ObjectUi for ADSRUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        ((), Color::default())
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }

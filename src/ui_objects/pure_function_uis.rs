@@ -2,19 +2,18 @@ use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
 
 use crate::{
-    core::expression::{
-        expressiongraph::ExpressionGraph, expressionnode::PureExpressionNodeHandle,
+    core::{
+        expression::{expressiongraph::ExpressionGraph, expressionnode::PureExpressionNodeHandle},
+        graph::graphobject::ObjectInitialization,
     },
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, StringIdentifierArgument},
         expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
-        expressiongraphuistate::{ExpressionGraphUiState, ExpressionNodeObjectUiData},
+        expressiongraphuistate::ExpressionGraphUiState,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
-        graph_ui::ObjectUiState,
-        lexicallayout::lexicallayout::ExpressionNodeLayout,
-        object_ui::{ObjectUi, UiInitialization},
+        object_ui::ObjectUi,
     },
 };
 
@@ -33,10 +32,10 @@ impl ObjectUi for ConstantUi {
     fn ui(
         &self,
         constant: PureExpressionNodeHandle<Constant>,
-        _ui_state: &mut ExpressionGraphUiState,
+        _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _data: ExpressionNodeObjectUiData<()>,
+        _state: &mut (),
         _graph: &mut ExpressionGraph,
     ) {
         ExpressionNodeUi::new_named(
@@ -60,9 +59,9 @@ impl ObjectUi for ConstantUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, ExpressionNodeLayout) {
-        ((), ExpressionNodeLayout::Function)
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }
 
@@ -109,8 +108,6 @@ impl Chivable for SliderUiState {
     }
 }
 
-impl ObjectUiState for SliderUiState {}
-
 impl ObjectUi for SliderUi {
     type GraphUi = ExpressionGraphUi;
     type HandleType = PureExpressionNodeHandle<Variable>;
@@ -118,32 +115,29 @@ impl ObjectUi for SliderUi {
     fn ui(
         &self,
         variable: PureExpressionNodeHandle<Variable>,
-        _ui_state: &mut ExpressionGraphUiState,
+        _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        data: ExpressionNodeObjectUiData<SliderUiState>,
+        state: &mut SliderUiState,
         _graph: &mut ExpressionGraph,
     ) {
-        ExpressionNodeUi::new_named(variable.id(), data.state.name.clone(), DisplayStyle::Framed)
+        ExpressionNodeUi::new_named(variable.id(), state.name.clone(), DisplayStyle::Framed)
             .show_with(ui, ctx, |ui| {
                 let mut v = variable.get_value();
                 let v_old = v;
-                ui.add(egui::Slider::new(
-                    &mut v,
-                    data.state.min_value..=data.state.max_value,
-                ));
+                ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
                 if v != v_old {
                     variable.set_value(v);
                 }
                 if ui.add(egui::Button::new("...")).clicked() {
-                    data.state.show_settings = !data.state.show_settings;
+                    state.show_settings = !state.show_settings;
                 }
 
-                if data.state.show_settings {
+                if state.show_settings {
                     ui.label("min");
-                    ui.add(egui::DragValue::new(&mut data.state.min_value));
+                    ui.add(egui::DragValue::new(&mut state.min_value));
                     ui.label("max");
-                    ui.add(egui::DragValue::new(&mut data.state.max_value));
+                    ui.add(egui::DragValue::new(&mut state.max_value));
                 }
             });
     }
@@ -151,19 +145,20 @@ impl ObjectUi for SliderUi {
     fn make_ui_state(
         &self,
         object: &PureExpressionNodeHandle<Variable>,
-        init: UiInitialization,
-    ) -> (Self::StateType, ExpressionNodeLayout) {
-        let state = match init {
-            UiInitialization::Default => {
+        init: ObjectInitialization,
+    ) -> Result<SliderUiState, ()> {
+        let min_value;
+        let max_value;
+        let name;
+
+        match init {
+            ObjectInitialization::Default => {
                 let v = object.get_value();
-                SliderUiState {
-                    min_value: if v < 0.0 { 2.0 * v } else { 0.0 },
-                    max_value: 2.0 * v.abs(),
-                    name: "".to_string(),
-                    show_settings: false,
-                }
+                min_value = if v < 0.0 { 2.0 * v } else { 0.0 };
+                max_value = 2.0 * v.abs();
+                name = "".to_string();
             }
-            UiInitialization::Arguments(args) => {
+            ObjectInitialization::Arguments(args) => {
                 let value = args.get(&Variable::ARG_VALUE);
                 let range = args.get(&SliderUi::ARG_RANGE);
                 let (value, range) = match (value, range) {
@@ -181,18 +176,28 @@ impl ObjectUi for SliderUi {
                     ),
                     (None, None) => (1.0, 0.0..=2.0),
                 };
+
                 object.set_value(value as f32);
-                SliderUiState {
-                    min_value: *range.start() as f32,
-                    max_value: *range.end() as f32,
-                    name: args
-                        .get(&SliderUi::ARG_NAME)
-                        .unwrap_or_else(|| "".to_string()),
-                    show_settings: false,
-                }
+
+                min_value = *range.start() as f32;
+                max_value = *range.end() as f32;
+                name = args
+                    .get(&SliderUi::ARG_NAME)
+                    .unwrap_or_else(|| "".to_string());
+            }
+            ObjectInitialization::Deserialize(mut chive_out) => {
+                // TODO: propagate errors
+                min_value = chive_out.f32().unwrap();
+                max_value = chive_out.f32().unwrap();
+                name = chive_out.string().unwrap();
             }
         };
-        (state, ExpressionNodeLayout::default())
+        Ok(SliderUiState {
+            min_value,
+            max_value,
+            name,
+            show_settings: false,
+        })
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -208,6 +213,7 @@ impl ObjectUi for SliderUi {
 }
 
 macro_rules! unary_expression_node_ui {
+    // TODO: use $layout
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
@@ -219,10 +225,10 @@ macro_rules! unary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                _ui_state: &mut ExpressionGraphUiState,
+                _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
-                _data: ExpressionNodeObjectUiData<Self::StateType>,
+                _state: &mut (),
                 _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
@@ -236,15 +242,16 @@ macro_rules! unary_expression_node_ui {
             fn make_ui_state(
                 &self,
                 _object: &PureExpressionNodeHandle<$object>,
-                _init: UiInitialization,
-            ) -> (Self::StateType, ExpressionNodeLayout) {
-                ((), $layout)
+                _init: ObjectInitialization,
+            ) -> Result<(), ()> {
+                Ok(())
             }
         }
     };
 }
 
 macro_rules! binary_expression_node_ui {
+    // TODO: use $layout
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
@@ -256,10 +263,10 @@ macro_rules! binary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                _ui_state: &mut ExpressionGraphUiState,
+                _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
-                _data: ExpressionNodeObjectUiData<Self::StateType>,
+                _state: &mut (),
                 _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
@@ -273,15 +280,16 @@ macro_rules! binary_expression_node_ui {
             fn make_ui_state(
                 &self,
                 _object: &PureExpressionNodeHandle<$object>,
-                _init: UiInitialization,
-            ) -> (Self::StateType, ExpressionNodeLayout) {
-                ((), $layout)
+                _init: ObjectInitialization,
+            ) -> Result<(), ()> {
+                Ok(())
             }
         }
     };
 }
 
 macro_rules! ternary_expression_node_ui {
+    // TODO: use $layout
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr) => {
         #[derive(Default)]
         pub struct $name {}
@@ -293,10 +301,10 @@ macro_rules! ternary_expression_node_ui {
             fn ui(
                 &self,
                 object: PureExpressionNodeHandle<$object>,
-                _ui_state: &mut ExpressionGraphUiState,
+                _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
-                _data: ExpressionNodeObjectUiData<Self::StateType>,
+                _state: &mut (),
                 _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
@@ -310,9 +318,9 @@ macro_rules! ternary_expression_node_ui {
             fn make_ui_state(
                 &self,
                 _handle: &Self::HandleType,
-                _init: UiInitialization,
-            ) -> (Self::StateType, ExpressionNodeLayout) {
-                ((), ExpressionNodeLayout::Function)
+                _init: ObjectInitialization,
+            ) -> Result<(), ()> {
+                Ok(())
             }
         }
     };

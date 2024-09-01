@@ -2,7 +2,7 @@ use crate::core::sound::soundgraph::SoundGraph;
 
 use super::{
     graph_ui::GraphUi, soundgraphuicontext::SoundGraphUiContext,
-    soundgraphuistate::SoundGraphUiState, soundobjectuistate::AnySoundObjectUiData,
+    soundgraphuistate::SoundGraphUiState,
 };
 
 pub struct SoundGraphUi {}
@@ -13,6 +13,4 @@ impl GraphUi for SoundGraphUi {
     type State = SoundGraphUiState;
 
     type Context<'a> = SoundGraphUiContext<'a>;
-
-    type ObjectUiData = AnySoundObjectUiData;
 }

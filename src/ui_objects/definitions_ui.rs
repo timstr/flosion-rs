@@ -1,13 +1,12 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::{
+        graph::graphobject::ObjectInitialization,
+        sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    },
     objects::definitions::Definitions,
     ui_core::{
-        expressionplot::PlotConfig,
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
+        expressionplot::PlotConfig, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -25,20 +24,26 @@ impl ObjectUi for DefinitionsUi {
     fn ui<'a, 'b>(
         &self,
         definitions: DynamicSoundProcessorHandle<Definitions>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<()>,
+        _state: &mut (),
         graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&definitions, "Definitions", data.color)
+        ProcessorUi::new(&definitions, "Definitions")
             .add_expression(definitions.expression.id(), "a", PlotConfig::new())
             .add_argument(definitions.argument.id(), "a")
             .add_sound_input(definitions.sound_input.id(), "input", graph)
-            .show_with(ui, ctx, ui_state, graph, |_ui, _uistate, _sound_graph| {
-                // TODO: controls to rename source
-                // TODO: buttons to add/remove terms
-            })
+            .show_with(
+                ui,
+                ctx,
+                graph_ui_state,
+                graph,
+                |_ui, _uistate, _sound_graph| {
+                    // TODO: controls to rename source
+                    // TODO: buttons to add/remove terms
+                },
+            )
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -48,8 +53,8 @@ impl ObjectUi for DefinitionsUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        ((), Color::default())
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }

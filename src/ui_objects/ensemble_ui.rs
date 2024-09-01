@@ -1,15 +1,14 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::{
+        graph::graphobject::ObjectInitialization,
+        sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    },
     objects::ensemble::Ensemble,
     ui_core::{
-        expressionplot::PlotConfig,
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
+        expressionplot::PlotConfig, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -25,13 +24,13 @@ impl ObjectUi for EnsembleUi {
     fn ui(
         &self,
         ensemble: DynamicSoundProcessorHandle<Ensemble>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<()>,
+        _state: &mut (),
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&ensemble, "Ensemble", data.color)
+        ProcessorUi::new(&ensemble, "Ensemble")
             .add_sound_input(ensemble.input.id(), "input", sound_graph)
             .add_expression(
                 ensemble.frequency_in.id(),
@@ -47,7 +46,7 @@ impl ObjectUi for EnsembleUi {
             .show_with(
                 ui,
                 ctx,
-                ui_state,
+                graph_ui_state,
                 sound_graph,
                 |ui, _ui_state, sound_graph| {
                     ui.horizontal(|ui| {
@@ -82,8 +81,8 @@ impl ObjectUi for EnsembleUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        ((), Color::default())
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }

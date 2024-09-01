@@ -1,7 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
-
-#[cfg(debug_assertions)]
-use std::any::type_name;
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
     expression::{
@@ -11,87 +8,14 @@ use crate::core::{
 };
 
 use super::{
-    expressiongraphui::ExpressionGraphUi,
-    expressiongraphuicontext::ExpressionGraphUiContext,
-    graph_ui::{GraphUiState, ObjectUiData, ObjectUiState},
-    lexicallayout::lexicallayout::{ExpressionNodeLayout, LexicalLayout},
-    object_ui_states::AnyObjectUiState,
-    ui_factory::UiFactory,
+    expressiongraphui::ExpressionGraphUi, graph_ui::GraphUiState,
+    lexicallayout::lexicallayout::LexicalLayout, ui_factory::UiFactory,
 };
-
-/// The ui state for any object within an expression graph ui.
-/// This includes the type-erased custom per-object ui state,
-/// as well as its node layout type.
-pub struct AnyExpressionNodeObjectUiData {
-    _id: ExpressionNodeId,
-    state: RefCell<Box<dyn AnyObjectUiState>>,
-    layout: ExpressionNodeLayout,
-}
-
-impl AnyExpressionNodeObjectUiData {
-    /// The layout with which the node object ui is shown
-    pub(crate) fn layout(&self) -> ExpressionNodeLayout {
-        self.layout
-    }
-}
-
-impl ObjectUiData for AnyExpressionNodeObjectUiData {
-    type GraphUi = ExpressionGraphUi;
-
-    type RequiredData = ExpressionNodeLayout;
-
-    fn new<S: ObjectUiState>(id: ExpressionNodeId, state: S, data: Self::RequiredData) -> Self {
-        AnyExpressionNodeObjectUiData {
-            _id: id,
-            state: RefCell::new(Box::new(state)),
-            layout: data,
-        }
-    }
-
-    type ConcreteType<'a, T: ObjectUiState> = ExpressionNodeObjectUiData<'a, T>;
-
-    fn downcast_with<
-        T: ObjectUiState,
-        F: FnOnce(
-            ExpressionNodeObjectUiData<'_, T>,
-            &mut ExpressionGraphUiState,
-            &ExpressionGraphUiContext,
-        ),
-    >(
-        &self,
-        ui_state: &mut ExpressionGraphUiState,
-        ctx: &ExpressionGraphUiContext<'_>,
-        f: F,
-    ) {
-        let mut state_mut = self.state.borrow_mut();
-        #[cfg(debug_assertions)]
-        {
-            let actual_name = state_mut.get_language_type_name();
-            let state_any = state_mut.as_mut_any();
-            debug_assert!(
-                state_any.is::<T>(),
-                "AnyExpressionNodeObjectUiData expected to receive state type {}, but got {:?} instead",
-                type_name::<T>(),
-                actual_name
-            );
-        }
-        let state_any = state_mut.as_mut_any();
-        let state = state_any.downcast_mut::<T>().unwrap();
-
-        f(ExpressionNodeObjectUiData { state }, ui_state, ctx);
-    }
-}
-
-/// Container for concrete, custom, per-object-type ui state
-pub struct ExpressionNodeObjectUiData<'a, T: ObjectUiState> {
-    pub state: &'a mut T,
-    // TODO: other presentation state, e.g. color?
-}
 
 /// Container for holding the ui states of all nodes in a single
 /// expression graph ui.
 pub struct ExpressionNodeObjectUiStates {
-    data: HashMap<ExpressionNodeId, Rc<AnyExpressionNodeObjectUiData>>,
+    data: HashMap<ExpressionNodeId, Rc<RefCell<dyn Any>>>,
 }
 
 impl ExpressionNodeObjectUiStates {
@@ -124,19 +48,12 @@ impl ExpressionNodeObjectUiStates {
     /// type of the ui state must match that expected by the
     /// object's ui, otherwise there will be an error later
     /// when the object's ui attempts to cast the ui state.
-    pub(super) fn set_object_data(
-        &mut self,
-        id: ExpressionNodeId,
-        state: AnyExpressionNodeObjectUiData,
-    ) {
-        self.data.insert(id, Rc::new(state));
+    pub(super) fn set_object_data(&mut self, id: ExpressionNodeId, state: Rc<RefCell<dyn Any>>) {
+        self.data.insert(id, state);
     }
 
     /// Retrieve the ui state for a single object.
-    pub(super) fn get_object_data(
-        &self,
-        id: ExpressionNodeId,
-    ) -> Rc<AnyExpressionNodeObjectUiData> {
+    pub(super) fn get_object_data(&self, id: ExpressionNodeId) -> Rc<RefCell<dyn Any>> {
         Rc::clone(self.data.get(&id).unwrap())
     }
 
@@ -180,7 +97,7 @@ impl ExpressionGraphUiState {
 impl GraphUiState for ExpressionGraphUiState {
     type GraphUi = ExpressionGraphUi;
 
-    fn get_object_ui_data(&self, id: ExpressionNodeId) -> Rc<AnyExpressionNodeObjectUiData> {
+    fn get_object_ui_data(&self, id: ExpressionNodeId) -> Rc<RefCell<dyn Any>> {
         self.object_states.get_object_data(id)
     }
 }

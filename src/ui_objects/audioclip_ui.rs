@@ -4,17 +4,13 @@ use eframe::egui;
 use crate::{
     core::{
         audiofileio::load_audio_file,
+        graph::graphobject::ObjectInitialization,
         sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     },
     objects::audioclip::AudioClip,
     ui_core::{
-        arguments::ArgumentList,
-        graph_ui::ObjectUiState,
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
+        arguments::ArgumentList, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -46,8 +42,6 @@ impl Chivable for AudioClipUiState {
     }
 }
 
-impl ObjectUiState for AudioClipUiState {}
-
 impl ObjectUi for AudioClipUi {
     type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<AudioClip>;
@@ -55,22 +49,22 @@ impl ObjectUi for AudioClipUi {
     fn ui(
         &self,
         audioclip: DynamicSoundProcessorHandle<AudioClip>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<AudioClipUiState>,
+        state: &mut AudioClipUiState,
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&audioclip, "AudioClip", data.color).show_with(
+        ProcessorUi::new(&audioclip, "AudioClip").show_with(
             ui,
             ctx,
-            ui_state,
+            graph_ui_state,
             sound_graph,
             |ui, _uistate, _sound_graph| {
                 ui.vertical(|ui| {
-                    if !data.state.name.is_empty() {
+                    if !state.name.is_empty() {
                         ui.add(egui::Label::new(
-                            egui::RichText::new(&data.state.name)
+                            egui::RichText::new(&state.name)
                                 .color(egui::Color32::BLACK)
                                 .strong(),
                         ));
@@ -86,7 +80,7 @@ impl ObjectUi for AudioClipUi {
                             match load_audio_file(&path) {
                                 Ok(buf) => {
                                     audioclip.set_data(buf);
-                                    data.state.name =
+                                    state.name =
                                         path.file_name().unwrap().to_str().unwrap().to_string();
                                 }
                                 Err(e) => println!("Failed to load file: {}", e),
@@ -109,13 +103,11 @@ impl ObjectUi for AudioClipUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        (
-            AudioClipUiState {
-                name: "".to_string(),
-            },
-            Color::default(),
-        )
+        _init: ObjectInitialization,
+    ) -> Result<AudioClipUiState, ()> {
+        // TODO: use init
+        Ok(AudioClipUiState {
+            name: "".to_string(),
+        })
     }
 }

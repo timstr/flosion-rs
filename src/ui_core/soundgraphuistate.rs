@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use eframe::egui;
 
@@ -27,7 +27,7 @@ use super::{
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
-    soundobjectuistate::{AnySoundObjectUiData, SoundObjectUiStates},
+    soundobjectuistate::SoundObjectUiStates,
     stackedlayout::stackedlayout::StackedLayout,
 };
 
@@ -200,7 +200,7 @@ impl SoundGraphUiState {
 impl GraphUiState for SoundGraphUiState {
     type GraphUi = SoundGraphUi;
 
-    fn get_object_ui_data(&self, id: SoundObjectId) -> Rc<AnySoundObjectUiData> {
+    fn get_object_ui_data(&self, id: SoundObjectId) -> Rc<RefCell<dyn Any>> {
         self.object_states.get_object_data(id)
     }
 }

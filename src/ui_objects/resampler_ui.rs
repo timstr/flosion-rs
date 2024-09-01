@@ -1,13 +1,12 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::{
+        graph::graphobject::ObjectInitialization,
+        sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    },
     objects::resampler::Resampler,
     ui_core::{
-        expressionplot::PlotConfig,
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
+        expressionplot::PlotConfig, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -22,16 +21,16 @@ impl ObjectUi for ResamplerUi {
     fn ui(
         &self,
         resampler: DynamicSoundProcessorHandle<Resampler>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<()>,
+        _state: &mut (),
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&resampler, "Resampler", data.color)
+        ProcessorUi::new(&resampler, "Resampler")
             .add_sound_input(resampler.input.id(), "input", sound_graph)
             .add_expression(resampler.speed_ratio.id(), "speed", PlotConfig::new())
-            .show(ui, ctx, ui_state, sound_graph);
+            .show(ui, ctx, graph_ui_state, sound_graph);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -41,8 +40,8 @@ impl ObjectUi for ResamplerUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        ((), Color::default())
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }

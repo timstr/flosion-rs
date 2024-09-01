@@ -1,15 +1,14 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+    core::{
+        graph::graphobject::ObjectInitialization,
+        sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+    },
     objects::keyboard::{KeyId, Keyboard},
     ui_core::{
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
-        soundprocessorui::ProcessorUi,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -24,19 +23,19 @@ impl ObjectUi for KeyboardUi {
     fn ui(
         &self,
         keyboard: StaticSoundProcessorHandle<Keyboard>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<()>,
+        _state: &mut (),
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&keyboard, "Keyboard", data.color)
+        ProcessorUi::new(&keyboard, "Keyboard")
             .add_sound_input(keyboard.input.id(), "input", sound_graph)
             .add_argument(keyboard.key_frequency.id(), "keyfrequency")
             .show_with(
                 ui,
                 ctx,
-                ui_state,
+                graph_ui_state,
                 sound_graph,
                 |ui, _ui_state, _sound_graph| {
                     let has_focus_id = egui::Id::new("keyboard_has_focus").with(keyboard.id());
@@ -117,8 +116,8 @@ impl ObjectUi for KeyboardUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        ((), Color::default())
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }

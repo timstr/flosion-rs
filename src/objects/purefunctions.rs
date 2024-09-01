@@ -57,9 +57,6 @@ impl WithObjectType for Constant {
     const TYPE: ObjectType = ObjectType::new("constant");
 }
 
-// Note: Variable isn't strictly speaking "pure" in the mathematical sense,
-// but it is intended to not vary rapidly (e.g. at audio rates) and
-// doesn't need any extra per-node state to be stored.
 pub struct Variable {
     value: Arc<AtomicF32>,
 }
@@ -76,6 +73,9 @@ impl Variable {
     pub const ARG_VALUE: FloatArgument = FloatArgument("value");
 }
 
+// Note: Variable isn't strictly speaking "pure" in the mathematical sense,
+// but it is intended to not vary rapidly (e.g. at audio rates) and
+// doesn't need any extra per-node state to be stored.
 impl PureExpressionNode for Variable {
     fn new(_tools: ExpressionNodeTools<'_>, init: ObjectInitialization) -> Result<Self, ()> {
         let value = match init {

@@ -30,7 +30,7 @@ use crate::{
 use crate::ui_core::{
     expressiongraphui::ExpressionGraphUi,
     expressiongraphuicontext::ExpressionGraphUiContext,
-    expressiongraphuistate::{AnyExpressionNodeObjectUiData, ExpressionNodeObjectUiStates},
+    expressiongraphuistate::ExpressionNodeObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState},
     ui_factory::UiFactory,
 };
@@ -122,10 +122,10 @@ impl LexicalLayoutFocus {
 
 fn make_internal_node(
     expression_node_id: ExpressionNodeId,
-    ui_data: &AnyExpressionNodeObjectUiData,
+    layout: ExpressionNodeLayout,
     arguments: Vec<ASTNode>,
 ) -> InternalASTNode {
-    let value = match ui_data.layout() {
+    let value = match layout {
         ExpressionNodeLayout::Prefix => {
             assert_eq!(arguments.len(), 1);
             let mut args = arguments.into_iter();
@@ -267,8 +267,10 @@ impl LexicalLayout {
                 })
                 .collect();
 
-            let node =
-                make_internal_node(nsid, &*object_ui_states.get_object_data(nsid), arguments);
+            // HACK everything is a function for now
+            let layout = ExpressionNodeLayout::Function;
+
+            let node = make_internal_node(nsid, layout, arguments);
 
             if create_new_variable {
                 let id = variable_id_generator.next_id();
@@ -1004,6 +1006,9 @@ impl LexicalLayout {
             .create_state_from_arguments(&new_object, arguments)
             .map_err(|e| format!("Failed to create ui state: {:?}", e))?;
 
+        // HACK: everything is a function for now while I figure out where to (not) store this
+        let layout = ExpressionNodeLayout::Function;
+
         let num_inputs = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
             graph
                 .topology()
@@ -1015,10 +1020,8 @@ impl LexicalLayout {
         let child_nodes: Vec<ASTNode> = (0..num_inputs)
             .map(|_| ASTNode::new(ASTNodeValue::Empty))
             .collect();
-        let internal_node = make_internal_node(new_object.id(), &new_ui_state, child_nodes);
+        let internal_node = make_internal_node(new_object.id(), layout, child_nodes);
         let node = ASTNode::new(ASTNodeValue::Internal(Box::new(internal_node)));
-
-        let layout = new_ui_state.layout();
 
         object_ui_states.set_object_data(new_object.id(), new_ui_state);
 

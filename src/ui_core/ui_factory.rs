@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use chive::ChiveOut;
 use eframe::egui;
@@ -14,7 +14,7 @@ use super::{
 };
 
 struct ObjectData<G: GraphUi> {
-    ui: Rc<dyn AnyObjectUi<G>>,
+    ui: Box<dyn AnyObjectUi<G>>,
 }
 
 pub struct UiFactory<G: GraphUi> {
@@ -22,35 +22,35 @@ pub struct UiFactory<G: GraphUi> {
 }
 
 impl<G: GraphUi> UiFactory<G> {
-    pub fn new_empty() -> UiFactory<G> {
+    pub(crate) fn new_empty() -> UiFactory<G> {
         UiFactory {
             mapping: HashMap::new(),
         }
     }
 
-    pub fn register<T: ObjectUi<GraphUi = G>>(&mut self) {
+    pub(crate) fn register<T: ObjectUi<GraphUi = G>>(&mut self) {
         let object_type = <T::HandleType as ObjectHandle<G::Graph>>::ObjectType::get_type();
         self.mapping.insert(
             object_type,
             ObjectData {
-                ui: Rc::new(T::default()),
+                ui: Box::new(T::default()),
             },
         );
     }
 
-    pub fn all_object_types<'a>(&'a self) -> impl 'a + Iterator<Item = ObjectType> {
+    pub(crate) fn all_object_types<'a>(&'a self) -> impl 'a + Iterator<Item = ObjectType> {
         self.mapping.keys().cloned()
     }
 
-    pub fn all_object_uis<'a>(&'a self) -> impl 'a + Iterator<Item = &dyn AnyObjectUi<G>> {
+    pub(crate) fn all_object_uis<'a>(&'a self) -> impl 'a + Iterator<Item = &dyn AnyObjectUi<G>> {
         self.mapping.values().map(|d| &*d.ui)
     }
 
-    pub fn get_object_ui(&self, object_type: ObjectType) -> Rc<dyn AnyObjectUi<G>> {
-        Rc::clone(&self.mapping.get(&object_type).unwrap().ui)
+    pub(crate) fn get_object_ui(&self, object_type: ObjectType) -> &dyn AnyObjectUi<G> {
+        &*self.mapping.get(&object_type).unwrap().ui
     }
 
-    pub fn ui(
+    pub(crate) fn ui(
         &self,
         object: &GraphObjectHandle<G::Graph>,
         ui_state: &mut G::State,
@@ -63,7 +63,8 @@ impl<G: GraphUi> UiFactory<G> {
         match self.mapping.get(&object_type) {
             Some(data) => {
                 let state = ui_state.get_object_ui_data(id);
-                data.ui.apply(object, &*state, ui_state, ui, ctx, graph);
+                let state: &mut dyn Any = &mut *state.borrow_mut();
+                data.ui.apply(object, state, ui_state, ui, ctx, graph);
             }
             None => panic!(
                 "Tried to create a ui for an object of unrecognized type \"{}\"",
@@ -76,10 +77,10 @@ impl<G: GraphUi> UiFactory<G> {
         &self,
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
-    ) -> Result<G::ObjectUiData, ()> {
+    ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         let object_type = object.get_type();
         match self.mapping.get(&object_type) {
-            Some(data) => data.ui.make_ui_state(object.id(), object, init),
+            Some(data) => data.ui.make_ui_state(object, init),
             None => panic!(
                 "Tried to create ui state for an object of unrecognized type \"{}\"",
                 object_type.name()
@@ -87,24 +88,27 @@ impl<G: GraphUi> UiFactory<G> {
         }
     }
 
-    pub fn create_default_state(&self, object: &GraphObjectHandle<G::Graph>) -> G::ObjectUiData {
+    pub(crate) fn create_default_state(
+        &self,
+        object: &GraphObjectHandle<G::Graph>,
+    ) -> Rc<RefCell<dyn Any>> {
         self.create_state_impl(object, ObjectInitialization::Default)
             .unwrap()
     }
 
-    pub fn create_state_from_archive(
+    pub(crate) fn create_state_from_archive(
         &self,
         object: &GraphObjectHandle<G::Graph>,
         chive_out: ChiveOut,
-    ) -> Result<G::ObjectUiData, ()> {
+    ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         self.create_state_impl(object, ObjectInitialization::Deserialize(chive_out))
     }
 
-    pub fn create_state_from_arguments(
+    pub(crate) fn create_state_from_arguments(
         &self,
         object: &GraphObjectHandle<G::Graph>,
         arguments: ParsedArguments,
-    ) -> Result<G::ObjectUiData, ()> {
+    ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         self.create_state_impl(object, ObjectInitialization::Arguments(arguments))
     }
 }

@@ -1,20 +1,15 @@
-use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
 
 use crate::{
     core::{
+        graph::graphobject::ObjectInitialization,
         sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
         soundchunk::SoundChunk,
     },
     objects::oscilloscope::Oscilloscope,
     ui_core::{
-        graph_ui::ObjectUiState,
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
-        soundprocessorui::ProcessorUi,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -33,17 +28,6 @@ pub struct OscilloscopeUiState {
     image: ColorImage,
     texture: Option<TextureHandle>,
 }
-
-// TODO: this doesn't make sense
-impl Chivable for OscilloscopeUiState {
-    fn chive_in(&self, chive_in: &mut ChiveIn) {}
-
-    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
-        Err(())
-    }
-}
-
-impl ObjectUiState for OscilloscopeUiState {}
 
 impl OscilloscopeUi {
     fn draw_line(
@@ -186,43 +170,43 @@ impl ObjectUi for OscilloscopeUi {
     fn ui<'a, 'b>(
         &self,
         oscilloscope: StaticSoundProcessorHandle<Oscilloscope>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        mut data: SoundObjectUiData<Self::StateType>,
+        state: &mut OscilloscopeUiState,
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&oscilloscope, "Oscilloscope", data.color)
+        ProcessorUi::new(&oscilloscope, "Oscilloscope")
             .add_sound_input(oscilloscope.input.id(), "Input", sound_graph)
             .show_with(
                 ui,
                 ctx,
-                ui_state,
+                graph_ui_state,
                 sound_graph,
                 |ui, _ui_state, _sound_graph| {
                     ui.vertical(|ui| {
-                        Self::update_image(&mut data.state);
+                        Self::update_image(state);
 
-                        let texture_id = match data.state.texture.as_mut() {
+                        let texture_id = match state.texture.as_mut() {
                             Some(texture) => {
-                                texture.set(data.state.image.clone(), TextureOptions::default());
+                                texture.set(state.image.clone(), TextureOptions::default());
                                 texture.id()
                             }
                             None => {
                                 let texture = ui.ctx().load_texture(
                                     "oscilloscope",
-                                    data.state.image.clone(),
+                                    state.image.clone(),
                                     TextureOptions::default(),
                                 );
                                 let id = texture.id();
-                                data.state.texture = Some(texture);
+                                state.texture = Some(texture);
                                 id
                             }
                         };
 
                         ui.horizontal(|ui| {
                             ui.add(
-                                egui::Slider::new(&mut data.state.exposure, 0.0..=100.0)
+                                egui::Slider::new(&mut state.exposure, 0.0..=100.0)
                                     .logarithmic(true),
                             );
                             ui.separator();
@@ -235,8 +219,7 @@ impl ObjectUi for OscilloscopeUi {
 
                         ui.horizontal(|ui| {
                             ui.add(
-                                egui::Slider::new(&mut data.state.gain, 0.0..=100.0)
-                                    .logarithmic(true),
+                                egui::Slider::new(&mut state.gain, 0.0..=100.0).logarithmic(true),
                             );
                             ui.separator();
                             ui.add(egui::Label::new(
@@ -248,8 +231,7 @@ impl ObjectUi for OscilloscopeUi {
 
                         ui.horizontal(|ui| {
                             ui.add(
-                                egui::Slider::new(&mut data.state.decay, 0.0..=1.0)
-                                    .logarithmic(true),
+                                egui::Slider::new(&mut state.decay, 0.0..=1.0).logarithmic(true),
                             );
                             ui.separator();
                             ui.add(egui::Label::new(
@@ -260,7 +242,7 @@ impl ObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(egui::Slider::new(&mut data.state.rotation, 0..=8));
+                            ui.add(egui::Slider::new(&mut state.rotation, 0..=8));
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Rotation")
@@ -270,7 +252,7 @@ impl ObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(egui::Checkbox::new(&mut data.state.flip, ""));
+                            ui.add(egui::Checkbox::new(&mut state.flip, ""));
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Flip")
@@ -280,7 +262,7 @@ impl ObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(egui::Slider::new(&mut data.state.size, 32.0..=1024.0));
+                            ui.add(egui::Slider::new(&mut state.size, 32.0..=1024.0));
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Size")
@@ -289,9 +271,7 @@ impl ObjectUi for OscilloscopeUi {
                             ));
                         });
 
-                        let rect = ui
-                            .allocate_space(egui::vec2(data.state.size, data.state.size))
-                            .1;
+                        let rect = ui.allocate_space(egui::vec2(state.size, state.size)).1;
 
                         let painter = ui.painter();
 
@@ -315,22 +295,19 @@ impl ObjectUi for OscilloscopeUi {
     fn make_ui_state(
         &self,
         handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        (
-            OscilloscopeUiState {
-                buffer_reader: handle.get_buffer_reader(),
-                exposure: 5.0,
-                gain: 0.7,
-                decay: 0.3,
-                rotation: 1,
-                flip: true,
-                size: 512.0,
-                prev_sample: (0.0, 0.0),
-                image: ColorImage::new([512, 512], Color32::BLACK),
-                texture: None,
-            },
-            Color::default(),
-        )
+        _init: ObjectInitialization,
+    ) -> Result<OscilloscopeUiState, ()> {
+        Ok(OscilloscopeUiState {
+            buffer_reader: handle.get_buffer_reader(),
+            exposure: 5.0,
+            gain: 0.7,
+            decay: 0.3,
+            rotation: 1,
+            flip: true,
+            size: 512.0,
+            prev_sample: (0.0, 0.0),
+            image: ColorImage::new([512, 512], Color32::BLACK),
+            texture: None,
+        })
     }
 }

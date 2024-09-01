@@ -16,7 +16,6 @@ use super::{
 pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
-    color: egui::Color32,
     expressions: Vec<(SoundExpressionId, String, PlotConfig)>,
     arguments: Vec<(SoundExpressionArgumentId, String)>,
     sound_inputs: Vec<(SoundInputId, String, SoundExpressionArgumentId)>,
@@ -28,17 +27,12 @@ struct ProcessorUiProps {
 }
 
 impl ProcessorUi {
-    pub fn new<T: ProcessorHandle>(
-        handle: &T,
-        label: &'static str,
-        color: egui::Color32,
-    ) -> ProcessorUi {
+    pub fn new<T: ProcessorHandle>(handle: &T, label: &'static str) -> ProcessorUi {
         let mut arguments = Vec::new();
         arguments.push((handle.time_argument(), "time".to_string()));
         ProcessorUi {
             processor_id: handle.id(),
             label,
-            color,
             expressions: Vec::new(),
             arguments,
             sound_inputs: Vec::new(),
@@ -188,8 +182,12 @@ impl ProcessorUi {
 
         let darkish_stroke = egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128));
 
+        let color = ui_state
+            .object_states()
+            .get_object_color(self.processor_id.into());
+
         let frame = egui::Frame::default()
-            .fill(self.color)
+            .fill(color)
             .inner_margin(egui::vec2(0.0, 5.0))
             .stroke(darkish_stroke);
 

@@ -130,7 +130,6 @@ impl DynamicSoundProcessor for AudioClip {
         StreamStatus::Playing
     }
 
-    // TODO: replace with impl Chivable
     fn serialize(&self, mut chive_in: ChiveIn) {
         let data = self.data.read();
         chive_in.array_iter_f32(data.samples().flatten());

@@ -1,3 +1,5 @@
+use std::{any::Any, cell::RefCell, rc::Rc};
+
 use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::{
     egui::{self},
@@ -5,15 +7,11 @@ use eframe::{
 };
 use rand::{thread_rng, Rng};
 
-use crate::core::graph::{
-    graph::Graph,
-    graphobject::{GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType},
+use crate::core::graph::graphobject::{
+    GraphObjectHandle, ObjectHandle, ObjectInitialization, ObjectType,
 };
 
-use super::{
-    arguments::{ArgumentList, ParsedArguments},
-    graph_ui::{GraphUi, ObjectUiData, ObjectUiState},
-};
+use super::{arguments::ArgumentList, graph_ui::GraphUi};
 
 pub struct Color {
     pub color: egui::Color32,
@@ -41,35 +39,25 @@ impl Chivable for Color {
     }
 }
 
-impl ObjectUiState for () {}
-
 pub fn random_object_color() -> egui::Color32 {
     let hue: f32 = thread_rng().gen();
     let color = ecolor::Hsva::new(hue, 1.0, 0.5, 1.0);
     color.into()
 }
 
-pub enum UiInitialization {
-    Default,
-    Arguments(ParsedArguments),
-}
-
 pub trait ObjectUi: 'static + Default {
     // TODO: find a way to clean up these darn nested types
     type GraphUi: GraphUi;
     type HandleType: ObjectHandle<<Self::GraphUi as GraphUi>::Graph>;
-    type StateType: ObjectUiState;
+    type StateType;
 
     fn ui<'a>(
         &self,
         handle: Self::HandleType,
-        ui_state: &mut <Self::GraphUi as GraphUi>::State,
+        graph_ui_state: &mut <Self::GraphUi as GraphUi>::State,
         ui: &mut egui::Ui,
         ctx: &<Self::GraphUi as GraphUi>::Context<'_>,
-        data: <<Self::GraphUi as GraphUi>::ObjectUiData as ObjectUiData>::ConcreteType<
-            'a,
-            Self::StateType,
-        >,
+        state: &mut Self::StateType,
         graph: &mut <Self::GraphUi as GraphUi>::Graph,
     );
 
@@ -82,18 +70,15 @@ pub trait ObjectUi: 'static + Default {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (
-        Self::StateType,
-        <<Self::GraphUi as GraphUi>::ObjectUiData as ObjectUiData>::RequiredData,
-    );
+        _init: ObjectInitialization,
+    ) -> Result<Self::StateType, ()>;
 }
 
 pub trait AnyObjectUi<G: GraphUi> {
     fn apply(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        object_ui_state: &G::ObjectUiData,
+        state: &mut dyn Any,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
         ctx: &G::Context<'_>,
@@ -108,26 +93,30 @@ pub trait AnyObjectUi<G: GraphUi> {
 
     fn make_ui_state(
         &self,
-        id: <G::Graph as Graph>::ObjectId,
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
-    ) -> Result<G::ObjectUiData, ()>;
+    ) -> Result<Rc<RefCell<dyn Any>>, ()>;
 }
 
 impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
     fn apply(
         &self,
         object: &GraphObjectHandle<G::Graph>,
-        object_ui_state: &G::ObjectUiData,
+        state: &mut dyn Any,
         graph_state: &mut G::State,
         ui: &mut egui::Ui,
         ctx: &G::Context<'_>,
         graph: &mut G::Graph,
     ) {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        object_ui_state.downcast_with(graph_state, ctx, |data, graph_state, ctx| {
-            self.ui(handle, graph_state, ui, ctx, data, graph);
-        });
+        self.ui(
+            handle,
+            graph_state,
+            ui,
+            ctx,
+            state.downcast_mut().unwrap(),
+            graph,
+        );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -144,25 +133,11 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
 
     fn make_ui_state(
         &self,
-        id: <G::Graph as Graph>::ObjectId,
         object: &GraphObjectHandle<G::Graph>,
         init: ObjectInitialization,
-    ) -> Result<G::ObjectUiData, ()> {
+    ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let (state, required_data) = match init {
-            ObjectInitialization::Deserialize(mut a) => {
-                (Chivable::chive_out(&mut a)?, Chivable::chive_out(&mut a)?)
-            }
-            ObjectInitialization::Default => self.make_ui_state(&handle, UiInitialization::Default),
-            ObjectInitialization::Arguments(parsed_args) => {
-                self.make_ui_state(&handle, UiInitialization::Arguments(parsed_args))
-            }
-        };
-
-        Ok(<G::ObjectUiData as ObjectUiData>::new(
-            id,
-            state,
-            required_data,
-        ))
+        let state = self.make_ui_state(&handle, init)?;
+        Ok(Rc::new(RefCell::new(state)))
     }
 }

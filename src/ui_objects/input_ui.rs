@@ -1,20 +1,15 @@
-use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
 
 use crate::{
     core::{
+        graph::graphobject::ObjectInitialization,
         sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
     objects::input::Input,
     ui_core::{
-        graph_ui::ObjectUiState,
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
-        soundprocessorui::ProcessorUi,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -25,17 +20,6 @@ pub struct InputUiState {
     buffer_reader: spmcq::Reader<SoundChunk>,
     amplitude_history: Vec<f32>,
 }
-
-// TODO: this doesn't make sense
-impl Chivable for InputUiState {
-    fn chive_in(&self, chive_in: &mut ChiveIn) {}
-
-    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
-        Err(())
-    }
-}
-
-impl ObjectUiState for InputUiState {}
 
 impl InputUi {
     fn update_amplitude_history(state: &mut InputUiState) {
@@ -63,27 +47,27 @@ impl ObjectUi for InputUi {
     fn ui(
         &self,
         input: StaticSoundProcessorHandle<Input>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<Self::StateType>,
+        state: &mut InputUiState,
         sound_graph: &mut SoundGraph,
     ) {
-        Self::update_amplitude_history(data.state);
+        Self::update_amplitude_history(state);
 
         // TODO: controls for choosing input device?
         // Would require changes to input
-        ProcessorUi::new(&input, "Input", data.color).show_with(
+        ProcessorUi::new(&input, "Input").show_with(
             ui,
             ctx,
-            ui_state,
+            graph_ui_state,
             sound_graph,
             |ui, _ui_state, _sound_graph| {
                 let (_, rect) = ui.allocate_space(egui::vec2(100.0, 100.0));
                 let painter = ui.painter();
                 painter.rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
 
-                let hist = &data.state.amplitude_history;
+                let hist = &state.amplitude_history;
 
                 let dy = rect.height() / hist.len() as f32;
                 for (i, v) in hist.iter().enumerate() {
@@ -112,16 +96,13 @@ impl ObjectUi for InputUi {
     fn make_ui_state(
         &self,
         handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
+        _init: ObjectInitialization,
+    ) -> Result<InputUiState, ()> {
         let mut amplitude_history = Vec::new();
         amplitude_history.resize(100, 0.0);
-        (
-            InputUiState {
-                buffer_reader: handle.get_buffer_reader(),
-                amplitude_history,
-            },
-            Color::default(),
-        )
+        Ok(InputUiState {
+            buffer_reader: handle.get_buffer_reader(),
+            amplitude_history,
+        })
     }
 }

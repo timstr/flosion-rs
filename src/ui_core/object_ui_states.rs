@@ -1,20 +1,15 @@
 use std::any::{type_name, Any};
 
-use chive::{Chivable, ChiveIn};
+use chive::ChiveIn;
 
-pub trait AnyObjectUiState: 'static {
+pub trait AnyObjectUiState {
     fn as_any(&self) -> &dyn Any;
     fn as_mut_any(&mut self) -> &mut dyn Any;
     fn get_language_type_name(&self) -> &'static str;
     fn serialize(&self, chive_in: &mut ChiveIn);
 }
 
-// TODO: requiring Chivable here fails to distinguish
-// between ui states that should entirely be written
-// to disk, and ui states that are used just for
-// book-keeping and caching between ui redraws.
-// Remove this requirement and clean this up.
-impl<T: 'static + Chivable> AnyObjectUiState for T {
+impl<T: 'static> AnyObjectUiState for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -28,6 +23,7 @@ impl<T: 'static + Chivable> AnyObjectUiState for T {
     }
 
     fn serialize(&self, chive_in: &mut ChiveIn) {
-        chive_in.chivable(self);
+        todo!()
+        // chive_in.chivable(self);
     }
 }

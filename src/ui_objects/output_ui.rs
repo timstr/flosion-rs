@@ -1,15 +1,14 @@
-use eframe::egui;
+pub(crate) use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+    core::{
+        graph::graphobject::ObjectInitialization,
+        sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+    },
     objects::output::Output,
     ui_core::{
-        object_ui::{Color, ObjectUi, UiInitialization},
-        soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState,
-        soundobjectuistate::SoundObjectUiData,
-        soundprocessorui::ProcessorUi,
+        object_ui::ObjectUi, soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -23,18 +22,18 @@ impl ObjectUi for OutputUi {
     fn ui(
         &self,
         output: StaticSoundProcessorHandle<Output>,
-        ui_state: &mut SoundGraphUiState,
+        graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        data: SoundObjectUiData<()>,
+        _state: &mut (),
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&output, "Output", data.color)
+        ProcessorUi::new(&output, "Output")
             .add_sound_input(output.input.id(), "input", sound_graph)
             .show_with(
                 ui,
                 ctx,
-                ui_state,
+                graph_ui_state,
                 sound_graph,
                 |ui, _ui_state, _sound_graph| {
                     if ui
@@ -54,8 +53,8 @@ impl ObjectUi for OutputUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _init: UiInitialization,
-    ) -> (Self::StateType, Color) {
-        ((), Color::default())
+        _init: ObjectInitialization,
+    ) -> Result<(), ()> {
+        Ok(())
     }
 }
