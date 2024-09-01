@@ -79,6 +79,8 @@ pub trait ObjectHandle<G: Graph>: Sized {
     fn object_type() -> ObjectType;
 }
 
+// NOTE: this constant is NOT stored in the sound processor traits themselves
+// because doing so would make them not object safe.
 pub trait WithObjectType {
     const TYPE: ObjectType;
 }
