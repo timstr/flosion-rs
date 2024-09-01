@@ -40,7 +40,7 @@ pub enum StreamStatus {
     Done,
 }
 
-pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
+pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
     type SoundInputType: SoundProcessorInput;
 
     type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
@@ -66,7 +66,7 @@ pub trait StaticSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
     fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
-pub trait DynamicSoundProcessor: 'static + Sized + Sync + Send + WithObjectType {
+pub trait DynamicSoundProcessor: Sized + Sync + Send + WithObjectType {
     type StateType: State;
 
     type SoundInputType: SoundProcessorInput;
