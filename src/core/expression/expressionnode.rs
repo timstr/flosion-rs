@@ -23,7 +23,7 @@ pub type ExpressionNodeId = UniqueId<ExpressionNodeTag>;
 /// An ExpressionNode whose values are computed as a pure function of the inputs,
 /// with no side effects or hidden state. Intended to be used for elementary
 /// mathematical functions and easy, closed-form calculations.
-pub trait PureExpressionNode: 'static + Sync + Send + WithObjectType {
+pub trait PureExpressionNode: Sync + Send + WithObjectType {
     fn new(tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
@@ -41,7 +41,7 @@ pub trait PureExpressionNode: 'static + Sync + Send + WithObjectType {
 /// A trait representing any type of expression node, both
 /// pure and stateful. Intended mainly for trait objects
 /// and easy grouping of the different types.
-pub trait ExpressionNode: 'static + Sync + Send {
+pub trait ExpressionNode: Sync + Send {
     fn num_variables(&self) -> usize;
 
     fn compile<'ctx>(
@@ -194,7 +194,7 @@ impl<T: PureExpressionNode> ObjectHandle<ExpressionGraph> for PureExpressionNode
 /// special build-up and tear-down to be used. This includes calculations
 /// involving reccurences, e.g. relying on previous results, as well
 /// as data structures that e.g. require locking in order to read safely.
-pub trait StatefulExpressionNode: 'static + Sync + Send + WithObjectType {
+pub trait StatefulExpressionNode: Sync + Send + WithObjectType {
     fn new(tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
