@@ -67,6 +67,8 @@ pub trait ObjectUi: 'static + Default {
         ArgumentList::new_empty()
     }
 
+    fn make_properties(&self) -> <Self::GraphUi as GraphUi>::Properties;
+
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
@@ -90,6 +92,8 @@ pub trait AnyObjectUi<G: GraphUi> {
     fn summon_arguments(&self) -> ArgumentList;
 
     fn object_type(&self) -> ObjectType;
+
+    fn make_properties(&self) -> G::Properties;
 
     fn make_ui_state(
         &self,
@@ -129,6 +133,10 @@ impl<G: GraphUi, T: ObjectUi<GraphUi = G>> AnyObjectUi<G> for T {
 
     fn object_type(&self) -> ObjectType {
         <T::HandleType as ObjectHandle<G::Graph>>::object_type()
+    }
+
+    fn make_properties(&self) -> G::Properties {
+        T::make_properties(&self)
     }
 
     fn make_ui_state(

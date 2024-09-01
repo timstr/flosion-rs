@@ -218,6 +218,7 @@ impl LexicalLayout {
     pub(crate) fn generate(
         topo: &ExpressionGraphTopology,
         object_ui_states: &ExpressionNodeObjectUiStates,
+        ui_factory: &UiFactory<ExpressionGraphUi>,
     ) -> LexicalLayout {
         let outputs = topo.results();
         assert_eq!(outputs.len(), 1);
@@ -233,6 +234,7 @@ impl LexicalLayout {
             topo: &ExpressionGraphTopology,
             object_ui_states: &ExpressionNodeObjectUiStates,
             variable_id_generator: &mut IdGenerator<VariableId>,
+            ui_factory: &UiFactory<ExpressionGraphUi>,
         ) -> ASTNode {
             let nsid = match target {
                 ExpressionTarget::Node(nsid) => nsid,
@@ -250,9 +252,9 @@ impl LexicalLayout {
 
             let create_new_variable = topo.destinations(target).count() >= 2;
 
-            let arguments: Vec<ASTNode> = topo
-                .node(nsid)
-                .unwrap()
+            let node = topo.node(nsid).unwrap();
+
+            let arguments: Vec<ASTNode> = node
                 .inputs()
                 .iter()
                 .map(|niid| match topo.node_input(*niid).unwrap().target() {
@@ -262,13 +264,15 @@ impl LexicalLayout {
                         topo,
                         object_ui_states,
                         variable_id_generator,
+                        ui_factory,
                     ),
                     None => ASTNode::new(ASTNodeValue::Empty),
                 })
                 .collect();
 
-            // HACK everything is a function for now
-            let layout = ExpressionNodeLayout::Function;
+            let layout = ui_factory
+                .get_object_ui(node.instance_arc().as_graph_object().get_type())
+                .make_properties();
 
             let node = make_internal_node(nsid, layout, arguments);
 
@@ -293,6 +297,7 @@ impl LexicalLayout {
                 topo,
                 object_ui_states,
                 &mut variable_id_generator,
+                ui_factory,
             ),
             None => ASTNode::new(ASTNodeValue::Empty),
         };
@@ -1006,8 +1011,9 @@ impl LexicalLayout {
             .create_state_from_arguments(&new_object, arguments)
             .map_err(|e| format!("Failed to create ui state: {:?}", e))?;
 
-        // HACK: everything is a function for now while I figure out where to (not) store this
-        let layout = ExpressionNodeLayout::Function;
+        let layout = ui_factory
+            .get_object_ui(new_object.get_type())
+            .make_properties();
 
         let num_inputs = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
             graph

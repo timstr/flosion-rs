@@ -18,6 +18,7 @@ impl ObjectUi for ADSRUi {
     type GraphUi = SoundGraphUi;
     type HandleType = DynamicSoundProcessorHandle<ADSR>;
     type StateType = ();
+
     fn ui(
         &self,
         adsr: DynamicSoundProcessorHandle<ADSR>,
@@ -38,6 +39,10 @@ impl ObjectUi for ADSRUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["adsr"]
+    }
+
+    fn make_properties(&self) -> () {
+        ()
     }
 
     fn make_ui_state(

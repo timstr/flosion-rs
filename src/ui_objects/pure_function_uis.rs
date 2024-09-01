@@ -13,6 +13,7 @@ use crate::{
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
+        lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::ObjectUi,
     },
 };
@@ -54,6 +55,10 @@ impl ObjectUi for ConstantUi {
         ArgumentList::new_empty()
             .add(&Constant::ARG_VALUE)
             .add(&ConstantUi::ARG_NAME)
+    }
+
+    fn make_properties(&self) -> ExpressionNodeLayout {
+        ExpressionNodeLayout::Function
     }
 
     fn make_ui_state(
@@ -142,6 +147,21 @@ impl ObjectUi for SliderUi {
             });
     }
 
+    fn summon_names(&self) -> &'static [&'static str] {
+        &["slider"]
+    }
+
+    fn summon_arguments(&self) -> ArgumentList {
+        ArgumentList::new_empty()
+            .add(&Variable::ARG_VALUE)
+            .add(&SliderUi::ARG_NAME)
+            .add(&SliderUi::ARG_RANGE)
+    }
+
+    fn make_properties(&self) -> ExpressionNodeLayout {
+        ExpressionNodeLayout::Function
+    }
+
     fn make_ui_state(
         &self,
         object: &PureExpressionNodeHandle<Variable>,
@@ -199,21 +219,9 @@ impl ObjectUi for SliderUi {
             show_settings: false,
         })
     }
-
-    fn summon_names(&self) -> &'static [&'static str] {
-        &["slider"]
-    }
-
-    fn summon_arguments(&self) -> ArgumentList {
-        ArgumentList::new_empty()
-            .add(&Variable::ARG_VALUE)
-            .add(&SliderUi::ARG_NAME)
-            .add(&SliderUi::ARG_RANGE)
-    }
 }
 
 macro_rules! unary_expression_node_ui {
-    // TODO: use $layout
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
@@ -237,6 +245,10 @@ macro_rules! unary_expression_node_ui {
 
             fn summon_names(&self) -> &'static [&'static str] {
                 &$summon_names
+            }
+
+            fn make_properties(&self) -> ExpressionNodeLayout {
+                $layout
             }
 
             fn make_ui_state(
@@ -251,7 +263,6 @@ macro_rules! unary_expression_node_ui {
 }
 
 macro_rules! binary_expression_node_ui {
-    // TODO: use $layout
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr, $layout: expr) => {
         #[derive(Default)]
         pub struct $name {}
@@ -277,6 +288,10 @@ macro_rules! binary_expression_node_ui {
                 &$summon_names
             }
 
+            fn make_properties(&self) -> ExpressionNodeLayout {
+                $layout
+            }
+
             fn make_ui_state(
                 &self,
                 _object: &PureExpressionNodeHandle<$object>,
@@ -289,7 +304,6 @@ macro_rules! binary_expression_node_ui {
 }
 
 macro_rules! ternary_expression_node_ui {
-    // TODO: use $layout
     ($name: ident, $object: ident, $display_name: literal, $display_style: expr, $summon_names: expr) => {
         #[derive(Default)]
         pub struct $name {}
@@ -313,6 +327,10 @@ macro_rules! ternary_expression_node_ui {
 
             fn summon_names(&self) -> &'static [&'static str] {
                 &$summon_names
+            }
+
+            fn make_properties(&self) -> ExpressionNodeLayout {
+                ExpressionNodeLayout::Function
             }
 
             fn make_ui_state(

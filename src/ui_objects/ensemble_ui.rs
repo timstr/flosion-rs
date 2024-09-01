@@ -78,6 +78,10 @@ impl ObjectUi for EnsembleUi {
         &["ensemble"]
     }
 
+    fn make_properties(&self) -> () {
+        ()
+    }
+
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,

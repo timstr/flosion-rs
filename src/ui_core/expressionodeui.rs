@@ -43,7 +43,6 @@ impl ExpressionNodeUi {
     pub fn show_with<F: FnOnce(&mut egui::Ui)>(
         self,
         ui: &mut egui::Ui,
-        // Huh???
         _ctx: &ExpressionGraphUiContext,
         add_contents: F,
     ) {

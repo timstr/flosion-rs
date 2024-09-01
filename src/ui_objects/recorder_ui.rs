@@ -77,6 +77,10 @@ impl ObjectUi for RecorderUi {
         &["recorder"]
     }
 
+    fn make_properties(&self) -> () {
+        ()
+    }
+
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,

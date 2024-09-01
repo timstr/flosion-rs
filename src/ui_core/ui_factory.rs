@@ -38,10 +38,6 @@ impl<G: GraphUi> UiFactory<G> {
         );
     }
 
-    pub(crate) fn all_object_types<'a>(&'a self) -> impl 'a + Iterator<Item = ObjectType> {
-        self.mapping.keys().cloned()
-    }
-
     pub(crate) fn all_object_uis<'a>(&'a self) -> impl 'a + Iterator<Item = &dyn AnyObjectUi<G>> {
         self.mapping.values().map(|d| &*d.ui)
     }

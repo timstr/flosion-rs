@@ -100,6 +100,10 @@ impl ObjectUi for AudioClipUi {
         &["audioclip"]
     }
 
+    fn make_properties(&self) -> () {
+        ()
+    }
+
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,

@@ -13,6 +13,7 @@ use crate::{
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
+        lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::ObjectUi,
     },
 };
@@ -34,7 +35,6 @@ impl ObjectUi for Sampler1dUi {
         _state: &mut (),
         _graph: &mut ExpressionGraph,
     ) {
-        // TODO: detect drags, edit samples
         // TODO: custom vertical range
 
         ExpressionNodeUi::new_named(
@@ -106,6 +106,10 @@ impl ObjectUi for Sampler1dUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["sampler1d"]
+    }
+
+    fn make_properties(&self) -> ExpressionNodeLayout {
+        ExpressionNodeLayout::Function
     }
 
     fn make_ui_state(

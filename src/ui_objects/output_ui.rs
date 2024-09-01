@@ -50,6 +50,10 @@ impl ObjectUi for OutputUi {
         &["output"]
     }
 
+    fn make_properties(&self) -> () {
+        ()
+    }
+
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,

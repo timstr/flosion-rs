@@ -13,4 +13,6 @@ impl GraphUi for SoundGraphUi {
     type State = SoundGraphUiState;
 
     type Context<'a> = SoundGraphUiContext<'a>;
+
+    type Properties = ();
 }

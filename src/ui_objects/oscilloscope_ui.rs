@@ -292,6 +292,10 @@ impl ObjectUi for OscilloscopeUi {
         &["oscilloscope"]
     }
 
+    fn make_properties(&self) -> () {
+        ()
+    }
+
     fn make_ui_state(
         &self,
         handle: &Self::HandleType,

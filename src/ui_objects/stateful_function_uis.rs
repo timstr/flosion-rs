@@ -13,6 +13,7 @@ use crate::{
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
+        lexicallayout::lexicallayout::ExpressionNodeLayout,
         object_ui::ObjectUi,
     },
 };
@@ -44,6 +45,10 @@ impl ObjectUi for LinearApproachUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["linearapproach"]
+    }
+
+    fn make_properties(&self) -> ExpressionNodeLayout {
+        ExpressionNodeLayout::Function
     }
 
     fn make_ui_state(
@@ -84,6 +89,10 @@ impl ObjectUi for ExponentialApproachUi {
         &["exponentialapproach"]
     }
 
+    fn make_properties(&self) -> ExpressionNodeLayout {
+        ExpressionNodeLayout::Function
+    }
+
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
@@ -116,6 +125,10 @@ impl ObjectUi for IntegratorUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["integrator"]
+    }
+
+    fn make_properties(&self) -> ExpressionNodeLayout {
+        ExpressionNodeLayout::Function
     }
 
     fn make_ui_state(
@@ -154,6 +167,10 @@ impl ObjectUi for WrappingIntegratorUi {
 
     fn summon_names(&self) -> &'static [&'static str] {
         &["wrappingintegrator"]
+    }
+
+    fn make_properties(&self) -> ExpressionNodeLayout {
+        ExpressionNodeLayout::Function
     }
 
     fn make_ui_state(

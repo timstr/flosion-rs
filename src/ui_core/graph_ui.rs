@@ -16,6 +16,10 @@ pub trait GraphUi {
     // require lifetimes, and there doesn't seem to be
     // a way to elide it currently.
     type Context<'a>;
+
+    /// Per-object data that is needed before the object is rendered
+    /// in order to display it properly
+    type Properties;
 }
 
 pub trait GraphUiState {

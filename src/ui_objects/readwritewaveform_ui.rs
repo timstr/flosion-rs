@@ -40,6 +40,10 @@ impl ObjectUi for ReadWriteWaveformUi {
         &["readwritewaveform"]
     }
 
+    fn make_properties(&self) -> () {
+        ()
+    }
+
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,

@@ -50,6 +50,7 @@ impl StatefulExpressionNode for Sampler1d {
 
     fn serialize(&self, mut chive_in: ChiveIn) {
         // TODO
+        todo!()
     }
 
     fn compile_start_over<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {

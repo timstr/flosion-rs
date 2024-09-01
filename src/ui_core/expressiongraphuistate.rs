@@ -8,13 +8,18 @@ use crate::core::{
 };
 
 use super::{
-    expressiongraphui::ExpressionGraphUi, graph_ui::GraphUiState,
-    lexicallayout::lexicallayout::LexicalLayout, ui_factory::UiFactory,
+    expressiongraphui::ExpressionGraphUi,
+    graph_ui::GraphUiState,
+    lexicallayout::lexicallayout::{ExpressionNodeLayout, LexicalLayout},
+    ui_factory::UiFactory,
 };
 
 /// Container for holding the ui states of all nodes in a single
 /// expression graph ui.
 pub struct ExpressionNodeObjectUiStates {
+    // TODO: store ExpressionNodeLayout per node here too
+    // where to get them from though?
+    //
     data: HashMap<ExpressionNodeId, Rc<RefCell<dyn Any>>>,
 }
 
@@ -118,16 +123,6 @@ impl ExpressionUiCollection {
         }
     }
 
-    /// Replace the ui state for a single expression
-    pub(super) fn set_ui_data(
-        &mut self,
-        eid: SoundExpressionId,
-        ui_state: ExpressionGraphUiState,
-        layout: LexicalLayout,
-    ) {
-        self.data.insert(eid, (ui_state, layout));
-    }
-
     /// Get a mutable reference to the ui state for the given expression,
     /// if any exists.
     pub(crate) fn get_mut(
@@ -171,6 +166,7 @@ impl ExpressionUiCollection {
             let layout = LexicalLayout::generate(
                 expr.expression_graph().topology(),
                 ui_state.object_states_mut(),
+                factory,
             );
 
             self.data.insert(expr.id(), (ui_state, layout));
