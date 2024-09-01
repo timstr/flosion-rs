@@ -12,7 +12,6 @@ pub mod graph_ui;
 pub mod interactions;
 pub mod lexicallayout;
 pub mod object_ui;
-pub mod object_ui_states;
 pub mod soundgraphui;
 pub mod soundgraphuicontext;
 pub mod soundgraphuinames;
