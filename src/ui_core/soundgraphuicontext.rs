@@ -1,5 +1,7 @@
 use eframe::egui;
 
+use crate::core::jit::server::JitServer;
+
 use super::{
     flosion_ui::Factories, graph_properties::GraphProperties, stackedlayout::timeaxis::TimeAxis,
 };
@@ -10,6 +12,7 @@ pub struct SoundGraphUiContext<'a> {
     width: f32,
     group_origin: egui::Pos2,
     properties: &'a GraphProperties,
+    jit_server: &'a JitServer<'a>,
 }
 
 impl<'a> SoundGraphUiContext<'a> {
@@ -19,6 +22,7 @@ impl<'a> SoundGraphUiContext<'a> {
         width: f32,
         group_origin: egui::Pos2,
         properties: &'a GraphProperties,
+        jit_server: &'a JitServer<'a>,
     ) -> SoundGraphUiContext<'a> {
         SoundGraphUiContext {
             factories,
@@ -26,10 +30,11 @@ impl<'a> SoundGraphUiContext<'a> {
             width,
             group_origin,
             properties,
+            jit_server,
         }
     }
 
-    pub(crate) fn factories(&self) -> &Factories {
+    pub(crate) fn factories(&self) -> &'a Factories {
         self.factories
     }
 
@@ -47,5 +52,9 @@ impl<'a> SoundGraphUiContext<'a> {
 
     pub fn properties(&self) -> &GraphProperties {
         self.properties
+    }
+
+    pub fn jit_server(&self) -> &'a JitServer<'a> {
+        self.jit_server
     }
 }

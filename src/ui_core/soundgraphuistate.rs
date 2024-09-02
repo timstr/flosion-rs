@@ -179,7 +179,8 @@ impl SoundGraphUiState {
                 .get(&expression_id)
                 .unwrap(),
         );
-        let inner_ctx = ExpressionGraphUiContext::new(ctx.factories().expression_uis());
+        let inner_ctx =
+            ExpressionGraphUiContext::new(ctx.factories().expression_uis(), ctx.jit_server());
 
         let expr_ui = SoundExpressionUi::new(expression_id);
 

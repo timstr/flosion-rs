@@ -1,6 +1,14 @@
+use std::thread::{self, ScopedJoinHandle};
+
 use crate::{
     core::{
-        expression::expressiongraph::ExpressionGraph, graph::objectfactory::ObjectFactory,
+        engine::{
+            garbage::GarbageDisposer,
+            soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
+        },
+        expression::expressiongraph::ExpressionGraph,
+        graph::objectfactory::ObjectFactory,
+        jit::server::{JitServer, JitServerBuilder},
         sound::soundgraph::SoundGraph,
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
@@ -10,6 +18,7 @@ use eframe::{
     egui::{self},
 };
 use hashrevise::{Revisable, RevisionHash};
+use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
     expressiongraphui::ExpressionGraphUi, graph_properties::GraphProperties,
@@ -58,7 +67,7 @@ impl Factories {
 
 /// The very root of the GUI, which manages a SoundGraph instance,
 /// responds to inputs, and draws the up-to-date ui via egui
-pub struct FlosionApp {
+pub struct FlosionApp<'ctx> {
     /// The sound graph currently being used
     graph: SoundGraph,
 
@@ -74,15 +83,39 @@ pub struct FlosionApp {
     properties: GraphProperties,
 
     previous_clean_revision: Option<RevisionHash>,
+
+    inkwell_context: &'ctx inkwell::context::Context,
+
+    audio_thread: ScopedJoinHandle<'ctx, ()>,
+
+    engine_interface: SoundEngineInterface<'ctx>,
+
+    garbage_disposer: GarbageDisposer<'ctx>,
+
+    jit_server: JitServer<'ctx>,
 }
 
-impl FlosionApp {
-    pub fn new(_cc: &eframe::CreationContext) -> FlosionApp {
-        // TODO: learn about what CreationContext offers
-
+impl<'ctx> FlosionApp<'ctx> {
+    pub fn new(
+        _cc: &eframe::CreationContext,
+        inkwell_context: &'ctx inkwell::context::Context,
+        scope: &'ctx thread::Scope<'ctx, '_>,
+    ) -> FlosionApp<'ctx> {
         let graph = SoundGraph::new();
 
         let properties = GraphProperties::new(graph.topology());
+
+        let stop_button = StopButton::new();
+
+        let (engine_interface, engine, garbage_disposer) = create_sound_engine(&stop_button);
+
+        let audio_thread = scope.spawn(move || {
+            set_current_thread_priority(ThreadPriority::Max).unwrap();
+            engine.run();
+        });
+
+        let (jit_server_builder, jit_client) = JitServerBuilder::new();
+        let jit_server = jit_server_builder.build_server(inkwell_context);
 
         let mut app = FlosionApp {
             graph,
@@ -91,6 +124,11 @@ impl FlosionApp {
             graph_layout: StackedLayout::new(),
             properties,
             previous_clean_revision: None,
+            inkwell_context,
+            audio_thread,
+            engine_interface,
+            garbage_disposer,
+            jit_server,
         };
 
         // Initialize all necessary ui state
@@ -109,6 +147,7 @@ impl FlosionApp {
             &mut self.ui_state,
             &mut self.graph,
             &self.properties,
+            &self.jit_server,
         );
 
         self.ui_state.interact_and_draw(
@@ -147,7 +186,7 @@ impl FlosionApp {
     }
 }
 
-impl eframe::App for FlosionApp {
+impl<'ctx> eframe::App for FlosionApp<'ctx> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             #[cfg(debug_assertions)]
@@ -155,12 +194,19 @@ impl eframe::App for FlosionApp {
 
             self.interact_and_draw(ui);
 
-            self.graph.flush_updates();
-
             self.cleanup();
 
             #[cfg(debug_assertions)]
             self.check_invariants();
+
+            self.engine_interface
+                .update(self.graph.topology().clone(), &self.jit_server);
+
+            self.garbage_disposer.clear();
         });
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // TODO: press stop button?
     }
 }

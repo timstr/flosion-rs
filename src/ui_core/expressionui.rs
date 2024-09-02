@@ -39,17 +39,18 @@ impl SoundExpressionUi {
                     ui.set_width(ui.available_width());
                     layout.show(ui, ui_state, sound_graph, ctx, outer_context);
                     match outer_context {
-                        OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
+                        OuterExpressionGraphUiContext::ProcessorExpression(proc_expr_ctx) => {
                             ExpressionPlot::new().show(
                                 ui,
-                                sound_graph.jit_client(),
+                                ctx.jit_server(),
                                 sound_graph
                                     .topology()
-                                    .expression(ctx.expression_id())
+                                    .expression(proc_expr_ctx.expression_id())
                                     .unwrap(),
-                                *ctx.time_axis(),
+                                *proc_expr_ctx.time_axis(),
                                 plot_config,
-                                ctx.sound_graph_names(),
+                                proc_expr_ctx.sound_graph_names(),
+                                sound_graph,
                             );
                         }
                     }

@@ -1,20 +1,28 @@
 use flosion::ui_core::flosion_ui::FlosionApp;
-use std::{panic, process};
+use std::{panic, process, thread};
 
 fn main() {
+    // Exit immediately if something panics
     let orig_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
         orig_hook(panic_info);
         process::exit(-1);
     }));
 
-    let native_options = eframe::NativeOptions::default();
-    eframe::run_native(
-        "Flosion",
-        native_options,
-        Box::new(|cc| Box::new(FlosionApp::new(cc))),
-    )
-    .unwrap();
+    // Context for inkwell/LLVM jit things. Compiled JIT artefacts
+    // are used throughout the app, both the audio and GUI threads,
+    // and so
+    let inkwell_context = inkwell::context::Context::create();
+
+    thread::scope(|scope| {
+        eframe::run_native(
+            "Flosion",
+            eframe::NativeOptions::default(),
+            // RAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 'static is implicitly required due to Box<dyn ...>
+            Box::new(|cc| Box::new(FlosionApp::new(cc, &inkwell_context, scope))),
+        )
+        .unwrap();
+    });
 }
 
 // TODO

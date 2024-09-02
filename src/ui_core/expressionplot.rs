@@ -1,13 +1,15 @@
 use eframe::egui;
-use hashrevise::Revisable;
 
 use crate::core::{
     expression::context::MockExpressionContext,
     jit::{
         compiledexpression::{CompiledExpressionFunction, Discretization},
-        server::JitClient,
+        server::JitServer,
     },
-    sound::{expressionargument::SoundExpressionArgumentId, soundgraphdata::SoundExpressionData},
+    sound::{
+        expressionargument::SoundExpressionArgumentId, soundgraph::SoundGraph,
+        soundgraphdata::SoundExpressionData,
+    },
 };
 
 use super::{soundgraphuinames::SoundGraphUiNames, stackedlayout::timeaxis::TimeAxis};
@@ -64,17 +66,18 @@ impl ExpressionPlot {
     pub(crate) fn show(
         self,
         ui: &mut egui::Ui,
-        jit_client: &JitClient,
+        jit_server: &JitServer,
         ni_data: &SoundExpressionData,
         time_axis: TimeAxis,
         config: &PlotConfig,
         names: &SoundGraphUiNames,
+        graph: &SoundGraph,
     ) {
         let PlotConfig {
             vertical_range,
             horizontal_domain,
         } = config;
-        let compiled_fn = jit_client.get_compiled_expression(ni_data.id(), ni_data.get_revision());
+        let compiled_fn = jit_server.get_compiled_expression(ni_data.id(), graph.topology());
         // TODO: make this configurable / draggable. Where to store such ui state?
         let desired_height = 30.0;
         let desired_width = match horizontal_domain {
@@ -84,22 +87,17 @@ impl ExpressionPlot {
         let (_, rect) = ui.allocate_space(egui::vec2(desired_width, desired_height));
         ui.painter()
             .rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
-        match compiled_fn {
-            Some(compiled_fn) => {
-                self.plot_compiled_function(
-                    ui,
-                    compiled_fn,
-                    rect,
-                    horizontal_domain,
-                    vertical_range,
-                    time_axis,
-                    names,
-                );
-            }
-            None => {
-                self.plot_missing_function(ui, rect);
-            }
-        }
+
+        self.plot_compiled_function(
+            ui,
+            compiled_fn,
+            rect,
+            horizontal_domain,
+            vertical_range,
+            time_axis,
+            names,
+        );
+
         ui.painter().rect_stroke(
             rect,
             egui::Rounding::ZERO,

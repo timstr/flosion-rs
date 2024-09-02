@@ -4,9 +4,12 @@ use eframe::egui;
 use hashrevise::{Revisable, RevisionHash};
 
 use crate::{
-    core::sound::{
-        soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
-        soundprocessor::SoundProcessorId,
+    core::{
+        jit::server::JitServer,
+        sound::{
+            soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
+            soundprocessor::SoundProcessorId,
+        },
     },
     ui_core::{
         flosion_ui::Factories, graph_properties::GraphProperties,
@@ -220,10 +223,11 @@ impl StackedLayout {
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
         properties: &GraphProperties,
+        jit_server: &JitServer,
     ) {
         // Draw each stacked group
         for group in &mut self.groups {
-            group.draw(ui, factories, ui_state, graph, properties);
+            group.draw(ui, factories, ui_state, graph, jit_server, properties);
         }
 
         // draw wires between connected groups

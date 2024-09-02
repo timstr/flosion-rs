@@ -124,6 +124,7 @@ impl JitServerBuilder {
     }
 }
 
+// TODO: replace with just cache
 pub(crate) struct JitServer<'ctx> {
     inkwell_context: &'ctx inkwell::context::Context,
     cache: Arc<RwLock<Cache<'ctx>>>,
