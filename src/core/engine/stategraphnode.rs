@@ -13,9 +13,8 @@ use crate::core::{
         soundgraphdata::SoundInputBranchId,
         soundinput::{InputTiming, SoundInputId},
         soundprocessor::{
-            DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, ProcessorTiming,
-            SoundProcessorId, StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId,
-            StreamStatus,
+            DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, SoundProcessorId,
+            StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
         },
     },
     soundchunk::SoundChunk,
@@ -39,7 +38,6 @@ pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
     state: StateAndTiming<T::StateType>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
     expressions: T::Expressions<'ctx>,
-    timing: ProcessorTiming,
 }
 
 impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
@@ -67,7 +65,6 @@ impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
             state,
             sound_input,
             expressions,
-            timing: ProcessorTiming::new(),
         }
     }
 }
@@ -193,19 +190,19 @@ impl<'ctx, T: 'static + StaticSoundProcessor> CompiledSoundProcessor<'ctx>
     }
 
     fn start_over(&mut self) {
-        self.timing.start_over();
+        self.state.start_over();
     }
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
         T::process_audio(
             &*self.processor,
-            &self.timing,
+            &mut self.state,
             &mut self.sound_input,
             &mut self.expressions,
             dst,
             ctx,
         );
-        self.timing.advance_one_chunk();
+        self.state.timing.advance_one_chunk();
         StreamStatus::Playing
     }
 

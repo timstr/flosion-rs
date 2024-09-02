@@ -14,7 +14,9 @@ use crate::{
             context::{Context, LocalArrayList},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessor::{
+                ProcessorTiming, StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId,
+            },
             soundprocessortools::SoundProcessorTools,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -177,7 +179,7 @@ impl StaticSoundProcessor for Output {
 
     fn process_audio(
         output: &StaticSoundProcessorWithId<Output>,
-        timing: &ProcessorTiming,
+        state: &mut StateAndTiming<Self::StateType>,
         sound_input: &mut SingleInputNode,
         _expressions: &mut (),
         _dst: &mut SoundChunk,
@@ -191,7 +193,7 @@ impl StaticSoundProcessor for Output {
             sound_input.start_over(0);
         }
         let mut ch = SoundChunk::new();
-        sound_input.step(timing, &mut ch, &ctx, LocalArrayList::new());
+        sound_input.step(state, &mut ch, &ctx, LocalArrayList::new());
 
         if let Err(e) = output.shared_data.chunk_sender.try_send(ch) {
             match e {

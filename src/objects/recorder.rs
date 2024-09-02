@@ -12,7 +12,7 @@ use crate::{
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
-                ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
+                StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
             },
             soundprocessortools::SoundProcessorTools,
         },
@@ -101,13 +101,13 @@ impl StaticSoundProcessor for Recorder {
 
     fn process_audio(
         recorder: &StaticSoundProcessorWithId<Recorder>,
-        timing: &ProcessorTiming,
+        state: &mut StateAndTiming<Self::StateType>,
         sound_inputs: &mut SingleInputNode,
         _expressions: &mut (),
         dst: &mut SoundChunk,
         ctx: Context,
     ) {
-        let s = sound_inputs.step(timing, dst, &ctx, LocalArrayList::new());
+        let s = sound_inputs.step(state, dst, &ctx, LocalArrayList::new());
         let recording = recorder.recording.load(Ordering::Relaxed);
         if !recording || s == StreamStatus::Done {
             return;

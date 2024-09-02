@@ -8,7 +8,9 @@ use crate::{
             context::{Context, LocalArrayList},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessor::{
+                ProcessorTiming, StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId,
+            },
             soundprocessortools::SoundProcessorTools,
         },
         soundchunk::SoundChunk,
@@ -69,13 +71,13 @@ impl StaticSoundProcessor for Oscilloscope {
 
     fn process_audio<'ctx>(
         processor: &StaticSoundProcessorWithId<Self>,
-        timing: &ProcessorTiming,
+        state: &mut StateAndTiming<Self::StateType>,
         sound_input: &mut SingleInputNode<'ctx>,
         _expressions: &mut (),
         dst: &mut SoundChunk,
         context: Context,
     ) {
-        sound_input.step(timing, dst, &context, LocalArrayList::new());
+        sound_input.step(state, dst, &context, LocalArrayList::new());
         processor.chunk_writer.lock().write(*dst);
     }
 }

@@ -63,7 +63,7 @@ pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
 
     fn process_audio<'ctx>(
         processor: &StaticSoundProcessorWithId<Self>,
-        timing: &ProcessorTiming,
+        state: &mut StateAndTiming<Self::StateType>,
         sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
         expressions: &mut Self::Expressions<'ctx>,
         dst: &mut SoundChunk,

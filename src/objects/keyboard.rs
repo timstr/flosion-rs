@@ -10,7 +10,7 @@ use crate::{
             context::{Context, LocalArrayList},
             expressionargument::SoundExpressionArgumentHandle,
             soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
-            soundprocessor::{ProcessorTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -105,7 +105,7 @@ impl StaticSoundProcessor for Keyboard {
 
     fn process_audio<'ctx>(
         keyboard: &StaticSoundProcessorWithId<Keyboard>,
-        timing: &ProcessorTiming,
+        state: &mut StateAndTiming<Self::StateType>,
         sound_input_node: &mut KeyedInputQueueNode<KeyboardKeyState>,
         _expressions: &mut (),
         dst: &mut SoundChunk,
@@ -127,7 +127,7 @@ impl StaticSoundProcessor for Keyboard {
             }
         }
 
-        sound_input_node.step(timing, dst, &context, LocalArrayList::new());
+        sound_input_node.step(state, dst, &context, LocalArrayList::new());
     }
 }
 
