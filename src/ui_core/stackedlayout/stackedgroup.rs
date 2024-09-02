@@ -201,149 +201,150 @@ impl StackedGroup {
                 .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
                 .rounding(10.0)
                 .inner_margin(5.0);
-            // frame.show(ui, |ui| {
-            //     ui.horizontal(|ui| {
-            //         // Allocate some width for the sidebar (full height is not known until
-            //         // the after the processors are laid out)
-            //         let (initial_sidebar_rect, _) =
-            //             ui.allocate_exact_size(egui::vec2(15.0, 15.0), egui::Sense::hover());
+            frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    // Allocate some width for the sidebar (full height is not known until
+                    // the after the processors are laid out)
+                    let (initial_sidebar_rect, _) =
+                        ui.allocate_exact_size(egui::vec2(15.0, 15.0), egui::Sense::hover());
 
-            //         let processors_response = ui.vertical(|ui| {
-            //             // Tighten the spacing
-            //             ui.spacing_mut().item_spacing.y = 0.0;
+                    let processors_response = ui.vertical(|ui| {
+                        // Tighten the spacing
+                        ui.spacing_mut().item_spacing.y = 0.0;
 
-            //             let mut top_of_stack = true;
+                        let mut top_of_stack = true;
 
-            //             for spid in &self.processors {
-            //                 let processor_data = graph.topology().sound_processor(*spid).unwrap();
+                        for spid in &self.processors {
+                            let processor_data = graph.topology().sound_processor(*spid).unwrap();
 
-            //                 let inputs = processor_data.sound_inputs();
+                            let inputs = processor_data.sound_inputs();
 
-            //                 let processor_color =
-            //                     ui_state.object_states().get_object_color(spid.into());
+                            let processor_color =
+                                ui_state.object_states().get_object_color(spid.into());
 
-            //                 if inputs.is_empty() {
-            //                     self.draw_barrier(ui);
-            //                 } else {
-            //                     for input_id in inputs {
-            //                         let input_data =
-            //                             graph.topology().sound_input(*input_id).unwrap();
-            //                         self.draw_input_socket(
-            //                             ui,
-            //                             ui_state,
-            //                             graph.topology(),
-            //                             InputSocket::from_input_data(input_data),
-            //                             processor_color,
-            //                             top_of_stack,
-            //                         );
-            //                     }
-            //                 }
+                            if inputs.is_empty() {
+                                self.draw_barrier(ui);
+                            } else {
+                                for input_id in inputs {
+                                    let input_data =
+                                        graph.topology().sound_input(*input_id).unwrap();
+                                    self.draw_input_socket(
+                                        ui,
+                                        ui_state,
+                                        graph.topology(),
+                                        InputSocket::from_input_data(input_data),
+                                        processor_color,
+                                        top_of_stack,
+                                    );
+                                }
+                            }
 
-            //                 top_of_stack = false;
+                            top_of_stack = false;
 
-            //                 let object = processor_data.instance_arc().as_graph_object();
-            //                 let mut ctx = SoundGraphUiContext::new(
-            //                     factories,
-            //                     self.time_axis,
-            //                     self.width_pixels as f32,
-            //                     group_origin,
-            //                     properties,
-            //                     jit_server,
-            //                 );
-            //                 factories
-            //                     .sound_uis()
-            //                     .ui(&object, ui_state, ui, &mut ctx, graph);
+                            let object = processor_data.instance_arc().as_graph_object();
+                            let mut ctx = SoundGraphUiContext::new(
+                                factories,
+                                self.time_axis,
+                                self.width_pixels as f32,
+                                group_origin,
+                                properties,
+                                // jit_server,
+                                todo!()
+                            );
+                            factories
+                                .sound_uis()
+                                .ui(&object, ui_state, ui, &mut ctx, graph);
 
-            //                 let processor_data = graph.topology().sound_processor(*spid).unwrap();
-            //                 self.draw_processor_plug(
-            //                     ui,
-            //                     ui_state,
-            //                     ProcessorPlug::from_processor_data(processor_data),
-            //                     processor_color,
-            //                 );
-            //             }
-            //         });
+                            let processor_data = graph.topology().sound_processor(*spid).unwrap();
+                            self.draw_processor_plug(
+                                ui,
+                                ui_state,
+                                ProcessorPlug::from_processor_data(processor_data),
+                                processor_color,
+                            );
+                        }
+                    });
 
-            //         let combined_height = processors_response.response.rect.height();
+                    let combined_height = processors_response.response.rect.height();
 
-            //         // Left sidebar, for dragging the entire group
-            //         let sidebar_rect = initial_sidebar_rect
-            //             .with_max_y(initial_sidebar_rect.min.y + combined_height);
+                    // Left sidebar, for dragging the entire group
+                    let sidebar_rect = initial_sidebar_rect
+                        .with_max_y(initial_sidebar_rect.min.y + combined_height);
 
-            //         let sidebar_response = ui
-            //             .interact(
-            //                 sidebar_rect,
-            //                 ui.id().with("sidebar"),
-            //                 egui::Sense::click_and_drag(),
-            //             )
-            //             .on_hover_and_drag_cursor(egui::CursorIcon::Grab);
+                    let sidebar_response = ui
+                        .interact(
+                            sidebar_rect,
+                            ui.id().with("sidebar"),
+                            egui::Sense::click_and_drag(),
+                        )
+                        .on_hover_and_drag_cursor(egui::CursorIcon::Grab);
 
-            //         if sidebar_response.drag_started() {
-            //             ui_state.interactions_mut().start_dragging(
-            //                 DragDropSubject::Group {
-            //                     top_processor: self.processors.first().unwrap().clone(),
-            //                 },
-            //                 self.rect,
-            //             );
-            //         }
+                    if sidebar_response.drag_started() {
+                        ui_state.interactions_mut().start_dragging(
+                            DragDropSubject::Group {
+                                top_processor: self.processors.first().unwrap().clone(),
+                            },
+                            self.rect,
+                        );
+                    }
 
-            //         if sidebar_response.dragged() {
-            //             self.rect = self.rect.translate(sidebar_response.drag_delta());
-            //             ui_state.interactions_mut().continue_drag_move_to(self.rect);
-            //         }
+                    if sidebar_response.dragged() {
+                        self.rect = self.rect.translate(sidebar_response.drag_delta());
+                        ui_state.interactions_mut().continue_drag_move_to(self.rect);
+                    }
 
-            //         if sidebar_response.drag_stopped() {
-            //             ui_state.interactions_mut().drop_dragging();
-            //         }
+                    if sidebar_response.drag_stopped() {
+                        ui_state.interactions_mut().drop_dragging();
+                    }
 
-            //         ui.painter().rect_filled(
-            //             sidebar_rect,
-            //             egui::Rounding::same(5.0),
-            //             egui::Color32::from_white_alpha(32),
-            //         );
+                    ui.painter().rect_filled(
+                        sidebar_rect,
+                        egui::Rounding::same(5.0),
+                        egui::Color32::from_white_alpha(32),
+                    );
 
-            //         let dot_spacing = 15.0;
-            //         let dot_radius = 4.0;
+                    let dot_spacing = 15.0;
+                    let dot_radius = 4.0;
 
-            //         let dot_x = sidebar_rect.center().x;
-            //         let top_dot_y = sidebar_rect.top() + 0.5 * sidebar_rect.width();
-            //         let bottom_dot_y = sidebar_rect.bottom() - 0.5 * sidebar_rect.width();
+                    let dot_x = sidebar_rect.center().x;
+                    let top_dot_y = sidebar_rect.top() + 0.5 * sidebar_rect.width();
+                    let bottom_dot_y = sidebar_rect.bottom() - 0.5 * sidebar_rect.width();
 
-            //         let num_dots = ((bottom_dot_y - top_dot_y) / dot_spacing).floor() as usize;
+                    let num_dots = ((bottom_dot_y - top_dot_y) / dot_spacing).floor() as usize;
 
-            //         for i in 0..=num_dots {
-            //             let dot_y = top_dot_y + (i as f32) * dot_spacing;
+                    for i in 0..=num_dots {
+                        let dot_y = top_dot_y + (i as f32) * dot_spacing;
 
-            //             ui.painter().circle_filled(
-            //                 egui::pos2(dot_x, dot_y),
-            //                 dot_radius,
-            //                 egui::Color32::from_black_alpha(64),
-            //             );
-            //         }
+                        ui.painter().circle_filled(
+                            egui::pos2(dot_x, dot_y),
+                            dot_radius,
+                            egui::Color32::from_black_alpha(64),
+                        );
+                    }
 
-            //         // Right sidebar, for widening and slimming the group
-            //         let (resize_rect, resize_response) = ui.allocate_exact_size(
-            //             egui::vec2(5.0, combined_height),
-            //             egui::Sense::click_and_drag(),
-            //         );
+                    // Right sidebar, for widening and slimming the group
+                    let (resize_rect, resize_response) = ui.allocate_exact_size(
+                        egui::vec2(5.0, combined_height),
+                        egui::Sense::click_and_drag(),
+                    );
 
-            //         let resize_response =
-            //             resize_response.on_hover_and_drag_cursor(egui::CursorIcon::ResizeColumn);
+                    let resize_response =
+                        resize_response.on_hover_and_drag_cursor(egui::CursorIcon::ResizeColumn);
 
-            //         if resize_response.dragged() {
-            //             // TODO: what should the minimum width be? What should happen when
-            //             // UI things have no room?
-            //             self.width_pixels =
-            //                 (self.width_pixels + resize_response.drag_delta().x).max(50.0);
-            //         }
+                    if resize_response.dragged() {
+                        // TODO: what should the minimum width be? What should happen when
+                        // UI things have no room?
+                        self.width_pixels =
+                            (self.width_pixels + resize_response.drag_delta().x).max(50.0);
+                    }
 
-            //         ui.painter().rect_filled(
-            //             resize_rect,
-            //             egui::Rounding::same(5.0),
-            //             egui::Color32::from_white_alpha(32),
-            //         );
-            //     });
-            // });
+                    ui.painter().rect_filled(
+                        resize_rect,
+                        egui::Rounding::same(5.0),
+                        egui::Color32::from_white_alpha(32),
+                    );
+                });
+            });
         });
 
         self.rect

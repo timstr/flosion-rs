@@ -16,6 +16,7 @@ use crate::{
             context::Context,
             soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
             soundprocessortools::SoundProcessorTools,
+            state::State,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
@@ -46,10 +47,21 @@ impl Drop for Input {
     }
 }
 
+pub struct InputState {
+    // TODO: remove Sync requirement from State, then remove Mutex here
+    chunk_receiver: Mutex<spmcq::Reader<SoundChunk>>,
+}
+
+impl State for InputState {
+    fn start_over(&mut self) {
+        // ???
+    }
+}
+
 impl StaticSoundProcessor for Input {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
-    type StateType = ();
+    type StateType = InputState;
 
     fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let host = cpal::default_host();
@@ -127,18 +139,20 @@ impl StaticSoundProcessor for Input {
     }
 
     fn make_state(&self) -> Self::StateType {
-        ()
+        InputState {
+            chunk_receiver: Mutex::new(self.chunk_receiver.lock().clone()),
+        }
     }
 
     fn process_audio<'ctx>(
-        processor: &StaticSoundProcessorWithId<Self>,
-        _state: &mut StateAndTiming<Self::StateType>,
+        _processor: &StaticSoundProcessorWithId<Self>,
+        state: &mut StateAndTiming<Self::StateType>,
         _sound_inputs: &mut (),
         _expressions: &mut (),
         dst: &mut SoundChunk,
         _context: Context,
     ) {
-        let chunk = match processor.chunk_receiver.lock().read() {
+        let chunk = match state.chunk_receiver.lock().read() {
             ReadResult::Ok(ch) => ch,
             ReadResult::Dropout(ch) => {
                 println!("WARNING: Input dropout");

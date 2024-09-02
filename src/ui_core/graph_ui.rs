@@ -2,6 +2,10 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::core::graph::graph::Graph;
 
+// TODO Uhhhhhhhhhh I kind hate this
+// Being able to reuse things like UiFactory and ObjectUi is nice buttt
+// ideally I wouldn't need to constrain the living heck out of both
+// expression and sound graph UIs.
 pub trait GraphUi {
     /// the graph type being represented in the ui
     type Graph: Graph;

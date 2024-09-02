@@ -200,7 +200,8 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
             self.check_invariants();
 
             self.engine_interface
-                .update(self.graph.topology().clone(), &self.jit_server);
+                .update(self.graph.topology().clone(), &self.jit_server)
+                .expect("Failed to update engine");
 
             self.garbage_disposer.clear();
         });

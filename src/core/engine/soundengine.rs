@@ -143,11 +143,6 @@ impl<'ctx> SoundEngineInterface<'ctx> {
 
         Ok(())
     }
-
-    /// The most recent topology given to the update() method
-    pub(crate) fn current_topology(&self) -> &SoundGraphTopology {
-        &self.current_topology
-    }
 }
 
 impl<'ctx> Drop for SoundEngineInterface<'ctx> {
