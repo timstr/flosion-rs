@@ -23,6 +23,8 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
 
     type Expressions<'ctx> = ();
 
+    type StateType = ();
+
     fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         Ok(Self {})
     }
@@ -35,6 +37,10 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
         &self,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
+        ()
+    }
+
+    fn make_state(&self) -> Self::StateType {
         ()
     }
 

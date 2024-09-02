@@ -33,7 +33,10 @@ use super::{
 /// processor is held, along with a unique copy of its compiled sound
 /// inputs and expressions.
 pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
+    // TODO: remove this!
     processor: Arc<StaticSoundProcessorWithId<T>>,
+
+    state: StateAndTiming<T::StateType>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
     expressions: T::Expressions<'ctx>,
     timing: ProcessorTiming,
@@ -46,6 +49,7 @@ impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
+        let state = StateAndTiming::new(processor.make_state());
         let sound_input = processor.get_sound_input().make_node(compiler);
         let expressions = processor.compile_expressions(compiler);
         let finish = Instant::now();
@@ -60,6 +64,7 @@ impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
         }
         Self {
             processor,
+            state,
             sound_input,
             expressions,
             timing: ProcessorTiming::new(),

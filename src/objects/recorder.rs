@@ -71,6 +71,7 @@ impl Recorder {
 impl StaticSoundProcessor for Recorder {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ();
+    type StateType = ();
 
     fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
@@ -91,6 +92,10 @@ impl StaticSoundProcessor for Recorder {
         &self,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
+        ()
+    }
+
+    fn make_state(&self) -> Self::StateType {
         ()
     }
 

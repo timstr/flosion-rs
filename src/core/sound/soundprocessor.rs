@@ -40,7 +40,12 @@ pub enum StreamStatus {
     Done,
 }
 
+// TODO: remove Sync
+// TODO: do StaticSoundProcessor and DynamicSoundProcessor need to be different traits anymore?
+// 'Static' should suffice as a runtime property (which it is everywhere else already)
 pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
+    type StateType: State;
+
     type SoundInputType: SoundProcessorInput;
 
     type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
@@ -48,6 +53,8 @@ pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
     fn new(tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()>;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
+
+    fn make_state(&self) -> Self::StateType;
 
     fn compile_expressions<'a, 'ctx>(
         &self,
@@ -66,6 +73,7 @@ pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
     fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
+// TODO: remove Sync
 pub trait DynamicSoundProcessor: Sized + Sync + Send + WithObjectType {
     type StateType: State;
 

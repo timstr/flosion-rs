@@ -49,6 +49,7 @@ impl Drop for Input {
 impl StaticSoundProcessor for Input {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
+    type StateType = ();
 
     fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let host = cpal::default_host();
@@ -122,6 +123,10 @@ impl StaticSoundProcessor for Input {
         &self,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
+        ()
+    }
+
+    fn make_state(&self) -> Self::StateType {
         ()
     }
 

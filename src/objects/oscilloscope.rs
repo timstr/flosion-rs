@@ -41,6 +41,8 @@ impl StaticSoundProcessor for Oscilloscope {
 
     type Expressions<'ctx> = ();
 
+    type StateType = ();
+
     fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let (reader, writer) = spmcq::ring_buffer(64);
         Ok(Oscilloscope {
@@ -58,6 +60,10 @@ impl StaticSoundProcessor for Oscilloscope {
         &self,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
+        ()
+    }
+
+    fn make_state(&self) -> Self::StateType {
         ()
     }
 

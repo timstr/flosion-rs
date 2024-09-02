@@ -70,6 +70,8 @@ impl StaticSoundProcessor for Keyboard {
 
     type Expressions<'ctx> = ();
 
+    type StateType = ();
+
     fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
         let message_queue_size = 16; // idk
         let input_queue_size = 8; // idk
@@ -94,6 +96,10 @@ impl StaticSoundProcessor for Keyboard {
         &self,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
+        ()
+    }
+
+    fn make_state(&self) -> Self::StateType {
         ()
     }
 
