@@ -56,7 +56,7 @@ impl ExpressionNodeUi {
                             .strong(),
                     )
                     .sense(egui::Sense::click())
-                    .wrap(false),
+                    .wrap_mode(egui::TextWrapMode::Extend),
                 );
             }
             add_contents(ui);

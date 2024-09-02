@@ -241,7 +241,7 @@ impl ProcessorUi {
                                 .color(egui::Color32::BLACK)
                                 .strong(),
                         )
-                        .wrap(false),
+                        .wrap_mode(egui::TextWrapMode::Extend),
                     );
 
                     if !name.to_lowercase().contains(&self.label.to_lowercase()) {

@@ -35,7 +35,7 @@ impl ObjectUi for OutputUi {
                 sound_graph,
                 |ui, _ui_state, _sound_graph| {
                     if ui
-                        .add(egui::Button::new("Start over").wrap(false))
+                        .add(egui::Button::new("Start over").wrap_mode(egui::TextWrapMode::Extend))
                         .clicked()
                     {
                         output.start_over();

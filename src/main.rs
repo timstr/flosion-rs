@@ -18,8 +18,7 @@ fn main() {
         eframe::run_native(
             "Flosion",
             eframe::NativeOptions::default(),
-            // RAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 'static is implicitly required due to Box<dyn ...>
-            Box::new(|cc| Box::new(FlosionApp::new(cc, &inkwell_context, scope))),
+            Box::new(|cc| Ok(Box::new(FlosionApp::new(cc, &inkwell_context, scope)))),
         )
         .unwrap();
     });
