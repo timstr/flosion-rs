@@ -18,9 +18,11 @@ pub(crate) trait Garbage<'ctx> {
 /// of, for example due to possible locking during memory deallocation,
 /// and which may be sent down a GarbageChute and dropped on a different
 /// thread.
+// TODO: consider renaming to reflect importance of Send requirement,
+// e.g. "DroppableElsewhere" but less funny-sounding
 pub trait Droppable: Send {}
 
-/// Blanket implementation for everything that is Send and Sync
+/// Blanket implementation for everything that is Send
 impl<T: Send> Droppable for T {}
 
 /// Wrapped item type for things that travel between threads down the

@@ -43,10 +43,9 @@ pub enum StreamStatus {
     Done,
 }
 
-// TODO: remove Sync
 // TODO: do StaticSoundProcessor and DynamicSoundProcessor need to be different traits anymore?
 // 'Static' should suffice as a runtime property (which it is everywhere else already)
-pub trait StaticSoundProcessor: Sized + Send + WithObjectType {
+pub trait StaticSoundProcessor: Sized + WithObjectType {
     type StateType: State;
 
     type SoundInputType: SoundProcessorInput;
@@ -75,7 +74,7 @@ pub trait StaticSoundProcessor: Sized + Send + WithObjectType {
     fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
-pub trait DynamicSoundProcessor: Sized + Send + WithObjectType {
+pub trait DynamicSoundProcessor: Sized + WithObjectType {
     type StateType: State;
 
     type SoundInputType: SoundProcessorInput;
@@ -272,7 +271,7 @@ impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorHandle<T> {
     }
 }
 
-pub(crate) trait SoundProcessor: Send {
+pub(crate) trait SoundProcessor {
     fn id(&self) -> SoundProcessorId;
 
     fn serialize(&self, chive_in: ChiveIn);

@@ -6,7 +6,7 @@ use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
 use super::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeId};
 
-pub trait ExpressionObject: Send {
+pub trait ExpressionObject {
     fn create(
         graph: &mut ExpressionGraph,
         args: &ParsedArguments,

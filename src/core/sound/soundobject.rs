@@ -6,7 +6,7 @@ use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
 use super::{soundgraph::SoundGraph, soundgraphid::SoundObjectId};
 
-pub trait SoundGraphObject: Send {
+pub trait SoundGraphObject {
     fn create(graph: &mut SoundGraph, args: &ParsedArguments) -> Result<AnySoundObjectHandle, ()>
     where
         Self: Sized;

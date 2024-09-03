@@ -61,7 +61,7 @@ impl<'ctx> CompiledSoundInput<'ctx> for () {
 /// allocating nodes for the StateGraph, actual types implementing this
 /// trait will typically provide diverse and fully-featured APIs for
 /// using different types of sound inputs. See implementations for more.
-pub trait SoundProcessorInput: Send {
+pub trait SoundProcessorInput {
     type NodeType<'ctx>: CompiledSoundInput<'ctx>;
 
     fn make_node<'a, 'ctx>(
