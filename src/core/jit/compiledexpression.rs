@@ -5,11 +5,11 @@ use send_wrapper::SendWrapper;
 use crate::core::{
     engine::garbage::{Droppable, Garbage, GarbageChute},
     expression::context::{expression_context_to_usize_pair, ExpressionContext},
-    jit::codegen::FLAG_INITIALIZED,
+    jit::jit::FLAG_INITIALIZED,
     samplefrequency::SAMPLE_TIME_STEP,
 };
 
-use super::codegen::FLAG_NOT_INITIALIZED;
+use super::jit::FLAG_NOT_INITIALIZED;
 
 type EvalExpressionFunc = unsafe extern "C" fn(
     *mut f32, // pointer to destination array

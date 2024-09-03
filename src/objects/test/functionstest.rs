@@ -13,7 +13,7 @@ use crate::{
             soundgraphcompiler::SoundGraphCompiler,
         },
         expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
-        jit::{codegen::CodeGen, compiledexpression::Discretization},
+        jit::{compiledexpression::Discretization, jit::Jit},
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
@@ -224,9 +224,9 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let inkwell_context = inkwell::context::Context::create();
 
-    let codegen = CodeGen::new(&inkwell_context);
+    let jit = Jit::new(&inkwell_context);
 
-    let compiled_input = codegen.compile_expression(proc.expression.id(), &topo);
+    let compiled_input = jit.compile_expression(proc.expression.id(), &topo);
 
     let mut compiled_function = compiled_input.make_function();
 

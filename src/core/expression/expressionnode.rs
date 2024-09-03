@@ -5,7 +5,7 @@ use inkwell::values::{FloatValue, PointerValue};
 
 use crate::{
     core::{
-        jit::codegen::CodeGen,
+        jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
         uniqueid::UniqueId,
     },
@@ -31,11 +31,7 @@ pub trait PureExpressionNode: Sync + Send + WithObjectType {
         Self: Sized;
 
     // Generate instructions to compute a value from the given inputs
-    fn compile<'ctx>(
-        &self,
-        codegen: &mut CodeGen<'ctx>,
-        inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx>;
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx>;
 
     fn serialize(&self, _chive_in: ChiveIn) {}
 }
@@ -48,7 +44,7 @@ pub trait ExpressionNode: Sync + Send {
 
     fn compile<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx>;
@@ -86,15 +82,14 @@ impl<T: 'static + PureExpressionNode> ExpressionNode for PureExpressionNodeWithI
 
     fn compile<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx> {
         debug_assert_eq!(variables.len(), 0);
-        codegen
-            .builder()
-            .position_before(&codegen.instruction_locations.end_of_loop);
-        self.instance.compile(codegen, inputs)
+        jit.builder()
+            .position_before(&jit.instruction_locations.end_of_loop);
+        self.instance.compile(jit, inputs)
     }
 
     fn as_graph_object(self: Arc<Self>) -> AnyExpressionObjectHandle {
@@ -216,19 +211,19 @@ pub trait StatefulExpressionNode: Sync + Send + WithObjectType {
     // Generate instructions to produce the initial values of state variables.
     // This will be run the first time the compiled called when starting over.
     // The returned vector must have length Self::NUM_VARIABLES
-    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>>;
+    fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>>;
 
     // Generate instructions to perform any necessary work prior
     // to the main body of the compiled function, such as synchronization
     // (ideally non-blocking) or doing monitoring and statistics
-    fn compile_pre_loop<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Self::CompileState<'ctx>;
+    fn compile_pre_loop<'ctx>(&self, jit: &mut Jit<'ctx>) -> Self::CompileState<'ctx>;
 
     // Generate instructions to perform any necessary work after
     // the main body of the compiled function, such as synchronization
     // (ideally non-blocking) or doing monitoring and statistics
     fn compile_post_loop<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         compile_state: &Self::CompileState<'ctx>,
     );
 
@@ -238,7 +233,7 @@ pub trait StatefulExpressionNode: Sync + Send + WithObjectType {
     // each new value from the state variables and input values
     fn compile_loop<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
         compile_state: &Self::CompileState<'ctx>,
@@ -277,20 +272,18 @@ impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionN
 
     fn compile<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx> {
         // Allocate stack variables for state variables
-        codegen
-            .builder()
-            .position_before(&codegen.instruction_locations.end_of_entry);
+        jit.builder()
+            .position_before(&jit.instruction_locations.end_of_entry);
         let stack_variables: Vec<PointerValue<'ctx>> = (0..self.num_variables())
             .map(|i| {
-                codegen
-                    .builder()
+                jit.builder()
                     .build_alloca(
-                        codegen.types.f32_type,
+                        jit.types.f32_type,
                         &format!("node{}_state{}", self.id().value(), i),
                     )
                     .unwrap()
@@ -301,64 +294,56 @@ impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionN
         // =       First-time initialization and starting over       =
         // ===========================================================
         // assign initial values to stack variables
-        codegen
-            .builder()
-            .position_before(&codegen.instruction_locations.end_of_startover);
-        let init_variable_values = self.compile_start_over(codegen);
+        jit.builder()
+            .position_before(&jit.instruction_locations.end_of_startover);
+        let init_variable_values = self.compile_start_over(jit);
         debug_assert_eq!(init_variable_values.len(), self.num_variables());
         for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
-            codegen
-                .builder()
-                .build_store(*stack_var, init_value)
-                .unwrap();
+            jit.builder().build_store(*stack_var, init_value).unwrap();
         }
 
         // ===========================================================
         // =                Non-first-time resumption                =
         // ===========================================================
         // copy state array values into stack variables
-        codegen
-            .builder()
-            .position_before(&codegen.instruction_locations.end_of_resume);
+        jit.builder()
+            .position_before(&jit.instruction_locations.end_of_resume);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *ptr_state
-            let tmp = codegen.builder().build_load(*ptr_state, "tmp").unwrap();
+            let tmp = jit.builder().build_load(*ptr_state, "tmp").unwrap();
             // *stack_var = tmp
-            codegen.builder().build_store(*stack_var, tmp).unwrap();
+            jit.builder().build_store(*stack_var, tmp).unwrap();
         }
 
         // ===========================================================
         // =           Pre-loop resumption and preparation           =
         // ===========================================================
         // any custom pre-loop work
-        codegen
-            .builder()
-            .position_before(&codegen.instruction_locations.end_of_pre_loop);
-        let compile_state = self.instance.compile_pre_loop(codegen);
+        jit.builder()
+            .position_before(&jit.instruction_locations.end_of_pre_loop);
+        let compile_state = self.instance.compile_pre_loop(jit);
 
         // ===========================================================
         // =            Post-loop persisting and tear-down           =
         // ===========================================================
         // at end of loop, copy stack variables into state array
-        codegen
-            .builder()
-            .position_before(&codegen.instruction_locations.end_of_post_loop);
+        jit.builder()
+            .position_before(&jit.instruction_locations.end_of_post_loop);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *stack_var
-            let tmp = codegen.builder().build_load(*stack_var, "tmp").unwrap();
+            let tmp = jit.builder().build_load(*stack_var, "tmp").unwrap();
             // *ptr_state = tmp
-            codegen.builder().build_store(*ptr_state, tmp).unwrap();
+            jit.builder().build_store(*ptr_state, tmp).unwrap();
         }
         // any custom post-loop work
-        self.instance.compile_post_loop(codegen, &compile_state);
+        self.instance.compile_post_loop(jit, &compile_state);
 
         // ===========================================================
         // =                        The loop                         =
         // ===========================================================
-        codegen
-            .builder()
-            .position_before(&codegen.instruction_locations.end_of_loop);
-        let loop_value = self.compile_loop(codegen, inputs, &stack_variables, &compile_state);
+        jit.builder()
+            .position_before(&jit.instruction_locations.end_of_loop);
+        let loop_value = self.compile_loop(jit, inputs, &stack_variables, &compile_state);
 
         loop_value
     }

@@ -9,7 +9,7 @@ use crate::{
             expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
             expressionnodetools::ExpressionNodeTools,
         },
-        jit::codegen::CodeGen,
+        jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
     },
     ui_core::arguments::ParsedArguments,
@@ -39,21 +39,21 @@ impl StatefulExpressionNode for LinearApproach {
 
     type CompileState<'ctx> = ();
 
-    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![codegen.float_type().const_float(0.0)]
+    fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![jit.float_type().const_float(0.0)]
     }
 
-    fn compile_pre_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> () {
+    fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {
         ()
     }
 
-    fn compile_post_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>, _compile_state: &()) {
+    fn compile_post_loop<'ctx>(&self, _jit: &mut Jit<'ctx>, _compile_state: &()) {
         ()
     }
 
     fn compile_loop<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
         _compile_state: &(),
@@ -64,35 +64,32 @@ impl StatefulExpressionNode for LinearApproach {
         let speed = inputs[1];
         let variable = variables[0];
 
-        let step_pos = codegen
+        let step_pos = jit
             .builder()
-            .build_float_mul(speed, codegen.time_step(), "step_pos")
+            .build_float_mul(speed, jit.time_step(), "step_pos")
             .unwrap();
-        let step_neg = codegen
-            .builder()
-            .build_float_neg(step_pos, "step_neg")
-            .unwrap();
+        let step_neg = jit.builder().build_float_neg(step_pos, "step_neg").unwrap();
 
-        let value = codegen
+        let value = jit
             .builder()
             .build_load(variable, "value")
             .unwrap()
             .into_float_value();
-        let value_lt_input = codegen
+        let value_lt_input = jit
             .builder()
             .build_float_compare(FloatPredicate::OLT, value, input, "value_lt_input")
             .unwrap();
-        let step = codegen
+        let step = jit
             .builder()
             .build_select(value_lt_input, step_pos, step_neg, "step")
             .unwrap()
             .into_float_value();
-        let value_plus_step = codegen
+        let value_plus_step = jit
             .builder()
             .build_float_add(value, step, "value_plus_step")
             .unwrap();
 
-        let value_plus_step_lt_input = codegen
+        let value_plus_step_lt_input = jit
             .builder()
             .build_float_compare(
                 FloatPredicate::OLT,
@@ -101,7 +98,7 @@ impl StatefulExpressionNode for LinearApproach {
                 "value_plus_step_lt_input",
             )
             .unwrap();
-        let overshoot = codegen
+        let overshoot = jit
             .builder()
             .build_int_compare(
                 IntPredicate::NE,
@@ -110,12 +107,12 @@ impl StatefulExpressionNode for LinearApproach {
                 "overshoot",
             )
             .unwrap();
-        let new_value = codegen
+        let new_value = jit
             .builder()
             .build_select(overshoot, input, value_plus_step, "new_value")
             .unwrap()
             .into_float_value();
-        codegen.builder().build_store(variable, new_value).unwrap();
+        jit.builder().build_store(variable, new_value).unwrap();
         new_value
     }
 }
@@ -142,21 +139,21 @@ impl StatefulExpressionNode for ExponentialApproach {
 
     type CompileState<'ctx> = ();
 
-    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![codegen.float_type().const_float(0.0)]
+    fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![jit.float_type().const_float(0.0)]
     }
 
-    fn compile_pre_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> () {
+    fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {
         ()
     }
 
-    fn compile_post_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>, _compile_state: &()) {
+    fn compile_post_loop<'ctx>(&self, _jit: &mut Jit<'ctx>, _compile_state: &()) {
         ()
     }
 
     fn compile_loop<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
         _compile_state: &(),
@@ -169,40 +166,40 @@ impl StatefulExpressionNode for ExponentialApproach {
         // Copied from Pow
         // TODO: put this and similar helpers somewhere shared, many
         // other number sources will likely benefit from them
-        let ln_a = codegen.build_unary_intrinsic_call("llvm.log", decay_rate);
-        let b_ln_a = codegen
+        let ln_a = jit.build_unary_intrinsic_call("llvm.log", decay_rate);
+        let b_ln_a = jit
             .builder()
-            .build_float_mul(codegen.time_step(), ln_a, "b_ln_a")
+            .build_float_mul(jit.time_step(), ln_a, "b_ln_a")
             .unwrap();
-        let decay_amount = codegen.build_unary_intrinsic_call("llvm.exp", b_ln_a);
-        let one_minus_decay_amount = codegen
+        let decay_amount = jit.build_unary_intrinsic_call("llvm.exp", b_ln_a);
+        let one_minus_decay_amount = jit
             .builder()
             .build_float_sub(
-                codegen.float_type().const_float(1.0),
+                jit.float_type().const_float(1.0),
                 decay_amount,
                 "one_minus_decay_amt",
             )
             .unwrap();
 
         let ptr_val = variables[0];
-        let prev_val = codegen
+        let prev_val = jit
             .builder()
             .build_load(ptr_val, "prev_val")
             .unwrap()
             .into_float_value();
-        let diff = codegen
+        let diff = jit
             .builder()
             .build_float_sub(input, prev_val, "diff")
             .unwrap();
-        let scaled_diff = codegen
+        let scaled_diff = jit
             .builder()
             .build_float_mul(diff, one_minus_decay_amount, "scaled_diff")
             .unwrap();
-        let next_val = codegen
+        let next_val = jit
             .builder()
             .build_float_add(prev_val, scaled_diff, "next_val")
             .unwrap();
-        codegen.builder().build_store(ptr_val, next_val).unwrap();
+        jit.builder().build_store(ptr_val, next_val).unwrap();
         next_val
     }
 }
@@ -226,19 +223,19 @@ impl StatefulExpressionNode for Integrator {
 
     type CompileState<'ctx> = ();
 
-    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![codegen.float_type().const_float(0.0)]
+    fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![jit.float_type().const_float(0.0)]
     }
 
-    fn compile_pre_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> () {
+    fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {
         ()
     }
 
-    fn compile_post_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>, _compile_state: &()) {}
+    fn compile_post_loop<'ctx>(&self, _jit: &mut Jit<'ctx>, _compile_state: &()) {}
 
     fn compile_loop<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
         _compile_state: &(),
@@ -246,21 +243,21 @@ impl StatefulExpressionNode for Integrator {
         debug_assert_eq!(inputs.len(), 1);
         debug_assert_eq!(variables.len(), 1);
         let input = inputs[0];
-        let input_times_dt = codegen
+        let input_times_dt = jit
             .builder()
-            .build_float_mul(input, codegen.time_step(), "input_times_dt")
+            .build_float_mul(input, jit.time_step(), "input_times_dt")
             .unwrap();
         let variable = variables[0];
-        let prev_value = codegen
+        let prev_value = jit
             .builder()
             .build_load(variable, "prev_value")
             .unwrap()
             .into_float_value();
-        let sum = codegen
+        let sum = jit
             .builder()
             .build_float_add(input_times_dt, prev_value, "sum")
             .unwrap();
-        codegen.builder().build_store(variable, sum).unwrap();
+        jit.builder().build_store(variable, sum).unwrap();
         sum
     }
 }
@@ -284,19 +281,19 @@ impl StatefulExpressionNode for WrappingIntegrator {
 
     type CompileState<'ctx> = ();
 
-    fn compile_start_over<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![codegen.float_type().const_float(0.0)]
+    fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
+        vec![jit.float_type().const_float(0.0)]
     }
 
-    fn compile_pre_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>) -> () {
+    fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {
         ()
     }
 
-    fn compile_post_loop<'ctx>(&self, _codegen: &mut CodeGen<'ctx>, _compile_state: &()) {}
+    fn compile_post_loop<'ctx>(&self, _jit: &mut Jit<'ctx>, _compile_state: &()) {}
 
     fn compile_loop<'ctx>(
         &self,
-        codegen: &mut CodeGen<'ctx>,
+        jit: &mut Jit<'ctx>,
         inputs: &[FloatValue<'ctx>],
         variables: &[PointerValue<'ctx>],
         _compile_state: &(),
@@ -304,26 +301,26 @@ impl StatefulExpressionNode for WrappingIntegrator {
         debug_assert_eq!(inputs.len(), 1);
         debug_assert_eq!(variables.len(), 1);
         let input = inputs[0];
-        let input_times_dt = codegen
+        let input_times_dt = jit
             .builder()
-            .build_float_mul(input, codegen.time_step(), "input_times_dt")
+            .build_float_mul(input, jit.time_step(), "input_times_dt")
             .unwrap();
         let variable = variables[0];
-        let prev_value = codegen
+        let prev_value = jit
             .builder()
             .build_load(variable, "prev_value")
             .unwrap()
             .into_float_value();
-        let sum = codegen
+        let sum = jit
             .builder()
             .build_float_add(input_times_dt, prev_value, "sum")
             .unwrap();
-        let floor_sum = codegen.build_unary_intrinsic_call("llvm.floor", sum);
-        let fract_sum = codegen
+        let floor_sum = jit.build_unary_intrinsic_call("llvm.floor", sum);
+        let fract_sum = jit
             .builder()
             .build_float_sub(sum, floor_sum, "fract_sum")
             .unwrap();
-        codegen.builder().build_store(variable, fract_sum).unwrap();
+        jit.builder().build_store(variable, fract_sum).unwrap();
         fract_sum
     }
 }

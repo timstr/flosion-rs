@@ -52,7 +52,7 @@ pub(super) struct LocalVariables<'ctx> {
     pub(super) state: PointerValue<'ctx>,
 }
 
-pub struct CodeGen<'ctx> {
+pub struct Jit<'ctx> {
     pub(crate) instruction_locations: InstructionLocations<'ctx>,
     pub(super) local_variables: LocalVariables<'ctx>,
     pub(crate) types: JitTypes<'ctx>,
@@ -67,14 +67,14 @@ pub struct CodeGen<'ctx> {
     state_array_offsets: Vec<(ExpressionNodeId, usize)>,
 }
 
-impl<'ctx> CodeGen<'ctx> {
-    pub(crate) fn new(inkwell_context: &'ctx inkwell::context::Context) -> CodeGen<'ctx> {
+impl<'ctx> Jit<'ctx> {
+    pub(crate) fn new(inkwell_context: &'ctx inkwell::context::Context) -> Jit<'ctx> {
         Self::new_inner(inkwell_context).unwrap()
     }
 
     fn new_inner(
         inkwell_context: &'ctx inkwell::context::Context,
-    ) -> Result<CodeGen<'ctx>, inkwell::builder::BuilderError> {
+    ) -> Result<Jit<'ctx>, inkwell::builder::BuilderError> {
         let module_name = "flosion_llvm_module";
         let function_name = "flosion_llvm_function".to_string();
 
@@ -309,7 +309,7 @@ impl<'ctx> CodeGen<'ctx> {
             state: arg_ptr_state,
         };
 
-        Ok(CodeGen {
+        Ok(Jit {
             instruction_locations,
             local_variables,
             types,

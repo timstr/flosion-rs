@@ -4,7 +4,7 @@ use crate::{
             expressionnode::PureExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
             expressionnodetools::ExpressionNodeTools,
         },
-        jit::codegen::CodeGen,
+        jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
     },
     ui_core::arguments::{FloatArgument, ParsedArguments},
@@ -36,13 +36,9 @@ impl PureExpressionNode for Constant {
         chive_in.f32(self.value);
     }
 
-    fn compile<'ctx>(
-        &self,
-        codegen: &mut CodeGen<'ctx>,
-        inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx> {
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());
-        codegen.float_type().const_float(self.value as f64)
+        jit.float_type().const_float(self.value as f64)
     }
 }
 
@@ -81,13 +77,9 @@ impl PureExpressionNode for Variable {
         chive_in.f32(self.get_value());
     }
 
-    fn compile<'ctx>(
-        &self,
-        codegen: &mut CodeGen<'ctx>,
-        inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx> {
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());
-        codegen.build_atomicf32_load(Arc::clone(&self.value))
+        jit.build_atomicf32_load(Arc::clone(&self.value))
     }
 }
 
@@ -98,13 +90,13 @@ impl WithObjectType for Variable {
 enum LlvmImplementation {
     IntrinsicUnary(&'static str),
     IntrinsicBinary(&'static str),
-    ExpressionUnary(for<'a, 'b> fn(&'a mut CodeGen<'b>, FloatValue<'b>) -> FloatValue<'b>),
+    ExpressionUnary(for<'a, 'b> fn(&'a mut Jit<'b>, FloatValue<'b>) -> FloatValue<'b>),
     ExpressionBinary(
-        for<'a, 'b> fn(&'a mut CodeGen<'b>, FloatValue<'b>, FloatValue<'b>) -> FloatValue<'b>,
+        for<'a, 'b> fn(&'a mut Jit<'b>, FloatValue<'b>, FloatValue<'b>) -> FloatValue<'b>,
     ),
     ExpressionTernary(
         for<'a, 'b> fn(
-            &'a mut CodeGen<'b>,
+            &'a mut Jit<'b>,
             FloatValue<'b>,
             FloatValue<'b>,
             FloatValue<'b>,
@@ -113,40 +105,36 @@ enum LlvmImplementation {
 }
 
 impl LlvmImplementation {
-    fn compile<'ctx>(
-        &self,
-        codegen: &mut CodeGen<'ctx>,
-        inputs: &[FloatValue<'ctx>],
-    ) -> FloatValue<'ctx> {
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
         match self {
             LlvmImplementation::IntrinsicUnary(name) => {
                 debug_assert_eq!(inputs.len(), 1);
                 let input = inputs[0];
-                codegen.build_unary_intrinsic_call(name, input)
+                jit.build_unary_intrinsic_call(name, input)
             }
             LlvmImplementation::IntrinsicBinary(name) => {
                 debug_assert_eq!(inputs.len(), 2);
                 let input1 = inputs[0];
                 let input2 = inputs[1];
-                codegen.build_binary_intrinsic_call(name, input1, input2)
+                jit.build_binary_intrinsic_call(name, input1, input2)
             }
             LlvmImplementation::ExpressionUnary(f) => {
                 debug_assert_eq!(inputs.len(), 1);
                 let input = inputs[0];
-                f(codegen, input)
+                f(jit, input)
             }
             LlvmImplementation::ExpressionBinary(f) => {
                 debug_assert_eq!(inputs.len(), 2);
                 let a = inputs[0];
                 let b = inputs[1];
-                f(codegen, a, b)
+                f(jit, a, b)
             }
             LlvmImplementation::ExpressionTernary(f) => {
                 debug_assert_eq!(inputs.len(), 3);
                 let a = inputs[0];
                 let b = inputs[1];
                 let c = inputs[2];
-                f(codegen, a, b, c)
+                f(jit, a, b, c)
             }
         }
     }
@@ -171,11 +159,11 @@ macro_rules! unary_expression_node {
 
             fn compile<'ctx>(
                 &self,
-                codegen: &mut CodeGen<'ctx>,
+                jit: &mut Jit<'ctx>,
                 inputs: &[FloatValue<'ctx>],
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
-                imp.compile(codegen, inputs)
+                imp.compile(jit, inputs)
             }
         }
 
@@ -206,11 +194,11 @@ macro_rules! binary_expression_node {
 
             fn compile<'ctx>(
                 &self,
-                codegen: &mut CodeGen<'ctx>,
+                jit: &mut Jit<'ctx>,
                 inputs: &[FloatValue<'ctx>],
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
-                imp.compile(codegen, inputs)
+                imp.compile(jit, inputs)
             }
         }
 
@@ -243,11 +231,11 @@ macro_rules! ternary_expression_node {
 
             fn compile<'ctx>(
                 &self,
-                codegen: &mut CodeGen<'ctx>,
+                jit: &mut Jit<'ctx>,
                 inputs: &[FloatValue<'ctx>],
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
-                imp.compile(codegen, inputs)
+                imp.compile(jit, inputs)
             }
         }
 
@@ -265,8 +253,8 @@ unary_expression_node!(
     "negate",
     0.0,
     |x| -x,
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        codegen.builder().build_float_neg(x, "x").unwrap()
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        jit.builder().build_float_neg(x, "x").unwrap()
     })
 );
 unary_expression_node!(
@@ -302,12 +290,9 @@ unary_expression_node!(
     "fract",
     0.0,
     |x| x.fract(),
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let x_trunc = codegen.build_unary_intrinsic_call("llvm.trunc", x);
-        codegen
-            .builder()
-            .build_float_sub(x, x_trunc, "fract")
-            .unwrap()
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let x_trunc = jit.build_unary_intrinsic_call("llvm.trunc", x);
+        jit.builder().build_float_sub(x, x_trunc, "fract").unwrap()
     })
 );
 unary_expression_node!(
@@ -322,9 +307,9 @@ unary_expression_node!(
     "signum",
     0.0,
     |x| x.signum(),
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let one = codegen.float_type().const_float(1.0);
-        codegen.build_binary_intrinsic_call("llvm.copysign", one, x)
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let one = jit.float_type().const_float(1.0);
+        jit.build_binary_intrinsic_call("llvm.copysign", one, x)
     })
 );
 unary_expression_node!(
@@ -346,15 +331,13 @@ unary_expression_node!(
     "exp10",
     0.0,
     |x| (x * std::f32::consts::LN_10).exp(),
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let ln_10 = codegen
-            .float_type()
-            .const_float(std::f32::consts::LN_10 as f64);
-        let x_times_ln_10 = codegen
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let ln_10 = jit.float_type().const_float(std::f32::consts::LN_10 as f64);
+        let x_times_ln_10 = jit
             .builder()
             .build_float_mul(x, ln_10, "x_times_ln_10")
             .unwrap();
-        codegen.build_unary_intrinsic_call("llvm.exp", x_times_ln_10)
+        jit.build_unary_intrinsic_call("llvm.exp", x_times_ln_10)
     })
 );
 unary_expression_node!(
@@ -418,10 +401,10 @@ unary_expression_node!(
     "sinewave",
     0.0,
     |x| (x * std::f32::consts::TAU).sin(),
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let tau = codegen.float_type().const_float(std::f64::consts::TAU);
-        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x").unwrap();
-        let sin_tau_x = codegen.build_unary_intrinsic_call("llvm.sin", tau_x);
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let tau = jit.float_type().const_float(std::f64::consts::TAU);
+        let tau_x = jit.builder().build_float_mul(tau, x, "tau_x").unwrap();
+        let sin_tau_x = jit.build_unary_intrinsic_call("llvm.sin", tau_x);
         sin_tau_x
     })
 );
@@ -430,10 +413,10 @@ unary_expression_node!(
     "cosinewave",
     0.0,
     |x| (x * std::f32::consts::TAU).cos(),
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let tau = codegen.float_type().const_float(std::f64::consts::TAU);
-        let tau_x = codegen.builder().build_float_mul(tau, x, "tau_x").unwrap();
-        let sin_tau_x = codegen.build_unary_intrinsic_call("llvm.cos", tau_x);
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let tau = jit.float_type().const_float(std::f64::consts::TAU);
+        let tau_x = jit.builder().build_float_mul(tau, x, "tau_x").unwrap();
+        let sin_tau_x = jit.build_unary_intrinsic_call("llvm.cos", tau_x);
         sin_tau_x
     })
 );
@@ -448,21 +431,20 @@ unary_expression_node!(
             -1.0
         }
     },
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let plus_one = codegen.float_type().const_float(1.0);
-        let minus_one = codegen.float_type().const_float(-1.0);
-        let a_half = codegen.float_type().const_float(0.5);
-        let x_floor = codegen.build_unary_intrinsic_call("llvm.floor", x);
-        let x_fract = codegen
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let plus_one = jit.float_type().const_float(1.0);
+        let minus_one = jit.float_type().const_float(-1.0);
+        let a_half = jit.float_type().const_float(0.5);
+        let x_floor = jit.build_unary_intrinsic_call("llvm.floor", x);
+        let x_fract = jit
             .builder()
             .build_float_sub(x, x_floor, "x_fract")
             .unwrap();
-        let x_fract_ge_half = codegen
+        let x_fract_ge_half = jit
             .builder()
             .build_float_compare(FloatPredicate::UGE, x_fract, a_half, "x_fract_ge_half")
             .unwrap();
-        codegen
-            .builder()
+        jit.builder()
             .build_select(x_fract_ge_half, plus_one, minus_one, "square_wave")
             .unwrap()
             .into_float_value()
@@ -473,20 +455,19 @@ unary_expression_node!(
     "sawwave",
     0.0,
     |x| 2.0 * (x - x.floor()) - 1.0,
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let one = codegen.float_type().const_float(1.0);
-        let two = codegen.float_type().const_float(2.0);
-        let x_floor = codegen.build_unary_intrinsic_call("llvm.floor", x);
-        let x_fract = codegen
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let one = jit.float_type().const_float(1.0);
+        let two = jit.float_type().const_float(2.0);
+        let x_floor = jit.build_unary_intrinsic_call("llvm.floor", x);
+        let x_fract = jit
             .builder()
             .build_float_sub(x, x_floor, "x_fract")
             .unwrap();
-        let two_x_fract = codegen
+        let two_x_fract = jit
             .builder()
             .build_float_mul(x_fract, two, "2x_fract")
             .unwrap();
-        codegen
-            .builder()
+        jit.builder()
             .build_float_sub(two_x_fract, one, "saw_wave")
             .unwrap()
     })
@@ -496,28 +477,27 @@ unary_expression_node!(
     "trianglewave",
     0.0,
     |x| 4.0 * (x - (x + 0.5).floor()).abs() - 1.0,
-    LlvmImplementation::ExpressionUnary(|codegen, x| {
-        let one = codegen.float_type().const_float(1.0);
-        let four = codegen.float_type().const_float(4.0);
-        let a_half = codegen.float_type().const_float(0.5);
+    LlvmImplementation::ExpressionUnary(|jit, x| {
+        let one = jit.float_type().const_float(1.0);
+        let four = jit.float_type().const_float(4.0);
+        let a_half = jit.float_type().const_float(0.5);
 
-        let x_plus_half = codegen
+        let x_plus_half = jit
             .builder()
             .build_float_add(x, a_half, "x_plus_half")
             .unwrap();
-        let floored = codegen.build_unary_intrinsic_call("llvm.floor", x_plus_half);
-        let x_minus_floored = codegen
+        let floored = jit.build_unary_intrinsic_call("llvm.floor", x_plus_half);
+        let x_minus_floored = jit
             .builder()
             .build_float_sub(x, floored, "x_minus_floored")
             .unwrap();
-        let abs = codegen.build_unary_intrinsic_call("llvm.fabs", x_minus_floored);
+        let abs = jit.build_unary_intrinsic_call("llvm.fabs", x_minus_floored);
 
-        let four_abs = codegen
+        let four_abs = jit
             .builder()
             .build_float_mul(abs, four, "four_abs")
             .unwrap();
-        codegen
-            .builder()
+        jit.builder()
             .build_float_sub(four_abs, one, "triangle_wave")
             .unwrap()
     })
@@ -528,8 +508,8 @@ binary_expression_node!(
     "add",
     (0.0, 0.0),
     |a, b| a + b,
-    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen.builder().build_float_add(a, b, "sum").unwrap()
+    LlvmImplementation::ExpressionBinary(|jit, a, b| {
+        jit.builder().build_float_add(a, b, "sum").unwrap()
     })
 );
 binary_expression_node!(
@@ -537,11 +517,8 @@ binary_expression_node!(
     "subtract",
     (0.0, 0.0),
     |a, b| a - b,
-    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen
-            .builder()
-            .build_float_sub(a, b, "difference")
-            .unwrap()
+    LlvmImplementation::ExpressionBinary(|jit, a, b| {
+        jit.builder().build_float_sub(a, b, "difference").unwrap()
     })
 );
 binary_expression_node!(
@@ -549,8 +526,8 @@ binary_expression_node!(
     "multiply",
     (1.0, 1.0),
     |a, b| a * b,
-    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen.builder().build_float_mul(a, b, "product").unwrap()
+    LlvmImplementation::ExpressionBinary(|jit, a, b| {
+        jit.builder().build_float_mul(a, b, "product").unwrap()
     })
 );
 binary_expression_node!(
@@ -558,8 +535,8 @@ binary_expression_node!(
     "divide",
     (1.0, 1.0),
     |a, b| a / b,
-    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
-        codegen.builder().build_float_div(a, b, "quotient").unwrap()
+    LlvmImplementation::ExpressionBinary(|jit, a, b| {
+        jit.builder().build_float_div(a, b, "quotient").unwrap()
     })
 );
 // TODO:
@@ -576,18 +553,15 @@ binary_expression_node!(
     "pow",
     (0.0, 1.0),
     |a, b| a.powf(b),
-    LlvmImplementation::ExpressionBinary(|codegen, a, b| {
+    LlvmImplementation::ExpressionBinary(|jit, a, b| {
         // TODO: use the intrinsic that already exists!
         // https://llvm.org/docs/LangRef.html#llvm-pow-intrinsic
         // x = a^b
         // x = e^(ln(a^b))
         // x = e^(b * ln(a))
-        let ln_a = codegen.build_unary_intrinsic_call("llvm.log", a);
-        let b_ln_a = codegen
-            .builder()
-            .build_float_mul(b, ln_a, "b_ln_a")
-            .unwrap();
-        codegen.build_unary_intrinsic_call("llvm.exp", b_ln_a)
+        let ln_a = jit.build_unary_intrinsic_call("llvm.log", a);
+        let b_ln_a = jit.builder().build_float_mul(b, ln_a, "b_ln_a").unwrap();
+        jit.build_unary_intrinsic_call("llvm.exp", b_ln_a)
     })
 );
 // TODO:
@@ -598,14 +572,13 @@ ternary_expression_node!(
     "lerp",
     (0.0, 1.0, 0.0),
     |a, b, c| { a + c * (b - a) },
-    LlvmImplementation::ExpressionTernary(|codegen, a, b, c| {
-        let diff = codegen.builder().build_float_sub(b, a, "diff").unwrap();
-        let scaled_diff = codegen
+    LlvmImplementation::ExpressionTernary(|jit, a, b, c| {
+        let diff = jit.builder().build_float_sub(b, a, "diff").unwrap();
+        let scaled_diff = jit
             .builder()
             .build_float_mul(c, diff, "scaled_diff")
             .unwrap();
-        codegen
-            .builder()
+        jit.builder()
             .build_float_add(a, scaled_diff, "lerp")
             .unwrap()
     })

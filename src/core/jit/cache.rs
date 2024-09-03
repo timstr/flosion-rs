@@ -5,12 +5,10 @@ use hashrevise::{Revisable, RevisionHash};
 use crate::core::sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology};
 
 use super::{
-    codegen::CodeGen,
     compiledexpression::{CompiledExpressionArtefact, CompiledExpressionFunction},
+    jit::Jit,
 };
 
-// An object to receive and serve requests for compiled expressions,
-// as well as stored cached artefacts according to their revision
 struct Entry<'ctx> {
     artefact: CompiledExpressionArtefact<'ctx>,
     // TODO: info about how recently the entry was used,
@@ -44,8 +42,8 @@ impl<'ctx> JitCache<'ctx> {
             .borrow_mut()
             .entry((id, revision))
             .or_insert_with(|| {
-                let codegen = CodeGen::new(self.inkwell_context);
-                let artefact = codegen.compile_expression(id, topology);
+                let jit = Jit::new(self.inkwell_context);
+                let artefact = jit.compile_expression(id, topology);
                 Entry { artefact }
             })
             .artefact

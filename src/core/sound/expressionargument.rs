@@ -2,7 +2,7 @@ use inkwell::values::FloatValue;
 
 use crate::core::{
     jit::{
-        codegen::CodeGen,
+        jit::Jit,
         wrappers::{ArrayReadFunc, ScalarReadFunc},
     },
     uniqueid::UniqueId,
@@ -64,7 +64,7 @@ pub(crate) trait SoundExpressionArgument: Sync + Send {
 
     // Produce JIT instructions that evaluate the argument
     // at each sample
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx>;
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx>;
 }
 
 // A SoundExpressionArgument that reads a scalar from the state of a sound input
@@ -87,8 +87,8 @@ impl SoundExpressionArgument for ScalarInputExpressionArgument {
         SoundExpressionArgumentOrigin::InputState(self.input_id)
     }
 
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        codegen.build_input_scalar_read(self.input_id, self.function)
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
+        jit.build_input_scalar_read(self.input_id, self.function)
     }
 }
 
@@ -112,8 +112,8 @@ impl SoundExpressionArgument for ArrayInputExpressionArgument {
         SoundExpressionArgumentOrigin::InputState(self.input_id)
     }
 
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        codegen.build_input_array_read(self.input_id, self.function)
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
+        jit.build_input_array_read(self.input_id, self.function)
     }
 }
 
@@ -140,8 +140,8 @@ impl SoundExpressionArgument for ScalarProcessorExpressionArgument {
         SoundExpressionArgumentOrigin::ProcessorState(self.processor_id)
     }
 
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        codegen.build_processor_scalar_read(self.processor_id, self.function)
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
+        jit.build_processor_scalar_read(self.processor_id, self.function)
     }
 }
 
@@ -167,8 +167,8 @@ impl SoundExpressionArgument for ArrayProcessorExpressionArgument {
     fn origin(&self) -> SoundExpressionArgumentOrigin {
         SoundExpressionArgumentOrigin::ProcessorState(self.processor_id)
     }
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        codegen.build_processor_array_read(self.processor_id, self.function)
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
+        jit.build_processor_array_read(self.processor_id, self.function)
     }
 }
 
@@ -188,8 +188,8 @@ impl SoundExpressionArgument for ProcessorTimeExpressionArgument {
         SoundExpressionArgumentOrigin::ProcessorState(self.processor_id)
     }
 
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        codegen.build_processor_time(self.processor_id)
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
+        jit.build_processor_time(self.processor_id)
     }
 }
 
@@ -209,8 +209,8 @@ impl SoundExpressionArgument for InputTimeExpressionArgument {
         SoundExpressionArgumentOrigin::InputState(self.input_id)
     }
 
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        codegen.build_input_time(self.input_id)
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
+        jit.build_input_time(self.input_id)
     }
 }
 
@@ -235,7 +235,7 @@ impl SoundExpressionArgument for ProcessorLocalArrayExpressionArgument {
         SoundExpressionArgumentOrigin::Local(self.processor_id)
     }
 
-    fn compile<'ctx>(&self, codegen: &mut CodeGen<'ctx>) -> FloatValue<'ctx> {
-        codegen.build_processor_local_array_read(self.processor_id, self.id)
+    fn compile<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
+        jit.build_processor_local_array_read(self.processor_id, self.id)
     }
 }
