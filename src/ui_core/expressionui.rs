@@ -42,7 +42,7 @@ impl SoundExpressionUi {
                         OuterExpressionGraphUiContext::ProcessorExpression(proc_expr_ctx) => {
                             ExpressionPlot::new().show(
                                 ui,
-                                ctx.jit_server(),
+                                ctx.jit_cache(),
                                 sound_graph
                                     .topology()
                                     .expression(proc_expr_ctx.expression_id())

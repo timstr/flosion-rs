@@ -21,14 +21,14 @@ struct Entry<'ctx> {
     // properties of the current topology may suffice.
 }
 
-pub(crate) struct JitServer<'ctx> {
+pub(crate) struct JitCache<'ctx> {
     inkwell_context: &'ctx inkwell::context::Context,
     cache: RefCell<HashMap<(SoundExpressionId, RevisionHash), Entry<'ctx>>>,
 }
 
-impl<'ctx> JitServer<'ctx> {
-    pub(crate) fn new(inkwell_context: &'ctx inkwell::context::Context) -> JitServer<'ctx> {
-        JitServer {
+impl<'ctx> JitCache<'ctx> {
+    pub(crate) fn new(inkwell_context: &'ctx inkwell::context::Context) -> JitCache<'ctx> {
+        JitCache {
             inkwell_context,
             cache: RefCell::new(HashMap::new()),
         }

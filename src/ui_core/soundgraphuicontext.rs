@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::core::jit::server::JitServer;
+use crate::core::jit::cache::JitCache;
 
 use super::{
     flosion_ui::Factories, graph_properties::GraphProperties, stackedlayout::timeaxis::TimeAxis,
@@ -12,7 +12,7 @@ pub struct SoundGraphUiContext<'a, 'ctx> {
     width: f32,
     group_origin: egui::Pos2,
     properties: &'a GraphProperties,
-    jit_server: &'a JitServer<'ctx>,
+    jit_cache: &'a JitCache<'ctx>,
 }
 
 impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
@@ -22,7 +22,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
         width: f32,
         group_origin: egui::Pos2,
         properties: &'a GraphProperties,
-        jit_server: &'a JitServer<'ctx>,
+        jit_cache: &'a JitCache<'ctx>,
     ) -> SoundGraphUiContext<'a, 'ctx> {
         SoundGraphUiContext {
             factories,
@@ -30,7 +30,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
             width,
             group_origin,
             properties,
-            jit_server,
+            jit_cache,
         }
     }
 
@@ -54,7 +54,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
         self.properties
     }
 
-    pub fn jit_server(&self) -> &JitServer<'ctx> {
-        self.jit_server
+    pub fn jit_cache(&self) -> &JitCache<'ctx> {
+        self.jit_cache
     }
 }

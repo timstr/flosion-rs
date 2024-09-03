@@ -4,7 +4,7 @@ use crate::core::{
     expression::expressiongraph::{
         ExpressionGraph, ExpressionGraphParameterId, ExpressionGraphResultId,
     },
-    jit::server::JitServer,
+    jit::cache::JitCache,
     sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
         sounderror::SoundError, soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
@@ -184,17 +184,17 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 
 pub struct ExpressionGraphUiContext<'a, 'ctx> {
     ui_factory: &'a ExpressionObjectUiFactory,
-    jit_server: &'a JitServer<'ctx>,
+    jit_cache: &'a JitCache<'ctx>,
 }
 
 impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
     pub(super) fn new(
         ui_factory: &'a ExpressionObjectUiFactory,
-        jit_server: &'a JitServer<'ctx>,
+        jit_cache: &'a JitCache<'ctx>,
     ) -> ExpressionGraphUiContext<'a, 'ctx> {
         ExpressionGraphUiContext {
             ui_factory,
-            jit_server,
+            jit_cache,
         }
     }
 
@@ -202,7 +202,7 @@ impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
         self.ui_factory
     }
 
-    pub(super) fn jit_server(&self) -> &JitServer<'ctx> {
-        self.jit_server
+    pub(super) fn jit_cache(&self) -> &JitCache<'ctx> {
+        self.jit_cache
     }
 }

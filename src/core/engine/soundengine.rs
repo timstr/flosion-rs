@@ -18,7 +18,7 @@ use super::{
 };
 
 use crate::core::{
-    jit::server::JitServer, samplefrequency::SAMPLE_FREQUENCY,
+    jit::cache::JitCache, samplefrequency::SAMPLE_FREQUENCY,
     sound::soundgraphtopology::SoundGraphTopology, soundchunk::CHUNK_SIZE,
 };
 
@@ -127,7 +127,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
     pub(crate) fn update(
         &mut self,
         new_topology: &SoundGraphTopology,
-        jit_server: &JitServer<'ctx>,
+        jit_cache: &JitCache<'ctx>,
     ) -> Result<(), ()> {
         let new_revision = new_topology.get_revision();
 
@@ -135,7 +135,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             return Ok(());
         }
 
-        let edits = diff_sound_graph_topology(&self.current_topology, &new_topology, jit_server);
+        let edits = diff_sound_graph_topology(&self.current_topology, &new_topology, jit_cache);
 
         for edit in edits {
             match self.edit_queue.try_send(edit) {

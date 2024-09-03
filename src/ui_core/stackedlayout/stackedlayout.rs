@@ -5,7 +5,7 @@ use hashrevise::{Revisable, RevisionHash};
 
 use crate::{
     core::{
-        jit::server::JitServer,
+        jit::cache::JitCache,
         sound::{
             soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
             soundprocessor::SoundProcessorId,
@@ -223,11 +223,11 @@ impl StackedLayout {
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
         properties: &GraphProperties,
-        jit_server: &JitServer,
+        jit_cache: &JitCache,
     ) {
         // Draw each stacked group
         for group in &mut self.groups {
-            group.draw(ui, factories, ui_state, graph, jit_server, properties);
+            group.draw(ui, factories, ui_state, graph, jit_cache, properties);
         }
 
         // draw wires between connected groups

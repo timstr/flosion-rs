@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::core::{
-    jit::{compiledexpression::CompiledExpressionFunction, server::JitServer},
+    jit::{cache::JitCache, compiledexpression::CompiledExpressionFunction},
     sound::{
         expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology,
         soundinput::SoundInputId, soundprocessor::SoundProcessorId,
@@ -20,8 +20,8 @@ pub struct SoundGraphCompiler<'a, 'ctx> {
     /// The current sound graph topology
     topology: &'a SoundGraphTopology,
 
-    /// The JIT server for compiling expressions
-    jit_server: &'a JitServer<'ctx>,
+    /// The JIT cache for compiling expressions
+    jit_cache: &'a JitCache<'ctx>,
 
     /// Cache of all nodes for processors which are static and thus should
     /// only have one single, shared state graph node.
@@ -36,11 +36,11 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
     /// the first time they are encountered by this SoundGraphCompiler instance.
     pub(crate) fn new(
         topology: &'a SoundGraphTopology,
-        jit_server: &'a JitServer<'ctx>,
+        jit_cache: &'a JitCache<'ctx>,
     ) -> SoundGraphCompiler<'a, 'ctx> {
         SoundGraphCompiler {
             topology,
-            jit_server,
+            jit_cache,
             static_processor_nodes: HashMap::new(),
         }
     }
@@ -77,7 +77,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         &self,
         id: SoundExpressionId,
     ) -> CompiledExpressionFunction<'ctx> {
-        self.jit_server.get_compiled_expression(id, self.topology)
+        self.jit_cache.get_compiled_expression(id, self.topology)
     }
 
     /// Compile a sound input node for execution on the audio thread

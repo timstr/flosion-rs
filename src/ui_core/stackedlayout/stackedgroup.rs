@@ -5,7 +5,7 @@ use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
 use crate::{
     core::{
-        jit::server::JitServer,
+        jit::cache::JitCache,
         sound::{
             soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
             soundinput::InputOptions, soundprocessor::SoundProcessorId,
@@ -183,7 +183,7 @@ impl StackedGroup {
         factories: &Factories,
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
-        jit_server: &JitServer,
+        jit_cache: &JitCache,
         properties: &GraphProperties,
     ) {
         // For a unique id for egui, hash the processor ids in the group
@@ -248,7 +248,7 @@ impl StackedGroup {
                                 self.width_pixels as f32,
                                 group_origin,
                                 properties,
-                                jit_server,
+                                jit_cache,
                             );
 
                             show_sound_object_ui(

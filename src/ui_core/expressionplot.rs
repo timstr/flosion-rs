@@ -3,8 +3,8 @@ use eframe::egui;
 use crate::core::{
     expression::context::MockExpressionContext,
     jit::{
+        cache::JitCache,
         compiledexpression::{CompiledExpressionFunction, Discretization},
-        server::JitServer,
     },
     sound::{
         expressionargument::SoundExpressionArgumentId, soundgraph::SoundGraph,
@@ -66,7 +66,7 @@ impl ExpressionPlot {
     pub(crate) fn show(
         self,
         ui: &mut egui::Ui,
-        jit_server: &JitServer,
+        jit_cache: &JitCache,
         ni_data: &SoundExpressionData,
         time_axis: TimeAxis,
         config: &PlotConfig,
@@ -77,7 +77,7 @@ impl ExpressionPlot {
             vertical_range,
             horizontal_domain,
         } = config;
-        let compiled_fn = jit_server.get_compiled_expression(ni_data.id(), graph.topology());
+        let compiled_fn = jit_cache.get_compiled_expression(ni_data.id(), graph.topology());
         // TODO: make this configurable / draggable. Where to store such ui state?
         let desired_height = 30.0;
         let desired_width = match horizontal_domain {

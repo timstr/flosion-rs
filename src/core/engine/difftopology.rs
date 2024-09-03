@@ -1,6 +1,6 @@
 use crate::core::{
     engine::{stategraph::StateGraph, stategraphvalidation::state_graph_matches_topology},
-    jit::server::JitServer,
+    jit::cache::JitCache,
     sound::soundgraphtopology::SoundGraphTopology,
 };
 
@@ -12,7 +12,7 @@ use super::{
 pub(crate) fn diff_sound_graph_topology<'ctx>(
     topo_before: &SoundGraphTopology,
     topo_after: &SoundGraphTopology,
-    jit_server: &JitServer<'ctx>,
+    jit_cache: &JitCache<'ctx>,
 ) -> Vec<StateGraphEdit<'ctx>> {
     let mut edits = Vec::new();
 
@@ -52,7 +52,7 @@ pub(crate) fn diff_sound_graph_topology<'ctx>(
     // Note that SoundGraphCompiler will cache and reuse shared static processor
     // nodes, and so no extra book-keeping is needed here to ensure
     // that static processors are allocated only once and reused.
-    let mut compiler = SoundGraphCompiler::new(&topo_after, jit_server);
+    let mut compiler = SoundGraphCompiler::new(&topo_after, jit_cache);
     for proc in topo_after.sound_processors().values() {
         if proc.instance().is_static() {
             let StateGraphNodeValue::Shared(node) = compiler.compile_sound_processor(proc.id())

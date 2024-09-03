@@ -7,7 +7,7 @@ use crate::{
             soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
         },
         expression::expressionobject::ExpressionObjectFactory,
-        jit::server::JitServer,
+        jit::cache::JitCache,
         sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
@@ -93,7 +93,7 @@ pub struct FlosionApp<'ctx> {
 
     garbage_disposer: GarbageDisposer<'ctx>,
 
-    jit_server: JitServer<'ctx>,
+    jit_cache: JitCache<'ctx>,
 }
 
 impl<'ctx> FlosionApp<'ctx> {
@@ -115,7 +115,7 @@ impl<'ctx> FlosionApp<'ctx> {
             engine.run();
         });
 
-        let jit_server = JitServer::new(inkwell_context);
+        let jit_cache = JitCache::new(inkwell_context);
 
         let mut app = FlosionApp {
             graph,
@@ -129,7 +129,7 @@ impl<'ctx> FlosionApp<'ctx> {
             stop_button,
             engine_interface,
             garbage_disposer,
-            jit_server,
+            jit_cache,
         };
 
         // Initialize all necessary ui state
@@ -148,7 +148,7 @@ impl<'ctx> FlosionApp<'ctx> {
             &mut self.ui_state,
             &mut self.graph,
             &self.properties,
-            &self.jit_server,
+            &self.jit_cache,
         );
 
         self.ui_state.interact_and_draw(
@@ -201,7 +201,7 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
             self.check_invariants();
 
             self.engine_interface
-                .update(self.graph.topology(), &self.jit_server)
+                .update(self.graph.topology(), &self.jit_cache)
                 .expect("Failed to update engine");
 
             self.garbage_disposer.clear();
