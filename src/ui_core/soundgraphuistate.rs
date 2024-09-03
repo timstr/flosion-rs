@@ -1,12 +1,10 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
-
 use eframe::egui;
 
 use crate::{
     core::{
         audiofileio::load_audio_file,
         sound::{
-            expression::SoundExpressionId, soundgraph::SoundGraph, soundgraphid::SoundObjectId,
+            expression::SoundExpressionId, soundgraph::SoundGraph,
             soundgraphtopology::SoundGraphTopology,
         },
     },
@@ -22,8 +20,6 @@ use super::{
     flosion_ui::Factories,
     globalinteractions::GlobalInteractions,
     graph_properties::GraphProperties,
-    graph_ui::GraphUiState,
-    soundgraphui::SoundGraphUi,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
@@ -195,13 +191,5 @@ impl SoundGraphUiState {
             &outer_ctx.into(),
             plot_config,
         );
-    }
-}
-
-impl GraphUiState for SoundGraphUiState {
-    type GraphUi = SoundGraphUi;
-
-    fn get_object_ui_data(&self, id: SoundObjectId) -> Rc<RefCell<dyn Any>> {
-        self.object_states.get_object_data(id)
     }
 }

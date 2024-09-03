@@ -9,8 +9,7 @@ use crate::core::{
 
 use super::{
     arguments::ParsedArguments, expressiongraphui::ExpressionGraphUi,
-    expressionobjectui::ExpressionObjectUiFactory, graph_ui::GraphUiState,
-    lexicallayout::lexicallayout::LexicalLayout,
+    expressionobjectui::ExpressionObjectUiFactory, lexicallayout::lexicallayout::LexicalLayout,
 };
 
 /// Container for holding the ui states of all nodes in a single
@@ -104,14 +103,6 @@ impl ExpressionGraphUiState {
     /// the given topology.
     fn cleanup(&mut self, topo: &ExpressionGraphTopology) {
         self.object_states.cleanup(topo);
-    }
-}
-
-impl GraphUiState for ExpressionGraphUiState {
-    type GraphUi = ExpressionGraphUi;
-
-    fn get_object_ui_data(&self, id: ExpressionNodeId) -> Rc<RefCell<dyn Any>> {
-        self.object_states.get_object_data(id)
     }
 }
 
