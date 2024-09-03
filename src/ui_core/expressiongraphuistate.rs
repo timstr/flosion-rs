@@ -8,10 +8,9 @@ use crate::core::{
 };
 
 use super::{
-    expressiongraphui::ExpressionGraphUi,
-    graph_ui::GraphUiState,
-    lexicallayout::lexicallayout::{ExpressionNodeLayout, LexicalLayout},
-    ui_factory::UiFactory,
+    arguments::ParsedArguments, expressiongraphui::ExpressionGraphUi,
+    expressionobjectui::ExpressionObjectUiFactory, graph_ui::GraphUiState,
+    lexicallayout::lexicallayout::LexicalLayout,
 };
 
 /// Container for holding the ui states of all nodes in a single
@@ -36,13 +35,17 @@ impl ExpressionNodeObjectUiStates {
     /// expression graph topology with default-created ui states.
     pub(super) fn generate(
         topo: &ExpressionGraphTopology,
-        factory: &UiFactory<ExpressionGraphUi>,
+        factory: &ExpressionObjectUiFactory,
     ) -> ExpressionNodeObjectUiStates {
         let mut states = Self::new();
 
         for node in topo.nodes().values() {
             let object = node.instance_arc().as_graph_object();
-            let state = factory.create_default_state(&object);
+            let object_type = object.get_type();
+            let object_ui = factory.get(object_type);
+            let state = object_ui
+                .make_ui_state(&object, ParsedArguments::new_empty())
+                .unwrap();
             states.set_object_data(node.id(), state);
         }
 
@@ -80,11 +83,16 @@ impl ExpressionGraphUiState {
     /// topology. All expression node objects will be assigned default ui state.
     pub(crate) fn generate(
         topo: &ExpressionGraphTopology,
-        factory: &UiFactory<ExpressionGraphUi>,
+        factory: &ExpressionObjectUiFactory,
     ) -> ExpressionGraphUiState {
         let object_states = ExpressionNodeObjectUiStates::generate(topo, factory);
 
         ExpressionGraphUiState { object_states }
+    }
+
+    /// Get a reference to the object ui states
+    pub(crate) fn object_states(&self) -> &ExpressionNodeObjectUiStates {
+        &self.object_states
     }
 
     /// Get a mutable reference to the object ui states
@@ -137,7 +145,7 @@ impl ExpressionUiCollection {
     pub(super) fn cleanup(
         &mut self,
         topology: &SoundGraphTopology,
-        factory: &UiFactory<ExpressionGraphUi>,
+        factory: &ExpressionObjectUiFactory,
     ) {
         // Delete data for removed expressions
         self.data

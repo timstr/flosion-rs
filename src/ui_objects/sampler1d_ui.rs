@@ -7,20 +7,18 @@ use crate::{
     objects::sampler1d::Sampler1d,
     ui_core::{
         arguments::ParsedArguments,
-        expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
+        expressionobjectui::ExpressionObjectUi,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
-        object_ui::ObjectUi,
     },
 };
 
 #[derive(Default)]
 pub struct Sampler1dUi {}
 
-impl ObjectUi for Sampler1dUi {
-    type GraphUi = ExpressionGraphUi;
+impl ExpressionObjectUi for Sampler1dUi {
     type HandleType = StatefulExpressionNodeHandle<Sampler1d>;
     type StateType = ();
 

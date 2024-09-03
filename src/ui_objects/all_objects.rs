@@ -5,8 +5,11 @@ use crate::{
         sound::soundgraph::SoundGraph,
     },
     ui_core::{
-        expressiongraphui::ExpressionGraphUi, graph_ui::GraphUi, object_ui::ObjectUi,
-        soundgraphui::SoundGraphUi, ui_factory::UiFactory,
+        expressionobjectui::{ExpressionObjectUi, ExpressionObjectUiFactory},
+        graph_ui::GraphUi,
+        object_ui::ObjectUi,
+        soundgraphui::SoundGraphUi,
+        ui_factory::UiFactory,
     },
 };
 
@@ -39,6 +42,29 @@ use super::{
     writewaveform_ui::WriteWaveformUi,
 };
 
+struct ExpressionObjectRegistrationHelper<'a> {
+    object_factory: &'a mut ObjectFactory<ExpressionGraph>,
+    ui_factory: &'a mut ExpressionObjectUiFactory,
+}
+
+impl<'a> ExpressionObjectRegistrationHelper<'a> {
+    fn new(
+        object_factory: &'a mut ObjectFactory<ExpressionGraph>,
+        ui_factory: &'a mut ExpressionObjectUiFactory,
+    ) -> Self {
+        ExpressionObjectRegistrationHelper {
+            object_factory,
+            ui_factory,
+        }
+    }
+
+    fn register<T: 'static + ExpressionObjectUi>(&mut self) {
+        // Yikes
+        self.object_factory
+            .register::<<<T as ExpressionObjectUi>::HandleType as ObjectHandle<ExpressionGraph>>::ObjectType>();
+        self.ui_factory.register::<T>();
+    }
+}
 struct RegistrationHelper<'a, G: GraphUi> {
     object_factory: &'a mut ObjectFactory<G::Graph>,
     ui_factory: &'a mut UiFactory<G>,
@@ -92,12 +118,12 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundG
     (object_factory, ui_factory)
 }
 
-pub fn all_expression_graph_objects(
-) -> (ObjectFactory<ExpressionGraph>, UiFactory<ExpressionGraphUi>) {
+pub fn all_expression_graph_objects() -> (ObjectFactory<ExpressionGraph>, ExpressionObjectUiFactory)
+{
     let mut object_factory = ObjectFactory::new_empty();
-    let mut ui_factory = UiFactory::new_empty();
+    let mut ui_factory = ExpressionObjectUiFactory::new_empty();
 
-    let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
+    let mut helper = ExpressionObjectRegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     helper.register::<ConstantUi>();
     helper.register::<SliderUi>();

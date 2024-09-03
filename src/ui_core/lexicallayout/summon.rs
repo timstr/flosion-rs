@@ -3,10 +3,9 @@ use eframe::egui;
 use crate::{
     core::{graph::graphobject::ObjectType, sound::expressionargument::SoundExpressionArgumentId},
     ui_core::{
-        expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::OuterProcessorExpressionContext,
+        expressionobjectui::ExpressionObjectUiFactory,
         summon_widget::{SummonWidgetState, SummonWidgetStateBuilder},
-        ui_factory::UiFactory,
     },
 };
 
@@ -22,7 +21,7 @@ pub(super) enum ExpressionSummonValue {
 
 pub(super) fn build_summon_widget_for_processor_expression(
     position: egui::Pos2,
-    ui_factory: &UiFactory<ExpressionGraphUi>,
+    ui_factory: &ExpressionObjectUiFactory,
     ctx: &OuterProcessorExpressionContext,
     variable_definitions: &[VariableDefinition],
 ) -> SummonWidgetState<ExpressionSummonValue> {

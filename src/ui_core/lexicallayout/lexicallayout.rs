@@ -19,6 +19,7 @@ use crate::{
         arguments::ParsedArguments,
         expressiongraphuicontext::OuterExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
+        expressionobjectui::{show_expression_node_ui, ExpressionObjectUiFactory},
         lexicallayout::{
             ast::{ASTNodeValue, InternalASTNodeValue},
             edits::remove_unreferenced_parameters,
@@ -28,11 +29,9 @@ use crate::{
 };
 
 use crate::ui_core::{
-    expressiongraphui::ExpressionGraphUi,
     expressiongraphuicontext::ExpressionGraphUiContext,
     expressiongraphuistate::ExpressionNodeObjectUiStates,
     summon_widget::{SummonWidget, SummonWidgetState},
-    ui_factory::UiFactory,
 };
 
 use super::{
@@ -218,7 +217,7 @@ impl LexicalLayout {
     pub(crate) fn generate(
         topo: &ExpressionGraphTopology,
         object_ui_states: &ExpressionNodeObjectUiStates,
-        ui_factory: &UiFactory<ExpressionGraphUi>,
+        ui_factory: &ExpressionObjectUiFactory,
     ) -> LexicalLayout {
         let outputs = topo.results();
         assert_eq!(outputs.len(), 1);
@@ -234,7 +233,7 @@ impl LexicalLayout {
             topo: &ExpressionGraphTopology,
             object_ui_states: &ExpressionNodeObjectUiStates,
             variable_id_generator: &mut IdGenerator<VariableId>,
-            ui_factory: &UiFactory<ExpressionGraphUi>,
+            ui_factory: &ExpressionObjectUiFactory,
         ) -> ASTNode {
             let nsid = match target {
                 ExpressionTarget::Node(nsid) => nsid,
@@ -270,9 +269,9 @@ impl LexicalLayout {
                 })
                 .collect();
 
-            let layout = ui_factory
-                .get_object_ui(node.instance_arc().as_graph_object().get_type())
-                .make_properties();
+            let object_ui = ui_factory.get(node.instance_arc().as_graph_object().get_type());
+
+            let layout = object_ui.make_properties();
 
             let node = make_internal_node(nsid, layout, arguments);
 
@@ -694,7 +693,7 @@ impl LexicalLayout {
         ui.horizontal_centered(|ui| {
             outer_context
                 .edit_expression_graph(sound_graph, |g| {
-                    ctx.ui_factory().ui(&graph_object, ui_state, ui, ctx, g);
+                    show_expression_node_ui(ctx.ui_factory(), &graph_object, ui_state, ui, ctx, g);
                 })
                 .unwrap();
         })
@@ -716,7 +715,7 @@ impl LexicalLayout {
         focus: &mut LexicalLayoutFocus,
         sound_graph: &mut SoundGraph,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<ExpressionGraphUi>,
+        ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &OuterExpressionGraphUiContext,
     ) {
@@ -811,7 +810,7 @@ impl LexicalLayout {
         focus: &mut LexicalLayoutFocus,
         sound_graph: &mut SoundGraph,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<ExpressionGraphUi>,
+        ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &OuterExpressionGraphUiContext,
     ) {
@@ -986,7 +985,7 @@ impl LexicalLayout {
         ns_type: ObjectType,
         arguments: ParsedArguments,
         object_factory: &ObjectFactory<ExpressionGraph>,
-        ui_factory: &UiFactory<ExpressionGraphUi>,
+        ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &OuterExpressionGraphUiContext,
         sound_graph: &mut SoundGraph,
@@ -1007,13 +1006,13 @@ impl LexicalLayout {
             }
         };
 
-        let new_ui_state = ui_factory
-            .create_state_from_arguments(&new_object, arguments)
+        let object_ui = ui_factory.get(new_object.get_type());
+
+        let new_ui_state = object_ui
+            .make_ui_state(&new_object, arguments)
             .map_err(|e| format!("Failed to create ui state: {:?}", e))?;
 
-        let layout = ui_factory
-            .get_object_ui(new_object.get_type())
-            .make_properties();
+        let layout = object_ui.make_properties();
 
         let num_inputs = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
             graph

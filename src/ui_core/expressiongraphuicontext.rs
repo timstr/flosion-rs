@@ -12,8 +12,8 @@ use crate::core::{
 };
 
 use super::{
-    expressiongraphui::ExpressionGraphUi, soundgraphuinames::SoundGraphUiNames,
-    stackedlayout::timeaxis::TimeAxis, ui_factory::UiFactory,
+    expressionobjectui::ExpressionObjectUiFactory, soundgraphuinames::SoundGraphUiNames,
+    stackedlayout::timeaxis::TimeAxis,
 };
 
 #[derive(Clone, Copy)]
@@ -183,13 +183,13 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 }
 
 pub struct ExpressionGraphUiContext<'a> {
-    ui_factory: &'a UiFactory<ExpressionGraphUi>,
+    ui_factory: &'a ExpressionObjectUiFactory,
     jit_server: &'a JitServer<'a>,
 }
 
 impl<'a> ExpressionGraphUiContext<'a> {
     pub(super) fn new(
-        ui_factory: &'a UiFactory<ExpressionGraphUi>,
+        ui_factory: &'a ExpressionObjectUiFactory,
         jit_server: &'a JitServer<'a>,
     ) -> ExpressionGraphUiContext<'a> {
         ExpressionGraphUiContext {
@@ -198,7 +198,7 @@ impl<'a> ExpressionGraphUiContext<'a> {
         }
     }
 
-    pub(super) fn ui_factory(&self) -> &'a UiFactory<ExpressionGraphUi> {
+    pub(super) fn ui_factory(&self) -> &'a ExpressionObjectUiFactory {
         self.ui_factory
     }
 

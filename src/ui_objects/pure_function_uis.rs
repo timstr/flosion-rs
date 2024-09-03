@@ -8,12 +8,11 @@ use crate::{
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, ParsedArguments, StringIdentifierArgument},
-        expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
+        expressionobjectui::ExpressionObjectUi,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
-        object_ui::ObjectUi,
     },
 };
 
@@ -24,8 +23,7 @@ impl ConstantUi {
     pub const ARG_NAME: StringIdentifierArgument = StringIdentifierArgument("name");
 }
 
-impl ObjectUi for ConstantUi {
-    type GraphUi = ExpressionGraphUi;
+impl ExpressionObjectUi for ConstantUi {
     type HandleType = PureExpressionNodeHandle<Constant>;
     type StateType = ();
 
@@ -108,8 +106,7 @@ impl Chivable for SliderUiState {
     }
 }
 
-impl ObjectUi for SliderUi {
-    type GraphUi = ExpressionGraphUi;
+impl ExpressionObjectUi for SliderUi {
     type HandleType = PureExpressionNodeHandle<Variable>;
     type StateType = SliderUiState;
     fn ui(
@@ -202,8 +199,7 @@ macro_rules! unary_expression_node_ui {
         #[derive(Default)]
         pub struct $name {}
 
-        impl ObjectUi for $name {
-            type GraphUi = ExpressionGraphUi;
+        impl ExpressionObjectUi for $name {
             type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
@@ -243,8 +239,7 @@ macro_rules! binary_expression_node_ui {
         #[derive(Default)]
         pub struct $name {}
 
-        impl ObjectUi for $name {
-            type GraphUi = ExpressionGraphUi;
+        impl ExpressionObjectUi for $name {
             type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
@@ -284,8 +279,7 @@ macro_rules! ternary_expression_node_ui {
         #[derive(Default)]
         pub struct $name {}
 
-        impl ObjectUi for $name {
-            type GraphUi = ExpressionGraphUi;
+        impl ExpressionObjectUi for $name {
             type HandleType = PureExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(

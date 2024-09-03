@@ -2,6 +2,7 @@ pub mod arguments;
 pub mod expressiongraphui;
 pub mod expressiongraphuicontext;
 pub mod expressiongraphuistate;
+pub mod expressionobjectui;
 pub mod expressionodeui;
 pub mod expressionplot;
 pub mod expressionui;

@@ -21,7 +21,7 @@ use hashrevise::{Revisable, RevisionHash};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
-    expressiongraphui::ExpressionGraphUi, graph_properties::GraphProperties,
+    expressionobjectui::ExpressionObjectUiFactory, graph_properties::GraphProperties,
     soundgraphui::SoundGraphUi, soundgraphuistate::SoundGraphUiState,
     stackedlayout::stackedlayout::StackedLayout, ui_factory::UiFactory,
 };
@@ -31,7 +31,7 @@ pub(crate) struct Factories {
     sound_objects: ObjectFactory<SoundGraph>,
     expression_objects: ObjectFactory<ExpressionGraph>,
     sound_uis: UiFactory<SoundGraphUi>,
-    expression_uis: UiFactory<ExpressionGraphUi>,
+    expression_uis: ExpressionObjectUiFactory,
 }
 
 impl Factories {
@@ -60,7 +60,7 @@ impl Factories {
         &self.sound_uis
     }
 
-    pub(crate) fn expression_uis(&self) -> &UiFactory<ExpressionGraphUi> {
+    pub(crate) fn expression_uis(&self) -> &ExpressionObjectUiFactory {
         &self.expression_uis
     }
 }

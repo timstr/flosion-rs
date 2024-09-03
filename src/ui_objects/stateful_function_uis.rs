@@ -7,20 +7,18 @@ use crate::{
     },
     ui_core::{
         arguments::ParsedArguments,
-        expressiongraphui::ExpressionGraphUi,
         expressiongraphuicontext::ExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
+        expressionobjectui::ExpressionObjectUi,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
-        object_ui::ObjectUi,
     },
 };
 
 #[derive(Default)]
 pub struct LinearApproachUi {}
 
-impl ObjectUi for LinearApproachUi {
-    type GraphUi = ExpressionGraphUi;
+impl ExpressionObjectUi for LinearApproachUi {
     type HandleType = StatefulExpressionNodeHandle<LinearApproach>;
     type StateType = ();
 
@@ -57,8 +55,7 @@ impl ObjectUi for LinearApproachUi {
 #[derive(Default)]
 pub struct ExponentialApproachUi {}
 
-impl ObjectUi for ExponentialApproachUi {
-    type GraphUi = ExpressionGraphUi;
+impl ExpressionObjectUi for ExponentialApproachUi {
     type HandleType = StatefulExpressionNodeHandle<ExponentialApproach>;
     type StateType = ();
 
@@ -95,8 +92,7 @@ impl ObjectUi for ExponentialApproachUi {
 #[derive(Default)]
 pub struct IntegratorUi {}
 
-impl ObjectUi for IntegratorUi {
-    type GraphUi = ExpressionGraphUi;
+impl ExpressionObjectUi for IntegratorUi {
     type HandleType = StatefulExpressionNodeHandle<Integrator>;
     type StateType = ();
 
@@ -129,8 +125,7 @@ impl ObjectUi for IntegratorUi {
 #[derive(Default)]
 pub struct WrappingIntegratorUi {}
 
-impl ObjectUi for WrappingIntegratorUi {
-    type GraphUi = ExpressionGraphUi;
+impl ExpressionObjectUi for WrappingIntegratorUi {
     type HandleType = StatefulExpressionNodeHandle<WrappingIntegrator>;
     type StateType = ();
 
