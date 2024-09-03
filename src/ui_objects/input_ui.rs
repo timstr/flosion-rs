@@ -7,8 +7,8 @@ use crate::{
     },
     objects::input::Input,
     ui_core::{
-        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -40,8 +40,7 @@ impl InputUi {
     }
 }
 
-impl ObjectUi for InputUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for InputUi {
     type HandleType = StaticSoundProcessorHandle<Input>;
     type StateType = InputUiState;
     fn ui(
@@ -100,7 +99,7 @@ impl ObjectUi for InputUi {
     fn make_ui_state(
         &self,
         handle: &Self::HandleType,
-        _args: ParsedArguments,
+        _args: &ParsedArguments,
     ) -> Result<InputUiState, ()> {
         let mut amplitude_history = Vec::new();
         amplitude_history.resize(100, 0.0);

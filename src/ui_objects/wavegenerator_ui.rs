@@ -2,17 +2,16 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::wavegenerator::WaveGenerator,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::ObjectUi,
-        soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, expressionplot::PlotConfig,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
 #[derive(Default)]
 pub struct WaveGeneratorUi {}
 
-impl ObjectUi for WaveGeneratorUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for WaveGeneratorUi {
     type HandleType = DynamicSoundProcessorHandle<WaveGenerator>;
     type StateType = ();
 
@@ -46,7 +45,7 @@ impl ObjectUi for WaveGeneratorUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

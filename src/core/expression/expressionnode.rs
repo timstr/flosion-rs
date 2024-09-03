@@ -24,7 +24,7 @@ pub type ExpressionNodeId = UniqueId<ExpressionNodeTag>;
 /// with no side effects or hidden state. Intended to be used for elementary
 /// mathematical functions and easy, closed-form calculations.
 pub trait PureExpressionNode: Sync + Send + WithObjectType {
-    fn new(tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()>
+    fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
 
@@ -103,7 +103,7 @@ impl<T: 'static + PureExpressionNode> ExpressionNode for PureExpressionNodeWithI
 impl<T: 'static + PureExpressionNode> GraphObject<ExpressionGraph> for PureExpressionNodeWithId<T> {
     fn create(
         graph: &mut ExpressionGraph,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<GraphObjectHandle<ExpressionGraph>, ()> {
         graph
             .add_pure_expression_node::<T>(args)
@@ -197,7 +197,7 @@ impl<T: 'static + PureExpressionNode> ObjectHandle<ExpressionGraph>
 /// involving reccurences, e.g. relying on previous results, as well
 /// as data structures that e.g. require locking in order to read safely.
 pub trait StatefulExpressionNode: Sync + Send + WithObjectType {
-    fn new(tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()>
+    fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
 
@@ -373,7 +373,7 @@ impl<T: 'static + StatefulExpressionNode> GraphObject<ExpressionGraph>
 {
     fn create(
         graph: &mut ExpressionGraph,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<GraphObjectHandle<ExpressionGraph>, ()> {
         graph
             .add_stateful_expression_node::<T>(args)

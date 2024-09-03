@@ -4,8 +4,8 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
     objects::{audioclip::AudioClip, recorder::Recorder},
     ui_core::{
-        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -13,8 +13,7 @@ use crate::{
 #[derive(Default)]
 pub struct RecorderUi;
 
-impl ObjectUi for RecorderUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for RecorderUi {
     type HandleType = StaticSoundProcessorHandle<Recorder>;
     type StateType = ();
 
@@ -58,7 +57,7 @@ impl ObjectUi for RecorderUi {
                         if ui.add(Button::new("Create AudioClip")).clicked() {
                             let a = recorder.copy_audio();
                             let ac = sound_graph.add_dynamic_sound_processor::<AudioClip>(
-                                ParsedArguments::new_empty(),
+                                &ParsedArguments::new_empty(),
                             );
                             // TODO: move the audio clip nearby
                             match ac {
@@ -79,7 +78,7 @@ impl ObjectUi for RecorderUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

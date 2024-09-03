@@ -63,7 +63,7 @@ impl DynamicSoundProcessor for Resampler {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ResamplerExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(Resampler {
             input: SingleInput::new(InputOptions::NonSynchronous, &mut tools),
             speed_ratio: tools.add_expression(1.0, SoundExpressionScope::with_processor_state()),

@@ -22,15 +22,15 @@ use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
     expressionobjectui::ExpressionObjectUiFactory, graph_properties::GraphProperties,
-    soundgraphui::SoundGraphUi, soundgraphuistate::SoundGraphUiState,
-    stackedlayout::stackedlayout::StackedLayout, ui_factory::UiFactory,
+    soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUiFactory,
+    stackedlayout::stackedlayout::StackedLayout,
 };
 
 /// Convenience struct for passing all the different factories together
 pub(crate) struct Factories {
     sound_objects: ObjectFactory<SoundGraph>,
     expression_objects: ObjectFactory<ExpressionGraph>,
-    sound_uis: UiFactory<SoundGraphUi>,
+    sound_uis: SoundObjectUiFactory,
     expression_uis: ExpressionObjectUiFactory,
 }
 
@@ -56,7 +56,7 @@ impl Factories {
         &self.expression_objects
     }
 
-    pub(crate) fn sound_uis(&self) -> &UiFactory<SoundGraphUi> {
+    pub(crate) fn sound_uis(&self) -> &SoundObjectUiFactory {
         &self.sound_uis
     }
 

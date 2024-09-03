@@ -27,7 +27,7 @@ impl Constant {
 }
 
 impl PureExpressionNode for Constant {
-    fn new(_tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
         let value = args.get(&Constant::ARG_VALUE).unwrap_or(0.0) as f32;
         Ok(Constant { value })
     }
@@ -70,7 +70,7 @@ impl Variable {
 // but it is intended to not vary rapidly (e.g. at audio rates) and
 // doesn't need any extra per-node state to be stored.
 impl PureExpressionNode for Variable {
-    fn new(_tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
         let value = args.get(&Variable::ARG_VALUE).unwrap_or(0.0) as f32;
         Ok(Variable {
             value: Arc::new(AtomicF32::new(value)),
@@ -161,7 +161,7 @@ macro_rules! unary_expression_node {
         impl PureExpressionNode for $name {
             fn new(
                 mut tools: ExpressionNodeTools<'_>,
-                _args: ParsedArguments,
+                _args: &ParsedArguments,
             ) -> Result<$name, ()> {
                 let default_value: f32 = $default_input;
                 Ok($name {
@@ -195,7 +195,7 @@ macro_rules! binary_expression_node {
         impl PureExpressionNode for $name {
             fn new(
                 mut tools: ExpressionNodeTools<'_>,
-                _args: ParsedArguments,
+                _args: &ParsedArguments,
             ) -> Result<$name, ()> {
                 let default_values: (f32, f32) = $default_inputs;
                 Ok($name {
@@ -231,7 +231,7 @@ macro_rules! ternary_expression_node {
         impl PureExpressionNode for $name {
             fn new(
                 mut tools: ExpressionNodeTools<'_>,
-                _args: ParsedArguments,
+                _args: &ParsedArguments,
             ) -> Result<$name, ()> {
                 let default_values: (f32, f32, f32) = $default_inputs;
                 Ok($name {

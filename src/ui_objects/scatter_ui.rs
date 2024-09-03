@@ -2,17 +2,16 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::scatter::Scatter,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::ObjectUi,
-        soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, expressionplot::PlotConfig,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
 #[derive(Default)]
 pub struct ScatterUi {}
 
-impl ObjectUi for ScatterUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for ScatterUi {
     type HandleType = DynamicSoundProcessorHandle<Scatter>;
     type StateType = ();
 
@@ -44,7 +43,7 @@ impl ObjectUi for ScatterUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

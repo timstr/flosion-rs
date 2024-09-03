@@ -63,7 +63,7 @@ impl DynamicSoundProcessor for WaveGenerator {
     type SoundInputType = ();
     type Expressions<'ctx> = WaveGeneratorExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(WaveGenerator {
             // TODO: bypass this array entirely?
             phase: tools.add_processor_array_argument(|state: &AnyData| -> &[f32] {

@@ -44,7 +44,7 @@ impl DynamicSoundProcessor for WriteWaveform {
     type SoundInputType = ();
     type Expressions<'ctx> = WriteWaveformExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(WriteWaveform {
             waveform: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
         })

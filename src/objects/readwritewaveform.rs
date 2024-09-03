@@ -53,7 +53,7 @@ impl DynamicSoundProcessor for ReadWriteWaveform {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ReadWriteWaveformExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let input_l = tools.add_local_array_argument();
         let input_r = tools.add_local_array_argument();
         let waveform_scope = SoundExpressionScope::with_processor_state()

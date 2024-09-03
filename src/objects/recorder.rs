@@ -73,7 +73,7 @@ impl StaticSoundProcessor for Recorder {
     type Expressions<'ctx> = ();
     type StateType = ();
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
         let r = Recorder {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),

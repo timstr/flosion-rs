@@ -120,7 +120,7 @@ impl DynamicSoundProcessor for Melody {
 
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let queue_size = 8; // idk
         let input = KeyedInputQueue::new(queue_size, &mut tools);
         let note_frequency = tools.add_input_scalar_argument(input.id(), |state| {

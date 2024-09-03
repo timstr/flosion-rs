@@ -21,7 +21,7 @@ impl DynamicSoundProcessor for WhiteNoise {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(WhiteNoise {})
     }
 

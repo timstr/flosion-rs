@@ -25,7 +25,7 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
 
     type StateType = ();
 
-    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(Self {})
     }
 
@@ -72,7 +72,7 @@ impl DynamicSoundProcessor for TestDynamicSoundProcessor {
 
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(Self {})
     }
 

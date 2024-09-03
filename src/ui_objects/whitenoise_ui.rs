@@ -4,8 +4,8 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::whitenoise::WhiteNoise,
     ui_core::{
-        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -13,8 +13,7 @@ use crate::{
 #[derive(Default)]
 pub struct WhiteNoiseUi {}
 
-impl ObjectUi for WhiteNoiseUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for WhiteNoiseUi {
     type HandleType = DynamicSoundProcessorHandle<WhiteNoise>;
     type StateType = ();
 
@@ -38,7 +37,7 @@ impl ObjectUi for WhiteNoiseUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

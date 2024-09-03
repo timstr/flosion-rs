@@ -15,7 +15,7 @@ use crate::{
         flosion_ui::Factories, graph_properties::GraphProperties,
         interactions::draganddrop::DragDropSubject, soundgraphuicontext::SoundGraphUiContext,
         soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
-        stackedlayout::stackedlayout::StackedLayout,
+        soundobjectui::show_sound_object_ui, stackedlayout::stackedlayout::StackedLayout,
     },
 };
 
@@ -249,11 +249,17 @@ impl StackedGroup {
                                 group_origin,
                                 properties,
                                 // jit_server,
-                                todo!()
+                                todo!(),
                             );
-                            factories
-                                .sound_uis()
-                                .ui(&object, ui_state, ui, &mut ctx, graph);
+
+                            show_sound_object_ui(
+                                factories.sound_uis(),
+                                &object,
+                                ui_state,
+                                ui,
+                                &ctx,
+                                graph,
+                            );
 
                             let processor_data = graph.topology().sound_processor(*spid).unwrap();
                             self.draw_processor_plug(

@@ -4,8 +4,8 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
     objects::keyboard::{KeyId, Keyboard},
     ui_core::{
-        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -13,8 +13,7 @@ use crate::{
 #[derive(Default)]
 pub struct KeyboardUi {}
 
-impl ObjectUi for KeyboardUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for KeyboardUi {
     type HandleType = StaticSoundProcessorHandle<Keyboard>;
     type StateType = ();
 
@@ -115,7 +114,7 @@ impl ObjectUi for KeyboardUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

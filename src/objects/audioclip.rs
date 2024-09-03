@@ -54,7 +54,7 @@ impl DynamicSoundProcessor for AudioClip {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
 
-    fn new(_tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()> {
         let buffer = if let Some(path) = args.get(&Self::ARG_PATH) {
             if let Ok(b) = load_audio_file(&path) {
                 b

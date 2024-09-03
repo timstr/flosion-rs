@@ -28,7 +28,7 @@ pub struct LinearApproach {
 }
 
 impl StatefulExpressionNode for LinearApproach {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(LinearApproach {
             _input: tools.add_input(0.0),
             _speed: tools.add_input(1.0),
@@ -131,7 +131,7 @@ pub struct ExponentialApproach {
 }
 
 impl StatefulExpressionNode for ExponentialApproach {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(ExponentialApproach {
             _input: tools.add_input(0.0),
             _decay_rate: tools.add_input(0.5),
@@ -216,7 +216,7 @@ pub struct Integrator {
 }
 
 impl StatefulExpressionNode for Integrator {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(Integrator {
             _input: tools.add_input(0.0),
         })
@@ -274,7 +274,7 @@ pub struct WrappingIntegrator {
 }
 
 impl StatefulExpressionNode for WrappingIntegrator {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(WrappingIntegrator {
             _input: tools.add_input(0.0),
         })

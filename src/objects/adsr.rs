@@ -129,7 +129,7 @@ impl DynamicSoundProcessor for ADSR {
 
     type Expressions<'ctx> = ADSRExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(ADSR {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             attack_time: tools

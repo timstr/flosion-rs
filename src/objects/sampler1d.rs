@@ -37,7 +37,7 @@ pub struct Sampler1dCompileState<'ctx> {
 }
 
 impl StatefulExpressionNode for Sampler1d {
-    fn new(mut tools: ExpressionNodeTools<'_>, args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
         // TODO: use args?
         let mut value = Vec::new();
         value.resize(256, 0.0);

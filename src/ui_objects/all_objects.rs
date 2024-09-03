@@ -6,10 +6,7 @@ use crate::{
     },
     ui_core::{
         expressionobjectui::{ExpressionObjectUi, ExpressionObjectUiFactory},
-        graph_ui::GraphUi,
-        object_ui::ObjectUi,
-        soundgraphui::SoundGraphUi,
-        ui_factory::UiFactory,
+        soundobjectui::{SoundObjectUi, SoundObjectUiFactory},
     },
 };
 
@@ -65,34 +62,34 @@ impl<'a> ExpressionObjectRegistrationHelper<'a> {
         self.ui_factory.register::<T>();
     }
 }
-struct RegistrationHelper<'a, G: GraphUi> {
-    object_factory: &'a mut ObjectFactory<G::Graph>,
-    ui_factory: &'a mut UiFactory<G>,
+struct SoundObjectRegistrationHelper<'a> {
+    object_factory: &'a mut ObjectFactory<SoundGraph>,
+    ui_factory: &'a mut SoundObjectUiFactory,
 }
 
-impl<'a, G: GraphUi> RegistrationHelper<'a, G> {
+impl<'a> SoundObjectRegistrationHelper<'a> {
     fn new(
-        object_factory: &'a mut ObjectFactory<G::Graph>,
-        ui_factory: &'a mut UiFactory<G>,
-    ) -> RegistrationHelper<'a, G> {
-        RegistrationHelper {
+        object_factory: &'a mut ObjectFactory<SoundGraph>,
+        ui_factory: &'a mut SoundObjectUiFactory,
+    ) -> Self {
+        SoundObjectRegistrationHelper {
             object_factory,
             ui_factory,
         }
     }
 
-    fn register<T: 'static + ObjectUi<GraphUi = G>>(&mut self) {
+    fn register<T: 'static + SoundObjectUi>(&mut self) {
         self.object_factory
-            .register::<<T::HandleType as ObjectHandle<G::Graph>>::ObjectType>();
+            .register::<<T::HandleType as ObjectHandle<SoundGraph>>::ObjectType>();
         self.ui_factory.register::<T>();
     }
 }
 
-pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, UiFactory<SoundGraphUi>) {
+pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, SoundObjectUiFactory) {
     let mut object_factory = ObjectFactory::new_empty();
-    let mut ui_factory = UiFactory::new_empty();
+    let mut ui_factory = SoundObjectUiFactory::new_empty();
 
-    let mut helper = RegistrationHelper::new(&mut object_factory, &mut ui_factory);
+    let mut helper = SoundObjectRegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     // Static sound processors
     helper.register::<OutputUi>();

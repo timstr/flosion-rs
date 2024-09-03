@@ -75,7 +75,7 @@ impl DynamicSoundProcessor for Scatter {
 
     type Expressions<'ctx> = ScatterExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let num_keys = 8; // idk
         let input = KeyedInput::new(InputOptions::Synchronous, &mut tools, num_keys);
         let value = tools.add_input_scalar_argument(input.id(), |state| {

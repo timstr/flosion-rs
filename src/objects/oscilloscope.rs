@@ -8,9 +8,7 @@ use crate::{
             context::{Context, LocalArrayList},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{
-                ProcessorTiming, StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId,
-            },
+            soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
             soundprocessortools::SoundProcessorTools,
         },
         soundchunk::SoundChunk,
@@ -45,7 +43,7 @@ impl StaticSoundProcessor for Oscilloscope {
 
     type StateType = ();
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let (reader, writer) = spmcq::ring_buffer(64);
         Ok(Oscilloscope {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),

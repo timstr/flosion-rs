@@ -992,7 +992,7 @@ impl LexicalLayout {
     ) -> Result<(ASTNode, ExpressionNodeLayout), String> {
         let new_object = outer_context
             .edit_expression_graph(sound_graph, |graph| {
-                object_factory.create_from_args(ns_type.name(), graph, arguments.clone())
+                object_factory.create_from_args(ns_type.name(), graph, &arguments)
             })
             .unwrap();
 

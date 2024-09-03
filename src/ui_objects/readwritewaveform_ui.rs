@@ -2,17 +2,16 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::readwritewaveform::ReadWriteWaveform,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::ObjectUi,
-        soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, expressionplot::PlotConfig,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
 #[derive(Default)]
 pub struct ReadWriteWaveformUi {}
 
-impl ObjectUi for ReadWriteWaveformUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for ReadWriteWaveformUi {
     type HandleType = DynamicSoundProcessorHandle<ReadWriteWaveform>;
     type StateType = ();
 
@@ -41,7 +40,7 @@ impl ObjectUi for ReadWriteWaveformUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

@@ -7,8 +7,8 @@ use crate::{
     },
     objects::oscilloscope::Oscilloscope,
     ui_core::{
-        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -162,8 +162,7 @@ impl OscilloscopeUi {
     }
 }
 
-impl ObjectUi for OscilloscopeUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for OscilloscopeUi {
     type HandleType = StaticSoundProcessorHandle<Oscilloscope>;
     type StateType = OscilloscopeUiState;
 
@@ -299,7 +298,7 @@ impl ObjectUi for OscilloscopeUi {
     fn make_ui_state(
         &self,
         handle: &Self::HandleType,
-        _args: ParsedArguments,
+        _args: &ParsedArguments,
     ) -> Result<OscilloscopeUiState, ()> {
         Ok(OscilloscopeUiState {
             buffer_reader: handle.get_buffer_reader(),

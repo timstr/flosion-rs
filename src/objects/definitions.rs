@@ -55,7 +55,7 @@ impl DynamicSoundProcessor for Definitions {
 
     type Expressions<'ctx> = DefinitionsExpressions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),

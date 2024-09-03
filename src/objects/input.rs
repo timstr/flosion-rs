@@ -63,7 +63,7 @@ impl StaticSoundProcessor for Input {
     type Expressions<'ctx> = ();
     type StateType = InputState;
 
-    fn new(_tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let host = cpal::default_host();
         let device = host
             .default_input_device()

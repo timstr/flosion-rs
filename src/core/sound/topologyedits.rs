@@ -47,7 +47,7 @@ impl SoundGraphIdGenerators {
 pub(crate) fn build_static_sound_processor<T: 'static + StaticSoundProcessor>(
     topo: &mut SoundGraphTopology,
     idgens: &mut SoundGraphIdGenerators,
-    args: ParsedArguments,
+    args: &ParsedArguments,
 ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
     let id = idgens.sound_processor.next_id();
 
@@ -98,7 +98,7 @@ pub(crate) fn build_static_sound_processor<T: 'static + StaticSoundProcessor>(
 pub(crate) fn build_dynamic_sound_processor<T: 'static + DynamicSoundProcessor>(
     topo: &mut SoundGraphTopology,
     idgens: &mut SoundGraphIdGenerators,
-    args: ParsedArguments,
+    args: &ParsedArguments,
 ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
     let id = idgens.sound_processor.next_id();
 

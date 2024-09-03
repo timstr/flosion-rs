@@ -50,7 +50,7 @@ pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
 
     type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
 
-    fn new(tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()>;
+    fn new(tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()>;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
@@ -81,7 +81,7 @@ pub trait DynamicSoundProcessor: Sized + Sync + Send + WithObjectType {
 
     type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
 
-    fn new(tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()>;
+    fn new(tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()>;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
@@ -481,7 +481,7 @@ impl<T: 'static + DynamicSoundProcessor> ObjectHandle<SoundGraph>
 impl<T: 'static + StaticSoundProcessor> GraphObject<SoundGraph> for StaticSoundProcessorWithId<T> {
     fn create(
         graph: &mut SoundGraph,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<GraphObjectHandle<SoundGraph>, ()> {
         graph
             .add_static_sound_processor::<T>(args)
@@ -519,7 +519,7 @@ impl<T: 'static + DynamicSoundProcessor> GraphObject<SoundGraph>
 {
     fn create(
         graph: &mut SoundGraph,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<GraphObjectHandle<SoundGraph>, ()> {
         graph
             .add_dynamic_sound_processor::<T>(args)

@@ -14,9 +14,7 @@ use crate::{
             context::{Context, LocalArrayList},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{
-                ProcessorTiming, StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId,
-            },
+            soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
             soundprocessortools::SoundProcessorTools,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -61,7 +59,7 @@ impl StaticSoundProcessor for Output {
     type Expressions<'ctx> = ();
     type StateType = ();
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let host = cpal::default_host();
         // TODO: propagate these errors
         let device = host

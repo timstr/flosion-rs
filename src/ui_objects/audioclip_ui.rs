@@ -9,10 +9,9 @@ use crate::{
     objects::audioclip::AudioClip,
     ui_core::{
         arguments::{ArgumentList, ParsedArguments},
-        object_ui::ObjectUi,
-        soundgraphui::SoundGraphUi,
         soundgraphuicontext::SoundGraphUiContext,
         soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -44,8 +43,7 @@ impl Chivable for AudioClipUiState {
     }
 }
 
-impl ObjectUi for AudioClipUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for AudioClipUi {
     type HandleType = DynamicSoundProcessorHandle<AudioClip>;
     type StateType = AudioClipUiState;
     fn ui(
@@ -109,9 +107,9 @@ impl ObjectUi for AudioClipUi {
     fn make_ui_state(
         &self,
         _handle: &Self::HandleType,
-        _args: ParsedArguments,
+        _args: &ParsedArguments,
     ) -> Result<AudioClipUiState, ()> {
-        // TODO: use init
+        // TODO: use args
         Ok(AudioClipUiState {
             name: "".to_string(),
         })

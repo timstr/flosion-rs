@@ -72,7 +72,7 @@ impl StaticSoundProcessor for Keyboard {
 
     type StateType = ();
 
-    fn new(mut tools: SoundProcessorTools, _args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let message_queue_size = 16; // idk
         let input_queue_size = 8; // idk
         let (command_sender, command_receiver) = sync_channel(message_queue_size);

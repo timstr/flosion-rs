@@ -47,7 +47,7 @@ impl DynamicSoundProcessor for Mixer {
     type SoundInputType = SingleInputList;
     type Expressions<'ctx> = ();
 
-    fn new(mut tools: SoundProcessorTools, args: ParsedArguments) -> Result<Self, ()> {
+    fn new(mut tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()> {
         let num_inputs = args.get(&Mixer::ARG_NUM_INPUTS).unwrap_or(2);
         Ok(Mixer {
             inputs: SingleInputList::new(num_inputs, MIXER_INPUT_OPTIONS, &mut tools),

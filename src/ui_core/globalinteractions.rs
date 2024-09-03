@@ -18,13 +18,12 @@ use super::{
         draganddrop::{DragDropSubject, DragInteraction, DropInteraction},
         keyboardnav::KeyboardNavInteraction,
     },
-    soundgraphui::SoundGraphUi,
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
+    soundobjectui::SoundObjectUiFactory,
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::stackedlayout::StackedLayout,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
-    ui_factory::UiFactory,
 };
 
 struct SelectingArea {
@@ -224,10 +223,11 @@ impl GlobalInteractions {
                 if let Some((object_type, args)) = summon_widget.final_choice() {
                     let new_obj_handle = factories
                         .sound_objects()
-                        .create_from_args(object_type.name(), graph, args)
+                        .create_from_args(object_type.name(), graph, &args)
                         .expect("Oops, failed to create object");
 
-                    let state = factories.sound_uis().create_default_state(&new_obj_handle);
+                    let object_ui = factories.sound_uis().get(new_obj_handle.get_type());
+                    let state = object_ui.make_ui_state(&new_obj_handle, &args).unwrap();
 
                     object_states.set_object_data(new_obj_handle.id(), state);
 
@@ -378,7 +378,7 @@ impl GlobalInteractions {
 /// Internal methods
 impl GlobalInteractions {
     /// Switch to using the summon widget
-    fn start_summoning(&mut self, position: egui::Pos2, factory: &UiFactory<SoundGraphUi>) {
+    fn start_summoning(&mut self, position: egui::Pos2, factory: &SoundObjectUiFactory) {
         let mut builder = SummonWidgetStateBuilder::new(position);
         for object_ui in factory.all_object_uis() {
             for name in object_ui.summon_names() {

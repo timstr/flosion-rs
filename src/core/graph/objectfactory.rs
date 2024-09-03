@@ -10,7 +10,7 @@ use super::{
 };
 
 struct ObjectData<G: Graph> {
-    create: Box<dyn Fn(&mut G, ParsedArguments) -> Result<GraphObjectHandle<G>, ()>>,
+    create: Box<dyn Fn(&mut G, &ParsedArguments) -> Result<GraphObjectHandle<G>, ()>>,
 }
 
 pub struct ObjectFactory<G: Graph> {
@@ -25,7 +25,7 @@ impl<G: Graph> ObjectFactory<G> {
     }
 
     pub fn register<T: GraphObject<G>>(&mut self) {
-        let create = |g: &mut G, args: ParsedArguments| -> Result<GraphObjectHandle<G>, ()> {
+        let create = |g: &mut G, args: &ParsedArguments| -> Result<GraphObjectHandle<G>, ()> {
             T::create(g, args)
         };
         self.mapping.insert(
@@ -40,7 +40,7 @@ impl<G: Graph> ObjectFactory<G> {
         &self,
         object_type_str: &str,
         graph: &mut G,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<GraphObjectHandle<G>, ()> {
         match self.mapping.get(object_type_str) {
             Some(data) => (*data.create)(graph, args),
@@ -57,14 +57,14 @@ impl<G: Graph> ObjectFactory<G> {
         object_type_str: &str,
         graph: &mut G,
     ) -> Result<GraphObjectHandle<G>, ()> {
-        self.create_impl(object_type_str, graph, ParsedArguments::new_empty())
+        self.create_impl(object_type_str, graph, &ParsedArguments::new_empty())
     }
 
     pub(crate) fn create_from_args(
         &self,
         object_type_str: &str,
         graph: &mut G,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<GraphObjectHandle<G>, ()> {
         self.create_impl(object_type_str, graph, args)
     }
@@ -76,7 +76,7 @@ impl<G: Graph> ObjectFactory<G> {
         graph: &mut G,
         chive_out: ChiveOut,
     ) -> Result<GraphObjectHandle<G>, ()> {
-        self.create_impl(object_type_str, graph, ParsedArguments::new_empty())
+        self.create_impl(object_type_str, graph, &ParsedArguments::new_empty())
             .map(|hande| {
                 todo!("Restore the state of the object from the Chive using e.g. rollback()")
             })

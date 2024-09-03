@@ -4,17 +4,16 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::ensemble::Ensemble,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::ObjectUi,
-        soundgraphui::SoundGraphUi, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, expressionplot::PlotConfig,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
 #[derive(Default)]
 pub struct EnsembleUi {}
 
-impl ObjectUi for EnsembleUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for EnsembleUi {
     type HandleType = DynamicSoundProcessorHandle<Ensemble>;
     type StateType = ();
 
@@ -79,7 +78,7 @@ impl ObjectUi for EnsembleUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

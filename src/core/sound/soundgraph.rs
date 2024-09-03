@@ -80,7 +80,7 @@ impl SoundGraph {
     /// see ObjectFactory.
     pub fn add_static_sound_processor<T: 'static + StaticSoundProcessor>(
         &mut self,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
         self.try_make_change(move |topo, idgens| {
             build_static_sound_processor::<T>(topo, idgens, args)
@@ -95,7 +95,7 @@ impl SoundGraph {
     /// see ObjectFactory.
     pub fn add_dynamic_sound_processor<T: 'static + DynamicSoundProcessor>(
         &mut self,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
         self.try_make_change(move |topo, idgens| {
             build_dynamic_sound_processor::<T>(topo, idgens, args)

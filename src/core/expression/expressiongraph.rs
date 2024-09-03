@@ -170,7 +170,7 @@ impl ExpressionGraph {
     /// Returns a handle to the expression node.
     pub fn add_pure_expression_node<T: 'static + PureExpressionNode>(
         &mut self,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<PureExpressionNodeHandle<T>, ExpressionError> {
         self.try_make_change(|topo, idgens| {
             let id = idgens.node.next_id();
@@ -195,7 +195,7 @@ impl ExpressionGraph {
     /// Returns a handle to the expression node.
     pub fn add_stateful_expression_node<T: 'static + StatefulExpressionNode>(
         &mut self,
-        args: ParsedArguments,
+        args: &ParsedArguments,
     ) -> Result<StatefulExpressionNodeHandle<T>, ExpressionError> {
         self.try_make_change(|topo, idgens| {
             let id = idgens.node.next_id();

@@ -4,8 +4,8 @@ use crate::{
     core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
     objects::mixer::Mixer,
     ui_core::{
-        arguments::ParsedArguments, object_ui::ObjectUi, soundgraphui::SoundGraphUi,
-        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
+        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
         soundprocessorui::ProcessorUi,
     },
 };
@@ -13,8 +13,7 @@ use crate::{
 #[derive(Default)]
 pub struct MixerUi {}
 
-impl ObjectUi for MixerUi {
-    type GraphUi = SoundGraphUi;
+impl SoundObjectUi for MixerUi {
     type HandleType = DynamicSoundProcessorHandle<Mixer>;
     type StateType = ();
 
@@ -77,7 +76,7 @@ impl ObjectUi for MixerUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

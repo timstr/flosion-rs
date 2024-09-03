@@ -22,7 +22,7 @@ impl ObjectType {
 }
 
 pub trait GraphObject<G: Graph>: Send + Sync {
-    fn create(graph: &mut G, args: ParsedArguments) -> Result<GraphObjectHandle<G>, ()>
+    fn create(graph: &mut G, args: &ParsedArguments) -> Result<GraphObjectHandle<G>, ()>
     where
         Self: Sized;
 
