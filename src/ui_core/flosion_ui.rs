@@ -85,7 +85,9 @@ pub struct FlosionApp<'ctx> {
 
     inkwell_context: &'ctx inkwell::context::Context,
 
-    audio_thread: ScopedJoinHandle<'ctx, ()>,
+    audio_thread: Option<ScopedJoinHandle<'ctx, ()>>,
+
+    stop_button: StopButton,
 
     engine_interface: SoundEngineInterface<'ctx>,
 
@@ -124,7 +126,8 @@ impl<'ctx> FlosionApp<'ctx> {
             properties,
             previous_clean_revision: None,
             inkwell_context,
-            audio_thread,
+            audio_thread: Some(audio_thread),
+            stop_button,
             engine_interface,
             garbage_disposer,
             jit_server,
@@ -207,6 +210,7 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        // TODO: press stop button?
+        self.stop_button.stop();
+        self.audio_thread.take().unwrap().join().unwrap();
     }
 }
