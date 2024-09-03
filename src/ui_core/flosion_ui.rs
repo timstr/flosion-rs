@@ -115,7 +115,7 @@ impl<'ctx> FlosionApp<'ctx> {
             engine.run();
         });
 
-        let (jit_server_builder, jit_client) = JitServerBuilder::new();
+        let jit_server_builder = JitServerBuilder::new();
         let jit_server = jit_server_builder.build_server(inkwell_context);
 
         let mut app = FlosionApp {

@@ -1,10 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{
-        mpsc::{sync_channel, Receiver, SyncSender},
-        Arc,
-    },
-};
+use std::{collections::HashMap, sync::Arc};
 
 use hashrevise::RevisionHash;
 use parking_lot::{Condvar, Mutex, RwLock};
@@ -68,42 +62,23 @@ pub struct JitServerBuilder {
     // NOTE: 'static lifetime is used here to allow clients to be unaware of the
     //
     cache: Arc<RwLock<Cache<'static>>>,
-
-    // Used to block the jit server from being dropped until
-    // the client has also been dropped
-    mutex_and_cond_var: Arc<(Mutex<bool>, Condvar)>,
-
-    client_receiver: Receiver<JitClientRequest>,
 }
 
 impl JitServerBuilder {
-    pub(crate) fn new() -> (JitServerBuilder, JitClient) {
+    pub(crate) fn new() -> JitServerBuilder {
         let cache = Arc::new(RwLock::new(Cache::new()));
         let mutex_and_cond_var = Arc::new((Mutex::new(false), Condvar::new()));
-        let (client_sender, client_receiver) = sync_channel(256);
-        (
-            JitServerBuilder {
-                cache: Arc::clone(&cache),
-                mutex_and_cond_var: Arc::clone(&mutex_and_cond_var),
-                client_receiver: client_receiver,
-            },
-            JitClient {
-                request_sender: client_sender,
-                cache,
-                mutex_and_cond_var,
-            },
-        )
+
+        JitServerBuilder {
+            cache: Arc::clone(&cache),
+        }
     }
 
     pub(crate) fn build_server<'ctx>(
         self,
         inkwell_context: &'ctx inkwell::context::Context,
     ) -> JitServer<'ctx> {
-        let JitServerBuilder {
-            cache,
-            mutex_and_cond_var,
-            client_receiver,
-        } = self;
+        let JitServerBuilder { cache } = self;
         assert!(cache.read().artefacts.is_empty());
         // SAFETY: the cache here is intended to contain data referencing the inkwell
         // context on its own thread, after being passed from another thread.
@@ -118,8 +93,6 @@ impl JitServerBuilder {
         JitServer {
             inkwell_context,
             cache: nonstatic_cache,
-            client_receiver,
-            mutex_and_cond_var,
         }
     }
 }
@@ -128,36 +101,9 @@ impl JitServerBuilder {
 pub(crate) struct JitServer<'ctx> {
     inkwell_context: &'ctx inkwell::context::Context,
     cache: Arc<RwLock<Cache<'ctx>>>,
-    client_receiver: Receiver<JitClientRequest>,
-    mutex_and_cond_var: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl<'ctx> JitServer<'ctx> {
-    pub(crate) fn serve_pending_requests(&self, topology: &SoundGraphTopology) {
-        let mut cache = self.cache.write();
-        while let Ok(request) = self.client_receiver.try_recv() {
-            let JitClientRequest::PleaseCompile(niid, revnum) = request;
-            // TODO: distinguish between
-            // - expressions that have been requested and are waiting to be served
-            // - expressions that were responded to but don't exist
-            // - expressions that were responded to but have changed
-            let Some(ni_data) = topology.expression(niid) else {
-                // input doesn't exist, too bad
-                continue;
-            };
-            if ni_data.get_revision() != revnum {
-                // input was changed, too bad
-                continue;
-            }
-            let codegen = CodeGen::new(self.inkwell_context);
-            let artefact = codegen.compile_expression(niid, topology);
-            cache.insert(niid, revnum, artefact);
-            if cache.len() > 1000 {
-                println!("TODO: limit the size of the JitServer cache");
-            }
-        }
-    }
-
     pub(crate) fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
@@ -176,55 +122,5 @@ impl<'ctx> JitServer<'ctx> {
             })
             .artefact
             .make_function()
-    }
-}
-
-impl<'ctx> Drop for JitServer<'ctx> {
-    fn drop(&mut self) {
-        let (mutex, condvar) = &*self.mutex_and_cond_var;
-        let mut lock = mutex.lock();
-        if !*lock {
-            condvar.wait(&mut lock);
-        }
-        assert!(*lock);
-    }
-}
-
-pub(crate) enum JitClientRequest {
-    PleaseCompile(SoundExpressionId, RevisionHash),
-}
-
-pub(crate) struct JitClient {
-    request_sender: SyncSender<JitClientRequest>,
-    cache: Arc<RwLock<Cache<'static>>>,
-    mutex_and_cond_var: Arc<(Mutex<bool>, Condvar)>,
-}
-
-impl JitClient {
-    pub(crate) fn get_compiled_expression<'a>(
-        &'a self,
-        id: SoundExpressionId,
-        revision: RevisionHash,
-    ) -> Option<CompiledExpressionFunction<'a>> {
-        let f = self.cache.read().get_compiled_expression(id, revision);
-        if f.is_none() {
-            match self
-                .request_sender
-                .try_send(JitClientRequest::PleaseCompile(id, revision))
-            {
-                Ok(_) => (),
-                Err(_) => println!("JitClient failed to send request for compilation"),
-            }
-        }
-        f
-    }
-}
-
-impl Drop for JitClient {
-    fn drop(&mut self) {
-        let (mutex, condvar) = &*self.mutex_and_cond_var;
-        let mut lock = mutex.lock();
-        *lock = true;
-        condvar.notify_one();
     }
 }
