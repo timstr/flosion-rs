@@ -16,6 +16,7 @@ use crate::{
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
             soundprocessortools::SoundProcessorTools,
+            state::State,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
@@ -54,10 +55,20 @@ impl Drop for Output {
     }
 }
 
+pub struct OutputState {
+    shared_data: Arc<OutputData>,
+}
+
+impl State for OutputState {
+    fn start_over(&mut self) {
+        // ???
+    }
+}
+
 impl StaticSoundProcessor for Output {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ();
-    type StateType = ();
+    type StateType = OutputState;
 
     fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let host = cpal::default_host();
@@ -172,18 +183,21 @@ impl StaticSoundProcessor for Output {
     }
 
     fn make_state(&self) -> Self::StateType {
-        ()
+        OutputState {
+            shared_data: Arc::clone(&self.shared_data),
+        }
     }
 
     fn process_audio(
-        output: &StaticSoundProcessorWithId<Output>,
+        // TODO: remove
+        _output: &StaticSoundProcessorWithId<Output>,
         state: &mut StateAndTiming<Self::StateType>,
         sound_input: &mut SingleInputNode,
         _expressions: &mut (),
         _dst: &mut SoundChunk,
         ctx: Context,
     ) {
-        if output
+        if state
             .shared_data
             .pending_startover
             .swap(false, Ordering::SeqCst)
@@ -193,7 +207,7 @@ impl StaticSoundProcessor for Output {
         let mut ch = SoundChunk::new();
         sound_input.step(state, &mut ch, &ctx, LocalArrayList::new());
 
-        if let Err(e) = output.shared_data.chunk_sender.try_send(ch) {
+        if let Err(e) = state.shared_data.chunk_sender.try_send(ch) {
             match e {
                 TrySendError::Full(_) => println!("Output sound processor dropped a chunk"),
                 TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
