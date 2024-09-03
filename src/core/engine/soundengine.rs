@@ -7,6 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hashrevise::{Revisable, RevisionHash};
+
 use super::{
     difftopology::diff_sound_graph_topology,
     garbage::{new_garbage_disposer, GarbageChute, GarbageDisposer},
@@ -82,8 +84,11 @@ pub(crate) fn create_sound_engine<'ctx>(
     let (edit_sender, edit_receiver) = sync_channel::<StateGraphEdit<'ctx>>(edit_queue_size);
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
+    let current_topology = SoundGraphTopology::new();
+    let current_revision = current_topology.get_revision();
     let se_interface = SoundEngineInterface {
-        current_topology: SoundGraphTopology::new(),
+        current_topology,
+        current_revision,
         stop_button: stop_button.clone(),
         edit_queue: edit_sender,
     };
@@ -110,6 +115,7 @@ pub(crate) fn create_sound_engine<'ctx>(
 /// to stop running.
 pub(crate) struct SoundEngineInterface<'ctx> {
     current_topology: SoundGraphTopology,
+    current_revision: RevisionHash,
     stop_button: StopButton,
     edit_queue: SyncSender<StateGraphEdit<'ctx>>,
 }
@@ -120,9 +126,15 @@ impl<'ctx> SoundEngineInterface<'ctx> {
     /// the most recent topology are compiled and sent to the audio thread.
     pub(crate) fn update(
         &mut self,
-        new_topology: SoundGraphTopology,
+        new_topology: &SoundGraphTopology,
         jit_server: &JitServer<'ctx>,
     ) -> Result<(), ()> {
+        let new_revision = new_topology.get_revision();
+
+        if new_revision == self.current_revision {
+            return Ok(());
+        }
+
         let edits = diff_sound_graph_topology(&self.current_topology, &new_topology, jit_server);
 
         for edit in edits {
@@ -139,7 +151,8 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        self.current_topology = new_topology;
+        self.current_topology = new_topology.clone();
+        self.current_revision = new_revision;
 
         Ok(())
     }
