@@ -7,7 +7,7 @@ use crate::{
             soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
         },
         expression::expressionobject::ExpressionObjectFactory,
-        jit::server::{JitServer, JitServerBuilder},
+        jit::server::JitServer,
         sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
@@ -115,8 +115,7 @@ impl<'ctx> FlosionApp<'ctx> {
             engine.run();
         });
 
-        let jit_server_builder = JitServerBuilder::new();
-        let jit_server = jit_server_builder.build_server(inkwell_context);
+        let jit_server = JitServer::new(inkwell_context);
 
         let mut app = FlosionApp {
             graph,
