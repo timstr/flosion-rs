@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use parking_lot::Mutex;
 
 use crate::{
@@ -10,6 +12,7 @@ use crate::{
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
             soundprocessortools::SoundProcessorTools,
+            state::State,
         },
         soundchunk::SoundChunk,
     },
@@ -27,7 +30,7 @@ pub struct Oscilloscope {
     // static processors live on the audio thread
     // only, similar to state for dynamic processors?
     chunk_reader: Mutex<spmcq::Reader<SoundChunk>>,
-    chunk_writer: Mutex<spmcq::Writer<SoundChunk>>,
+    chunk_writer: Arc<Mutex<spmcq::Writer<SoundChunk>>>,
 }
 
 impl Oscilloscope {
@@ -36,19 +39,33 @@ impl Oscilloscope {
     }
 }
 
+pub struct OscilloscopeState {
+    // NOTE: using Arc<Mutex<...>> because spmcq::Writer can't be cloned.
+    // It might be worth using a different queue or somehow guaranteeing
+    // at the type system level that only once instance of a static processor's
+    // state exists at one time
+    chunk_writer: Arc<Mutex<spmcq::Writer<SoundChunk>>>,
+}
+
+impl State for OscilloscopeState {
+    fn start_over(&mut self) {
+        // ???
+    }
+}
+
 impl StaticSoundProcessor for Oscilloscope {
     type SoundInputType = SingleInput;
 
     type Expressions<'ctx> = ();
 
-    type StateType = ();
+    type StateType = OscilloscopeState;
 
     fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let (reader, writer) = spmcq::ring_buffer(64);
         Ok(Oscilloscope {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             chunk_reader: Mutex::new(reader),
-            chunk_writer: Mutex::new(writer),
+            chunk_writer: Arc::new(Mutex::new(writer)),
         })
     }
 
@@ -64,11 +81,14 @@ impl StaticSoundProcessor for Oscilloscope {
     }
 
     fn make_state(&self) -> Self::StateType {
-        ()
+        OscilloscopeState {
+            chunk_writer: Arc::clone(&self.chunk_writer),
+        }
     }
 
     fn process_audio<'ctx>(
-        processor: &StaticSoundProcessorWithId<Self>,
+        // TODO: remove
+        _processor: &StaticSoundProcessorWithId<Self>,
         state: &mut StateAndTiming<Self::StateType>,
         sound_input: &mut SingleInputNode<'ctx>,
         _expressions: &mut (),
@@ -76,7 +96,7 @@ impl StaticSoundProcessor for Oscilloscope {
         context: Context,
     ) {
         sound_input.step(state, dst, &context, LocalArrayList::new());
-        processor.chunk_writer.lock().write(*dst);
+        state.chunk_writer.lock().write(*dst);
     }
 }
 
