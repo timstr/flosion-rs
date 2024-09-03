@@ -13,8 +13,8 @@ use crate::{
             soundgraphcompiler::SoundGraphCompiler,
         },
         expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
-        graph::graphobject::{ObjectType, WithObjectType},
         jit::{codegen::CodeGen, compiledexpression::Discretization},
+        objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
             expression::SoundExpressionHandle,

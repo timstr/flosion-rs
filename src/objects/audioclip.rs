@@ -7,7 +7,7 @@ use crate::{
     core::{
         audiofileio::load_audio_file,
         engine::soundgraphcompiler::SoundGraphCompiler,
-        graph::graphobject::{ObjectType, WithObjectType},
+        objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
             soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},

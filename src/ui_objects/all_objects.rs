@@ -1,8 +1,7 @@
 use crate::{
     core::{
-        expression::expressiongraph::ExpressionGraph,
-        graph::{graphobject::ObjectHandle, objectfactory::ObjectFactory},
-        sound::soundgraph::SoundGraph,
+        expression::expressionobject::{ExpressionObjectFactory, ExpressionObjectHandle},
+        sound::soundobject::{SoundObjectFactory, SoundObjectHandle},
     },
     ui_core::{
         expressionobjectui::{ExpressionObjectUi, ExpressionObjectUiFactory},
@@ -40,13 +39,13 @@ use super::{
 };
 
 struct ExpressionObjectRegistrationHelper<'a> {
-    object_factory: &'a mut ObjectFactory<ExpressionGraph>,
+    object_factory: &'a mut ExpressionObjectFactory,
     ui_factory: &'a mut ExpressionObjectUiFactory,
 }
 
 impl<'a> ExpressionObjectRegistrationHelper<'a> {
     fn new(
-        object_factory: &'a mut ObjectFactory<ExpressionGraph>,
+        object_factory: &'a mut ExpressionObjectFactory,
         ui_factory: &'a mut ExpressionObjectUiFactory,
     ) -> Self {
         ExpressionObjectRegistrationHelper {
@@ -58,18 +57,18 @@ impl<'a> ExpressionObjectRegistrationHelper<'a> {
     fn register<T: 'static + ExpressionObjectUi>(&mut self) {
         // Yikes
         self.object_factory
-            .register::<<<T as ExpressionObjectUi>::HandleType as ObjectHandle<ExpressionGraph>>::ObjectType>();
+            .register::<<<T as ExpressionObjectUi>::HandleType as ExpressionObjectHandle>::ObjectType>();
         self.ui_factory.register::<T>();
     }
 }
 struct SoundObjectRegistrationHelper<'a> {
-    object_factory: &'a mut ObjectFactory<SoundGraph>,
+    object_factory: &'a mut SoundObjectFactory,
     ui_factory: &'a mut SoundObjectUiFactory,
 }
 
 impl<'a> SoundObjectRegistrationHelper<'a> {
     fn new(
-        object_factory: &'a mut ObjectFactory<SoundGraph>,
+        object_factory: &'a mut SoundObjectFactory,
         ui_factory: &'a mut SoundObjectUiFactory,
     ) -> Self {
         SoundObjectRegistrationHelper {
@@ -80,13 +79,13 @@ impl<'a> SoundObjectRegistrationHelper<'a> {
 
     fn register<T: 'static + SoundObjectUi>(&mut self) {
         self.object_factory
-            .register::<<T::HandleType as ObjectHandle<SoundGraph>>::ObjectType>();
+            .register::<<T::HandleType as SoundObjectHandle>::ObjectType>();
         self.ui_factory.register::<T>();
     }
 }
 
-pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, SoundObjectUiFactory) {
-    let mut object_factory = ObjectFactory::new_empty();
+pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFactory) {
+    let mut object_factory = SoundObjectFactory::new_empty();
     let mut ui_factory = SoundObjectUiFactory::new_empty();
 
     let mut helper = SoundObjectRegistrationHelper::new(&mut object_factory, &mut ui_factory);
@@ -115,9 +114,9 @@ pub fn all_sound_graph_objects() -> (ObjectFactory<SoundGraph>, SoundObjectUiFac
     (object_factory, ui_factory)
 }
 
-pub fn all_expression_graph_objects() -> (ObjectFactory<ExpressionGraph>, ExpressionObjectUiFactory)
+pub(crate) fn all_expression_graph_objects() -> (ExpressionObjectFactory, ExpressionObjectUiFactory)
 {
-    let mut object_factory = ObjectFactory::new_empty();
+    let mut object_factory = ExpressionObjectFactory::new_empty();
     let mut ui_factory = ExpressionObjectUiFactory::new_empty();
 
     let mut helper = ExpressionObjectRegistrationHelper::new(&mut object_factory, &mut ui_factory);

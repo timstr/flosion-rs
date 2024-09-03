@@ -3,7 +3,6 @@ use std::sync::Arc;
 use crate::{
     core::{
         expression::expressiongraphvalidation::find_expression_error,
-        graph::graph::Graph,
         uniqueid::{IdGenerator, UniqueId},
     },
     ui_core::arguments::ParsedArguments,
@@ -345,8 +344,4 @@ impl ExpressionGraph {
         }
         res
     }
-}
-
-impl Graph for ExpressionGraph {
-    type ObjectId = ExpressionNodeId;
 }

@@ -1,4 +1,4 @@
-use crate::{core::graph::graph::Graph, ui_core::arguments::ParsedArguments};
+use crate::ui_core::arguments::ParsedArguments;
 
 use super::{
     expression::SoundExpressionId,
@@ -276,8 +276,4 @@ impl SoundGraph {
         }
         res
     }
-}
-
-impl Graph for SoundGraph {
-    type ObjectId = SoundObjectId;
 }

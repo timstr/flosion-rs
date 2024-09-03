@@ -4,8 +4,8 @@ use crate::{
             expressionnode::PureExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
             expressionnodetools::ExpressionNodeTools,
         },
-        graph::graphobject::{ObjectType, WithObjectType},
         jit::codegen::CodeGen,
+        objecttype::{ObjectType, WithObjectType},
     },
     ui_core::arguments::{FloatArgument, ParsedArguments},
 };

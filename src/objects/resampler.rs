@@ -7,8 +7,8 @@ use crate::{
             },
             soundgraphcompiler::SoundGraphCompiler,
         },
-        graph::graphobject::{ObjectType, WithObjectType},
         jit::compiledexpression::Discretization,
+        objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
             expression::SoundExpressionHandle,

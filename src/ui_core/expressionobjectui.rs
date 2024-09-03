@@ -3,8 +3,11 @@ use std::{any::Any, cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
 use eframe::egui;
 
 use crate::core::{
-    expression::expressiongraph::ExpressionGraph,
-    graph::graphobject::{GraphObjectHandle, ObjectHandle, ObjectType},
+    expression::{
+        expressiongraph::ExpressionGraph,
+        expressionobject::{AnyExpressionObjectHandle, ExpressionObjectHandle},
+    },
+    objecttype::ObjectType,
 };
 
 use super::{
@@ -15,7 +18,7 @@ use super::{
 };
 
 pub trait ExpressionObjectUi: Default {
-    type HandleType: ObjectHandle<ExpressionGraph>;
+    type HandleType: ExpressionObjectHandle;
     type StateType;
 
     fn ui<'a>(
@@ -46,7 +49,7 @@ pub trait ExpressionObjectUi: Default {
 pub trait AnyExpressionObjectUi {
     fn apply(
         &self,
-        object: &GraphObjectHandle<ExpressionGraph>,
+        object: &AnyExpressionObjectHandle,
         state: &mut dyn Any,
         graph_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
@@ -64,7 +67,7 @@ pub trait AnyExpressionObjectUi {
 
     fn make_ui_state(
         &self,
-        object: &GraphObjectHandle<ExpressionGraph>,
+        object: &AnyExpressionObjectHandle,
         args: ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()>;
 }
@@ -72,7 +75,7 @@ pub trait AnyExpressionObjectUi {
 impl<T: 'static + ExpressionObjectUi> AnyExpressionObjectUi for T {
     fn apply(
         &self,
-        object: &GraphObjectHandle<ExpressionGraph>,
+        object: &AnyExpressionObjectHandle,
         state: &mut dyn Any,
         graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
@@ -99,7 +102,7 @@ impl<T: 'static + ExpressionObjectUi> AnyExpressionObjectUi for T {
     }
 
     fn object_type(&self) -> ObjectType {
-        <T::HandleType as ObjectHandle<ExpressionGraph>>::object_type()
+        <T::HandleType as ExpressionObjectHandle>::object_type()
     }
 
     fn make_properties(&self) -> ExpressionNodeLayout {
@@ -108,7 +111,7 @@ impl<T: 'static + ExpressionObjectUi> AnyExpressionObjectUi for T {
 
     fn make_ui_state(
         &self,
-        object: &GraphObjectHandle<ExpressionGraph>,
+        object: &AnyExpressionObjectHandle,
         args: ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
@@ -153,7 +156,7 @@ impl ExpressionObjectUiFactory {
 
 pub(crate) fn show_expression_node_ui(
     factory: &ExpressionObjectUiFactory,
-    object: &GraphObjectHandle<ExpressionGraph>,
+    object: &AnyExpressionObjectHandle,
     ui_state: &mut ExpressionGraphUiState,
     ui: &mut egui::Ui,
     ctx: &ExpressionGraphUiContext,

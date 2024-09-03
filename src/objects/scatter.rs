@@ -9,7 +9,7 @@ use crate::{
             },
             soundgraphcompiler::SoundGraphCompiler,
         },
-        graph::graphobject::{ObjectType, WithObjectType},
+        objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
             expression::SoundExpressionHandle,

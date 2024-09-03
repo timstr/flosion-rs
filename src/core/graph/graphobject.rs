@@ -4,8 +4,6 @@ use chive::ChiveIn;
 
 use crate::ui_core::arguments::ParsedArguments;
 
-use super::graph::Graph;
-
 #[derive(Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct ObjectType {
     name: &'static str,
@@ -21,7 +19,7 @@ impl ObjectType {
     }
 }
 
-pub trait GraphObject<G: Graph>: Send + Sync {
+pub trait GraphObject<I>: Send + Sync {
     fn create(graph: &mut G, args: &ParsedArguments) -> Result<GraphObjectHandle<G>, ()>
     where
         Self: Sized;
@@ -32,17 +30,17 @@ pub trait GraphObject<G: Graph>: Send + Sync {
 
     fn get_dynamic_type(&self) -> ObjectType;
 
-    fn get_id(&self) -> G::ObjectId;
+    fn get_id(&self) -> I;
     fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
     fn get_language_type_name(&self) -> &'static str;
     fn serialize(&self, chive_in: ChiveIn);
 }
 
-pub struct GraphObjectHandle<G: Graph> {
+pub struct GraphObjectHandle<G> {
     instance: Arc<dyn GraphObject<G>>,
 }
 
-impl<G: Graph> GraphObjectHandle<G> {
+impl<G> GraphObjectHandle<G> {
     pub(crate) fn new(instance: Arc<dyn GraphObject<G>>) -> Self {
         Self { instance }
     }
@@ -60,7 +58,7 @@ impl<G: Graph> GraphObjectHandle<G> {
     }
 }
 
-impl<G: Graph> Clone for GraphObjectHandle<G> {
+impl<G> Clone for GraphObjectHandle<G> {
     fn clone(&self) -> Self {
         Self {
             instance: Arc::clone(&self.instance),
@@ -70,7 +68,7 @@ impl<G: Graph> Clone for GraphObjectHandle<G> {
 
 // Used by ObjectUi to specify the handle type and inner object type
 // that a UI works with
-pub trait ObjectHandle<G: Graph>: Sized {
+pub trait ObjectHandle<G>: Sized {
     // TODO: consider renaming this
     type ObjectType: GraphObject<G>;
 

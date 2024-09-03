@@ -9,8 +9,8 @@ use crate::{
             expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
             expressionnodetools::ExpressionNodeTools,
         },
-        graph::graphobject::{ObjectType, WithObjectType},
         jit::codegen::CodeGen,
+        objecttype::{ObjectType, WithObjectType},
     },
     ui_core::arguments::ParsedArguments,
 };

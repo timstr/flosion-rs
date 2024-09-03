@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use eframe::egui;
 
 use crate::core::{
-    graph::graphobject::ObjectType,
+    objecttype::ObjectType,
     sound::{
         soundgraph::SoundGraph, soundgraphid::SoundObjectId,
         soundgraphtopology::SoundGraphTopology, soundprocessor::SoundProcessorId,
@@ -223,7 +223,7 @@ impl GlobalInteractions {
                 if let Some((object_type, args)) = summon_widget.final_choice() {
                     let new_obj_handle = factories
                         .sound_objects()
-                        .create_from_args(object_type.name(), graph, &args)
+                        .create(object_type.name(), graph, &args)
                         .expect("Oops, failed to create object");
 
                     let object_ui = factories.sound_uis().get(new_obj_handle.get_type());

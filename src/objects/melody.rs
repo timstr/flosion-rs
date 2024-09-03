@@ -5,7 +5,7 @@ use parking_lot::{Mutex, RwLock};
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
-        graph::graphobject::{ObjectType, WithObjectType},
+        objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},

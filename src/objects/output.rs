@@ -7,7 +7,7 @@ use std::sync::{
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
-        graph::graphobject::{ObjectType, WithObjectType},
+        objecttype::{ObjectType, WithObjectType},
         resample::resample_interleave,
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{

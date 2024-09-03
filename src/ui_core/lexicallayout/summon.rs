@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{graph::graphobject::ObjectType, sound::expressionargument::SoundExpressionArgumentId},
+    core::{objecttype::ObjectType, sound::expressionargument::SoundExpressionArgumentId},
     ui_core::{
         expressiongraphuicontext::OuterProcessorExpressionContext,
         expressionobjectui::ExpressionObjectUiFactory,

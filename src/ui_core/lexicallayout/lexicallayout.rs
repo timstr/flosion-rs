@@ -4,13 +4,11 @@ use eframe::egui;
 use crate::{
     core::{
         expression::{
-            expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
+            expressiongraphdata::ExpressionTarget,
             expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
+            expressionobject::ExpressionObjectFactory,
         },
-        graph::{
-            graphobject::{ObjectType, WithObjectType},
-            objectfactory::ObjectFactory,
-        },
+        objecttype::{ObjectType, WithObjectType},
         sound::soundgraph::SoundGraph,
         uniqueid::IdGenerator,
     },
@@ -714,7 +712,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
         sound_graph: &mut SoundGraph,
-        object_factory: &ObjectFactory<ExpressionGraph>,
+        object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &OuterExpressionGraphUiContext,
@@ -809,7 +807,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
         sound_graph: &mut SoundGraph,
-        object_factory: &ObjectFactory<ExpressionGraph>,
+        object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &OuterExpressionGraphUiContext,
@@ -984,7 +982,7 @@ impl LexicalLayout {
         &self,
         ns_type: ObjectType,
         arguments: ParsedArguments,
-        object_factory: &ObjectFactory<ExpressionGraph>,
+        object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &OuterExpressionGraphUiContext,
@@ -992,7 +990,7 @@ impl LexicalLayout {
     ) -> Result<(ASTNode, ExpressionNodeLayout), String> {
         let new_object = outer_context
             .edit_expression_graph(sound_graph, |graph| {
-                object_factory.create_from_args(ns_type.name(), graph, &arguments)
+                object_factory.create(ns_type.name(), graph, &arguments)
             })
             .unwrap();
 

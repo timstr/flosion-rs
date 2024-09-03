@@ -6,10 +6,9 @@ use crate::{
             garbage::GarbageDisposer,
             soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
         },
-        expression::expressiongraph::ExpressionGraph,
-        graph::objectfactory::ObjectFactory,
+        expression::expressionobject::ExpressionObjectFactory,
         jit::server::{JitServer, JitServerBuilder},
-        sound::soundgraph::SoundGraph,
+        sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
 };
@@ -28,8 +27,8 @@ use super::{
 
 /// Convenience struct for passing all the different factories together
 pub(crate) struct Factories {
-    sound_objects: ObjectFactory<SoundGraph>,
-    expression_objects: ObjectFactory<ExpressionGraph>,
+    sound_objects: SoundObjectFactory,
+    expression_objects: ExpressionObjectFactory,
     sound_uis: SoundObjectUiFactory,
     expression_uis: ExpressionObjectUiFactory,
 }
@@ -48,11 +47,11 @@ impl Factories {
         }
     }
 
-    pub(crate) fn sound_objects(&self) -> &ObjectFactory<SoundGraph> {
+    pub(crate) fn sound_objects(&self) -> &SoundObjectFactory {
         &self.sound_objects
     }
 
-    pub(crate) fn expression_objects(&self) -> &ObjectFactory<ExpressionGraph> {
+    pub(crate) fn expression_objects(&self) -> &ExpressionObjectFactory {
         &self.expression_objects
     }
 

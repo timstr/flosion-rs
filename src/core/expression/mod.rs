@@ -7,4 +7,5 @@ mod expressiongraphvalidation;
 pub mod expressionnode;
 pub mod expressionnodeinput;
 pub mod expressionnodetools;
+pub mod expressionobject;
 mod path;

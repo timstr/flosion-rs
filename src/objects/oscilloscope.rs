@@ -3,7 +3,7 @@ use parking_lot::Mutex;
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
-        graph::graphobject::{ObjectType, WithObjectType},
+        objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
             soundinput::InputOptions,

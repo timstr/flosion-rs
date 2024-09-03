@@ -3,8 +3,11 @@ use std::{any::Any, cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
 use eframe::egui;
 
 use crate::core::{
-    graph::graphobject::{GraphObjectHandle, ObjectHandle, ObjectType},
-    sound::soundgraph::SoundGraph,
+    objecttype::ObjectType,
+    sound::{
+        soundgraph::SoundGraph,
+        soundobject::{AnySoundObjectHandle, SoundObjectHandle},
+    },
 };
 
 use super::{
@@ -14,7 +17,7 @@ use super::{
 };
 
 pub trait SoundObjectUi: Default {
-    type HandleType: ObjectHandle<SoundGraph>;
+    type HandleType: SoundObjectHandle;
     type StateType;
 
     fn ui<'a>(
@@ -46,7 +49,7 @@ pub trait SoundObjectUi: Default {
 pub trait AnySoundObjectUi {
     fn apply(
         &self,
-        object: &GraphObjectHandle<SoundGraph>,
+        object: &AnySoundObjectHandle,
         state: &mut dyn Any,
         graph_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
@@ -65,7 +68,7 @@ pub trait AnySoundObjectUi {
 
     fn make_ui_state(
         &self,
-        object: &GraphObjectHandle<SoundGraph>,
+        object: &AnySoundObjectHandle,
         args: &ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()>;
 }
@@ -73,7 +76,7 @@ pub trait AnySoundObjectUi {
 impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
     fn apply(
         &self,
-        object: &GraphObjectHandle<SoundGraph>,
+        object: &AnySoundObjectHandle,
         state: &mut dyn Any,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
@@ -100,7 +103,7 @@ impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
     }
 
     fn object_type(&self) -> ObjectType {
-        <T::HandleType as ObjectHandle<SoundGraph>>::object_type()
+        <T::HandleType as SoundObjectHandle>::object_type()
     }
 
     // TODO: remove
@@ -110,7 +113,7 @@ impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
 
     fn make_ui_state(
         &self,
-        object: &GraphObjectHandle<SoundGraph>,
+        object: &AnySoundObjectHandle,
         args: &ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()> {
         let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
@@ -155,7 +158,7 @@ impl SoundObjectUiFactory {
 
 pub(crate) fn show_sound_object_ui(
     factory: &SoundObjectUiFactory,
-    object: &GraphObjectHandle<SoundGraph>,
+    object: &AnySoundObjectHandle,
     ui_state: &mut SoundGraphUiState,
     ui: &mut egui::Ui,
     ctx: &SoundGraphUiContext,

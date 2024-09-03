@@ -8,8 +8,8 @@ use crate::{
             },
             soundgraphcompiler::SoundGraphCompiler,
         },
-        graph::graphobject::{ObjectType, WithObjectType},
         jit::compiledexpression::Discretization,
+        objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
