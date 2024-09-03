@@ -6,24 +6,24 @@ use super::{
     flosion_ui::Factories, graph_properties::GraphProperties, stackedlayout::timeaxis::TimeAxis,
 };
 
-pub struct SoundGraphUiContext<'a> {
+pub struct SoundGraphUiContext<'a, 'ctx> {
     factories: &'a Factories,
     time_axis: TimeAxis,
     width: f32,
     group_origin: egui::Pos2,
     properties: &'a GraphProperties,
-    jit_server: &'a JitServer<'a>,
+    jit_server: &'a JitServer<'ctx>,
 }
 
-impl<'a> SoundGraphUiContext<'a> {
+impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
     pub(crate) fn new(
         factories: &'a Factories,
         time_axis: TimeAxis,
         width: f32,
         group_origin: egui::Pos2,
         properties: &'a GraphProperties,
-        jit_server: &'a JitServer<'a>,
-    ) -> SoundGraphUiContext<'a> {
+        jit_server: &'a JitServer<'ctx>,
+    ) -> SoundGraphUiContext<'a, 'ctx> {
         SoundGraphUiContext {
             factories,
             time_axis,
@@ -54,7 +54,7 @@ impl<'a> SoundGraphUiContext<'a> {
         self.properties
     }
 
-    pub fn jit_server(&self) -> &'a JitServer<'a> {
+    pub fn jit_server(&self) -> &JitServer<'ctx> {
         self.jit_server
     }
 }

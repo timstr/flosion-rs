@@ -182,27 +182,27 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
     }
 }
 
-pub struct ExpressionGraphUiContext<'a> {
+pub struct ExpressionGraphUiContext<'a, 'ctx> {
     ui_factory: &'a ExpressionObjectUiFactory,
-    jit_server: &'a JitServer<'a>,
+    jit_server: &'a JitServer<'ctx>,
 }
 
-impl<'a> ExpressionGraphUiContext<'a> {
+impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
     pub(super) fn new(
         ui_factory: &'a ExpressionObjectUiFactory,
-        jit_server: &'a JitServer<'a>,
-    ) -> ExpressionGraphUiContext<'a> {
+        jit_server: &'a JitServer<'ctx>,
+    ) -> ExpressionGraphUiContext<'a, 'ctx> {
         ExpressionGraphUiContext {
             ui_factory,
             jit_server,
         }
     }
 
-    pub(super) fn ui_factory(&self) -> &'a ExpressionObjectUiFactory {
+    pub(super) fn ui_factory(&self) -> &ExpressionObjectUiFactory {
         self.ui_factory
     }
 
-    pub(super) fn jit_server(&self) -> &'a JitServer<'a> {
+    pub(super) fn jit_server(&self) -> &JitServer<'ctx> {
         self.jit_server
     }
 }

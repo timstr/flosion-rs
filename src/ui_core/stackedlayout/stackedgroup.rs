@@ -242,14 +242,13 @@ impl StackedGroup {
                             top_of_stack = false;
 
                             let object = processor_data.instance_arc().as_graph_object();
-                            let mut ctx = SoundGraphUiContext::new(
+                            let ctx = SoundGraphUiContext::new(
                                 factories,
                                 self.time_axis,
                                 self.width_pixels as f32,
                                 group_origin,
                                 properties,
-                                // jit_server,
-                                todo!(),
+                                jit_server,
                             );
 
                             show_sound_object_ui(
