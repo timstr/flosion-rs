@@ -151,7 +151,7 @@ impl<'ctx> CompiledExpression<'ctx> {
 /// and replacing the allocated nodes. The optional methods add_expression
 /// and remove_expression are only needed if expressions can be added and
 /// removed after the processor's construction.
-pub trait CompiledExpressionCollection<'ctx>: Sync + Send {
+pub trait CompiledExpressionCollection<'ctx>: Send {
     /// Invoke the provided visitor with a reference to each expression in the collection
     fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>);
 

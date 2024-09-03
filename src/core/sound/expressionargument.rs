@@ -58,7 +58,7 @@ impl SoundExpressionArgumentHandle {
 // an Arc to the sound processor or sound input. Rather, any shared data should
 // be stored in a separate Arc held by both, and state is always read from the
 // Context's state chain during audio processing
-pub(crate) trait SoundExpressionArgument: Sync + Send {
+pub(crate) trait SoundExpressionArgument: Send {
     // Where does the argument's data come from?
     fn origin(&self) -> SoundExpressionArgumentOrigin;
 

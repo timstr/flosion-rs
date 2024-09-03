@@ -19,7 +19,8 @@ impl ObjectType {
     }
 }
 
-pub trait GraphObject<I>: Send + Sync {
+// TODO: is anything still using this file?
+pub trait GraphObject<I>: Send {
     fn create(graph: &mut G, args: &ParsedArguments) -> Result<GraphObjectHandle<G>, ()>
     where
         Self: Sized;

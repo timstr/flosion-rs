@@ -181,7 +181,7 @@ pub(super) fn lexical_layout_matches_expression_graph(
                 topology
                     .node(*nsid)
                     .unwrap()
-                    .instance_arc()
+                    .instance_rc()
                     .as_graph_object()
                     .get_type()
                     .name()

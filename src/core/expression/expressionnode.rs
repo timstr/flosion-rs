@@ -1,4 +1,8 @@
-use std::{any::type_name, ops::Deref, sync::Arc};
+use std::{
+    any::{type_name, Any},
+    ops::Deref,
+    rc::Rc,
+};
 
 use chive::ChiveIn;
 use inkwell::values::{FloatValue, PointerValue};
@@ -25,7 +29,7 @@ pub type ExpressionNodeId = UniqueId<ExpressionNodeTag>;
 /// An ExpressionNode whose values are computed as a pure function of the inputs,
 /// with no side effects or hidden state. Intended to be used for elementary
 /// mathematical functions and easy, closed-form calculations.
-pub trait PureExpressionNode: Sync + Send + WithObjectType {
+pub trait PureExpressionNode: Send + WithObjectType {
     fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
@@ -39,7 +43,7 @@ pub trait PureExpressionNode: Sync + Send + WithObjectType {
 /// A trait representing any type of expression node, both
 /// pure and stateful. Intended mainly for trait objects
 /// and easy grouping of the different types.
-pub trait ExpressionNode: Sync + Send {
+pub trait ExpressionNode: Send {
     fn num_variables(&self) -> usize;
 
     fn compile<'ctx>(
@@ -49,7 +53,7 @@ pub trait ExpressionNode: Sync + Send {
         state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
-    fn as_graph_object(self: Arc<Self>) -> AnyExpressionObjectHandle;
+    fn as_graph_object(self: Rc<Self>) -> AnyExpressionObjectHandle;
 }
 
 pub struct PureExpressionNodeWithId<T: PureExpressionNode> {
@@ -92,7 +96,7 @@ impl<T: 'static + PureExpressionNode> ExpressionNode for PureExpressionNodeWithI
         self.instance.compile(jit, inputs)
     }
 
-    fn as_graph_object(self: Arc<Self>) -> AnyExpressionObjectHandle {
+    fn as_graph_object(self: Rc<Self>) -> AnyExpressionObjectHandle {
         AnyExpressionObjectHandle::new(self)
     }
 }
@@ -120,7 +124,7 @@ impl<T: 'static + PureExpressionNode> ExpressionObject for PureExpressionNodeWit
         self.id
     }
 
-    fn into_arc_any(self: Arc<Self>) -> Arc<dyn std::any::Any + Send + Sync> {
+    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 
@@ -134,17 +138,27 @@ impl<T: 'static + PureExpressionNode> ExpressionObject for PureExpressionNodeWit
 }
 
 pub struct PureExpressionNodeHandle<T: PureExpressionNode> {
-    instance: Arc<PureExpressionNodeWithId<T>>,
+    instance: Rc<PureExpressionNodeWithId<T>>,
+}
+
+// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
+// requires T: Clone even if it isn't stored as a direct field
+impl<T: PureExpressionNode> Clone for PureExpressionNodeHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: Rc::clone(&self.instance),
+        }
+    }
 }
 
 impl<T: 'static + PureExpressionNode> PureExpressionNodeHandle<T> {
-    pub(super) fn new(instance: Arc<PureExpressionNodeWithId<T>>) -> Self {
+    pub(super) fn new(instance: Rc<PureExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
 
     pub(super) fn from_graph_object(handle: AnyExpressionObjectHandle) -> Option<Self> {
-        let arc_any = handle.into_instance_arc().into_arc_any();
-        match arc_any.downcast::<PureExpressionNodeWithId<T>>() {
+        let rc_any = handle.into_instance_rc().into_rc_any();
+        match rc_any.downcast::<PureExpressionNodeWithId<T>>() {
             Ok(obj) => Some(PureExpressionNodeHandle::new(obj)),
             Err(_) => None,
         }
@@ -167,14 +181,6 @@ impl<T: PureExpressionNode> Deref for PureExpressionNodeHandle<T> {
     }
 }
 
-impl<T: PureExpressionNode> Clone for PureExpressionNodeHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Arc::clone(&self.instance),
-        }
-    }
-}
-
 impl<T: 'static + PureExpressionNode> ExpressionObjectHandle for PureExpressionNodeHandle<T> {
     type ObjectType = PureExpressionNodeWithId<T>;
 
@@ -191,7 +197,7 @@ impl<T: 'static + PureExpressionNode> ExpressionObjectHandle for PureExpressionN
 /// special build-up and tear-down to be used. This includes calculations
 /// involving reccurences, e.g. relying on previous results, as well
 /// as data structures that e.g. require locking in order to read safely.
-pub trait StatefulExpressionNode: Sync + Send + WithObjectType {
+pub trait StatefulExpressionNode: Send + WithObjectType {
     fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
@@ -348,7 +354,7 @@ impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionN
         loop_value
     }
 
-    fn as_graph_object(self: Arc<Self>) -> AnyExpressionObjectHandle {
+    fn as_graph_object(self: Rc<Self>) -> AnyExpressionObjectHandle {
         AnyExpressionObjectHandle::new(self)
     }
 }
@@ -376,7 +382,7 @@ impl<T: 'static + StatefulExpressionNode> ExpressionObject for StatefulExpressio
         self.id
     }
 
-    fn into_arc_any(self: Arc<Self>) -> Arc<dyn std::any::Any + Send + Sync> {
+    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 
@@ -390,17 +396,27 @@ impl<T: 'static + StatefulExpressionNode> ExpressionObject for StatefulExpressio
 }
 
 pub struct StatefulExpressionNodeHandle<T: StatefulExpressionNode> {
-    instance: Arc<StatefulExpressionNodeWithId<T>>,
+    instance: Rc<StatefulExpressionNodeWithId<T>>,
+}
+
+// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
+// requires T: Clone even if it isn't stored as a direct field
+impl<T: StatefulExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: Rc::clone(&self.instance),
+        }
+    }
 }
 
 impl<T: 'static + StatefulExpressionNode> StatefulExpressionNodeHandle<T> {
-    pub(super) fn new(instance: Arc<StatefulExpressionNodeWithId<T>>) -> Self {
+    pub(super) fn new(instance: Rc<StatefulExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
 
     pub(super) fn from_graph_object(handle: AnyExpressionObjectHandle) -> Option<Self> {
-        let arc_any = handle.into_instance_arc().into_arc_any();
-        match arc_any.downcast::<StatefulExpressionNodeWithId<T>>() {
+        let any = handle.into_instance_rc().into_rc_any();
+        match any.downcast::<StatefulExpressionNodeWithId<T>>() {
             Ok(obj) => Some(StatefulExpressionNodeHandle::new(obj)),
             Err(_) => None,
         }
@@ -419,14 +435,6 @@ impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeHandle<T> {
 
     fn deref(&self) -> &Self::Target {
         &*self.instance
-    }
-}
-
-impl<T: StatefulExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Arc::clone(&self.instance),
-        }
     }
 }
 

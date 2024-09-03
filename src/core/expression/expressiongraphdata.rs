@@ -1,4 +1,4 @@
-use std::{hash::Hasher, sync::Arc};
+use std::{hash::Hasher, rc::Rc};
 
 use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
@@ -13,7 +13,7 @@ use super::{
 #[derive(Clone)]
 pub(crate) struct ExpressionNodeData {
     id: ExpressionNodeId,
-    instance: Option<Arc<dyn ExpressionNode>>,
+    instance: Option<Rc<dyn ExpressionNode>>,
     inputs: Vec<ExpressionNodeInputId>,
 }
 
@@ -22,7 +22,7 @@ impl ExpressionNodeData {
     /// instance
     pub(crate) fn new(
         id: ExpressionNodeId,
-        instance: Arc<dyn ExpressionNode>,
+        instance: Rc<dyn ExpressionNode>,
     ) -> ExpressionNodeData {
         ExpressionNodeData {
             id,
@@ -54,13 +54,14 @@ impl ExpressionNodeData {
         self.instance.as_deref().unwrap()
     }
 
-    /// Access the expression node instance as an Arc
-    pub(crate) fn instance_arc(&self) -> Arc<dyn ExpressionNode> {
-        Arc::clone(self.instance.as_ref().unwrap())
+    /// Access the expression node instance as an Rc
+    // TODO: This is probably only used to create a graph object handle. Make that easier.
+    pub(crate) fn instance_rc(&self) -> Rc<dyn ExpressionNode> {
+        Rc::clone(self.instance.as_ref().unwrap())
     }
 
     /// Set the instance, if self was created with `new_empty()`
-    pub(crate) fn set_instance(&mut self, instance: Arc<dyn ExpressionNode>) {
+    pub(crate) fn set_instance(&mut self, instance: Rc<dyn ExpressionNode>) {
         assert!(self.instance.is_none());
         self.instance = Some(instance);
     }

@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use parking_lot::RwLock;
+use parking_lot::Mutex;
 
 use crate::core::{
     anydata::AnyData,
@@ -28,9 +28,7 @@ use super::{
     soundgraphcompiler::SoundGraphCompiler,
 };
 
-/// A compiled static processor for use in the state graph. An Arc to the
-/// processor is held, along with a unique copy of its compiled sound
-/// inputs and expressions.
+/// A compiled static processor for use in the state graph.
 pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
@@ -67,9 +65,7 @@ impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
     }
 }
 
-/// A compiled dynamic processor for use in the state graph. An arc to the
-/// processor is held, along with a unique copy of its compiled sound inputs
-/// and expressions.
+/// A compiled dynamic processor for use in the state graph.
 pub struct CompiledDynamicProcessor<'ctx, T: DynamicSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
@@ -139,7 +135,7 @@ impl<'ctx, T: 'static + DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T>
 
 /// Trait for a compiled sound processor living in the state graph, intended
 /// to unify both static and dynamic sound processors.
-pub(crate) trait CompiledSoundProcessor<'ctx>: Sync + Send {
+pub(crate) trait CompiledSoundProcessor<'ctx>: Send {
     /// The sound processor's id
     fn id(&self) -> SoundProcessorId;
 
@@ -395,7 +391,11 @@ pub struct SharedCompiledProcessor<'ctx> {
     // NOTE that this may introduce blocking on the audio thread if multiple audio
     // threads are used in the future. Avoiding that will likely require careful
     // scheduling and organization beyond what is possible within the cache itself.
-    cache: Arc<RwLock<SharedCompiledProcessorCache<'ctx>>>,
+    // Note: using Mutex instead of RwLock because RwLock requires Sync
+    // TODO: consider the processor and its compiled artefacts in one Mutex-guarded
+    // struct, and the actual cache that may be read in parallel in a different
+    // RwLock-guarded struct
+    cache: Arc<Mutex<SharedCompiledProcessorCache<'ctx>>>,
 }
 
 impl<'ctx> SharedCompiledProcessor<'ctx> {
@@ -405,7 +405,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     ) -> SharedCompiledProcessor<'ctx> {
         SharedCompiledProcessor {
             processor_id: processor.id(),
-            cache: Arc::new(RwLock::new(SharedCompiledProcessorCache::new(processor))),
+            cache: Arc::new(Mutex::new(SharedCompiledProcessorCache::new(processor))),
         }
     }
 
@@ -414,20 +414,20 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         self.processor_id
     }
 
-    /// Access the cache. This obtains a read lock on the cache and thus
+    /// Access the cache. This obtains a lock on the cache and thus
     /// may block or cause blocking elsewhere.
     pub(crate) fn borrow_cache<'a>(
         &'a self,
     ) -> impl 'a + Deref<Target = SharedCompiledProcessorCache<'ctx>> {
-        self.cache.read()
+        self.cache.lock()
     }
 
-    /// Mutably access the cache. This obtains a write lock on the cache
+    /// Mutably access the cache. This obtains a lock on the cache
     /// and thus may block or cause blocking elsewhere.
     pub(crate) fn borrow_cache_mut<'a>(
         &'a mut self,
     ) -> impl 'a + DerefMut<Target = SharedCompiledProcessorCache<'ctx>> {
-        self.cache.write()
+        self.cache.lock()
     }
 
     /// Call on the inner sound processor to produce the next chunk of
@@ -435,7 +435,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     /// `is_entry_point()` returns true, i.e. that there are no sound
     /// inputs co-owning this shared node.
     pub(crate) fn invoke_externally(&self, scratch_space: &ScratchArena) {
-        let mut data = self.cache.write();
+        let mut data = self.cache.lock();
         let context = Context::new(self.processor_id, scratch_space);
         let &mut SharedCompiledProcessorCache {
             ref mut processor,
@@ -451,7 +451,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     /// If there are no sound inputs, the shared processor is consired
     /// to be an entry point.
     fn num_target_inputs(&self) -> usize {
-        self.cache.read().num_target_inputs()
+        self.cache.lock().num_target_inputs()
     }
 
     /// Returns whether the shared processor is not co-owned by any
@@ -477,7 +477,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         input_state: AnyData,
         local_arrays: LocalArrayList,
     ) -> StreamStatus {
-        let mut data = self.cache.write();
+        let mut data = self.cache.lock();
         debug_assert_eq!(
             data.target_inputs
                 .iter()
@@ -522,7 +522,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
 
     /// Make the processor start over
     fn start_over(&mut self) {
-        let mut data = self.cache.write();
+        let mut data = self.cache.lock();
         data.processor.start_over();
         for (_target_id, used) in &mut data.target_inputs {
             *used = true;
@@ -530,7 +530,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     }
 
     /// Consume self and convert into an Arc to the inner shared cached
-    fn into_arc(self) -> Arc<RwLock<SharedCompiledProcessorCache<'ctx>>> {
+    fn into_arc(self) -> Arc<Mutex<SharedCompiledProcessorCache<'ctx>>> {
         self.cache
     }
 }

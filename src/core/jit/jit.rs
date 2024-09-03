@@ -61,7 +61,7 @@ pub struct Jit<'ctx> {
     pub(super) module: Module<'ctx>,
     execution_engine: ExecutionEngine<'ctx>,
     function_name: String,
-    pub(super) atomic_captures: Vec<Arc<dyn Droppable>>,
+    pub(super) atomic_captures: Vec<Arc<dyn Sync + Droppable>>,
     pub(super) compiled_targets: HashMap<ExpressionTarget, FloatValue<'ctx>>,
     num_state_variables: usize,
     state_array_offsets: Vec<(ExpressionNodeId, usize)>,

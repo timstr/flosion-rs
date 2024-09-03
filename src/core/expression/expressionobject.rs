@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, sync::Arc};
+use std::{any::Any, collections::HashMap, rc::Rc};
 
 use chive::ChiveIn;
 
@@ -6,8 +6,7 @@ use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
 use super::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeId};
 
-// TODO: remove Sync
-pub trait ExpressionObject: Send + Sync {
+pub trait ExpressionObject: Send {
     fn create(
         graph: &mut ExpressionGraph,
         args: &ParsedArguments,
@@ -22,7 +21,7 @@ pub trait ExpressionObject: Send + Sync {
     fn get_dynamic_type(&self) -> ObjectType;
 
     fn get_id(&self) -> ExpressionNodeId;
-    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
+    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
     fn get_language_type_name(&self) -> &'static str;
     fn serialize(&self, chive_in: ChiveIn);
 }
@@ -38,13 +37,13 @@ pub trait ExpressionObjectHandle: Sized {
     fn object_type() -> ObjectType;
 }
 
+#[derive(Clone)]
 pub struct AnyExpressionObjectHandle {
-    // TODO: just Rc? Or borrow?
-    instance: Arc<dyn ExpressionObject>,
+    instance: Rc<dyn ExpressionObject>,
 }
 
 impl AnyExpressionObjectHandle {
-    pub(crate) fn new(instance: Arc<dyn ExpressionObject>) -> Self {
+    pub(crate) fn new(instance: Rc<dyn ExpressionObject>) -> Self {
         Self { instance }
     }
 
@@ -56,16 +55,8 @@ impl AnyExpressionObjectHandle {
         self.instance.get_dynamic_type()
     }
 
-    pub(crate) fn into_instance_arc(self) -> Arc<dyn ExpressionObject> {
+    pub(crate) fn into_instance_rc(self) -> Rc<dyn ExpressionObject> {
         self.instance
-    }
-}
-
-impl Clone for AnyExpressionObjectHandle {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Arc::clone(&self.instance),
-        }
     }
 }
 

@@ -1,7 +1,7 @@
 use std::{
     any::{type_name, Any},
     ops::{Deref, DerefMut},
-    sync::Arc,
+    rc::Rc,
 };
 
 use chive::ChiveIn;
@@ -46,7 +46,7 @@ pub enum StreamStatus {
 // TODO: remove Sync
 // TODO: do StaticSoundProcessor and DynamicSoundProcessor need to be different traits anymore?
 // 'Static' should suffice as a runtime property (which it is everywhere else already)
-pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
+pub trait StaticSoundProcessor: Sized + Send + WithObjectType {
     type StateType: State;
 
     type SoundInputType: SoundProcessorInput;
@@ -75,8 +75,7 @@ pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
     fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
-// TODO: remove Sync
-pub trait DynamicSoundProcessor: Sized + Sync + Send + WithObjectType {
+pub trait DynamicSoundProcessor: Sized + Send + WithObjectType {
     type StateType: State;
 
     type SoundInputType: SoundProcessorInput;
@@ -186,17 +185,27 @@ impl<T: DynamicSoundProcessor> WithObjectType for DynamicSoundProcessorWithId<T>
 }
 
 pub struct StaticSoundProcessorHandle<T: StaticSoundProcessor> {
-    instance: Arc<StaticSoundProcessorWithId<T>>,
+    instance: Rc<StaticSoundProcessorWithId<T>>,
+}
+
+// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
+// requires T: Clone even if it isn't stored as a direct field
+impl<T: StaticSoundProcessor> Clone for StaticSoundProcessorHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            instance: Rc::clone(&self.instance),
+        }
+    }
 }
 
 impl<T: 'static + StaticSoundProcessor> StaticSoundProcessorHandle<T> {
-    pub(super) fn new(instance: Arc<StaticSoundProcessorWithId<T>>) -> Self {
+    pub(super) fn new(instance: Rc<StaticSoundProcessorWithId<T>>) -> Self {
         Self { instance }
     }
 
     pub(super) fn from_graph_object(handle: AnySoundObjectHandle) -> Option<Self> {
-        let arc_any = handle.into_instance_arc().into_arc_any();
-        match arc_any.downcast::<StaticSoundProcessorWithId<T>>() {
+        let rc_any = handle.into_instance_rc().into_rc_any();
+        match rc_any.downcast::<StaticSoundProcessorWithId<T>>() {
             Ok(obj) => Some(StaticSoundProcessorHandle::new(obj)),
             Err(_) => None,
         }
@@ -219,26 +228,28 @@ impl<T: StaticSoundProcessor> Deref for StaticSoundProcessorHandle<T> {
     }
 }
 
-impl<T: StaticSoundProcessor> Clone for StaticSoundProcessorHandle<T> {
+pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
+    instance: Rc<DynamicSoundProcessorWithId<T>>,
+}
+
+// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
+// requires T: Clone even if it isn't stored as a direct field
+impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
     fn clone(&self) -> Self {
         Self {
-            instance: Arc::clone(&self.instance),
+            instance: Rc::clone(&self.instance),
         }
     }
 }
 
-pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
-    instance: Arc<DynamicSoundProcessorWithId<T>>,
-}
-
 impl<T: 'static + DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
-    pub(super) fn new(instance: Arc<DynamicSoundProcessorWithId<T>>) -> Self {
+    pub(super) fn new(instance: Rc<DynamicSoundProcessorWithId<T>>) -> Self {
         Self { instance }
     }
 
     pub(super) fn from_graph_object(handle: AnySoundObjectHandle) -> Option<Self> {
-        let arc_any = handle.into_instance_arc().into_arc_any();
-        match arc_any.downcast::<DynamicSoundProcessorWithId<T>>() {
+        let rc_any = handle.into_instance_rc().into_rc_any();
+        match rc_any.downcast::<DynamicSoundProcessorWithId<T>>() {
             Ok(obj) => Some(DynamicSoundProcessorHandle::new(obj)),
             Err(_) => None,
         }
@@ -261,14 +272,6 @@ impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorHandle<T> {
     }
 }
 
-impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Arc::clone(&self.instance),
-        }
-    }
-}
-
 pub(crate) trait SoundProcessor: Send {
     fn id(&self) -> SoundProcessorId;
 
@@ -276,7 +279,7 @@ pub(crate) trait SoundProcessor: Send {
 
     fn is_static(&self) -> bool;
 
-    fn as_graph_object(self: Arc<Self>) -> AnySoundObjectHandle;
+    fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle;
 
     fn compile<'a, 'ctx>(
         &self,
@@ -297,7 +300,7 @@ impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorW
         true
     }
 
-    fn as_graph_object(self: Arc<Self>) -> AnySoundObjectHandle {
+    fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle {
         AnySoundObjectHandle::new(self)
     }
 
@@ -323,7 +326,7 @@ impl<T: 'static + DynamicSoundProcessor> SoundProcessor for DynamicSoundProcesso
         false
     }
 
-    fn as_graph_object(self: Arc<Self>) -> AnySoundObjectHandle {
+    fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle {
         AnySoundObjectHandle::new(self)
     }
 
@@ -368,7 +371,7 @@ pub struct StateAndTiming<T: State> {
     pub(crate) timing: ProcessorTiming,
 }
 
-pub trait ProcessorState: Sync + Send {
+pub trait ProcessorState: Send {
     fn state(&self) -> &dyn Any;
 
     fn is_static(&self) -> bool;
@@ -474,7 +477,7 @@ impl<T: 'static + StaticSoundProcessor> SoundGraphObject for StaticSoundProcesso
         T::TYPE
     }
 
-    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 
@@ -507,7 +510,7 @@ impl<T: 'static + DynamicSoundProcessor> SoundGraphObject for DynamicSoundProces
         T::TYPE
     }
 
-    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 

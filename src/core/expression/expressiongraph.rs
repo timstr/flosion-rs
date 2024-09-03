@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::{
     core::{
@@ -175,11 +175,11 @@ impl ExpressionGraph {
             let id = idgens.node.next_id();
             topo.add_node(ExpressionNodeData::new_empty(id))?;
             let tools = ExpressionNodeTools::new(id, topo, idgens);
-            let node = Arc::new(PureExpressionNodeWithId::new(
+            let node = Rc::new(PureExpressionNodeWithId::new(
                 T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
                 id,
             ));
-            let node2 = Arc::clone(&node);
+            let node2 = Rc::clone(&node);
             topo.node_mut(id).unwrap().set_instance(node);
             Ok(PureExpressionNodeHandle::new(node2))
         })
@@ -200,11 +200,11 @@ impl ExpressionGraph {
             let id = idgens.node.next_id();
             topo.add_node(ExpressionNodeData::new_empty(id))?;
             let tools = ExpressionNodeTools::new(id, topo, idgens);
-            let node = Arc::new(StatefulExpressionNodeWithId::new(
+            let node = Rc::new(StatefulExpressionNodeWithId::new(
                 T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
                 id,
             ));
-            let node2 = Arc::clone(&node);
+            let node2 = Rc::clone(&node);
             topo.node_mut(id).unwrap().set_instance(node);
             Ok(StatefulExpressionNodeHandle::new(node2))
         })

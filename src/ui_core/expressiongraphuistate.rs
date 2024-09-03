@@ -39,7 +39,7 @@ impl ExpressionNodeObjectUiStates {
         let mut states = Self::new();
 
         for node in topo.nodes().values() {
-            let object = node.instance_arc().as_graph_object();
+            let object = node.instance_rc().as_graph_object();
             let object_type = object.get_type();
             let object_ui = factory.get(object_type);
             let state = object_ui

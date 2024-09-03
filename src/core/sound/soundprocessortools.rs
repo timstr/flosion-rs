@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::core::jit::wrappers::{ArrayReadFunc, ScalarReadFunc};
 
@@ -103,7 +103,7 @@ impl<'a> SoundProcessorTools<'a> {
     ) -> SoundExpressionArgumentHandle {
         self.add_input_argument_helper(
             input_id,
-            Arc::new(ScalarInputExpressionArgument::new(input_id, function)),
+            Rc::new(ScalarInputExpressionArgument::new(input_id, function)),
         )
     }
 
@@ -118,7 +118,7 @@ impl<'a> SoundProcessorTools<'a> {
     ) -> SoundExpressionArgumentHandle {
         self.add_input_argument_helper(
             input_id,
-            Arc::new(ArrayInputExpressionArgument::new(input_id, function)),
+            Rc::new(ArrayInputExpressionArgument::new(input_id, function)),
         )
     }
 
@@ -129,7 +129,7 @@ impl<'a> SoundProcessorTools<'a> {
         function: ScalarReadFunc,
     ) -> SoundExpressionArgumentHandle {
         self.add_processor_argument_helper(|spid, _| {
-            Arc::new(ScalarProcessorExpressionArgument::new(spid, function))
+            Rc::new(ScalarProcessorExpressionArgument::new(spid, function))
         })
     }
 
@@ -142,7 +142,7 @@ impl<'a> SoundProcessorTools<'a> {
         function: ArrayReadFunc,
     ) -> SoundExpressionArgumentHandle {
         self.add_processor_argument_helper(|spid, _| {
-            Arc::new(ArrayProcessorExpressionArgument::new(spid, function))
+            Rc::new(ArrayProcessorExpressionArgument::new(spid, function))
         })
     }
 
@@ -153,7 +153,7 @@ impl<'a> SoundProcessorTools<'a> {
     /// the chunk length.
     pub fn add_local_array_argument(&mut self) -> SoundExpressionArgumentHandle {
         self.add_processor_argument_helper(|spid, id| {
-            Arc::new(ProcessorLocalArrayExpressionArgument::new(id, spid))
+            Rc::new(ProcessorLocalArrayExpressionArgument::new(id, spid))
         })
     }
 
@@ -194,7 +194,7 @@ impl<'a> SoundProcessorTools<'a> {
     fn add_input_argument_helper(
         &mut self,
         input_id: SoundInputId,
-        instance: Arc<dyn SoundExpressionArgument>,
+        instance: Rc<dyn SoundExpressionArgument>,
     ) -> SoundExpressionArgumentHandle {
         assert!(
             self.topology.sound_input(input_id).unwrap().owner() == self.processor_id,
@@ -217,7 +217,7 @@ impl<'a> SoundProcessorTools<'a> {
     /// Internal helper method for adding an expression to the sound processor
     /// which the tools were created for.
     fn add_processor_argument_helper<
-        F: FnOnce(SoundProcessorId, SoundExpressionArgumentId) -> Arc<dyn SoundExpressionArgument>,
+        F: FnOnce(SoundProcessorId, SoundExpressionArgumentId) -> Rc<dyn SoundExpressionArgument>,
     >(
         &mut self,
         f: F,

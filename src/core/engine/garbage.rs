@@ -18,16 +18,16 @@ pub(crate) trait Garbage<'ctx> {
 /// of, for example due to possible locking during memory deallocation,
 /// and which may be sent down a GarbageChute and dropped on a different
 /// thread.
-pub trait Droppable: Sync + Send {}
+pub trait Droppable: Send {}
 
 /// Blanket implementation for everything that is Send and Sync
-impl<T: Sync + Send> Droppable for T {}
+impl<T: Send> Droppable for T {}
 
 /// Wrapped item type for things that travel between threads down the
 /// garbage chute.
 enum WrappedDroppable<'ctx> {
     Box(Box<dyn 'ctx + Droppable>),
-    Arc(Arc<dyn 'ctx + Droppable>),
+    Arc(Arc<dyn 'ctx + Sync + Droppable>),
 }
 
 /// GarbageChute is a system for sending resources to a different
@@ -58,7 +58,7 @@ impl<'ctx> GarbageChute<'ctx> {
     /// Send an item which lives in an Arc down the chute
     /// When the garbage is cleared, the inner item will be dropped
     /// immediately only if the Arc holds the last strong reference.
-    pub(crate) fn send_arc(&self, item: Arc<dyn 'ctx + Droppable>) {
+    pub(crate) fn send_arc(&self, item: Arc<dyn 'ctx + Sync + Droppable>) {
         self.sender.try_send(WrappedDroppable::Arc(item)).unwrap();
         let backlog = self.backlog.fetch_add(1, Ordering::Relaxed);
         if backlog * 4 > self.capacity {

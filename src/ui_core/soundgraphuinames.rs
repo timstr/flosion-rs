@@ -116,7 +116,7 @@ impl SoundGraphUiNames {
                 .entry(sp_data.id())
                 .or_insert_with(|| SoundProcessorNameData {
                     name: sp_data
-                        .instance_arc()
+                        .instance_rc()
                         .as_graph_object()
                         .get_type()
                         .name()

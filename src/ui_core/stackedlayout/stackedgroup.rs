@@ -241,7 +241,7 @@ impl StackedGroup {
 
                             top_of_stack = false;
 
-                            let object = processor_data.instance_arc().as_graph_object();
+                            let object = processor_data.instance_rc().as_graph_object();
                             let ctx = SoundGraphUiContext::new(
                                 factories,
                                 self.time_axis,

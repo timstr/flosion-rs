@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, sync::Arc};
+use std::{any::Any, collections::HashMap, rc::Rc};
 
 use chive::ChiveIn;
 
@@ -6,7 +6,7 @@ use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
 use super::{soundgraph::SoundGraph, soundgraphid::SoundObjectId};
 
-pub trait SoundGraphObject: Send + Sync {
+pub trait SoundGraphObject: Send {
     fn create(graph: &mut SoundGraph, args: &ParsedArguments) -> Result<AnySoundObjectHandle, ()>
     where
         Self: Sized;
@@ -18,7 +18,7 @@ pub trait SoundGraphObject: Send + Sync {
     fn get_dynamic_type(&self) -> ObjectType;
 
     fn get_id(&self) -> SoundObjectId;
-    fn into_arc_any(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
+    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
     fn get_language_type_name(&self) -> &'static str;
     fn serialize(&self, chive_in: ChiveIn);
 }
@@ -34,13 +34,13 @@ pub trait SoundObjectHandle: Sized {
     fn object_type() -> ObjectType;
 }
 
+#[derive(Clone)]
 pub struct AnySoundObjectHandle {
-    // TODO: just Rc? Or borrow?
-    instance: Arc<dyn SoundGraphObject>,
+    instance: Rc<dyn SoundGraphObject>,
 }
 
 impl AnySoundObjectHandle {
-    pub(crate) fn new(instance: Arc<dyn SoundGraphObject>) -> Self {
+    pub(crate) fn new(instance: Rc<dyn SoundGraphObject>) -> Self {
         Self { instance }
     }
 
@@ -52,18 +52,11 @@ impl AnySoundObjectHandle {
         self.instance.get_dynamic_type()
     }
 
-    pub(crate) fn into_instance_arc(self) -> Arc<dyn SoundGraphObject> {
+    pub(crate) fn into_instance_rc(self) -> Rc<dyn SoundGraphObject> {
         self.instance
     }
 }
 
-impl Clone for AnySoundObjectHandle {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Arc::clone(&self.instance),
-        }
-    }
-}
 struct SoundObjectData {
     create: Box<dyn Fn(&mut SoundGraph, &ParsedArguments) -> Result<AnySoundObjectHandle, ()>>,
 }

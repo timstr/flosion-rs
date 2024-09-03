@@ -17,7 +17,7 @@ use crate::core::{
 /// and `erase_target` are only needed for sound inputs that support adding
 /// and removing additional inputs or branches per input after the parent
 /// sound processor has been constructed.
-pub trait CompiledSoundInput<'ctx>: Sync + Send {
+pub trait CompiledSoundInput<'ctx>: Send {
     /// Access the targets of the sound input node
     fn targets(&self) -> &[CompiledSoundInputBranch<'ctx>];
 
@@ -61,7 +61,7 @@ impl<'ctx> CompiledSoundInput<'ctx> for () {
 /// allocating nodes for the StateGraph, actual types implementing this
 /// trait will typically provide diverse and fully-featured APIs for
 /// using different types of sound inputs. See implementations for more.
-pub trait SoundProcessorInput: Sync + Send {
+pub trait SoundProcessorInput: Send {
     type NodeType<'ctx>: CompiledSoundInput<'ctx>;
 
     fn make_node<'a, 'ctx>(

@@ -57,7 +57,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
             if let Some(node) = self.static_processor_nodes.get(&processor_id) {
                 StateGraphNodeValue::Shared(node.clone())
             } else {
-                let node = SharedCompiledProcessor::new(proc.instance_arc().compile(self));
+                let node = SharedCompiledProcessor::new(proc.instance().compile(self));
                 self.static_processor_nodes
                     .insert(processor_id, node.clone());
                 StateGraphNodeValue::Shared(node)
@@ -66,7 +66,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
             // TODO: for shared dynamic processors, some kind of clever
             // book-keeping will be needed here
             StateGraphNodeValue::Unique(UniqueCompiledSoundProcessor::new(
-                proc.instance_arc().compile(self),
+                proc.instance().compile(self),
             ))
         }
     }

@@ -24,7 +24,7 @@ type EvalExpressionFunc = unsafe extern "C" fn(
 struct CompiledExpressionData<'ctx> {
     _execution_engine: SendWrapper<inkwell::execution_engine::ExecutionEngine<'ctx>>,
     _function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalExpressionFunc>>,
-    _atomic_captures: Vec<Arc<dyn Droppable>>,
+    _atomic_captures: Vec<Arc<dyn Sync + Droppable>>,
     num_state_variables: usize,
     raw_function: EvalExpressionFunc,
 }
@@ -34,7 +34,7 @@ impl<'inkwell_ctx> CompiledExpressionData<'inkwell_ctx> {
         execution_engine: inkwell::execution_engine::ExecutionEngine<'inkwell_ctx>,
         function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalExpressionFunc>,
         num_state_variables: usize,
-        atomic_captures: Vec<Arc<dyn Droppable>>,
+        atomic_captures: Vec<Arc<dyn Sync + Droppable>>,
     ) -> CompiledExpressionData<'inkwell_ctx> {
         // SAFETY: the ExecutionEngine and JitFunction must outlive the
         // raw function pointer. Storing an Arc to both of those ensures
@@ -64,7 +64,7 @@ impl<'ctx> CompiledExpressionArtefact<'ctx> {
         execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
         function: inkwell::execution_engine::JitFunction<'ctx, EvalExpressionFunc>,
         num_state_variables: usize,
-        atomic_captures: Vec<Arc<dyn Droppable>>,
+        atomic_captures: Vec<Arc<dyn Sync + Droppable>>,
     ) -> CompiledExpressionArtefact<'ctx> {
         CompiledExpressionArtefact {
             data: Arc::new(CompiledExpressionData::new(

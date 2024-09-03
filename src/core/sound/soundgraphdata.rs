@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     hash::Hasher,
-    sync::Arc,
+    rc::Rc,
 };
 
 use hashrevise::{Revisable, RevisionHash, RevisionHasher};
@@ -126,14 +126,14 @@ impl Revisable for SoundInputData {
 #[derive(Clone)]
 pub(crate) struct SoundProcessorData {
     id: SoundProcessorId,
-    processor: Option<Arc<dyn SoundProcessor>>,
+    processor: Option<Rc<dyn SoundProcessor>>,
     sound_inputs: Vec<SoundInputId>,
     arguments: Vec<SoundExpressionArgumentId>,
     expressions: Vec<SoundExpressionId>,
 }
 
 impl SoundProcessorData {
-    pub(crate) fn new(processor: Arc<dyn SoundProcessor>) -> SoundProcessorData {
+    pub(crate) fn new(processor: Rc<dyn SoundProcessor>) -> SoundProcessorData {
         SoundProcessorData {
             id: processor.id(),
             processor: Some(processor),
@@ -153,7 +153,7 @@ impl SoundProcessorData {
         }
     }
 
-    pub(crate) fn set_processor(&mut self, processor: Arc<dyn SoundProcessor>) {
+    pub(crate) fn set_processor(&mut self, processor: Rc<dyn SoundProcessor>) {
         assert!(self.processor.is_none());
         assert!(processor.id() == self.id());
         self.processor = Some(processor);
@@ -191,14 +191,14 @@ impl SoundProcessorData {
         self.processor.as_deref().unwrap()
     }
 
-    pub(crate) fn instance_arc(&self) -> Arc<dyn SoundProcessor> {
-        Arc::clone(self.processor.as_ref().unwrap())
+    pub(crate) fn instance_rc(&self) -> Rc<dyn SoundProcessor> {
+        Rc::clone(self.processor.as_ref().unwrap())
     }
 
     pub(crate) fn friendly_name(&self) -> String {
         format!(
             "{}#{}",
-            self.instance_arc().as_graph_object().get_type().name(),
+            self.instance_rc().as_graph_object().get_type().name(),
             self.id.value()
         )
     }
@@ -427,14 +427,14 @@ impl Revisable for SoundExpressionData {
 #[derive(Clone)]
 pub(crate) struct SoundExpressionArgumentData {
     id: SoundExpressionArgumentId,
-    instance: Arc<dyn SoundExpressionArgument>,
+    instance: Rc<dyn SoundExpressionArgument>,
     owner: SoundExpressionArgumentOwner,
 }
 
 impl SoundExpressionArgumentData {
     pub(crate) fn new(
         id: SoundExpressionArgumentId,
-        instance: Arc<dyn SoundExpressionArgument>,
+        instance: Rc<dyn SoundExpressionArgument>,
         owner: SoundExpressionArgumentOwner,
     ) -> Self {
         Self {

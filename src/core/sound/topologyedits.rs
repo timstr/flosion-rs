@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::{core::uniqueid::IdGenerator, ui_core::arguments::ParsedArguments};
 
@@ -54,7 +54,7 @@ pub(crate) fn build_static_sound_processor<T: 'static + StaticSoundProcessor>(
     // Every sound processor gets a 'time' expression argument
     let time_data = SoundExpressionArgumentData::new(
         idgens.expression_argument.next_id(),
-        Arc::new(ProcessorTimeExpressionArgument::new(id)),
+        Rc::new(ProcessorTimeExpressionArgument::new(id)),
         SoundExpressionArgumentOwner::SoundProcessor(id),
     );
 
@@ -73,13 +73,13 @@ pub(crate) fn build_static_sound_processor<T: 'static + StaticSoundProcessor>(
     // concrete type
     let processor = T::new(tools, args).map_err(|_| SoundError::BadProcessorInit(id))?;
 
-    // wrap the processor in a type-erased Arc
-    let processor = Arc::new(StaticSoundProcessorWithId::new(
+    // wrap the processor in a type-erased Rc
+    let processor = Rc::new(StaticSoundProcessorWithId::new(
         processor,
         id,
         time_data.id(),
     ));
-    let processor2 = Arc::clone(&processor);
+    let processor2 = Rc::clone(&processor);
 
     // add the missing processor instance to the
     // newly created processor data in the topology
@@ -105,7 +105,7 @@ pub(crate) fn build_dynamic_sound_processor<T: 'static + DynamicSoundProcessor>(
     // Every sound processor gets a 'time' expression argument
     let time_data = SoundExpressionArgumentData::new(
         idgens.expression_argument.next_id(),
-        Arc::new(ProcessorTimeExpressionArgument::new(id)),
+        Rc::new(ProcessorTimeExpressionArgument::new(id)),
         SoundExpressionArgumentOwner::SoundProcessor(id),
     );
 
@@ -124,13 +124,13 @@ pub(crate) fn build_dynamic_sound_processor<T: 'static + DynamicSoundProcessor>(
     // concrete type
     let processor = T::new(tools, args).map_err(|_| SoundError::BadProcessorInit(id))?;
 
-    // wrap the processor in a type-erased Arc
-    let processor = Arc::new(DynamicSoundProcessorWithId::new(
+    // wrap the processor in a type-erased Rc
+    let processor = Rc::new(DynamicSoundProcessorWithId::new(
         processor,
         id,
         time_data.id(),
     ));
-    let processor2 = Arc::clone(&processor);
+    let processor2 = Rc::clone(&processor);
 
     // add the missing processor instance to the
     // newly created processor data in the topology
@@ -155,7 +155,7 @@ pub(crate) fn build_sound_input(
 
     let time_data = SoundExpressionArgumentData::new(
         idgens.expression_argument.next_id(),
-        Arc::new(InputTimeExpressionArgument::new(id)),
+        Rc::new(InputTimeExpressionArgument::new(id)),
         SoundExpressionArgumentOwner::SoundInput(id),
     );
 

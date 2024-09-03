@@ -267,7 +267,7 @@ impl LexicalLayout {
                 })
                 .collect();
 
-            let object_ui = ui_factory.get(node.instance_arc().as_graph_object().get_type());
+            let object_ui = ui_factory.get(node.instance_rc().as_graph_object().get_type());
 
             let layout = object_ui.make_properties();
 
@@ -685,7 +685,7 @@ impl LexicalLayout {
                     .topology()
                     .node(id)
                     .unwrap()
-                    .instance_arc()
+                    .instance_rc()
                     .as_graph_object()
             });
         ui.horizontal_centered(|ui| {
