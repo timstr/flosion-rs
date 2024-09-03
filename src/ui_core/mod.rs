@@ -23,7 +23,6 @@ pub mod soundobjectuistate;
 pub mod soundprocessorui;
 pub mod stackedlayout;
 mod summon_widget;
-pub mod ui_factory;
 
 #[cfg(test)]
 mod test;
