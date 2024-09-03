@@ -8,8 +8,8 @@ use crate::core::{
 };
 
 use super::{
-    arguments::ParsedArguments, expressiongraphui::ExpressionGraphUi,
-    expressionobjectui::ExpressionObjectUiFactory, lexicallayout::lexicallayout::LexicalLayout,
+    arguments::ParsedArguments, expressionobjectui::ExpressionObjectUiFactory,
+    lexicallayout::lexicallayout::LexicalLayout,
 };
 
 /// Container for holding the ui states of all nodes in a single
