@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use chive::ChiveIn;
 use parking_lot::RwLock;
@@ -15,6 +18,7 @@ use crate::{
                 StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
             },
             soundprocessortools::SoundProcessorTools,
+            state::State,
         },
         soundbuffer::SoundBuffer,
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -24,27 +28,42 @@ use crate::{
 
 const CHUNKS_PER_GROUP: usize = 64;
 
-pub struct Recorder {
-    pub input: SingleInput,
+struct RecorderData {
+    // TODO: use a more appropriate data structure
     recorded_chunk_groups: RwLock<Vec<SoundBuffer>>,
     recording: AtomicBool,
 }
 
+pub struct Recorder {
+    pub input: SingleInput,
+    shared_data: Arc<RecorderData>,
+}
+
+pub struct RecorderState {
+    shared_data: Arc<RecorderData>,
+}
+
+impl State for RecorderState {
+    fn start_over(&mut self) {
+        // ???
+    }
+}
+
 impl Recorder {
     pub fn start_recording(&self) {
-        self.recording.store(true, Ordering::Relaxed)
+        self.shared_data.recording.store(true, Ordering::Relaxed)
     }
 
     pub fn stop_recording(&self) {
-        self.recording.store(false, Ordering::Relaxed);
+        self.shared_data.recording.store(false, Ordering::Relaxed);
     }
 
     pub fn is_recording(&self) -> bool {
-        self.recording.load(Ordering::Relaxed)
+        self.shared_data.recording.load(Ordering::Relaxed)
     }
 
     pub fn copy_audio(&self) -> SoundBuffer {
-        let chunk_groups = self.recorded_chunk_groups.read();
+        let chunk_groups = self.shared_data.recorded_chunk_groups.read();
         let mut b = SoundBuffer::new_with_capacity(chunk_groups.len() * CHUNKS_PER_GROUP);
         for cg in &*chunk_groups {
             for c in cg.chunks() {
@@ -55,13 +74,15 @@ impl Recorder {
     }
 
     pub fn clear_recording(&self) {
+        // TODO: this throws away the existing vector's capacity.
+        // Vec::clear() should be used instead, or a more appropriate data structure
         let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
-        *self.recorded_chunk_groups.write() = vec![buf];
+        *self.shared_data.recorded_chunk_groups.write() = vec![buf];
     }
 
     pub fn recording_length(&self) -> usize {
         let mut n: usize = 0;
-        for ch in &*self.recorded_chunk_groups.read() {
+        for ch in &*self.shared_data.recorded_chunk_groups.read() {
             n += CHUNK_SIZE * ch.chunks().len();
         }
         n
@@ -71,14 +92,19 @@ impl Recorder {
 impl StaticSoundProcessor for Recorder {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ();
-    type StateType = ();
+    type StateType = RecorderState;
 
     fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         let buf = SoundBuffer::new_with_capacity(CHUNKS_PER_GROUP);
-        let r = Recorder {
-            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
+
+        let shared_data = RecorderData {
             recorded_chunk_groups: RwLock::new(vec![buf]),
             recording: AtomicBool::new(false),
+        };
+
+        let r = Recorder {
+            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
+            shared_data: Arc::new(shared_data),
         };
         debug_assert!(r.recording_length() == 0);
         Ok(r)
@@ -96,11 +122,14 @@ impl StaticSoundProcessor for Recorder {
     }
 
     fn make_state(&self) -> Self::StateType {
-        ()
+        RecorderState {
+            shared_data: Arc::clone(&self.shared_data),
+        }
     }
 
     fn process_audio(
-        recorder: &StaticSoundProcessorWithId<Recorder>,
+        // TODO: remove
+        _recorder: &StaticSoundProcessorWithId<Recorder>,
         state: &mut StateAndTiming<Self::StateType>,
         sound_inputs: &mut SingleInputNode,
         _expressions: &mut (),
@@ -108,11 +137,11 @@ impl StaticSoundProcessor for Recorder {
         ctx: Context,
     ) {
         let s = sound_inputs.step(state, dst, &ctx, LocalArrayList::new());
-        let recording = recorder.recording.load(Ordering::Relaxed);
+        let recording = state.shared_data.recording.load(Ordering::Relaxed);
         if !recording || s == StreamStatus::Done {
             return;
         }
-        let mut groups = recorder.recorded_chunk_groups.write();
+        let mut groups = state.shared_data.recorded_chunk_groups.write();
         debug_assert!(groups.len() >= 1);
         let last_group = groups.last_mut().unwrap();
         if last_group.chunks().len() < last_group.chunk_capacity() {
@@ -125,7 +154,7 @@ impl StaticSoundProcessor for Recorder {
     }
 
     fn serialize(&self, mut chive_in: ChiveIn) {
-        let data = self.recorded_chunk_groups.read();
+        let data = self.shared_data.recorded_chunk_groups.read();
         chive_in.array_iter_f32(data.iter().flat_map(|b| b.samples()).flatten());
     }
 }
