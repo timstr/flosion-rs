@@ -269,7 +269,7 @@ impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
     }
 }
 
-pub(crate) trait SoundProcessor: Sync + Send {
+pub(crate) trait SoundProcessor: Send {
     fn id(&self) -> SoundProcessorId;
 
     fn serialize(&self, chive_in: ChiveIn);

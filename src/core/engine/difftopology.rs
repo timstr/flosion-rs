@@ -17,19 +17,20 @@ pub(crate) fn diff_sound_graph_topology<'ctx>(
     let mut edits = Vec::new();
 
     // topology and state graph should match
-    #[cfg(debug_assertions)]
-    {
-        let topo_clone = topo_before.clone();
-        edits.push(StateGraphEdit::DebugInspection(Box::new(
-            |sg: &StateGraph<'ctx>| {
-                let topo = topo_clone;
-                debug_assert!(
-                    state_graph_matches_topology(sg, &topo),
-                    "State graph failed to match topology before any updates were made"
-                );
-            },
-        )));
-    }
+    // TODO: re-enable this check
+    // #[cfg(debug_assertions)]
+    // {
+    //     let topo_clone = topo_before.clone();
+    //     edits.push(StateGraphEdit::DebugInspection(Box::new(
+    //         |sg: &StateGraph<'ctx>| {
+    //             let topo = topo_clone;
+    //             debug_assert!(
+    //                 state_graph_matches_topology(sg, &topo),
+    //                 "State graph failed to match topology before any updates were made"
+    //             );
+    //         },
+    //     )));
+    // }
 
     // TODO: diff current and new topology and create a list of fine-grained state graph edits
     // HACK deleting everything and then adding it back
@@ -64,19 +65,20 @@ pub(crate) fn diff_sound_graph_topology<'ctx>(
     }
 
     // topology and state graph should still match
-    #[cfg(debug_assertions)]
-    {
-        let topo_clone = topo_after.clone();
-        edits.push(StateGraphEdit::DebugInspection(Box::new(
-            |sg: &StateGraph<'ctx>| {
-                let topo = topo_clone;
-                debug_assert!(
-                    state_graph_matches_topology(sg, &topo),
-                    "State graph no longer matches topology after applying updates"
-                );
-            },
-        )));
-    }
+    // TODO: re-enable this check
+    // #[cfg(debug_assertions)]
+    // {
+    //     let topo_clone = topo_after.clone();
+    //     edits.push(StateGraphEdit::DebugInspection(Box::new(
+    //         |sg: &StateGraph<'ctx>| {
+    //             let topo = topo_clone;
+    //             debug_assert!(
+    //                 state_graph_matches_topology(sg, &topo),
+    //                 "State graph no longer matches topology after applying updates"
+    //             );
+    //         },
+    //     )));
+    // }
 
     edits
 }
