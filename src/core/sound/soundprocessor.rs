@@ -65,7 +65,6 @@ pub trait StaticSoundProcessor: Sized + Sync + Send + WithObjectType {
     ) -> Self::Expressions<'ctx>;
 
     fn process_audio<'ctx>(
-        processor: &StaticSoundProcessorWithId<Self>,
         state: &mut StateAndTiming<Self::StateType>,
         sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
         expressions: &mut Self::Expressions<'ctx>,
@@ -280,7 +279,7 @@ pub(crate) trait SoundProcessor: Sync + Send {
     fn as_graph_object(self: Arc<Self>) -> AnySoundObjectHandle;
 
     fn compile<'a, 'ctx>(
-        self: Arc<Self>,
+        &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>;
 }
@@ -303,10 +302,10 @@ impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorW
     }
 
     fn compile<'a, 'ctx>(
-        self: Arc<Self>,
+        &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
-        let processor_node = CompiledStaticProcessor::new(Arc::clone(&self), compiler);
+        let processor_node = CompiledStaticProcessor::new(self, compiler);
         Box::new(processor_node)
     }
 }
@@ -329,10 +328,10 @@ impl<T: 'static + DynamicSoundProcessor> SoundProcessor for DynamicSoundProcesso
     }
 
     fn compile<'a, 'ctx>(
-        self: Arc<Self>,
+        &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
-        let processor_node = CompiledDynamicProcessor::new(&*self, compiler);
+        let processor_node = CompiledDynamicProcessor::new(self, compiler);
         Box::new(processor_node)
     }
 }

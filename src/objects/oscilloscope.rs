@@ -10,7 +10,7 @@ use crate::{
             context::{Context, LocalArrayList},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessor::{StateAndTiming, StaticSoundProcessor},
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -87,8 +87,6 @@ impl StaticSoundProcessor for Oscilloscope {
     }
 
     fn process_audio<'ctx>(
-        // TODO: remove
-        _processor: &StaticSoundProcessorWithId<Self>,
         state: &mut StateAndTiming<Self::StateType>,
         sound_input: &mut SingleInputNode<'ctx>,
         _expressions: &mut (),

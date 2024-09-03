@@ -32,9 +32,7 @@ use super::{
 /// processor is held, along with a unique copy of its compiled sound
 /// inputs and expressions.
 pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
-    // TODO: remove this!
-    processor: Arc<StaticSoundProcessorWithId<T>>,
-
+    id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
     expressions: T::Expressions<'ctx>,
@@ -43,7 +41,7 @@ pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
 impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
     /// Compile a new static processor for the state graph
     pub(crate) fn new<'a>(
-        processor: Arc<StaticSoundProcessorWithId<T>>,
+        processor: &StaticSoundProcessorWithId<T>,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
@@ -61,7 +59,7 @@ impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
             );
         }
         Self {
-            processor,
+            id: processor.id(),
             state,
             sound_input,
             expressions,
@@ -186,7 +184,7 @@ impl<'ctx, T: 'static + StaticSoundProcessor> CompiledSoundProcessor<'ctx>
     for CompiledStaticProcessor<'ctx, T>
 {
     fn id(&self) -> SoundProcessorId {
-        self.processor.id()
+        self.id
     }
 
     fn start_over(&mut self) {
@@ -195,7 +193,6 @@ impl<'ctx, T: 'static + StaticSoundProcessor> CompiledSoundProcessor<'ctx>
 
     fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
         T::process_audio(
-            &*self.processor,
             &mut self.state,
             &mut self.sound_input,
             &mut self.expressions,

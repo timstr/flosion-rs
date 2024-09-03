@@ -14,7 +14,7 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::Context,
-            soundprocessor::{StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId},
+            soundprocessor::{StateAndTiming, StaticSoundProcessor},
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -145,8 +145,6 @@ impl StaticSoundProcessor for Input {
     }
 
     fn process_audio<'ctx>(
-        // TODO: remove
-        _processor: &StaticSoundProcessorWithId<Self>,
         state: &mut StateAndTiming<Self::StateType>,
         _sound_inputs: &mut (),
         _expressions: &mut (),

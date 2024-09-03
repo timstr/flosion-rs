@@ -5,8 +5,7 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                DynamicSoundProcessor, StateAndTiming, StaticSoundProcessor,
-                StaticSoundProcessorWithId, StreamStatus,
+                DynamicSoundProcessor, StateAndTiming, StaticSoundProcessor, StreamStatus,
             },
             soundprocessortools::SoundProcessorTools,
             state::State,
@@ -45,7 +44,6 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
     }
 
     fn process_audio(
-        _processor: &StaticSoundProcessorWithId<TestStaticSoundProcessor>,
         _state: &mut StateAndTiming<Self::StateType>,
         _sound_inputs: &mut (),
         _expressions: &mut (),

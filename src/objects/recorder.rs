@@ -14,9 +14,7 @@ use crate::{
             context::{Context, LocalArrayList},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{
-                StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
-            },
+            soundprocessor::{StateAndTiming, StaticSoundProcessor, StreamStatus},
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -128,8 +126,6 @@ impl StaticSoundProcessor for Recorder {
     }
 
     fn process_audio(
-        // TODO: remove
-        _recorder: &StaticSoundProcessorWithId<Recorder>,
         state: &mut StateAndTiming<Self::StateType>,
         sound_inputs: &mut SingleInputNode,
         _expressions: &mut (),
