@@ -1,4 +1,4 @@
-use parking_lot::Mutex;
+use std::cell::RefCell;
 
 use crate::{
     core::{
@@ -48,34 +48,32 @@ pub struct Keyboard {
     pub input: KeyedInputQueue<KeyboardKeyState>,
     pub key_frequency: SoundExpressionArgumentHandle,
 
-    // TODO: remove Mutex
-    command_reader: Mutex<spmcq::Reader<KeyboardCommand>>,
-    command_writer: Mutex<spmcq::Writer<KeyboardCommand>>,
+    command_reader: spmcq::Reader<KeyboardCommand>,
+    command_writer: RefCell<spmcq::Writer<KeyboardCommand>>,
 }
 
 impl Keyboard {
     pub fn start_key(&self, id: KeyId, frequency: f32) {
         self.command_writer
-            .lock()
+            .borrow_mut()
             .write(KeyboardCommand::StartKey { id, frequency });
     }
 
     pub fn release_key(&self, id: KeyId) {
         self.command_writer
-            .lock()
+            .borrow_mut()
             .write(KeyboardCommand::ReleaseKey { id });
     }
 
     pub fn release_all_keys(&self) {
         self.command_writer
-            .lock()
+            .borrow_mut()
             .write(KeyboardCommand::ReleaseAllKeys);
     }
 }
 
 pub struct KeyboardState {
-    // TODO: remove Mutex once State needn't be Sync
-    command_reader: Mutex<spmcq::Reader<KeyboardCommand>>,
+    command_reader: spmcq::Reader<KeyboardCommand>,
 }
 
 impl State for KeyboardState {
@@ -102,8 +100,8 @@ impl StaticSoundProcessor for Keyboard {
         Ok(Keyboard {
             input,
             key_frequency,
-            command_writer: Mutex::new(command_writer),
-            command_reader: Mutex::new(command_reader),
+            command_writer: RefCell::new(command_writer),
+            command_reader: command_reader,
         })
     }
 
@@ -120,7 +118,7 @@ impl StaticSoundProcessor for Keyboard {
 
     fn make_state(&self) -> Self::StateType {
         KeyboardState {
-            command_reader: Mutex::new(self.command_reader.lock().clone()),
+            command_reader: self.command_reader.clone(),
         }
     }
 
@@ -131,9 +129,8 @@ impl StaticSoundProcessor for Keyboard {
         dst: &mut SoundChunk,
         context: Context,
     ) {
-        let mut reader = state.command_reader.lock();
         let reuse = KeyReuse::StopOldStartNew;
-        while let Some(msg) = reader.read().value() {
+        while let Some(msg) = state.command_reader.read().value() {
             match msg {
                 KeyboardCommand::StartKey { id, frequency } => {
                     sound_input_node.start_key(None, id.0, KeyboardKeyState { frequency }, reuse);
