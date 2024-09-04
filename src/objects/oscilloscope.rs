@@ -21,29 +21,21 @@ use crate::{
 
 pub struct Oscilloscope {
     pub input: SingleInput,
-    // TODO: AAAH I don't want this Mutex here
-    // but it's currently required to be Sync.
-    // Sure it's cool to be able to access the
-    // sound processor from the GUI but is there
-    // a way to do so without slowing down the
-    // audio thread? Maybe have some parts of
-    // static processors live on the audio thread
-    // only, similar to state for dynamic processors?
-    chunk_reader: Mutex<spmcq::Reader<SoundChunk>>,
+    chunk_reader: spmcq::Reader<SoundChunk>,
+    // NOTE: using Arc<Mutex<...>> because spmcq::Writer can't be cloned.
+    // It might be worth using a different queue or somehow guaranteeing
+    // at the type system level that only once instance of a static processor's
+    // state exists at one time
     chunk_writer: Arc<Mutex<spmcq::Writer<SoundChunk>>>,
 }
 
 impl Oscilloscope {
     pub fn get_buffer_reader(&self) -> spmcq::Reader<SoundChunk> {
-        self.chunk_reader.lock().clone()
+        self.chunk_reader.clone()
     }
 }
 
 pub struct OscilloscopeState {
-    // NOTE: using Arc<Mutex<...>> because spmcq::Writer can't be cloned.
-    // It might be worth using a different queue or somehow guaranteeing
-    // at the type system level that only once instance of a static processor's
-    // state exists at one time
     chunk_writer: Arc<Mutex<spmcq::Writer<SoundChunk>>>,
 }
 
@@ -64,7 +56,7 @@ impl StaticSoundProcessor for Oscilloscope {
         let (reader, writer) = spmcq::ring_buffer(64);
         Ok(Oscilloscope {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            chunk_reader: Mutex::new(reader),
+            chunk_reader: reader,
             chunk_writer: Arc::new(Mutex::new(writer)),
         })
     }
