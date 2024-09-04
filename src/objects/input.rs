@@ -4,7 +4,6 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     BufferSize, SampleRate, StreamConfig,
 };
-use parking_lot::Mutex;
 use spmcq::ReadResult;
 
 use crate::{
@@ -27,17 +26,13 @@ use crate::{
 // AudioIn?
 
 pub struct Input {
-    // TODO: how to do without mutex? In principle, only
-    // the one state graph node corresponding to this
-    // static processor will ever access this.
-    // Maybe it's time to relax some trait bounds on StaticSoundProcessor WOOP WOOP
-    chunk_receiver: Mutex<spmcq::Reader<SoundChunk>>,
+    chunk_receiver: spmcq::Reader<SoundChunk>,
     stream_end_barrier: Arc<Barrier>,
 }
 
 impl Input {
     pub fn get_buffer_reader(&self) -> spmcq::Reader<SoundChunk> {
-        self.chunk_receiver.lock().clone()
+        self.chunk_receiver.clone()
     }
 }
 
@@ -48,8 +43,7 @@ impl Drop for Input {
 }
 
 pub struct InputState {
-    // TODO: remove Sync requirement from State, then remove Mutex here
-    chunk_receiver: Mutex<spmcq::Reader<SoundChunk>>,
+    chunk_receiver: spmcq::Reader<SoundChunk>,
 }
 
 impl State for InputState {
@@ -122,7 +116,7 @@ impl StaticSoundProcessor for Input {
         });
 
         Ok(Input {
-            chunk_receiver: Mutex::new(rx),
+            chunk_receiver: rx,
             stream_end_barrier: barrier,
         })
     }
@@ -140,7 +134,7 @@ impl StaticSoundProcessor for Input {
 
     fn make_state(&self) -> Self::StateType {
         InputState {
-            chunk_receiver: Mutex::new(self.chunk_receiver.lock().clone()),
+            chunk_receiver: self.chunk_receiver.clone(),
         }
     }
 
@@ -151,7 +145,7 @@ impl StaticSoundProcessor for Input {
         dst: &mut SoundChunk,
         _context: Context,
     ) {
-        let chunk = match state.chunk_receiver.lock().read() {
+        let chunk = match state.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,
             ReadResult::Dropout(ch) => {
                 println!("WARNING: Input dropout");
