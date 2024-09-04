@@ -83,8 +83,6 @@ pub struct FlosionApp<'ctx> {
 
     previous_clean_revision: Option<RevisionHash>,
 
-    inkwell_context: &'ctx inkwell::context::Context,
-
     audio_thread: Option<ScopedJoinHandle<'ctx, ()>>,
 
     stop_button: StopButton,
@@ -124,7 +122,6 @@ impl<'ctx> FlosionApp<'ctx> {
             graph_layout: StackedLayout::new(),
             properties,
             previous_clean_revision: None,
-            inkwell_context,
             audio_thread: Some(audio_thread),
             stop_button,
             engine_interface,
