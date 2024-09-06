@@ -18,25 +18,12 @@ pub(crate) struct ExpressionNodeData {
 }
 
 impl ExpressionNodeData {
-    /// Create a new ExpressionNodeData instance with the given id and
-    /// instance
-    pub(crate) fn new(
-        id: ExpressionNodeId,
-        instance: Rc<dyn ExpressionNode>,
-    ) -> ExpressionNodeData {
-        ExpressionNodeData {
-            id,
-            instance: Some(instance),
-            inputs: Vec::new(),
-        }
-    }
-
     /// Create a new ExpressionNodeData which does not yet contain an
     /// instance, and is thus only partially valid. Attempts to access
     /// the instance before it is supplied with `set_instance()` will
     /// panic. This enable two-phase initialization, e.g. to make
     /// safe topological changes in the instance's `new()` method.
-    pub(crate) fn new_empty(id: ExpressionNodeId) -> ExpressionNodeData {
+    pub(super) fn new_empty(id: ExpressionNodeId) -> ExpressionNodeData {
         ExpressionNodeData {
             id,
             instance: None,
@@ -130,7 +117,7 @@ pub(crate) struct ExpressionNodeInputData {
 
 impl ExpressionNodeInputData {
     /// Create a new ExpressionNodeInputData instance
-    pub(crate) fn new(
+    pub(super) fn new(
         id: ExpressionNodeInputId,
         owner: ExpressionNodeId,
         default_value: f32,
@@ -209,7 +196,7 @@ pub(crate) struct ExpressionGraphResultData {
 
 impl ExpressionGraphResultData {
     /// Create a new ExpressionGraphResultData instance.
-    pub(crate) fn new(
+    pub(super) fn new(
         id: ExpressionGraphResultId,
         default_value: f32,
     ) -> ExpressionGraphResultData {
