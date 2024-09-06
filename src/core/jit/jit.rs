@@ -14,7 +14,7 @@ use inkwell::{
 use crate::core::{
     engine::garbage::Droppable,
     expression::{
-        expressiongraphdata::ExpressionTarget, expressiongraphtopology::ExpressionGraphTopology,
+        expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
         expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
     },
     sound::{
@@ -372,7 +372,7 @@ impl<'ctx> Jit<'ctx> {
     fn visit_input(
         &mut self,
         input_id: ExpressionNodeInputId,
-        topology: &ExpressionGraphTopology,
+        topology: &ExpressionGraph,
     ) -> FloatValue<'ctx> {
         let input_data = topology.node_input(input_id).unwrap();
         match input_data.target() {
@@ -391,7 +391,7 @@ impl<'ctx> Jit<'ctx> {
     fn visit_target(
         &mut self,
         target: ExpressionTarget,
-        topology: &ExpressionGraphTopology,
+        topology: &ExpressionGraph,
     ) -> FloatValue<'ctx> {
         if let Some(v) = self.compiled_targets.get(&target) {
             return *v;
@@ -923,7 +923,7 @@ impl<'ctx> Jit<'ctx> {
     ) -> CompiledExpressionArtefact<'ctx> {
         let sg_expr_data = topology.expression(expression_id).unwrap();
 
-        let expr_topo = sg_expr_data.expression_graph().topology();
+        let expr_topo = sg_expr_data.expression_graph();
 
         // pre-compile all expression graph arguments
         for (giid, snsid) in sg_expr_data.parameter_mapping().items() {

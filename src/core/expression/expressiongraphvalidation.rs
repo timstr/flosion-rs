@@ -1,10 +1,10 @@
 use super::{
-    expressiongraphdata::ExpressionTarget, expressiongrapherror::ExpressionError,
-    expressiongraphtopology::ExpressionGraphTopology, expressionnodeinput::ExpressionNodeInputId,
+    expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
+    expressiongrapherror::ExpressionError, expressionnodeinput::ExpressionNodeInputId,
     path::ExpressionPath,
 };
 
-pub(crate) fn find_expression_error(topology: &ExpressionGraphTopology) -> Option<ExpressionError> {
+pub(super) fn find_expression_error(topology: &ExpressionGraph) -> Option<ExpressionError> {
     check_missing_ids(topology);
 
     if let Some(path) = find_expression_cycle(topology) {
@@ -14,7 +14,7 @@ pub(crate) fn find_expression_error(topology: &ExpressionGraphTopology) -> Optio
     None
 }
 
-fn check_missing_ids(topology: &ExpressionGraphTopology) {
+fn check_missing_ids(topology: &ExpressionGraph) {
     for ns in topology.nodes().values() {
         // for each node
 
@@ -112,12 +112,12 @@ fn check_missing_ids(topology: &ExpressionGraphTopology) {
     // no checks needed for graph inputs as they have no additional data
 }
 
-fn find_expression_cycle(topology: &ExpressionGraphTopology) -> Option<ExpressionPath> {
+fn find_expression_cycle(topology: &ExpressionGraph) -> Option<ExpressionPath> {
     fn dfs_find_cycle(
         input_id: ExpressionNodeInputId,
         visited: &mut Vec<ExpressionNodeInputId>,
         path: &mut ExpressionPath,
-        topo: &ExpressionGraphTopology,
+        topo: &ExpressionGraph,
     ) -> Option<ExpressionPath> {
         if !visited.contains(&input_id) {
             visited.push(input_id);
@@ -162,7 +162,7 @@ fn find_expression_cycle(topology: &ExpressionGraphTopology) -> Option<Expressio
 }
 
 pub(crate) fn validate_expression_connection(
-    topology: &ExpressionGraphTopology,
+    topology: &ExpressionGraph,
     input_id: ExpressionNodeInputId,
     target: ExpressionTarget,
 ) -> Result<(), ExpressionError> {

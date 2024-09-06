@@ -4,9 +4,8 @@ use eframe::egui;
 use crate::{
     core::{
         expression::{
-            expressiongraphdata::ExpressionTarget,
-            expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
-            expressionobject::ExpressionObjectFactory,
+            expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
+            expressionnode::ExpressionNodeId, expressionobject::ExpressionObjectFactory,
         },
         objecttype::{ObjectType, WithObjectType},
         sound::soundgraph::SoundGraph,
@@ -213,7 +212,7 @@ pub(crate) struct LexicalLayout {
 
 impl LexicalLayout {
     pub(crate) fn generate(
-        topo: &ExpressionGraphTopology,
+        topo: &ExpressionGraph,
         object_ui_states: &ExpressionNodeObjectUiStates,
         ui_factory: &ExpressionObjectUiFactory,
     ) -> LexicalLayout {
@@ -228,7 +227,7 @@ impl LexicalLayout {
         fn visit_target(
             target: ExpressionTarget,
             variable_assignments: &mut Vec<VariableDefinition>,
-            topo: &ExpressionGraphTopology,
+            topo: &ExpressionGraph,
             object_ui_states: &ExpressionNodeObjectUiStates,
             variable_id_generator: &mut IdGenerator<VariableId>,
             ui_factory: &ExpressionObjectUiFactory,
@@ -336,7 +335,7 @@ impl LexicalLayout {
     ) {
         debug_assert!(
             outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g.topology())
+                lexical_layout_matches_expression_graph(self, g)
             })
         );
 
@@ -368,7 +367,7 @@ impl LexicalLayout {
 
         debug_assert!(
             outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g.topology())
+                lexical_layout_matches_expression_graph(self, g)
             })
         );
     }
@@ -407,7 +406,7 @@ impl LexicalLayout {
                 LineLocation::FinalExpression => {
                     let output_id =
                         outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                            let outputs = g.topology().results();
+                            let outputs = g.results();
                             assert_eq!(outputs.len(), 1);
                             outputs[0].id()
                         });
@@ -679,14 +678,9 @@ impl LexicalLayout {
         ctx: &ExpressionGraphUiContext,
         outer_context: &OuterExpressionGraphUiContext,
     ) -> egui::Rect {
-        let graph_object =
-            outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
-                graph
-                    .topology()
-                    .node(id)
-                    .unwrap()
-                    .instance_rc()
-                    .as_graph_object()
+        let graph_object = outer_context
+            .inspect_expression_graph(sound_graph.topology(), |graph| {
+                graph.node(id).unwrap().instance_rc().as_graph_object()
             });
         ui.horizontal_centered(|ui| {
             outer_context
@@ -719,7 +713,7 @@ impl LexicalLayout {
     ) {
         debug_assert!(
             outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g.topology())
+                lexical_layout_matches_expression_graph(self, g)
             })
         );
 
@@ -797,7 +791,7 @@ impl LexicalLayout {
 
         debug_assert!(
             outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g.topology())
+                lexical_layout_matches_expression_graph(self, g)
             })
         );
     }
@@ -894,7 +888,7 @@ impl LexicalLayout {
 
             debug_assert!(
                 outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                    lexical_layout_matches_expression_graph(self, g.topology())
+                    lexical_layout_matches_expression_graph(self, g)
                 })
             );
 
@@ -959,7 +953,7 @@ impl LexicalLayout {
 
             debug_assert!(
                 outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                    lexical_layout_matches_expression_graph(self, g.topology())
+                    lexical_layout_matches_expression_graph(self, g)
                 })
             );
 
@@ -1013,12 +1007,7 @@ impl LexicalLayout {
         let layout = object_ui.make_properties();
 
         let num_inputs = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
-            graph
-                .topology()
-                .node(new_object.id())
-                .unwrap()
-                .inputs()
-                .len()
+            graph.node(new_object.id()).unwrap().inputs().len()
         });
         let child_nodes: Vec<ASTNode> = (0..num_inputs)
             .map(|_| ASTNode::new(ASTNodeValue::Empty))
@@ -1059,12 +1048,12 @@ impl LexicalLayout {
             .visit_mut(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
     }
 
-    pub(crate) fn cleanup(&mut self, topology: &ExpressionGraphTopology) {
+    pub(crate) fn cleanup(&mut self, topology: &ExpressionGraph) {
         fn visitor(
             node: &mut ASTNode,
             expected_target: Option<ExpressionTarget>,
             variable_definitions: &[VariableDefinition],
-            topo: &ExpressionGraphTopology,
+            topo: &ExpressionGraph,
         ) {
             let actual_target = node.indirect_target(variable_definitions);
             if expected_target == actual_target {

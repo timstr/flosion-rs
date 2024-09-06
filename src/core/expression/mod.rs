@@ -2,7 +2,6 @@ pub mod context;
 pub mod expressiongraph;
 pub mod expressiongraphdata;
 pub mod expressiongrapherror;
-pub mod expressiongraphtopology;
 mod expressiongraphvalidation;
 pub mod expressionnode;
 pub mod expressionnodeinput;

@@ -1,9 +1,7 @@
 use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
-    expression::{
-        expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
-    },
+    expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeId},
     sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology},
 };
 
@@ -33,7 +31,7 @@ impl ExpressionNodeObjectUiStates {
     /// Automatically fill the ui states for all objects in the given
     /// expression graph topology with default-created ui states.
     pub(super) fn generate(
-        topo: &ExpressionGraphTopology,
+        topo: &ExpressionGraph,
         factory: &ExpressionObjectUiFactory,
     ) -> ExpressionNodeObjectUiStates {
         let mut states = Self::new();
@@ -66,7 +64,7 @@ impl ExpressionNodeObjectUiStates {
 
     /// Remove any state associated with objects that no longer
     /// exist in the given topology.
-    pub(super) fn cleanup(&mut self, topology: &ExpressionGraphTopology) {
+    pub(super) fn cleanup(&mut self, topology: &ExpressionGraph) {
         self.data.retain(|id, _| topology.nodes().contains_key(id));
     }
 }
@@ -81,7 +79,7 @@ impl ExpressionGraphUiState {
     /// Automatically generate the ui state for the given expression graph
     /// topology. All expression node objects will be assigned default ui state.
     pub(crate) fn generate(
-        topo: &ExpressionGraphTopology,
+        topo: &ExpressionGraph,
         factory: &ExpressionObjectUiFactory,
     ) -> ExpressionGraphUiState {
         let object_states = ExpressionNodeObjectUiStates::generate(topo, factory);
@@ -101,7 +99,7 @@ impl ExpressionGraphUiState {
 
     /// Remove any data associated with objects that no longer exist in
     /// the given topology.
-    fn cleanup(&mut self, topo: &ExpressionGraphTopology) {
+    fn cleanup(&mut self, topo: &ExpressionGraph) {
         self.object_states.cleanup(topo);
     }
 }
@@ -144,11 +142,7 @@ impl ExpressionUiCollection {
 
         // Clean up the internal ui data of individual expressions
         for (eid, (expr_ui_state, layout)) in &mut self.data {
-            let expr_topo = topology
-                .expression(*eid)
-                .unwrap()
-                .expression_graph()
-                .topology();
+            let expr_topo = topology.expression(*eid).unwrap().expression_graph();
             expr_ui_state.cleanup(expr_topo);
             layout.cleanup(expr_topo)
         }
@@ -159,11 +153,10 @@ impl ExpressionUiCollection {
                 continue;
             }
 
-            let mut ui_state =
-                ExpressionGraphUiState::generate(expr.expression_graph().topology(), factory);
+            let mut ui_state = ExpressionGraphUiState::generate(expr.expression_graph(), factory);
 
             let layout = LexicalLayout::generate(
-                expr.expression_graph().topology(),
+                expr.expression_graph(),
                 ui_state.object_states_mut(),
                 factory,
             );

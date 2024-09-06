@@ -3,7 +3,9 @@ use core::panic;
 use crate::{
     core::{
         expression::{
-            expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+            expressiongraph::{
+                clean_up_and_remove_expression_node, ExpressionGraph, ExpressionGraphParameterId,
+            },
             expressiongraphdata::ExpressionTarget,
         },
         sound::soundgraph::SoundGraph,
@@ -82,7 +84,7 @@ pub(super) fn insert_to_graph_at_cursor(
                         .edit_expression_graph(sound_graph, |graph| {
                             // if the cursor points to the final expression, reconnect
                             // the graph output
-                            let results = graph.topology().results();
+                            let results = graph.results();
                             debug_assert_eq!(results.len(), 1);
                             let result = results.first().unwrap();
                             debug_assert_eq!(n.direct_target(), None);
@@ -100,7 +102,7 @@ pub(super) fn insert_to_graph_at_cursor(
             outer_context
                 .edit_expression_graph(sound_graph, |graph| {
                     let parent_nsid = parent_node.expression_node_id();
-                    let parent_ns = graph.topology().node(parent_nsid).unwrap();
+                    let parent_ns = graph.node(parent_nsid).unwrap();
                     let parent_inputs = parent_ns.inputs();
                     debug_assert_eq!(parent_inputs.len(), parent_node.num_children());
                     let input_id = parent_inputs[child_index];
@@ -148,7 +150,9 @@ fn delete_nodes_from_graph_at_cursor(
         }
 
         // Delete the expression node itself
-        graph.remove_expression_node(nsid).unwrap();
+        graph
+            .try_make_change(|graph| clean_up_and_remove_expression_node(graph, nsid))
+            .unwrap();
     }
 
     outer_context
@@ -223,17 +227,21 @@ fn disconnect_each_variable_use(
                 disconnect_each_variable_use(layout, cursor, var_id, graph);
             }
             ASTNodeParent::FinalExpression => {
-                let outputs = graph.topology().results();
+                let outputs = graph.results();
                 debug_assert_eq!(outputs.len(), 1);
                 let goid = outputs[0].id();
-                graph.disconnect_result(goid).unwrap();
+                graph
+                    .try_make_change(|graph| graph.disconnect_result(goid))
+                    .unwrap();
             }
             ASTNodeParent::InternalNode(internal_node, child_index) => {
                 let nsid = internal_node.expression_node_id();
-                let inputs = graph.topology().node(nsid).unwrap().inputs();
+                let inputs = graph.node(nsid).unwrap().inputs();
                 debug_assert_eq!(inputs.len(), internal_node.num_children());
                 let niid = inputs[child_index];
-                graph.disconnect_node_input(niid).unwrap();
+                graph
+                    .try_make_change(|graph| graph.disconnect_node_input(niid))
+                    .unwrap();
             }
         }
     });
@@ -267,17 +275,21 @@ fn connect_each_variable_use(
                             variables_to_connect.push(var_id);
                         }
                         ASTNodeParent::FinalExpression => {
-                            let outputs = graph.topology().results();
+                            let outputs = graph.results();
                             debug_assert_eq!(outputs.len(), 1);
                             let goid = outputs[0].id();
-                            graph.connect_result(goid, target).unwrap();
+                            graph
+                                .try_make_change(|graph| graph.connect_result(goid, target))
+                                .unwrap();
                         }
                         ASTNodeParent::InternalNode(internal_node, child_index) => {
                             let nsid = internal_node.expression_node_id();
-                            let inputs = graph.topology().node(nsid).unwrap().inputs();
+                            let inputs = graph.node(nsid).unwrap().inputs();
                             debug_assert_eq!(inputs.len(), internal_node.num_children());
                             let niid = inputs[child_index];
-                            graph.connect_node_input(niid, target).unwrap();
+                            graph
+                                .try_make_change(|graph| graph.connect_node_input(niid, target))
+                                .unwrap();
                         }
                     }
                 });
@@ -315,14 +327,14 @@ pub(super) fn remove_unreferenced_parameters(
 
         debug_assert!((|| {
             for giid in &referenced_parameters {
-                if !graph.topology().parameters().contains(giid) {
+                if !graph.parameters().contains(giid) {
                     return false;
                 }
             }
             true
         })());
 
-        let all_parameters = graph.topology().parameters().to_vec();
+        let all_parameters = graph.parameters().to_vec();
         all_parameters
     });
 
@@ -334,7 +346,7 @@ pub(super) fn remove_unreferenced_parameters(
 }
 
 fn disconnect_result(layout: &LexicalLayout, graph: &mut ExpressionGraph) {
-    let results = graph.topology().results();
+    let results = graph.results();
     debug_assert_eq!(results.len(), 1);
     let result = results.first().unwrap();
     debug_assert_eq!(
@@ -343,17 +355,14 @@ fn disconnect_result(layout: &LexicalLayout, graph: &mut ExpressionGraph) {
             .indirect_target(layout.variable_definitions()),
         result.target()
     );
-    if graph
-        .topology()
-        .result(result.id())
-        .unwrap()
-        .target()
-        .is_none()
-    {
+    let result_id = result.id();
+    if graph.result(result_id).unwrap().target().is_none() {
         // Graph output is already disconnected
         return;
     }
-    graph.disconnect_result(result.id()).unwrap();
+    graph
+        .try_make_change(|graph| graph.disconnect_result(result_id))
+        .unwrap();
 }
 
 fn disconnect_internal_node(
@@ -362,16 +371,12 @@ fn disconnect_internal_node(
     graph: &mut ExpressionGraph,
 ) {
     let nsid = parent_node.expression_node_id();
-    let parent_ns_inputs = graph.topology().node(nsid).unwrap().inputs();
+    let parent_ns_inputs = graph.node(nsid).unwrap().inputs();
     debug_assert_eq!(parent_ns_inputs.len(), parent_node.num_children());
     let input = parent_ns_inputs[child_index];
-    if graph
-        .topology()
-        .node_input(input)
-        .unwrap()
-        .target()
-        .is_some()
-    {
-        graph.disconnect_node_input(input).unwrap();
+    if graph.node_input(input).unwrap().target().is_some() {
+        graph
+            .try_make_change(|graph| graph.disconnect_node_input(input))
+            .unwrap();
     }
 }

@@ -2,8 +2,9 @@ use std::collections::HashSet;
 
 use crate::{
     core::expression::{
-        expressiongraph::ExpressionGraphParameterId, expressiongraphdata::ExpressionTarget,
-        expressiongraphtopology::ExpressionGraphTopology, expressionnode::ExpressionNodeId,
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+        expressiongraphdata::ExpressionTarget,
+        expressionnode::ExpressionNodeId,
     },
     ui_core::lexicallayout::ast::{
         find_variable_definition, ASTNode, ASTNodeValue, VariableDefinition,
@@ -14,7 +15,7 @@ use super::lexicallayout::LexicalLayout;
 
 pub(super) fn lexical_layout_matches_expression_graph(
     layout: &LexicalLayout,
-    topology: &ExpressionGraphTopology,
+    topology: &ExpressionGraph,
 ) -> bool {
     let mut visited_sources: HashSet<ExpressionNodeId> = HashSet::new();
 
@@ -26,7 +27,7 @@ pub(super) fn lexical_layout_matches_expression_graph(
         expected_target: Option<ExpressionTarget>,
         visited_sources: &mut HashSet<ExpressionNodeId>,
         visited_graph_inputs: &mut HashSet<ExpressionGraphParameterId>,
-        topology: &ExpressionGraphTopology,
+        topology: &ExpressionGraph,
     ) -> bool {
         match node.value() {
             ASTNodeValue::Empty => {

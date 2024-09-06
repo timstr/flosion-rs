@@ -188,12 +188,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
             .add_pure_expression_node::<T>(&ParsedArguments::new_empty())
             .unwrap();
 
-        let input_ids = expr_graph
-            .topology()
-            .node(ns_handle.id())
-            .unwrap()
-            .inputs()
-            .to_vec();
+        let input_ids = expr_graph.node(ns_handle.id()).unwrap().inputs().to_vec();
 
         for (niid, giid) in input_ids.into_iter().zip(
             [giid0, giid1, giid2]
@@ -214,7 +209,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
         expr_graph
             .connect_result(
-                expr_graph.topology().results()[0].id(),
+                expr_graph.results()[0].id(),
                 ExpressionTarget::Node(ns_handle.id()),
             )
             .unwrap();

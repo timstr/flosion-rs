@@ -7,10 +7,7 @@ use std::{
 use hashrevise::{Revisable, RevisionHash, RevisionHasher};
 
 use crate::core::{
-    expression::{
-        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
-        expressiongraphtopology::ExpressionGraphTopology,
-    },
+    expression::expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
     uniqueid::UniqueId,
 };
 
@@ -256,14 +253,14 @@ impl ExpressionParameterMapping {
         argument_id: SoundExpressionArgumentId,
         expr_graph: &mut ExpressionGraph,
     ) -> ExpressionGraphParameterId {
-        debug_assert!(self.check_invariants(expr_graph.topology()));
+        debug_assert!(self.check_invariants(expr_graph));
         if let Some(giid) = self.parameter_from_argument(argument_id) {
             return giid;
         }
         let giid = expr_graph.add_parameter();
         let prev = self.mapping.insert(giid, argument_id);
         debug_assert_eq!(prev, None);
-        debug_assert!(self.check_invariants(expr_graph.topology()));
+        debug_assert!(self.check_invariants(expr_graph));
         giid
     }
 
@@ -272,15 +269,15 @@ impl ExpressionParameterMapping {
         argument_id: SoundExpressionArgumentId,
         expr_graph: &mut ExpressionGraph,
     ) {
-        debug_assert!(self.check_invariants(expr_graph.topology()));
+        debug_assert!(self.check_invariants(expr_graph));
         let giid = self.parameter_from_argument(argument_id).unwrap();
         expr_graph.remove_parameter(giid).unwrap();
         let prev = self.mapping.remove(&giid);
         debug_assert!(prev.is_some());
-        debug_assert!(self.check_invariants(expr_graph.topology()));
+        debug_assert!(self.check_invariants(expr_graph));
     }
 
-    fn check_invariants(&self, topology: &ExpressionGraphTopology) -> bool {
+    fn check_invariants(&self, topology: &ExpressionGraph) -> bool {
         let mapped_params: HashSet<ExpressionGraphParameterId> =
             self.mapping.keys().cloned().collect();
         let actual_params: HashSet<ExpressionGraphParameterId> =
@@ -383,9 +380,7 @@ impl SoundExpressionData {
     }
 
     pub(crate) fn parameter_mapping(&self) -> &ExpressionParameterMapping {
-        debug_assert!(self
-            .target_mapping
-            .check_invariants(self.expression_graph.topology()));
+        debug_assert!(self.target_mapping.check_invariants(&self.expression_graph));
         &self.target_mapping
     }
 
@@ -417,7 +412,7 @@ impl Revisable for SoundExpressionData {
         let mut hasher = RevisionHasher::new();
         hasher.write_revisable(&self.id);
         hasher.write_revisable(&self.target_mapping);
-        hasher.write_revisable(&self.expression_graph.topology());
+        hasher.write_revisable(&self.expression_graph);
         hasher.write_revisable(&self.owner);
         hasher.write_revisable(&self.scope);
         hasher.into_revision()

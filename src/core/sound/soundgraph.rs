@@ -18,33 +18,7 @@ use super::{
     },
 };
 
-/// A network of connected sound processors which are processing
-/// audio in real time. SoundGraph combines both the individual
-/// sound graph components living inside its SoundGraphTopology
-/// with a SoundEngine instance which conducts audio processing
-/// for those components.
-///
-/// Use a SoundGraph instance's methods to make changes to the
-/// sound graph, such as adding, connecting, and removing sound
-/// processors and their components. These changes will first be
-/// validated locally for immediate error handling feedback.
-/// Next, the changes will persist in local copy of the topology
-/// which is available for immediate inspection at all times.
-/// Finally, all edits are sent asynchronously to the SoundEngine
-/// thread where the changes can be heard.
-///
-/// Currently, two additional threads are involved. A bookkeeping
-/// thread is spawned which performs various asynchronous duties,
-/// including receiving edits from the SoundGraph instance and
-/// compiling them for the SoundEngine on the separate high-priority
-/// audio thread. The SoundEngine maintains a StateGraph instance,
-/// which is a compiled artefact representing a directly executable
-/// version of the sound graph. Thus, the bookkeeping thread compiles
-/// topology changes into StateGraphEdits. Other chores that the
-/// bookkeeping thread does include running the JIT compiler to
-/// produce executable expression and taking out the garbage,
-/// i.e. disposing of resources that could potentially block the
-/// audio thread.
+// TODO: consider replacing SoundGraph with/renaming SoundGraphTopology
 pub struct SoundGraph {
     local_topology: SoundGraphTopology,
 
