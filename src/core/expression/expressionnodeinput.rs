@@ -8,22 +8,14 @@ pub type ExpressionNodeInputId = UniqueId<ExpressionNodeInputTag>;
 
 pub struct ExpressionNodeInputHandle {
     id: ExpressionNodeInputId,
-    owner: ExpressionNodeId,
 }
 
 impl ExpressionNodeInputHandle {
-    pub(crate) fn new(
-        id: ExpressionNodeInputId,
-        owner: ExpressionNodeId,
-    ) -> ExpressionNodeInputHandle {
-        ExpressionNodeInputHandle { id, owner }
+    pub(crate) fn new(id: ExpressionNodeInputId) -> ExpressionNodeInputHandle {
+        ExpressionNodeInputHandle { id }
     }
 
     pub fn id(&self) -> ExpressionNodeInputId {
         self.id
-    }
-
-    pub(super) fn owner(&self) -> ExpressionNodeId {
-        self.owner
     }
 }

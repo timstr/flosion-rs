@@ -80,13 +80,6 @@ impl ExpressionGraph {
         self.nodes.get(&id)
     }
 
-    pub(super) fn node_mut(
-        &mut self,
-        id: ExpressionNodeId,
-    ) -> Option<&mut Revised<ExpressionNodeData>> {
-        self.nodes.get_mut(&id)
-    }
-
     pub(crate) fn node_inputs(
         &self,
     ) -> &RevisedHashMap<ExpressionNodeInputId, ExpressionNodeInputData> {

@@ -266,7 +266,7 @@ pub struct SingleInputList {
     // SoundProcessorTools is required to change the input
     // anyway and therefore mutable access to the graph
     // is already held
-    // TODO: revisit this now that SoundGraph is not Sync + Send
+    // TODO: remove this once mutable access to SoundGraph data is allowed
     input_ids: RwLock<Vec<SoundInputId>>,
     options: InputOptions,
 }

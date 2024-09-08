@@ -21,7 +21,7 @@ impl<'a> ExpressionNodeTools<'a> {
             .graph
             .add_node_input(self.node_id, default_value)
             .unwrap();
-        ExpressionNodeInputHandle::new(id, self.node_id)
+        ExpressionNodeInputHandle::new(id)
     }
 
     pub fn remove_input(&mut self, handle: ExpressionNodeInputHandle) {

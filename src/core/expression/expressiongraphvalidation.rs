@@ -160,17 +160,3 @@ fn find_expression_cycle(graph: &ExpressionGraph) -> Option<ExpressionPath> {
         }
     }
 }
-
-pub(crate) fn validate_expression_connection(
-    graph: &ExpressionGraph,
-    input_id: ExpressionNodeInputId,
-    target: ExpressionTarget,
-) -> Result<(), ExpressionError> {
-    // Lazy approach: duplicate the graph, make the edit, and see what happens
-    let mut graph = graph.clone();
-    graph.connect_node_input(input_id, target)?;
-    if let Some(err) = find_expression_error(&graph) {
-        return Err(err);
-    }
-    Ok(())
-}

@@ -58,10 +58,6 @@ impl SoundGraphUiState {
         &self.object_states
     }
 
-    pub(crate) fn interactions(&self) -> &GlobalInteractions {
-        &self.interactions
-    }
-
     pub(crate) fn interactions_mut(&mut self) -> &mut GlobalInteractions {
         &mut self.interactions
     }

@@ -116,6 +116,7 @@ impl SoundGraph {
     }
 
     /// Look up a specific expression by its id with mutable access
+    #[cfg(test)]
     pub(crate) fn expression_mut(
         &mut self,
         id: SoundExpressionId,

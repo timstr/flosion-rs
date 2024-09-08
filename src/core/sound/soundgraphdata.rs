@@ -134,16 +134,6 @@ pub(crate) struct SoundProcessorData {
 }
 
 impl SoundProcessorData {
-    pub(super) fn new(processor: Rc<dyn SoundProcessor>) -> SoundProcessorData {
-        SoundProcessorData {
-            id: processor.id(),
-            processor: Some(processor),
-            sound_inputs: Vec::new(),
-            arguments: Vec::new(),
-            expressions: Vec::new(),
-        }
-    }
-
     pub(super) fn new_empty(id: SoundProcessorId) -> SoundProcessorData {
         SoundProcessorData {
             id,

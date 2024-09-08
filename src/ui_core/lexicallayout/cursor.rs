@@ -33,14 +33,6 @@ impl LexicalLayoutCursor {
         }
     }
 
-    pub(super) fn path(&self) -> Option<&ASTPath> {
-        match self {
-            LexicalLayoutCursor::AtVariableName(_) => None,
-            LexicalLayoutCursor::AtVariableValue(_, p) => Some(p),
-            LexicalLayoutCursor::AtFinalExpression(p) => Some(p),
-        }
-    }
-
     pub(super) fn path_mut(&mut self) -> Option<&mut ASTPath> {
         match self {
             LexicalLayoutCursor::AtVariableName(_) => None,
