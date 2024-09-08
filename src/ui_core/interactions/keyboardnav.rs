@@ -2,8 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::sound::{
-        expression::SoundExpressionId, soundgraph::SoundGraph,
-        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
+        expression::SoundExpressionId, soundgraph::SoundGraph, soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
@@ -141,12 +140,10 @@ impl KeyboardNavInteraction {
         let mut allowed_dirs = DirectionsToGo::nowhere();
         let mut faint_highlight = false;
 
-        let topo = graph.topology();
-
         match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
                 rect = positions.find_processor(*spid).unwrap().rect;
-                let proc_data = topo.sound_processor(*spid).unwrap();
+                let proc_data = graph.sound_processor(*spid).unwrap();
                 let last_input = proc_data.sound_inputs().last();
 
                 let first_expr: Option<SoundExpressionId> = positions
@@ -154,7 +151,7 @@ impl KeyboardNavInteraction {
                     .values()
                     .iter()
                     .cloned()
-                    .find(|eid| topo.expression(*eid).unwrap().owner() == *spid);
+                    .find(|eid| graph.expression(*eid).unwrap().owner() == *spid);
 
                 allowed_dirs.go_up = last_input.is_some();
                 allowed_dirs.go_down = true;
@@ -196,7 +193,7 @@ impl KeyboardNavInteraction {
                 } else if requested_dirs.go_down {
                     // if there's a processor below, go to its first input
                     if let Some(proc_below) = proc_below {
-                        let first_input = topo
+                        let first_input = graph
                             .sound_processor(proc_below)
                             .unwrap()
                             .sound_inputs()
@@ -213,8 +210,8 @@ impl KeyboardNavInteraction {
                     .drag_drop_subjects()
                     .position(&DragDropSubject::Socket(*siid))
                     .unwrap();
-                let owner = topo.sound_input(*siid).unwrap().owner();
-                let other_inputs = topo.sound_processor(owner).unwrap().sound_inputs();
+                let owner = graph.sound_input(*siid).unwrap().owner();
+                let other_inputs = graph.sound_processor(owner).unwrap().sound_inputs();
                 let index = other_inputs.iter().position(|id| *id == *siid).unwrap();
 
                 allowed_dirs.go_up = index > 0 || !layout.is_top_of_group(owner);
@@ -247,14 +244,14 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundExpression(eid) => {
                 rect = positions.expressions().position(eid).unwrap();
 
-                let owner = topo.expression(*eid).unwrap().owner();
+                let owner = graph.expression(*eid).unwrap().owner();
 
                 let other_exprs: Vec<SoundExpressionId> = positions
                     .expressions()
                     .values()
                     .iter()
                     .cloned()
-                    .filter(|eid| topo.expression(*eid).unwrap().owner() == owner)
+                    .filter(|eid| graph.expression(*eid).unwrap().owner() == owner)
                     .collect();
                 let index = other_exprs.iter().position(|id| *id == *eid).unwrap();
 
@@ -291,7 +288,7 @@ impl KeyboardNavInteraction {
                 if requested_dirs.go_out {
                     *self = KeyboardNavInteraction::AroundExpression(*eid);
                 } else {
-                    let owner = topo.expression(*eid).unwrap().owner();
+                    let owner = graph.expression(*eid).unwrap().owner();
 
                     let (expr_ui_state, ll) = expression_uis.get_mut(*eid).unwrap();
 
@@ -337,7 +334,7 @@ impl KeyboardNavInteraction {
 
     /// Returns true iff all graph ids referenced by the keyboard focus
     /// refer to objects that exist in the given topology
-    pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
+    pub(crate) fn is_valid(&self, topo: &SoundGraph) -> bool {
         match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => topo.contains(spid),
             KeyboardNavInteraction::AroundProcessorPlug(spid) => topo.contains(spid),

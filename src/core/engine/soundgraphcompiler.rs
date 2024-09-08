@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::core::{
     jit::{cache::JitCache, compiledexpression::CompiledExpressionFunction},
     sound::{
-        expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology,
-        soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+        expression::SoundExpressionId, soundgraph::SoundGraph, soundinput::SoundInputId,
+        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -18,7 +18,7 @@ use super::stategraphnode::{
 /// as well as JIT compilation of expressions.
 pub struct SoundGraphCompiler<'a, 'ctx> {
     /// The current sound graph topology
-    topology: &'a SoundGraphTopology,
+    topology: &'a SoundGraph,
 
     /// The JIT cache for compiling expressions
     jit_cache: &'a JitCache<'ctx>,
@@ -35,7 +35,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
     /// empty, and new nodes will be genereated for static processors
     /// the first time they are encountered by this SoundGraphCompiler instance.
     pub(crate) fn new(
-        topology: &'a SoundGraphTopology,
+        topology: &'a SoundGraph,
         jit_cache: &'a JitCache<'ctx>,
     ) -> SoundGraphCompiler<'a, 'ctx> {
         SoundGraphCompiler {

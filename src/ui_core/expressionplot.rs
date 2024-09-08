@@ -77,7 +77,7 @@ impl ExpressionPlot {
             vertical_range,
             horizontal_domain,
         } = config;
-        let compiled_fn = jit_cache.get_compiled_expression(ni_data.id(), graph.topology());
+        let compiled_fn = jit_cache.get_compiled_expression(ni_data.id(), graph);
         // TODO: make this configurable / draggable. Where to store such ui state?
         let desired_height = 30.0;
         let desired_width = match horizontal_domain {

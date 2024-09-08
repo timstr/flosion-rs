@@ -44,7 +44,6 @@ impl SoundExpressionUi {
                                 ui,
                                 ctx.jit_cache(),
                                 sound_graph
-                                    .topology()
                                     .expression(proc_expr_ctx.expression_id())
                                     .unwrap(),
                                 *proc_expr_ctx.time_axis(),

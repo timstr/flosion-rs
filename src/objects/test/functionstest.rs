@@ -19,14 +19,13 @@ use crate::{
             context::{Context, LocalArrayList},
             expression::SoundExpressionHandle,
             expressionargument::SoundExpressionArgumentHandle,
+            soundgraph::SoundGraph,
             soundgraphdata::SoundExpressionScope,
-            soundgraphtopology::SoundGraphTopology,
             soundprocessor::{
                 DynamicSoundProcessor, SoundProcessorId, StateAndTiming, StreamStatus,
             },
             soundprocessortools::SoundProcessorTools,
             state::State,
-            topologyedits::{build_dynamic_sound_processor, SoundGraphIdGenerators},
         },
         soundchunk::SoundChunk,
     },
@@ -165,15 +164,11 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     input_ranges: &[(f32, f32)],
     test_function: F,
 ) {
-    let mut topo = SoundGraphTopology::new();
-    let mut idgens = SoundGraphIdGenerators::new();
+    let mut topo = SoundGraph::new();
 
-    let proc = build_dynamic_sound_processor::<TestSoundProcessor>(
-        &mut topo,
-        &mut idgens,
-        &ParsedArguments::new_empty(),
-    )
-    .unwrap();
+    let proc = topo
+        .add_dynamic_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty())
+        .unwrap();
 
     {
         let expression_data = topo.expression_mut(proc.expression.id()).unwrap();

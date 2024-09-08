@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::core::sound::{
     expression::SoundExpressionId,
+    soundgraph::SoundGraph,
     soundgraphdata::{SoundInputBranchId, SoundProcessorData},
-    soundgraphtopology::SoundGraphTopology,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
 };
@@ -20,7 +20,7 @@ use super::{
 /// Helper struct for comparing a StateGraph to a SoundGraphTopology instance
 struct Visitor<'a, 'ctx> {
     /// The topology being compared against
-    topology: &'a SoundGraphTopology,
+    topology: &'a SoundGraph,
 
     /// All shared compiled processors visited so far, and the processors they correspond to.
     /// Note that all static processor nodes are shared nodes, but dynamic
@@ -259,7 +259,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 /// Checks whether the given state graph accurately models the given sound graph topology.
 pub(crate) fn state_graph_matches_topology(
     state_graph: &StateGraph,
-    topology: &SoundGraphTopology,
+    topology: &SoundGraph,
 ) -> bool {
     let mut visitor = Visitor {
         topology,

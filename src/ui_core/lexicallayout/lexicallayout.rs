@@ -333,11 +333,9 @@ impl LexicalLayout {
         ctx: &ExpressionGraphUiContext,
         outer_context: &OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(
-            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g)
-            })
-        );
+        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
+            lexical_layout_matches_expression_graph(self, g)
+        }));
 
         let num_variable_definitions = self.variable_definitions.len();
 
@@ -365,11 +363,9 @@ impl LexicalLayout {
             );
         });
 
-        debug_assert!(
-            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g)
-            })
-        );
+        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
+            lexical_layout_matches_expression_graph(self, g)
+        }));
     }
 
     fn show_line(
@@ -404,12 +400,11 @@ impl LexicalLayout {
                     defn.name_rect.set(name_response.rect);
                 }
                 LineLocation::FinalExpression => {
-                    let output_id =
-                        outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                            let outputs = g.results();
-                            assert_eq!(outputs.len(), 1);
-                            outputs[0].id()
-                        });
+                    let output_id = outer_context.inspect_expression_graph(sound_graph, |g| {
+                        let outputs = g.results();
+                        assert_eq!(outputs.len(), 1);
+                        outputs[0].id()
+                    });
                     ui.add(egui::Label::new(
                         egui::RichText::new(outer_context.result_name(output_id))
                             .text_style(egui::TextStyle::Monospace)
@@ -493,7 +488,7 @@ impl LexicalLayout {
                         .rect;
                 }
                 ASTNodeValue::Parameter(giid) => {
-                    let name = outer_context.parameter_name(sound_graph.topology(), *giid);
+                    let name = outer_context.parameter_name(sound_graph, *giid);
                     rect = ui
                         .add(egui::Label::new(
                             egui::RichText::new(name).code().color(egui::Color32::WHITE),
@@ -678,10 +673,9 @@ impl LexicalLayout {
         ctx: &ExpressionGraphUiContext,
         outer_context: &OuterExpressionGraphUiContext,
     ) -> egui::Rect {
-        let graph_object = outer_context
-            .inspect_expression_graph(sound_graph.topology(), |graph| {
-                graph.node(id).unwrap().instance_rc().as_graph_object()
-            });
+        let graph_object = outer_context.inspect_expression_graph(sound_graph, |graph| {
+            graph.node(id).unwrap().instance_rc().as_graph_object()
+        });
         ui.horizontal_centered(|ui| {
             outer_context
                 .edit_expression_graph(sound_graph, |g| {
@@ -711,11 +705,9 @@ impl LexicalLayout {
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(
-            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g)
-            })
-        );
+        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
+            lexical_layout_matches_expression_graph(self, g)
+        }));
 
         self.handle_summon_widget(
             ui,
@@ -789,11 +781,9 @@ impl LexicalLayout {
             }
         }
 
-        debug_assert!(
-            outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                lexical_layout_matches_expression_graph(self, g)
-            })
-        );
+        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
+            lexical_layout_matches_expression_graph(self, g)
+        }));
     }
 
     fn handle_summon_widget(
@@ -886,11 +876,9 @@ impl LexicalLayout {
         if let Some(choice) = summon_widget_state.final_choice() {
             let (summon_value, arguments) = choice;
 
-            debug_assert!(
-                outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                    lexical_layout_matches_expression_graph(self, g)
-                })
-            );
+            debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
+                lexical_layout_matches_expression_graph(self, g)
+            }));
 
             let (new_node, layout) = match summon_value {
                 ExpressionSummonValue::ExpressionNodeType(ns_type) => self
@@ -911,7 +899,7 @@ impl LexicalLayout {
                             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx,
                         };
                         let giid = if let Some(giid) =
-                            outer_context.find_graph_id_for_argument(sound_graph.topology(), snsid)
+                            outer_context.find_graph_id_for_argument(sound_graph, snsid)
                         {
                             giid
                         } else {
@@ -951,11 +939,9 @@ impl LexicalLayout {
             );
             remove_unreferenced_parameters(self, outer_context, sound_graph);
 
-            debug_assert!(
-                outer_context.inspect_expression_graph(sound_graph.topology(), |g| {
-                    lexical_layout_matches_expression_graph(self, g)
-                })
-            );
+            debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
+                lexical_layout_matches_expression_graph(self, g)
+            }));
 
             let cursor_path = focus.cursor_mut().path_mut().unwrap();
             match layout {
@@ -1006,7 +992,7 @@ impl LexicalLayout {
 
         let layout = object_ui.make_properties();
 
-        let num_inputs = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
+        let num_inputs = outer_context.inspect_expression_graph(sound_graph, |graph| {
             graph.node(new_object.id()).unwrap().inputs().len()
         });
         let child_nodes: Vec<ASTNode> = (0..num_inputs)

@@ -2,8 +2,7 @@ use crate::core::sound::expressionargument::SoundExpressionArgumentOwner;
 
 use super::{
     expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId, path::SoundPath,
-    soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
+    soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -41,7 +40,7 @@ pub enum SoundError {
 }
 
 impl SoundError {
-    pub(crate) fn explain(&self, topo: &SoundGraphTopology) -> String {
+    pub(crate) fn explain(&self, topo: &SoundGraph) -> String {
         match self {
             SoundError::ProcessorIdTaken(spid) => format!(
                 "Processor id #{} is already taken by {}",

@@ -8,16 +8,13 @@ use super::{
         ArrayInputExpressionArgument, ArrayProcessorExpressionArgument,
         ProcessorLocalArrayExpressionArgument, ScalarInputExpressionArgument,
         ScalarProcessorExpressionArgument, SoundExpressionArgument, SoundExpressionArgumentHandle,
-        SoundExpressionArgumentId, SoundExpressionArgumentOwner,
+        SoundExpressionArgumentOwner,
     },
     sounderror::SoundError,
-    soundgraphdata::{
-        SoundExpressionArgumentData, SoundExpressionData, SoundExpressionScope, SoundInputBranchId,
-    },
-    soundgraphtopology::SoundGraphTopology,
+    soundgraph::SoundGraph,
+    soundgraphdata::{SoundExpressionScope, SoundInputBranchId},
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
-    topologyedits::{build_sound_input, SoundGraphIdGenerators},
 };
 
 /// An interface for making changes to the sound graph from the view of
@@ -29,8 +26,7 @@ use super::{
 /// processor's id and thus be juggling even more ids at once.
 pub struct SoundProcessorTools<'a> {
     processor_id: SoundProcessorId,
-    topology: &'a mut SoundGraphTopology,
-    id_generators: &'a mut SoundGraphIdGenerators,
+    topology: &'a mut SoundGraph,
 }
 
 impl<'a> SoundProcessorTools<'a> {
@@ -39,13 +35,11 @@ impl<'a> SoundProcessorTools<'a> {
     /// (for allocating ids to any newly-created objects)
     pub(crate) fn new(
         id: SoundProcessorId,
-        topology: &'a mut SoundGraphTopology,
-        id_generators: &'a mut SoundGraphIdGenerators,
+        topology: &'a mut SoundGraph,
     ) -> SoundProcessorTools<'a> {
         SoundProcessorTools {
             processor_id: id,
             topology,
-            id_generators,
         }
     }
 
@@ -59,38 +53,22 @@ impl<'a> SoundProcessorTools<'a> {
         options: InputOptions,
         branches: Vec<SoundInputBranchId>,
     ) -> SoundInputId {
-        build_sound_input(
-            self.topology,
-            self.id_generators,
-            self.processor_id,
-            options,
-            branches,
-        )
+        self.topology
+            .add_sound_input(self.processor_id, options, branches)
+            .unwrap()
     }
 
     /// Remove a sound input from the sound processor
     pub fn remove_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
-        let input = self
+        let input_data = self
             .topology
             .sound_input(input_id)
             .ok_or(SoundError::SoundInputNotFound(input_id))?;
-
-        let has_target = input.target().is_some();
-
-        let args = input.arguments().to_vec();
-
-        if has_target {
-            self.topology.disconnect_sound_input(input_id).unwrap();
+        if input_data.owner() != self.processor_id {
+            return Err(SoundError::BadSoundInputCleanup(input_id));
         }
-
-        for arg in args {
-            self.topology.remove_expression_argument(arg).unwrap();
-        }
-
         self.topology
             .remove_sound_input(input_id, self.processor_id)
-            .unwrap();
-        Ok(())
     }
 
     /// Add an expression argument to the given sound input which
@@ -128,9 +106,10 @@ impl<'a> SoundProcessorTools<'a> {
         &mut self,
         function: ScalarReadFunc,
     ) -> SoundExpressionArgumentHandle {
-        self.add_processor_argument_helper(|spid, _| {
-            Rc::new(ScalarProcessorExpressionArgument::new(spid, function))
-        })
+        self.add_processor_argument_helper(Rc::new(ScalarProcessorExpressionArgument::new(
+            self.processor_id,
+            function,
+        )))
     }
 
     /// Add an expression argument which reads an entire array from the
@@ -141,9 +120,10 @@ impl<'a> SoundProcessorTools<'a> {
         &mut self,
         function: ArrayReadFunc,
     ) -> SoundExpressionArgumentHandle {
-        self.add_processor_argument_helper(|spid, _| {
-            Rc::new(ArrayProcessorExpressionArgument::new(spid, function))
-        })
+        self.add_processor_argument_helper(Rc::new(ArrayProcessorExpressionArgument::new(
+            self.processor_id,
+            function,
+        )))
     }
 
     /// Add an expression argument which reads an entire array that
@@ -152,9 +132,9 @@ impl<'a> SoundProcessorTools<'a> {
     /// NOTE that currently the length of that array must match
     /// the chunk length.
     pub fn add_local_array_argument(&mut self) -> SoundExpressionArgumentHandle {
-        self.add_processor_argument_helper(|spid, id| {
-            Rc::new(ProcessorLocalArrayExpressionArgument::new(id, spid))
-        })
+        self.add_processor_argument_helper(Rc::new(ProcessorLocalArrayExpressionArgument::new(
+            self.processor_id,
+        )))
     }
 
     /// Add an expression to the sound processor.
@@ -166,26 +146,19 @@ impl<'a> SoundProcessorTools<'a> {
         default_value: f32,
         scope: SoundExpressionScope,
     ) -> SoundExpressionHandle {
-        let id = self.id_generators.expression.next_id();
-
-        let data = SoundExpressionData::new(id, self.processor_id, default_value, scope.clone());
-        self.topology.add_expression(data).unwrap();
-
-        SoundExpressionHandle::new(id, self.processor_id, scope)
-    }
-
-    /// The id of the sound processor that the tools were created for
-    pub(crate) fn processor_id(&self) -> SoundProcessorId {
-        self.processor_id
+        self.topology
+            .add_expression(self.processor_id, default_value, scope)
+            .unwrap()
     }
 
     /// Access the current sound graph topology
-    pub(crate) fn topology(&self) -> &SoundGraphTopology {
+    pub(crate) fn topology(&self) -> &SoundGraph {
         self.topology
     }
 
     /// Mutably access the current sound graph topology
-    pub(crate) fn topology_mut(&mut self) -> &mut SoundGraphTopology {
+    // TODO: why?
+    pub(crate) fn topology_mut(&mut self) -> &mut SoundGraph {
         self.topology
     }
 
@@ -201,36 +174,27 @@ impl<'a> SoundProcessorTools<'a> {
             "The sound input should belong to the processor which the tools were created for"
         );
 
-        let id = self.id_generators.expression_argument.next_id();
-
-        let data = SoundExpressionArgumentData::new(
-            id,
-            instance,
-            SoundExpressionArgumentOwner::SoundInput(input_id),
-        );
-
-        self.topology.add_expression_argument(data).unwrap();
+        let id = self
+            .topology
+            .add_expression_argument(instance, SoundExpressionArgumentOwner::SoundInput(input_id))
+            .unwrap();
 
         SoundExpressionArgumentHandle::new(id)
     }
 
     /// Internal helper method for adding an expression to the sound processor
     /// which the tools were created for.
-    fn add_processor_argument_helper<
-        F: FnOnce(SoundProcessorId, SoundExpressionArgumentId) -> Rc<dyn SoundExpressionArgument>,
-    >(
+    fn add_processor_argument_helper(
         &mut self,
-        f: F,
+        instance: Rc<dyn SoundExpressionArgument>,
     ) -> SoundExpressionArgumentHandle {
-        let id = self.id_generators.expression_argument.next_id();
-
-        let data = SoundExpressionArgumentData::new(
-            id,
-            f(self.processor_id, id),
-            SoundExpressionArgumentOwner::SoundProcessor(self.processor_id),
-        );
-
-        self.topology.add_expression_argument(data).unwrap();
+        let id = self
+            .topology
+            .add_expression_argument(
+                instance,
+                SoundExpressionArgumentOwner::SoundProcessor(self.processor_id),
+            )
+            .unwrap();
 
         SoundExpressionArgumentHandle::new(id)
     }

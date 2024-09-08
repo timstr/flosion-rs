@@ -1,7 +1,7 @@
 use crate::core::{
     engine::{stategraph::StateGraph, stategraphvalidation::state_graph_matches_topology},
     jit::cache::JitCache,
-    sound::soundgraphtopology::SoundGraphTopology,
+    sound::soundgraph::SoundGraph,
 };
 
 use super::{
@@ -10,14 +10,14 @@ use super::{
 };
 
 pub(crate) fn diff_sound_graph_topology<'ctx>(
-    topo_before: &SoundGraphTopology,
-    topo_after: &SoundGraphTopology,
+    topo_before: &SoundGraph,
+    topo_after: &SoundGraph,
     jit_cache: &JitCache<'ctx>,
 ) -> Vec<StateGraphEdit<'ctx>> {
     let mut edits = Vec::new();
 
     // topology and state graph should match
-    // TODO: re-enable this check
+    // TODO: re-enable this check. Consider using SendWrapper<SoundGraph>
     // #[cfg(debug_assertions)]
     // {
     //     let topo_clone = topo_before.clone();

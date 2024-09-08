@@ -316,7 +316,7 @@ pub(super) fn remove_unreferenced_parameters(
 ) {
     let mut referenced_parameters = Vec::<ExpressionGraphParameterId>::new();
 
-    let all_parameters = outer_context.inspect_expression_graph(sound_graph.topology(), |graph| {
+    let all_parameters = outer_context.inspect_expression_graph(sound_graph, |graph| {
         layout.visit(|node, _path| {
             if let ASTNodeValue::Parameter(giid) = node.value() {
                 if !referenced_parameters.contains(&giid) {

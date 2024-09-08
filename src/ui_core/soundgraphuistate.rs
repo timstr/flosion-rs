@@ -3,10 +3,7 @@ use eframe::egui;
 use crate::{
     core::{
         audiofileio::load_audio_file,
-        sound::{
-            expression::SoundExpressionId, soundgraph::SoundGraph,
-            soundgraphtopology::SoundGraphTopology,
-        },
+        sound::{expression::SoundExpressionId, soundgraph::SoundGraph},
     },
     objects::audioclip::AudioClip,
     ui_core::arguments::ParsedArguments,
@@ -119,11 +116,7 @@ impl SoundGraphUiState {
 
     /// Remove any state associated with objects that are no longer present
     /// in the topology, and create new states for new objects
-    pub(super) fn cleanup_stale_graph_objects(
-        &mut self,
-        topo: &SoundGraphTopology,
-        factories: &Factories,
-    ) {
+    pub(super) fn cleanup_stale_graph_objects(&mut self, topo: &SoundGraph, factories: &Factories) {
         self.object_states.cleanup(topo);
 
         self.expression_uis
@@ -138,7 +131,7 @@ impl SoundGraphUiState {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
+    pub(crate) fn check_invariants(&self, topo: &SoundGraph) -> bool {
         self.object_states.check_invariants(topo)
     }
 

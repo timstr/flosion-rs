@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap};
 
 use hashrevise::{Revisable, RevisionHash};
 
-use crate::core::sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology};
+use crate::core::sound::{expression::SoundExpressionId, soundgraph::SoundGraph};
 
 use super::{
     compiledexpression::{CompiledExpressionArtefact, CompiledExpressionFunction},
@@ -35,7 +35,7 @@ impl<'ctx> JitCache<'ctx> {
     pub(crate) fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
-        topology: &SoundGraphTopology,
+        topology: &SoundGraph,
     ) -> CompiledExpressionFunction<'ctx> {
         let revision = topology.get_revision();
         self.cache

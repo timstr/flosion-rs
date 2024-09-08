@@ -5,9 +5,7 @@ use hashrevise::{Revisable, RevisedProperty, RevisionHash, RevisionHasher};
 
 use crate::{
     core::sound::{
-        soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
-        soundgraphvalidation::find_sound_error, soundinput::SoundInputId,
-        soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
     },
     ui_core::{
         soundobjectpositions::SoundObjectPositions, soundobjectuistate::SoundObjectUiStates,
@@ -39,7 +37,7 @@ impl DragDropSubject {
         }
     }
 
-    fn parent_processor(&self, topo: &SoundGraphTopology) -> Option<SoundProcessorId> {
+    fn parent_processor(&self, topo: &SoundGraph) -> Option<SoundProcessorId> {
         match self {
             DragDropSubject::Processor(spid) => Some(*spid),
             DragDropSubject::Plug(spid) => Some(*spid),
@@ -48,7 +46,7 @@ impl DragDropSubject {
         }
     }
 
-    fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
+    fn is_valid(&self, topo: &SoundGraph) -> bool {
         match self {
             DragDropSubject::Processor(spid) => topo.contains(spid),
             DragDropSubject::Plug(spid) => topo.contains(spid),
@@ -98,7 +96,7 @@ pub enum SelectionChange {
 }
 
 fn drop_and_drop_should_be_ignored(
-    topo: &mut SoundGraphTopology,
+    topo: &mut SoundGraph,
     layout: &StackedLayout,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
@@ -145,7 +143,7 @@ fn drop_and_drop_should_be_ignored(
 }
 
 fn drag_and_drop_in_graph(
-    topo: &mut SoundGraphTopology,
+    topo: &mut SoundGraph,
     layout: &StackedLayout,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
@@ -272,7 +270,7 @@ fn drag_and_drop_in_graph(
 
 fn drag_and_drop_in_layout(
     layout: &mut StackedLayout,
-    topo: &SoundGraphTopology,
+    topo: &SoundGraph,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
     positions: &SoundObjectPositions,
@@ -332,11 +330,12 @@ fn drag_and_drop_in_layout(
 }
 
 fn compute_legal_drop_sites(
-    topo: &SoundGraphTopology,
+    topo: &SoundGraph,
     layout: &StackedLayout,
     drag_subject: DragDropSubject,
     drop_sites: &[DragDropSubject],
 ) -> HashMap<DragDropSubject, DragDropLegality> {
+    debug_assert_eq!(topo.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
     for drop_site in drop_sites {
         let mut topo_clone = topo.clone();
@@ -346,14 +345,14 @@ fn compute_legal_drop_sites(
         let status = match drag_and_drop_in_graph(&mut topo_clone, layout, drag_subject, *drop_site)
         {
             DragDropLegality::Legal => {
-                if find_sound_error(&topo_clone).is_some() {
+                if topo_clone.validate().is_err() {
                     DragDropLegality::Illegal
                 } else {
                     DragDropLegality::Legal
                 }
             }
             DragDropLegality::LegalButInvisible => {
-                if find_sound_error(&topo_clone).is_some() {
+                if topo_clone.validate().is_err() {
                     DragDropLegality::Irrelevant
                 } else {
                     DragDropLegality::LegalButInvisible
@@ -391,7 +390,7 @@ impl DragInteraction {
     pub(crate) fn interact_and_draw(
         &mut self,
         ui: &mut egui::Ui,
-        topo: &SoundGraphTopology,
+        topo: &SoundGraph,
         object_states: &SoundObjectUiStates,
         layout: &StackedLayout,
         positions: &SoundObjectPositions,
@@ -466,7 +465,7 @@ impl DragInteraction {
         self.rect = rect;
     }
 
-    pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
+    pub(crate) fn is_valid(&self, topo: &SoundGraph) -> bool {
         self.subject.is_valid(topo)
     }
 }
@@ -505,9 +504,9 @@ impl DropInteraction {
             // No point in checking invariants later if they aren't
             // already upheld
             #[cfg(debug_assertions)]
-            assert!(layout.check_invariants(graph.topology()));
+            assert!(layout.check_invariants(graph));
 
-            let drag_and_drop_result = graph.edit_topology(|topo| {
+            let drag_and_drop_result = graph.try_make_change(|topo| {
                 Ok(drag_and_drop_in_graph(
                     topo,
                     layout,
@@ -528,28 +527,22 @@ impl DropInteraction {
                     return;
                 }
                 Err(e) => {
-                    println!("Can't drop that there: {}", e.explain(graph.topology()));
+                    println!("Can't drop that there: {}", e.explain(graph));
                     return;
                 }
             }
 
-            drag_and_drop_in_layout(
-                layout,
-                graph.topology(),
-                self.subject,
-                *nearest_drop_site,
-                positions,
-            );
+            drag_and_drop_in_layout(layout, graph, self.subject, *nearest_drop_site, positions);
 
             #[cfg(debug_assertions)]
-            assert!(layout.check_invariants(graph.topology()));
+            assert!(layout.check_invariants(graph));
         } else {
             // If a processor was dropped far away from anything, split
             // it into its own group
             if let DragDropSubject::Processor(spid) = self.subject {
                 if !layout.is_processor_alone(spid) {
                     graph
-                        .edit_topology(|topo| {
+                        .try_make_change(|topo| {
                             disconnect_processor_in_graph(spid, topo);
                             Ok(())
                         })
@@ -558,7 +551,7 @@ impl DropInteraction {
                     layout.split_processor_into_own_group(spid, positions);
 
                     #[cfg(debug_assertions)]
-                    assert!(layout.check_invariants(graph.topology()));
+                    assert!(layout.check_invariants(graph));
                 }
             }
         }
@@ -575,15 +568,12 @@ impl DropInteraction {
         }
     }
 
-    pub(crate) fn is_valid(&self, topo: &SoundGraphTopology) -> bool {
+    pub(crate) fn is_valid(&self, topo: &SoundGraph) -> bool {
         self.subject.is_valid(topo)
     }
 }
 
-fn disconnect_all_inputs_of_processor(
-    processor_id: SoundProcessorId,
-    topo: &mut SoundGraphTopology,
-) {
+fn disconnect_all_inputs_of_processor(processor_id: SoundProcessorId, topo: &mut SoundGraph) {
     let mut inputs_to_disconnect_from: Vec<SoundInputId> = Vec::new();
     for i in topo.sound_processor(processor_id).unwrap().sound_inputs() {
         if topo.sound_input(*i).unwrap().target().is_some() {
@@ -595,10 +585,7 @@ fn disconnect_all_inputs_of_processor(
     }
 }
 
-fn disconnect_processor_from_all_inputs(
-    processor_id: SoundProcessorId,
-    topo: &mut SoundGraphTopology,
-) {
+fn disconnect_processor_from_all_inputs(processor_id: SoundProcessorId, topo: &mut SoundGraph) {
     let inputs_to_disconnect_from: Vec<SoundInputId> =
         topo.sound_processor_targets(processor_id).collect();
     for i in inputs_to_disconnect_from {
@@ -606,7 +593,7 @@ fn disconnect_processor_from_all_inputs(
     }
 }
 
-fn disconnect_processor_in_graph(processor_id: SoundProcessorId, topo: &mut SoundGraphTopology) {
+fn disconnect_processor_in_graph(processor_id: SoundProcessorId, topo: &mut SoundGraph) {
     let mut inputs_to_disconnect_from: Vec<SoundInputId> =
         topo.sound_processor_targets(processor_id).collect();
     for i in topo.sound_processor(processor_id).unwrap().sound_inputs() {

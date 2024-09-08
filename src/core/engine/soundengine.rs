@@ -18,8 +18,8 @@ use super::{
 };
 
 use crate::core::{
-    jit::cache::JitCache, samplefrequency::SAMPLE_FREQUENCY,
-    sound::soundgraphtopology::SoundGraphTopology, soundchunk::CHUNK_SIZE,
+    jit::cache::JitCache, samplefrequency::SAMPLE_FREQUENCY, sound::soundgraph::SoundGraph,
+    soundchunk::CHUNK_SIZE,
 };
 
 /// A thread-safe signaling mechanism used to communicate
@@ -84,7 +84,7 @@ pub(crate) fn create_sound_engine<'ctx>(
     let (edit_sender, edit_receiver) = sync_channel::<StateGraphEdit<'ctx>>(edit_queue_size);
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
-    let current_topology = SoundGraphTopology::new();
+    let current_topology = SoundGraph::new();
     let current_revision = current_topology.get_revision();
     let se_interface = SoundEngineInterface {
         current_topology,
@@ -114,7 +114,7 @@ pub(crate) fn create_sound_engine<'ctx>(
 /// Note that dropping the SoundEngineInterface will cause the SoundEngine
 /// to stop running.
 pub(crate) struct SoundEngineInterface<'ctx> {
-    current_topology: SoundGraphTopology,
+    current_topology: SoundGraph,
     current_revision: RevisionHash,
     stop_button: StopButton,
     edit_queue: SyncSender<StateGraphEdit<'ctx>>,
@@ -126,7 +126,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
     /// the most recent topology are compiled and sent to the audio thread.
     pub(crate) fn update(
         &mut self,
-        new_topology: &SoundGraphTopology,
+        new_topology: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
     ) -> Result<(), ()> {
         let new_revision = new_topology.get_revision();

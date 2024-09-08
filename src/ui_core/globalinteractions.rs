@@ -5,8 +5,7 @@ use eframe::egui;
 use crate::core::{
     objecttype::ObjectType,
     sound::{
-        soundgraph::SoundGraph, soundgraphid::SoundObjectId,
-        soundgraphtopology::SoundGraphTopology, soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundgraphid::SoundObjectId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -138,8 +137,20 @@ impl GlobalInteractions {
                     self.mode = UiMode::Passive;
                     return;
                 } else if pressed_delete {
-                    let objects: Vec<SoundObjectId> = selection.objects.iter().cloned().collect();
-                    graph.remove_objects_batch(&objects).unwrap();
+                    graph
+                        .try_make_change(|graph| {
+                            let objects: Vec<SoundObjectId> =
+                                selection.objects.iter().cloned().collect();
+                            for oid in objects {
+                                match oid {
+                                    SoundObjectId::Sound(spid) => {
+                                        graph.remove_sound_processor(spid)?
+                                    }
+                                }
+                            }
+                            Ok(())
+                        })
+                        .expect("Nah you can't delete those, sorry");
                     self.mode = UiMode::Passive;
                     return;
                 } else {
@@ -211,7 +222,7 @@ impl GlobalInteractions {
                 // TODO: cut, copy
             }
             UiMode::Dragging(drag) => {
-                drag.interact_and_draw(ui, graph.topology(), object_states, layout, positions);
+                drag.interact_and_draw(ui, graph, object_states, layout, positions);
             }
             UiMode::Dropping(dropped_proc) => {
                 dropped_proc.handle_drop(graph, layout, positions);
@@ -258,7 +269,7 @@ impl GlobalInteractions {
         // If ctrl+A was pressed, select everything
         if pressed_ctrl_a {
             self.mode = UiMode::Selecting(SelectingState {
-                objects: graph.topology().graph_object_ids().collect(),
+                objects: graph.graph_object_ids().collect(),
                 selecting_area: None,
             })
         }
@@ -308,7 +319,7 @@ impl GlobalInteractions {
 
     /// Remove any data associated with objects that are no longer present in
     /// the topology
-    pub(crate) fn cleanup(&mut self, topo: &SoundGraphTopology) {
+    pub(crate) fn cleanup(&mut self, topo: &SoundGraph) {
         match &mut self.mode {
             UiMode::Passive => (),
             UiMode::Selecting(s) => {

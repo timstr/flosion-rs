@@ -63,7 +63,7 @@ impl SoundObjectUi for EnsembleUi {
                             Ok(())
                         });
                         if let Err(e) = res {
-                            println!("Can't do that: {}", e.explain(sound_graph.topology()));
+                            println!("Can't do that: {}", e.explain(sound_graph));
                         }
                     });
                 },

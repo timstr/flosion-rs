@@ -3,7 +3,7 @@ use eframe::epaint::ahash::{HashMap, HashMapExt};
 use crate::core::sound::{
     expression::SoundExpressionId,
     expressionargument::{SoundExpressionArgumentId, SoundExpressionArgumentOwner},
-    soundgraphtopology::SoundGraphTopology,
+    soundgraph::SoundGraph,
     soundinput::SoundInputId,
     soundprocessor::SoundProcessorId,
 };
@@ -75,7 +75,7 @@ impl SoundGraphUiNames {
         }
     }
 
-    pub(crate) fn regenerate(&mut self, topology: &SoundGraphTopology) {
+    pub(crate) fn regenerate(&mut self, topology: &SoundGraph) {
         self.arguments
             .retain(|k, _v| topology.expression_argument(*k).is_some());
         self.expressions

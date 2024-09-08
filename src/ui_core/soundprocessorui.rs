@@ -45,11 +45,7 @@ impl ProcessorUi {
         label: impl Into<String>,
         sound_graph: &SoundGraph,
     ) -> Self {
-        let time_snid = sound_graph
-            .topology()
-            .sound_input(input_id)
-            .unwrap()
-            .time_argument();
+        let time_snid = sound_graph.sound_input(input_id).unwrap().time_argument();
         self.sound_inputs.push((input_id, label.into(), time_snid));
         self
     }
@@ -110,10 +106,7 @@ impl ProcessorUi {
 
         #[cfg(debug_assertions)]
         {
-            let proc_data = sound_graph
-                .topology()
-                .sound_processor(self.processor_id)
-                .unwrap();
+            let proc_data = sound_graph.sound_processor(self.processor_id).unwrap();
             let missing_name =
                 |id: SoundExpressionArgumentId| ui_state.names().argument(id).is_none();
             for nsid in proc_data.expression_arguments() {
@@ -127,7 +120,6 @@ impl ProcessorUi {
             }
             for siid in proc_data.sound_inputs() {
                 for nsid in sound_graph
-                    .topology()
                     .sound_input(*siid)
                     .unwrap()
                     .expression_arguments()

@@ -7,12 +7,12 @@ use super::{
     },
     path::SoundPath,
     sounderror::SoundError,
-    soundgraphtopology::SoundGraphTopology,
+    soundgraph::SoundGraph,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
 };
 
-pub(crate) fn find_sound_error(topology: &SoundGraphTopology) -> Option<SoundError> {
+pub(super) fn find_sound_error(topology: &SoundGraph) -> Option<SoundError> {
     check_missing_ids(topology);
 
     if let Some(path) = find_sound_cycle(topology) {
@@ -28,7 +28,7 @@ pub(crate) fn find_sound_error(topology: &SoundGraphTopology) -> Option<SoundErr
     None
 }
 
-pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
+pub(super) fn check_missing_ids(topology: &SoundGraph) {
     for sp in topology.sound_processors().values() {
         // for each sound processor
         for i in sp.sound_inputs() {
@@ -270,12 +270,12 @@ pub(super) fn check_missing_ids(topology: &SoundGraphTopology) {
     // whew, made it
 }
 
-pub(super) fn find_sound_cycle(topology: &SoundGraphTopology) -> Option<SoundPath> {
+pub(super) fn find_sound_cycle(topology: &SoundGraph) -> Option<SoundPath> {
     fn dfs_find_cycle(
         input_id: SoundInputId,
         visited: &mut Vec<SoundInputId>,
         path: &mut SoundPath,
-        topo: &SoundGraphTopology,
+        topo: &SoundGraph,
     ) -> Option<SoundPath> {
         if !visited.contains(&input_id) {
             visited.push(input_id);
@@ -326,13 +326,13 @@ struct ProcessorAllocation {
 }
 
 fn compute_implied_processor_allocations(
-    topo: &SoundGraphTopology,
+    topo: &SoundGraph,
 ) -> HashMap<SoundProcessorId, ProcessorAllocation> {
     fn visit(
         processor_id: SoundProcessorId,
         states_to_add: usize,
         is_sync: bool,
-        topo: &SoundGraphTopology,
+        topo: &SoundGraph,
         allocations: &mut HashMap<SoundProcessorId, ProcessorAllocation>,
     ) {
         let proc_data = topo.sound_processor(processor_id).unwrap();
@@ -419,7 +419,7 @@ fn compute_implied_processor_allocations(
     allocations
 }
 
-pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Option<SoundError> {
+pub(super) fn validate_sound_connections(topology: &SoundGraph) -> Option<SoundError> {
     let allocations = compute_implied_processor_allocations(topology);
 
     for (proc_id, allocation) in &allocations {
@@ -451,7 +451,7 @@ pub(super) fn validate_sound_connections(topology: &SoundGraphTopology) -> Optio
 fn input_depends_on_processor(
     input_id: SoundInputId,
     processor_id: SoundProcessorId,
-    topology: &SoundGraphTopology,
+    topology: &SoundGraph,
 ) -> bool {
     let input_data = topology.sound_input(input_id).unwrap();
     match input_data.target() {
@@ -463,7 +463,7 @@ fn input_depends_on_processor(
 fn processor_depends_on_processor(
     processor_id: SoundProcessorId,
     other_processor_id: SoundProcessorId,
-    topology: &SoundGraphTopology,
+    topology: &SoundGraph,
 ) -> bool {
     if processor_id == other_processor_id {
         return true;
@@ -478,7 +478,7 @@ fn processor_depends_on_processor(
 }
 
 pub(super) fn find_invalid_expression_arguments(
-    topology: &SoundGraphTopology,
+    topology: &SoundGraph,
 ) -> Vec<(SoundExpressionArgumentId, SoundExpressionId)> {
     let mut bad_connections: Vec<(SoundExpressionArgumentId, SoundExpressionId)> = Vec::new();
 
@@ -503,7 +503,7 @@ pub(super) fn find_invalid_expression_arguments(
 }
 
 pub(crate) fn available_sound_expression_arguments(
-    topology: &SoundGraphTopology,
+    topology: &SoundGraph,
 ) -> HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>> {
     let mut available_arguments_by_processor: HashMap<
         SoundProcessorId,

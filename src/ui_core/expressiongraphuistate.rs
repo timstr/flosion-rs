@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
     expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeId},
-    sound::{expression::SoundExpressionId, soundgraphtopology::SoundGraphTopology},
+    sound::{expression::SoundExpressionId, soundgraph::SoundGraph},
 };
 
 use super::{
@@ -131,11 +131,7 @@ impl ExpressionUiCollection {
 
     /// Remove any data associated with expressions or their components
     /// that no longer exist in the given sound graph topology.
-    pub(super) fn cleanup(
-        &mut self,
-        topology: &SoundGraphTopology,
-        factory: &ExpressionObjectUiFactory,
-    ) {
+    pub(super) fn cleanup(&mut self, topology: &SoundGraph, factory: &ExpressionObjectUiFactory) {
         // Delete data for removed expressions
         self.data
             .retain(|id, _| topology.expressions().contains_key(id));

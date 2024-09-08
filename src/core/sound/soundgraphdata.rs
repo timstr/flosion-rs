@@ -34,7 +34,7 @@ pub(crate) struct SoundInputData {
     target: Option<SoundProcessorId>,
     owner: SoundProcessorId,
     arguments: Vec<SoundExpressionArgumentId>,
-    time_argument: SoundExpressionArgumentId,
+    time_argument: Option<SoundExpressionArgumentId>,
 }
 
 impl SoundInputData {
@@ -43,7 +43,6 @@ impl SoundInputData {
         options: InputOptions,
         branches: Vec<SoundInputBranchId>,
         owner: SoundProcessorId,
-        time_argument: SoundExpressionArgumentId,
     ) -> SoundInputData {
         SoundInputData {
             id,
@@ -52,7 +51,7 @@ impl SoundInputData {
             target: None,
             owner,
             arguments: Vec::new(),
-            time_argument,
+            time_argument: None,
         }
     }
 
@@ -97,7 +96,12 @@ impl SoundInputData {
     }
 
     pub(crate) fn time_argument(&self) -> SoundExpressionArgumentId {
-        self.time_argument
+        self.time_argument.unwrap()
+    }
+
+    pub(super) fn set_time_argument(&mut self, arg_id: SoundExpressionArgumentId) {
+        debug_assert!(self.time_argument.is_none());
+        self.time_argument = Some(arg_id);
     }
 }
 
@@ -130,7 +134,7 @@ pub(crate) struct SoundProcessorData {
 }
 
 impl SoundProcessorData {
-    pub(crate) fn new(processor: Rc<dyn SoundProcessor>) -> SoundProcessorData {
+    pub(super) fn new(processor: Rc<dyn SoundProcessor>) -> SoundProcessorData {
         SoundProcessorData {
             id: processor.id(),
             processor: Some(processor),
@@ -140,7 +144,7 @@ impl SoundProcessorData {
         }
     }
 
-    pub(crate) fn new_empty(id: SoundProcessorId) -> SoundProcessorData {
+    pub(super) fn new_empty(id: SoundProcessorId) -> SoundProcessorData {
         SoundProcessorData {
             id,
             processor: None,
@@ -355,7 +359,7 @@ pub struct SoundExpressionData {
 }
 
 impl SoundExpressionData {
-    pub(crate) fn new(
+    pub(super) fn new(
         id: SoundExpressionId,
         owner: SoundProcessorId,
         default_value: f32,
@@ -427,7 +431,7 @@ pub(crate) struct SoundExpressionArgumentData {
 }
 
 impl SoundExpressionArgumentData {
-    pub(crate) fn new(
+    pub(super) fn new(
         id: SoundExpressionArgumentId,
         instance: Rc<dyn SoundExpressionArgument>,
         owner: SoundExpressionArgumentOwner,

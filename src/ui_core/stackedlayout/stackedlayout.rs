@@ -6,10 +6,7 @@ use hashrevise::{Revisable, RevisionHash};
 use crate::{
     core::{
         jit::cache::JitCache,
-        sound::{
-            soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
-            soundprocessor::SoundProcessorId,
-        },
+        sound::{soundgraph::SoundGraph, soundprocessor::SoundProcessorId},
     },
     ui_core::{
         flosion_ui::Factories, graph_properties::GraphProperties,
@@ -124,11 +121,7 @@ impl StackedLayout {
     /// any newly-added sound processors, and generally keep things
     /// tidy and valid as the topology changes programmatically and
     /// without simultaneous changes to the layout.
-    pub(crate) fn regenerate(
-        &mut self,
-        topo: &SoundGraphTopology,
-        positions: &SoundObjectPositions,
-    ) {
+    pub(crate) fn regenerate(&mut self, topo: &SoundGraph, positions: &SoundObjectPositions) {
         self.remove_dangling_processor_ids(topo, positions);
 
         // precompute the number of sound inputs that each processor
@@ -234,7 +227,6 @@ impl StackedLayout {
         // TODO: make this prettier
         for (jumper_input, jumper_pos) in ui_state.positions().socket_jumpers().items() {
             let Some(target_spid) = graph
-                .topology()
                 .sound_input(*jumper_input)
                 .map(|i| i.target())
                 .flatten()
@@ -269,7 +261,7 @@ impl StackedLayout {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
+    pub(crate) fn check_invariants(&self, topo: &SoundGraph) -> bool {
         // every sound processor in the topology must appear exactly once
 
         for spid in topo.sound_processors().keys().cloned() {
@@ -336,7 +328,7 @@ impl StackedLayout {
     /// removing any empty groups that result.
     fn remove_dangling_processor_ids(
         &mut self,
-        topo: &SoundGraphTopology,
+        topo: &SoundGraph,
         positions: &SoundObjectPositions,
     ) {
         // delete any removed processor ids
@@ -484,7 +476,7 @@ impl StackedLayout {
     fn connection_is_unique(
         top_processor: SoundProcessorId,
         bottom_processor: SoundProcessorId,
-        topo: &SoundGraphTopology,
+        topo: &SoundGraph,
     ) -> bool {
         let inputs = topo
             .sound_processor(bottom_processor)

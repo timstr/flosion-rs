@@ -7,8 +7,7 @@ use crate::{
     core::{
         jit::cache::JitCache,
         sound::{
-            soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
-            soundinput::InputOptions, soundprocessor::SoundProcessorId,
+            soundgraph::SoundGraph, soundinput::InputOptions, soundprocessor::SoundProcessorId,
         },
     },
     ui_core::{
@@ -173,7 +172,7 @@ impl StackedGroup {
         self.processors.split_off(i + 1)
     }
 
-    pub(crate) fn remove_dangling_processor_ids(&mut self, topo: &SoundGraphTopology) {
+    pub(crate) fn remove_dangling_processor_ids(&mut self, topo: &SoundGraph) {
         self.processors.retain(|i| topo.contains(i));
     }
 
@@ -215,7 +214,7 @@ impl StackedGroup {
                         let mut top_of_stack = true;
 
                         for spid in &self.processors {
-                            let processor_data = graph.topology().sound_processor(*spid).unwrap();
+                            let processor_data = graph.sound_processor(*spid).unwrap();
 
                             let inputs = processor_data.sound_inputs();
 
@@ -226,12 +225,11 @@ impl StackedGroup {
                                 self.draw_barrier(ui);
                             } else {
                                 for input_id in inputs {
-                                    let input_data =
-                                        graph.topology().sound_input(*input_id).unwrap();
+                                    let input_data = graph.sound_input(*input_id).unwrap();
                                     self.draw_input_socket(
                                         ui,
                                         ui_state,
-                                        graph.topology(),
+                                        graph,
                                         InputSocket::from_input_data(input_data),
                                         processor_color,
                                         top_of_stack,
@@ -260,7 +258,7 @@ impl StackedGroup {
                                 graph,
                             );
 
-                            let processor_data = graph.topology().sound_processor(*spid).unwrap();
+                            let processor_data = graph.sound_processor(*spid).unwrap();
                             self.draw_processor_plug(
                                 ui,
                                 ui_state,
@@ -362,7 +360,7 @@ impl StackedGroup {
         &self,
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
-        topo: &SoundGraphTopology,
+        topo: &SoundGraph,
         socket: InputSocket,
         color: egui::Color32,
         top_of_stack: bool,

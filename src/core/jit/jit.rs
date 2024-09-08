@@ -19,8 +19,7 @@ use crate::core::{
     },
     sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-        soundgraphtopology::SoundGraphTopology, soundinput::SoundInputId,
-        soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
     },
 };
 
@@ -919,20 +918,20 @@ impl<'ctx> Jit<'ctx> {
     pub(crate) fn compile_expression(
         mut self,
         expression_id: SoundExpressionId,
-        topology: &SoundGraphTopology,
+        topology: &SoundGraph,
     ) -> CompiledExpressionArtefact<'ctx> {
         let sg_expr_data = topology.expression(expression_id).unwrap();
 
         let expr_topo = sg_expr_data.expression_graph();
 
         // pre-compile all expression graph arguments
-        for (giid, snsid) in sg_expr_data.parameter_mapping().items() {
+        for (param_id, arg_id) in sg_expr_data.parameter_mapping().items() {
             let value = topology
-                .expression_argument(*snsid)
+                .expression_argument(*arg_id)
                 .unwrap()
                 .instance()
-                .compile(&mut self);
-            self.assign_target(ExpressionTarget::Parameter(*giid), value);
+                .compile(&mut self, *arg_id);
+            self.assign_target(ExpressionTarget::Parameter(*param_id), value);
         }
 
         // TODO: add support for multiple results

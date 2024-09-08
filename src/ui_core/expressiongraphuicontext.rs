@@ -7,7 +7,7 @@ use crate::core::{
     jit::cache::JitCache,
     sound::{
         expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-        sounderror::SoundError, soundgraph::SoundGraph, soundgraphtopology::SoundGraphTopology,
+        sounderror::SoundError, soundgraph::SoundGraph,
     },
 };
 
@@ -57,7 +57,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
 
     pub(crate) fn find_graph_id_for_argument(
         &self,
-        topology: &SoundGraphTopology,
+        topology: &SoundGraph,
         argument_id: SoundExpressionArgumentId,
     ) -> Option<ExpressionGraphParameterId> {
         topology
@@ -109,7 +109,7 @@ impl<'a> From<OuterProcessorExpressionContext<'a>> for OuterExpressionGraphUiCon
 impl<'a> OuterExpressionGraphUiContext<'a> {
     pub(crate) fn parameter_name(
         &self,
-        topology: &SoundGraphTopology,
+        topology: &SoundGraph,
         input_id: ExpressionGraphParameterId,
     ) -> String {
         match self {
@@ -138,7 +138,7 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 
     pub(crate) fn inspect_expression_graph<R, F: FnOnce(&ExpressionGraph) -> R>(
         &self,
-        topology: &SoundGraphTopology,
+        topology: &SoundGraph,
         f: F,
     ) -> R {
         match self {

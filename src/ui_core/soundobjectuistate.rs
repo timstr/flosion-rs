@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use eframe::egui;
 
-use crate::core::sound::{soundgraphid::SoundObjectId, soundgraphtopology::SoundGraphTopology};
+use crate::core::sound::{soundgraph::SoundGraph, soundgraphid::SoundObjectId};
 
 use super::object_ui::random_object_color;
 
@@ -40,14 +40,14 @@ impl SoundObjectUiStates {
         self.data.get(&id).unwrap().color
     }
 
-    pub(super) fn cleanup(&mut self, topo: &SoundGraphTopology) {
+    pub(super) fn cleanup(&mut self, topo: &SoundGraph) {
         self.data.retain(|i, _| match i {
             SoundObjectId::Sound(spid) => topo.sound_processors().contains_key(spid),
         });
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, topo: &SoundGraphTopology) -> bool {
+    pub(crate) fn check_invariants(&self, topo: &SoundGraph) -> bool {
         let mut good = true;
         for i in topo.sound_processors().keys() {
             if !self.data.contains_key(&i.into()) {

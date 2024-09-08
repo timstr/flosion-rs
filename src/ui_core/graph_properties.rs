@@ -4,8 +4,7 @@ use hashrevise::RevisedProperty;
 
 use crate::core::sound::{
     expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-    soundgraphtopology::SoundGraphTopology,
-    soundgraphvalidation::available_sound_expression_arguments,
+    soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
 };
 
 pub(crate) struct GraphProperties {
@@ -15,7 +14,7 @@ pub(crate) struct GraphProperties {
 }
 
 impl GraphProperties {
-    pub(crate) fn new(topo: &SoundGraphTopology) -> GraphProperties {
+    pub(crate) fn new(topo: &SoundGraph) -> GraphProperties {
         let mut props = GraphProperties {
             available_arguments: RevisedProperty::new(),
         };
@@ -29,7 +28,7 @@ impl GraphProperties {
         self.available_arguments.get_cached().unwrap()
     }
 
-    pub(crate) fn refresh(&mut self, topo: &SoundGraphTopology) {
+    pub(crate) fn refresh(&mut self, topo: &SoundGraph) {
         self.available_arguments
             .refresh1(available_sound_expression_arguments, topo);
     }

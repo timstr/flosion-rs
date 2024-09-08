@@ -407,15 +407,19 @@ impl ExpressionGraph {
         Ok(())
     }
 
-    /// Internal helper method for editing the expression graph's topology,
-    /// detecting any errors during and after, rolling back the changes
-    /// if any errors were found, and otherwise forwarding the result
-    /// and persisting the change.
+    /// Helper method for editing the expression graph, detecting any errors,
+    /// rolling back the changes if any errors were found, and otherwise
+    /// keeping the change.
     pub fn try_make_change<R, F: FnOnce(&mut ExpressionGraph) -> Result<R, ExpressionError>>(
         &mut self,
         f: F,
     ) -> Result<R, ExpressionError> {
-        debug_assert!(self.validate().is_ok());
+        if let Err(e) = self.validate() {
+            panic!(
+                "Called try_make_change() on an ExpressionGraph which is already invalid: {:?}",
+                e
+            );
+        }
         let previous_topology = self.clone();
         let res = f(self);
         if res.is_err() {
