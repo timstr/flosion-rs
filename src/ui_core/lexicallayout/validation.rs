@@ -15,19 +15,19 @@ use super::lexicallayout::LexicalLayout;
 
 pub(super) fn lexical_layout_matches_expression_graph(
     layout: &LexicalLayout,
-    topology: &ExpressionGraph,
+    graph: &ExpressionGraph,
 ) -> bool {
     let mut visited_sources: HashSet<ExpressionNodeId> = HashSet::new();
 
     let mut visited_graph_inputs: HashSet<ExpressionGraphParameterId> = HashSet::new();
 
-    fn ast_node_matches_topology(
+    fn ast_node_matches_graph(
         node: &ASTNode,
         variables_in_scope: &[VariableDefinition],
         expected_target: Option<ExpressionTarget>,
         visited_sources: &mut HashSet<ExpressionNodeId>,
         visited_graph_inputs: &mut HashSet<ExpressionGraphParameterId>,
-        topology: &ExpressionGraph,
+        graph: &ExpressionGraph,
     ) -> bool {
         match node.value() {
             ASTNodeValue::Empty => {
@@ -45,7 +45,7 @@ pub(super) fn lexical_layout_matches_expression_graph(
                 let was_inserted = visited_sources.insert(nsid);
                 if !was_inserted {
                     println!(
-                        "The number source {} already is represented by a different ASTNode",
+                        "The expression node {} already is represented by a different ASTNode",
                         nsid.value()
                     );
                     return false;
@@ -57,33 +57,33 @@ pub(super) fn lexical_layout_matches_expression_graph(
                     );
                     return false;
                 }
-                let ns_data = topology.node(nsid).unwrap();
+                let ns_data = graph.node(nsid).unwrap();
                 let num_ast_children = inode.num_children();
                 let ns_inputs = ns_data.inputs();
                 if ns_inputs.len() != num_ast_children {
                     println!(
                         "An internal ASTNode has a different number of inputs from \
-                        the number source it representes"
+                        the expression node it representes"
                     );
                     return false;
                 }
                 for (i, ns_input) in ns_inputs.iter().cloned().enumerate() {
                     let ast_child = inode.get_child(i);
-                    let Some(ns_input) = topology.node_input(ns_input) else {
+                    let Some(ns_input) = graph.node_input(ns_input) else {
                         println!(
-                            "An internal ASTNode refers to number source {} which doesn't exist",
+                            "An internal ASTNode refers to expression node {} which doesn't exist",
                             nsid.value()
                         );
                         return false;
                     };
                     let ns_input_target = ns_input.target();
-                    if !ast_node_matches_topology(
+                    if !ast_node_matches_graph(
                         ast_child,
                         variables_in_scope,
                         ns_input_target,
                         visited_sources,
                         visited_graph_inputs,
-                        topology,
+                        graph,
                     ) {
                         return false;
                     }
@@ -109,7 +109,7 @@ pub(super) fn lexical_layout_matches_expression_graph(
                     println!(
                         "An ASTNode referring to variable {} \"{}\" was found, but that \
                         variable represents the target {:?} according to the AST while the \
-                        target {:?} was expected according to the number graph topology",
+                        target {:?} was expected according to the expression graph",
                         v.value(),
                         find_variable_definition(*v, variables_in_scope)
                             .unwrap()
@@ -141,16 +141,16 @@ pub(super) fn lexical_layout_matches_expression_graph(
 
     for (i, var_defn) in layout.variable_definitions().iter().enumerate() {
         let variables_in_scope = &layout.variable_definitions()[..i];
-        if !ast_node_matches_topology(
+        if !ast_node_matches_graph(
             var_defn.value(),
             variables_in_scope,
             var_defn.value().direct_target(),
             &mut visited_sources,
             &mut visited_graph_inputs,
-            topology,
+            graph,
         ) {
             println!(
-                "Variable definition {} \"{}\" doesn't match the number graph topology",
+                "Variable definition {} \"{}\" doesn't match the expression graph",
                 var_defn.id().value(),
                 var_defn.name()
             );
@@ -158,28 +158,28 @@ pub(super) fn lexical_layout_matches_expression_graph(
         }
     }
 
-    let graph_outputs = topology.results();
+    let graph_outputs = graph.results();
     assert_eq!(graph_outputs.len(), 1);
     let graph_output = &graph_outputs[0];
 
-    if !ast_node_matches_topology(
+    if !ast_node_matches_graph(
         layout.final_expression(),
         &layout.variable_definitions(),
         graph_output.target(),
         &mut visited_sources,
         &mut visited_graph_inputs,
-        topology,
+        graph,
     ) {
-        println!("The final expression doesn't match the number graph topology");
+        println!("The final expression doesn't match the expression graph");
         all_good = false;
     }
 
-    for nsid in topology.nodes().keys() {
+    for nsid in graph.nodes().keys() {
         if !visited_sources.contains(nsid) {
             println!(
                 "Number source {} \"{}\" is not represented by any ASTNode",
                 nsid.value(),
-                topology
+                graph
                     .node(*nsid)
                     .unwrap()
                     .instance_rc()
@@ -191,13 +191,13 @@ pub(super) fn lexical_layout_matches_expression_graph(
         }
     }
 
-    let graph_inputs = topology.parameters();
+    let graph_inputs = graph.parameters();
 
     for giid in visited_graph_inputs.iter() {
         if !graph_inputs.contains(giid) {
             println!(
                 "A graph input with id {} is referred to by one or more ASTNodes, \
-                but no such graph input exists in the number graph topology",
+                but no such graph input exists in the expression graph",
                 giid.value()
             );
             all_good = false;
@@ -207,7 +207,7 @@ pub(super) fn lexical_layout_matches_expression_graph(
     for giid in graph_inputs {
         if !visited_graph_inputs.contains(giid) {
             println!(
-                "The number graph topology includes a graph input with id {}, but \
+                "The expression graph includes a graph input with id {}, but \
                 no ASTNode refers to this graph input",
                 giid.value()
             );

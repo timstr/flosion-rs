@@ -34,7 +34,7 @@ impl StackedLayout {
 
     /// Construct a new, empty SoundGraphLayout. See `renegerate` below for
     /// how to populate a SoundGraphLayout automatically from an existing
-    /// SoundGraphTopology instance.
+    /// SoundGraph instance.
     pub(crate) fn new() -> StackedLayout {
         StackedLayout { groups: Vec::new() }
     }
@@ -119,17 +119,17 @@ impl StackedLayout {
 
     /// Update the layout to remove any deleted processors, include
     /// any newly-added sound processors, and generally keep things
-    /// tidy and valid as the topology changes programmatically and
+    /// tidy and valid as the graph changes programmatically and
     /// without simultaneous changes to the layout.
-    pub(crate) fn regenerate(&mut self, topo: &SoundGraph, positions: &SoundObjectPositions) {
-        self.remove_dangling_processor_ids(topo, positions);
+    pub(crate) fn regenerate(&mut self, graph: &SoundGraph, positions: &SoundObjectPositions) {
+        self.remove_dangling_processor_ids(graph, positions);
 
         // precompute the number of sound inputs that each processor
         // is connected to
         let mut dependent_counts: HashMap<SoundProcessorId, usize> =
-            topo.sound_processors().keys().map(|k| (*k, 0)).collect();
+            graph.sound_processors().keys().map(|k| (*k, 0)).collect();
 
-        for si in topo.sound_inputs().values() {
+        for si in graph.sound_inputs().values() {
             if let Some(spid) = si.target() {
                 *dependent_counts.entry(spid).or_insert(0) += 1;
             }
@@ -137,10 +137,10 @@ impl StackedLayout {
 
         // Every processor except those with a single connected sound
         // input must be at the top of a group
-        for proc in topo.sound_processors().values() {
+        for proc in graph.sound_processors().values() {
             let inputs = proc.sound_inputs();
             if inputs.len() == 1 {
-                if topo.sound_input(inputs[0]).unwrap().target().is_some() {
+                if graph.sound_input(inputs[0]).unwrap().target().is_some() {
                     continue;
                 }
             }
@@ -173,11 +173,11 @@ impl StackedLayout {
 
         // Finally, add every remaining processor to a group.
         // Because of the above steps, every remaining processor
-        // in the topology which is not yet in a group has exactly
+        // in the graph which is not yet in a group has exactly
         // one connected sound input. Repeatedly search for remaining
         // processors which are connected to the bottom processor of
         // an existing group, and add them.
-        let mut remaining_processors: Vec<SoundProcessorId> = topo
+        let mut remaining_processors: Vec<SoundProcessorId> = graph
             .sound_processors()
             .keys()
             .cloned()
@@ -187,9 +187,9 @@ impl StackedLayout {
         while !remaining_processors.is_empty() {
             let mut added_processor = None;
             for spid in &remaining_processors {
-                let inputs = topo.sound_processor(*spid).unwrap().sound_inputs();
+                let inputs = graph.sound_processor(*spid).unwrap().sound_inputs();
                 debug_assert_eq!(inputs.len(), 1);
-                let input = topo.sound_input(inputs[0]).unwrap();
+                let input = graph.sound_input(inputs[0]).unwrap();
                 let target = input.target().unwrap();
 
                 if self.is_bottom_of_group(target) {
@@ -261,10 +261,10 @@ impl StackedLayout {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, topo: &SoundGraph) -> bool {
-        // every sound processor in the topology must appear exactly once
+    pub(crate) fn check_invariants(&self, graph: &SoundGraph) -> bool {
+        // every sound processor in the graph must appear exactly once
 
-        for spid in topo.sound_processors().keys().cloned() {
+        for spid in graph.sound_processors().keys().cloned() {
             let number_of_appearances: usize = self
                 .groups
                 .iter()
@@ -275,22 +275,22 @@ impl StackedLayout {
                 if number_of_appearances == 0 {
                     println!(
                         "The sound processor {} does not appear any groups",
-                        topo.sound_processor(spid).unwrap().friendly_name()
+                        graph.sound_processor(spid).unwrap().friendly_name()
                     );
                 } else {
                     println!(
                         "The sound processor {} appears in more than one group",
-                        topo.sound_processor(spid).unwrap().friendly_name()
+                        graph.sound_processor(spid).unwrap().friendly_name()
                     );
                 }
                 return false;
             }
         }
 
-        // every sound processor in the layout must exist in the topology
+        // every sound processor in the layout must exist in the graph
         for group in &self.groups {
             for spid in group.processors() {
-                if !topo.contains(spid) {
+                if !graph.contains(spid) {
                     println!(
                         "The layout contains a sound processor #{} which no longer exists",
                         spid.value()
@@ -309,11 +309,11 @@ impl StackedLayout {
                 .iter()
                 .zip(group.processors().iter().skip(1))
             {
-                if !Self::connection_is_unique(*top_proc, *bottom_proc, topo) {
+                if !Self::connection_is_unique(*top_proc, *bottom_proc, graph) {
                     println!(
                         "Processor {} is above processor {} in a group but the two do not have a unique connection",
-                        topo.sound_processor(*top_proc).unwrap().friendly_name(),
-                        topo.sound_processor(*bottom_proc).unwrap().friendly_name()
+                        graph.sound_processor(*top_proc).unwrap().friendly_name(),
+                        graph.sound_processor(*bottom_proc).unwrap().friendly_name()
                     );
                     return false;
                 }
@@ -328,12 +328,12 @@ impl StackedLayout {
     /// removing any empty groups that result.
     fn remove_dangling_processor_ids(
         &mut self,
-        topo: &SoundGraph,
+        graph: &SoundGraph,
         positions: &SoundObjectPositions,
     ) {
         // delete any removed processor ids
         for group in &mut self.groups {
-            group.remove_dangling_processor_ids(topo);
+            group.remove_dangling_processor_ids(graph);
         }
 
         // Remove any empty groups
@@ -351,7 +351,7 @@ impl StackedLayout {
 
                 // If the connection isn't unique, split off the remainder
                 // of the stack into a separate group
-                if !Self::connection_is_unique(top_proc, bottom_proc, topo) {
+                if !Self::connection_is_unique(top_proc, bottom_proc, graph) {
                     let procs = group.split_off_everything_below_processor(top_proc);
                     new_groups.push(StackedGroup::new_at_top_processor(procs, positions));
                 }
@@ -469,16 +469,16 @@ impl StackedLayout {
     ///  - the bottom processor has exactly one sound input
     ///  - the top processor is connected to that sound input
     ///  - the top processor not connected to any other sound inputs
-    /// Thinking of the sound graph topology in terms of a directed
+    /// Thinking of the sound graph in terms of a directed
     /// acyclic graph, this corresponds to there being exactly one
     /// outbound edge from the top processor which itself is the only
     /// inbound edge to the bottom processor.
     fn connection_is_unique(
         top_processor: SoundProcessorId,
         bottom_processor: SoundProcessorId,
-        topo: &SoundGraph,
+        graph: &SoundGraph,
     ) -> bool {
-        let inputs = topo
+        let inputs = graph
             .sound_processor(bottom_processor)
             .unwrap()
             .sound_inputs();
@@ -490,13 +490,13 @@ impl StackedLayout {
 
         // check that the top processor is connected to that input
         let input_id = inputs[0];
-        let input_target = topo.sound_input(input_id).unwrap().target();
+        let input_target = graph.sound_input(input_id).unwrap().target();
         if input_target != Some(top_processor) {
             return false;
         }
 
         // check that no other inputs are connected to the top processor
-        for other_input in topo.sound_inputs().values() {
+        for other_input in graph.sound_inputs().values() {
             if other_input.id() != input_id && other_input.target() == Some(top_processor) {
                 return false;
             }

@@ -6,26 +6,26 @@ use crate::core::{
 
 use super::{
     stategraph::StateGraph,
-    stategraphnode::{StateGraphNodeValue, SharedCompiledProcessor},
+    stategraphnode::{SharedCompiledProcessor, StateGraphNodeValue},
 };
 
 /// Edits to be made to the state graph on the audio thread. These are heavily
 /// focused on efficiently inserting pre-allocated state graph data, rather
-/// than keeping track of the overall topology. Many edits made at the sound
+/// than keeping track of the overall graph. Many edits made at the sound
 /// graph level have no analog or may not correspond to any edits here if
 /// they don't imply any individual changes to the state graph.
 ///
 /// StateGraphEdits are intended to be produced by the SoundEngine's book-keeping
-/// thread as it diffs the existing topology to newly requested topology. When
-/// new topology appears, StateGraphEdits are computed which describe the in-place
+/// thread as it diffs the existing graph to newly requested graph. When
+/// a new graph appears, StateGraphEdits are computed which describe the in-place
 /// edits to the existing state graph data on the audio thread in order for it to
-/// represent the new topology. In-place edits, rather than replacing everything,
+/// represent the new graph. In-place edits, rather than replacing everything,
 /// are required so that existing audio state is preserved and so that audio
-/// processing proceeds without audible changes due to an unrelated topological
+/// processing proceeds without audible changes due to an unrelated graph
 /// change.
 ///
 /// NOTE: (2024/05/30) the diffing algorithm has not been implimented yet, and
-/// updates currently just replace the entire topology at once.
+/// updates currently just replace the entire graph at once.
 pub(crate) enum StateGraphEdit<'ctx> {
     /// Add a static sound processor node to the state graph. Every static
     /// sound processor can be connected to multiple inputs but always has only

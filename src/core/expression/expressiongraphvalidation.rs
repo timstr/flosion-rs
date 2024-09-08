@@ -4,23 +4,23 @@ use super::{
     path::ExpressionPath,
 };
 
-pub(super) fn find_expression_error(topology: &ExpressionGraph) -> Option<ExpressionError> {
-    check_missing_ids(topology);
+pub(super) fn find_expression_error(graph: &ExpressionGraph) -> Option<ExpressionError> {
+    check_missing_ids(graph);
 
-    if let Some(path) = find_expression_cycle(topology) {
+    if let Some(path) = find_expression_cycle(graph) {
         return Some(ExpressionError::CircularDependency { cycle: path });
     }
 
     None
 }
 
-fn check_missing_ids(topology: &ExpressionGraph) {
-    for ns in topology.nodes().values() {
+fn check_missing_ids(graph: &ExpressionGraph) {
+    for ns in graph.nodes().values() {
         // for each node
 
         for ni in ns.inputs() {
             // each node input must list the node as its owner
-            match topology.node_input(*ni) {
+            match graph.node_input(*ni) {
                 Some(nidata) => {
                     if nidata.owner() != ns.id() {
                         panic!(
@@ -41,11 +41,11 @@ fn check_missing_ids(topology: &ExpressionGraph) {
         }
     }
 
-    for ni in topology.node_inputs().values() {
+    for ni in graph.node_inputs().values() {
         // for each node input
 
         // its owner must exist
-        if topology.node(ni.owner()).is_none() {
+        if graph.node(ni.owner()).is_none() {
             panic!(
                 "Node input {:?} lists node {:?} as its owner, but \
                 that node does not exist.",
@@ -57,7 +57,7 @@ fn check_missing_ids(topology: &ExpressionGraph) {
         // its target, if any, must exist
         match ni.target() {
             Some(ExpressionTarget::Node(nsid)) => {
-                if topology.node(nsid).is_none() {
+                if graph.node(nsid).is_none() {
                     panic!(
                         "Node input {:?} lists node {:?} as its target, \
                         but that node does not exist.",
@@ -67,7 +67,7 @@ fn check_missing_ids(topology: &ExpressionGraph) {
                 }
             }
             Some(ExpressionTarget::Parameter(giid)) => {
-                if !topology.parameters().contains(&giid) {
+                if !graph.parameters().contains(&giid) {
                     panic!(
                         "Node input {:?} lists graph input {:?} as its target, \
                         but that graph input does not exist.",
@@ -80,13 +80,13 @@ fn check_missing_ids(topology: &ExpressionGraph) {
         }
     }
 
-    for go in topology.results() {
+    for go in graph.results() {
         // for each graph output
 
         // its target, if any, must exist
         match go.target() {
             Some(ExpressionTarget::Node(nsid)) => {
-                if topology.node(nsid).is_none() {
+                if graph.node(nsid).is_none() {
                     panic!(
                         "Graph output {:?} lists node {:?} as its target, \
                         but that node does not exist.",
@@ -96,7 +96,7 @@ fn check_missing_ids(topology: &ExpressionGraph) {
                 }
             }
             Some(ExpressionTarget::Parameter(giid)) => {
-                if !topology.parameters().contains(&giid) {
+                if !graph.parameters().contains(&giid) {
                     panic!(
                         "Graph output {:?} lists graph input {:?} as its target, \
                         but that graph input does not exist.",
@@ -112,12 +112,12 @@ fn check_missing_ids(topology: &ExpressionGraph) {
     // no checks needed for graph inputs as they have no additional data
 }
 
-fn find_expression_cycle(topology: &ExpressionGraph) -> Option<ExpressionPath> {
+fn find_expression_cycle(graph: &ExpressionGraph) -> Option<ExpressionPath> {
     fn dfs_find_cycle(
         input_id: ExpressionNodeInputId,
         visited: &mut Vec<ExpressionNodeInputId>,
         path: &mut ExpressionPath,
-        topo: &ExpressionGraph,
+        graph: &ExpressionGraph,
     ) -> Option<ExpressionPath> {
         if !visited.contains(&input_id) {
             visited.push(input_id);
@@ -126,14 +126,14 @@ fn find_expression_cycle(topology: &ExpressionGraph) -> Option<ExpressionPath> {
         if path.contains_input(input_id) {
             return Some(path.trim_until_input(input_id));
         }
-        let input_desc = topo.node_input(input_id).unwrap();
+        let input_desc = graph.node_input(input_id).unwrap();
         let Some(ExpressionTarget::Node(target_id)) = input_desc.target() else {
             return None;
         };
-        let proc_desc = topo.node(target_id).unwrap();
+        let proc_desc = graph.node(target_id).unwrap();
         path.push(target_id, input_id);
         for target_proc_input in proc_desc.inputs() {
-            if let Some(path) = dfs_find_cycle(*target_proc_input, visited, path, topo) {
+            if let Some(path) = dfs_find_cycle(*target_proc_input, visited, path, graph) {
                 return Some(path);
             }
         }
@@ -146,14 +146,14 @@ fn find_expression_cycle(topology: &ExpressionGraph) -> Option<ExpressionPath> {
 
     loop {
         assert_eq!(path.connections.len(), 0);
-        let input_to_visit = topology
+        let input_to_visit = graph
             .node_inputs()
             .keys()
             .find(|pid| !visited.contains(&pid));
         match input_to_visit {
             None => break None,
             Some(pid) => {
-                if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, topology) {
+                if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, graph) {
                     break Some(path);
                 }
             }
@@ -162,14 +162,14 @@ fn find_expression_cycle(topology: &ExpressionGraph) -> Option<ExpressionPath> {
 }
 
 pub(crate) fn validate_expression_connection(
-    topology: &ExpressionGraph,
+    graph: &ExpressionGraph,
     input_id: ExpressionNodeInputId,
     target: ExpressionTarget,
 ) -> Result<(), ExpressionError> {
-    // Lazy approach: duplicate the topology, make the edit, and see what happens
-    let mut topology = topology.clone();
-    topology.connect_node_input(input_id, target)?;
-    if let Some(err) = find_expression_error(&topology) {
+    // Lazy approach: duplicate the graph, make the edit, and see what happens
+    let mut graph = graph.clone();
+    graph.connect_node_input(input_id, target)?;
+    if let Some(err) = find_expression_error(&graph) {
         return Err(err);
     }
     Ok(())

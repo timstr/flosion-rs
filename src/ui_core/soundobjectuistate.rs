@@ -40,16 +40,16 @@ impl SoundObjectUiStates {
         self.data.get(&id).unwrap().color
     }
 
-    pub(super) fn cleanup(&mut self, topo: &SoundGraph) {
+    pub(super) fn cleanup(&mut self, graph: &SoundGraph) {
         self.data.retain(|i, _| match i {
-            SoundObjectId::Sound(spid) => topo.sound_processors().contains_key(spid),
+            SoundObjectId::Sound(spid) => graph.sound_processors().contains_key(spid),
         });
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, topo: &SoundGraph) -> bool {
+    pub(crate) fn check_invariants(&self, graph: &SoundGraph) -> bool {
         let mut good = true;
-        for i in topo.sound_processors().keys() {
+        for i in graph.sound_processors().keys() {
             if !self.data.contains_key(&i.into()) {
                 println!("Sound processor {} does not have a ui state", i.value());
                 good = false;
@@ -58,7 +58,7 @@ impl SoundObjectUiStates {
         for i in self.data.keys() {
             match i {
                 SoundObjectId::Sound(i) => {
-                    if !topo.sound_processors().contains_key(i) {
+                    if !graph.sound_processors().contains_key(i) {
                         println!(
                             "A ui state exists for non-existent sound processor {}",
                             i.value()

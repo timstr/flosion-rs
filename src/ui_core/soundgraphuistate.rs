@@ -115,15 +115,19 @@ impl SoundGraphUiState {
     }
 
     /// Remove any state associated with objects that are no longer present
-    /// in the topology, and create new states for new objects
-    pub(super) fn cleanup_stale_graph_objects(&mut self, topo: &SoundGraph, factories: &Factories) {
-        self.object_states.cleanup(topo);
+    /// in the graph, and create new states for new objects
+    pub(super) fn cleanup_stale_graph_objects(
+        &mut self,
+        graph: &SoundGraph,
+        factories: &Factories,
+    ) {
+        self.object_states.cleanup(graph);
 
         self.expression_uis
-            .cleanup(topo, factories.expression_uis());
+            .cleanup(graph, factories.expression_uis());
 
-        self.names.regenerate(topo);
-        self.interactions.cleanup(topo);
+        self.names.regenerate(graph);
+        self.interactions.cleanup(graph);
     }
 
     pub(super) fn cleanup_frame_data(&mut self) {
@@ -131,8 +135,8 @@ impl SoundGraphUiState {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, topo: &SoundGraph) -> bool {
-        self.object_states.check_invariants(topo)
+    pub(crate) fn check_invariants(&self, graph: &SoundGraph) -> bool {
+        self.object_states.check_invariants(graph)
     }
 
     pub(crate) fn names(&self) -> &SoundGraphUiNames {

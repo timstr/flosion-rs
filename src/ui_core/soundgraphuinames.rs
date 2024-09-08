@@ -75,17 +75,17 @@ impl SoundGraphUiNames {
         }
     }
 
-    pub(crate) fn regenerate(&mut self, topology: &SoundGraph) {
+    pub(crate) fn regenerate(&mut self, graph: &SoundGraph) {
         self.arguments
-            .retain(|k, _v| topology.expression_argument(*k).is_some());
+            .retain(|k, _v| graph.expression_argument(*k).is_some());
         self.expressions
-            .retain(|k, _v| topology.expression(*k).is_some());
+            .retain(|k, _v| graph.expression(*k).is_some());
         self.sound_inputs
-            .retain(|k, _v| topology.sound_input(*k).is_some());
+            .retain(|k, _v| graph.sound_input(*k).is_some());
         self.sound_processors
-            .retain(|k, _v| topology.sound_processor(*k).is_some());
+            .retain(|k, _v| graph.sound_processor(*k).is_some());
 
-        for ns_data in topology.expression_arguments().values() {
+        for ns_data in graph.expression_arguments().values() {
             self.arguments
                 .entry(ns_data.id())
                 .or_insert_with(|| SoundArgumentNameData {
@@ -94,7 +94,7 @@ impl SoundGraphUiNames {
                 });
         }
 
-        for ni_data in topology.expressions().values() {
+        for ni_data in graph.expressions().values() {
             self.expressions
                 .entry(ni_data.id())
                 .or_insert_with(|| SoundExpressionNameData {
@@ -102,7 +102,7 @@ impl SoundGraphUiNames {
                 });
         }
 
-        for si_data in topology.sound_inputs().values() {
+        for si_data in graph.sound_inputs().values() {
             self.sound_inputs
                 .entry(si_data.id())
                 .or_insert_with(|| SoundInputNameData {
@@ -111,7 +111,7 @@ impl SoundGraphUiNames {
                 });
         }
 
-        for sp_data in topology.sound_processors().values() {
+        for sp_data in graph.sound_processors().values() {
             self.sound_processors
                 .entry(sp_data.id())
                 .or_insert_with(|| SoundProcessorNameData {

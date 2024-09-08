@@ -29,14 +29,14 @@ impl ExpressionNodeObjectUiStates {
     }
 
     /// Automatically fill the ui states for all objects in the given
-    /// expression graph topology with default-created ui states.
+    /// expression graph with default-created ui states.
     pub(super) fn generate(
-        topo: &ExpressionGraph,
+        graph: &ExpressionGraph,
         factory: &ExpressionObjectUiFactory,
     ) -> ExpressionNodeObjectUiStates {
         let mut states = Self::new();
 
-        for node in topo.nodes().values() {
+        for node in graph.nodes().values() {
             let object = node.instance_rc().as_graph_object();
             let object_type = object.get_type();
             let object_ui = factory.get(object_type);
@@ -63,9 +63,9 @@ impl ExpressionNodeObjectUiStates {
     }
 
     /// Remove any state associated with objects that no longer
-    /// exist in the given topology.
-    pub(super) fn cleanup(&mut self, topology: &ExpressionGraph) {
-        self.data.retain(|id, _| topology.nodes().contains_key(id));
+    /// exist in the given graph.
+    pub(super) fn cleanup(&mut self, graph: &ExpressionGraph) {
+        self.data.retain(|id, _| graph.nodes().contains_key(id));
     }
 }
 
@@ -76,13 +76,13 @@ pub struct ExpressionGraphUiState {
 }
 
 impl ExpressionGraphUiState {
-    /// Automatically generate the ui state for the given expression graph
-    /// topology. All expression node objects will be assigned default ui state.
+    /// Automatically generate the ui state for the given expression graph.
+    // All expression node objects will be assigned default ui state.
     pub(crate) fn generate(
-        topo: &ExpressionGraph,
+        graph: &ExpressionGraph,
         factory: &ExpressionObjectUiFactory,
     ) -> ExpressionGraphUiState {
-        let object_states = ExpressionNodeObjectUiStates::generate(topo, factory);
+        let object_states = ExpressionNodeObjectUiStates::generate(graph, factory);
 
         ExpressionGraphUiState { object_states }
     }
@@ -98,9 +98,9 @@ impl ExpressionGraphUiState {
     }
 
     /// Remove any data associated with objects that no longer exist in
-    /// the given topology.
-    fn cleanup(&mut self, topo: &ExpressionGraph) {
-        self.object_states.cleanup(topo);
+    /// the given graph.
+    fn cleanup(&mut self, graph: &ExpressionGraph) {
+        self.object_states.cleanup(graph);
     }
 }
 
@@ -130,21 +130,21 @@ impl ExpressionUiCollection {
     }
 
     /// Remove any data associated with expressions or their components
-    /// that no longer exist in the given sound graph topology.
-    pub(super) fn cleanup(&mut self, topology: &SoundGraph, factory: &ExpressionObjectUiFactory) {
+    /// that no longer exist in the given sound graph.
+    pub(super) fn cleanup(&mut self, graph: &SoundGraph, factory: &ExpressionObjectUiFactory) {
         // Delete data for removed expressions
         self.data
-            .retain(|id, _| topology.expressions().contains_key(id));
+            .retain(|id, _| graph.expressions().contains_key(id));
 
         // Clean up the internal ui data of individual expressions
         for (eid, (expr_ui_state, layout)) in &mut self.data {
-            let expr_topo = topology.expression(*eid).unwrap().expression_graph();
-            expr_ui_state.cleanup(expr_topo);
-            layout.cleanup(expr_topo)
+            let expr_graph = graph.expression(*eid).unwrap().expression_graph();
+            expr_ui_state.cleanup(expr_graph);
+            layout.cleanup(expr_graph)
         }
 
         // Add data for newly-added expressions
-        for expr in topology.expressions().values() {
+        for expr in graph.expressions().values() {
             if self.data.contains_key(&expr.id()) {
                 continue;
             }

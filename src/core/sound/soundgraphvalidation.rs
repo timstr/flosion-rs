@@ -12,28 +12,28 @@ use super::{
     soundprocessor::SoundProcessorId,
 };
 
-pub(super) fn find_sound_error(topology: &SoundGraph) -> Option<SoundError> {
-    check_missing_ids(topology);
+pub(super) fn find_sound_error(graph: &SoundGraph) -> Option<SoundError> {
+    check_missing_ids(graph);
 
-    if let Some(path) = find_sound_cycle(topology) {
+    if let Some(path) = find_sound_cycle(graph) {
         return Some(SoundError::CircularDependency { cycle: path });
     }
-    if let Some(err) = validate_sound_connections(topology) {
+    if let Some(err) = validate_sound_connections(graph) {
         return Some(err);
     }
-    let bad_dependencies = find_invalid_expression_arguments(topology);
+    let bad_dependencies = find_invalid_expression_arguments(graph);
     if bad_dependencies.len() > 0 {
         return Some(SoundError::StateNotInScope { bad_dependencies });
     }
     None
 }
 
-pub(super) fn check_missing_ids(topology: &SoundGraph) {
-    for sp in topology.sound_processors().values() {
+pub(super) fn check_missing_ids(graph: &SoundGraph) {
+    for sp in graph.sound_processors().values() {
         // for each sound processor
         for i in sp.sound_inputs() {
             // each sound input must exist and list the sound processor as its owner
-            match topology.sound_inputs().get(i) {
+            match graph.sound_inputs().get(i) {
                 Some(idata) => {
                     if idata.owner() != sp.id() {
                         panic!(
@@ -55,7 +55,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         }
         for i in sp.expressions() {
             // each expression must exist and list the sound processor as its owner
-            match topology.expressions().get(i) {
+            match graph.expressions().get(i) {
                 Some(idata) => {
                     if idata.owner() != sp.id() {
                         panic!(
@@ -77,7 +77,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         }
         for s in sp.expression_arguments() {
             // each argument must exist and list the sound processor as its owner
-            match topology.expression_arguments().get(s) {
+            match graph.expression_arguments().get(s) {
                 Some(sdata) => {
                     if sdata.owner() != SoundExpressionArgumentOwner::SoundProcessor(sp.id()) {
                         panic!(
@@ -99,10 +99,10 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         }
     }
 
-    for si in topology.sound_inputs().values() {
+    for si in graph.sound_inputs().values() {
         // for each sound input
         if let Some(spid) = si.target() {
-            if topology.sound_processor(spid).is_none() {
+            if graph.sound_processor(spid).is_none() {
                 panic!(
                     "The sound input {:?} lists sound processor {:?} as its target, \
                         but that sound processor does not exist.",
@@ -111,7 +111,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
                 )
             }
         }
-        match topology.sound_processor(si.owner()) {
+        match graph.sound_processor(si.owner()) {
             // its owner must exist and list the input
             Some(sp) => {
                 if !sp.sound_inputs().contains(&si.id()) {
@@ -133,7 +133,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         }
         for nsid in si.expression_arguments() {
             // each argument must exist and list the sound input as its owner
-            match topology.expression_arguments().get(nsid) {
+            match graph.expression_arguments().get(nsid) {
                 Some(ns) => {
                     if ns.owner() != SoundExpressionArgumentOwner::SoundInput(si.id()) {
                         panic!(
@@ -155,11 +155,11 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         }
     }
 
-    for ns in topology.expression_arguments().values() {
+    for ns in graph.expression_arguments().values() {
         match ns.owner() {
             // if the argument has an owner, it must exist and list the argument
             SoundExpressionArgumentOwner::SoundProcessor(spid) => {
-                match topology.sound_processor(spid) {
+                match graph.sound_processor(spid) {
                     Some(sp) => {
                         if !sp.expression_arguments().contains(&ns.id()) {
                             panic!(
@@ -179,7 +179,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
                     ),
                 }
             }
-            SoundExpressionArgumentOwner::SoundInput(siid) => match topology.sound_input(siid) {
+            SoundExpressionArgumentOwner::SoundInput(siid) => match graph.sound_input(siid) {
                 Some(si) => {
                     if !si.expression_arguments().contains(&ns.id()) {
                         panic!(
@@ -201,12 +201,12 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         }
     }
 
-    for ni in topology.expressions().values() {
+    for ni in graph.expressions().values() {
         // for each expression
 
         // all of its mapped arguments must exist
         for nsid in ni.parameter_mapping().items().values() {
-            if topology.expression_arguments().get(nsid).is_none() {
+            if graph.expression_arguments().get(nsid).is_none() {
                 panic!(
                     "The expression {:?} lists expression argument {:?} as its target, but that \
                         argument does not exist.",
@@ -217,7 +217,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         }
 
         // its owner must exist and list it as one of its expressions
-        match topology.sound_processor(ni.owner()) {
+        match graph.sound_processor(ni.owner()) {
             Some(sp) => {
                 if !sp.expressions().contains(&ni.id()) {
                     panic!(
@@ -240,7 +240,7 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
         // any expression arguments listed in its scope must belong to the parent
         // sound processor and be local arguments
         for nsid in ni.scope().available_local_arguments() {
-            let Some(ns_data) = topology.expression_argument(*nsid) else {
+            let Some(ns_data) = graph.expression_argument(*nsid) else {
                 panic!(
                     "The expression {:?} lists expression argument {:?} as in its local scope, but \
                     that argument doesn't exist.",
@@ -270,12 +270,12 @@ pub(super) fn check_missing_ids(topology: &SoundGraph) {
     // whew, made it
 }
 
-pub(super) fn find_sound_cycle(topology: &SoundGraph) -> Option<SoundPath> {
+pub(super) fn find_sound_cycle(graph: &SoundGraph) -> Option<SoundPath> {
     fn dfs_find_cycle(
         input_id: SoundInputId,
         visited: &mut Vec<SoundInputId>,
         path: &mut SoundPath,
-        topo: &SoundGraph,
+        graph: &SoundGraph,
     ) -> Option<SoundPath> {
         if !visited.contains(&input_id) {
             visited.push(input_id);
@@ -284,15 +284,15 @@ pub(super) fn find_sound_cycle(topology: &SoundGraph) -> Option<SoundPath> {
         if path.contains_input(input_id) {
             return Some(path.trim_until_input(input_id));
         }
-        let input_desc = topo.sound_input(input_id).unwrap();
+        let input_desc = graph.sound_input(input_id).unwrap();
         let target_id = match input_desc.target() {
             Some(spid) => spid,
             _ => return None,
         };
-        let proc_desc = topo.sound_processor(target_id).unwrap();
+        let proc_desc = graph.sound_processor(target_id).unwrap();
         path.push(target_id, input_id);
         for target_proc_input in proc_desc.sound_inputs() {
-            if let Some(path) = dfs_find_cycle(*target_proc_input, visited, path, topo) {
+            if let Some(path) = dfs_find_cycle(*target_proc_input, visited, path, graph) {
                 return Some(path);
             }
         }
@@ -305,14 +305,14 @@ pub(super) fn find_sound_cycle(topology: &SoundGraph) -> Option<SoundPath> {
 
     loop {
         assert_eq!(path.connections.len(), 0);
-        let input_to_visit = topology
+        let input_to_visit = graph
             .sound_inputs()
             .keys()
             .find(|pid| !visited.contains(&pid));
         match input_to_visit {
             None => break None,
             Some(pid) => {
-                if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, topology) {
+                if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, graph) {
                     break Some(path);
                 }
             }
@@ -326,16 +326,16 @@ struct ProcessorAllocation {
 }
 
 fn compute_implied_processor_allocations(
-    topo: &SoundGraph,
+    graph: &SoundGraph,
 ) -> HashMap<SoundProcessorId, ProcessorAllocation> {
     fn visit(
         processor_id: SoundProcessorId,
         states_to_add: usize,
         is_sync: bool,
-        topo: &SoundGraph,
+        graph: &SoundGraph,
         allocations: &mut HashMap<SoundProcessorId, ProcessorAllocation>,
     ) {
-        let proc_data = topo.sound_processor(processor_id).unwrap();
+        let proc_data = graph.sound_processor(processor_id).unwrap();
         let is_static = proc_data.instance().is_static();
 
         match allocations.entry(processor_id) {
@@ -368,7 +368,7 @@ fn compute_implied_processor_allocations(
         let processor_states = if is_static { 1 } else { states_to_add };
 
         for input_id in proc_data.sound_inputs() {
-            let input_data = topo.sound_input(*input_id).unwrap();
+            let input_data = graph.sound_input(*input_id).unwrap();
             let Some(target_proc_id) = input_data.target() else {
                 continue;
             };
@@ -381,7 +381,7 @@ fn compute_implied_processor_allocations(
             };
             let sync = is_sync && input_is_sync;
 
-            visit(target_proc_id, states, sync, topo, allocations);
+            visit(target_proc_id, states, sync, graph, allocations);
         }
     }
 
@@ -389,9 +389,9 @@ fn compute_implied_processor_allocations(
     let roots: Vec<SoundProcessorId>;
     {
         let mut processors_with_dependents = HashSet::<SoundProcessorId>::new();
-        for proc in topo.sound_processors().values() {
+        for proc in graph.sound_processors().values() {
             for input_id in proc.sound_inputs() {
-                let input = topo.sound_input(*input_id).unwrap();
+                let input = graph.sound_input(*input_id).unwrap();
                 if let Some(target) = input.target() {
                     processors_with_dependents.insert(target);
                 }
@@ -400,7 +400,7 @@ fn compute_implied_processor_allocations(
 
         let mut processors_without_dependents = Vec::<SoundProcessorId>::new();
 
-        for proc_id in topo.sound_processors().keys() {
+        for proc_id in graph.sound_processors().keys() {
             if !processors_with_dependents.contains(proc_id) {
                 processors_without_dependents.push(*proc_id);
             }
@@ -413,17 +413,17 @@ fn compute_implied_processor_allocations(
 
     // Visit all root processors and populate them and their dependencies
     for spid in roots {
-        visit(spid, 1, true, topo, &mut allocations);
+        visit(spid, 1, true, graph, &mut allocations);
     }
 
     allocations
 }
 
-pub(super) fn validate_sound_connections(topology: &SoundGraph) -> Option<SoundError> {
-    let allocations = compute_implied_processor_allocations(topology);
+pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundError> {
+    let allocations = compute_implied_processor_allocations(graph);
 
     for (proc_id, allocation) in &allocations {
-        let proc_data = topology.sound_processor(*proc_id).unwrap();
+        let proc_data = graph.sound_processor(*proc_id).unwrap();
 
         if proc_data.instance().is_static() {
             // Static processors must always be sync
@@ -434,8 +434,8 @@ pub(super) fn validate_sound_connections(topology: &SoundGraph) -> Option<SoundE
             // Static processors must be allocated one state per input
             // We don't check the processor's own implied number of states
             // because that would overcount if there are multiple inputs.
-            for input_id in topology.sound_processor_targets(*proc_id) {
-                let input = topology.sound_input(input_id).unwrap();
+            for input_id in graph.sound_processor_targets(*proc_id) {
+                let input = graph.sound_input(input_id).unwrap();
                 if input.branches().len() != 1
                     || allocations.get(&input.owner()).unwrap().implied_num_states != 1
                 {
@@ -451,11 +451,11 @@ pub(super) fn validate_sound_connections(topology: &SoundGraph) -> Option<SoundE
 fn input_depends_on_processor(
     input_id: SoundInputId,
     processor_id: SoundProcessorId,
-    topology: &SoundGraph,
+    graph: &SoundGraph,
 ) -> bool {
-    let input_data = topology.sound_input(input_id).unwrap();
+    let input_data = graph.sound_input(input_id).unwrap();
     match input_data.target() {
-        Some(spid) => processor_depends_on_processor(spid, processor_id, topology),
+        Some(spid) => processor_depends_on_processor(spid, processor_id, graph),
         None => false,
     }
 }
@@ -463,14 +463,14 @@ fn input_depends_on_processor(
 fn processor_depends_on_processor(
     processor_id: SoundProcessorId,
     other_processor_id: SoundProcessorId,
-    topology: &SoundGraph,
+    graph: &SoundGraph,
 ) -> bool {
     if processor_id == other_processor_id {
         return true;
     }
-    let processor_data = topology.sound_processor(processor_id).unwrap();
+    let processor_data = graph.sound_processor(processor_id).unwrap();
     for siid in processor_data.sound_inputs() {
-        if input_depends_on_processor(*siid, other_processor_id, topology) {
+        if input_depends_on_processor(*siid, other_processor_id, graph) {
             return true;
         }
     }
@@ -478,19 +478,19 @@ fn processor_depends_on_processor(
 }
 
 pub(super) fn find_invalid_expression_arguments(
-    topology: &SoundGraph,
+    graph: &SoundGraph,
 ) -> Vec<(SoundExpressionArgumentId, SoundExpressionId)> {
     let mut bad_connections: Vec<(SoundExpressionArgumentId, SoundExpressionId)> = Vec::new();
 
-    for (niid, ni) in topology.expressions() {
+    for (niid, ni) in graph.expressions() {
         for target in ni.parameter_mapping().items().values() {
-            let target_owner = topology.expression_argument(*target).unwrap().owner();
+            let target_owner = graph.expression_argument(*target).unwrap().owner();
             let depends = match target_owner {
                 SoundExpressionArgumentOwner::SoundProcessor(spid) => {
-                    processor_depends_on_processor(spid, ni.owner(), topology)
+                    processor_depends_on_processor(spid, ni.owner(), graph)
                 }
                 SoundExpressionArgumentOwner::SoundInput(siid) => {
-                    input_depends_on_processor(siid, ni.owner(), topology)
+                    input_depends_on_processor(siid, ni.owner(), graph)
                 }
             };
             if !depends {
@@ -503,13 +503,13 @@ pub(super) fn find_invalid_expression_arguments(
 }
 
 pub(crate) fn available_sound_expression_arguments(
-    topology: &SoundGraph,
+    graph: &SoundGraph,
 ) -> HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>> {
     let mut available_arguments_by_processor: HashMap<
         SoundProcessorId,
         HashSet<SoundExpressionArgumentId>,
     > = HashMap::new();
-    for proc_data in topology.sound_processors().values() {
+    for proc_data in graph.sound_processors().values() {
         if proc_data.instance().is_static() {
             available_arguments_by_processor.insert(
                 proc_data.id(),
@@ -521,10 +521,10 @@ pub(crate) fn available_sound_expression_arguments(
     let all_targets_cached_for =
         |processor_id: SoundProcessorId,
          cache: &HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>>| {
-            topology
+            graph
                 .sound_processor_targets(processor_id)
                 .all(|target_siid| {
-                    let parent_sp = topology.sound_input(target_siid).unwrap().owner();
+                    let parent_sp = graph.sound_input(target_siid).unwrap().owner();
                     cache.contains_key(&parent_sp)
                 })
         };
@@ -533,7 +533,7 @@ pub(crate) fn available_sound_expression_arguments(
         |input_id: SoundInputId,
          cache: &HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>>|
          -> HashSet<SoundExpressionArgumentId> {
-            let input_data = topology.sound_input(input_id).unwrap();
+            let input_data = graph.sound_input(input_id).unwrap();
             let mut arguments = cache
                 .get(&input_data.owner())
                 .expect("Processor expression arguments should have been cached")
@@ -546,7 +546,7 @@ pub(crate) fn available_sound_expression_arguments(
 
     // Cache all processors in topological order
     loop {
-        let next_proc_id = topology
+        let next_proc_id = graph
             .sound_processors()
             .values()
             .filter_map(|proc_data| {
@@ -572,7 +572,7 @@ pub(crate) fn available_sound_expression_arguments(
 
         // Available upstream arguments are the intersection of all those
         // available via each destination sound input
-        for target_input in topology.sound_processor_targets(next_proc_id) {
+        for target_input in graph.sound_processor_targets(next_proc_id) {
             let target_input_arguments =
                 sound_input_arguments(target_input, &available_arguments_by_processor);
             if let Some(arguments) = available_arguments.as_mut() {
@@ -587,7 +587,7 @@ pub(crate) fn available_sound_expression_arguments(
 
         let mut available_arguments = available_arguments.unwrap_or_else(HashSet::new);
 
-        for nsid in topology
+        for nsid in graph
             .sound_processor(next_proc_id)
             .unwrap()
             .expression_arguments()
@@ -602,18 +602,18 @@ pub(crate) fn available_sound_expression_arguments(
 
     // Each expression's available arguments are those available from the processor minus
     // any out-of-scope locals
-    for ni_data in topology.expressions().values() {
+    for ni_data in graph.expressions().values() {
         let mut available_arguments = available_arguments_by_processor
             .get(&ni_data.owner())
             .unwrap()
             .clone();
-        let processor_arguments = topology
+        let processor_arguments = graph
             .sound_processor(ni_data.owner())
             .unwrap()
             .expression_arguments();
         for nsid in processor_arguments {
             debug_assert!(available_arguments.contains(nsid));
-            let ns_data = topology.expression_argument(*nsid).unwrap();
+            let ns_data = graph.expression_argument(*nsid).unwrap();
             match ns_data.instance().origin() {
                 SoundExpressionArgumentOrigin::ProcessorState(spid) => {
                     debug_assert_eq!(spid, ni_data.owner());

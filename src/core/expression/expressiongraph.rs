@@ -393,7 +393,7 @@ impl ExpressionGraph {
 
     //-------------------------------------------
 
-    /// Create a ExpressionNodeTools instance for making topological
+    /// Create a ExpressionNodeTools instance for making
     /// changes to a single expression node pass them to the
     /// provided closure. The caller is assumed to already have
     /// a handle to the expression node in question.
@@ -420,13 +420,13 @@ impl ExpressionGraph {
                 e
             );
         }
-        let previous_topology = self.clone();
+        let previous_graph = self.clone();
         let res = f(self);
         if res.is_err() {
-            *self = previous_topology;
+            *self = previous_graph;
             return res;
         } else if let Err(e) = self.validate() {
-            *self = previous_topology;
+            *self = previous_graph;
             return Err(e);
         }
         res
@@ -441,29 +441,29 @@ impl ExpressionGraph {
 }
 
 pub fn clean_up_and_remove_expression_node(
-    topo: &mut ExpressionGraph,
+    graph: &mut ExpressionGraph,
     id: ExpressionNodeId,
 ) -> Result<(), ExpressionError> {
     let mut inputs_to_remove = Vec::new();
     let mut inputs_to_disconnect = Vec::new();
     let mut results_to_disconnect = Vec::new();
 
-    let node = topo.node(id).ok_or(ExpressionError::NodeNotFound(id))?;
+    let node = graph.node(id).ok_or(ExpressionError::NodeNotFound(id))?;
 
     for ni in node.inputs() {
         inputs_to_remove.push(*ni);
-        if topo.node_input(*ni).unwrap().target().is_some() {
+        if graph.node_input(*ni).unwrap().target().is_some() {
             inputs_to_disconnect.push(*ni);
         }
     }
 
-    for ni in topo.node_inputs().values() {
+    for ni in graph.node_inputs().values() {
         if ni.target() == Some(ExpressionTarget::Node(id)) {
             inputs_to_disconnect.push(ni.id());
         }
     }
 
-    for go in topo.results() {
+    for go in graph.results() {
         if go.target() == Some(ExpressionTarget::Node(id)) {
             results_to_disconnect.push(go.id());
         }
@@ -472,18 +472,18 @@ pub fn clean_up_and_remove_expression_node(
     // ---
 
     for ni in inputs_to_disconnect {
-        topo.disconnect_node_input(ni)?;
+        graph.disconnect_node_input(ni)?;
     }
 
     for go in results_to_disconnect {
-        topo.disconnect_result(go)?;
+        graph.disconnect_result(go)?;
     }
 
     for ni in inputs_to_remove {
-        topo.remove_node_input(ni)?;
+        graph.remove_node_input(ni)?;
     }
 
-    topo.remove_node(id)?;
+    graph.remove_node(id)?;
 
     Ok(())
 }

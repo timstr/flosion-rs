@@ -17,10 +17,10 @@ use super::{
     },
 };
 
-/// Helper struct for comparing a StateGraph to a SoundGraphTopology instance
+/// Helper struct for comparing a StateGraph to a SoundGraph instance
 struct Visitor<'a, 'ctx> {
-    /// The topology being compared against
-    topology: &'a SoundGraph,
+    /// The sound graph being compared against
+    sound_graph: &'a SoundGraph,
 
     /// All shared compiled processors visited so far, and the processors they correspond to.
     /// Note that all static processor nodes are shared nodes, but dynamic
@@ -34,7 +34,7 @@ struct Visitor<'a, 'ctx> {
 
 impl<'a, 'ctx> Visitor<'a, 'ctx> {
     /// Recursively inspect a shared compiled processor and test whether it matches
-    /// the topology.
+    /// the sound graph.
     fn visit_shared_processor(&mut self, proc: &SharedCompiledProcessor<'ctx>) -> bool {
         let data = proc.borrow_cache();
         let data_ptr: *const SharedCompiledProcessorCache = &*data;
@@ -42,7 +42,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if let Some(spid) = self.visited_shared_processors.get(&data_ptr) {
             if *spid != proc.id() {
                 println!(
-                    "state_graph_matches_topology: a single shared compiled processor exists with \
+                    "state_graph_matches_sound_graph: a single shared compiled processor exists with \
                     multiple processor ids"
                 );
                 return false;
@@ -60,7 +60,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     }
 
     /// Recursively inspect a unique compiled processor and test whether it matches
-    /// the topology
+    /// the sound graph
     fn visit_unique_processor(&mut self, proc: &UniqueCompiledSoundProcessor<'ctx>) -> bool {
         if !self.check_processor(proc.processor(), None) {
             return false;
@@ -74,9 +74,9 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         proc: &dyn CompiledSoundProcessor<'ctx>,
         shared_data: Option<*const SharedCompiledProcessorCache<'ctx>>,
     ) -> bool {
-        let Some(proc_data) = self.topology.sound_processors().get(&proc.id()) else {
+        let Some(proc_data) = self.sound_graph.sound_processors().get(&proc.id()) else {
             println!(
-                "state_graph_matches_topology: a sound processor was found which shouldn't exist"
+                "state_graph_matches_sound_graph: a sound processor was found which shouldn't exist"
             );
             return false;
         };
@@ -84,7 +84,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if proc_data.instance().is_static() {
             let Some(shared_data_ptr) = shared_data else {
                 println!(
-                    "state_graph_matches_topology: found a unique node for a static processor \
+                    "state_graph_matches_sound_graph: found a unique node for a static processor \
                     instead of a shared node"
                 );
                 return false;
@@ -92,7 +92,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             if let Some(other_ptr) = self.visited_static_processors.get(&proc.id()) {
                 if *other_ptr != shared_data_ptr {
                     println!(
-                        "state_graph_matches_topology: multiple different shared nodes exist for \
+                        "state_graph_matches_sound_graph: multiple different shared nodes exist for \
                         the same static processor"
                     );
                     return false;
@@ -131,7 +131,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             let mut unexpected_input_branches: HashSet<(SoundInputId, SoundInputBranchId)> =
                 HashSet::new();
             for input_id in proc_data.sound_inputs() {
-                let input_data = self.topology.sound_input(*input_id).unwrap();
+                let input_data = self.sound_graph.sound_input(*input_id).unwrap();
                 for bid in input_data.branches() {
                     remaining_input_branches.insert((*input_id, *bid));
                 }
@@ -145,7 +145,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
             if !unexpected_input_branches.is_empty() {
                 println!(
-                    "state_graph_matches_topology: sound processor {}  has the following \
+                    "state_graph_matches_sound_graph: sound processor {}  has the following \
                     sound input branches which shouldn't exist: {}",
                     proc_data.friendly_name(),
                     comma_separated_list(unexpected_input_branches.iter().map(|x| format!(
@@ -158,7 +158,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             }
             if !remaining_input_branches.is_empty() {
                 println!(
-                    "state_graph_matches_topology: sound processor {} is missing the \
+                    "state_graph_matches_sound_graph: sound processor {} is missing the \
                     following sound input branches: {}",
                     proc_data.friendly_name(),
                     comma_separated_list(remaining_input_branches.iter().map(|x| format!(
@@ -175,13 +175,13 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         {
             let mut all_good = true;
             for target in proc.sound_input().targets() {
-                let input_data = self.topology.sound_input(target.id()).unwrap();
+                let input_data = self.sound_graph.sound_input(target.id()).unwrap();
                 if target.target_id() != input_data.target() {
                     all_good = false;
                 }
             }
             if !all_good {
-                println!("state_graph_matches_topology: a sound input has the wrong target");
+                println!("state_graph_matches_sound_graph: a sound input has the wrong target");
                 return false;
             }
         }
@@ -213,7 +213,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
         if !unexpected_inputs.is_empty() {
             println!(
-                "state_graph_matches_topology: sound processor {} has the \
+                "state_graph_matches_sound_graph: sound processor {} has the \
                 following compiled expressions which shouldn't exist: {}",
                 proc_data.friendly_name(),
                 comma_separated_list(unexpected_inputs.iter().map(|x| x.value().to_string()))
@@ -222,7 +222,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         }
         if !remaining_inputs.is_empty() {
             println!(
-                "state_graph_matches_topology: sound processor {} is missing the \
+                "state_graph_matches_sound_graph: sound processor {} is missing the \
                 following compiled expressions: {}",
                 proc_data.friendly_name(),
                 comma_separated_list(remaining_inputs.iter().map(|x| x.value().to_string()))
@@ -256,13 +256,13 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     }
 }
 
-/// Checks whether the given state graph accurately models the given sound graph topology.
-pub(crate) fn state_graph_matches_topology(
+/// Checks whether the given state graph accurately models the given sound graph.
+pub(crate) fn state_graph_matches_sound_graph(
     state_graph: &StateGraph,
-    topology: &SoundGraph,
+    sound_graph: &SoundGraph,
 ) -> bool {
     let mut visitor = Visitor {
-        topology,
+        sound_graph,
         visited_shared_processors: HashMap::new(),
         visited_static_processors: HashMap::new(),
     };
@@ -273,7 +273,7 @@ pub(crate) fn state_graph_matches_topology(
         }
     }
 
-    for static_proc_id in topology.sound_processors().values().filter_map(|pd| {
+    for static_proc_id in sound_graph.sound_processors().values().filter_map(|pd| {
         if pd.instance().is_static() {
             Some(pd.id())
         } else {
@@ -285,14 +285,14 @@ pub(crate) fn state_graph_matches_topology(
             .remove(&static_proc_id)
             .is_none()
         {
-            println!("state_graph_matches_topology: a static compiled processor is missing");
+            println!("state_graph_matches_sound_graph: a static compiled processor is missing");
             return false;
         }
     }
 
     if !visitor.visited_static_processors.is_empty() {
         println!(
-            "state_graph_matches_topology: one or more static compiled processors were found \
+            "state_graph_matches_sound_graph: one or more static compiled processors were found \
             which shouldn't exist"
         );
         return false;

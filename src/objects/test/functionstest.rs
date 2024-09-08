@@ -164,14 +164,14 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     input_ranges: &[(f32, f32)],
     test_function: F,
 ) {
-    let mut topo = SoundGraph::new();
+    let mut graph = SoundGraph::new();
 
-    let proc = topo
+    let proc = graph
         .add_dynamic_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     {
-        let expression_data = topo.expression_mut(proc.expression.id()).unwrap();
+        let expression_data = graph.expression_mut(proc.expression.id()).unwrap();
 
         let (expr_graph, mapping) = expression_data.expression_graph_and_mapping_mut();
 
@@ -216,7 +216,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let jit = Jit::new(&inkwell_context);
 
-    let compiled_input = jit.compile_expression(proc.expression.id(), &topo);
+    let compiled_input = jit.compile_expression(proc.expression.id(), &graph);
 
     let mut compiled_function = compiled_input.make_function();
 

@@ -10,7 +10,7 @@ use std::{
 use hashrevise::{Revisable, RevisionHash};
 
 use super::{
-    difftopology::diff_sound_graph_topology,
+    diffgraph::diff_sound_graph,
     garbage::{new_garbage_disposer, GarbageChute, GarbageDisposer},
     scratcharena::ScratchArena,
     stategraph::StateGraph,
@@ -64,7 +64,7 @@ impl Clone for StopButton {
 /// stop button to cause the `run` method to exit.
 ///
 /// The sound engine interface serves to receive changes to the
-/// sound graph topology that the audio thread is modeling, and to
+/// sound graph that the audio thread is modeling, and to
 /// relate those changes to the sound engine in an efficient and
 /// pre-allocated manner.
 ///
@@ -84,10 +84,10 @@ pub(crate) fn create_sound_engine<'ctx>(
     let (edit_sender, edit_receiver) = sync_channel::<StateGraphEdit<'ctx>>(edit_queue_size);
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
-    let current_topology = SoundGraph::new();
-    let current_revision = current_topology.get_revision();
+    let current_graph = SoundGraph::new();
+    let current_revision = current_graph.get_revision();
     let se_interface = SoundEngineInterface {
-        current_topology,
+        current_graph,
         current_revision,
         stop_button: stop_button.clone(),
         edit_queue: edit_sender,
@@ -103,10 +103,10 @@ pub(crate) fn create_sound_engine<'ctx>(
     (se_interface, se, garbage_disposer)
 }
 
-/// An intermediate object between a series of changin SoundGraphTopology
+/// An intermediate object between a series of changing SoundGraph
 /// instances and the SoundEngine running on a separate thread, which is
 /// intended to audibly model those changes as they come. SoundEngineInterface
-/// compiles changes to the topology for the SoundEngine and sends the
+/// compiles changes to the graph for the SoundEngine and sends the
 /// compiled results to the audio thread, where they are patched in as
 /// efficiently as possible and without any heap allocation or deallocation
 /// on the audio thread.
@@ -114,7 +114,7 @@ pub(crate) fn create_sound_engine<'ctx>(
 /// Note that dropping the SoundEngineInterface will cause the SoundEngine
 /// to stop running.
 pub(crate) struct SoundEngineInterface<'ctx> {
-    current_topology: SoundGraph,
+    current_graph: SoundGraph,
     current_revision: RevisionHash,
     stop_button: StopButton,
     edit_queue: SyncSender<StateGraphEdit<'ctx>>,
@@ -122,20 +122,20 @@ pub(crate) struct SoundEngineInterface<'ctx> {
 
 impl<'ctx> SoundEngineInterface<'ctx> {
     /// Update the SoundEngine on the separate thread to model and produce
-    /// audio according to the given topology. Changes between this and
-    /// the most recent topology are compiled and sent to the audio thread.
+    /// audio according to the given graph. Changes between this and
+    /// the most recent graph are compiled and sent to the audio thread.
     pub(crate) fn update(
         &mut self,
-        new_topology: &SoundGraph,
+        new_graph: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
     ) -> Result<(), ()> {
-        let new_revision = new_topology.get_revision();
+        let new_revision = new_graph.get_revision();
 
         if new_revision == self.current_revision {
             return Ok(());
         }
 
-        let edits = diff_sound_graph_topology(&self.current_topology, &new_topology, jit_cache);
+        let edits = diff_sound_graph(&self.current_graph, &new_graph, jit_cache);
 
         for edit in edits {
             match self.edit_queue.try_send(edit) {
@@ -151,7 +151,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        self.current_topology = new_topology.clone();
+        self.current_graph = new_graph.clone();
         self.current_revision = new_revision;
 
         Ok(())
@@ -176,7 +176,7 @@ pub(crate) struct SoundEngine<'ctx> {
     stop_button: StopButton,
 
     /// Inbound edits to the state graph, received from diffing and
-    /// compiling topology in the associated SoundEngineInterface.
+    /// compiling graphs in the associated SoundEngineInterface.
     edit_queue: Receiver<StateGraphEdit<'ctx>>,
 
     /// Has a warning been issued that recent audio updates are

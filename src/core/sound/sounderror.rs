@@ -40,12 +40,12 @@ pub enum SoundError {
 }
 
 impl SoundError {
-    pub(crate) fn explain(&self, topo: &SoundGraph) -> String {
+    pub(crate) fn explain(&self, graph: &SoundGraph) -> String {
         match self {
             SoundError::ProcessorIdTaken(spid) => format!(
                 "Processor id #{} is already taken by {}",
                 spid.value(),
-                topo.sound_processor(*spid).unwrap().friendly_name()
+                graph.sound_processor(*spid).unwrap().friendly_name()
             ),
             SoundError::ProcessorNotFound(spid) => {
                 format!("A processor with id #{} could not be found", spid.value())
@@ -56,7 +56,7 @@ impl SoundError {
             ),
             SoundError::BadProcessorCleanup(spid) => format!(
                 "The processor {} was not cleaned up correctly",
-                topo.sound_processor(*spid).unwrap().friendly_name()
+                graph.sound_processor(*spid).unwrap().friendly_name()
             ),
             SoundError::SoundInputIdTaken(siid) => {
                 format!("Sound input id #{} is already taken", siid.value())
@@ -69,45 +69,46 @@ impl SoundError {
                 siid.value()
             ),
             SoundError::BadSoundInputCleanup(siid) => {
-                let owner_spid = topo.sound_input(*siid).unwrap().owner();
+                let owner_spid = graph.sound_input(*siid).unwrap().owner();
                 format!(
                     "The sound input with id #{} on processor {} was not cleaned up correctly",
                     siid.value(),
-                    topo.sound_processor(owner_spid).unwrap().friendly_name()
+                    graph.sound_processor(owner_spid).unwrap().friendly_name()
                 )
             }
             SoundError::BadSoundInputBranchIndex(siid, idx) => {
-                let owner_spid = topo.sound_input(*siid).unwrap().owner();
+                let owner_spid = graph.sound_input(*siid).unwrap().owner();
                 format!(
                     "The branch index {} is out of range for the sound input with id #{} of \
                     processor {}",
                     idx,
                     siid.value(),
-                    topo.sound_processor(owner_spid).unwrap().friendly_name()
+                    graph.sound_processor(owner_spid).unwrap().friendly_name()
                 )
             }
             SoundError::SoundInputOccupied {
                 input_id,
                 current_target,
             } => {
-                let owner_spid = topo.sound_input(*input_id).unwrap().owner();
+                let owner_spid = graph.sound_input(*input_id).unwrap().owner();
                 format!(
                     "The sound input with id #{} of processor {} is already occupied and \
                     connected to {}",
                     input_id.value(),
-                    topo.sound_processor(owner_spid).unwrap().friendly_name(),
-                    topo.sound_processor(*current_target)
+                    graph.sound_processor(owner_spid).unwrap().friendly_name(),
+                    graph
+                        .sound_processor(*current_target)
                         .unwrap()
                         .friendly_name()
                 )
             }
             SoundError::SoundInputUnoccupied(siid) => {
-                let owner_spid = topo.sound_input(*siid).unwrap().owner();
+                let owner_spid = graph.sound_input(*siid).unwrap().owner();
                 format!(
                     "The sound input with id #{} of processor {} is already unoccupied and not \
                     connected to anything",
                     siid.value(),
-                    topo.sound_processor(owner_spid).unwrap().friendly_name(),
+                    graph.sound_processor(owner_spid).unwrap().friendly_name(),
                 )
             }
             SoundError::CircularDependency { cycle } => {
@@ -118,7 +119,7 @@ impl SoundError {
                     if !first {
                         s += " -> ";
                     }
-                    s += &topo.sound_processor(*spid).unwrap().friendly_name();
+                    s += &graph.sound_processor(*spid).unwrap().friendly_name();
                     s += &format!(" -(input #{})->", siid.value());
                     first = false;
                 }
@@ -127,11 +128,11 @@ impl SoundError {
             SoundError::StaticNotOneState(spid) => format!(
                 "The static processor {} needs to have exactly one state, but it \
                 is connected to a branched sound input",
-                topo.sound_processor(*spid).unwrap().friendly_name()
+                graph.sound_processor(*spid).unwrap().friendly_name()
             ),
             SoundError::StaticNotSynchronous(spid) => format!(
                 "The static processor {} is connected to a non-synchronous input",
-                topo.sound_processor(*spid).unwrap().friendly_name()
+                graph.sound_processor(*spid).unwrap().friendly_name()
             ),
             SoundError::ArgumentIdTaken(aid) => {
                 format!("Argument id #{} is already taken", aid.value())
@@ -144,16 +145,16 @@ impl SoundError {
                 aid.value()
             ),
             SoundError::BadArgumentCleanup(aid) => {
-                let owner_str = match topo.expression_argument(*aid).unwrap().owner() {
+                let owner_str = match graph.expression_argument(*aid).unwrap().owner() {
                     SoundExpressionArgumentOwner::SoundProcessor(spid) => {
-                        topo.sound_processor(spid).unwrap().friendly_name()
+                        graph.sound_processor(spid).unwrap().friendly_name()
                     }
                     SoundExpressionArgumentOwner::SoundInput(siid) => {
-                        let owner_spid = topo.sound_input(siid).unwrap().owner();
+                        let owner_spid = graph.sound_input(siid).unwrap().owner();
                         format!(
                             "sound input #{} of processor {}",
                             siid.value(),
-                            topo.sound_processor(owner_spid).unwrap().friendly_name()
+                            graph.sound_processor(owner_spid).unwrap().friendly_name()
                         )
                     }
                 };
@@ -175,11 +176,11 @@ impl SoundError {
                 eid.value()
             ),
             SoundError::BadExpressionCleanup(eid) => {
-                let owner_spid = topo.expression(*eid).unwrap().owner();
+                let owner_spid = graph.expression(*eid).unwrap().owner();
                 format!(
                     "The expression with id #{} on processor {} was not cleaned up correctly",
                     eid.value(),
-                    topo.sound_processor(owner_spid).unwrap().friendly_name()
+                    graph.sound_processor(owner_spid).unwrap().friendly_name()
                 )
             }
             SoundError::StateNotInScope {

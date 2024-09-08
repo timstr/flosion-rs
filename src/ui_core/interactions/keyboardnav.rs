@@ -333,14 +333,14 @@ impl KeyboardNavInteraction {
     }
 
     /// Returns true iff all graph ids referenced by the keyboard focus
-    /// refer to objects that exist in the given topology
-    pub(crate) fn is_valid(&self, topo: &SoundGraph) -> bool {
+    /// refer to objects that exist in the given graph
+    pub(crate) fn is_valid(&self, graph: &SoundGraph) -> bool {
         match self {
-            KeyboardNavInteraction::AroundSoundProcessor(spid) => topo.contains(spid),
-            KeyboardNavInteraction::AroundProcessorPlug(spid) => topo.contains(spid),
-            KeyboardNavInteraction::AroundInputSocket(siid) => topo.contains(siid),
-            KeyboardNavInteraction::AroundExpression(eid) => topo.contains(eid),
-            KeyboardNavInteraction::InsideExpression(eid, _) => topo.contains(eid),
+            KeyboardNavInteraction::AroundSoundProcessor(spid) => graph.contains(spid),
+            KeyboardNavInteraction::AroundProcessorPlug(spid) => graph.contains(spid),
+            KeyboardNavInteraction::AroundInputSocket(siid) => graph.contains(siid),
+            KeyboardNavInteraction::AroundExpression(eid) => graph.contains(eid),
+            KeyboardNavInteraction::InsideExpression(eid, _) => graph.contains(eid),
         }
     }
 }

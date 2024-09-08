@@ -6,7 +6,7 @@ use super::{
     path::ExpressionPath,
 };
 
-/// An error describing how a topological operation on an expression graph went wrong
+/// An error describing how an operation on an expression graph went wrong
 #[derive(Debug, Eq, PartialEq)]
 pub enum ExpressionError {
     /// The node could not be added because its id collides with another existing node

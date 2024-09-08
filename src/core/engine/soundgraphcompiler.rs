@@ -17,8 +17,8 @@ use super::stategraphnode::{
 /// both the creation of executable nodes for sound processors and their inputs
 /// as well as JIT compilation of expressions.
 pub struct SoundGraphCompiler<'a, 'ctx> {
-    /// The current sound graph topology
-    topology: &'a SoundGraph,
+    /// The current sound graph
+    graph: &'a SoundGraph,
 
     /// The JIT cache for compiling expressions
     jit_cache: &'a JitCache<'ctx>,
@@ -26,7 +26,7 @@ pub struct SoundGraphCompiler<'a, 'ctx> {
     /// Cache of all nodes for processors which are static and thus should
     /// only have one single, shared state graph node.
     // TODO: when implementing partial state graph edits, make sure this is
-    // maintained between topology updates.
+    // maintained between graph updates.
     static_processor_nodes: HashMap<SoundProcessorId, SharedCompiledProcessor<'ctx>>,
 }
 
@@ -35,11 +35,11 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
     /// empty, and new nodes will be genereated for static processors
     /// the first time they are encountered by this SoundGraphCompiler instance.
     pub(crate) fn new(
-        topology: &'a SoundGraph,
+        graph: &'a SoundGraph,
         jit_cache: &'a JitCache<'ctx>,
     ) -> SoundGraphCompiler<'a, 'ctx> {
         SoundGraphCompiler {
-            topology,
+            graph,
             jit_cache,
             static_processor_nodes: HashMap::new(),
         }
@@ -52,7 +52,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         &mut self,
         processor_id: SoundProcessorId,
     ) -> StateGraphNodeValue<'ctx> {
-        let proc = self.topology.sound_processor(processor_id).unwrap();
+        let proc = self.graph.sound_processor(processor_id).unwrap();
         if proc.instance().is_static() {
             if let Some(node) = self.static_processor_nodes.get(&processor_id) {
                 StateGraphNodeValue::Shared(node.clone())
@@ -77,7 +77,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         &self,
         id: SoundExpressionId,
     ) -> CompiledExpressionFunction<'ctx> {
-        self.jit_cache.get_compiled_expression(id, self.topology)
+        self.jit_cache.get_compiled_expression(id, self.graph)
     }
 
     /// Compile a sound input node for execution on the audio thread
@@ -87,7 +87,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         &mut self,
         sound_input_id: SoundInputId,
     ) -> StateGraphNodeValue<'ctx> {
-        let input_data = self.topology.sound_input(sound_input_id).unwrap();
+        let input_data = self.graph.sound_input(sound_input_id).unwrap();
         match input_data.target() {
             Some(spid) => {
                 let mut node = self.compile_sound_processor(spid);

@@ -14,11 +14,11 @@ pub(crate) struct GraphProperties {
 }
 
 impl GraphProperties {
-    pub(crate) fn new(topo: &SoundGraph) -> GraphProperties {
+    pub(crate) fn new(graph: &SoundGraph) -> GraphProperties {
         let mut props = GraphProperties {
             available_arguments: RevisedProperty::new(),
         };
-        props.refresh(topo);
+        props.refresh(graph);
         props
     }
 
@@ -28,8 +28,8 @@ impl GraphProperties {
         self.available_arguments.get_cached().unwrap()
     }
 
-    pub(crate) fn refresh(&mut self, topo: &SoundGraph) {
+    pub(crate) fn refresh(&mut self, graph: &SoundGraph) {
         self.available_arguments
-            .refresh1(available_sound_expression_arguments, topo);
+            .refresh1(available_sound_expression_arguments, graph);
     }
 }

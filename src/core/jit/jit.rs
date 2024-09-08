@@ -371,11 +371,11 @@ impl<'ctx> Jit<'ctx> {
     fn visit_input(
         &mut self,
         input_id: ExpressionNodeInputId,
-        topology: &ExpressionGraph,
+        graph: &ExpressionGraph,
     ) -> FloatValue<'ctx> {
-        let input_data = topology.node_input(input_id).unwrap();
+        let input_data = graph.node_input(input_id).unwrap();
         match input_data.target() {
-            Some(target) => self.visit_target(target, topology),
+            Some(target) => self.visit_target(target, graph),
             None => self
                 .types
                 .f32_type
@@ -390,20 +390,20 @@ impl<'ctx> Jit<'ctx> {
     fn visit_target(
         &mut self,
         target: ExpressionTarget,
-        topology: &ExpressionGraph,
+        graph: &ExpressionGraph,
     ) -> FloatValue<'ctx> {
         if let Some(v) = self.compiled_targets.get(&target) {
             return *v;
         }
         match target {
             ExpressionTarget::Node(expr_node_id) => {
-                let expr_node_data = topology.node(expr_node_id).unwrap();
+                let expr_node_data = graph.node(expr_node_id).unwrap();
                 let expr = expr_node_data.instance();
 
                 let input_values: Vec<_> = expr_node_data
                     .inputs()
                     .iter()
-                    .map(|niid| self.visit_input(*niid, topology))
+                    .map(|niid| self.visit_input(*niid, graph))
                     .collect();
 
                 let num_variables = expr.num_variables();
@@ -918,15 +918,15 @@ impl<'ctx> Jit<'ctx> {
     pub(crate) fn compile_expression(
         mut self,
         expression_id: SoundExpressionId,
-        topology: &SoundGraph,
+        graph: &SoundGraph,
     ) -> CompiledExpressionArtefact<'ctx> {
-        let sg_expr_data = topology.expression(expression_id).unwrap();
+        let sg_expr_data = graph.expression(expression_id).unwrap();
 
-        let expr_topo = sg_expr_data.expression_graph();
+        let expr_graph = sg_expr_data.expression_graph();
 
         // pre-compile all expression graph arguments
         for (param_id, arg_id) in sg_expr_data.parameter_mapping().items() {
-            let value = topology
+            let value = graph
                 .expression_argument(*arg_id)
                 .unwrap()
                 .instance()
@@ -935,12 +935,12 @@ impl<'ctx> Jit<'ctx> {
         }
 
         // TODO: add support for multiple results
-        assert_eq!(expr_topo.results().len(), 1);
-        let output_id = expr_topo.results()[0].id();
+        assert_eq!(expr_graph.results().len(), 1);
+        let output_id = expr_graph.results()[0].id();
 
-        let output_data = expr_topo.result(output_id).unwrap();
+        let output_data = expr_graph.result(output_id).unwrap();
         let final_value = match output_data.target() {
-            Some(target) => self.visit_target(target, expr_topo),
+            Some(target) => self.visit_target(target, expr_graph),
             None => self
                 .types
                 .f32_type

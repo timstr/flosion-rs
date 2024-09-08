@@ -57,10 +57,10 @@ impl<'a> OuterProcessorExpressionContext<'a> {
 
     pub(crate) fn find_graph_id_for_argument(
         &self,
-        topology: &SoundGraph,
+        graph: &SoundGraph,
         argument_id: SoundExpressionArgumentId,
     ) -> Option<ExpressionGraphParameterId> {
-        topology
+        graph
             .expression(self.expression_id)
             .unwrap()
             .parameter_mapping()
@@ -109,12 +109,12 @@ impl<'a> From<OuterProcessorExpressionContext<'a>> for OuterExpressionGraphUiCon
 impl<'a> OuterExpressionGraphUiContext<'a> {
     pub(crate) fn parameter_name(
         &self,
-        topology: &SoundGraph,
+        graph: &SoundGraph,
         input_id: ExpressionGraphParameterId,
     ) -> String {
         match self {
             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
-                let nsid = topology
+                let nsid = graph
                     .expression(ctx.expression_id())
                     .unwrap()
                     .parameter_mapping()
@@ -138,11 +138,11 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 
     pub(crate) fn inspect_expression_graph<R, F: FnOnce(&ExpressionGraph) -> R>(
         &self,
-        topology: &SoundGraph,
+        graph: &SoundGraph,
         f: F,
     ) -> R {
         match self {
-            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => f(topology
+            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => f(graph
                 .expression(ctx.expression_id())
                 .unwrap()
                 .expression_graph()),

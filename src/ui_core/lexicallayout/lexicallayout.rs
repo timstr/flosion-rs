@@ -212,13 +212,13 @@ pub(crate) struct LexicalLayout {
 
 impl LexicalLayout {
     pub(crate) fn generate(
-        topo: &ExpressionGraph,
+        graph: &ExpressionGraph,
         object_ui_states: &ExpressionNodeObjectUiStates,
         ui_factory: &ExpressionObjectUiFactory,
     ) -> LexicalLayout {
-        let outputs = topo.results();
+        let outputs = graph.results();
         assert_eq!(outputs.len(), 1);
-        let output = &topo.results()[0];
+        let output = &graph.results()[0];
 
         let mut variable_assignments: Vec<VariableDefinition> = Vec::new();
 
@@ -227,7 +227,7 @@ impl LexicalLayout {
         fn visit_target(
             target: ExpressionTarget,
             variable_assignments: &mut Vec<VariableDefinition>,
-            topo: &ExpressionGraph,
+            graph: &ExpressionGraph,
             object_ui_states: &ExpressionNodeObjectUiStates,
             variable_id_generator: &mut IdGenerator<VariableId>,
             ui_factory: &ExpressionObjectUiFactory,
@@ -246,18 +246,18 @@ impl LexicalLayout {
                 return ASTNode::new(ASTNodeValue::Variable(existing_variable.id()));
             }
 
-            let create_new_variable = topo.destinations(target).count() >= 2;
+            let create_new_variable = graph.destinations(target).count() >= 2;
 
-            let node = topo.node(nsid).unwrap();
+            let node = graph.node(nsid).unwrap();
 
             let arguments: Vec<ASTNode> = node
                 .inputs()
                 .iter()
-                .map(|niid| match topo.node_input(*niid).unwrap().target() {
+                .map(|niid| match graph.node_input(*niid).unwrap().target() {
                     Some(target) => visit_target(
                         target,
                         variable_assignments,
-                        topo,
+                        graph,
                         object_ui_states,
                         variable_id_generator,
                         ui_factory,
@@ -290,7 +290,7 @@ impl LexicalLayout {
             Some(target) => visit_target(
                 target,
                 &mut variable_assignments,
-                topo,
+                graph,
                 object_ui_states,
                 &mut variable_id_generator,
                 ui_factory,
@@ -304,7 +304,7 @@ impl LexicalLayout {
             variable_id_generator,
         };
 
-        debug_assert!(lexical_layout_matches_expression_graph(&layout, topo));
+        debug_assert!(lexical_layout_matches_expression_graph(&layout, graph));
 
         layout
     }
@@ -1034,12 +1034,12 @@ impl LexicalLayout {
             .visit_mut(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
     }
 
-    pub(crate) fn cleanup(&mut self, topology: &ExpressionGraph) {
+    pub(crate) fn cleanup(&mut self, graph: &ExpressionGraph) {
         fn visitor(
             node: &mut ASTNode,
             expected_target: Option<ExpressionTarget>,
             variable_definitions: &[VariableDefinition],
-            topo: &ExpressionGraph,
+            graph: &ExpressionGraph,
         ) {
             let actual_target = node.indirect_target(variable_definitions);
             if expected_target == actual_target {
@@ -1049,10 +1049,10 @@ impl LexicalLayout {
 
                 if let Some(internal_node) = node.as_internal_node_mut() {
                     let nsid = internal_node.expression_node_id();
-                    let expected_inputs = topo.node(nsid).unwrap().inputs();
+                    let expected_inputs = graph.node(nsid).unwrap().inputs();
                     let expected_targets: Vec<Option<ExpressionTarget>> = expected_inputs
                         .iter()
-                        .map(|niid| topo.node_input(*niid).unwrap().target())
+                        .map(|niid| graph.node_input(*niid).unwrap().target())
                         .collect();
 
                     if internal_node.num_children() != expected_inputs.len() {
@@ -1065,18 +1065,18 @@ impl LexicalLayout {
                     }
                     match internal_node.value_mut() {
                         InternalASTNodeValue::Prefix(_, c) => {
-                            visitor(c, expected_targets[0], variable_definitions, topo)
+                            visitor(c, expected_targets[0], variable_definitions, graph)
                         }
                         InternalASTNodeValue::Infix(c1, _, c2) => {
-                            visitor(c1, expected_targets[0], variable_definitions, topo);
-                            visitor(c2, expected_targets[1], variable_definitions, topo);
+                            visitor(c1, expected_targets[0], variable_definitions, graph);
+                            visitor(c2, expected_targets[1], variable_definitions, graph);
                         }
                         InternalASTNodeValue::Postfix(c, _) => {
-                            visitor(c, expected_targets[0], variable_definitions, topo)
+                            visitor(c, expected_targets[0], variable_definitions, graph)
                         }
                         InternalASTNodeValue::Function(_, cs) => {
                             for (c, exp_tgt) in cs.iter_mut().zip(expected_targets) {
-                                visitor(c, exp_tgt, variable_definitions, topo)
+                                visitor(c, exp_tgt, variable_definitions, graph)
                             }
                         }
                     }
@@ -1104,7 +1104,7 @@ impl LexicalLayout {
             }
         }
 
-        let graph_outputs = topology.results();
+        let graph_outputs = graph.results();
         assert_eq!(graph_outputs.len(), 1);
         let graph_output = &graph_outputs[0];
 
@@ -1112,7 +1112,7 @@ impl LexicalLayout {
             &mut self.final_expression,
             graph_output.target(),
             &self.variable_definitions,
-            topology,
+            graph,
         );
 
         // TODO: after having gathered expected targets for variable definitions,

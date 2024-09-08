@@ -281,11 +281,11 @@ impl ExpressionParameterMapping {
         debug_assert!(self.check_invariants(expr_graph));
     }
 
-    fn check_invariants(&self, topology: &ExpressionGraph) -> bool {
+    fn check_invariants(&self, graph: &ExpressionGraph) -> bool {
         let mapped_params: HashSet<ExpressionGraphParameterId> =
             self.mapping.keys().cloned().collect();
         let actual_params: HashSet<ExpressionGraphParameterId> =
-            topology.parameters().iter().cloned().collect();
+            graph.parameters().iter().cloned().collect();
         if mapped_params != actual_params {
             println!("Expression parameters were modified without updating parameter mapping");
             false

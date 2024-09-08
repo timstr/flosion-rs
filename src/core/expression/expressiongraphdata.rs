@@ -9,7 +9,7 @@ use super::{
 };
 
 /// An expression node instance and its immediate topological
-/// information, intended to be stored in ExpressionGraphTopology.
+/// information, intended to be stored in ExpressionGraph.
 #[derive(Clone)]
 pub(crate) struct ExpressionNodeData {
     id: ExpressionNodeId,
@@ -106,7 +106,7 @@ pub enum ExpressionDestination {
 }
 
 /// The immediate topological data associated with the input of an
-/// expression node. Intended to be stored in ExpressionGraphTopology.
+/// expression node. Intended to be stored in ExpressionGraph.
 #[derive(Clone)]
 pub(crate) struct ExpressionNodeInputData {
     id: ExpressionNodeInputId,

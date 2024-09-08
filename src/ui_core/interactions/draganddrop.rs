@@ -37,21 +37,21 @@ impl DragDropSubject {
         }
     }
 
-    fn parent_processor(&self, topo: &SoundGraph) -> Option<SoundProcessorId> {
+    fn parent_processor(&self, graph: &SoundGraph) -> Option<SoundProcessorId> {
         match self {
             DragDropSubject::Processor(spid) => Some(*spid),
             DragDropSubject::Plug(spid) => Some(*spid),
-            DragDropSubject::Socket(siid) => Some(topo.sound_input(*siid).unwrap().owner()),
+            DragDropSubject::Socket(siid) => Some(graph.sound_input(*siid).unwrap().owner()),
             DragDropSubject::Group { top_processor: _ } => None,
         }
     }
 
-    fn is_valid(&self, topo: &SoundGraph) -> bool {
+    fn is_valid(&self, graph: &SoundGraph) -> bool {
         match self {
-            DragDropSubject::Processor(spid) => topo.contains(spid),
-            DragDropSubject::Plug(spid) => topo.contains(spid),
-            DragDropSubject::Socket(siid) => topo.contains(siid),
-            DragDropSubject::Group { top_processor } => topo.contains(top_processor),
+            DragDropSubject::Processor(spid) => graph.contains(spid),
+            DragDropSubject::Plug(spid) => graph.contains(spid),
+            DragDropSubject::Socket(siid) => graph.contains(siid),
+            DragDropSubject::Group { top_processor } => graph.contains(top_processor),
         }
     }
 }
@@ -96,7 +96,7 @@ pub enum SelectionChange {
 }
 
 fn drop_and_drop_should_be_ignored(
-    topo: &mut SoundGraph,
+    graph: &mut SoundGraph,
     layout: &StackedLayout,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
@@ -113,20 +113,20 @@ fn drop_and_drop_should_be_ignored(
     match drag_from {
         DragDropSubject::Processor(spid) => {
             // If dragging a processor, ignore that processor's own things
-            drop_onto.parent_processor(topo) == Some(spid)
+            drop_onto.parent_processor(graph) == Some(spid)
         }
         DragDropSubject::Plug(spid) => {
             // If dragging a processor's plug, ignore its own things
-            drop_onto.parent_processor(topo) == Some(spid)
+            drop_onto.parent_processor(graph) == Some(spid)
         }
         DragDropSubject::Socket(siid) => {
             // If dragging an input socket, ignore its own processor
-            let owner = topo.sound_input(siid).unwrap().owner();
-            drop_onto.parent_processor(topo) == Some(owner)
+            let owner = graph.sound_input(siid).unwrap().owner();
+            drop_onto.parent_processor(graph) == Some(owner)
         }
         DragDropSubject::Group { top_processor } => {
             // If dragging a group, ignore anything in the group
-            if let Some(parent) = drop_onto.parent_processor(topo) {
+            if let Some(parent) = drop_onto.parent_processor(graph) {
                 let parents_top_proc = layout
                     .find_group(parent)
                     .unwrap()
@@ -143,13 +143,13 @@ fn drop_and_drop_should_be_ignored(
 }
 
 fn drag_and_drop_in_graph(
-    topo: &mut SoundGraph,
+    graph: &mut SoundGraph,
     layout: &StackedLayout,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
 ) -> DragDropLegality {
     // ignore some basic things first
-    if drop_and_drop_should_be_ignored(topo, layout, drag_from, drop_onto) {
+    if drop_and_drop_should_be_ignored(graph, layout, drag_from, drop_onto) {
         return DragDropLegality::Irrelevant;
     }
 
@@ -179,29 +179,30 @@ fn drag_and_drop_in_graph(
         // If dragging an entire processor/group onto a socket, splice it in
 
         // Disconnect the top processor's inputs
-        disconnect_all_inputs_of_processor(drag_top_proc, topo);
+        disconnect_all_inputs_of_processor(drag_top_proc, graph);
 
         // Disconnect the bottom processor's outputs
-        disconnect_processor_from_all_inputs(drag_bottom_proc, topo);
+        disconnect_processor_from_all_inputs(drag_bottom_proc, graph);
 
         // Note the target of the input being dropped onto, if any,
         // before disconnecting it
-        let input_target = topo.sound_input(onto_input).unwrap().target();
+        let input_target = graph.sound_input(onto_input).unwrap().target();
         if input_target.is_some() {
-            topo.disconnect_sound_input(onto_input).unwrap();
+            graph.disconnect_sound_input(onto_input).unwrap();
         }
 
         // Connect the socket to the bottom processor
-        topo.connect_sound_input(onto_input, drag_bottom_proc)
+        graph
+            .connect_sound_input(onto_input, drag_bottom_proc)
             .unwrap();
 
         // If there was something connected to the input, and the top
         // processor has exactly one input, reconnect it
         if let (Some(input_target), [top_input]) = (
             input_target,
-            topo.sound_processor(drag_top_proc).unwrap().sound_inputs(),
+            graph.sound_processor(drag_top_proc).unwrap().sound_inputs(),
         ) {
-            topo.connect_sound_input(*top_input, input_target).unwrap();
+            graph.connect_sound_input(*top_input, input_target).unwrap();
         }
 
         DragDropLegality::Legal
@@ -211,29 +212,29 @@ fn drag_and_drop_in_graph(
         // If dragging an entire processor/group onto a plug, splice it in
 
         // Only allowed if dropping a top processor with one input
-        let [top_input] = topo.sound_processor(drag_top_proc).unwrap().sound_inputs() else {
+        let [top_input] = graph.sound_processor(drag_top_proc).unwrap().sound_inputs() else {
             return DragDropLegality::Irrelevant;
         };
         let top_input: SoundInputId = *top_input;
 
         // Disconnect the top processor's inputs
-        disconnect_all_inputs_of_processor(drag_top_proc, topo);
+        disconnect_all_inputs_of_processor(drag_top_proc, graph);
 
         // Disconnect the bottom processor's outputs
-        disconnect_processor_from_all_inputs(drag_bottom_proc, topo);
+        disconnect_processor_from_all_inputs(drag_bottom_proc, graph);
 
         // Note the inputs the plug is connected to, and disconnect them
-        let plug_targets: Vec<SoundInputId> = topo.sound_processor_targets(onto_plug).collect();
+        let plug_targets: Vec<SoundInputId> = graph.sound_processor_targets(onto_plug).collect();
         for target in &plug_targets {
-            topo.disconnect_sound_input(*target).unwrap();
+            graph.disconnect_sound_input(*target).unwrap();
         }
 
         // Connect the top processor to the plug
-        topo.connect_sound_input(top_input, onto_plug).unwrap();
+        graph.connect_sound_input(top_input, onto_plug).unwrap();
 
         // Reconnect the plug targets to the bottom of the group
         for target in plug_targets {
-            topo.connect_sound_input(target, drag_bottom_proc).unwrap();
+            graph.connect_sound_input(target, drag_bottom_proc).unwrap();
         }
 
         DragDropLegality::Legal
@@ -243,11 +244,11 @@ fn drag_and_drop_in_graph(
         // If dragging an input socket onto a processor or its plug, connect it
 
         // Disconnect the input first
-        if topo.sound_input(drag_input).unwrap().target().is_some() {
-            topo.disconnect_sound_input(drag_input).unwrap();
+        if graph.sound_input(drag_input).unwrap().target().is_some() {
+            graph.disconnect_sound_input(drag_input).unwrap();
         }
 
-        topo.connect_sound_input(drag_input, onto_proc).unwrap();
+        graph.connect_sound_input(drag_input, onto_proc).unwrap();
 
         DragDropLegality::Legal
     } else if let (DragDropSubject::Plug(drag_proc), Some(onto_input)) =
@@ -256,11 +257,11 @@ fn drag_and_drop_in_graph(
         // If dragging a processor plug onto an input socket, connect it
 
         // Disconnect the input first
-        if topo.sound_input(onto_input).unwrap().target().is_some() {
-            topo.disconnect_sound_input(onto_input).unwrap();
+        if graph.sound_input(onto_input).unwrap().target().is_some() {
+            graph.disconnect_sound_input(onto_input).unwrap();
         }
 
-        topo.connect_sound_input(onto_input, drag_proc).unwrap();
+        graph.connect_sound_input(onto_input, drag_proc).unwrap();
 
         DragDropLegality::Legal
     } else {
@@ -270,7 +271,7 @@ fn drag_and_drop_in_graph(
 
 fn drag_and_drop_in_layout(
     layout: &mut StackedLayout,
-    topo: &SoundGraph,
+    graph: &SoundGraph,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
     positions: &SoundObjectPositions,
@@ -291,7 +292,7 @@ fn drag_and_drop_in_layout(
         (Some(processors), DragDropSubject::Socket(input)) => {
             // Dragging a processor onto an input. Move the processor
             // and insert it at the group under the input.
-            let input_data = topo.sound_input(input).unwrap();
+            let input_data = graph.sound_input(input).unwrap();
             let proc_below = input_data.owner();
 
             if layout.is_top_of_group(proc_below) {
@@ -326,41 +327,41 @@ fn drag_and_drop_in_layout(
         }
     }
 
-    layout.regenerate(topo, positions);
+    layout.regenerate(graph, positions);
 }
 
 fn compute_legal_drop_sites(
-    topo: &SoundGraph,
+    graph: &SoundGraph,
     layout: &StackedLayout,
     drag_subject: DragDropSubject,
     drop_sites: &[DragDropSubject],
 ) -> HashMap<DragDropSubject, DragDropLegality> {
-    debug_assert_eq!(topo.validate(), Ok(()));
+    debug_assert_eq!(graph.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
     for drop_site in drop_sites {
-        let mut topo_clone = topo.clone();
+        let mut graph_clone = graph.clone();
         // drag_and_drop_in_graph only does superficial error
         // detection, here we additionally check whether the
-        // resulting topology is valid.
-        let status = match drag_and_drop_in_graph(&mut topo_clone, layout, drag_subject, *drop_site)
-        {
-            DragDropLegality::Legal => {
-                if topo_clone.validate().is_err() {
-                    DragDropLegality::Illegal
-                } else {
-                    DragDropLegality::Legal
+        // resulting graph is valid.
+        let status =
+            match drag_and_drop_in_graph(&mut graph_clone, layout, drag_subject, *drop_site) {
+                DragDropLegality::Legal => {
+                    if graph_clone.validate().is_err() {
+                        DragDropLegality::Illegal
+                    } else {
+                        DragDropLegality::Legal
+                    }
                 }
-            }
-            DragDropLegality::LegalButInvisible => {
-                if topo_clone.validate().is_err() {
-                    DragDropLegality::Irrelevant
-                } else {
-                    DragDropLegality::LegalButInvisible
+                DragDropLegality::LegalButInvisible => {
+                    if graph_clone.validate().is_err() {
+                        DragDropLegality::Irrelevant
+                    } else {
+                        DragDropLegality::LegalButInvisible
+                    }
                 }
-            }
-            DragDropLegality::Illegal => DragDropLegality::Illegal,
-            DragDropLegality::Irrelevant => DragDropLegality::Irrelevant,
-        };
+                DragDropLegality::Illegal => DragDropLegality::Illegal,
+                DragDropLegality::Irrelevant => DragDropLegality::Irrelevant,
+            };
         site_statuses.insert(*drop_site, status);
     }
     site_statuses
@@ -390,7 +391,7 @@ impl DragInteraction {
     pub(crate) fn interact_and_draw(
         &mut self,
         ui: &mut egui::Ui,
-        topo: &SoundGraph,
+        graph: &SoundGraph,
         object_states: &SoundObjectUiStates,
         layout: &StackedLayout,
         positions: &SoundObjectPositions,
@@ -399,7 +400,7 @@ impl DragInteraction {
         // to highlight legal/illegal interconnects to drop onto
         self.legal_drop_sites.refresh4(
             compute_legal_drop_sites,
-            topo,
+            graph,
             layout,
             self.subject,
             positions.drag_drop_subjects().values(),
@@ -442,7 +443,7 @@ impl DragInteraction {
         let drag_subject_processor = match self.subject {
             DragDropSubject::Processor(spid) => Some(spid),
             DragDropSubject::Plug(spid) => Some(spid),
-            DragDropSubject::Socket(siid) => Some(topo.sound_input(siid).unwrap().owner()),
+            DragDropSubject::Socket(siid) => Some(graph.sound_input(siid).unwrap().owner()),
             DragDropSubject::Group { top_processor: _ } => {
                 // Groups get dragged directly and so don't need a
                 // preview. They don't have just one colour anyway.
@@ -465,8 +466,8 @@ impl DragInteraction {
         self.rect = rect;
     }
 
-    pub(crate) fn is_valid(&self, topo: &SoundGraph) -> bool {
-        self.subject.is_valid(topo)
+    pub(crate) fn is_valid(&self, graph: &SoundGraph) -> bool {
+        self.subject.is_valid(graph)
     }
 }
 
@@ -506,9 +507,9 @@ impl DropInteraction {
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph));
 
-            let drag_and_drop_result = graph.try_make_change(|topo| {
+            let drag_and_drop_result = graph.try_make_change(|graph| {
                 Ok(drag_and_drop_in_graph(
-                    topo,
+                    graph,
                     layout,
                     self.subject,
                     *nearest_drop_site,
@@ -542,8 +543,8 @@ impl DropInteraction {
             if let DragDropSubject::Processor(spid) = self.subject {
                 if !layout.is_processor_alone(spid) {
                     graph
-                        .try_make_change(|topo| {
-                            disconnect_processor_in_graph(spid, topo);
+                        .try_make_change(|graph| {
+                            disconnect_processor_in_graph(spid, graph);
                             Ok(())
                         })
                         .unwrap();
@@ -568,40 +569,42 @@ impl DropInteraction {
         }
     }
 
-    pub(crate) fn is_valid(&self, topo: &SoundGraph) -> bool {
-        self.subject.is_valid(topo)
+    pub(crate) fn is_valid(&self, graph: &SoundGraph) -> bool {
+        self.subject.is_valid(graph)
     }
 }
 
-fn disconnect_all_inputs_of_processor(processor_id: SoundProcessorId, topo: &mut SoundGraph) {
+// TODO: move these methods to soundgraph.rs?
+
+fn disconnect_all_inputs_of_processor(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
     let mut inputs_to_disconnect_from: Vec<SoundInputId> = Vec::new();
-    for i in topo.sound_processor(processor_id).unwrap().sound_inputs() {
-        if topo.sound_input(*i).unwrap().target().is_some() {
+    for i in graph.sound_processor(processor_id).unwrap().sound_inputs() {
+        if graph.sound_input(*i).unwrap().target().is_some() {
             inputs_to_disconnect_from.push(*i);
         }
     }
     for i in inputs_to_disconnect_from {
-        topo.disconnect_sound_input(i).unwrap();
+        graph.disconnect_sound_input(i).unwrap();
     }
 }
 
-fn disconnect_processor_from_all_inputs(processor_id: SoundProcessorId, topo: &mut SoundGraph) {
+fn disconnect_processor_from_all_inputs(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
     let inputs_to_disconnect_from: Vec<SoundInputId> =
-        topo.sound_processor_targets(processor_id).collect();
+        graph.sound_processor_targets(processor_id).collect();
     for i in inputs_to_disconnect_from {
-        topo.disconnect_sound_input(i).unwrap();
+        graph.disconnect_sound_input(i).unwrap();
     }
 }
 
-fn disconnect_processor_in_graph(processor_id: SoundProcessorId, topo: &mut SoundGraph) {
+fn disconnect_processor_in_graph(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
     let mut inputs_to_disconnect_from: Vec<SoundInputId> =
-        topo.sound_processor_targets(processor_id).collect();
-    for i in topo.sound_processor(processor_id).unwrap().sound_inputs() {
-        if topo.sound_input(*i).unwrap().target().is_some() {
+        graph.sound_processor_targets(processor_id).collect();
+    for i in graph.sound_processor(processor_id).unwrap().sound_inputs() {
+        if graph.sound_input(*i).unwrap().target().is_some() {
             inputs_to_disconnect_from.push(*i);
         }
     }
     for i in inputs_to_disconnect_from {
-        topo.disconnect_sound_input(i).unwrap();
+        graph.disconnect_sound_input(i).unwrap();
     }
 }

@@ -1,6 +1,6 @@
 pub mod compiledexpression;
 pub mod compiledsoundinput;
-pub(crate) mod difftopology;
+pub(crate) mod diffgraph;
 pub(crate) mod garbage;
 pub(crate) mod scratcharena;
 pub mod soundengine;

@@ -9,14 +9,14 @@ use super::{
     stategraphnode::StateGraphNodeValue,
 };
 
-pub(crate) fn diff_sound_graph_topology<'ctx>(
-    topo_before: &SoundGraph,
-    topo_after: &SoundGraph,
+pub(crate) fn diff_sound_graph<'ctx>(
+    graph_before: &SoundGraph,
+    graph_after: &SoundGraph,
     jit_cache: &JitCache<'ctx>,
 ) -> Vec<StateGraphEdit<'ctx>> {
     let mut edits = Vec::new();
 
-    // topology and state graph should match
+    // sound graph and state graph should match
     // TODO: re-enable this check. Consider using SendWrapper<SoundGraph>
     // #[cfg(debug_assertions)]
     // {
@@ -34,7 +34,7 @@ pub(crate) fn diff_sound_graph_topology<'ctx>(
 
     // TODO: diff current and new topology and create a list of fine-grained state graph edits
     // HACK deleting everything and then adding it back
-    for proc in topo_before.sound_processors().values() {
+    for proc in graph_before.sound_processors().values() {
         if proc.instance().is_static() {
             edits.push(StateGraphEdit::RemoveStaticSoundProcessor(proc.id()));
         }
@@ -53,8 +53,8 @@ pub(crate) fn diff_sound_graph_topology<'ctx>(
     // Note that SoundGraphCompiler will cache and reuse shared static processor
     // nodes, and so no extra book-keeping is needed here to ensure
     // that static processors are allocated only once and reused.
-    let mut compiler = SoundGraphCompiler::new(&topo_after, jit_cache);
-    for proc in topo_after.sound_processors().values() {
+    let mut compiler = SoundGraphCompiler::new(&graph_after, jit_cache);
+    for proc in graph_after.sound_processors().values() {
         if proc.instance().is_static() {
             let StateGraphNodeValue::Shared(node) = compiler.compile_sound_processor(proc.id())
             else {

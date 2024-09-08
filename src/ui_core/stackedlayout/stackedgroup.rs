@@ -172,8 +172,8 @@ impl StackedGroup {
         self.processors.split_off(i + 1)
     }
 
-    pub(crate) fn remove_dangling_processor_ids(&mut self, topo: &SoundGraph) {
-        self.processors.retain(|i| topo.contains(i));
+    pub(crate) fn remove_dangling_processor_ids(&mut self, graph: &SoundGraph) {
+        self.processors.retain(|i| graph.contains(i));
     }
 
     pub(crate) fn draw(
@@ -360,7 +360,7 @@ impl StackedGroup {
         &self,
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
-        topo: &SoundGraph,
+        graph: &SoundGraph,
         socket: InputSocket,
         color: egui::Color32,
         top_of_stack: bool,
@@ -372,7 +372,7 @@ impl StackedGroup {
                 egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
                 egui::Sense::hover(),
             );
-            if let Some(target_spid) = topo.sound_input(socket.input).unwrap().target() {
+            if let Some(target_spid) = graph.sound_input(socket.input).unwrap().target() {
                 let jumper_color = ui_state
                     .object_states()
                     .get_object_color(target_spid.into());

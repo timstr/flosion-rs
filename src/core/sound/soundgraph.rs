@@ -55,24 +55,24 @@ impl SoundGraph {
         }
     }
 
-    /// Access the set of sound processors stored in the topology
+    /// Access the set of sound processors stored in the graph
     pub(crate) fn sound_processors(&self) -> &RevisedHashMap<SoundProcessorId, SoundProcessorData> {
         &self.sound_processors
     }
 
-    /// Access the set of sound inputs stored in the topology
+    /// Access the set of sound inputs stored in the graph
     pub(crate) fn sound_inputs(&self) -> &RevisedHashMap<SoundInputId, SoundInputData> {
         &self.sound_inputs
     }
 
-    /// Access the set of expression arguments stored in the topology
+    /// Access the set of expression arguments stored in the graph
     pub(crate) fn expression_arguments(
         &self,
     ) -> &RevisedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData> {
         &self.expression_arguments
     }
 
-    /// Access the set of expressions stored in the topology
+    /// Access the set of expressions stored in the graph
     pub(crate) fn expressions(&self) -> &RevisedHashMap<SoundExpressionId, SoundExpressionData> {
         &self.expressions
     }
@@ -138,7 +138,7 @@ impl SoundGraph {
         })
     }
 
-    /// Returns an iterator over the ids of all graph objects in the topology.
+    /// Returns an iterator over the ids of all graph objects in the graph.
     ///
     /// NOTE that currently the only graph objects are sound processors.
     /// This may be expanded upon in the future.
@@ -159,10 +159,10 @@ impl SoundGraph {
     ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
         let id = self.sound_processor_idgen.next_id();
 
-        // Add a new processor data item to the topology,
+        // Add a new processor data item to the graph,
         // but without the processor instance. This allows
-        // the processor's topology to be modified within
-        // the processor's new() method, e.g. to add inputs.
+        // the graph to be modified within the processor's
+        // new() method, e.g. to add inputs.
         self.sound_processors
             .insert(id, Revised::new(SoundProcessorData::new_empty(id)));
 
@@ -187,7 +187,7 @@ impl SoundGraph {
         let processor2 = Rc::clone(&processor);
 
         // add the missing processor instance to the
-        // newly created processor data in the topology
+        // newly created processor data in the graph
         self.sound_processors
             .get_mut(&id)
             .unwrap()
@@ -208,10 +208,10 @@ impl SoundGraph {
     ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
         let id = self.sound_processor_idgen.next_id();
 
-        // Add a new processor data item to the topology,
+        // Add a new processor data item to the graph,
         // but without the processor instance. This allows
-        // the processor's topology to be modified within
-        // the processor's new() method, e.g. to add inputs.
+        // the graph to be modified within the processor's
+        // new() method, e.g. to add inputs.
         self.sound_processors
             .insert(id, Revised::new(SoundProcessorData::new_empty(id)));
 
@@ -236,7 +236,7 @@ impl SoundGraph {
         let processor2 = Rc::clone(&processor);
 
         // add the missing processor instance to the
-        // newly created processor data in the topology
+        // newly created processor data in the graph
         self.sound_processors
             .get_mut(&id)
             .unwrap()
@@ -306,7 +306,7 @@ impl SoundGraph {
         Ok(())
     }
 
-    /// Add a sound input to the topology. The provided SoundInputData
+    /// Add a sound input to the graph. The provided SoundInputData
     /// must have no expression arguments, its id must not yet be in use,
     /// and the sound processor to which it belongs must exist.
     pub(crate) fn add_sound_input(
@@ -348,7 +348,7 @@ impl SoundGraph {
         Ok(id)
     }
 
-    /// Remove a sound input from the topology.
+    /// Remove a sound input from the graph.
     pub(crate) fn remove_sound_input(
         &mut self,
         input_id: SoundInputId,
@@ -433,7 +433,7 @@ impl SoundGraph {
         Ok(())
     }
 
-    /// Add an expression argument to the topology. The arguments's
+    /// Add an expression argument to the graph. The arguments's
     /// id must not be in use yet and its owner (i.e. the sound processor
     /// or input to which it belongs) must already exist.
     // TODO: remove data from interface
@@ -482,7 +482,7 @@ impl SoundGraph {
         Ok(id)
     }
 
-    /// Remove an expression argument from the topology.
+    /// Remove an expression argument from the graph.
     pub(crate) fn remove_expression_argument(
         &mut self,
         argument_id: SoundExpressionArgumentId,
@@ -511,7 +511,7 @@ impl SoundGraph {
         Ok(())
     }
 
-    /// Add an expression to the topology. The expressions's
+    /// Add an expression to the graph. The expressions's
     /// id must not yet be in use and it must not yet be connected
     /// to any expression arguments in its parameter mapping. The sound
     /// processor to which the input belongs must exist.
@@ -543,7 +543,7 @@ impl SoundGraph {
         Ok(SoundExpressionHandle::new(id, owner, scope))
     }
 
-    /// Remove an expression from the topology.
+    /// Remove an expression from the graph.
     pub(crate) fn remove_expression(
         &mut self,
         id: SoundExpressionId,
@@ -559,7 +559,7 @@ impl SoundGraph {
         Ok(())
     }
 
-    /// Check whether the entity referred to by the given id exists in the topology
+    /// Check whether the entity referred to by the given id exists in the graph
     pub fn contains<I: Into<SoundGraphId>>(&self, id: I) -> bool {
         let graph_id: SoundGraphId = id.into();
         match graph_id {
@@ -570,7 +570,7 @@ impl SoundGraph {
         }
     }
 
-    /// Create a SoundProcessorTools instance for making topological
+    /// Create a SoundProcessorTools instance for making
     /// changes to the given sound processor and pass the tools to the
     /// provided closure. This is useful, for example, for example,
     /// for modifying sound inputs and expressions and arguments after
@@ -618,13 +618,13 @@ impl SoundGraph {
                 e.explain(self)
             );
         }
-        let previous_topology = self.clone();
+        let previous_graph = self.clone();
         let res = f(self);
         if res.is_err() {
-            *self = previous_topology;
+            *self = previous_graph;
             return res;
         } else if let Err(e) = self.validate() {
-            *self = previous_topology;
+            *self = previous_graph;
             return Err(e);
         }
         res

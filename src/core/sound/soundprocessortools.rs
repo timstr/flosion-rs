@@ -18,7 +18,7 @@ use super::{
 };
 
 /// An interface for making changes to the sound graph from the view of
-/// a single sound processor. Changes to the topology of a single
+/// a single sound processor. Changes to a single
 /// processor, such as adding and removing sound inputs and modifying
 /// expressions and expression arguments, can be done through SoundProcessorTools.
 /// This is largely for convenience, since doing the same changes through
@@ -26,20 +26,17 @@ use super::{
 /// processor's id and thus be juggling even more ids at once.
 pub struct SoundProcessorTools<'a> {
     processor_id: SoundProcessorId,
-    topology: &'a mut SoundGraph,
+    graph: &'a mut SoundGraph,
 }
 
 impl<'a> SoundProcessorTools<'a> {
-    /// Construct a new tools instance from a mutable topology
+    /// Construct a new tools instance from a mutable graph
     /// instance (for modifying the graph) and set of id generators
     /// (for allocating ids to any newly-created objects)
-    pub(crate) fn new(
-        id: SoundProcessorId,
-        topology: &'a mut SoundGraph,
-    ) -> SoundProcessorTools<'a> {
+    pub(crate) fn new(id: SoundProcessorId, graph: &'a mut SoundGraph) -> SoundProcessorTools<'a> {
         SoundProcessorTools {
             processor_id: id,
-            topology,
+            graph,
         }
     }
 
@@ -53,7 +50,7 @@ impl<'a> SoundProcessorTools<'a> {
         options: InputOptions,
         branches: Vec<SoundInputBranchId>,
     ) -> SoundInputId {
-        self.topology
+        self.graph
             .add_sound_input(self.processor_id, options, branches)
             .unwrap()
     }
@@ -61,14 +58,13 @@ impl<'a> SoundProcessorTools<'a> {
     /// Remove a sound input from the sound processor
     pub fn remove_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
         let input_data = self
-            .topology
+            .graph
             .sound_input(input_id)
             .ok_or(SoundError::SoundInputNotFound(input_id))?;
         if input_data.owner() != self.processor_id {
             return Err(SoundError::BadSoundInputCleanup(input_id));
         }
-        self.topology
-            .remove_sound_input(input_id, self.processor_id)
+        self.graph.remove_sound_input(input_id, self.processor_id)
     }
 
     /// Add an expression argument to the given sound input which
@@ -146,20 +142,20 @@ impl<'a> SoundProcessorTools<'a> {
         default_value: f32,
         scope: SoundExpressionScope,
     ) -> SoundExpressionHandle {
-        self.topology
+        self.graph
             .add_expression(self.processor_id, default_value, scope)
             .unwrap()
     }
 
-    /// Access the current sound graph topology
-    pub(crate) fn topology(&self) -> &SoundGraph {
-        self.topology
+    /// Access the current sound graph graph
+    pub(crate) fn graph(&self) -> &SoundGraph {
+        self.graph
     }
 
-    /// Mutably access the current sound graph topology
+    /// Mutably access the current sound graph graph
     // TODO: why?
-    pub(crate) fn topology_mut(&mut self) -> &mut SoundGraph {
-        self.topology
+    pub(crate) fn graph_mut(&mut self) -> &mut SoundGraph {
+        self.graph
     }
 
     /// Internal helper method for adding an expression argument to a sound input
@@ -170,12 +166,12 @@ impl<'a> SoundProcessorTools<'a> {
         instance: Rc<dyn SoundExpressionArgument>,
     ) -> SoundExpressionArgumentHandle {
         assert!(
-            self.topology.sound_input(input_id).unwrap().owner() == self.processor_id,
+            self.graph.sound_input(input_id).unwrap().owner() == self.processor_id,
             "The sound input should belong to the processor which the tools were created for"
         );
 
         let id = self
-            .topology
+            .graph
             .add_expression_argument(instance, SoundExpressionArgumentOwner::SoundInput(input_id))
             .unwrap();
 
@@ -189,7 +185,7 @@ impl<'a> SoundProcessorTools<'a> {
         instance: Rc<dyn SoundExpressionArgument>,
     ) -> SoundExpressionArgumentHandle {
         let id = self
-            .topology
+            .graph
             .add_expression_argument(
                 instance,
                 SoundExpressionArgumentOwner::SoundProcessor(self.processor_id),

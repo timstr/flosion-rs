@@ -126,16 +126,11 @@ impl<S: State + Default> KeyedInput<S> {
     }
 
     pub fn num_branches(&self, tools: &SoundProcessorTools) -> usize {
-        tools
-            .topology()
-            .sound_input(self.id)
-            .unwrap()
-            .branches()
-            .len()
+        tools.graph().sound_input(self.id).unwrap().branches().len()
     }
 
     pub fn set_num_branches(&self, num_branches: usize, tools: &mut SoundProcessorTools) {
-        let input_data = tools.topology_mut().sound_input_mut(self.id).unwrap();
+        let input_data = tools.graph_mut().sound_input_mut(self.id).unwrap();
         // TODO: make this a bit more fool proof
         *input_data.branches_mut() = (1..=num_branches)
             .map(|i| SoundInputBranchId::new(i))
@@ -269,8 +264,9 @@ impl SoundProcessorInput for () {
 pub struct SingleInputList {
     // NOTE: this RwLock is mostly a formality, since
     // SoundProcessorTools is required to change the input
-    // anyway and therefore mutable access to the topology
+    // anyway and therefore mutable access to the graph
     // is already held
+    // TODO: revisit this now that SoundGraph is not Sync + Send
     input_ids: RwLock<Vec<SoundInputId>>,
     options: InputOptions,
 }

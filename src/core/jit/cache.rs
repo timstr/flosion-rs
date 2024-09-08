@@ -16,7 +16,7 @@ struct Entry<'ctx> {
     // NOTE that things may still be in use on the audio
     // thread. CompiledExpressionArtefact's internal Arc
     // and its reference count may be of use. Alternatively,
-    // properties of the current topology may suffice.
+    // properties of the current graph may suffice.
 }
 
 pub(crate) struct JitCache<'ctx> {
@@ -35,15 +35,15 @@ impl<'ctx> JitCache<'ctx> {
     pub(crate) fn get_compiled_expression(
         &self,
         id: SoundExpressionId,
-        topology: &SoundGraph,
+        graph: &SoundGraph,
     ) -> CompiledExpressionFunction<'ctx> {
-        let revision = topology.get_revision();
+        let revision = graph.get_revision();
         self.cache
             .borrow_mut()
             .entry((id, revision))
             .or_insert_with(|| {
                 let jit = Jit::new(self.inkwell_context);
-                let artefact = jit.compile_expression(id, topology);
+                let artefact = jit.compile_expression(id, graph);
                 Entry { artefact }
             })
             .artefact

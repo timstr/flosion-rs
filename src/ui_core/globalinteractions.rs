@@ -318,28 +318,28 @@ impl GlobalInteractions {
     }
 
     /// Remove any data associated with objects that are no longer present in
-    /// the topology
-    pub(crate) fn cleanup(&mut self, topo: &SoundGraph) {
+    /// the graph
+    pub(crate) fn cleanup(&mut self, graph: &SoundGraph) {
         match &mut self.mode {
             UiMode::Passive => (),
             UiMode::Selecting(s) => {
-                s.objects.retain(|id| topo.contains(id));
+                s.objects.retain(|id| graph.contains(id));
                 if s.objects.is_empty() {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::UsingKeyboardNav(kbd_focus) => {
-                if !kbd_focus.is_valid(topo) {
+                if !kbd_focus.is_valid(graph) {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::Dragging(data) => {
-                if !data.is_valid(topo) {
+                if !data.is_valid(graph) {
                     self.mode = UiMode::Passive;
                 }
             }
             UiMode::Dropping(data) => {
-                if !data.is_valid(topo) {
+                if !data.is_valid(graph) {
                     self.mode = UiMode::Passive;
                 }
             }
