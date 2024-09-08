@@ -1091,7 +1091,7 @@ impl LexicalLayout {
                         // TODO:
                         // - if an existing (direct) variable definition exists for the source,
                         //   create a reference to that variable
-                        // - otherwise, if the the number source is already referenced by
+                        // - otherwise, if the the expression node is already referenced by
                         //   some other part of the lexical layout, extract a new variable definition
                         //   and replace both places with a reference to it
                         // - otherwise, recursively create a new AST node and place it here
@@ -1118,6 +1118,6 @@ impl LexicalLayout {
         // TODO: after having gathered expected targets for variable definitions,
         // visit those to confirm that they match
 
-        // TODO: create variable definitions for any unreferenced number sources
+        // TODO: create variable definitions for any unreferenced expression nodes
     }
 }

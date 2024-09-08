@@ -118,14 +118,14 @@ impl ExpressionPlot {
         let len = rect.width().floor() as usize;
         let mut dst = Vec::new();
         dst.resize(len, 0.0);
-        let number_context = MockExpressionContext::new(len);
+        let expr_context = MockExpressionContext::new(len);
 
         let discretization = match horizontal_domain {
             HorizontalDomain::Temporal => Discretization::Temporal(time_axis.time_per_x_pixel),
             HorizontalDomain::WithRespectTo(_, _) => Discretization::None,
         };
 
-        compiled_fn.eval(&mut dst, &number_context, discretization);
+        compiled_fn.eval(&mut dst, &expr_context, discretization);
 
         let (vmin, vmax) = match vertical_range {
             VerticalRange::Automatic => {

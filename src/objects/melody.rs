@@ -129,7 +129,7 @@ impl DynamicSoundProcessor for Melody {
         let note_length = tools.add_input_scalar_argument(input.id(), |state| {
             state.downcast_if::<NoteState>().unwrap().length_seconds
         });
-        // TODO: add note progress (time / length) as a derived number source
+        // TODO: add note progress (time / length) as a derived expression argument
 
         Ok(Melody {
             shared_data: Arc::new(RwLock::new(MelodyData {

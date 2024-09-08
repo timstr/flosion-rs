@@ -165,7 +165,7 @@ impl StatefulExpressionNode for ExponentialApproach {
 
         // Copied from Pow
         // TODO: put this and similar helpers somewhere shared, many
-        // other number sources will likely benefit from them
+        // other expression node will likely benefit from them
         let ln_a = jit.build_unary_intrinsic_call("llvm.log", decay_rate);
         let b_ln_a = jit
             .builder()

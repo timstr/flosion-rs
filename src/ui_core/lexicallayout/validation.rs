@@ -177,7 +177,7 @@ pub(super) fn lexical_layout_matches_expression_graph(
     for nsid in graph.nodes().keys() {
         if !visited_sources.contains(nsid) {
             println!(
-                "Number source {} \"{}\" is not represented by any ASTNode",
+                "Expression node {} \"{}\" is not represented by any ASTNode",
                 nsid.value(),
                 graph
                     .node(*nsid)
