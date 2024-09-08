@@ -1,5 +1,5 @@
 use crate::core::{
-    engine::{stategraph::StateGraph, stategraphvalidation::state_graph_matches_topology},
+    engine::{stategraph::StateGraph, stategraphvalidation::state_graph_matches_sound_graph},
     jit::cache::JitCache,
     sound::soundgraph::SoundGraph,
 };
@@ -17,16 +17,18 @@ pub(crate) fn diff_sound_graph<'ctx>(
     let mut edits = Vec::new();
 
     // sound graph and state graph should match
-    // TODO: re-enable this check. Consider using SendWrapper<SoundGraph>
+    // TODO: re-enable this check. Consider serializing the graph, sending the
+    // binary, and deserializing on the audio thread (performance hit is ok
+    // in debug mode)
     // #[cfg(debug_assertions)]
     // {
-    //     let topo_clone = topo_before.clone();
+    //     let graph_clone = graph_before.clone();
     //     edits.push(StateGraphEdit::DebugInspection(Box::new(
     //         |sg: &StateGraph<'ctx>| {
-    //             let topo = topo_clone;
+    //             let graph = graph_clone;
     //             debug_assert!(
-    //                 state_graph_matches_topology(sg, &topo),
-    //                 "State graph failed to match topology before any updates were made"
+    //                 state_graph_matches_sound_graph(sg, &graph),
+    //                 "State graph failed to match sound graph before any updates were made"
     //             );
     //         },
     //     )));
@@ -68,12 +70,12 @@ pub(crate) fn diff_sound_graph<'ctx>(
     // TODO: re-enable this check
     // #[cfg(debug_assertions)]
     // {
-    //     let topo_clone = topo_after.clone();
+    //     let graph_clone = graph_after.clone();
     //     edits.push(StateGraphEdit::DebugInspection(Box::new(
     //         |sg: &StateGraph<'ctx>| {
-    //             let topo = topo_clone;
+    //             let graph = graph_clone;
     //             debug_assert!(
-    //                 state_graph_matches_topology(sg, &topo),
+    //                 state_graph_matches_sound_graph(sg, &graph),
     //                 "State graph no longer matches topology after applying updates"
     //             );
     //         },
