@@ -104,7 +104,7 @@ impl SoundObjectUi for InputUi {
         let mut amplitude_history = Vec::new();
         amplitude_history.resize(100, 0.0);
         Ok(InputUiState {
-            buffer_reader: handle.get_buffer_reader(),
+            buffer_reader: handle.get().get_buffer_reader(),
             amplitude_history,
         })
     }

@@ -1,7 +1,5 @@
 use rand::prelude::*;
 
-use parking_lot::Mutex;
-
 use crate::{
     core::{
         engine::{
@@ -39,7 +37,7 @@ const MAX_NUM_INPUTS: usize = 3;
 
 struct TestSoundProcessor {
     expression: SoundExpressionHandle,
-    input_values: Mutex<[[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]>,
+    input_values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
     argument_0: SoundExpressionArgumentHandle,
     argument_1: SoundExpressionArgumentHandle,
     argument_2: SoundExpressionArgumentHandle,
@@ -68,8 +66,8 @@ impl State for TestSoundProcessorState {
     }
 }
 impl TestSoundProcessor {
-    fn set_input_values(&self, values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]) {
-        *self.input_values.lock() = values;
+    fn set_input_values(&mut self, values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]) {
+        self.input_values = values;
     }
 }
 
@@ -83,7 +81,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
     fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(TestSoundProcessor {
             expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
-            input_values: Mutex::new([[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]),
+            input_values: [[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
             argument_0: tools.add_processor_array_argument(|data| {
                 &data
                     .downcast_if::<TestSoundProcessorState>()
@@ -120,7 +118,7 @@ impl DynamicSoundProcessor for TestSoundProcessor {
 
     fn make_state(&self) -> Self::StateType {
         TestSoundProcessorState {
-            values: *self.input_values.lock(),
+            values: self.input_values,
         }
     }
 
@@ -171,13 +169,13 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
         .unwrap();
 
     {
-        let expression_data = graph.expression_mut(proc.expression.id()).unwrap();
+        let expression_data = graph.expression_mut(proc.get().expression.id()).unwrap();
 
         let (expr_graph, mapping) = expression_data.expression_graph_and_mapping_mut();
 
-        let giid0 = mapping.add_argument(proc.argument_0.id(), expr_graph);
-        let giid1 = mapping.add_argument(proc.argument_1.id(), expr_graph);
-        let giid2 = mapping.add_argument(proc.argument_2.id(), expr_graph);
+        let giid0 = mapping.add_argument(proc.get().argument_0.id(), expr_graph);
+        let giid1 = mapping.add_argument(proc.get().argument_1.id(), expr_graph);
+        let giid2 = mapping.add_argument(proc.get().argument_2.id(), expr_graph);
 
         let ns_handle = expr_graph
             .add_pure_expression_node::<T>(&ParsedArguments::new_empty())
@@ -216,7 +214,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let jit = Jit::new(&inkwell_context);
 
-    let compiled_input = jit.compile_expression(proc.expression.id(), &graph);
+    let compiled_input = jit.compile_expression(proc.get().expression.id(), &graph);
 
     let mut compiled_function = compiled_input.make_function();
 
@@ -234,7 +232,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
         }
     }
 
-    proc.set_input_values(input_values);
+    proc.get_mut().set_input_values(input_values);
 
     let mut expected_values = [0.0_f32; TEST_ARRAY_SIZE];
     let mut inputs_arr = [0.0_f32; MAX_NUM_INPUTS];
@@ -248,7 +246,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     //------------------------
 
-    let sp_state = StateAndTiming::new(proc.make_state());
+    let sp_state = StateAndTiming::new(proc.get().make_state());
     let context = context.push_processor_state(&sp_state, LocalArrayList::new());
 
     let state_from_context = context.find_processor_state(proc.id());

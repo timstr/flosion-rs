@@ -13,8 +13,8 @@ use crate::core::{
         soundgraphdata::SoundInputBranchId,
         soundinput::{InputTiming, SoundInputId},
         soundprocessor::{
-            DynamicSoundProcessor, DynamicSoundProcessorWithId, ProcessorState, SoundProcessorId,
-            StateAndTiming, StaticSoundProcessor, StaticSoundProcessorWithId, StreamStatus,
+            DynamicSoundProcessor, ProcessorState, SoundProcessorId, StateAndTiming,
+            StaticSoundProcessor, StreamStatus,
         },
     },
     soundchunk::SoundChunk,
@@ -39,7 +39,8 @@ pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
 impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
     /// Compile a new static processor for the state graph
     pub(crate) fn new<'a>(
-        processor: &StaticSoundProcessorWithId<T>,
+        processor_id: SoundProcessorId,
+        processor: &T,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
@@ -52,12 +53,12 @@ impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
         if time_to_compile_ms > 10 {
             println!(
                 "Compiling static sound processor {} took {} ms",
-                processor.id().value(),
+                processor_id.value(),
                 time_to_compile_ms
             );
         }
         Self {
-            id: processor.id(),
+            id: processor_id,
             state,
             sound_input,
             expressions,
@@ -76,7 +77,8 @@ pub struct CompiledDynamicProcessor<'ctx, T: DynamicSoundProcessor> {
 impl<'ctx, T: 'static + DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
     /// Compile a new dynamic sound processor for the state graph
     pub(crate) fn new<'a>(
-        processor: &DynamicSoundProcessorWithId<T>,
+        processor_id: SoundProcessorId,
+        processor: &T,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Self {
         let start = Instant::now();
@@ -89,12 +91,12 @@ impl<'ctx, T: 'static + DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T>
         if time_to_compile_ms > 10 {
             println!(
                 "Compiling dynamic sound processor {} took {} ms",
-                processor.id().value(),
+                processor_id.value(),
                 time_to_compile_ms
             );
         }
         Self {
-            id: processor.id(),
+            id: processor_id,
             state,
             sound_input,
             expressions,

@@ -1,5 +1,6 @@
 use std::{
     any::{type_name, Any},
+    cell::RefCell,
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -104,7 +105,7 @@ pub trait DynamicSoundProcessor: Sized + WithObjectType {
 }
 
 pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
-    processor: T,
+    processor: RefCell<T>,
     id: SoundProcessorId,
     time_argument: SoundExpressionArgumentId,
 }
@@ -116,7 +117,7 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
         time_argument: SoundExpressionArgumentId,
     ) -> Self {
         Self {
-            processor,
+            processor: RefCell::new(processor),
             id,
             time_argument,
         }
@@ -131,20 +132,12 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
     }
 }
 
-impl<T: StaticSoundProcessor> Deref for StaticSoundProcessorWithId<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.processor
-    }
-}
-
 impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
 
 pub struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
-    processor: T,
+    processor: RefCell<T>,
     id: SoundProcessorId,
     time_argument: SoundExpressionArgumentId,
 }
@@ -156,7 +149,7 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
         time_argument: SoundExpressionArgumentId,
     ) -> Self {
         Self {
-            processor,
+            processor: RefCell::new(processor),
             id,
             time_argument,
         }
@@ -171,13 +164,13 @@ impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
     }
 }
 
-impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorWithId<T> {
-    type Target = T;
+// impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorWithId<T> {
+//     type Target = T;
 
-    fn deref(&self) -> &T {
-        &self.processor
-    }
-}
+//     fn deref(&self) -> &T {
+//         &self.processor
+//     }
+// }
 
 impl<T: DynamicSoundProcessor> WithObjectType for DynamicSoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
@@ -217,13 +210,13 @@ impl<T: 'static + StaticSoundProcessor> StaticSoundProcessorHandle<T> {
     pub fn into_graph_object(self) -> AnySoundObjectHandle {
         AnySoundObjectHandle::new(self.instance)
     }
-}
 
-impl<T: StaticSoundProcessor> Deref for StaticSoundProcessorHandle<T> {
-    type Target = T;
+    pub fn get<'a>(&'a self) -> impl 'a + Deref<Target = T> {
+        self.instance.processor.borrow()
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &*self.instance
+    pub fn get_mut<'a>(&'a self) -> impl 'a + DerefMut<Target = T> {
+        self.instance.processor.borrow_mut()
     }
 }
 
@@ -261,15 +254,23 @@ impl<T: 'static + DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
     pub fn into_graph_object(self) -> AnySoundObjectHandle {
         AnySoundObjectHandle::new(self.instance)
     }
-}
 
-impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorHandle<T> {
-    type Target = T;
+    pub fn get<'a>(&'a self) -> impl 'a + Deref<Target = T> {
+        self.instance.processor.borrow()
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &*self.instance
+    pub fn get_mut<'a>(&'a self) -> impl 'a + DerefMut<Target = T> {
+        self.instance.processor.borrow_mut()
     }
 }
+
+// impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorHandle<T> {
+//     type Target = T;
+
+//     fn deref(&self) -> &Self::Target {
+//         &*self.instance
+//     }
+// }
 
 pub(crate) trait SoundProcessor {
     fn id(&self) -> SoundProcessorId;
@@ -292,7 +293,7 @@ impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorW
     }
 
     fn serialize(&self, chive_in: ChiveIn) {
-        self.processor.serialize(chive_in);
+        self.processor.borrow().serialize(chive_in);
     }
 
     fn is_static(&self) -> bool {
@@ -307,7 +308,8 @@ impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorW
         &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
-        let processor_node = CompiledStaticProcessor::new(self, compiler);
+        let processor_node =
+            CompiledStaticProcessor::new(self.id, &*self.processor.borrow(), compiler);
         Box::new(processor_node)
     }
 }
@@ -318,7 +320,7 @@ impl<T: 'static + DynamicSoundProcessor> SoundProcessor for DynamicSoundProcesso
     }
 
     fn serialize(&self, chive_in: ChiveIn) {
-        self.processor.serialize(chive_in);
+        self.processor.borrow().serialize(chive_in);
     }
 
     fn is_static(&self) -> bool {
@@ -333,7 +335,8 @@ impl<T: 'static + DynamicSoundProcessor> SoundProcessor for DynamicSoundProcesso
         &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
-        let processor_node = CompiledDynamicProcessor::new(self, compiler);
+        let processor_node =
+            CompiledDynamicProcessor::new(self.id, &*self.processor.borrow(), compiler);
         Box::new(processor_node)
     }
 }
@@ -485,7 +488,7 @@ impl<T: 'static + StaticSoundProcessor> SoundGraphObject for StaticSoundProcesso
     }
 
     fn serialize(&self, chive_in: ChiveIn) {
-        (&*self as &T).serialize(chive_in);
+        self.processor.borrow().serialize(chive_in);
     }
 }
 
@@ -518,8 +521,7 @@ impl<T: 'static + DynamicSoundProcessor> SoundGraphObject for DynamicSoundProces
     }
 
     fn serialize(&self, chive_in: ChiveIn) {
-        let s: &T = &*self;
-        s.serialize(chive_in);
+        self.processor.borrow().serialize(chive_in);
     }
 }
 

@@ -27,8 +27,8 @@ impl SoundObjectUi for KeyboardUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&keyboard, "Keyboard")
-            .add_sound_input(keyboard.input.id(), "input", sound_graph)
-            .add_argument(keyboard.key_frequency.id(), "keyfrequency")
+            .add_sound_input(keyboard.get().input.id(), "input", sound_graph)
+            .add_argument(keyboard.get().key_frequency.id(), "keyfrequency")
             .show_with(
                 ui,
                 ctx,
@@ -54,7 +54,7 @@ impl SoundObjectUi for KeyboardUi {
 
                     if !has_focus {
                         if had_focus {
-                            keyboard.release_all_keys();
+                            keyboard.get_mut().release_all_keys();
                         }
                         return;
                     }
@@ -96,9 +96,9 @@ impl SoundObjectUi for KeyboardUi {
                             if pressed {
                                 let f = 256.0_f32 * (2.0_f32).powf((i as f32) / 12.0_f32);
                                 // let f = 128.0_f32 * ((i + 1) as f32); // heh
-                                keyboard.start_key(KeyId(i), f);
+                                keyboard.get_mut().start_key(KeyId(i), f);
                             } else {
-                                keyboard.release_key(KeyId(i));
+                                keyboard.get_mut().release_key(KeyId(i));
                             }
                         }
                     }

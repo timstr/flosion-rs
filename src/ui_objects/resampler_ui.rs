@@ -24,8 +24,8 @@ impl SoundObjectUi for ResamplerUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&resampler, "Resampler")
-            .add_sound_input(resampler.input.id(), "input", sound_graph)
-            .add_expression(resampler.speed_ratio.id(), "speed", PlotConfig::new())
+            .add_sound_input(resampler.get().input.id(), "input", sound_graph)
+            .add_expression(resampler.get().speed_ratio.id(), "speed", PlotConfig::new())
             .show(ui, ctx, graph_ui_state, sound_graph);
     }
 

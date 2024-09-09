@@ -26,7 +26,7 @@ impl SoundObjectUi for OutputUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&output, "Output")
-            .add_sound_input(output.input.id(), "input", sound_graph)
+            .add_sound_input(output.get().input.id(), "input", sound_graph)
             .show_with(
                 ui,
                 ctx,
@@ -37,7 +37,7 @@ impl SoundObjectUi for OutputUi {
                         .add(egui::Button::new("Start over").wrap_mode(egui::TextWrapMode::Extend))
                         .clicked()
                     {
-                        output.start_over();
+                        output.get().start_over();
                     }
                 },
             );

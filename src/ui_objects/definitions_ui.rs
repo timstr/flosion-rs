@@ -26,9 +26,9 @@ impl SoundObjectUi for DefinitionsUi {
         graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&definitions, "Definitions")
-            .add_expression(definitions.expression.id(), "a", PlotConfig::new())
-            .add_argument(definitions.argument.id(), "a")
-            .add_sound_input(definitions.sound_input.id(), "input", graph)
+            .add_expression(definitions.get().expression.id(), "a", PlotConfig::new())
+            .add_argument(definitions.get().argument.id(), "a")
+            .add_sound_input(definitions.get().sound_input.id(), "input", graph)
             .show_with(
                 ui,
                 ctx,

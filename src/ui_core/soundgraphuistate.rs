@@ -102,7 +102,7 @@ impl SoundGraphUiState {
                 let audioclip = graph
                     .add_dynamic_sound_processor::<AudioClip>(&ParsedArguments::new_empty())
                     .unwrap();
-                audioclip.set_data(buf);
+                audioclip.get_mut().set_data(buf);
                 println!("Loaded {}", path.display());
             } else {
                 println!("Failed to load {}", path.display());

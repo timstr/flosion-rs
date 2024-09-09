@@ -79,7 +79,7 @@ impl SoundObjectUi for AudioClipUi {
                             println!("Loading audioclip from {}", path.display());
                             match load_audio_file(&path) {
                                 Ok(buf) => {
-                                    audioclip.set_data(buf);
+                                    audioclip.get_mut().set_data(buf);
                                     state.name =
                                         path.file_name().unwrap().to_str().unwrap().to_string();
                                 }

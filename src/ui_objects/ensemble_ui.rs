@@ -27,18 +27,18 @@ impl SoundObjectUi for EnsembleUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&ensemble, "Ensemble")
-            .add_sound_input(ensemble.input.id(), "input", sound_graph)
+            .add_sound_input(ensemble.get().input.id(), "input", sound_graph)
             .add_expression(
-                ensemble.frequency_in.id(),
+                ensemble.get().frequency_in.id(),
                 "frequency_in",
                 PlotConfig::new(),
             )
             .add_expression(
-                ensemble.frequency_spread.id(),
+                ensemble.get().frequency_spread.id(),
                 "frequency_spread",
                 PlotConfig::new(),
             )
-            .add_argument(ensemble.voice_frequency.id(), "voice_frequency")
+            .add_argument(ensemble.get().voice_frequency.id(), "voice_frequency")
             .show_with(
                 ui,
                 ctx,
@@ -55,10 +55,10 @@ impl SoundObjectUi for EnsembleUi {
                         // during every single UI redraw, even if nothing changed.
                         // Make this more efficient.
                         let res = sound_graph.with_processor_tools(ensemble.id(), |mut tools| {
-                            let mut num_voices = ensemble.num_voices(&tools);
+                            let mut num_voices = ensemble.get().num_voices(&tools);
                             let r = ui.add(egui::Slider::new(&mut num_voices, 0..=16));
                             if r.changed() {
-                                ensemble.set_num_voices(num_voices, &mut tools);
+                                ensemble.get_mut().set_num_voices(num_voices, &mut tools);
                             }
                             Ok(())
                         });

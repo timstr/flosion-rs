@@ -28,7 +28,7 @@ impl SoundObjectUi for MixerUi {
     ) {
         let mut objwin = ProcessorUi::new(&mixer, "Mixer");
 
-        for (i, siid) in mixer.get_input_ids().into_iter().enumerate() {
+        for (i, siid) in mixer.get().get_input_ids().into_iter().enumerate() {
             objwin = objwin.add_sound_input(siid, &format!("input{}", i + 1), sound_graph);
         }
 
@@ -39,14 +39,14 @@ impl SoundObjectUi for MixerUi {
             sound_graph,
             |ui, _ui_state, sound_graph| {
                 ui.horizontal(|ui| {
-                    let last_input = mixer.get_input_ids().into_iter().last();
+                    let last_input = mixer.get().get_input_ids().into_iter().last();
 
                     if ui.button("+").clicked() {
                         let w = mixer.clone();
 
                         sound_graph
                             .with_processor_tools(w.id(), |mut tools| {
-                                w.add_input(&mut tools);
+                                w.get_mut().add_input(&mut tools);
                                 Ok(())
                             })
                             .unwrap();
@@ -57,7 +57,7 @@ impl SoundObjectUi for MixerUi {
                             let w = mixer.clone();
                             sound_graph
                                 .with_processor_tools(w.id(), |mut tools| {
-                                    w.remove_input(siid, &mut tools);
+                                    w.get_mut().remove_input(siid, &mut tools);
                                     Ok(())
                                 })
                                 .unwrap();

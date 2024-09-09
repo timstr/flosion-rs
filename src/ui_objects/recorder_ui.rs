@@ -27,15 +27,15 @@ impl SoundObjectUi for RecorderUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&recorder, "Recorder")
-            .add_sound_input(recorder.input.id(), "Input", sound_graph)
+            .add_sound_input(recorder.get().input.id(), "Input", sound_graph)
             .show_with(
                 ui,
                 ctx,
                 graph_ui_state,
                 sound_graph,
                 |ui, _ui_state, sound_graph| {
-                    let r = recorder.is_recording();
-                    let n = recorder.recording_length();
+                    let r = recorder.get().is_recording();
+                    let n = recorder.get().recording_length();
                     let btn_str = if r {
                         "Stop"
                     } else if n > 0 {
@@ -45,23 +45,23 @@ impl SoundObjectUi for RecorderUi {
                     };
                     if ui.add(Button::new(btn_str)).clicked() {
                         if r {
-                            recorder.stop_recording();
+                            recorder.get_mut().stop_recording();
                         } else {
-                            recorder.start_recording();
+                            recorder.get_mut().start_recording();
                         }
                     }
                     if n > 0 && !r {
                         if ui.add(Button::new("Clear")).clicked() {
-                            recorder.clear_recording();
+                            recorder.get_mut().clear_recording();
                         }
                         if ui.add(Button::new("Create AudioClip")).clicked() {
-                            let a = recorder.copy_audio();
+                            let a = recorder.get().copy_audio();
                             let ac = sound_graph.add_dynamic_sound_processor::<AudioClip>(
                                 &ParsedArguments::new_empty(),
                             );
                             // TODO: move the audio clip nearby
                             match ac {
-                                Ok(ac) => ac.set_data(a),
+                                Ok(ac) => ac.get_mut().set_data(a),
                                 Err(_) => println!("Recorder failed to create an AudioClip"),
                             }
                         }

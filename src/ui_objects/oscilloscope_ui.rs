@@ -176,7 +176,7 @@ impl SoundObjectUi for OscilloscopeUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(&oscilloscope, "Oscilloscope")
-            .add_sound_input(oscilloscope.input.id(), "Input", sound_graph)
+            .add_sound_input(oscilloscope.get().input.id(), "Input", sound_graph)
             .show_with(
                 ui,
                 ctx,
@@ -301,7 +301,7 @@ impl SoundObjectUi for OscilloscopeUi {
         _args: &ParsedArguments,
     ) -> Result<OscilloscopeUiState, ()> {
         Ok(OscilloscopeUiState {
-            buffer_reader: handle.get_buffer_reader(),
+            buffer_reader: handle.get().get_buffer_reader(),
             exposure: 5.0,
             gain: 0.7,
             decay: 0.3,
