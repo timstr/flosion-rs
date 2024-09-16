@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use hashrevise::{Revisable, RevisionHash};
+use hashstash::ObjectHash;
 
 use crate::core::sound::{expression::SoundExpressionId, soundgraph::SoundGraph};
 
@@ -21,7 +21,7 @@ struct Entry<'ctx> {
 
 pub(crate) struct JitCache<'ctx> {
     inkwell_context: &'ctx inkwell::context::Context,
-    cache: RefCell<HashMap<(SoundExpressionId, RevisionHash), Entry<'ctx>>>,
+    cache: RefCell<HashMap<(SoundExpressionId, ObjectHash), Entry<'ctx>>>,
 }
 
 impl<'ctx> JitCache<'ctx> {
@@ -37,10 +37,10 @@ impl<'ctx> JitCache<'ctx> {
         id: SoundExpressionId,
         graph: &SoundGraph,
     ) -> CompiledExpressionFunction<'ctx> {
-        let revision = graph.get_revision();
+        let hash = ObjectHash::from_stashable(graph);
         self.cache
             .borrow_mut()
-            .entry((id, revision))
+            .entry((id, hash))
             .or_insert_with(|| {
                 let jit = Jit::new(self.inkwell_context);
                 let artefact = jit.compile_expression(id, graph);

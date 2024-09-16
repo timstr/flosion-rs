@@ -10,7 +10,6 @@ use crate::{
     ui_core::arguments::{FloatArgument, ParsedArguments},
 };
 use atomic_float::AtomicF32;
-use chive::ChiveIn;
 use inkwell::{values::FloatValue, FloatPredicate};
 use std::sync::{atomic::Ordering, Arc};
 
@@ -30,10 +29,6 @@ impl PureExpressionNode for Constant {
     fn new(_tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
         let value = args.get(&Constant::ARG_VALUE).unwrap_or(0.0) as f32;
         Ok(Constant { value })
-    }
-
-    fn serialize(&self, mut chive_in: ChiveIn) {
-        chive_in.f32(self.value);
     }
 
     fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
@@ -71,10 +66,6 @@ impl PureExpressionNode for Variable {
         Ok(Variable {
             value: Arc::new(AtomicF32::new(value)),
         })
-    }
-
-    fn serialize(&self, mut chive_in: ChiveIn) {
-        chive_in.f32(self.get_value());
     }
 
     fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {

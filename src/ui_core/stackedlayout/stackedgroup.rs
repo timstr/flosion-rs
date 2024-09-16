@@ -1,7 +1,7 @@
-use std::{hash::Hasher, ops::BitAnd};
+use std::ops::BitAnd;
 
 use eframe::egui::{self};
-use hashrevise::{Revisable, RevisionHash, RevisionHasher};
+use hashstash::{Stashable, Stasher};
 
 use crate::{
     core::{
@@ -727,16 +727,14 @@ impl StackedGroup {
     }
 }
 
-impl Revisable for StackedGroup {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_u32(self.width_pixels.to_bits());
-        hasher.write_u32(self.time_axis.time_per_x_pixel.to_bits());
-        hasher.write_revisable(&self.processors);
-        hasher.write_u32(self.rect.left().to_bits());
-        hasher.write_u32(self.rect.right().to_bits());
-        hasher.write_u32(self.rect.top().to_bits());
-        hasher.write_u32(self.rect.bottom().to_bits());
-        hasher.into_revision()
+impl Stashable for StackedGroup {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.u32(self.width_pixels.to_bits());
+        stasher.u32(self.time_axis.time_per_x_pixel.to_bits());
+        stasher.array_of_u64_iter(self.processors.iter().map(|p| p.value() as u64));
+        stasher.u32(self.rect.left().to_bits());
+        stasher.u32(self.rect.right().to_bits());
+        stasher.u32(self.rect.top().to_bits());
+        stasher.u32(self.rect.bottom().to_bits());
     }
 }

@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hashrevise::{Revisable, RevisionHash};
+use hashstash::ObjectHash;
 
 use super::{
     diffgraph::diff_sound_graph,
@@ -85,10 +85,10 @@ pub(crate) fn create_sound_engine<'ctx>(
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
     let current_graph = SoundGraph::new();
-    let current_revision = current_graph.get_revision();
+    let current_hash = ObjectHash::from_stashable(&current_graph);
     let se_interface = SoundEngineInterface {
         current_graph,
-        current_revision,
+        current_hash,
         stop_button: stop_button.clone(),
         edit_queue: edit_sender,
     };
@@ -115,7 +115,7 @@ pub(crate) fn create_sound_engine<'ctx>(
 /// to stop running.
 pub(crate) struct SoundEngineInterface<'ctx> {
     current_graph: SoundGraph,
-    current_revision: RevisionHash,
+    current_hash: ObjectHash,
     stop_button: StopButton,
     edit_queue: SyncSender<StateGraphEdit<'ctx>>,
 }
@@ -129,9 +129,9 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         new_graph: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
     ) -> Result<(), ()> {
-        let new_revision = new_graph.get_revision();
+        let new_revision = ObjectHash::from_stashable(new_graph);
 
-        if new_revision == self.current_revision {
+        if new_revision == self.current_hash {
             return Ok(());
         }
 
@@ -152,7 +152,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         }
 
         self.current_graph = new_graph.clone();
-        self.current_revision = new_revision;
+        self.current_hash = new_revision;
 
         Ok(())
     }

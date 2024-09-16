@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use atomicslice::AtomicSlice;
-use chive::ChiveIn;
 use inkwell::{
     values::{FloatValue, IntValue, PointerValue},
     AtomicOrdering, AtomicRMWBinOp, IntPredicate,
@@ -50,11 +49,6 @@ impl StatefulExpressionNode for Sampler1d {
     const NUM_VARIABLES: usize = 0;
 
     type CompileState<'ctx> = Sampler1dCompileState<'ctx>;
-
-    fn serialize(&self, mut chive_in: ChiveIn) {
-        // TODO
-        todo!()
-    }
 
     fn compile_start_over<'ctx>(&self, _jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
         vec![]

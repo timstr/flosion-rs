@@ -1,4 +1,3 @@
-use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
 
 use crate::{
@@ -86,23 +85,6 @@ impl Default for SliderUiState {
             name: "Variable".to_string(),
             show_settings: false,
         }
-    }
-}
-
-impl Chivable for SliderUiState {
-    fn chive_in(&self, chive_in: &mut ChiveIn) {
-        chive_in.f32(self.min_value);
-        chive_in.f32(self.max_value);
-        chive_in.string(&self.name);
-    }
-
-    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
-        Ok(SliderUiState {
-            min_value: chive_out.f32()?,
-            max_value: chive_out.f32()?,
-            name: chive_out.string()?,
-            show_settings: false,
-        })
     }
 }
 

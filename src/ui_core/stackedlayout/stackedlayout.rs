@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use eframe::egui;
-use hashrevise::{Revisable, RevisionHash};
+use hashstash::{Stashable, Stasher};
 
 use crate::{
     core::{
@@ -506,8 +506,8 @@ impl StackedLayout {
     }
 }
 
-impl Revisable for StackedLayout {
-    fn get_revision(&self) -> RevisionHash {
-        self.groups.get_revision()
+impl Stashable for StackedLayout {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_objects_slice(&self.groups, hashstash::Order::Unordered);
     }
 }

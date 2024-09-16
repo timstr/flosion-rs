@@ -1,6 +1,4 @@
-use std::rc::Rc;
-
-use hashrevise::{Revisable, Revised, RevisedHashMap, RevisionHash, RevisionHasher};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     core::{
@@ -45,8 +43,8 @@ pub(crate) struct ExpressionGraphIdGenerators {}
 
 #[derive(Clone)]
 pub struct ExpressionGraph {
-    nodes: RevisedHashMap<ExpressionNodeId, ExpressionNodeData>,
-    node_inputs: RevisedHashMap<ExpressionNodeInputId, ExpressionNodeInputData>,
+    nodes: HashMap<ExpressionNodeId, ExpressionNodeData>,
+    node_inputs: HashMap<ExpressionNodeInputId, ExpressionNodeInputData>,
     parameters: Vec<ExpressionGraphParameterId>,
     results: Vec<ExpressionGraphResultData>,
     node_idgen: IdGenerator<ExpressionNodeId>,
@@ -58,8 +56,8 @@ pub struct ExpressionGraph {
 impl ExpressionGraph {
     pub(crate) fn new() -> ExpressionGraph {
         ExpressionGraph {
-            nodes: RevisedHashMap::new(),
-            node_inputs: RevisedHashMap::new(),
+            nodes: HashMap::new(),
+            node_inputs: HashMap::new(),
             parameters: Vec::new(),
             results: Vec::new(),
             node_idgen: IdGenerator::new(),
@@ -69,24 +67,19 @@ impl ExpressionGraph {
         }
     }
 
-    pub(crate) fn node_input(
-        &self,
-        id: ExpressionNodeInputId,
-    ) -> Option<&Revised<ExpressionNodeInputData>> {
+    pub(crate) fn node_input(&self, id: ExpressionNodeInputId) -> Option<&ExpressionNodeInputData> {
         self.node_inputs.get(&id)
     }
 
-    pub(crate) fn node(&self, id: ExpressionNodeId) -> Option<&Revised<ExpressionNodeData>> {
+    pub(crate) fn node(&self, id: ExpressionNodeId) -> Option<&ExpressionNodeData> {
         self.nodes.get(&id)
     }
 
-    pub(crate) fn node_inputs(
-        &self,
-    ) -> &RevisedHashMap<ExpressionNodeInputId, ExpressionNodeInputData> {
+    pub(crate) fn node_inputs(&self) -> &HashMap<ExpressionNodeInputId, ExpressionNodeInputData> {
         &self.node_inputs
     }
 
-    pub(crate) fn nodes(&self) -> &RevisedHashMap<ExpressionNodeId, ExpressionNodeData> {
+    pub(crate) fn nodes(&self) -> &HashMap<ExpressionNodeId, ExpressionNodeData> {
         &self.nodes
     }
 
@@ -144,7 +137,7 @@ impl ExpressionGraph {
 
         ns_data.inputs_mut().push(data.id());
 
-        self.node_inputs.insert(data.id(), Revised::new(data));
+        self.node_inputs.insert(data.id(), data);
 
         Ok(id)
     }
@@ -176,8 +169,7 @@ impl ExpressionGraph {
         args: &ParsedArguments,
     ) -> Result<PureExpressionNodeHandle<T>, ExpressionError> {
         let id = self.node_idgen.next_id();
-        self.nodes
-            .insert(id, Revised::new(ExpressionNodeData::new_empty(id)));
+        self.nodes.insert(id, ExpressionNodeData::new_empty(id));
         let tools = ExpressionNodeTools::new(id, self);
         let node = Rc::new(PureExpressionNodeWithId::new(
             T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
@@ -193,8 +185,7 @@ impl ExpressionGraph {
         args: &ParsedArguments,
     ) -> Result<StatefulExpressionNodeHandle<T>, ExpressionError> {
         let id = self.node_idgen.next_id();
-        self.nodes
-            .insert(id, Revised::new(ExpressionNodeData::new_empty(id)));
+        self.nodes.insert(id, ExpressionNodeData::new_empty(id));
         let tools = ExpressionNodeTools::new(id, self);
         let node = Rc::new(StatefulExpressionNodeWithId::new(
             T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
@@ -479,15 +470,4 @@ pub fn clean_up_and_remove_expression_node(
     graph.remove_node(id)?;
 
     Ok(())
-}
-
-impl Revisable for ExpressionGraph {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_revisable(&self.nodes);
-        hasher.write_revisable(&self.node_inputs);
-        hasher.write_revisable(&self.parameters);
-        hasher.write_revisable(&self.results);
-        hasher.into_revision()
-    }
 }

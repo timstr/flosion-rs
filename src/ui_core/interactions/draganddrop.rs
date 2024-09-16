@@ -1,7 +1,7 @@
-use std::{collections::HashMap, hash::Hasher};
+use std::collections::HashMap;
 
 use eframe::egui;
-use hashrevise::{Revisable, RevisedProperty, RevisionHash, RevisionHasher};
+use hashstash::{HashCache, Order, Stashable, Stasher};
 
 use crate::{
     core::sound::{
@@ -56,28 +56,26 @@ impl DragDropSubject {
     }
 }
 
-impl Revisable for DragDropSubject {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
+impl Stashable for DragDropSubject {
+    fn stash(&self, stasher: &mut Stasher) {
         match self {
             DragDropSubject::Processor(spid) => {
-                hasher.write_u8(0);
-                hasher.write_revisable(spid);
+                stasher.u8(0);
+                stasher.u64(spid.value() as _);
             }
             DragDropSubject::Plug(spid) => {
-                hasher.write_u8(1);
-                hasher.write_revisable(spid);
+                stasher.u8(1);
+                stasher.u64(spid.value() as _);
             }
             DragDropSubject::Socket(siid) => {
-                hasher.write_u8(2);
-                hasher.write_revisable(siid);
+                stasher.u8(2);
+                stasher.u64(siid.value() as _);
             }
             DragDropSubject::Group { top_processor } => {
-                hasher.write_u8(3);
-                hasher.write_revisable(top_processor);
+                stasher.u8(3);
+                stasher.u64(top_processor.value() as _);
             }
         }
-        hasher.into_revision()
     }
 }
 
@@ -330,15 +328,24 @@ fn drag_and_drop_in_layout(
     layout.regenerate(graph, positions);
 }
 
+// wrapper struct to make &[DragDropSubject] Stashable
+struct AvailableDropSites<'a>(&'a [DragDropSubject]);
+
+impl<'a> Stashable for AvailableDropSites<'a> {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_objects_slice(self.0, Order::Unordered);
+    }
+}
+
 fn compute_legal_drop_sites(
     graph: &SoundGraph,
     layout: &StackedLayout,
     drag_subject: DragDropSubject,
-    drop_sites: &[DragDropSubject],
+    drop_sites: AvailableDropSites,
 ) -> HashMap<DragDropSubject, DragDropLegality> {
     debug_assert_eq!(graph.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
-    for drop_site in drop_sites {
+    for drop_site in drop_sites.0 {
         let mut graph_clone = graph.clone();
         // drag_and_drop_in_graph only does superficial error
         // detection, here we additionally check whether the
@@ -373,7 +380,7 @@ pub struct DragInteraction {
     subject: DragDropSubject,
     rect: egui::Rect,
     original_rect: egui::Rect,
-    legal_drop_sites: RevisedProperty<HashMap<DragDropSubject, DragDropLegality>>,
+    legal_drop_sites: HashCache<HashMap<DragDropSubject, DragDropLegality>>,
     closest_legal_site: Option<DragDropSubject>,
 }
 
@@ -383,7 +390,7 @@ impl DragInteraction {
             subject,
             rect: original_rect,
             original_rect,
-            legal_drop_sites: RevisedProperty::new(),
+            legal_drop_sites: HashCache::new(),
             closest_legal_site: None,
         }
     }
@@ -403,7 +410,7 @@ impl DragInteraction {
             graph,
             layout,
             self.subject,
-            positions.drag_drop_subjects().values(),
+            AvailableDropSites(positions.drag_drop_subjects().values()),
         );
         let site_is_legal = |s: &DragDropSubject| -> bool {
             self.legal_drop_sites.get_cached().unwrap().get(s).cloned()

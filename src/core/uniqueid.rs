@@ -4,8 +4,6 @@ use std::{
     marker::PhantomData,
 };
 
-use hashrevise::{Revisable, RevisionHash, RevisionHasher};
-
 pub struct UniqueId<T> {
     value: usize,
     phantom_data: PhantomData<T>,
@@ -47,14 +45,6 @@ impl<T> Debug for UniqueId<T> {
         f.debug_struct("UniqueId")
             .field("value", &self.value)
             .finish()
-    }
-}
-
-impl<T> Revisable for UniqueId<T> {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_usize(self.value());
-        hasher.into_revision()
     }
 }
 

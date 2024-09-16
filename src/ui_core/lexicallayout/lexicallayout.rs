@@ -1,4 +1,3 @@
-use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
 
 use crate::{
@@ -44,27 +43,6 @@ use super::{
 impl Default for ExpressionNodeLayout {
     fn default() -> Self {
         ExpressionNodeLayout::Function
-    }
-}
-
-impl Chivable for ExpressionNodeLayout {
-    fn chive_in(&self, chive_in: &mut ChiveIn) {
-        chive_in.u8(match self {
-            ExpressionNodeLayout::Prefix => 1,
-            ExpressionNodeLayout::Infix => 2,
-            ExpressionNodeLayout::Postfix => 3,
-            ExpressionNodeLayout::Function => 4,
-        });
-    }
-
-    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
-        Ok(match chive_out.u8()? {
-            1 => ExpressionNodeLayout::Prefix,
-            2 => ExpressionNodeLayout::Infix,
-            3 => ExpressionNodeLayout::Postfix,
-            4 => ExpressionNodeLayout::Function,
-            _ => return Err(()),
-        })
     }
 }
 

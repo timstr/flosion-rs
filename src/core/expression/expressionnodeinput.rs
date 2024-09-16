@@ -1,7 +1,5 @@
 use crate::core::uniqueid::UniqueId;
 
-use super::expressionnode::ExpressionNodeId;
-
 pub struct ExpressionNodeInputTag;
 
 pub type ExpressionNodeInputId = UniqueId<ExpressionNodeInputTag>;

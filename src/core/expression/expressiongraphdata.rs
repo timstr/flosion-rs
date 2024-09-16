@@ -1,6 +1,4 @@
-use std::{hash::Hasher, rc::Rc};
-
-use hashrevise::{Revisable, RevisionHash, RevisionHasher};
+use std::rc::Rc;
 
 use super::{
     expressiongraph::{ExpressionGraphParameterId, ExpressionGraphResultId},
@@ -61,15 +59,6 @@ impl ExpressionNodeData {
     /// Mutably access the list of input ids belonging to the expression node
     pub fn inputs_mut(&mut self) -> &mut Vec<ExpressionNodeInputId> {
         &mut self.inputs
-    }
-}
-
-impl Revisable for ExpressionNodeData {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_usize(self.id.value());
-        hasher.write_revisable(&self.inputs);
-        hasher.into_revision()
     }
 }
 
@@ -157,34 +146,6 @@ impl ExpressionNodeInputData {
     }
 }
 
-/// Helper method for computing revision numbers with expression targets
-fn hash_optional_target(target: Option<ExpressionTarget>, hasher: &mut RevisionHasher) {
-    match target {
-        Some(ExpressionTarget::Parameter(giid)) => {
-            hasher.write_u8(1);
-            hasher.write_usize(giid.value());
-        }
-        Some(ExpressionTarget::Node(nsid)) => {
-            hasher.write_u8(2);
-            hasher.write_usize(nsid.value());
-        }
-        None => {
-            hasher.write_u8(3);
-        }
-    }
-}
-
-impl Revisable for ExpressionNodeInputData {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_usize(self.id.value());
-        hash_optional_target(self.target, &mut hasher);
-        hasher.write_usize(self.owner.value());
-        hasher.write_u32(self.default_value.to_bits());
-        hasher.into_revision()
-    }
-}
-
 /// The immediate topological data associated with one of the results of
 /// the expression graph.
 #[derive(Clone)]
@@ -226,15 +187,5 @@ impl ExpressionGraphResultData {
     /// connected to anything
     pub fn default_value(&self) -> f32 {
         self.default_value
-    }
-}
-
-impl Revisable for ExpressionGraphResultData {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_usize(self.id.value());
-        hash_optional_target(self.target, &mut hasher);
-        hasher.write_u32(self.default_value.to_bits());
-        hasher.into_revision()
     }
 }

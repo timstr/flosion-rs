@@ -5,8 +5,6 @@ use std::{
     rc::Rc,
 };
 
-use chive::ChiveIn;
-
 use crate::{
     core::{
         engine::{
@@ -71,8 +69,6 @@ pub trait StaticSoundProcessor: Sized + WithObjectType {
         dst: &mut SoundChunk,
         context: Context,
     );
-
-    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 pub trait DynamicSoundProcessor: Sized + WithObjectType {
@@ -100,8 +96,6 @@ pub trait DynamicSoundProcessor: Sized + WithObjectType {
         dst: &mut SoundChunk,
         context: Context,
     ) -> StreamStatus;
-
-    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
@@ -275,8 +269,6 @@ impl<T: 'static + DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
 pub(crate) trait SoundProcessor {
     fn id(&self) -> SoundProcessorId;
 
-    fn serialize(&self, chive_in: ChiveIn);
-
     fn is_static(&self) -> bool;
 
     fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle;
@@ -290,10 +282,6 @@ pub(crate) trait SoundProcessor {
 impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
-    }
-
-    fn serialize(&self, chive_in: ChiveIn) {
-        self.processor.borrow().serialize(chive_in);
     }
 
     fn is_static(&self) -> bool {
@@ -317,10 +305,6 @@ impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorW
 impl<T: 'static + DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
-    }
-
-    fn serialize(&self, chive_in: ChiveIn) {
-        self.processor.borrow().serialize(chive_in);
     }
 
     fn is_static(&self) -> bool {
@@ -486,10 +470,6 @@ impl<T: 'static + StaticSoundProcessor> SoundGraphObject for StaticSoundProcesso
     fn get_language_type_name(&self) -> &'static str {
         type_name::<Self>()
     }
-
-    fn serialize(&self, chive_in: ChiveIn) {
-        self.processor.borrow().serialize(chive_in);
-    }
 }
 
 impl<T: 'static + DynamicSoundProcessor> SoundGraphObject for DynamicSoundProcessorWithId<T> {
@@ -518,10 +498,6 @@ impl<T: 'static + DynamicSoundProcessor> SoundGraphObject for DynamicSoundProces
 
     fn get_language_type_name(&self) -> &'static str {
         type_name::<Self>()
-    }
-
-    fn serialize(&self, chive_in: ChiveIn) {
-        self.processor.borrow().serialize(chive_in);
     }
 }
 

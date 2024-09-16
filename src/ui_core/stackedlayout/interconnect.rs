@@ -1,6 +1,4 @@
-use std::hash::Hasher;
-
-use hashrevise::{Revisable, RevisionHash, RevisionHasher};
+use hashstash::{Stashable, Stasher};
 
 use crate::core::sound::{
     soundgraphdata::{SoundInputData, SoundProcessorData},
@@ -23,12 +21,10 @@ impl ProcessorPlug {
     }
 }
 
-impl Revisable for ProcessorPlug {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_revisable(&self.processor);
-        hasher.write_u8(self.is_static as _);
-        hasher.into_revision()
+impl Stashable for ProcessorPlug {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.u64(self.processor.value() as _);
+        stasher.bool(self.is_static);
     }
 }
 
@@ -49,15 +45,13 @@ impl InputSocket {
     }
 }
 
-impl Revisable for InputSocket {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_revisable(&self.input);
-        hasher.write_u8(match self.options {
+impl Stashable for InputSocket {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.u64(self.input.value() as _);
+        stasher.u8(match self.options {
             InputOptions::Synchronous => 0,
             InputOptions::NonSynchronous => 1,
         });
-        hasher.write_usize(self.branches);
-        hasher.into_revision()
+        stasher.u64(self.branches as _);
     }
 }

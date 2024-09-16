@@ -1,5 +1,3 @@
-use chive::{Chivable, ChiveIn, ChiveOut};
-
 use super::soundchunk::{SoundChunk, CHUNK_SIZE};
 
 pub struct SoundBuffer {
@@ -87,35 +85,5 @@ impl SoundBuffer {
         ch.l[offset] = l;
         ch.r[offset] = r;
         self.sample_len += 1;
-    }
-}
-
-impl Chivable for SoundBuffer {
-    fn chive_in(&self, chive_in: &mut ChiveIn) {
-        chive_in.array_iter_f32(self.samples().flatten());
-    }
-
-    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
-        // TODO: peek array length and preallocate
-        let mut sample_iter = chive_out.array_iter_f32()?;
-        let mut ch = SoundChunk::new();
-        let mut i_ch: usize = 0;
-        let mut chunks = Vec::<SoundChunk>::new();
-        let mut n_samples = 0;
-        while let Some(l) = sample_iter.next() {
-            let r = sample_iter.next().unwrap();
-            if i_ch == CHUNK_SIZE {
-                i_ch = 0;
-                chunks.push(ch.clone());
-                ch.silence();
-            }
-            ch.l[i_ch] = l;
-            ch.r[i_ch] = r;
-            n_samples += 1;
-        }
-        Ok(SoundBuffer {
-            chunks,
-            sample_len: n_samples,
-        })
     }
 }

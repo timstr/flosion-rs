@@ -1,6 +1,6 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
-use hashrevise::{Revisable, Revised, RevisedHashMap, RevisionHash, RevisionHasher};
+use hashstash::{Order, Stashable};
 
 use crate::{
     core::{sound::expression::SoundExpressionHandle, uniqueid::IdGenerator},
@@ -31,10 +31,11 @@ use super::{
 
 #[derive(Clone)]
 pub struct SoundGraph {
-    sound_processors: RevisedHashMap<SoundProcessorId, SoundProcessorData>,
-    sound_inputs: RevisedHashMap<SoundInputId, SoundInputData>,
-    expression_arguments: RevisedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData>,
-    expressions: RevisedHashMap<SoundExpressionId, SoundExpressionData>,
+    sound_processors: HashMap<SoundProcessorId, SoundProcessorData>,
+    sound_inputs: HashMap<SoundInputId, SoundInputData>,
+    expression_arguments: HashMap<SoundExpressionArgumentId, SoundExpressionArgumentData>,
+    expressions: HashMap<SoundExpressionId, SoundExpressionData>,
+
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
     expression_argument_idgen: IdGenerator<SoundExpressionArgumentId>,
@@ -44,10 +45,10 @@ pub struct SoundGraph {
 impl SoundGraph {
     pub fn new() -> SoundGraph {
         SoundGraph {
-            sound_processors: RevisedHashMap::new(),
-            sound_inputs: RevisedHashMap::new(),
-            expression_arguments: RevisedHashMap::new(),
-            expressions: RevisedHashMap::new(),
+            sound_processors: HashMap::new(),
+            sound_inputs: HashMap::new(),
+            expression_arguments: HashMap::new(),
+            expressions: HashMap::new(),
             sound_processor_idgen: IdGenerator::new(),
             sound_input_idgen: IdGenerator::new(),
             expression_argument_idgen: IdGenerator::new(),
@@ -56,46 +57,40 @@ impl SoundGraph {
     }
 
     /// Access the set of sound processors stored in the graph
-    pub(crate) fn sound_processors(&self) -> &RevisedHashMap<SoundProcessorId, SoundProcessorData> {
+    pub(crate) fn sound_processors(&self) -> &HashMap<SoundProcessorId, SoundProcessorData> {
         &self.sound_processors
     }
 
     /// Access the set of sound inputs stored in the graph
-    pub(crate) fn sound_inputs(&self) -> &RevisedHashMap<SoundInputId, SoundInputData> {
+    pub(crate) fn sound_inputs(&self) -> &HashMap<SoundInputId, SoundInputData> {
         &self.sound_inputs
     }
 
     /// Access the set of expression arguments stored in the graph
     pub(crate) fn expression_arguments(
         &self,
-    ) -> &RevisedHashMap<SoundExpressionArgumentId, SoundExpressionArgumentData> {
+    ) -> &HashMap<SoundExpressionArgumentId, SoundExpressionArgumentData> {
         &self.expression_arguments
     }
 
     /// Access the set of expressions stored in the graph
-    pub(crate) fn expressions(&self) -> &RevisedHashMap<SoundExpressionId, SoundExpressionData> {
+    pub(crate) fn expressions(&self) -> &HashMap<SoundExpressionId, SoundExpressionData> {
         &self.expressions
     }
 
     /// Look up a specific sound processor by its id
-    pub(crate) fn sound_processor(
-        &self,
-        id: SoundProcessorId,
-    ) -> Option<&Revised<SoundProcessorData>> {
+    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&SoundProcessorData> {
         self.sound_processors.get(&id)
     }
 
     /// Look up a specific sound input by its id
-    pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&Revised<SoundInputData>> {
+    pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&SoundInputData> {
         self.sound_inputs.get(&id)
     }
 
     /// Look up a specific sound input by its id with mutable access
     // TODO: remove?
-    pub(crate) fn sound_input_mut(
-        &mut self,
-        id: SoundInputId,
-    ) -> Option<&mut Revised<SoundInputData>> {
+    pub(crate) fn sound_input_mut(&mut self, id: SoundInputId) -> Option<&mut SoundInputData> {
         self.sound_inputs.get_mut(&id)
     }
 
@@ -103,15 +98,12 @@ impl SoundGraph {
     pub(crate) fn expression_argument(
         &self,
         id: SoundExpressionArgumentId,
-    ) -> Option<&Revised<SoundExpressionArgumentData>> {
+    ) -> Option<&SoundExpressionArgumentData> {
         self.expression_arguments.get(&id)
     }
 
     /// Look up a specific expression by its id
-    pub(crate) fn expression(
-        &self,
-        id: SoundExpressionId,
-    ) -> Option<&Revised<SoundExpressionData>> {
+    pub(crate) fn expression(&self, id: SoundExpressionId) -> Option<&SoundExpressionData> {
         self.expressions.get(&id)
     }
 
@@ -120,7 +112,7 @@ impl SoundGraph {
     pub(crate) fn expression_mut(
         &mut self,
         id: SoundExpressionId,
-    ) -> Option<&mut Revised<SoundExpressionData>> {
+    ) -> Option<&mut SoundExpressionData> {
         self.expressions.get_mut(&id)
     }
 
@@ -165,7 +157,7 @@ impl SoundGraph {
         // the graph to be modified within the processor's
         // new() method, e.g. to add inputs.
         self.sound_processors
-            .insert(id, Revised::new(SoundProcessorData::new_empty(id)));
+            .insert(id, SoundProcessorData::new_empty(id));
 
         // Every sound processor gets a 'time' expression argument
         let time_arg_id = self
@@ -214,7 +206,7 @@ impl SoundGraph {
         // the graph to be modified within the processor's
         // new() method, e.g. to add inputs.
         self.sound_processors
-            .insert(id, Revised::new(SoundProcessorData::new_empty(id)));
+            .insert(id, SoundProcessorData::new_empty(id));
 
         // Every sound processor gets a 'time' expression argument
         let time_arg_id = self
@@ -322,10 +314,8 @@ impl SoundGraph {
 
         let id = self.sound_input_idgen.next_id();
 
-        self.sound_inputs.insert(
-            id,
-            Revised::new(SoundInputData::new(id, options, branches, owner)),
-        );
+        self.sound_inputs
+            .insert(id, SoundInputData::new(id, options, branches, owner));
 
         self.sound_processors
             .get_mut(&owner)
@@ -477,7 +467,7 @@ impl SoundGraph {
             }
         }
 
-        let prev = self.expression_arguments.insert(id, Revised::new(data));
+        let prev = self.expression_arguments.insert(id, data);
         debug_assert!(prev.is_none());
 
         Ok(id)
@@ -538,7 +528,7 @@ impl SoundGraph {
 
         proc_data.expressions_mut().push(id);
 
-        let prev = self.expressions.insert(id, Revised::new(data));
+        let prev = self.expressions.insert(id, data);
         debug_assert!(prev.is_none());
 
         Ok(SoundExpressionHandle::new(id, owner, scope))
@@ -639,13 +629,98 @@ impl SoundGraph {
     }
 }
 
-impl Revisable for SoundGraph {
-    fn get_revision(&self) -> RevisionHash {
-        let mut hasher = RevisionHasher::new();
-        hasher.write_revisable(&self.sound_processors);
-        hasher.write_revisable(&self.sound_inputs);
-        hasher.write_revisable(&self.expression_arguments);
-        hasher.write_revisable(&self.expressions);
-        hasher.into_revision()
+impl Stashable for SoundGraph {
+    fn stash(&self, stasher: &mut hashstash::Stasher) {
+        // sound processors
+        stasher.array_of_proxy_objects(
+            self.sound_processors.values(),
+            |proc_data, stasher| {
+                stasher.u64(proc_data.id().value() as u64);
+                // TODO: processor instance?
+                stasher
+                    .array_of_u64_iter(proc_data.sound_inputs().iter().map(|i| i.value() as u64));
+                stasher.array_of_u64_iter(proc_data.arguments().iter().map(|i| i.value() as u64));
+                stasher.array_of_u64_iter(proc_data.expressions().iter().map(|i| i.value() as u64));
+            },
+            Order::Unordered,
+        );
+
+        // sound inputs
+        stasher.array_of_proxy_objects(
+            self.sound_inputs.values(),
+            |input_data, stasher| {
+                stasher.u64(input_data.id().value() as u64);
+                stasher.u8(match input_data.options() {
+                    InputOptions::Synchronous => 1,
+                    InputOptions::NonSynchronous => 2,
+                });
+                stasher.array_of_u64_iter(input_data.branches().iter().map(|i| i.value() as u64));
+                match input_data.target() {
+                    Some(spid) => {
+                        stasher.u8(1);
+                        stasher.u64(spid.value() as u64);
+                    }
+                    None => stasher.u8(0),
+                }
+                stasher.u64(input_data.owner().value() as u64);
+                stasher.array_of_u64_iter(input_data.arguments().iter().map(|i| i.value() as u64));
+                // Not stashing time argument because it's assumed to be fixed
+            },
+            Order::Unordered,
+        );
+
+        // expression arguments
+        stasher.array_of_proxy_objects(
+            self.expression_arguments.values(),
+            |arg_data, stasher| {
+                stasher.u64(arg_data.id().value() as u64);
+                // TODO: argument instance?
+                match arg_data.owner() {
+                    SoundExpressionArgumentOwner::SoundProcessor(spid) => {
+                        stasher.u8(1);
+                        stasher.u64(spid.value() as u64);
+                    }
+                    SoundExpressionArgumentOwner::SoundInput(siid) => {
+                        stasher.u8(2);
+                        stasher.u64(siid.value() as u64);
+                    }
+                }
+            },
+            Order::Unordered,
+        );
+
+        // expressions
+        stasher.array_of_proxy_objects(
+            self.expressions.values(),
+            |expr_data, stasher| {
+                stasher.u64(expr_data.id().value() as u64);
+
+                stasher.array_of_proxy_objects(
+                    expr_data.parameter_mapping().items().iter(),
+                    |(param_id, arg_id), stasher| {
+                        stasher.u64(param_id.value() as u64);
+                        stasher.u64(arg_id.value() as u64);
+                    },
+                    Order::Unordered,
+                );
+
+                // TODO
+                // expr_data.expression_graph()
+
+                stasher.u64(expr_data.owner().value() as u64);
+
+                stasher.object_proxy(|stasher| {
+                    let scope = expr_data.scope();
+                    stasher.bool(scope.processor_state_available());
+                    stasher.array_of_u64_iter(
+                        scope
+                            .available_local_arguments()
+                            .iter()
+                            .map(|i| i.value() as u64),
+                    );
+                });
+            },
+            Order::Unordered,
+        );
     }
 }

@@ -1,7 +1,5 @@
 use std::{any::Any, collections::HashMap, rc::Rc};
 
-use chive::ChiveIn;
-
 use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
 use super::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeId};
@@ -23,7 +21,6 @@ pub trait ExpressionObject {
     fn get_id(&self) -> ExpressionNodeId;
     fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
     fn get_language_type_name(&self) -> &'static str;
-    fn serialize(&self, chive_in: ChiveIn);
 }
 
 // TODO: this is used exclusively for looking up expression node types from handles

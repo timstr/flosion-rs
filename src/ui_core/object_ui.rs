@@ -1,4 +1,3 @@
-use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::{
     egui::{self},
     epaint::ecolor::{self},
@@ -16,20 +15,6 @@ impl Default for Color {
         Color {
             color: random_object_color(),
         }
-    }
-}
-
-impl Chivable for Color {
-    fn chive_in(&self, chive_in: &mut ChiveIn) {
-        chive_in.u32(u32::from_be_bytes(self.color.to_array()))
-    }
-
-    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
-        let i = chive_out.u32()?;
-        let [r, g, b, a] = i.to_be_bytes();
-        Ok(Color {
-            color: egui::Color32::from_rgba_premultiplied(r, g, b, a),
-        })
     }
 }
 

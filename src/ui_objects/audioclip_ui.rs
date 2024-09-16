@@ -1,4 +1,3 @@
-use chive::{Chivable, ChiveIn, ChiveOut};
 use eframe::egui;
 
 use crate::{
@@ -28,18 +27,6 @@ impl Default for AudioClipUiState {
         Self {
             name: "".to_string(),
         }
-    }
-}
-
-impl Chivable for AudioClipUiState {
-    fn chive_in(&self, chive_in: &mut ChiveIn) {
-        chive_in.string(&self.name);
-    }
-
-    fn chive_out(chive_out: &mut ChiveOut) -> Result<Self, ()> {
-        Ok(AudioClipUiState {
-            name: chive_out.string()?,
-        })
     }
 }
 

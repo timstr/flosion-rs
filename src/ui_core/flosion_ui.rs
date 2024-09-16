@@ -16,7 +16,7 @@ use eframe::{
     self,
     egui::{self},
 };
-use hashrevise::{Revisable, RevisionHash};
+use hashstash::ObjectHash;
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
@@ -81,7 +81,7 @@ pub struct FlosionApp<'ctx> {
 
     properties: GraphProperties,
 
-    previous_clean_revision: Option<RevisionHash>,
+    previous_clean_revision: Option<ObjectHash>,
 
     audio_thread: Option<ScopedJoinHandle<'ctx, ()>>,
 
@@ -160,7 +160,7 @@ impl<'ctx> FlosionApp<'ctx> {
     fn cleanup(&mut self) {
         self.properties.refresh(&self.graph);
 
-        let current_revision = self.graph.get_revision();
+        let current_revision = ObjectHash::from_stashable(&self.graph);
 
         if self.previous_clean_revision != Some(current_revision) {
             self.graph_layout

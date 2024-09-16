@@ -3,7 +3,6 @@ use std::sync::{
     Arc,
 };
 
-use chive::ChiveIn;
 use parking_lot::RwLock;
 
 use crate::{
@@ -147,11 +146,6 @@ impl StaticSoundProcessor for Recorder {
             new_group.push_chunk(dst);
             groups.push(new_group);
         }
-    }
-
-    fn serialize(&self, mut chive_in: ChiveIn) {
-        let data = self.shared_data.recorded_chunk_groups.read();
-        chive_in.array_iter_f32(data.iter().flat_map(|b| b.samples()).flatten());
     }
 }
 

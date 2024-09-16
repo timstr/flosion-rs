@@ -4,7 +4,6 @@ use std::{
     rc::Rc,
 };
 
-use chive::ChiveIn;
 use inkwell::values::{FloatValue, PointerValue};
 
 use crate::{
@@ -36,8 +35,6 @@ pub trait PureExpressionNode: WithObjectType {
 
     // Generate instructions to compute a value from the given inputs
     fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx>;
-
-    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 /// A trait representing any type of expression node, both
@@ -130,10 +127,6 @@ impl<T: 'static + PureExpressionNode> ExpressionObject for PureExpressionNodeWit
 
     fn get_language_type_name(&self) -> &'static str {
         type_name::<Self>()
-    }
-
-    fn serialize(&self, chive_in: ChiveIn) {
-        (&*self as &T).serialize(chive_in);
     }
 }
 
@@ -244,8 +237,6 @@ pub trait StatefulExpressionNode: WithObjectType {
         variables: &[PointerValue<'ctx>],
         compile_state: &Self::CompileState<'ctx>,
     ) -> FloatValue<'ctx>;
-
-    fn serialize(&self, _chive_in: ChiveIn) {}
 }
 
 pub struct StatefulExpressionNodeWithId<T: StatefulExpressionNode> {
@@ -388,10 +379,6 @@ impl<T: 'static + StatefulExpressionNode> ExpressionObject for StatefulExpressio
 
     fn get_language_type_name(&self) -> &'static str {
         type_name::<Self>()
-    }
-
-    fn serialize(&self, chive_in: ChiveIn) {
-        (&*self as &T).serialize(chive_in);
     }
 }
 

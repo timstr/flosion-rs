@@ -1,6 +1,5 @@
 use std::{ops::Deref, sync::Arc};
 
-use chive::ChiveIn;
 use parking_lot::RwLock;
 
 use crate::{
@@ -120,11 +119,6 @@ impl DynamicSoundProcessor for AudioClip {
             dst.r[i] = c.r[si];
         }
         StreamStatus::Playing
-    }
-
-    fn serialize(&self, mut chive_in: ChiveIn) {
-        let data = self.data.read();
-        chive_in.array_iter_f32(data.samples().flatten());
     }
 }
 

@@ -734,12 +734,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chive"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c01ad447cfee01916cdf2ea6199c3353b158d8ca990fc773a90801e9bdc71c9"
-
-[[package]]
 name = "clang-sys"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1314,10 +1308,9 @@ dependencies = [
  "atomic_float",
  "atomicslice",
  "base64",
- "chive",
  "cpal",
  "eframe",
- "hashrevise",
+ "hashstash",
  "inkwell",
  "parking_lot 0.11.2",
  "rand",
@@ -1723,10 +1716,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "hashrevise"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c325b4c890454918a14d6e5ef4f2e9aa6864116d51d26dabdda437859dd064e"
+name = "hashstash"
+version = "0.1.0"
 dependencies = [
  "seahash",
 ]

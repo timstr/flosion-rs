@@ -1,5 +1,3 @@
-use chive::ChiveIn;
-
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
@@ -105,10 +103,6 @@ impl DynamicSoundProcessor for Mixer {
         } else {
             StreamStatus::Playing
         }
-    }
-
-    fn serialize(&self, mut chive_in: ChiveIn) {
-        chive_in.u8(self.inputs.length() as u8);
     }
 }
 
