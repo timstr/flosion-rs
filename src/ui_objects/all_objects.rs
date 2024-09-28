@@ -12,30 +12,30 @@ use crate::{
 use super::{
     adsr_ui::ADSRUi,
     audioclip_ui::AudioClipUi,
-    definitions_ui::DefinitionsUi,
-    ensemble_ui::EnsembleUi,
-    input_ui::InputUi,
-    keyboard_ui::KeyboardUi,
-    mixer_ui::MixerUi,
-    oscilloscope_ui::OscilloscopeUi,
-    output_ui::OutputUi,
+    // definitions_ui::DefinitionsUi,
+    // ensemble_ui::EnsembleUi,
+    // input_ui::InputUi,
+    // keyboard_ui::KeyboardUi,
+    // mixer_ui::MixerUi,
+    // oscilloscope_ui::OscilloscopeUi,
+    // output_ui::OutputUi,
     pure_function_uis::{
         AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
         Exp2Ui, ExpUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi, MultiplyUi, NegateUi,
         PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi, SquareWaveUi, SubtractUi,
         TriangleWaveUi, TruncUi,
     },
-    readwritewaveform_ui::ReadWriteWaveformUi,
-    recorder_ui::RecorderUi,
-    resampler_ui::ResamplerUi,
-    sampler1d_ui::Sampler1dUi,
-    scatter_ui::ScatterUi,
-    stateful_function_uis::{
-        ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
-    },
-    wavegenerator_ui::WaveGeneratorUi,
-    whitenoise_ui::WhiteNoiseUi,
-    writewaveform_ui::WriteWaveformUi,
+    // readwritewaveform_ui::ReadWriteWaveformUi,
+    // recorder_ui::RecorderUi,
+    // resampler_ui::ResamplerUi,
+    // sampler1d_ui::Sampler1dUi,
+    // scatter_ui::ScatterUi,
+    // stateful_function_uis::{
+    //     ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
+    // },
+    // wavegenerator_ui::WaveGeneratorUi,
+    // whitenoise_ui::WhiteNoiseUi,
+    // writewaveform_ui::WriteWaveformUi,
 };
 
 struct ExpressionObjectRegistrationHelper<'a> {
@@ -91,25 +91,25 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     let mut helper = SoundObjectRegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     // Static sound processors
-    helper.register::<OutputUi>();
-    helper.register::<KeyboardUi>();
-    helper.register::<RecorderUi>();
-    helper.register::<OscilloscopeUi>();
+    // helper.register::<OutputUi>();
+    // helper.register::<KeyboardUi>();
+    // helper.register::<RecorderUi>();
+    // helper.register::<OscilloscopeUi>();
 
     // Dynamic sound processors
     helper.register::<ADSRUi>();
     helper.register::<AudioClipUi>();
-    helper.register::<DefinitionsUi>();
-    helper.register::<EnsembleUi>();
-    helper.register::<InputUi>();
+    // helper.register::<DefinitionsUi>();
+    // helper.register::<EnsembleUi>();
+    // helper.register::<InputUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
-    helper.register::<MixerUi>();
-    helper.register::<ReadWriteWaveformUi>();
-    helper.register::<ResamplerUi>();
-    helper.register::<ScatterUi>();
-    helper.register::<WaveGeneratorUi>();
-    helper.register::<WhiteNoiseUi>();
-    helper.register::<WriteWaveformUi>();
+    // helper.register::<MixerUi>();
+    // helper.register::<ReadWriteWaveformUi>();
+    // helper.register::<ResamplerUi>();
+    // helper.register::<ScatterUi>();
+    // helper.register::<WaveGeneratorUi>();
+    // helper.register::<WhiteNoiseUi>();
+    // helper.register::<WriteWaveformUi>();
 
     (object_factory, ui_factory)
 }
@@ -124,11 +124,11 @@ pub(crate) fn all_expression_graph_objects() -> (ExpressionObjectFactory, Expres
     helper.register::<ConstantUi>();
     helper.register::<SliderUi>();
 
-    helper.register::<LinearApproachUi>();
-    helper.register::<ExponentialApproachUi>();
-    helper.register::<IntegratorUi>();
-    helper.register::<WrappingIntegratorUi>();
-    helper.register::<Sampler1dUi>();
+    // helper.register::<LinearApproachUi>();
+    // helper.register::<ExponentialApproachUi>();
+    // helper.register::<IntegratorUi>();
+    // helper.register::<WrappingIntegratorUi>();
+    // helper.register::<Sampler1dUi>();
 
     helper.register::<NegateUi>();
     helper.register::<FloorUi>();
