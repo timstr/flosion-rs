@@ -13,8 +13,7 @@ use crate::core::{
         soundgraphdata::SoundInputBranchId,
         soundinput::{InputTiming, SoundInputId},
         soundprocessor::{
-            DynamicSoundProcessor, ProcessorState, SoundProcessorId, StateAndTiming,
-            StaticSoundProcessor, StreamStatus,
+            ProcessorState, SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
         },
     },
     soundchunk::SoundChunk,
@@ -29,14 +28,14 @@ use super::{
 };
 
 /// A compiled static processor for use in the state graph.
-pub struct CompiledStaticProcessor<'ctx, T: StaticSoundProcessor> {
+pub struct CompiledStaticProcessor<'ctx, T: WhateverSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
     expressions: T::Expressions<'ctx>,
 }
 
-impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
+impl<'ctx, T: WhateverSoundProcessor> CompiledStaticProcessor<'ctx, T> {
     /// Compile a new static processor for the state graph
     pub(crate) fn new<'a>(
         processor_id: SoundProcessorId,
@@ -67,14 +66,14 @@ impl<'ctx, T: StaticSoundProcessor> CompiledStaticProcessor<'ctx, T> {
 }
 
 /// A compiled dynamic processor for use in the state graph.
-pub struct CompiledDynamicProcessor<'ctx, T: DynamicSoundProcessor> {
+pub struct CompiledDynamicProcessor<'ctx, T: WhateverSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
     sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
     expressions: T::Expressions<'ctx>,
 }
 
-impl<'ctx, T: 'static + DynamicSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
+impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
     /// Compile a new dynamic sound processor for the state graph
     pub(crate) fn new<'a>(
         processor_id: SoundProcessorId,
@@ -178,7 +177,7 @@ pub(crate) trait CompiledSoundProcessor<'ctx>: Send {
     fn expressions_mut(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx>;
 }
 
-impl<'ctx, T: 'static + StaticSoundProcessor> CompiledSoundProcessor<'ctx>
+impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledSoundProcessor<'ctx>
     for CompiledStaticProcessor<'ctx, T>
 {
     fn id(&self) -> SoundProcessorId {
@@ -226,7 +225,7 @@ impl<'ctx, T: 'static + StaticSoundProcessor> CompiledSoundProcessor<'ctx>
     }
 }
 
-impl<'ctx, T: 'static + DynamicSoundProcessor> CompiledSoundProcessor<'ctx>
+impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledSoundProcessor<'ctx>
     for CompiledDynamicProcessor<'ctx, T>
 {
     fn id(&self) -> SoundProcessorId {

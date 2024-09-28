@@ -15,7 +15,7 @@ use crate::{
             soundgraphdata::SoundExpressionScope,
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessor::{StateAndTiming, StreamStatus, WhateverSoundProcessor},
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -122,7 +122,7 @@ fn chunked_interp(
     }
 }
 
-impl DynamicSoundProcessor for ADSR {
+impl WhateverSoundProcessor for ADSR {
     type StateType = ADSRState;
 
     type SoundInputType = SingleInput;
@@ -140,6 +140,10 @@ impl DynamicSoundProcessor for ADSR {
             release_time: tools
                 .add_expression(0.25, SoundExpressionScope::without_processor_state()),
         })
+    }
+
+    fn is_static(&self) -> bool {
+        false
     }
 
     fn get_sound_input(&self) -> &Self::SoundInputType {

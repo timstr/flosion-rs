@@ -20,7 +20,7 @@ use crate::{
             soundgraph::SoundGraph,
             soundgraphdata::SoundExpressionScope,
             soundprocessor::{
-                DynamicSoundProcessor, SoundProcessorId, StateAndTiming, StreamStatus,
+                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
             },
             soundprocessortools::SoundProcessorTools,
             state::State,
@@ -71,7 +71,7 @@ impl TestSoundProcessor {
     }
 }
 
-impl DynamicSoundProcessor for TestSoundProcessor {
+impl WhateverSoundProcessor for TestSoundProcessor {
     type StateType = TestSoundProcessorState;
 
     type SoundInputType = ();
@@ -131,6 +131,10 @@ impl DynamicSoundProcessor for TestSoundProcessor {
     ) -> StreamStatus {
         panic!("Not used")
     }
+
+    fn is_static(&self) -> bool {
+        false
+    }
 }
 
 impl WithObjectType for TestSoundProcessor {
@@ -165,7 +169,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     let mut graph = SoundGraph::new();
 
     let proc = graph
-        .add_dynamic_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     {

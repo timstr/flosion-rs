@@ -22,9 +22,8 @@ use super::{
     soundgraphvalidation::find_sound_error,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::{
-        DynamicSoundProcessor, DynamicSoundProcessorHandle, DynamicSoundProcessorWithId,
-        SoundProcessorId, StaticSoundProcessor, StaticSoundProcessorHandle,
-        StaticSoundProcessorWithId,
+        SoundProcessorId, WhateverSoundProcessor, WhateverSoundProcessorHandle,
+        WhateverSoundProcessorWithId,
     },
     soundprocessortools::SoundProcessorTools,
 };
@@ -146,10 +145,10 @@ impl SoundGraph {
     /// The type must be known statically and given.
     /// For other ways of creating a sound processor,
     /// see ObjectFactory.
-    pub fn add_static_sound_processor<T: 'static + StaticSoundProcessor>(
+    pub fn add_sound_processor<T: 'static + WhateverSoundProcessor>(
         &mut self,
         args: &ParsedArguments,
-    ) -> Result<StaticSoundProcessorHandle<T>, SoundError> {
+    ) -> Result<WhateverSoundProcessorHandle<T>, SoundError> {
         let id = self.sound_processor_idgen.next_id();
 
         // Add a new processor data item to the graph,
@@ -176,7 +175,11 @@ impl SoundGraph {
         let processor = T::new(tools, args).map_err(|_| SoundError::BadProcessorInit(id))?;
 
         // wrap the processor in a type-erased Rc
-        let processor = Rc::new(StaticSoundProcessorWithId::new(processor, id, time_arg_id));
+        let processor = Rc::new(WhateverSoundProcessorWithId::new(
+            processor,
+            id,
+            time_arg_id,
+        ));
         let processor2 = Rc::clone(&processor);
 
         // add the missing processor instance to the
@@ -186,56 +189,7 @@ impl SoundGraph {
             .unwrap()
             .set_processor(processor);
 
-        Ok(StaticSoundProcessorHandle::new(processor2))
-    }
-
-    /// Add a dynamic sound processor to the sound graph,
-    /// i.e. a sound processor which is replicated for each
-    /// input it is connected to, which are run on-demand.
-    /// The type must be known statically and given.
-    /// For other ways of creating a sound processor,
-    /// see ObjectFactory.
-    pub fn add_dynamic_sound_processor<T: 'static + DynamicSoundProcessor>(
-        &mut self,
-        args: &ParsedArguments,
-    ) -> Result<DynamicSoundProcessorHandle<T>, SoundError> {
-        let id = self.sound_processor_idgen.next_id();
-
-        // Add a new processor data item to the graph,
-        // but without the processor instance. This allows
-        // the graph to be modified within the processor's
-        // new() method, e.g. to add inputs.
-        self.sound_processors
-            .insert(id, SoundProcessorData::new_empty(id));
-
-        // Every sound processor gets a 'time' expression argument
-        let time_arg_id = self
-            .add_expression_argument(
-                Rc::new(ProcessorTimeExpressionArgument::new(id)),
-                SoundExpressionArgumentOwner::SoundProcessor(id),
-            )
-            .unwrap();
-
-        // The tools which the processor can use to give itself
-        // new inputs, etc
-        let tools = SoundProcessorTools::new(id, self);
-
-        // construct the actual processor instance by its
-        // concrete type
-        let processor = T::new(tools, args).map_err(|_| SoundError::BadProcessorInit(id))?;
-
-        // wrap the processor in a type-erased Rc
-        let processor = Rc::new(DynamicSoundProcessorWithId::new(processor, id, time_arg_id));
-        let processor2 = Rc::clone(&processor);
-
-        // add the missing processor instance to the
-        // newly created processor data in the graph
-        self.sound_processors
-            .get_mut(&id)
-            .unwrap()
-            .set_processor(processor);
-
-        Ok(DynamicSoundProcessorHandle::new(processor2))
+        Ok(WhateverSoundProcessorHandle::new(processor2))
     }
 
     pub fn remove_sound_processor(

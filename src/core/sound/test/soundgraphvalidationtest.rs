@@ -20,7 +20,7 @@ fn find_error_empty_graph() {
 fn find_error_one_static_proc() {
     let mut graph = SoundGraph::new();
     graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
     assert_eq!(find_sound_error(&graph), None);
 }
@@ -29,7 +29,7 @@ fn find_error_one_static_proc() {
 fn find_error_one_dynamic_proc() {
     let mut graph = SoundGraph::new();
     graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
     assert_eq!(find_sound_error(&graph), None);
 }
@@ -39,7 +39,7 @@ fn find_error_static_to_self_cycle() {
     let mut graph = SoundGraph::new();
 
     let proc = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -59,11 +59,11 @@ fn find_error_static_to_dynamic_no_branches() {
     let mut graph = SoundGraph::new();
 
     let static_proc = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let dynamic_proc = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -82,11 +82,11 @@ fn find_error_static_to_dynamic_one_branch() {
     let mut graph = SoundGraph::new();
 
     let static_proc = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let dynamic_proc = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -109,11 +109,11 @@ fn find_error_static_to_dynamic_two_branches() {
     let mut graph = SoundGraph::new();
 
     let static_proc = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let dynamic_proc = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -136,11 +136,11 @@ fn find_error_static_to_static_no_branches() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -160,11 +160,11 @@ fn find_error_static_to_static_one_branch() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -185,11 +185,11 @@ fn find_error_static_to_static_two_branches() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -213,11 +213,11 @@ fn find_error_static_to_dynamic_one_branch_nonsync() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -238,11 +238,11 @@ fn find_error_static_to_static_one_branch_nonsync() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -266,11 +266,11 @@ fn find_error_dynamic_to_static_no_branches() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -290,11 +290,11 @@ fn find_error_dynamic_to_static_one_branch() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -315,11 +315,11 @@ fn find_error_dynamic_to_static_two_branches() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -343,11 +343,11 @@ fn find_error_dynamic_to_static_nonsync() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_id = graph
@@ -371,15 +371,15 @@ fn find_error_dynamic_to_dynamic_to_static_no_branches() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc3 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input1 = graph
@@ -408,15 +408,15 @@ fn find_error_dynamic_to_dynamic_to_static_one_branch() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc3 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input1 = graph
@@ -446,15 +446,15 @@ fn find_error_dynamic_to_dynamic_to_static_cycle() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc3 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input1 = graph
@@ -496,15 +496,15 @@ fn find_error_dynamic_to_dynamic_to_static_two_branches() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc3 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input1 = graph
@@ -537,15 +537,15 @@ fn find_error_dynamic_to_dynamic_to_static_nonsync() {
     let mut graph = SoundGraph::new();
 
     let proc1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc3 = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input1 = graph
@@ -578,19 +578,19 @@ fn find_error_dynamic_indirect_fork_to_static_nonsync() {
     let mut graph = SoundGraph::new();
 
     let proc_root1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc_root2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc_middle = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc_leaf = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_root1 = graph
@@ -638,15 +638,15 @@ fn find_error_dynamic_direct_fork_to_static_nonsync() {
     let mut graph = SoundGraph::new();
 
     let proc_root1 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc_root2 = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc_leaf = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_root1 = graph
@@ -680,15 +680,15 @@ fn find_error_dynamic_split_to_static_two_inputs() {
     let mut graph = SoundGraph::new();
 
     let proc_root = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc_side = graph
-        .add_dynamic_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let proc_leaf = graph
-        .add_static_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
+        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
     let input_side = graph

@@ -9,7 +9,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
-            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessor::{StateAndTiming, StreamStatus, WhateverSoundProcessor},
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -48,7 +48,7 @@ impl State for AudioClipState {
     }
 }
 
-impl DynamicSoundProcessor for AudioClip {
+impl WhateverSoundProcessor for AudioClip {
     type StateType = AudioClipState;
     type SoundInputType = ();
     type Expressions<'ctx> = ();
@@ -67,6 +67,10 @@ impl DynamicSoundProcessor for AudioClip {
         Ok(AudioClip {
             data: Arc::new(RwLock::new(buffer)),
         })
+    }
+
+    fn is_static(&self) -> bool {
+        false
     }
 
     fn get_sound_input(&self) -> &Self::SoundInputType {

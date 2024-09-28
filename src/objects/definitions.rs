@@ -16,7 +16,7 @@ use crate::{
             soundgraphdata::SoundExpressionScope,
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
+            soundprocessor::{StateAndTiming, StreamStatus, WhateverSoundProcessor},
             soundprocessortools::SoundProcessorTools,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -48,7 +48,7 @@ impl<'ctx> CompiledExpressionCollection<'ctx> for DefinitionsExpressions<'ctx> {
     }
 }
 
-impl DynamicSoundProcessor for Definitions {
+impl WhateverSoundProcessor for Definitions {
     type StateType = ();
 
     type SoundInputType = SingleInput;
@@ -61,6 +61,10 @@ impl DynamicSoundProcessor for Definitions {
             expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
             argument: tools.add_local_array_argument(),
         })
+    }
+
+    fn is_static(&self) -> bool {
+        false
     }
 
     fn get_sound_input(&self) -> &Self::SoundInputType {

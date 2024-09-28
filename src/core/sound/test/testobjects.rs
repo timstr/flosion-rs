@@ -4,9 +4,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
-            soundprocessor::{
-                DynamicSoundProcessor, StateAndTiming, StaticSoundProcessor, StreamStatus,
-            },
+            soundprocessor::{StateAndTiming, StreamStatus, WhateverSoundProcessor},
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -17,7 +15,7 @@ use crate::{
 
 pub(super) struct TestStaticSoundProcessor {}
 
-impl StaticSoundProcessor for TestStaticSoundProcessor {
+impl WhateverSoundProcessor for TestStaticSoundProcessor {
     type SoundInputType = ();
 
     type Expressions<'ctx> = ();
@@ -49,7 +47,12 @@ impl StaticSoundProcessor for TestStaticSoundProcessor {
         _expressions: &mut (),
         _dst: &mut SoundChunk,
         _context: Context,
-    ) {
+    ) -> StreamStatus {
+        StreamStatus::Done
+    }
+
+    fn is_static(&self) -> bool {
+        true
     }
 }
 
@@ -65,7 +68,7 @@ impl State for TestDynamicSoundProcessorStatic {
     fn start_over(&mut self) {}
 }
 
-impl DynamicSoundProcessor for TestDynamicSoundProcessor {
+impl WhateverSoundProcessor for TestDynamicSoundProcessor {
     type SoundInputType = ();
 
     type Expressions<'ctx> = ();
@@ -99,6 +102,10 @@ impl DynamicSoundProcessor for TestDynamicSoundProcessor {
         _context: Context,
     ) -> StreamStatus {
         StreamStatus::Done
+    }
+
+    fn is_static(&self) -> bool {
+        false
     }
 }
 

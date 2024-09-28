@@ -42,9 +42,7 @@ pub enum StreamStatus {
     Done,
 }
 
-// TODO: do StaticSoundProcessor and DynamicSoundProcessor need to be different traits anymore?
-// 'Static' should suffice as a runtime property (which it is everywhere else already)
-pub trait StaticSoundProcessor: Sized + WithObjectType {
+pub trait WhateverSoundProcessor: Sized + WithObjectType {
     type StateType: State;
 
     type SoundInputType: SoundProcessorInput;
@@ -53,32 +51,7 @@ pub trait StaticSoundProcessor: Sized + WithObjectType {
 
     fn new(tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()>;
 
-    fn get_sound_input(&self) -> &Self::SoundInputType;
-
-    fn make_state(&self) -> Self::StateType;
-
-    fn compile_expressions<'a, 'ctx>(
-        &self,
-        compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx>;
-
-    fn process_audio<'ctx>(
-        state: &mut StateAndTiming<Self::StateType>,
-        sound_inputs: &mut <Self::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-        expressions: &mut Self::Expressions<'ctx>,
-        dst: &mut SoundChunk,
-        context: Context,
-    );
-}
-
-pub trait DynamicSoundProcessor: Sized + WithObjectType {
-    type StateType: State;
-
-    type SoundInputType: SoundProcessorInput;
-
-    type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
-
-    fn new(tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()>;
+    fn is_static(&self) -> bool;
 
     fn get_sound_input(&self) -> &Self::SoundInputType;
 
@@ -98,13 +71,13 @@ pub trait DynamicSoundProcessor: Sized + WithObjectType {
     ) -> StreamStatus;
 }
 
-pub struct StaticSoundProcessorWithId<T: StaticSoundProcessor> {
+pub struct WhateverSoundProcessorWithId<T: WhateverSoundProcessor> {
     processor: RefCell<T>,
     id: SoundProcessorId,
     time_argument: SoundExpressionArgumentId,
 }
 
-impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
+impl<T: WhateverSoundProcessor> WhateverSoundProcessorWithId<T> {
     pub(crate) fn new(
         processor: T,
         id: SoundProcessorId,
@@ -126,57 +99,17 @@ impl<T: StaticSoundProcessor> StaticSoundProcessorWithId<T> {
     }
 }
 
-impl<T: StaticSoundProcessor> WithObjectType for StaticSoundProcessorWithId<T> {
+impl<T: WhateverSoundProcessor> WithObjectType for WhateverSoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
 
-pub struct DynamicSoundProcessorWithId<T: DynamicSoundProcessor> {
-    processor: RefCell<T>,
-    id: SoundProcessorId,
-    time_argument: SoundExpressionArgumentId,
-}
-
-impl<T: DynamicSoundProcessor> DynamicSoundProcessorWithId<T> {
-    pub(crate) fn new(
-        processor: T,
-        id: SoundProcessorId,
-        time_argument: SoundExpressionArgumentId,
-    ) -> Self {
-        Self {
-            processor: RefCell::new(processor),
-            id,
-            time_argument,
-        }
-    }
-
-    pub fn id(&self) -> SoundProcessorId {
-        self.id
-    }
-
-    pub fn time_argument(&self) -> SoundExpressionArgumentId {
-        self.time_argument
-    }
-}
-
-// impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorWithId<T> {
-//     type Target = T;
-
-//     fn deref(&self) -> &T {
-//         &self.processor
-//     }
-// }
-
-impl<T: DynamicSoundProcessor> WithObjectType for DynamicSoundProcessorWithId<T> {
-    const TYPE: ObjectType = T::TYPE;
-}
-
-pub struct StaticSoundProcessorHandle<T: StaticSoundProcessor> {
-    instance: Rc<StaticSoundProcessorWithId<T>>,
+pub struct WhateverSoundProcessorHandle<T: WhateverSoundProcessor> {
+    instance: Rc<WhateverSoundProcessorWithId<T>>,
 }
 
 // NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
 // requires T: Clone even if it isn't stored as a direct field
-impl<T: StaticSoundProcessor> Clone for StaticSoundProcessorHandle<T> {
+impl<T: WhateverSoundProcessor> Clone for WhateverSoundProcessorHandle<T> {
     fn clone(&self) -> Self {
         Self {
             instance: Rc::clone(&self.instance),
@@ -184,15 +117,15 @@ impl<T: StaticSoundProcessor> Clone for StaticSoundProcessorHandle<T> {
     }
 }
 
-impl<T: 'static + StaticSoundProcessor> StaticSoundProcessorHandle<T> {
-    pub(super) fn new(instance: Rc<StaticSoundProcessorWithId<T>>) -> Self {
+impl<T: 'static + WhateverSoundProcessor> WhateverSoundProcessorHandle<T> {
+    pub(super) fn new(instance: Rc<WhateverSoundProcessorWithId<T>>) -> Self {
         Self { instance }
     }
 
     pub(super) fn from_graph_object(handle: AnySoundObjectHandle) -> Option<Self> {
         let rc_any = handle.into_instance_rc().into_rc_any();
-        match rc_any.downcast::<StaticSoundProcessorWithId<T>>() {
-            Ok(obj) => Some(StaticSoundProcessorHandle::new(obj)),
+        match rc_any.downcast::<WhateverSoundProcessorWithId<T>>() {
+            Ok(obj) => Some(WhateverSoundProcessorHandle::new(obj)),
             Err(_) => None,
         }
     }
@@ -213,58 +146,6 @@ impl<T: 'static + StaticSoundProcessor> StaticSoundProcessorHandle<T> {
         self.instance.processor.borrow_mut()
     }
 }
-
-pub struct DynamicSoundProcessorHandle<T: DynamicSoundProcessor> {
-    instance: Rc<DynamicSoundProcessorWithId<T>>,
-}
-
-// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
-// requires T: Clone even if it isn't stored as a direct field
-impl<T: DynamicSoundProcessor> Clone for DynamicSoundProcessorHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Rc::clone(&self.instance),
-        }
-    }
-}
-
-impl<T: 'static + DynamicSoundProcessor> DynamicSoundProcessorHandle<T> {
-    pub(super) fn new(instance: Rc<DynamicSoundProcessorWithId<T>>) -> Self {
-        Self { instance }
-    }
-
-    pub(super) fn from_graph_object(handle: AnySoundObjectHandle) -> Option<Self> {
-        let rc_any = handle.into_instance_rc().into_rc_any();
-        match rc_any.downcast::<DynamicSoundProcessorWithId<T>>() {
-            Ok(obj) => Some(DynamicSoundProcessorHandle::new(obj)),
-            Err(_) => None,
-        }
-    }
-
-    pub fn id(&self) -> SoundProcessorId {
-        self.instance.id()
-    }
-
-    pub fn into_graph_object(self) -> AnySoundObjectHandle {
-        AnySoundObjectHandle::new(self.instance)
-    }
-
-    pub fn get<'a>(&'a self) -> impl 'a + Deref<Target = T> {
-        self.instance.processor.borrow()
-    }
-
-    pub fn get_mut<'a>(&'a self) -> impl 'a + DerefMut<Target = T> {
-        self.instance.processor.borrow_mut()
-    }
-}
-
-// impl<T: DynamicSoundProcessor> Deref for DynamicSoundProcessorHandle<T> {
-//     type Target = T;
-
-//     fn deref(&self) -> &Self::Target {
-//         &*self.instance
-//     }
-// }
 
 pub(crate) trait SoundProcessor {
     fn id(&self) -> SoundProcessorId;
@@ -279,13 +160,13 @@ pub(crate) trait SoundProcessor {
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>;
 }
 
-impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorWithId<T> {
+impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProcessorWithId<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
 
     fn is_static(&self) -> bool {
-        true
+        T::is_static(&self.processor.borrow())
     }
 
     fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle {
@@ -296,32 +177,19 @@ impl<T: 'static + StaticSoundProcessor> SoundProcessor for StaticSoundProcessorW
         &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
-        let processor_node =
-            CompiledStaticProcessor::new(self.id, &*self.processor.borrow(), compiler);
-        Box::new(processor_node)
-    }
-}
-
-impl<T: 'static + DynamicSoundProcessor> SoundProcessor for DynamicSoundProcessorWithId<T> {
-    fn id(&self) -> SoundProcessorId {
-        self.id
-    }
-
-    fn is_static(&self) -> bool {
-        false
-    }
-
-    fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle {
-        AnySoundObjectHandle::new(self)
-    }
-
-    fn compile<'a, 'ctx>(
-        &self,
-        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
-    ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
-        let processor_node =
-            CompiledDynamicProcessor::new(self.id, &*self.processor.borrow(), compiler);
-        Box::new(processor_node)
+        if self.is_static() {
+            Box::new(CompiledStaticProcessor::new(
+                self.id,
+                &*self.processor.borrow(),
+                compiler,
+            ))
+        } else {
+            Box::new(CompiledDynamicProcessor::new(
+                self.id,
+                &*self.processor.borrow(),
+                compiler,
+            ))
+        }
     }
 }
 
@@ -443,39 +311,10 @@ impl<T: State> DerefMut for StateAndTiming<T> {
     }
 }
 
-impl<T: 'static + StaticSoundProcessor> SoundGraphObject for StaticSoundProcessorWithId<T> {
+impl<T: 'static + WhateverSoundProcessor> SoundGraphObject for WhateverSoundProcessorWithId<T> {
     fn create(graph: &mut SoundGraph, args: &ParsedArguments) -> Result<AnySoundObjectHandle, ()> {
         graph
-            .add_static_sound_processor::<T>(args)
-            .map(|h| h.into_graph_object())
-            .map_err(|_| ()) // TODO: report error
-    }
-
-    fn get_id(&self) -> SoundObjectId {
-        self.id().into()
-    }
-
-    fn get_type() -> ObjectType {
-        T::TYPE
-    }
-
-    fn get_dynamic_type(&self) -> ObjectType {
-        T::TYPE
-    }
-
-    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-
-    fn get_language_type_name(&self) -> &'static str {
-        type_name::<Self>()
-    }
-}
-
-impl<T: 'static + DynamicSoundProcessor> SoundGraphObject for DynamicSoundProcessorWithId<T> {
-    fn create(graph: &mut SoundGraph, args: &ParsedArguments) -> Result<AnySoundObjectHandle, ()> {
-        graph
-            .add_dynamic_sound_processor::<T>(args)
+            .add_sound_processor::<T>(args)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }
@@ -507,9 +346,9 @@ pub trait ProcessorHandle {
     fn time_argument(&self) -> SoundExpressionArgumentId;
 }
 
-impl<T: 'static + StaticSoundProcessor> ProcessorHandle for StaticSoundProcessorHandle<T> {
+impl<T: 'static + WhateverSoundProcessor> ProcessorHandle for WhateverSoundProcessorHandle<T> {
     fn id(&self) -> SoundProcessorId {
-        StaticSoundProcessorHandle::id(self)
+        WhateverSoundProcessorHandle::id(self)
     }
 
     fn time_argument(&self) -> SoundExpressionArgumentId {
@@ -517,33 +356,11 @@ impl<T: 'static + StaticSoundProcessor> ProcessorHandle for StaticSoundProcessor
     }
 }
 
-impl<T: 'static + DynamicSoundProcessor> ProcessorHandle for DynamicSoundProcessorHandle<T> {
-    fn id(&self) -> SoundProcessorId {
-        DynamicSoundProcessorHandle::id(self)
-    }
-
-    fn time_argument(&self) -> SoundExpressionArgumentId {
-        self.instance.time_argument()
-    }
-}
-
-impl<T: 'static + StaticSoundProcessor> SoundObjectHandle for StaticSoundProcessorHandle<T> {
-    type ObjectType = StaticSoundProcessorWithId<T>;
+impl<T: 'static + WhateverSoundProcessor> SoundObjectHandle for WhateverSoundProcessorHandle<T> {
+    type ObjectType = WhateverSoundProcessorWithId<T>;
 
     fn from_graph_object(object: AnySoundObjectHandle) -> Option<Self> {
-        StaticSoundProcessorHandle::from_graph_object(object)
-    }
-
-    fn object_type() -> ObjectType {
-        T::TYPE
-    }
-}
-
-impl<T: 'static + DynamicSoundProcessor> SoundObjectHandle for DynamicSoundProcessorHandle<T> {
-    type ObjectType = DynamicSoundProcessorWithId<T>;
-
-    fn from_graph_object(object: AnySoundObjectHandle) -> Option<Self> {
-        DynamicSoundProcessorHandle::from_graph_object(object)
+        WhateverSoundProcessorHandle::from_graph_object(object)
     }
 
     fn object_type() -> ObjectType {

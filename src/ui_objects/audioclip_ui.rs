@@ -3,7 +3,7 @@ use eframe::egui;
 use crate::{
     core::{
         audiofileio::load_audio_file,
-        sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+        sound::{soundgraph::SoundGraph, soundprocessor::WhateverSoundProcessorHandle},
     },
     objects::audioclip::AudioClip,
     ui_core::{
@@ -31,11 +31,11 @@ impl Default for AudioClipUiState {
 }
 
 impl SoundObjectUi for AudioClipUi {
-    type HandleType = DynamicSoundProcessorHandle<AudioClip>;
+    type HandleType = WhateverSoundProcessorHandle<AudioClip>;
     type StateType = AudioClipUiState;
     fn ui(
         &self,
-        audioclip: DynamicSoundProcessorHandle<AudioClip>,
+        audioclip: WhateverSoundProcessorHandle<AudioClip>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
