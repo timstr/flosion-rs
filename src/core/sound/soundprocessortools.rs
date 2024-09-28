@@ -142,9 +142,7 @@ impl<'a> SoundProcessorTools<'a> {
         default_value: f32,
         scope: SoundExpressionScope,
     ) -> SoundExpressionHandle {
-        self.graph
-            .add_expression(self.processor_id, default_value, scope)
-            .unwrap()
+        SoundExpressionHandle::new(scope, default_value)
     }
 
     /// Access the current sound graph graph

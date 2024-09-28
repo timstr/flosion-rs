@@ -2,21 +2,16 @@ use std::{collections::HashMap, rc::Rc};
 
 use hashstash::{Order, Stashable};
 
-use crate::{
-    core::{sound::expression::SoundExpressionHandle, uniqueid::IdGenerator},
-    ui_core::arguments::ParsedArguments,
-};
+use crate::{core::uniqueid::IdGenerator, ui_core::arguments::ParsedArguments};
 
 use super::{
-    expression::SoundExpressionId,
     expressionargument::{
         InputTimeExpressionArgument, ProcessorTimeExpressionArgument, SoundExpressionArgument,
         SoundExpressionArgumentId, SoundExpressionArgumentOwner,
     },
     sounderror::SoundError,
     soundgraphdata::{
-        SoundExpressionArgumentData, SoundExpressionData, SoundExpressionScope, SoundInputBranchId,
-        SoundInputData, SoundProcessorData,
+        SoundExpressionArgumentData, SoundInputBranchId, SoundInputData, SoundProcessorData,
     },
     soundgraphid::{SoundGraphId, SoundObjectId},
     soundgraphvalidation::find_sound_error,
@@ -33,12 +28,10 @@ pub struct SoundGraph {
     sound_processors: HashMap<SoundProcessorId, SoundProcessorData>,
     sound_inputs: HashMap<SoundInputId, SoundInputData>,
     expression_arguments: HashMap<SoundExpressionArgumentId, SoundExpressionArgumentData>,
-    expressions: HashMap<SoundExpressionId, SoundExpressionData>,
 
     sound_processor_idgen: IdGenerator<SoundProcessorId>,
     sound_input_idgen: IdGenerator<SoundInputId>,
     expression_argument_idgen: IdGenerator<SoundExpressionArgumentId>,
-    expression_idgen: IdGenerator<SoundExpressionId>,
 }
 
 impl SoundGraph {
@@ -47,11 +40,9 @@ impl SoundGraph {
             sound_processors: HashMap::new(),
             sound_inputs: HashMap::new(),
             expression_arguments: HashMap::new(),
-            expressions: HashMap::new(),
             sound_processor_idgen: IdGenerator::new(),
             sound_input_idgen: IdGenerator::new(),
             expression_argument_idgen: IdGenerator::new(),
-            expression_idgen: IdGenerator::new(),
         }
     }
 
@@ -70,11 +61,6 @@ impl SoundGraph {
         &self,
     ) -> &HashMap<SoundExpressionArgumentId, SoundExpressionArgumentData> {
         &self.expression_arguments
-    }
-
-    /// Access the set of expressions stored in the graph
-    pub(crate) fn expressions(&self) -> &HashMap<SoundExpressionId, SoundExpressionData> {
-        &self.expressions
     }
 
     /// Look up a specific sound processor by its id
@@ -101,21 +87,6 @@ impl SoundGraph {
         self.expression_arguments.get(&id)
     }
 
-    /// Look up a specific expression by its id
-    pub(crate) fn expression(&self, id: SoundExpressionId) -> Option<&SoundExpressionData> {
-        self.expressions.get(&id)
-    }
-
-    /// Look up a specific expression by its id with mutable access
-    #[cfg(test)]
-    pub(crate) fn expression_mut(
-        &mut self,
-        id: SoundExpressionId,
-    ) -> Option<&mut SoundExpressionData> {
-        self.expressions.get_mut(&id)
-    }
-
-    /// Returns an iterator listing all the sound inputs that are connected
     /// to the given sound processor, if any.
     pub(crate) fn sound_processor_targets<'a>(
         &'a self,
@@ -196,7 +167,6 @@ impl SoundGraph {
         &mut self,
         processor_id: SoundProcessorId,
     ) -> Result<(), SoundError> {
-        let mut expressions_to_remove = Vec::new();
         let mut expr_arguments_to_remove = Vec::new();
         let mut sound_inputs_to_remove = Vec::new();
         let mut sound_inputs_to_disconnect = Vec::new();
@@ -204,10 +174,6 @@ impl SoundGraph {
         let proc = self
             .sound_processor(processor_id)
             .ok_or(SoundError::ProcessorNotFound(processor_id))?;
-
-        for ni in proc.expressions() {
-            expressions_to_remove.push(*ni);
-        }
 
         for ns in proc.expression_arguments() {
             expr_arguments_to_remove.push(*ns);
@@ -234,10 +200,6 @@ impl SoundGraph {
 
         for si in sound_inputs_to_disconnect {
             self.disconnect_sound_input(si)?;
-        }
-
-        for ni in expressions_to_remove {
-            self.remove_expression(ni, processor_id)?;
         }
 
         for ns in expr_arguments_to_remove {
@@ -456,61 +418,12 @@ impl SoundGraph {
         Ok(())
     }
 
-    /// Add an expression to the graph. The expressions's
-    /// id must not yet be in use and it must not yet be connected
-    /// to any expression arguments in its parameter mapping. The sound
-    /// processor to which the input belongs must exist.
-    pub(crate) fn add_expression(
-        &mut self,
-        owner: SoundProcessorId,
-        default_value: f32,
-        scope: SoundExpressionScope,
-    ) -> Result<SoundExpressionHandle, SoundError> {
-        if !self.sound_processors.contains_key(&owner) {
-            return Err(SoundError::ProcessorNotFound(owner));
-        }
-
-        let id = self.expression_idgen.next_id();
-
-        let data = SoundExpressionData::new(id, owner, default_value, scope.clone());
-
-        let proc_data = self
-            .sound_processors
-            .get_mut(&data.owner())
-            .ok_or(SoundError::ProcessorNotFound(data.owner()))?;
-        debug_assert!(!proc_data.expressions().contains(&id));
-
-        proc_data.expressions_mut().push(id);
-
-        let prev = self.expressions.insert(id, data);
-        debug_assert!(prev.is_none());
-
-        Ok(SoundExpressionHandle::new(id, owner, scope))
-    }
-
-    /// Remove an expression from the graph.
-    pub(crate) fn remove_expression(
-        &mut self,
-        id: SoundExpressionId,
-        owner: SoundProcessorId,
-    ) -> Result<(), SoundError> {
-        self.expressions
-            .remove(&id)
-            .ok_or(SoundError::ExpressionNotFound(id))?;
-
-        let proc_data = self.sound_processors.get_mut(&owner).unwrap();
-        proc_data.expressions_mut().retain(|niid| *niid != id);
-
-        Ok(())
-    }
-
     /// Check whether the entity referred to by the given id exists in the graph
     pub fn contains<I: Into<SoundGraphId>>(&self, id: I) -> bool {
         let graph_id: SoundGraphId = id.into();
         match graph_id {
             SoundGraphId::SoundInput(siid) => self.sound_inputs.contains_key(&siid),
             SoundGraphId::SoundProcessor(spid) => self.sound_processors.contains_key(&spid),
-            SoundGraphId::Expression(niid) => self.expressions.contains_key(&niid),
             SoundGraphId::ExpressionArgument(nsid) => self.expression_arguments.contains_key(&nsid),
         }
     }
@@ -532,22 +445,6 @@ impl SoundGraph {
             let tools = SoundProcessorTools::new(processor_id, graph);
             f(tools)
         })
-    }
-
-    /// Make changes to an expression using the given closure,
-    /// which is passed a mutable instance of the input's
-    /// SoundExpressionData.
-    pub fn edit_expression<R, F: FnOnce(&mut SoundExpressionData) -> R>(
-        &mut self,
-        input_id: SoundExpressionId,
-        f: F,
-    ) -> Result<R, SoundError> {
-        let expr = self
-            .expressions
-            .get_mut(&input_id)
-            .ok_or(SoundError::ExpressionNotFound(input_id))?;
-
-        Ok(f(expr))
     }
 
     /// Helper method for editing the sound graph, detecting errors,
@@ -594,7 +491,6 @@ impl Stashable for SoundGraph {
                 stasher
                     .array_of_u64_iter(proc_data.sound_inputs().iter().map(|i| i.value() as u64));
                 stasher.array_of_u64_iter(proc_data.arguments().iter().map(|i| i.value() as u64));
-                stasher.array_of_u64_iter(proc_data.expressions().iter().map(|i| i.value() as u64));
             },
             Order::Unordered,
         );
@@ -639,40 +535,6 @@ impl Stashable for SoundGraph {
                         stasher.u64(siid.value() as u64);
                     }
                 }
-            },
-            Order::Unordered,
-        );
-
-        // expressions
-        stasher.array_of_proxy_objects(
-            self.expressions.values(),
-            |expr_data, stasher| {
-                stasher.u64(expr_data.id().value() as u64);
-
-                stasher.array_of_proxy_objects(
-                    expr_data.parameter_mapping().items().iter(),
-                    |(param_id, arg_id), stasher| {
-                        stasher.u64(param_id.value() as u64);
-                        stasher.u64(arg_id.value() as u64);
-                    },
-                    Order::Unordered,
-                );
-
-                // TODO
-                // expr_data.expression_graph()
-
-                stasher.u64(expr_data.owner().value() as u64);
-
-                stasher.object_proxy(|stasher| {
-                    let scope = expr_data.scope();
-                    stasher.bool(scope.processor_state_available());
-                    stasher.array_of_u64_iter(
-                        scope
-                            .available_local_arguments()
-                            .iter()
-                            .map(|i| i.value() as u64),
-                    );
-                });
             },
             Order::Unordered,
         );

@@ -1,10 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use super::{
-    expression::SoundExpressionId,
-    expressionargument::{
-        SoundExpressionArgumentId, SoundExpressionArgumentOrigin, SoundExpressionArgumentOwner,
-    },
+    expressionargument::{SoundExpressionArgumentId, SoundExpressionArgumentOwner},
     path::SoundPath,
     sounderror::SoundError,
     soundgraph::SoundGraph,
@@ -53,28 +50,7 @@ pub(super) fn check_missing_ids(graph: &SoundGraph) {
                 ),
             }
         }
-        for i in sp.expressions() {
-            // each expression must exist and list the sound processor as its owner
-            match graph.expressions().get(i) {
-                Some(idata) => {
-                    if idata.owner() != sp.id() {
-                        panic!(
-                            "Sound processor {:?} lists expression {:?} as one \
-                            of its expressions, but that expression does not list
-                            the sound processor as its owner.",
-                            sp.id(),
-                            i
-                        );
-                    }
-                }
-                None => panic!(
-                    "Sound processor {:?} lists expression {:?} as one of its \
-                        expressions, but that expression does not exist.",
-                    sp.id(),
-                    i
-                ),
-            }
-        }
+
         for s in sp.expression_arguments() {
             // each argument must exist and list the sound processor as its owner
             match graph.expression_arguments().get(s) {
@@ -198,72 +174,6 @@ pub(super) fn check_missing_ids(graph: &SoundGraph) {
                     siid
                 ),
             },
-        }
-    }
-
-    for ni in graph.expressions().values() {
-        // for each expression
-
-        // all of its mapped arguments must exist
-        for nsid in ni.parameter_mapping().items().values() {
-            if graph.expression_arguments().get(nsid).is_none() {
-                panic!(
-                    "The expression {:?} lists expression argument {:?} as its target, but that \
-                        argument does not exist.",
-                    ni.id(),
-                    nsid
-                );
-            }
-        }
-
-        // its owner must exist and list it as one of its expressions
-        match graph.sound_processor(ni.owner()) {
-            Some(sp) => {
-                if !sp.expressions().contains(&ni.id()) {
-                    panic!(
-                        "The expression {:?} lists sound processor {:?} as its owner, \
-                                but that sound processor doesn't list the expression as one of \
-                                its expressions.",
-                        ni.id(),
-                        ni.owner()
-                    );
-                }
-            }
-            None => panic!(
-                "The expression {:?} lists sound processor {:?} as its owner, but that \
-                        sound processor does not exist.",
-                ni.id(),
-                ni.owner()
-            ),
-        }
-
-        // any expression arguments listed in its scope must belong to the parent
-        // sound processor and be local arguments
-        for nsid in ni.scope().available_local_arguments() {
-            let Some(ns_data) = graph.expression_argument(*nsid) else {
-                panic!(
-                    "The expression {:?} lists expression argument {:?} as in its local scope, but \
-                    that argument doesn't exist.",
-                    ni.id(),
-                    nsid
-                );
-            };
-            if ns_data.owner() != SoundExpressionArgumentOwner::SoundProcessor(ni.owner()) {
-                panic!(
-                    "The expression {:?} lists expression argument {:?} as in its local scope, but \
-                    that argument doesn't belong to the same sound processor.",
-                    ni.id(),
-                    nsid
-                );
-            }
-            if ns_data.instance().origin() != SoundExpressionArgumentOrigin::Local(ni.owner()) {
-                panic!(
-                    "The expression {:?} lists expression argument {:?} as in its local scope, but \
-                    that argument is not a local argument.",
-                    ni.id(),
-                    nsid
-                );
-            }
         }
     }
 
@@ -479,32 +389,13 @@ fn processor_depends_on_processor(
 
 pub(super) fn find_invalid_expression_arguments(
     graph: &SoundGraph,
-) -> Vec<(SoundExpressionArgumentId, SoundExpressionId)> {
-    let mut bad_connections: Vec<(SoundExpressionArgumentId, SoundExpressionId)> = Vec::new();
-
-    for (niid, ni) in graph.expressions() {
-        for target in ni.parameter_mapping().items().values() {
-            let target_owner = graph.expression_argument(*target).unwrap().owner();
-            let depends = match target_owner {
-                SoundExpressionArgumentOwner::SoundProcessor(spid) => {
-                    processor_depends_on_processor(spid, ni.owner(), graph)
-                }
-                SoundExpressionArgumentOwner::SoundInput(siid) => {
-                    input_depends_on_processor(siid, ni.owner(), graph)
-                }
-            };
-            if !depends {
-                bad_connections.push((*target, *niid));
-            }
-        }
-    }
-
-    return bad_connections;
+) -> Vec<(SoundExpressionArgumentId, SoundProcessorId)> {
+    todo!()
 }
 
 pub(crate) fn available_sound_expression_arguments(
     graph: &SoundGraph,
-) -> HashMap<SoundExpressionId, HashSet<SoundExpressionArgumentId>> {
+) -> HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>> {
     let mut available_arguments_by_processor: HashMap<
         SoundProcessorId,
         HashSet<SoundExpressionArgumentId>,
@@ -598,42 +489,5 @@ pub(crate) fn available_sound_expression_arguments(
         available_arguments_by_processor.insert(next_proc_id, available_arguments);
     }
 
-    let mut available_arguments_by_expression = HashMap::new();
-
-    // Each expression's available arguments are those available from the processor minus
-    // any out-of-scope locals
-    for ni_data in graph.expressions().values() {
-        let mut available_arguments = available_arguments_by_processor
-            .get(&ni_data.owner())
-            .unwrap()
-            .clone();
-        let processor_arguments = graph
-            .sound_processor(ni_data.owner())
-            .unwrap()
-            .expression_arguments();
-        for nsid in processor_arguments {
-            debug_assert!(available_arguments.contains(nsid));
-            let ns_data = graph.expression_argument(*nsid).unwrap();
-            match ns_data.instance().origin() {
-                SoundExpressionArgumentOrigin::ProcessorState(spid) => {
-                    debug_assert_eq!(spid, ni_data.owner());
-                    if !ni_data.scope().processor_state_available() {
-                        available_arguments.remove(nsid);
-                    }
-                }
-                SoundExpressionArgumentOrigin::InputState(_) => {
-                    panic!("Processor expression argument can't have a sound input as its origin");
-                }
-                SoundExpressionArgumentOrigin::Local(spid) => {
-                    debug_assert_eq!(spid, ni_data.owner());
-                    if !ni_data.scope().available_local_arguments().contains(nsid) {
-                        available_arguments.remove(nsid);
-                    }
-                }
-            }
-        }
-        available_arguments_by_expression.insert(ni_data.id(), available_arguments);
-    }
-
-    available_arguments_by_expression
+    available_arguments_by_processor
 }

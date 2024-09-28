@@ -1,36 +1,27 @@
 use crate::core::{
     engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
-    uniqueid::UniqueId,
+    expression::expressiongraph::ExpressionGraph,
 };
 
-use super::{soundgraphdata::SoundExpressionScope, soundprocessor::SoundProcessorId};
+use super::soundgraphdata::{ExpressionParameterMapping, SoundExpressionScope};
 
-pub struct SoundExpressionTag;
-
-pub type SoundExpressionId = UniqueId<SoundExpressionTag>;
-
+// TODO: rename just SoundExpression?
 pub struct SoundExpressionHandle {
-    id: SoundExpressionId,
-    owner: SoundProcessorId,
+    param_mapping: ExpressionParameterMapping,
+    expression_graph: ExpressionGraph,
     scope: SoundExpressionScope,
+    default_value: f32,
 }
 
 impl SoundExpressionHandle {
     // TODO: why is this pub?
-    pub fn new(
-        id: SoundExpressionId,
-        owner: SoundProcessorId,
-        scope: SoundExpressionScope,
-    ) -> SoundExpressionHandle {
-        SoundExpressionHandle { id, owner, scope }
-    }
-
-    pub fn id(&self) -> SoundExpressionId {
-        self.id
-    }
-
-    pub fn owner(&self) -> SoundProcessorId {
-        self.owner
+    pub fn new(scope: SoundExpressionScope, default_value: f32) -> SoundExpressionHandle {
+        SoundExpressionHandle {
+            param_mapping: ExpressionParameterMapping::new(),
+            expression_graph: ExpressionGraph::new(),
+            scope,
+            default_value,
+        }
     }
 
     #[cfg(not(debug_assertions))]
@@ -47,6 +38,7 @@ impl SoundExpressionHandle {
         compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> CompiledExpression<'ctx> {
         // Pass scope to enable validation
-        CompiledExpression::new(self.id, compiler, self.scope.clone())
+        // CompiledExpression::new(self.id, compiler, self.scope.clone())
+        todo!()
     }
 }

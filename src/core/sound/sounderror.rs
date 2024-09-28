@@ -1,8 +1,8 @@
 use crate::core::sound::expressionargument::SoundExpressionArgumentOwner;
 
 use super::{
-    expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId, path::SoundPath,
-    soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    expressionargument::SoundExpressionArgumentId, path::SoundPath, soundgraph::SoundGraph,
+    soundinput::SoundInputId, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -30,12 +30,8 @@ pub enum SoundError {
     ArgumentNotFound(SoundExpressionArgumentId),
     BadArgumentInit(SoundExpressionArgumentId),
     BadArgumentCleanup(SoundExpressionArgumentId),
-    ExpressionIdTaken(SoundExpressionId),
-    ExpressionNotFound(SoundExpressionId),
-    BadExpressionInit(SoundExpressionId),
-    BadExpressionCleanup(SoundExpressionId),
     StateNotInScope {
-        bad_dependencies: Vec<(SoundExpressionArgumentId, SoundExpressionId)>,
+        bad_dependencies: Vec<(SoundExpressionArgumentId, SoundProcessorId)>,
     },
 }
 
@@ -163,24 +159,6 @@ impl SoundError {
                     "The argument with id #{} of {} was not cleaned up correctly",
                     aid.value(),
                     owner_str
-                )
-            }
-            SoundError::ExpressionIdTaken(eid) => {
-                format!("An expression with id #{} already exists", eid.value())
-            }
-            SoundError::ExpressionNotFound(eid) => {
-                format!("An expression with id #{} could not be found", eid.value())
-            }
-            SoundError::BadExpressionInit(eid) => format!(
-                "The expression with id #{} was not initialized correctly",
-                eid.value()
-            ),
-            SoundError::BadExpressionCleanup(eid) => {
-                let owner_spid = graph.expression(*eid).unwrap().owner();
-                format!(
-                    "The expression with id #{} on processor {} was not cleaned up correctly",
-                    eid.value(),
-                    graph.sound_processor(owner_spid).unwrap().friendly_name()
                 )
             }
             SoundError::StateNotInScope {

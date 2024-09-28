@@ -9,7 +9,6 @@ use crate::core::{
 };
 
 use super::{
-    expression::SoundExpressionId,
     expressionargument::{
         SoundExpressionArgument, SoundExpressionArgumentId, SoundExpressionArgumentOwner,
     },
@@ -108,7 +107,6 @@ pub(crate) struct SoundProcessorData {
     processor: Option<Rc<dyn SoundProcessor>>,
     sound_inputs: Vec<SoundInputId>,
     arguments: Vec<SoundExpressionArgumentId>,
-    expressions: Vec<SoundExpressionId>,
 }
 
 impl SoundProcessorData {
@@ -118,7 +116,6 @@ impl SoundProcessorData {
             processor: None,
             sound_inputs: Vec::new(),
             arguments: Vec::new(),
-            expressions: Vec::new(),
         }
     }
 
@@ -152,14 +149,6 @@ impl SoundProcessorData {
         &mut self.arguments
     }
 
-    pub(crate) fn expressions(&self) -> &[SoundExpressionId] {
-        &self.expressions
-    }
-
-    pub(super) fn expressions_mut(&mut self) -> &mut Vec<SoundExpressionId> {
-        &mut self.expressions
-    }
-
     pub(crate) fn instance(&self) -> &dyn SoundProcessor {
         self.processor.as_deref().unwrap()
     }
@@ -183,7 +172,7 @@ pub(crate) struct ExpressionParameterMapping {
 }
 
 impl ExpressionParameterMapping {
-    fn new() -> ExpressionParameterMapping {
+    pub(crate) fn new() -> ExpressionParameterMapping {
         ExpressionParameterMapping {
             mapping: HashMap::new(),
         }
@@ -290,68 +279,6 @@ impl SoundExpressionScope {
 
     pub(crate) fn available_local_arguments(&self) -> &[SoundExpressionArgumentId] {
         &self.available_local_arguments
-    }
-}
-
-#[derive(Clone)]
-pub struct SoundExpressionData {
-    id: SoundExpressionId,
-    target_mapping: ExpressionParameterMapping,
-    expression_graph: ExpressionGraph,
-    owner: SoundProcessorId,
-    scope: SoundExpressionScope,
-}
-
-impl SoundExpressionData {
-    pub(super) fn new(
-        id: SoundExpressionId,
-        owner: SoundProcessorId,
-        default_value: f32,
-        scope: SoundExpressionScope,
-    ) -> Self {
-        let mut expression_graph = ExpressionGraph::new();
-
-        // HACK: assuming 1 output for now
-        expression_graph.add_result(default_value);
-
-        Self {
-            id,
-            target_mapping: ExpressionParameterMapping::new(),
-            expression_graph,
-            owner,
-            scope,
-        }
-    }
-
-    pub(crate) fn id(&self) -> SoundExpressionId {
-        self.id
-    }
-
-    pub(crate) fn parameter_mapping(&self) -> &ExpressionParameterMapping {
-        debug_assert!(self.target_mapping.check_invariants(&self.expression_graph));
-        &self.target_mapping
-    }
-
-    pub(crate) fn expression_graph(&self) -> &ExpressionGraph {
-        &self.expression_graph
-    }
-
-    pub(crate) fn expression_graph_mut(&mut self) -> &mut ExpressionGraph {
-        &mut self.expression_graph
-    }
-
-    pub(crate) fn expression_graph_and_mapping_mut(
-        &mut self,
-    ) -> (&mut ExpressionGraph, &mut ExpressionParameterMapping) {
-        (&mut self.expression_graph, &mut self.target_mapping)
-    }
-
-    pub(crate) fn owner(&self) -> SoundProcessorId {
-        self.owner
-    }
-
-    pub(crate) fn scope(&self) -> &SoundExpressionScope {
-        &self.scope
     }
 }
 
