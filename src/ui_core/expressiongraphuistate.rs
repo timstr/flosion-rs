@@ -2,7 +2,7 @@ use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
     expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeId},
-    sound::{expression::SoundExpressionId, soundgraph::SoundGraph},
+    sound::{expression::ProcessorExpressionLocation, soundgraph::SoundGraph},
 };
 
 use super::{
@@ -109,7 +109,7 @@ impl ExpressionGraphUiState {
 /// so the single top-level sound graph UI likewise can contain many separate
 /// expression graph UIs.
 pub(crate) struct ExpressionUiCollection {
-    data: HashMap<SoundExpressionId, (ExpressionGraphUiState, LexicalLayout)>,
+    data: HashMap<ProcessorExpressionLocation, (ExpressionGraphUiState, LexicalLayout)>,
 }
 
 impl ExpressionUiCollection {
@@ -124,7 +124,7 @@ impl ExpressionUiCollection {
     /// if any exists.
     pub(crate) fn get_mut(
         &mut self,
-        eid: SoundExpressionId,
+        eid: ProcessorExpressionLocation,
     ) -> Option<(&mut ExpressionGraphUiState, &mut LexicalLayout)> {
         self.data.get_mut(&eid).map(|(a, b)| (a, b))
     }
@@ -133,31 +133,38 @@ impl ExpressionUiCollection {
     /// that no longer exist in the given sound graph.
     pub(super) fn cleanup(&mut self, graph: &SoundGraph, factory: &ExpressionObjectUiFactory) {
         // Delete data for removed expressions
-        self.data
-            .retain(|id, _| graph.expressions().contains_key(id));
+        self.data.retain(|id, _| {
+            // TODO: check that expression exists also
+            graph.contains(&id.processor())
+        });
 
         // Clean up the internal ui data of individual expressions
         for (eid, (expr_ui_state, layout)) in &mut self.data {
-            let expr_graph = graph.expression(*eid).unwrap().expression_graph();
-            expr_ui_state.cleanup(expr_graph);
-            layout.cleanup(expr_graph)
+            graph
+                .sound_processor(eid.processor())
+                .unwrap()
+                .with_expression(eid.expression(), |expr| {
+                    expr_ui_state.cleanup(expr.graph());
+                    layout.cleanup(expr.graph())
+                });
         }
 
         // Add data for newly-added expressions
-        for expr in graph.expressions().values() {
-            if self.data.contains_key(&expr.id()) {
-                continue;
-            }
+        for proc_data in graph.sound_processors().values() {
+            proc_data.foreach_expression(|expr| {
+                let location = ProcessorExpressionLocation::new(proc_data.id(), expr.id());
 
-            let mut ui_state = ExpressionGraphUiState::generate(expr.expression_graph(), factory);
+                if self.data.contains_key(&location) {
+                    return;
+                }
 
-            let layout = LexicalLayout::generate(
-                expr.expression_graph(),
-                ui_state.object_states_mut(),
-                factory,
-            );
+                let mut ui_state = ExpressionGraphUiState::generate(expr.graph(), factory);
 
-            self.data.insert(expr.id(), (ui_state, layout));
+                let layout =
+                    LexicalLayout::generate(expr.graph(), ui_state.object_states_mut(), factory);
+
+                self.data.insert(location, (ui_state, layout));
+            });
         }
     }
 }

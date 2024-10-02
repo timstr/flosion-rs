@@ -7,7 +7,6 @@ use crate::{
             expressionnode::ExpressionNodeId, expressionobject::ExpressionObjectFactory,
         },
         objecttype::{ObjectType, WithObjectType},
-        sound::soundgraph::SoundGraph,
         uniqueid::IdGenerator,
     },
     objects::purefunctions::Constant,
@@ -307,13 +306,11 @@ impl LexicalLayout {
         &self,
         ui: &mut egui::Ui,
         ui_state: &mut ExpressionGraphUiState,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         ctx: &ExpressionGraphUiContext,
         outer_context: &OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
-            lexical_layout_matches_expression_graph(self, g)
-        }));
+        debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
 
         let num_variable_definitions = self.variable_definitions.len();
 
@@ -323,7 +320,7 @@ impl LexicalLayout {
                     ui,
                     LineLocation::VariableDefinition(i),
                     ui_state,
-                    sound_graph,
+                    expr_graph,
                     ctx,
                     outer_context,
                 );
@@ -335,15 +332,13 @@ impl LexicalLayout {
                 ui,
                 LineLocation::FinalExpression,
                 ui_state,
-                sound_graph,
+                expr_graph,
                 ctx,
                 outer_context,
             );
         });
 
-        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
-            lexical_layout_matches_expression_graph(self, g)
-        }));
+        debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
     }
 
     fn show_line(
@@ -351,7 +346,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         line: LineLocation,
         ui_state: &mut ExpressionGraphUiState,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         ctx: &ExpressionGraphUiContext,
         outer_context: &OuterExpressionGraphUiContext,
     ) {
@@ -378,11 +373,10 @@ impl LexicalLayout {
                     defn.name_rect.set(name_response.rect);
                 }
                 LineLocation::FinalExpression => {
-                    let output_id = outer_context.inspect_expression_graph(sound_graph, |g| {
-                        let outputs = g.results();
-                        assert_eq!(outputs.len(), 1);
-                        outputs[0].id()
-                    });
+                    let outputs = expr_graph.results();
+                    assert_eq!(outputs.len(), 1);
+                    let output_id = outputs[0].id();
+
                     ui.add(egui::Label::new(
                         egui::RichText::new(outer_context.result_name(output_id))
                             .text_style(egui::TextStyle::Monospace)
@@ -408,7 +402,7 @@ impl LexicalLayout {
                 ui,
                 node,
                 ui_state,
-                sound_graph,
+                expr_graph,
                 ctx,
                 ASTPathBuilder::Root(ast_root),
                 outer_context,
@@ -426,7 +420,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         node: &ASTNode,
         ui_state: &mut ExpressionGraphUiState,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         ctx: &ExpressionGraphUiContext,
         path: ASTPathBuilder,
         outer_context: &OuterExpressionGraphUiContext,
@@ -444,7 +438,7 @@ impl LexicalLayout {
                         ui,
                         n,
                         ui_state,
-                        sound_graph,
+                        expr_graph,
                         ctx,
                         path,
                         outer_context,
@@ -466,7 +460,7 @@ impl LexicalLayout {
                         .rect;
                 }
                 ASTNodeValue::Parameter(giid) => {
-                    let name = outer_context.parameter_name(sound_graph, *giid);
+                    let name = outer_context.parameter_name(*giid);
                     rect = ui
                         .add(egui::Label::new(
                             egui::RichText::new(name).code().color(egui::Color32::WHITE),
@@ -482,7 +476,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         node: &InternalASTNode,
         ui_state: &mut ExpressionGraphUiState,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         ctx: &ExpressionGraphUiContext,
         path: ASTPathBuilder,
         outer_context: &OuterExpressionGraphUiContext,
@@ -501,20 +495,13 @@ impl LexicalLayout {
             match &node.value() {
                 InternalASTNodeValue::Prefix(nsid, expr) => {
                     own_rect = Self::highlight_on_hover(ui, |ui| {
-                        Self::show_expression_node_ui(
-                            ui,
-                            *nsid,
-                            ui_state,
-                            sound_graph,
-                            ctx,
-                            outer_context,
-                        )
+                        Self::show_expression_node_ui(ui, *nsid, ui_state, expr_graph, ctx)
                     });
                     Self::show_child_ast_node(
                         ui,
                         expr,
                         ui_state,
-                        sound_graph,
+                        expr_graph,
                         ctx,
                         path.push(node, 0),
                         outer_context,
@@ -526,27 +513,20 @@ impl LexicalLayout {
                         ui,
                         expr1,
                         ui_state,
-                        sound_graph,
+                        expr_graph,
                         ctx,
                         path.push(node, 0),
                         outer_context,
                         variable_definitions,
                     );
                     own_rect = Self::highlight_on_hover(ui, |ui| {
-                        Self::show_expression_node_ui(
-                            ui,
-                            *nsid,
-                            ui_state,
-                            sound_graph,
-                            ctx,
-                            outer_context,
-                        )
+                        Self::show_expression_node_ui(ui, *nsid, ui_state, expr_graph, ctx)
                     });
                     Self::show_child_ast_node(
                         ui,
                         expr2,
                         ui_state,
-                        sound_graph,
+                        expr_graph,
                         ctx,
                         path.push(node, 1),
                         outer_context,
@@ -558,34 +538,20 @@ impl LexicalLayout {
                         ui,
                         expr,
                         ui_state,
-                        sound_graph,
+                        expr_graph,
                         ctx,
                         path.push(node, 0),
                         outer_context,
                         variable_definitions,
                     );
                     own_rect = Self::highlight_on_hover(ui, |ui| {
-                        Self::show_expression_node_ui(
-                            ui,
-                            *nsid,
-                            ui_state,
-                            sound_graph,
-                            ctx,
-                            outer_context,
-                        )
+                        Self::show_expression_node_ui(ui, *nsid, ui_state, expr_graph, ctx)
                     });
                 }
                 InternalASTNodeValue::Function(nsid, exprs) => {
                     if exprs.is_empty() {
                         own_rect = Self::highlight_on_hover(ui, |ui| {
-                            Self::show_expression_node_ui(
-                                ui,
-                                *nsid,
-                                ui_state,
-                                sound_graph,
-                                ctx,
-                                outer_context,
-                            )
+                            Self::show_expression_node_ui(ui, *nsid, ui_state, expr_graph, ctx)
                         })
                     } else {
                         let frame = egui::Frame::default()
@@ -593,14 +559,7 @@ impl LexicalLayout {
                             .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(32)));
                         let r = frame.show(ui, |ui| {
                             let r = Self::highlight_on_hover(ui, |ui| {
-                                Self::show_expression_node_ui(
-                                    ui,
-                                    *nsid,
-                                    ui_state,
-                                    sound_graph,
-                                    ctx,
-                                    outer_context,
-                                )
+                                Self::show_expression_node_ui(ui, *nsid, ui_state, expr_graph, ctx)
                             });
                             styled_text(ui, "(".to_string());
                             if let Some((last_expr, other_exprs)) = exprs.split_last() {
@@ -609,7 +568,7 @@ impl LexicalLayout {
                                         ui,
                                         expr,
                                         ui_state,
-                                        sound_graph,
+                                        expr_graph,
                                         ctx,
                                         path.push(node, i),
                                         outer_context,
@@ -621,7 +580,7 @@ impl LexicalLayout {
                                     ui,
                                     last_expr,
                                     ui_state,
-                                    sound_graph,
+                                    expr_graph,
                                     ctx,
                                     path.push(node, other_exprs.len()),
                                     outer_context,
@@ -647,19 +606,21 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         id: ExpressionNodeId,
         ui_state: &mut ExpressionGraphUiState,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         ctx: &ExpressionGraphUiContext,
-        outer_context: &OuterExpressionGraphUiContext,
     ) -> egui::Rect {
-        let graph_object = outer_context.inspect_expression_graph(sound_graph, |graph| {
-            graph.node(id).unwrap().instance_rc().as_graph_object()
-        });
+        let graph_object = expr_graph.node(id).unwrap().instance_rc().as_graph_object();
+
         ui.horizontal_centered(|ui| {
-            outer_context
-                .edit_expression_graph(sound_graph, |g| {
-                    show_expression_node_ui(ctx.ui_factory(), &graph_object, ui_state, ui, ctx, g);
-                })
-                .unwrap();
+            // Huh?
+            show_expression_node_ui(
+                ctx.ui_factory(),
+                &graph_object,
+                ui_state,
+                ui,
+                ctx,
+                expr_graph,
+            );
         })
         .response
         .rect
@@ -677,24 +638,22 @@ impl LexicalLayout {
         &mut self,
         ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
-        outer_context: &OuterExpressionGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) {
-        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
-            lexical_layout_matches_expression_graph(self, g)
-        }));
+        debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
 
         self.handle_summon_widget(
             ui,
             focus,
-            sound_graph,
+            expr_graph,
             object_factory,
             ui_factory,
             object_ui_states,
-            &outer_context,
+            outer_context,
         );
 
         if focus.summon_widget_state().is_none() {
@@ -730,8 +689,8 @@ impl LexicalLayout {
             });
 
             if pressed_delete {
-                delete_from_graph_at_cursor(self, cursor, outer_context, sound_graph);
-                remove_unreferenced_parameters(self, outer_context, sound_graph);
+                delete_from_graph_at_cursor(self, cursor, expr_graph);
+                remove_unreferenced_parameters(self, outer_context, expr_graph);
             }
 
             if pressed_enter || pressed_shift_enter {
@@ -759,20 +718,18 @@ impl LexicalLayout {
             }
         }
 
-        debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
-            lexical_layout_matches_expression_graph(self, g)
-        }));
+        debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
     }
 
     fn handle_summon_widget(
         &mut self,
         ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
-        outer_context: &OuterExpressionGraphUiContext,
+        outer_context: &mut OuterExpressionGraphUiContext,
     ) {
         if focus.cursor().get_node(self).is_none() {
             return;
@@ -854,9 +811,7 @@ impl LexicalLayout {
         if let Some(choice) = summon_widget_state.final_choice() {
             let (summon_value, arguments) = choice;
 
-            debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
-                lexical_layout_matches_expression_graph(self, g)
-            }));
+            debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
 
             let (new_node, layout) = match summon_value {
                 ExpressionSummonValue::ExpressionNodeType(ns_type) => self
@@ -866,8 +821,7 @@ impl LexicalLayout {
                         object_factory,
                         ui_factory,
                         object_ui_states,
-                        outer_context,
-                        sound_graph,
+                        expr_graph,
                     )
                     .unwrap(),
                 ExpressionSummonValue::Argument(snsid) => {
@@ -876,14 +830,13 @@ impl LexicalLayout {
                         let outer_context = match outer_context {
                             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx,
                         };
-                        let giid = if let Some(giid) =
-                            outer_context.find_graph_id_for_argument(sound_graph, snsid)
-                        {
-                            giid
-                        } else {
-                            let giid = outer_context.connect_to_argument(sound_graph, snsid);
-                            giid
-                        };
+                        let giid =
+                            if let Some(giid) = outer_context.find_graph_id_for_argument(snsid) {
+                                giid
+                            } else {
+                                let giid = outer_context.connect_to_argument(expr_graph, snsid);
+                                giid
+                            };
                         node = ASTNode::new(ASTNodeValue::Parameter(giid));
                     }
                     (node, ExpressionNodeLayout::Function)
@@ -900,26 +853,17 @@ impl LexicalLayout {
                             object_factory,
                             ui_factory,
                             object_ui_states,
-                            outer_context,
-                            sound_graph,
+                            expr_graph,
                         )
                         .unwrap();
                     (node, layout)
                 }
             };
             let num_children = new_node.num_children();
-            insert_to_graph_at_cursor(
-                self,
-                focus.cursor_mut(),
-                new_node,
-                outer_context,
-                sound_graph,
-            );
-            remove_unreferenced_parameters(self, outer_context, sound_graph);
+            insert_to_graph_at_cursor(self, focus.cursor_mut(), new_node, expr_graph);
+            remove_unreferenced_parameters(self, outer_context, expr_graph);
 
-            debug_assert!(outer_context.inspect_expression_graph(sound_graph, |g| {
-                lexical_layout_matches_expression_graph(self, g)
-            }));
+            debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
 
             let cursor_path = focus.cursor_mut().path_mut().unwrap();
             match layout {
@@ -943,14 +887,9 @@ impl LexicalLayout {
         object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
-        outer_context: &OuterExpressionGraphUiContext,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
     ) -> Result<(ASTNode, ExpressionNodeLayout), String> {
-        let new_object = outer_context
-            .edit_expression_graph(sound_graph, |graph| {
-                object_factory.create(ns_type.name(), graph, &arguments)
-            })
-            .unwrap();
+        let new_object = object_factory.create(ns_type.name(), expr_graph, &arguments);
 
         let new_object = match new_object {
             Ok(o) => o,
@@ -970,9 +909,7 @@ impl LexicalLayout {
 
         let layout = object_ui.make_properties();
 
-        let num_inputs = outer_context.inspect_expression_graph(sound_graph, |graph| {
-            graph.node(new_object.id()).unwrap().inputs().len()
-        });
+        let num_inputs = expr_graph.node(new_object.id()).unwrap().inputs().len();
         let child_nodes: Vec<ASTNode> = (0..num_inputs)
             .map(|_| ASTNode::new(ASTNodeValue::Empty))
             .collect();

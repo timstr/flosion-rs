@@ -18,8 +18,9 @@ use crate::core::{
         expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
     },
     sound::{
-        expression::SoundExpressionId, expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+        expressionargument::SoundExpressionArgumentId, soundgraph::SoundGraph,
+        soundgraphdata::ExpressionParameterMapping, soundinput::SoundInputId,
+        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -917,15 +918,12 @@ impl<'ctx> Jit<'ctx> {
 
     pub(crate) fn compile_expression(
         mut self,
-        expression_id: SoundExpressionId,
+        expression_graph: &ExpressionGraph,
+        parameter_mapping: &ExpressionParameterMapping,
         graph: &SoundGraph,
     ) -> CompiledExpressionArtefact<'ctx> {
-        let sg_expr_data = graph.expression(expression_id).unwrap();
-
-        let expr_graph = sg_expr_data.expression_graph();
-
         // pre-compile all expression graph arguments
-        for (param_id, arg_id) in sg_expr_data.parameter_mapping().items() {
+        for (param_id, arg_id) in parameter_mapping.items() {
             let value = graph
                 .expression_argument(*arg_id)
                 .unwrap()
@@ -935,12 +933,12 @@ impl<'ctx> Jit<'ctx> {
         }
 
         // TODO: add support for multiple results
-        assert_eq!(expr_graph.results().len(), 1);
-        let output_id = expr_graph.results()[0].id();
+        assert_eq!(expression_graph.results().len(), 1);
+        let output_id = expression_graph.results()[0].id();
 
-        let output_data = expr_graph.result(output_id).unwrap();
+        let output_data = expression_graph.result(output_id).unwrap();
         let final_value = match output_data.target() {
-            Some(target) => self.visit_target(target, expr_graph),
+            Some(target) => self.visit_target(target, expression_graph),
             None => self
                 .types
                 .f32_type

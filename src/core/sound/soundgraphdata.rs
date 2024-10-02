@@ -9,6 +9,7 @@ use crate::core::{
 };
 
 use super::{
+    expression::{ProcessorExpression, ProcessorExpressionId},
     expressionargument::{
         SoundExpressionArgument, SoundExpressionArgumentId, SoundExpressionArgumentOwner,
     },
@@ -139,6 +140,43 @@ impl SoundProcessorData {
 
     pub(crate) fn expression_arguments(&self) -> &[SoundExpressionArgumentId] {
         &self.arguments
+    }
+
+    pub(crate) fn foreach_expression<F: FnMut(&ProcessorExpression)>(&self, f: F) {
+        self.processor
+            .as_ref()
+            .unwrap()
+            .visit_expressions(Box::new(f));
+    }
+
+    pub(crate) fn with_expression<F: FnMut(&ProcessorExpression)>(
+        &self,
+        id: ProcessorExpressionId,
+        mut f: F,
+    ) {
+        self.processor
+            .as_ref()
+            .unwrap()
+            .visit_expressions(Box::new(|expr| {
+                if expr.id() == id {
+                    f(expr);
+                }
+            }));
+    }
+
+    pub(crate) fn with_expression_mut<F: FnMut(&mut ProcessorExpression)>(
+        &self,
+        id: ProcessorExpressionId,
+        mut f: F,
+    ) {
+        self.processor
+            .as_ref()
+            .unwrap()
+            .visit_expressions_mut(Box::new(|expr| {
+                if expr.id() == id {
+                    f(expr);
+                }
+            }));
     }
 
     pub(super) fn arguments(&self) -> &Vec<SoundExpressionArgumentId> {

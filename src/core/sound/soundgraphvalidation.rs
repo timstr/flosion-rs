@@ -1,6 +1,9 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
+use crate::core::sound::expressionargument::SoundExpressionArgumentOrigin;
+
 use super::{
+    expression::{ProcessorExpression, ProcessorExpressionLocation},
     expressionargument::{SoundExpressionArgumentId, SoundExpressionArgumentOwner},
     path::SoundPath,
     sounderror::SoundError,
@@ -389,13 +392,39 @@ fn processor_depends_on_processor(
 
 pub(super) fn find_invalid_expression_arguments(
     graph: &SoundGraph,
-) -> Vec<(SoundExpressionArgumentId, SoundProcessorId)> {
-    todo!()
+) -> Vec<(SoundExpressionArgumentId, ProcessorExpressionLocation)> {
+    let mut bad_connections: Vec<(SoundExpressionArgumentId, ProcessorExpressionLocation)> =
+        Vec::new();
+
+    for proc_data in graph.sound_processors().values() {
+        proc_data.instance().visit_expressions(Box::new(|expr| {
+            for target in expr.mapping().items().values() {
+                let target_owner = graph.expression_argument(*target).unwrap().owner();
+                let depends = match target_owner {
+                    SoundExpressionArgumentOwner::SoundProcessor(spid) => {
+                        processor_depends_on_processor(spid, proc_data.id(), graph)
+                    }
+                    SoundExpressionArgumentOwner::SoundInput(siid) => {
+                        input_depends_on_processor(siid, proc_data.id(), graph)
+                    }
+                };
+                if !depends {
+                    bad_connections.push((
+                        *target,
+                        ProcessorExpressionLocation::new(proc_data.id(), expr.id()),
+                    ));
+                }
+            }
+        }));
+    }
+
+    return bad_connections;
 }
 
+// TODO: move to soundgraphproperties?
 pub(crate) fn available_sound_expression_arguments(
     graph: &SoundGraph,
-) -> HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>> {
+) -> HashMap<ProcessorExpressionLocation, HashSet<SoundExpressionArgumentId>> {
     let mut available_arguments_by_processor: HashMap<
         SoundProcessorId,
         HashSet<SoundExpressionArgumentId>,
@@ -489,5 +518,52 @@ pub(crate) fn available_sound_expression_arguments(
         available_arguments_by_processor.insert(next_proc_id, available_arguments);
     }
 
-    available_arguments_by_processor
+    let mut available_arguments_by_expression = HashMap::new();
+
+    // Each expression's available arguments are those available from the processor minus
+    // any out-of-scope locals
+    for proc_data in graph.sound_processors().values() {
+        proc_data
+            .instance()
+            .visit_expressions(Box::new(|expr: &ProcessorExpression| {
+                let mut available_arguments = available_arguments_by_processor
+                    .get(&proc_data.id())
+                    .unwrap()
+                    .clone();
+                let processor_arguments = graph
+                    .sound_processor(proc_data.id())
+                    .unwrap()
+                    .expression_arguments();
+
+                for nsid in processor_arguments {
+                    debug_assert!(available_arguments.contains(nsid));
+                    let ns_data = graph.expression_argument(*nsid).unwrap();
+                    match ns_data.instance().origin() {
+                        SoundExpressionArgumentOrigin::ProcessorState(spid) => {
+                            debug_assert_eq!(spid, proc_data.id());
+                            if !expr.scope().processor_state_available() {
+                                available_arguments.remove(nsid);
+                            }
+                        }
+                        SoundExpressionArgumentOrigin::InputState(_) => {
+                            panic!(
+                            "Processor expression argument can't have a sound input as its origin"
+                        );
+                        }
+                        SoundExpressionArgumentOrigin::Local(spid) => {
+                            debug_assert_eq!(spid, proc_data.id());
+                            if !expr.scope().available_local_arguments().contains(nsid) {
+                                available_arguments.remove(nsid);
+                            }
+                        }
+                    }
+                }
+
+                let location = ProcessorExpressionLocation::new(proc_data.id(), expr.id());
+
+                available_arguments_by_expression.insert(location, available_arguments);
+            }));
+    }
+
+    available_arguments_by_expression
 }

@@ -1,9 +1,12 @@
 use std::rc::Rc;
 
-use crate::core::jit::wrappers::{ArrayReadFunc, ScalarReadFunc};
+use crate::core::{
+    jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
+    uniqueid::IdGenerator,
+};
 
 use super::{
-    expression::SoundExpressionHandle,
+    expression::{ProcessorExpression, ProcessorExpressionId},
     expressionargument::{
         ArrayInputExpressionArgument, ArrayProcessorExpressionArgument,
         ProcessorLocalArrayExpressionArgument, ScalarInputExpressionArgument,
@@ -26,6 +29,11 @@ use super::{
 /// processor's id and thus be juggling even more ids at once.
 pub struct SoundProcessorTools<'a> {
     processor_id: SoundProcessorId,
+
+    // TODO: borrow this from the graph
+    expression_idgen: IdGenerator<ProcessorExpressionId>,
+
+    // TODO: remove
     graph: &'a mut SoundGraph,
 }
 
@@ -36,6 +44,7 @@ impl<'a> SoundProcessorTools<'a> {
     pub(crate) fn new(id: SoundProcessorId, graph: &'a mut SoundGraph) -> SoundProcessorTools<'a> {
         SoundProcessorTools {
             processor_id: id,
+            expression_idgen: IdGenerator::new(),
             graph,
         }
     }
@@ -141,8 +150,8 @@ impl<'a> SoundProcessorTools<'a> {
         &mut self,
         default_value: f32,
         scope: SoundExpressionScope,
-    ) -> SoundExpressionHandle {
-        SoundExpressionHandle::new(scope, default_value)
+    ) -> ProcessorExpression {
+        ProcessorExpression::new(self.expression_idgen.next_id(), scope, default_value)
     }
 
     /// Access the current sound graph graph

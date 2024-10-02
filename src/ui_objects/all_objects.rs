@@ -14,11 +14,11 @@ use super::{
     audioclip_ui::AudioClipUi,
     // definitions_ui::DefinitionsUi,
     // ensemble_ui::EnsembleUi,
-    // input_ui::InputUi,
+    input_ui::InputUi,
     // keyboard_ui::KeyboardUi,
     // mixer_ui::MixerUi,
     // oscilloscope_ui::OscilloscopeUi,
-    // output_ui::OutputUi,
+    output_ui::OutputUi,
     pure_function_uis::{
         AbsUi, AddUi, CeilUi, ConstantUi, CopysignUi, CosUi, CosineWaveUi, DivideUi, Exp10Ui,
         Exp2Ui, ExpUi, FloorUi, FractUi, LerpUi, Log10Ui, Log2Ui, LogUi, MultiplyUi, NegateUi,
@@ -91,7 +91,8 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     let mut helper = SoundObjectRegistrationHelper::new(&mut object_factory, &mut ui_factory);
 
     // Static sound processors
-    // helper.register::<OutputUi>();
+    helper.register::<OutputUi>();
+    helper.register::<InputUi>();
     // helper.register::<KeyboardUi>();
     // helper.register::<RecorderUi>();
     // helper.register::<OscilloscopeUi>();
@@ -101,7 +102,6 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     helper.register::<AudioClipUi>();
     // helper.register::<DefinitionsUi>();
     // helper.register::<EnsembleUi>();
-    // helper.register::<InputUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     // helper.register::<MixerUi>();
     // helper.register::<ReadWriteWaveformUi>();

@@ -3,7 +3,11 @@ use eframe::egui;
 use crate::{
     core::{
         audiofileio::load_audio_file,
-        sound::{expression::SoundExpressionId, soundgraph::SoundGraph},
+        sound::{
+            expression::{ProcessorExpression, ProcessorExpressionLocation},
+            soundgraph::SoundGraph,
+            soundprocessor::SoundProcessorId,
+        },
     },
     objects::audioclip::AudioClip,
     ui_core::arguments::ParsedArguments,
@@ -153,36 +157,43 @@ impl SoundGraphUiState {
 
     pub(crate) fn show_expression_graph_ui(
         &mut self,
-        expression_id: SoundExpressionId,
-        sound_graph: &mut SoundGraph,
+        processor_id: SoundProcessorId,
+        expr: &mut ProcessorExpression,
+        sound_graph: &SoundGraph,
         ctx: &SoundGraphUiContext,
         plot_config: &PlotConfig,
         ui: &mut egui::Ui,
     ) {
+        let location = ProcessorExpressionLocation::new(processor_id, expr.id());
+
+        let (mapping, expr_graph) = expr.parts_mut();
+
         let outer_ctx = OuterProcessorExpressionContext::new(
-            expression_id,
+            location,
+            mapping,
             &self.names,
             *ctx.time_axis(),
             ctx.properties()
                 .available_arguments()
-                .get(&expression_id)
+                .get(&location)
                 .unwrap(),
         );
         let inner_ctx =
             ExpressionGraphUiContext::new(ctx.factories().expression_uis(), ctx.jit_cache());
 
-        let expr_ui = SoundExpressionUi::new(expression_id);
+        let expr_ui = SoundExpressionUi::new();
 
-        let (expr_ui_state, expr_ui_layout) = self.expression_uis.get_mut(expression_id).unwrap();
+        let (expr_ui_state, expr_ui_layout) = self.expression_uis.get_mut(location).unwrap();
 
         expr_ui.show(
             ui,
             expr_ui_state,
             &inner_ctx,
             expr_ui_layout,
-            sound_graph,
+            expr_graph,
             &outer_ctx.into(),
             plot_config,
+            sound_graph,
         );
     }
 }

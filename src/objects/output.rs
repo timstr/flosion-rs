@@ -12,9 +12,12 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
+            expression::ProcessorExpression,
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{StateAndTiming, StaticSoundProcessor},
+            soundprocessor::{
+                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+            },
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -65,7 +68,7 @@ impl State for OutputState {
     }
 }
 
-impl StaticSoundProcessor for Output {
+impl WhateverSoundProcessor for Output {
     type SoundInputType = SingleInput;
     type Expressions<'ctx> = ();
     type StateType = OutputState;
@@ -171,12 +174,19 @@ impl StaticSoundProcessor for Output {
         })
     }
 
+    fn is_static(&self) -> bool {
+        true
+    }
+
     fn get_sound_input(&self) -> &SingleInput {
         &self.input
     }
 
+    fn visit_expressions<'a>(&self, f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
+
     fn compile_expressions<'a, 'ctx>(
         &self,
+        _processor_id: SoundProcessorId,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
@@ -194,7 +204,7 @@ impl StaticSoundProcessor for Output {
         _expressions: &mut (),
         _dst: &mut SoundChunk,
         ctx: Context,
-    ) {
+    ) -> StreamStatus {
         if state
             .shared_data
             .pending_startover
@@ -211,6 +221,7 @@ impl StaticSoundProcessor for Output {
                 TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
             }
         }
+        StreamStatus::Playing
     }
 }
 

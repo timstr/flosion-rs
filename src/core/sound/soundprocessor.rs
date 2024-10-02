@@ -24,6 +24,7 @@ use crate::{
 
 use super::{
     context::Context,
+    expression::ProcessorExpression,
     expressionargument::SoundExpressionArgumentId,
     soundgraph::SoundGraph,
     soundgraphid::SoundObjectId,
@@ -47,6 +48,9 @@ pub trait WhateverSoundProcessor: Sized + WithObjectType {
 
     type SoundInputType: SoundProcessorInput;
 
+    // TODO: remove this, compile expressions automatically using
+    // generic visitor method below, store compiled expressions in
+    // a simple key/value container or array
     type Expressions<'ctx>: CompiledExpressionCollection<'ctx>;
 
     fn new(tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()>;
@@ -57,8 +61,17 @@ pub trait WhateverSoundProcessor: Sized + WithObjectType {
 
     fn make_state(&self) -> Self::StateType;
 
+    // TODO: consider generalizing this to take some kind of trait
+    // object which can visit expressions, sound inputs, processor
+    // arguments, and sound input arguments. This would replace
+    // the need for get_sound_input and would be a big step towards
+    // relaxing the many weird restrictions on this interface.
+    fn visit_expressions<'a>(&self, f: Box<dyn 'a + FnMut(&ProcessorExpression)>);
+
+    // TODO:
     fn compile_expressions<'a, 'ctx>(
         &self,
+        processor_id: SoundProcessorId,
         compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx>;
 
@@ -154,12 +167,17 @@ pub(crate) trait SoundProcessor {
 
     fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle;
 
+    fn visit_expressions<'a>(&self, f: Box<dyn 'a + FnMut(&ProcessorExpression)>);
+
+    fn visit_expressions_mut<'a>(&self, f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>);
+
     fn compile<'a, 'ctx>(
         &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>;
 }
 
+// TODO: remove this and merge with what is currently known as WhateverSoundProcessor.
 impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProcessorWithId<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
@@ -171,6 +189,14 @@ impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProces
 
     fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle {
         AnySoundObjectHandle::new(self)
+    }
+
+    fn visit_expressions<'a>(&self, f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {
+        T::visit_expressions(&self.processor.borrow(), f);
+    }
+
+    fn visit_expressions_mut<'a>(&self, f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {
+        todo!()
     }
 
     fn compile<'a, 'ctx>(
@@ -197,7 +223,6 @@ pub struct ProcessorTiming {
     elapsed_chunks: usize,
 }
 
-// TODO: somehow make this available for static processor also?
 impl ProcessorTiming {
     pub(crate) fn new() -> ProcessorTiming {
         ProcessorTiming { elapsed_chunks: 0 }

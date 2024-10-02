@@ -1,12 +1,9 @@
 use std::slice;
 
 use crate::core::{
-    engine::{
-        garbage::{Garbage, GarbageChute},
-        soundgraphcompiler::SoundGraphCompiler,
-    },
+    engine::garbage::{Garbage, GarbageChute},
     jit::compiledexpression::{CompiledExpressionFunction, Discretization},
-    sound::{context::Context, expression::SoundExpressionId},
+    sound::{context::Context, expression::ProcessorExpressionId},
 };
 
 #[cfg(debug_assertions)]
@@ -16,7 +13,7 @@ use crate::core::sound::soundgraphdata::SoundExpressionScope;
 /// execute it within a StateGraph instance on the audio thread.
 pub struct CompiledExpression<'ctx> {
     /// The expression which the node corresponds to
-    id: SoundExpressionId,
+    id: ProcessorExpressionId,
 
     /// The JIT-compiled function to be executed
     function: CompiledExpressionFunction<'ctx>,
@@ -40,11 +37,10 @@ impl<'ctx> CompiledExpression<'ctx> {
     #[cfg(debug_assertions)]
     /// Creates a new compiled expression
     pub(crate) fn new<'a>(
-        id: SoundExpressionId,
-        compiler: &SoundGraphCompiler<'a, 'ctx>,
+        id: ProcessorExpressionId,
+        function: CompiledExpressionFunction<'ctx>,
         scope: SoundExpressionScope,
     ) -> CompiledExpression<'ctx> {
-        let function = compiler.get_compiled_expression(id);
         CompiledExpression {
             id,
             function,
@@ -53,7 +49,7 @@ impl<'ctx> CompiledExpression<'ctx> {
     }
 
     /// Retrieve the id of the expression
-    pub(crate) fn id(&self) -> SoundExpressionId {
+    pub(crate) fn id(&self) -> ProcessorExpressionId {
         self.id
     }
 
@@ -161,14 +157,14 @@ pub trait CompiledExpressionCollection<'ctx>: Send {
     /// Add an expression to the collection. This is only required for collection
     /// types that want to allow adding expressions after the parent sound
     /// processor has been constructed.
-    fn add(&self, _input_id: SoundExpressionId) {
+    fn add(&self, _input_id: ProcessorExpressionId) {
         panic!("This ExpressionCollection type does not support adding expressions");
     }
 
     /// Remove an expression from the collection. This is only required for collection
     /// types that want to allow removing expressions after the parent sound
     /// processor has been constructed.
-    fn remove(&self, _input_id: SoundExpressionId) {
+    fn remove(&self, _input_id: ProcessorExpressionId) {
         panic!("This ExpressionCollection type does not support removing expressions");
     }
 }

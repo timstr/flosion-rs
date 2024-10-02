@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::sound::{
-        expression::SoundExpressionId, soundgraph::SoundGraph, soundinput::SoundInputId,
+        expression::ProcessorExpressionLocation, soundgraph::SoundGraph, soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
     ui_core::{
@@ -120,8 +120,8 @@ pub(crate) enum KeyboardNavInteraction {
     AroundSoundProcessor(SoundProcessorId),
     AroundProcessorPlug(SoundProcessorId),
     AroundInputSocket(SoundInputId),
-    AroundExpression(SoundExpressionId),
-    InsideExpression(SoundExpressionId, LexicalLayoutFocus),
+    AroundExpression(ProcessorExpressionLocation),
+    InsideExpression(ProcessorExpressionLocation, LexicalLayoutFocus),
 }
 
 impl KeyboardNavInteraction {
@@ -146,12 +146,12 @@ impl KeyboardNavInteraction {
                 let proc_data = graph.sound_processor(*spid).unwrap();
                 let last_input = proc_data.sound_inputs().last();
 
-                let first_expr: Option<SoundExpressionId> = positions
+                let first_expr: Option<ProcessorExpressionLocation> = positions
                     .expressions()
                     .values()
                     .iter()
                     .cloned()
-                    .find(|eid| graph.expression(*eid).unwrap().owner() == *spid);
+                    .find(|expr_loc| expr_loc.processor() == proc_data.id());
 
                 allowed_dirs.go_up = last_input.is_some();
                 allowed_dirs.go_down = true;
@@ -244,14 +244,12 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundExpression(eid) => {
                 rect = positions.expressions().position(eid).unwrap();
 
-                let owner = graph.expression(*eid).unwrap().owner();
-
-                let other_exprs: Vec<SoundExpressionId> = positions
+                let other_exprs: Vec<ProcessorExpressionLocation> = positions
                     .expressions()
                     .values()
                     .iter()
                     .cloned()
-                    .filter(|eid| graph.expression(*eid).unwrap().owner() == owner)
+                    .filter(|other_eid| other_eid.processor() == eid.processor())
                     .collect();
                 let index = other_exprs.iter().position(|id| *id == *eid).unwrap();
 
@@ -274,7 +272,7 @@ impl KeyboardNavInteraction {
                     *self =
                         KeyboardNavInteraction::InsideExpression(*eid, LexicalLayoutFocus::new())
                 } else if requested_dirs.go_out {
-                    *self = KeyboardNavInteraction::AroundSoundProcessor(owner);
+                    *self = KeyboardNavInteraction::AroundSoundProcessor(eid.processor());
                 }
             }
             KeyboardNavInteraction::InsideExpression(eid, ll_focus) => {
@@ -288,8 +286,6 @@ impl KeyboardNavInteraction {
                 if requested_dirs.go_out {
                     *self = KeyboardNavInteraction::AroundExpression(*eid);
                 } else {
-                    let owner = graph.expression(*eid).unwrap().owner();
-
                     let (expr_ui_state, ll) = expression_uis.get_mut(*eid).unwrap();
 
                     // TODO: why does this sometimes not find a node?
@@ -302,26 +298,34 @@ impl KeyboardNavInteraction {
                         );
                     }
 
-                    let time_axis = layout.find_group(owner).unwrap().time_axis();
+                    let time_axis = layout.find_group(eid.processor()).unwrap().time_axis();
 
                     let available_arguments = properties.available_arguments().get(eid).unwrap();
 
-                    let outer_context = OuterProcessorExpressionContext::new(
-                        *eid,
-                        names,
-                        time_axis,
-                        &available_arguments,
-                    );
+                    graph
+                        .sound_processor(eid.processor())
+                        .unwrap()
+                        .with_expression_mut(eid.expression(), |expr| {
+                            let (mapping, expr_graph) = expr.parts_mut();
 
-                    ll.handle_keypress(
-                        ui,
-                        ll_focus,
-                        graph,
-                        factories.expression_objects(),
-                        factories.expression_uis(),
-                        expr_ui_state.object_states_mut(),
-                        &outer_context.into(),
-                    );
+                            let outer_context = OuterProcessorExpressionContext::new(
+                                *eid,
+                                mapping,
+                                names,
+                                time_axis,
+                                &available_arguments,
+                            );
+
+                            ll.handle_keypress(
+                                ui,
+                                ll_focus,
+                                expr_graph,
+                                factories.expression_objects(),
+                                factories.expression_uis(),
+                                expr_ui_state.object_states_mut(),
+                                &mut outer_context.into(),
+                            );
+                        });
                 }
             }
         };
@@ -339,8 +343,9 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => graph.contains(spid),
             KeyboardNavInteraction::AroundProcessorPlug(spid) => graph.contains(spid),
             KeyboardNavInteraction::AroundInputSocket(siid) => graph.contains(siid),
-            KeyboardNavInteraction::AroundExpression(eid) => graph.contains(eid),
-            KeyboardNavInteraction::InsideExpression(eid, _) => graph.contains(eid),
+            // TODO: check that expression also exists
+            KeyboardNavInteraction::AroundExpression(eid) => graph.contains(eid.processor()),
+            KeyboardNavInteraction::InsideExpression(eid, _) => graph.contains(eid.processor()),
         }
     }
 }

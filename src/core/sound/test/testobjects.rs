@@ -4,7 +4,10 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
-            soundprocessor::{StateAndTiming, StreamStatus, WhateverSoundProcessor},
+            expression::ProcessorExpression,
+            soundprocessor::{
+                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+            },
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -30,8 +33,11 @@ impl WhateverSoundProcessor for TestStaticSoundProcessor {
         &()
     }
 
+    fn visit_expressions<'a>(&self, _f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
+
     fn compile_expressions<'a, 'ctx>(
         &self,
+        _processor_id: SoundProcessorId,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
@@ -81,8 +87,11 @@ impl WhateverSoundProcessor for TestDynamicSoundProcessor {
         &()
     }
 
+    fn visit_expressions<'a>(&self, _f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
+
     fn compile_expressions<'a, 'ctx>(
         &self,
+        _processor_id: SoundProcessorId,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()

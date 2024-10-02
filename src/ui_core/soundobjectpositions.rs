@@ -1,7 +1,8 @@
 use eframe::egui;
 
 use crate::core::sound::{
-    expression::SoundExpressionId, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    expression::ProcessorExpressionLocation, soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 use super::{
@@ -108,7 +109,7 @@ pub(crate) struct SoundObjectPositions {
     drag_drop_subjects: PositionedItems<DragDropSubject>,
     socket_tabs: PositionedItems<SoundInputId>,
     plug_tabs: PositionedItems<SoundProcessorId>,
-    expressions: PositionedItems<SoundExpressionId>,
+    expressions: PositionedItems<ProcessorExpressionLocation>,
 }
 
 impl SoundObjectPositions {
@@ -135,7 +136,7 @@ impl SoundObjectPositions {
         &self.drag_drop_subjects
     }
 
-    pub(crate) fn expressions(&self) -> &PositionedItems<SoundExpressionId> {
+    pub(crate) fn expressions(&self) -> &PositionedItems<ProcessorExpressionLocation> {
         &self.expressions
     }
 
@@ -165,7 +166,11 @@ impl SoundObjectPositions {
         self.socket_jumpers.push(input_id, rect);
     }
 
-    pub(crate) fn record_expression(&mut self, expr_id: SoundExpressionId, rect: egui::Rect) {
+    pub(crate) fn record_expression(
+        &mut self,
+        expr_id: ProcessorExpressionLocation,
+        rect: egui::Rect,
+    ) {
         self.expressions.push(expr_id, rect);
     }
 

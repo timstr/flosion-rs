@@ -24,24 +24,25 @@ impl SoundObjectUi for ADSRUi {
         _state: &mut (),
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&adsr, "ADSR")
-            .add_sound_input(adsr.get().input.id(), "input", sound_graph)
-            .add_expression(
-                adsr.get().attack_time.id(),
-                "attack_time",
-                PlotConfig::new(),
-            )
-            .add_expression(adsr.get().decay_time.id(), "decay_time", PlotConfig::new())
-            .add_expression(
-                adsr.get().sustain_level.id(),
-                "sustain_level",
-                PlotConfig::new(),
-            )
-            .add_expression(
-                adsr.get().release_time.id(),
-                "release_time",
-                PlotConfig::new(),
-            )
+        let id = adsr.id();
+
+        let mut adsr = adsr.get_mut();
+        let adsr: &mut ADSR = &mut adsr;
+
+        let ADSR {
+            input,
+            attack_time,
+            decay_time,
+            sustain_level,
+            release_time,
+        } = adsr;
+
+        ProcessorUi::new(id, "ADSR")
+            .add_sound_input(input.id(), "input", sound_graph)
+            .add_expression(attack_time, "attack_time", PlotConfig::new())
+            .add_expression(decay_time, "decay_time", PlotConfig::new())
+            .add_expression(sustain_level, "sustain_level", PlotConfig::new())
+            .add_expression(release_time, "release_time", PlotConfig::new())
             .show(ui, ctx, graph_ui_state, sound_graph);
     }
 

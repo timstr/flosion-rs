@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::{
-        sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+        sound::{soundgraph::SoundGraph, soundprocessor::WhateverSoundProcessorHandle},
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
     objects::input::Input,
@@ -41,11 +41,11 @@ impl InputUi {
 }
 
 impl SoundObjectUi for InputUi {
-    type HandleType = StaticSoundProcessorHandle<Input>;
+    type HandleType = WhateverSoundProcessorHandle<Input>;
     type StateType = InputUiState;
     fn ui(
         &self,
-        input: StaticSoundProcessorHandle<Input>,
+        input: WhateverSoundProcessorHandle<Input>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
@@ -56,7 +56,7 @@ impl SoundObjectUi for InputUi {
 
         // TODO: controls for choosing input device?
         // Would require changes to input
-        ProcessorUi::new(&input, "Input").show_with(
+        ProcessorUi::new(input.id(), "Input").show_with(
             ui,
             ctx,
             graph_ui_state,

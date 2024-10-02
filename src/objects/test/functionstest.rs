@@ -15,7 +15,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
-            expression::SoundExpressionHandle,
+            expression::ProcessorExpression,
             expressionargument::SoundExpressionArgumentHandle,
             soundgraph::SoundGraph,
             soundgraphdata::SoundExpressionScope,
@@ -36,7 +36,7 @@ const TEST_ARRAY_SIZE: usize = 1024;
 const MAX_NUM_INPUTS: usize = 3;
 
 struct TestSoundProcessor {
-    expression: SoundExpressionHandle,
+    expression: ProcessorExpression,
     input_values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
     argument_0: SoundExpressionArgumentHandle,
     argument_1: SoundExpressionArgumentHandle,
@@ -107,12 +107,17 @@ impl WhateverSoundProcessor for TestSoundProcessor {
         &()
     }
 
+    fn visit_expressions<'a>(&self, mut f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {
+        f(&self.expression);
+    }
+
     fn compile_expressions<'ctx>(
         &self,
-        context: &SoundGraphCompiler<'_, 'ctx>,
+        processor_id: SoundProcessorId,
+        compiler: &SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         TestExpressions {
-            input: self.expression.compile(context),
+            input: self.expression.compile(processor_id, compiler),
         }
     }
 
@@ -173,13 +178,17 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
         .unwrap();
 
     {
-        let expression_data = graph.expression_mut(proc.get().expression.id()).unwrap();
+        let mut proc = proc.get_mut();
 
-        let (expr_graph, mapping) = expression_data.expression_graph_and_mapping_mut();
+        let arg0_id = proc.argument_0.id();
+        let arg1_id = proc.argument_1.id();
+        let arg2_id = proc.argument_2.id();
 
-        let giid0 = mapping.add_argument(proc.get().argument_0.id(), expr_graph);
-        let giid1 = mapping.add_argument(proc.get().argument_1.id(), expr_graph);
-        let giid2 = mapping.add_argument(proc.get().argument_2.id(), expr_graph);
+        let giid0 = proc.expression.add_argument(arg0_id);
+        let giid1 = proc.expression.add_argument(arg1_id);
+        let giid2 = proc.expression.add_argument(arg2_id);
+
+        let expr_graph = proc.expression.graph_mut();
 
         let ns_handle = expr_graph
             .add_pure_expression_node::<T>(&ParsedArguments::new_empty())
@@ -218,7 +227,14 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let jit = Jit::new(&inkwell_context);
 
-    let compiled_input = jit.compile_expression(proc.get().expression.id(), &graph);
+    let compiled_input;
+
+    {
+        let proc = proc.get();
+
+        compiled_input =
+            jit.compile_expression(proc.expression.graph(), proc.expression.mapping(), &graph);
+    }
 
     let mut compiled_function = compiled_input.make_function();
 

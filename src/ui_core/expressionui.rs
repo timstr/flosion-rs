@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::core::sound::{expression::SoundExpressionId, soundgraph::SoundGraph};
+use crate::core::{expression::expressiongraph::ExpressionGraph, sound::soundgraph::SoundGraph};
 
 use super::{
     expressiongraphuicontext::{ExpressionGraphUiContext, OuterExpressionGraphUiContext},
@@ -9,13 +9,11 @@ use super::{
     lexicallayout::lexicallayout::LexicalLayout,
 };
 
-pub(super) struct SoundExpressionUi {
-    _expression_id: SoundExpressionId,
-}
+pub(super) struct SoundExpressionUi {}
 
 impl SoundExpressionUi {
-    pub(super) fn new(id: SoundExpressionId) -> SoundExpressionUi {
-        SoundExpressionUi { _expression_id: id }
+    pub(super) fn new() -> SoundExpressionUi {
+        SoundExpressionUi {}
     }
 
     pub(super) fn show(
@@ -24,9 +22,10 @@ impl SoundExpressionUi {
         ui_state: &mut ExpressionGraphUiState,
         ctx: &ExpressionGraphUiContext,
         layout: &mut LexicalLayout,
-        sound_graph: &mut SoundGraph,
+        expr_graph: &mut ExpressionGraph,
         outer_context: &OuterExpressionGraphUiContext,
         plot_config: &PlotConfig,
+        sound_graph: &SoundGraph,
     ) {
         // TODO: expandable/collapsible popup window with full layout
         let frame = egui::Frame::default()
@@ -37,15 +36,16 @@ impl SoundExpressionUi {
             .show(ui, |ui| {
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
-                    layout.show(ui, ui_state, sound_graph, ctx, outer_context);
                     match outer_context {
                         OuterExpressionGraphUiContext::ProcessorExpression(proc_expr_ctx) => {
+                            layout.show(ui, ui_state, expr_graph, ctx, outer_context);
+
                             ExpressionPlot::new().show(
                                 ui,
                                 ctx.jit_cache(),
-                                sound_graph
-                                    .expression(proc_expr_ctx.expression_id())
-                                    .unwrap(),
+                                proc_expr_ctx.location(),
+                                expr_graph,
+                                proc_expr_ctx.mapping(),
                                 *proc_expr_ctx.time_axis(),
                                 plot_config,
                                 proc_expr_ctx.sound_graph_names(),

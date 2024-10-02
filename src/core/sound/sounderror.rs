@@ -1,8 +1,9 @@
 use crate::core::sound::expressionargument::SoundExpressionArgumentOwner;
 
 use super::{
-    expressionargument::SoundExpressionArgumentId, path::SoundPath, soundgraph::SoundGraph,
-    soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    expression::ProcessorExpressionLocation, expressionargument::SoundExpressionArgumentId,
+    path::SoundPath, soundgraph::SoundGraph, soundinput::SoundInputId,
+    soundprocessor::SoundProcessorId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -31,7 +32,7 @@ pub enum SoundError {
     BadArgumentInit(SoundExpressionArgumentId),
     BadArgumentCleanup(SoundExpressionArgumentId),
     StateNotInScope {
-        bad_dependencies: Vec<(SoundExpressionArgumentId, SoundProcessorId)>,
+        bad_dependencies: Vec<(SoundExpressionArgumentId, ProcessorExpressionLocation)>,
     },
 }
 

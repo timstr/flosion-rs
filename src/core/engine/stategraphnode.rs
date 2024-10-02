@@ -45,7 +45,7 @@ impl<'ctx, T: WhateverSoundProcessor> CompiledStaticProcessor<'ctx, T> {
         let start = Instant::now();
         let state = StateAndTiming::new(processor.make_state());
         let sound_input = processor.get_sound_input().make_node(compiler);
-        let expressions = processor.compile_expressions(compiler);
+        let expressions = processor.compile_expressions(processor_id, compiler);
         let finish = Instant::now();
         let time_to_compile: Duration = finish - start;
         let time_to_compile_ms = time_to_compile.as_millis();
@@ -66,6 +66,7 @@ impl<'ctx, T: WhateverSoundProcessor> CompiledStaticProcessor<'ctx, T> {
 }
 
 /// A compiled dynamic processor for use in the state graph.
+// TODO: this identical to CompiledStaticProcessor. Merge.
 pub struct CompiledDynamicProcessor<'ctx, T: WhateverSoundProcessor> {
     id: SoundProcessorId,
     state: StateAndTiming<T::StateType>,
@@ -83,7 +84,7 @@ impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledDynamicProcessor<'ctx, T
         let start = Instant::now();
         let state = StateAndTiming::new(processor.make_state());
         let sound_input = processor.get_sound_input().make_node(compiler);
-        let expressions = processor.compile_expressions(compiler);
+        let expressions = processor.compile_expressions(processor_id, compiler);
         let finish = Instant::now();
         let time_to_compile: Duration = finish - start;
         let time_to_compile_ms = time_to_compile.as_millis();

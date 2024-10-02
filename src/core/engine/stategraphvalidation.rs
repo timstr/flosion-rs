@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::sound::{
-    expression::SoundExpressionId,
+    expression::{ProcessorExpression, ProcessorExpressionId},
     soundgraph::SoundGraph,
     soundgraphdata::{SoundInputBranchId, SoundProcessorData},
     soundinput::SoundInputId,
@@ -199,9 +199,15 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         proc: &dyn CompiledSoundProcessor,
         proc_data: &SoundProcessorData,
     ) -> bool {
-        let mut remaining_inputs: HashSet<SoundExpressionId> =
-            proc_data.expressions().iter().cloned().collect();
-        let mut unexpected_inputs: HashSet<SoundExpressionId> = HashSet::new();
+        let mut remaining_inputs: HashSet<ProcessorExpressionId> = HashSet::new();
+
+        proc_data
+            .instance()
+            .visit_expressions(Box::new(|expr: &ProcessorExpression| {
+                remaining_inputs.insert(expr.id());
+            }));
+
+        let mut unexpected_inputs: HashSet<ProcessorExpressionId> = HashSet::new();
 
         proc.expressions().visit(&mut |expr: &CompiledExpression| {
             if !remaining_inputs.remove(&expr.id()) {

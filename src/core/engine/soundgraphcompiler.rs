@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use crate::core::{
     jit::{cache::JitCache, compiledexpression::CompiledExpressionFunction},
     sound::{
-        expression::SoundExpressionId, soundgraph::SoundGraph, soundinput::SoundInputId,
+        expression::{ProcessorExpression, ProcessorExpressionLocation},
+        soundgraph::SoundGraph,
+        soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -75,9 +77,16 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
     /// it if it's already compiled
     pub(crate) fn get_compiled_expression(
         &self,
-        id: SoundExpressionId,
+        processor_id: SoundProcessorId,
+        expression: &ProcessorExpression,
     ) -> CompiledExpressionFunction<'ctx> {
-        self.jit_cache.get_compiled_expression(id, self.graph)
+        let location = ProcessorExpressionLocation::new(processor_id, expression.id());
+        self.jit_cache.get_compiled_expression(
+            location,
+            expression.graph(),
+            expression.mapping(),
+            self.graph,
+        )
     }
 
     /// Compile a sound input node for execution on the audio thread

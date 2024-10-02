@@ -1,7 +1,7 @@
 pub(crate) use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+    core::sound::{soundgraph::SoundGraph, soundprocessor::WhateverSoundProcessorHandle},
     objects::output::Output,
     ui_core::{
         arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
@@ -14,18 +14,18 @@ use crate::{
 pub struct OutputUi {}
 
 impl SoundObjectUi for OutputUi {
-    type HandleType = StaticSoundProcessorHandle<Output>;
+    type HandleType = WhateverSoundProcessorHandle<Output>;
     type StateType = ();
     fn ui(
         &self,
-        output: StaticSoundProcessorHandle<Output>,
+        output: WhateverSoundProcessorHandle<Output>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         _state: &mut (),
         sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&output, "Output")
+        ProcessorUi::new(output.id(), "Output")
             .add_sound_input(output.get().input.id(), "input", sound_graph)
             .show_with(
                 ui,

@@ -11,12 +11,14 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
-            expression::SoundExpressionHandle,
+            expression::ProcessorExpression,
             expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
             soundgraphdata::SoundExpressionScope,
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{StateAndTiming, StreamStatus, WhateverSoundProcessor},
+            soundprocessor::{
+                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+            },
             soundprocessortools::SoundProcessorTools,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -29,7 +31,7 @@ pub struct Definitions {
 
     // TODO: store these in a vector. Might need to rethink how DefinitionsExpressions works,
     // e.g. does it need to use Vec or can it use something friendlier to the audio thread?
-    pub expression: SoundExpressionHandle,
+    pub expression: ProcessorExpression,
     pub argument: SoundExpressionArgumentHandle,
 }
 
@@ -75,12 +77,17 @@ impl WhateverSoundProcessor for Definitions {
         ()
     }
 
+    fn visit_expressions<'a>(&self, mut f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {
+        f(&self.expression);
+    }
+
     fn compile_expressions<'a, 'ctx>(
         &self,
+        processor_id: SoundProcessorId,
         compile: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         DefinitionsExpressions {
-            input: self.expression.compile(compile),
+            input: self.expression.compile(processor_id, compile),
             argument_id: self.argument.id(),
         }
     }

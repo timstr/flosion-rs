@@ -11,11 +11,13 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
-            expression::SoundExpressionHandle,
+            expression::ProcessorExpression,
             soundgraphdata::SoundExpressionScope,
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{StateAndTiming, StreamStatus, WhateverSoundProcessor},
+            soundprocessor::{
+                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+            },
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -74,10 +76,10 @@ impl State for ADSRState {
 
 pub struct ADSR {
     pub input: SingleInput,
-    pub attack_time: SoundExpressionHandle,
-    pub decay_time: SoundExpressionHandle,
-    pub sustain_level: SoundExpressionHandle,
-    pub release_time: SoundExpressionHandle,
+    pub attack_time: ProcessorExpression,
+    pub decay_time: ProcessorExpression,
+    pub sustain_level: ProcessorExpression,
+    pub release_time: ProcessorExpression,
 }
 
 // out_level : slice at the beginning of which to produce output level
@@ -161,15 +163,23 @@ impl WhateverSoundProcessor for ADSR {
         }
     }
 
+    fn visit_expressions<'a>(&self, mut f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {
+        f(&self.attack_time);
+        f(&self.decay_time);
+        f(&self.sustain_level);
+        f(&self.release_time);
+    }
+
     fn compile_expressions<'a, 'ctx>(
         &self,
+        processor_id: SoundProcessorId,
         compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ADSRExpressions {
-            attack_time: self.attack_time.compile(compiler),
-            decay_time: self.decay_time.compile(compiler),
-            sustain_level: self.sustain_level.compile(compiler),
-            release_time: self.release_time.compile(compiler),
+            attack_time: self.attack_time.compile(processor_id, compiler),
+            decay_time: self.decay_time.compile(processor_id, compiler),
+            sustain_level: self.sustain_level.compile(processor_id, compiler),
+            release_time: self.release_time.compile(processor_id, compiler),
         }
     }
 
@@ -186,8 +196,9 @@ impl WhateverSoundProcessor for ADSR {
             state.phase = Phase::Attack;
             state.prev_level = 0.0;
             state.next_level = 1.0;
+            let ctx = context.push_processor_state(state, LocalArrayList::new());
             state.phase_samples =
-                (expressions.attack_time.eval_scalar(&context) * SAMPLE_FREQUENCY as f32) as usize;
+                (expressions.attack_time.eval_scalar(&ctx) * SAMPLE_FREQUENCY as f32) as usize;
             state.phase_samples_so_far = 0;
         }
 
@@ -210,13 +221,12 @@ impl WhateverSoundProcessor for ADSR {
             if cursor < CHUNK_SIZE {
                 state.phase = Phase::Decay;
                 state.phase_samples_so_far = 0;
-                state.phase_samples = (expressions.decay_time.eval_scalar(&context)
-                    * SAMPLE_FREQUENCY as f32) as usize;
+                let ctx = context.push_processor_state(state, LocalArrayList::new());
+                state.phase_samples =
+                    (expressions.decay_time.eval_scalar(&ctx) * SAMPLE_FREQUENCY as f32) as usize;
                 state.prev_level = 1.0;
-                state.next_level = expressions
-                    .sustain_level
-                    .eval_scalar(&context)
-                    .clamp(0.0, 1.0);
+                let ctx = context.push_processor_state(state, LocalArrayList::new());
+                state.next_level = expressions.sustain_level.eval_scalar(&ctx).clamp(0.0, 1.0);
             }
         }
 
@@ -256,8 +266,9 @@ impl WhateverSoundProcessor for ADSR {
                     cursor = sample_offset;
                 }
                 state.phase = Phase::Release;
-                state.phase_samples = (expressions.release_time.eval_scalar(&context)
-                    * SAMPLE_FREQUENCY as f32) as usize;
+                let ctx = context.push_processor_state(state, LocalArrayList::new());
+                state.phase_samples =
+                    (expressions.release_time.eval_scalar(&ctx) * SAMPLE_FREQUENCY as f32) as usize;
                 state.phase_samples_so_far = 0;
                 state.prev_level = state.next_level;
                 state.next_level = 0.0;

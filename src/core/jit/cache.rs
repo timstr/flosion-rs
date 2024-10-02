@@ -2,7 +2,13 @@ use std::{cell::RefCell, collections::HashMap};
 
 use hashstash::ObjectHash;
 
-use crate::core::sound::{expression::SoundExpressionId, soundgraph::SoundGraph};
+use crate::core::{
+    expression::expressiongraph::ExpressionGraph,
+    sound::{
+        expression::ProcessorExpressionLocation, soundgraph::SoundGraph,
+        soundgraphdata::ExpressionParameterMapping,
+    },
+};
 
 use super::{
     compiledexpression::{CompiledExpressionArtefact, CompiledExpressionFunction},
@@ -21,7 +27,7 @@ struct Entry<'ctx> {
 
 pub(crate) struct JitCache<'ctx> {
     inkwell_context: &'ctx inkwell::context::Context,
-    cache: RefCell<HashMap<(SoundExpressionId, ObjectHash), Entry<'ctx>>>,
+    cache: RefCell<HashMap<(ProcessorExpressionLocation, ObjectHash), Entry<'ctx>>>,
 }
 
 impl<'ctx> JitCache<'ctx> {
@@ -34,16 +40,18 @@ impl<'ctx> JitCache<'ctx> {
 
     pub(crate) fn get_compiled_expression(
         &self,
-        id: SoundExpressionId,
+        location: ProcessorExpressionLocation,
+        expr_graph: &ExpressionGraph,
+        mapping: &ExpressionParameterMapping,
         graph: &SoundGraph,
     ) -> CompiledExpressionFunction<'ctx> {
         let hash = ObjectHash::from_stashable(graph);
         self.cache
             .borrow_mut()
-            .entry((id, hash))
+            .entry((location, hash))
             .or_insert_with(|| {
                 let jit = Jit::new(self.inkwell_context);
-                let artefact = jit.compile_expression(id, graph);
+                let artefact = jit.compile_expression(expr_graph, mapping, graph);
                 Entry { artefact }
             })
             .artefact

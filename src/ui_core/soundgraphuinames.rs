@@ -1,7 +1,7 @@
 use eframe::epaint::ahash::{HashMap, HashMapExt};
 
 use crate::core::sound::{
-    expression::SoundExpressionId,
+    expression::ProcessorExpressionLocation,
     expressionargument::{SoundExpressionArgumentId, SoundExpressionArgumentOwner},
     soundgraph::SoundGraph,
     soundinput::SoundInputId,
@@ -60,7 +60,7 @@ impl SoundProcessorNameData {
 
 pub(crate) struct SoundGraphUiNames {
     arguments: HashMap<SoundExpressionArgumentId, SoundArgumentNameData>,
-    expressions: HashMap<SoundExpressionId, SoundExpressionNameData>,
+    expressions: HashMap<ProcessorExpressionLocation, SoundExpressionNameData>,
     sound_inputs: HashMap<SoundInputId, SoundInputNameData>,
     sound_processors: HashMap<SoundProcessorId, SoundProcessorNameData>,
 }
@@ -76,14 +76,13 @@ impl SoundGraphUiNames {
     }
 
     pub(crate) fn regenerate(&mut self, graph: &SoundGraph) {
-        self.arguments
-            .retain(|k, _v| graph.expression_argument(*k).is_some());
-        self.expressions
-            .retain(|k, _v| graph.expression(*k).is_some());
-        self.sound_inputs
-            .retain(|k, _v| graph.sound_input(*k).is_some());
-        self.sound_processors
-            .retain(|k, _v| graph.sound_processor(*k).is_some());
+        self.arguments.retain(|k, _v| graph.contains(*k));
+        self.expressions.retain(|k, _v| {
+            // TODO: check expression exists also
+            graph.contains(k.processor())
+        });
+        self.sound_inputs.retain(|k, _v| graph.contains(*k));
+        self.sound_processors.retain(|k, _v| graph.contains(*k));
 
         for ns_data in graph.expression_arguments().values() {
             self.arguments
@@ -91,14 +90,6 @@ impl SoundGraphUiNames {
                 .or_insert_with(|| SoundArgumentNameData {
                     name: format!("argument_{}", ns_data.id().value()),
                     owner: ns_data.owner(),
-                });
-        }
-
-        for ni_data in graph.expressions().values() {
-            self.expressions
-                .entry(ni_data.id())
-                .or_insert_with(|| SoundExpressionNameData {
-                    name: format!("expression_{}", ni_data.id().value()),
                 });
         }
 
@@ -122,6 +113,15 @@ impl SoundGraphUiNames {
                         .name()
                         .to_string(),
                 });
+
+            sp_data.foreach_expression(|expr| {
+                let location = ProcessorExpressionLocation::new(sp_data.id(), expr.id());
+                self.expressions
+                    .entry(location)
+                    .or_insert_with(|| SoundExpressionNameData {
+                        name: format!("expression_{}", expr.id().value()),
+                    });
+            });
         }
     }
 
@@ -129,7 +129,10 @@ impl SoundGraphUiNames {
         self.arguments.get(&id)
     }
 
-    pub(crate) fn expression(&self, id: SoundExpressionId) -> Option<&SoundExpressionNameData> {
+    pub(crate) fn expression(
+        &self,
+        id: ProcessorExpressionLocation,
+    ) -> Option<&SoundExpressionNameData> {
         self.expressions.get(&id)
     }
 
@@ -153,7 +156,7 @@ impl SoundGraphUiNames {
         self.sound_processors.get_mut(&id).unwrap().name = name;
     }
 
-    pub(crate) fn record_expression_name(&mut self, id: SoundExpressionId, name: String) {
+    pub(crate) fn record_expression_name(&mut self, id: ProcessorExpressionLocation, name: String) {
         self.expressions.get_mut(&id).unwrap().name = name;
     }
 

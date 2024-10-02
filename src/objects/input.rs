@@ -13,7 +13,10 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::Context,
-            soundprocessor::{StateAndTiming, StaticSoundProcessor},
+            expression::ProcessorExpression,
+            soundprocessor::{
+                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+            },
             soundprocessortools::SoundProcessorTools,
             state::State,
         },
@@ -52,7 +55,7 @@ impl State for InputState {
     }
 }
 
-impl StaticSoundProcessor for Input {
+impl WhateverSoundProcessor for Input {
     type SoundInputType = ();
     type Expressions<'ctx> = ();
     type StateType = InputState;
@@ -121,12 +124,19 @@ impl StaticSoundProcessor for Input {
         })
     }
 
+    fn is_static(&self) -> bool {
+        true
+    }
+
     fn get_sound_input(&self) -> &() {
         &()
     }
 
+    fn visit_expressions<'a>(&self, _f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
+
     fn compile_expressions<'a, 'ctx>(
         &self,
+        _processor_id: SoundProcessorId,
         _compiler: &SoundGraphCompiler<'a, 'ctx>,
     ) -> Self::Expressions<'ctx> {
         ()
@@ -144,16 +154,17 @@ impl StaticSoundProcessor for Input {
         _expressions: &mut (),
         dst: &mut SoundChunk,
         _context: Context,
-    ) {
+    ) -> StreamStatus {
         let chunk = match state.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,
             ReadResult::Dropout(ch) => {
                 println!("WARNING: Input dropout");
                 ch
             }
-            ReadResult::Empty => return,
+            ReadResult::Empty => return StreamStatus::Playing,
         };
         *dst = chunk;
+        StreamStatus::Playing
     }
 }
 
