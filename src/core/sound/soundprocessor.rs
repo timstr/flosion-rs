@@ -67,6 +67,7 @@ pub trait WhateverSoundProcessor: Sized + WithObjectType {
     // the need for get_sound_input and would be a big step towards
     // relaxing the many weird restrictions on this interface.
     fn visit_expressions<'a>(&self, f: Box<dyn 'a + FnMut(&ProcessorExpression)>);
+    fn visit_expressions_mut<'a>(&mut self, f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>);
 
     // TODO:
     fn compile_expressions<'a, 'ctx>(
@@ -196,7 +197,7 @@ impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProces
     }
 
     fn visit_expressions_mut<'a>(&self, f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {
-        todo!()
+        T::visit_expressions_mut(&mut self.processor.borrow_mut(), f);
     }
 
     fn compile<'a, 'ctx>(

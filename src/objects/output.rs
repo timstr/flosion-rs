@@ -182,7 +182,8 @@ impl WhateverSoundProcessor for Output {
         &self.input
     }
 
-    fn visit_expressions<'a>(&self, f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
+    fn visit_expressions<'a>(&self, _f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
+    fn visit_expressions_mut<'a>(&mut self, _f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {}
 
     fn compile_expressions<'a, 'ctx>(
         &self,

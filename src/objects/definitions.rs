@@ -81,6 +81,10 @@ impl WhateverSoundProcessor for Definitions {
         f(&self.expression);
     }
 
+    fn visit_expressions_mut<'a>(&mut self, mut f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {
+        f(&mut self.expression)
+    }
+
     fn compile_expressions<'a, 'ctx>(
         &self,
         processor_id: SoundProcessorId,

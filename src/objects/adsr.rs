@@ -170,6 +170,13 @@ impl WhateverSoundProcessor for ADSR {
         f(&self.release_time);
     }
 
+    fn visit_expressions_mut<'a>(&mut self, mut f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {
+        f(&mut self.attack_time);
+        f(&mut self.decay_time);
+        f(&mut self.sustain_level);
+        f(&mut self.release_time);
+    }
+
     fn compile_expressions<'a, 'ctx>(
         &self,
         processor_id: SoundProcessorId,

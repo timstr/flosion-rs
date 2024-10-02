@@ -1,8 +1,4 @@
-use std::{
-    fmt::Debug,
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-};
+use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
 pub struct UniqueId<T> {
     value: usize,
