@@ -7,8 +7,9 @@ use crate::core::{
         compiledexpression::{CompiledExpressionFunction, Discretization},
     },
     sound::{
-        expression::ProcessorExpressionLocation, expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph, soundgraphdata::ExpressionParameterMapping,
+        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
+        expressionargument::SoundExpressionArgumentId,
+        soundgraph::SoundGraph,
     },
 };
 

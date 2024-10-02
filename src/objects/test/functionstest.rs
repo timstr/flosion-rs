@@ -15,10 +15,9 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
-            expression::ProcessorExpression,
+            expression::{ProcessorExpression, SoundExpressionScope},
             expressionargument::SoundExpressionArgumentHandle,
             soundgraph::SoundGraph,
-            soundgraphdata::SoundExpressionScope,
             soundprocessor::{
                 SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
             },

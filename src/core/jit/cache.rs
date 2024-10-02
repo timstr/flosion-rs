@@ -5,8 +5,8 @@ use hashstash::ObjectHash;
 use crate::core::{
     expression::expressiongraph::ExpressionGraph,
     sound::{
-        expression::ProcessorExpressionLocation, soundgraph::SoundGraph,
-        soundgraphdata::ExpressionParameterMapping,
+        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
+        soundgraph::SoundGraph,
     },
 };
 

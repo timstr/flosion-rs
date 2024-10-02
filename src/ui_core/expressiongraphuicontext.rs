@@ -6,8 +6,8 @@ use crate::core::{
     },
     jit::cache::JitCache,
     sound::{
-        expression::ProcessorExpressionLocation, expressionargument::SoundExpressionArgumentId,
-        soundgraphdata::ExpressionParameterMapping,
+        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
+        expressionargument::SoundExpressionArgumentId,
     },
 };
 

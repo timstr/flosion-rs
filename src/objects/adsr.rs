@@ -11,8 +11,7 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
-            expression::ProcessorExpression,
-            soundgraphdata::SoundExpressionScope,
+            expression::{ProcessorExpression, SoundExpressionScope},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{

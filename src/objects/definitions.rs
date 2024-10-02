@@ -11,9 +11,8 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
-            expression::ProcessorExpression,
+            expression::{ProcessorExpression, SoundExpressionScope},
             expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
-            soundgraphdata::SoundExpressionScope,
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{

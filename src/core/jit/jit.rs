@@ -18,9 +18,8 @@ use crate::core::{
         expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
     },
     sound::{
-        expressionargument::SoundExpressionArgumentId, soundgraph::SoundGraph,
-        soundgraphdata::ExpressionParameterMapping, soundinput::SoundInputId,
-        soundprocessor::SoundProcessorId,
+        expression::ExpressionParameterMapping, expressionargument::SoundExpressionArgumentId,
+        soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
     },
 };
 

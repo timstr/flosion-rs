@@ -7,7 +7,7 @@ use crate::core::{
 };
 
 #[cfg(debug_assertions)]
-use crate::core::sound::soundgraphdata::SoundExpressionScope;
+use crate::core::sound::expression::SoundExpressionScope;
 
 /// A compiled expression and all the data needed to directly
 /// execute it within a StateGraph instance on the audio thread.

@@ -6,7 +6,7 @@ use crate::core::{
 };
 
 use super::{
-    expression::{ProcessorExpression, ProcessorExpressionId},
+    expression::{ProcessorExpression, ProcessorExpressionId, SoundExpressionScope},
     expressionargument::{
         ArrayInputExpressionArgument, ArrayProcessorExpressionArgument,
         ProcessorLocalArrayExpressionArgument, ScalarInputExpressionArgument,
@@ -15,7 +15,7 @@ use super::{
     },
     sounderror::SoundError,
     soundgraph::SoundGraph,
-    soundgraphdata::{SoundExpressionScope, SoundInputBranchId},
+    soundgraphdata::SoundInputBranchId,
     soundinput::{InputOptions, SoundInputId},
     soundprocessor::SoundProcessorId,
 };
