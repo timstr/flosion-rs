@@ -1,22 +1,19 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
-use crate::core::sound::expressionargument::SoundExpressionArgumentOrigin;
+use crate::core::sound::expressionargument::ProcessorArgumentDataSource;
 
 use super::{
     expression::{ProcessorExpression, ProcessorExpressionLocation},
-    expressionargument::{SoundExpressionArgumentId, SoundExpressionArgumentOwner},
-    path::SoundPath,
+    expressionargument::{ArgumentLocation, ProcessorArgumentLocation, SoundInputArgumentLocation},
     sounderror::SoundError,
     soundgraph::SoundGraph,
-    soundinput::{InputOptions, SoundInputId},
+    soundinput::{InputOptions, SoundInputLocation},
     soundprocessor::SoundProcessorId,
 };
 
 pub(super) fn find_sound_error(graph: &SoundGraph) -> Option<SoundError> {
-    check_missing_ids(graph);
-
-    if let Some(path) = find_sound_cycle(graph) {
-        return Some(SoundError::CircularDependency { cycle: path });
+    if find_sound_cycle(graph) {
+        return Some(SoundError::CircularDependency);
     }
     if let Some(err) = validate_sound_connections(graph) {
         return Some(err);
@@ -28,207 +25,47 @@ pub(super) fn find_sound_error(graph: &SoundGraph) -> Option<SoundError> {
     None
 }
 
-pub(super) fn check_missing_ids(graph: &SoundGraph) {
-    for sp in graph.sound_processors().values() {
-        // for each sound processor
-        for i in sp.sound_inputs() {
-            // each sound input must exist and list the sound processor as its owner
-            match graph.sound_inputs().get(i) {
-                Some(idata) => {
-                    if idata.owner() != sp.id() {
-                        panic!(
-                            "Sound processor {:?} has sound input {:?} listed as an \
-                                input, but that input does not list the sound processor \
-                                as its owner.",
-                            sp.id(),
-                            i
-                        );
-                    }
-                }
-                None => panic!(
-                    "Sound processor {:?} has sound input {:?} listed as an input, \
-                        but that input does not exist.",
-                    sp.id(),
-                    i
-                ),
-            }
-        }
-
-        for s in sp.expression_arguments() {
-            // each argument must exist and list the sound processor as its owner
-            match graph.expression_arguments().get(s) {
-                Some(sdata) => {
-                    if sdata.owner() != SoundExpressionArgumentOwner::SoundProcessor(sp.id()) {
-                        panic!(
-                            "Sound processor {:?} lists expression argument {:?} as one \
-                                of its arguments, but that argument doesn't \
-                                list the sound processor as its owner.",
-                            sp.id(),
-                            s
-                        );
-                    }
-                }
-                None => panic!(
-                    "Sound processor {:?} lists expression argument {:?} as one of its \
-                        arguments, but that argument does not exist.",
-                    sp.id(),
-                    s
-                ),
-            }
-        }
-    }
-
-    for si in graph.sound_inputs().values() {
-        // for each sound input
-        if let Some(spid) = si.target() {
-            if graph.sound_processor(spid).is_none() {
-                panic!(
-                    "The sound input {:?} lists sound processor {:?} as its target, \
-                        but that sound processor does not exist.",
-                    si.id(),
-                    spid
-                )
-            }
-        }
-        match graph.sound_processor(si.owner()) {
-            // its owner must exist and list the input
-            Some(sp) => {
-                if !sp.sound_inputs().contains(&si.id()) {
-                    panic!(
-                        "Sound input {:?} lists sound processor {:?} as its owner, \
-                            but that sound processor doesn't list the sound input as one \
-                            of its inputs.",
-                        si.id(),
-                        si.owner()
-                    );
-                }
-            }
-            None => panic!(
-                "Sound input {:?} lists sound processor {:?} as its owner, but that \
-                    sound processor does not exist.",
-                si.id(),
-                si.owner()
-            ),
-        }
-        for nsid in si.expression_arguments() {
-            // each argument must exist and list the sound input as its owner
-            match graph.expression_arguments().get(nsid) {
-                Some(ns) => {
-                    if ns.owner() != SoundExpressionArgumentOwner::SoundInput(si.id()) {
-                        panic!(
-                            "Sound input {:?} lists expression argument {:?} as one of its \
-                                arguments, but that argument doesn't list the \
-                                sound input as its owner.",
-                            si.id(),
-                            nsid
-                        );
-                    }
-                }
-                None => panic!(
-                    "Sound input {:?} lists expression argument {:?} as one of its arguments, \
-                        but that argument does not exist.",
-                    si.id(),
-                    nsid
-                ),
-            }
-        }
-    }
-
-    for ns in graph.expression_arguments().values() {
-        match ns.owner() {
-            // if the argument has an owner, it must exist and list the argument
-            SoundExpressionArgumentOwner::SoundProcessor(spid) => {
-                match graph.sound_processor(spid) {
-                    Some(sp) => {
-                        if !sp.expression_arguments().contains(&ns.id()) {
-                            panic!(
-                                "The expression argument {:?} lists sound processor {:?} as its owner, \
-                                but that sound processor does not list the argument as one \
-                                of its arguments.",
-                                ns.id(),
-                                spid
-                            );
-                        }
-                    }
-                    None => panic!(
-                        "The expression argument {:?} lists sound processor {:?} as its owner, but that \
-                        sound processor does not exist.",
-                        ns.id(),
-                        spid
-                    ),
-                }
-            }
-            SoundExpressionArgumentOwner::SoundInput(siid) => match graph.sound_input(siid) {
-                Some(si) => {
-                    if !si.expression_arguments().contains(&ns.id()) {
-                        panic!(
-                            "The expression argument {:?} lists sound input {:?} as its owner, \
-                                but that sound input does not list the argument as one \
-                                of its arguments.",
-                            ns.id(),
-                            siid
-                        );
-                    }
-                }
-                None => panic!(
-                    "The expression argument {:?} lists sound input {:?} as its owner, but that \
-                        sound input doesn't exist.",
-                    ns.id(),
-                    siid
-                ),
-            },
-        }
-    }
-
-    // whew, made it
-}
-
-pub(super) fn find_sound_cycle(graph: &SoundGraph) -> Option<SoundPath> {
+pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
     fn dfs_find_cycle(
-        input_id: SoundInputId,
-        visited: &mut Vec<SoundInputId>,
-        path: &mut SoundPath,
+        processor_id: SoundProcessorId,
+        visited_inputs: &mut HashSet<SoundInputLocation>,
         graph: &SoundGraph,
-    ) -> Option<SoundPath> {
-        if !visited.contains(&input_id) {
-            visited.push(input_id);
-        }
-        // If the input has already been visited, there is a cycle
-        if path.contains_input(input_id) {
-            return Some(path.trim_until_input(input_id));
-        }
-        let input_desc = graph.sound_input(input_id).unwrap();
-        let target_id = match input_desc.target() {
-            Some(spid) => spid,
-            _ => return None,
-        };
-        let proc_desc = graph.sound_processor(target_id).unwrap();
-        path.push(target_id, input_id);
-        for target_proc_input in proc_desc.sound_inputs() {
-            if let Some(path) = dfs_find_cycle(*target_proc_input, visited, path, graph) {
-                return Some(path);
-            }
-        }
-        path.pop();
-        None
+    ) -> bool {
+        let mut any_cycles = false;
+        graph
+            .sound_processor(processor_id)
+            .unwrap()
+            .foreach_input(|input, location| {
+                if visited_inputs.contains(&location) {
+                    any_cycles = true;
+                    return;
+                }
+                visited_inputs.insert(location);
+                if let Some(target_id) = input.target() {
+                    dfs_find_cycle(target_id, visited_inputs, graph);
+                }
+            });
+        any_cycles
     }
 
-    let mut visited: Vec<SoundInputId> = Vec::new();
-    let mut path: SoundPath = SoundPath::new(Vec::new());
+    let mut visited_processors: HashSet<SoundProcessorId> = HashSet::new();
 
     loop {
-        assert_eq!(path.connections.len(), 0);
-        let input_to_visit = graph
-            .sound_inputs()
+        let Some(proc_to_visit) = graph
+            .sound_processors()
             .keys()
-            .find(|pid| !visited.contains(&pid));
-        match input_to_visit {
-            None => break None,
-            Some(pid) => {
-                if let Some(path) = dfs_find_cycle(*pid, &mut visited, &mut path, graph) {
-                    break Some(path);
-                }
-            }
+            .find(|pid| !visited_processors.contains(&pid))
+            .cloned()
+        else {
+            return false;
+        };
+
+        let mut visited_inputs = HashSet::new();
+        if dfs_find_cycle(proc_to_visit, &mut visited_inputs, graph) {
+            return true;
+        }
+        for input_location in visited_inputs {
+            visited_processors.insert(input_location.processor());
         }
     }
 }
@@ -280,22 +117,21 @@ fn compute_implied_processor_allocations(
         let processor_is_sync = is_sync || is_static;
         let processor_states = if is_static { 1 } else { states_to_add };
 
-        for input_id in proc_data.sound_inputs() {
-            let input_data = graph.sound_input(*input_id).unwrap();
-            let Some(target_proc_id) = input_data.target() else {
-                continue;
+        proc_data.foreach_input(|input, _| {
+            let Some(target_proc_id) = input.target() else {
+                return;
             };
 
-            let states = processor_states * input_data.branches().len();
+            let states = processor_states * input.branches().len();
 
-            let input_is_sync = match input_data.options() {
+            let input_is_sync = match input.options() {
                 InputOptions::Synchronous => processor_is_sync,
                 InputOptions::NonSynchronous => false,
             };
             let sync = is_sync && input_is_sync;
 
             visit(target_proc_id, states, sync, graph, allocations);
-        }
+        });
     }
 
     // find all processors with no dependents
@@ -303,12 +139,11 @@ fn compute_implied_processor_allocations(
     {
         let mut processors_with_dependents = HashSet::<SoundProcessorId>::new();
         for proc in graph.sound_processors().values() {
-            for input_id in proc.sound_inputs() {
-                let input = graph.sound_input(*input_id).unwrap();
+            proc.foreach_input(|input, _| {
                 if let Some(target) = input.target() {
                     processors_with_dependents.insert(target);
                 }
-            }
+            });
         }
 
         let mut processors_without_dependents = Vec::<SoundProcessorId>::new();
@@ -348,10 +183,14 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
             // We don't check the processor's own implied number of states
             // because that would overcount if there are multiple inputs.
             for input_id in graph.sound_processor_targets(*proc_id) {
-                let input = graph.sound_input(input_id).unwrap();
-                if input.branches().len() != 1
-                    || allocations.get(&input.owner()).unwrap().implied_num_states != 1
-                {
+                let num_input_branches = graph
+                    .with_sound_input(input_id, |input| input.branches().len())
+                    .unwrap();
+                let num_implied_states = allocations
+                    .get(&input_id.processor())
+                    .unwrap()
+                    .implied_num_states;
+                if num_input_branches != 1 || num_implied_states != 1 {
                     return Some(SoundError::StaticNotOneState(*proc_id));
                 }
             }
@@ -362,12 +201,14 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
 }
 
 fn input_depends_on_processor(
-    input_id: SoundInputId,
+    input_location: SoundInputLocation,
     processor_id: SoundProcessorId,
     graph: &SoundGraph,
 ) -> bool {
-    let input_data = graph.sound_input(input_id).unwrap();
-    match input_data.target() {
+    let input_target = graph
+        .with_sound_input(input_location, |input| input.target())
+        .unwrap();
+    match input_target {
         Some(spid) => processor_depends_on_processor(spid, processor_id, graph),
         None => false,
     }
@@ -381,31 +222,36 @@ fn processor_depends_on_processor(
     if processor_id == other_processor_id {
         return true;
     }
-    let processor_data = graph.sound_processor(processor_id).unwrap();
-    for siid in processor_data.sound_inputs() {
-        if input_depends_on_processor(*siid, other_processor_id, graph) {
-            return true;
-        }
-    }
+    let mut any_inputs_depend = false;
+    graph
+        .sound_processor(processor_id)
+        .unwrap()
+        .foreach_input(|_, location| {
+            if input_depends_on_processor(location, other_processor_id, graph) {
+                any_inputs_depend = true;
+            }
+        });
     false
 }
 
 pub(super) fn find_invalid_expression_arguments(
     graph: &SoundGraph,
-) -> Vec<(SoundExpressionArgumentId, ProcessorExpressionLocation)> {
-    let mut bad_connections: Vec<(SoundExpressionArgumentId, ProcessorExpressionLocation)> =
-        Vec::new();
+) -> Vec<(ArgumentLocation, ProcessorExpressionLocation)> {
+    let mut bad_connections: Vec<(ArgumentLocation, ProcessorExpressionLocation)> = Vec::new();
 
     for proc_data in graph.sound_processors().values() {
-        proc_data.instance().visit_expressions(Box::new(|expr| {
+        proc_data.foreach_expression(|expr| {
             for target in expr.mapping().items().values() {
-                let target_owner = graph.expression_argument(*target).unwrap().owner();
-                let depends = match target_owner {
-                    SoundExpressionArgumentOwner::SoundProcessor(spid) => {
-                        processor_depends_on_processor(spid, proc_data.id(), graph)
-                    }
-                    SoundExpressionArgumentOwner::SoundInput(siid) => {
-                        input_depends_on_processor(siid, proc_data.id(), graph)
+                let depends = match target {
+                    ArgumentLocation::Processor(arg_location) => processor_depends_on_processor(
+                        arg_location.processor(),
+                        proc_data.id(),
+                        graph,
+                    ),
+                    ArgumentLocation::Input(arg_location) => {
+                        let input_location =
+                            SoundInputLocation::new(arg_location.processor(), arg_location.input());
+                        input_depends_on_processor(input_location, proc_data.id(), graph)
                     }
                 };
                 if !depends {
@@ -415,7 +261,7 @@ pub(super) fn find_invalid_expression_arguments(
                     ));
                 }
             }
-        }));
+        });
     }
 
     return bad_connections;
@@ -424,45 +270,48 @@ pub(super) fn find_invalid_expression_arguments(
 // TODO: move to soundgraphproperties?
 pub(crate) fn available_sound_expression_arguments(
     graph: &SoundGraph,
-) -> HashMap<ProcessorExpressionLocation, HashSet<SoundExpressionArgumentId>> {
-    let mut available_arguments_by_processor: HashMap<
-        SoundProcessorId,
-        HashSet<SoundExpressionArgumentId>,
-    > = HashMap::new();
+) -> HashMap<ProcessorExpressionLocation, HashSet<ArgumentLocation>> {
+    let mut available_arguments_by_processor: HashMap<SoundProcessorId, HashSet<ArgumentLocation>> =
+        HashMap::new();
     for proc_data in graph.sound_processors().values() {
         if proc_data.instance().is_static() {
-            available_arguments_by_processor.insert(
-                proc_data.id(),
-                proc_data.expression_arguments().iter().cloned().collect(),
-            );
+            let mut static_args = HashSet::<ArgumentLocation>::new();
+            proc_data.foreach_processor_argument(|arg| {
+                let location = ProcessorArgumentLocation::new(proc_data.id(), arg.id());
+                static_args.insert(ArgumentLocation::Processor(location));
+            });
+            available_arguments_by_processor.insert(proc_data.id(), static_args);
         }
     }
 
     let all_targets_cached_for =
         |processor_id: SoundProcessorId,
-         cache: &HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>>| {
+         cache: &HashMap<SoundProcessorId, HashSet<ArgumentLocation>>| {
             graph
                 .sound_processor_targets(processor_id)
-                .all(|target_siid| {
-                    let parent_sp = graph.sound_input(target_siid).unwrap().owner();
-                    cache.contains_key(&parent_sp)
-                })
+                .iter()
+                .all(|target_siid| cache.contains_key(&target_siid.processor()))
         };
 
-    let sound_input_arguments =
-        |input_id: SoundInputId,
-         cache: &HashMap<SoundProcessorId, HashSet<SoundExpressionArgumentId>>|
-         -> HashSet<SoundExpressionArgumentId> {
-            let input_data = graph.sound_input(input_id).unwrap();
-            let mut arguments = cache
-                .get(&input_data.owner())
-                .expect("Processor expression arguments should have been cached")
-                .clone();
-            for nsid in input_data.expression_arguments() {
-                arguments.insert(*nsid);
-            }
-            arguments
-        };
+    let sound_input_arguments = |input_location: SoundInputLocation,
+                                 cache: &HashMap<SoundProcessorId, HashSet<ArgumentLocation>>|
+     -> HashSet<ArgumentLocation> {
+        let mut arguments = cache
+            .get(&input_location.processor())
+            .expect("Processor expression arguments should have been cached")
+            .clone();
+        graph
+            .sound_processor(input_location.processor())
+            .unwrap()
+            .foreach_input_argument(|arg| {
+                arguments.insert(ArgumentLocation::Input(SoundInputArgumentLocation::new(
+                    input_location.processor(),
+                    input_location.input(),
+                    arg.id(),
+                )));
+            });
+        arguments
+    };
 
     // Cache all processors in topological order
     loop {
@@ -488,7 +337,7 @@ pub(crate) fn available_sound_expression_arguments(
             break;
         };
 
-        let mut available_arguments: Option<HashSet<SoundExpressionArgumentId>> = None;
+        let mut available_arguments: Option<HashSet<ArgumentLocation>> = None;
 
         // Available upstream arguments are the intersection of all those
         // available via each destination sound input
@@ -507,13 +356,14 @@ pub(crate) fn available_sound_expression_arguments(
 
         let mut available_arguments = available_arguments.unwrap_or_else(HashSet::new);
 
-        for nsid in graph
+        graph
             .sound_processor(next_proc_id)
             .unwrap()
-            .expression_arguments()
-        {
-            available_arguments.insert(*nsid);
-        }
+            .foreach_processor_argument(|arg| {
+                available_arguments.insert(ArgumentLocation::Processor(
+                    ProcessorArgumentLocation::new(next_proc_id, arg.id()),
+                ));
+            });
 
         available_arguments_by_processor.insert(next_proc_id, available_arguments);
     }
@@ -523,46 +373,36 @@ pub(crate) fn available_sound_expression_arguments(
     // Each expression's available arguments are those available from the processor minus
     // any out-of-scope locals
     for proc_data in graph.sound_processors().values() {
-        proc_data
-            .instance()
-            .visit_expressions(Box::new(|expr: &ProcessorExpression| {
-                let mut available_arguments = available_arguments_by_processor
-                    .get(&proc_data.id())
-                    .unwrap()
-                    .clone();
-                let processor_arguments = graph
-                    .sound_processor(proc_data.id())
-                    .unwrap()
-                    .expression_arguments();
+        proc_data.foreach_expression(|expr: &ProcessorExpression| {
+            let mut available_arguments = available_arguments_by_processor
+                .get(&proc_data.id())
+                .unwrap()
+                .clone();
 
-                for nsid in processor_arguments {
-                    debug_assert!(available_arguments.contains(nsid));
-                    let ns_data = graph.expression_argument(*nsid).unwrap();
-                    match ns_data.instance().origin() {
-                        SoundExpressionArgumentOrigin::ProcessorState(spid) => {
-                            debug_assert_eq!(spid, proc_data.id());
-                            if !expr.scope().processor_state_available() {
-                                available_arguments.remove(nsid);
-                            }
+            proc_data.foreach_processor_argument(|arg| {
+                let location = ArgumentLocation::Processor(ProcessorArgumentLocation::new(
+                    proc_data.id(),
+                    arg.id(),
+                ));
+                debug_assert!(available_arguments.contains(&location));
+                match arg.instance().data_source() {
+                    ProcessorArgumentDataSource::ProcessorState => {
+                        if !expr.scope().processor_state_available() {
+                            available_arguments.remove(&location);
                         }
-                        SoundExpressionArgumentOrigin::InputState(_) => {
-                            panic!(
-                            "Processor expression argument can't have a sound input as its origin"
-                        );
-                        }
-                        SoundExpressionArgumentOrigin::Local(spid) => {
-                            debug_assert_eq!(spid, proc_data.id());
-                            if !expr.scope().available_local_arguments().contains(nsid) {
-                                available_arguments.remove(nsid);
-                            }
+                    }
+                    ProcessorArgumentDataSource::LocalVariable => {
+                        if !expr.scope().available_local_arguments().contains(&arg.id()) {
+                            available_arguments.remove(&location);
                         }
                     }
                 }
+            });
 
-                let location = ProcessorExpressionLocation::new(proc_data.id(), expr.id());
+            let location = ProcessorExpressionLocation::new(proc_data.id(), expr.id());
 
-                available_arguments_by_expression.insert(location, available_arguments);
-            }));
+            available_arguments_by_expression.insert(location, available_arguments);
+        });
     }
 
     available_arguments_by_expression

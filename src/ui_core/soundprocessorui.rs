@@ -1,11 +1,17 @@
 use eframe::egui;
 
-use crate::core::sound::{
-    expression::{ProcessorExpression, ProcessorExpressionLocation},
-    expressionargument::SoundExpressionArgumentId,
-    soundgraph::SoundGraph,
-    soundinput::SoundInputId,
-    soundprocessor::{ProcessorHandle, SoundProcessorId},
+use crate::{
+    core::sound::{
+        expression::{ProcessorExpression, ProcessorExpressionLocation},
+        expressionargument::{
+            ArgumentLocation, ProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation,
+            SoundInputArgument, SoundInputArgumentId, SoundInputArgumentLocation,
+        },
+        soundgraph::SoundGraph,
+        soundinput::{ProcessorInput, ProcessorInputId, SoundInputLocation},
+        soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
+    },
+    ui_core::soundgraphuinames::SoundGraphUiNames,
 };
 
 use super::{
@@ -17,8 +23,8 @@ pub struct ProcessorUi<'a> {
     processor_id: SoundProcessorId,
     label: &'static str,
     expressions: Vec<(&'a mut ProcessorExpression, String, PlotConfig)>,
-    arguments: Vec<(SoundExpressionArgumentId, String)>,
-    sound_inputs: Vec<(SoundInputId, String, SoundExpressionArgumentId)>,
+    arguments: Vec<(ArgumentLocation, String)>,
+    sound_inputs: Vec<(SoundInputLocation, String)>,
 }
 
 #[derive(Clone, Copy)]
@@ -28,24 +34,20 @@ struct ProcessorUiProps {
 
 impl<'a> ProcessorUi<'a> {
     pub fn new(processor_id: SoundProcessorId, label: &'static str) -> ProcessorUi<'a> {
-        let mut arguments = Vec::new();
         ProcessorUi {
             processor_id,
             label,
             expressions: Vec::new(),
-            arguments,
+            arguments: Vec::new(),
             sound_inputs: Vec::new(),
         }
     }
 
-    pub fn add_sound_input(
-        mut self,
-        input_id: SoundInputId,
-        label: impl Into<String>,
-        sound_graph: &SoundGraph,
-    ) -> Self {
-        let time_snid = sound_graph.sound_input(input_id).unwrap().time_argument();
-        self.sound_inputs.push((input_id, label.into(), time_snid));
+    pub fn add_sound_input(mut self, input_id: ProcessorInputId, label: impl Into<String>) -> Self {
+        self.sound_inputs.push((
+            SoundInputLocation::new(self.processor_id, input_id),
+            label.into(),
+        ));
         self
     }
 
@@ -59,12 +61,24 @@ impl<'a> ProcessorUi<'a> {
         self
     }
 
-    pub fn add_argument(
+    pub fn add_processor_argument(
         mut self,
-        argument_id: SoundExpressionArgumentId,
+        argument_id: ProcessorArgumentId,
         label: impl Into<String>,
     ) -> Self {
-        self.arguments.push((argument_id, label.into()));
+        let location = ProcessorArgumentLocation::new(self.processor_id, argument_id);
+        self.arguments.push((location.into(), label.into()));
+        self
+    }
+
+    pub fn add_input_argument(
+        mut self,
+        input_id: ProcessorInputId,
+        argument_id: SoundInputArgumentId,
+        label: impl Into<String>,
+    ) -> Self {
+        let location = SoundInputArgumentLocation::new(self.processor_id, input_id, argument_id);
+        self.arguments.push((location.into(), label.into()));
         self
     }
 
@@ -97,54 +111,78 @@ impl<'a> ProcessorUi<'a> {
                 .names_mut()
                 .record_argument_name(*nsid, name.to_string());
         }
-        for (_, _, time_nsid) in &self.sound_inputs {
-            ui_state
-                .names_mut()
-                .record_argument_name(*time_nsid, "time".to_string());
-        }
 
+        // detect missing names
         #[cfg(debug_assertions)]
         {
-            let proc_data = sound_graph.sound_processor(self.processor_id).unwrap();
-            let missing_name =
-                |id: SoundExpressionArgumentId| ui_state.names().argument(id).is_none();
-            for nsid in proc_data.expression_arguments() {
-                if missing_name(*nsid) {
-                    println!(
-                        "Warning: argument {} on processor {} is missing a name",
-                        nsid.value(),
-                        proc_data.friendly_name()
-                    );
-                }
+            struct MissingNameVisitor<'a> {
+                names: &'a SoundGraphUiNames,
+                processor_id: SoundProcessorId,
+                friendly_processor_name: String,
             }
-            for siid in proc_data.sound_inputs() {
-                for nsid in sound_graph
-                    .sound_input(*siid)
-                    .unwrap()
-                    .expression_arguments()
-                {
-                    if missing_name(*nsid) {
+
+            impl<'a> ProcessorComponentVisitor for MissingNameVisitor<'a> {
+                fn input(&mut self, input: &ProcessorInput) {
+                    let location = SoundInputLocation::new(self.processor_id, input.id());
+                    if self.names.sound_input(location.into()).is_none() {
                         println!(
-                            "Warning: argument {} on sound input {} on processor {} is missing a name",
-                            nsid.value(),
-                            siid.value(),
-                            proc_data.friendly_name()
+                            "Warning: sound input {} on processor {} is missing a name",
+                            location.input().value(),
+                            self.friendly_processor_name
                         );
                     }
                 }
-                if self
-                    .sound_inputs
-                    .iter()
-                    .find(|(id, _, _)| *id == *siid)
-                    .is_none()
-                {
-                    println!(
-                        "Warning: sound input {} on proceessor {} is not listed in the ui",
-                        siid.value(),
-                        proc_data.friendly_name()
-                    )
+
+                fn expression(&mut self, expression: &ProcessorExpression) {
+                    let location =
+                        ProcessorExpressionLocation::new(self.processor_id, expression.id());
+                    if self.names.expression(location.into()).is_none() {
+                        println!(
+                            "Warning: expression {} on processor {} is missing a name",
+                            location.expression().value(),
+                            self.friendly_processor_name
+                        );
+                    }
+                }
+
+                fn processor_argument(&mut self, argument: &ProcessorArgument) {
+                    let location = ProcessorArgumentLocation::new(self.processor_id, argument.id());
+                    if self.names.argument(location.into()).is_none() {
+                        println!(
+                            "Warning: argument {} on processor {} is missing a name",
+                            location.argument().value(),
+                            self.friendly_processor_name
+                        );
+                    }
+                }
+
+                fn input_argument(
+                    &mut self,
+                    argument: &SoundInputArgument,
+                    input_id: ProcessorInputId,
+                ) {
+                    let location =
+                        SoundInputArgumentLocation::new(self.processor_id, input_id, argument.id());
+                    if self.names.argument(location.into()).is_none() {
+                        println!(
+                            "Warning: argument {} on sound input {} of processor {} is missing a name",
+                            location.argument().value(),
+                            location.input().value(),
+                            self.friendly_processor_name
+                        );
+                    }
                 }
             }
+
+            let proc_data = sound_graph.sound_processor(self.processor_id).unwrap();
+
+            let mut visitor = MissingNameVisitor {
+                names: ui_state.names(),
+                processor_id: proc_data.id(),
+                friendly_processor_name: proc_data.friendly_name(),
+            };
+
+            proc_data.instance().visit(&mut visitor);
         }
 
         let r = ui.push_id(self.processor_id, |ui| {
@@ -190,7 +228,7 @@ impl<'a> ProcessorUi<'a> {
 
         let desired_width = ctx.width();
 
-        for (siid, label, _time_nsid) in &self.sound_inputs {
+        for (siid, label) in &self.sound_inputs {
             ui_state
                 .names_mut()
                 .record_sound_input_name(*siid, label.to_string());

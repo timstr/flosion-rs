@@ -4,21 +4,21 @@ use send_wrapper::SendWrapper;
 
 use crate::core::{
     engine::garbage::{Droppable, Garbage, GarbageChute},
-    expression::context::{expression_context_to_usize_pair, ExpressionContext},
+    expression::context::ExpressionContext,
     jit::jit::FLAG_INITIALIZED,
     samplefrequency::SAMPLE_TIME_STEP,
+    soundchunk::CHUNK_SIZE,
 };
 
 use super::jit::FLAG_NOT_INITIALIZED;
 
 type EvalExpressionFunc = unsafe extern "C" fn(
-    *mut f32, // pointer to destination array
-    usize,    // length of destination array
-    f32,      // time step
-    usize,    // context 1
-    usize,    // context 2
-    *mut u8,  // init flag
-    *mut f32, // state variables
+    *mut f32,  // pointer to destination array
+    usize,     // length of destination array
+    f32,       // time step
+    *const (), // context
+    *mut u8,   // init flag
+    *mut f32,  // state variables
 );
 
 struct CompiledExpressionData<'ctx> {
@@ -105,6 +105,10 @@ impl Discretization {
         Discretization::Temporal(SAMPLE_TIME_STEP)
     }
 
+    pub fn chunkwise_temporal() -> Discretization {
+        Discretization::Temporal(SAMPLE_TIME_STEP * CHUNK_SIZE as f32)
+    }
+
     pub(crate) fn time_step(&self) -> f32 {
         match self {
             Discretization::None => 0.0,
@@ -121,12 +125,13 @@ impl<'ctx> CompiledExpressionFunction<'ctx> {
     pub(crate) fn eval(
         &mut self,
         dst: &mut [f32],
-        context: &dyn ExpressionContext,
+        context: ExpressionContext,
         discretization: Discretization,
     ) {
         debug_assert!(self.init_flag == FLAG_INITIALIZED || self.init_flag == FLAG_NOT_INITIALIZED);
+        let context: &ExpressionContext = &context;
         unsafe {
-            let (context_1, context_2) = expression_context_to_usize_pair(context);
+            let ptr_context: *const ExpressionContext = context;
             let time_step = discretization.time_step();
 
             let CompiledExpressionFunction {
@@ -142,8 +147,7 @@ impl<'ctx> CompiledExpressionFunction<'ctx> {
                 dst.as_mut_ptr(),
                 dst.len(),
                 time_step,
-                context_1,
-                context_2,
+                ptr_context as _,
                 ptr_init_flag,
                 ptr_state_variables,
             );

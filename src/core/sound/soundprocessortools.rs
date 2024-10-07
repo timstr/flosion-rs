@@ -8,15 +8,11 @@ use crate::core::{
 use super::{
     expression::{ProcessorExpression, ProcessorExpressionId, SoundExpressionScope},
     expressionargument::{
-        ArrayInputExpressionArgument, ArrayProcessorExpressionArgument,
-        ProcessorLocalArrayExpressionArgument, ScalarInputExpressionArgument,
-        ScalarProcessorExpressionArgument, SoundExpressionArgument, SoundExpressionArgumentHandle,
-        SoundExpressionArgumentOwner,
+        AnySoundInputArgument, ArrayProcessorExpressionArgument, ProcessorArgument,
+        ProcessorArgumentId, ProcessorLocalArrayExpressionArgument,
+        ScalarProcessorExpressionArgument, SoundInputArgument, SoundInputArgumentId,
     },
-    sounderror::SoundError,
-    soundgraph::SoundGraph,
-    soundgraphdata::SoundInputBranchId,
-    soundinput::{InputOptions, SoundInputId},
+    soundinput::{InputOptions, ProcessorInput, ProcessorInputId, SoundInputBranchId},
     soundprocessor::SoundProcessorId,
 };
 
@@ -31,21 +27,27 @@ pub struct SoundProcessorTools<'a> {
     processor_id: SoundProcessorId,
 
     // TODO: borrow this from the graph
-    expression_idgen: IdGenerator<ProcessorExpressionId>,
-
-    // TODO: remove
-    graph: &'a mut SoundGraph,
+    input_idgen: &'a mut IdGenerator<ProcessorInputId>,
+    expression_idgen: &'a mut IdGenerator<ProcessorExpressionId>,
+    proc_arg_idgen: &'a mut IdGenerator<ProcessorArgumentId>,
+    input_arg_idgen: &'a mut IdGenerator<SoundInputArgumentId>,
 }
 
 impl<'a> SoundProcessorTools<'a> {
-    /// Construct a new tools instance from a mutable graph
-    /// instance (for modifying the graph) and set of id generators
-    /// (for allocating ids to any newly-created objects)
-    pub(crate) fn new(id: SoundProcessorId, graph: &'a mut SoundGraph) -> SoundProcessorTools<'a> {
+    pub(super) fn new(
+        id: SoundProcessorId,
+
+        input_idgen: &'a mut IdGenerator<ProcessorInputId>,
+        expression_idgen: &'a mut IdGenerator<ProcessorExpressionId>,
+        proc_arg_idgen: &'a mut IdGenerator<ProcessorArgumentId>,
+        input_arg_idgen: &'a mut IdGenerator<SoundInputArgumentId>,
+    ) -> SoundProcessorTools<'a> {
         SoundProcessorTools {
             processor_id: id,
-            expression_idgen: IdGenerator::new(),
-            graph,
+            input_idgen,
+            expression_idgen,
+            proc_arg_idgen,
+            input_arg_idgen,
         }
     }
 
@@ -54,81 +56,44 @@ impl<'a> SoundProcessorTools<'a> {
     /// call this directly when creating a processor instance,
     /// and instead will want to use concrete sound input types
     /// which call this method internally as needed.
-    pub fn add_sound_input(
+    // TODO: rename to make_sound_input_base?
+    pub fn make_sound_input(
         &mut self,
         options: InputOptions,
         branches: Vec<SoundInputBranchId>,
-    ) -> SoundInputId {
-        self.graph
-            .add_sound_input(self.processor_id, options, branches)
-            .unwrap()
+    ) -> ProcessorInput {
+        ProcessorInput::new(self.input_idgen.next_id(), options, branches)
     }
 
-    /// Remove a sound input from the sound processor
-    pub fn remove_sound_input(&mut self, input_id: SoundInputId) -> Result<(), SoundError> {
-        let input_data = self
-            .graph
-            .sound_input(input_id)
-            .ok_or(SoundError::SoundInputNotFound(input_id))?;
-        if input_data.owner() != self.processor_id {
-            return Err(SoundError::BadSoundInputCleanup(input_id));
-        }
-        self.graph.remove_sound_input(input_id, self.processor_id)
-    }
-
-    /// Add an expression argument to the given sound input which
-    /// reads a single scalar value from the sound input's state
-    /// using the provided function.
-    pub fn add_input_scalar_argument(
+    /// Internal helper method, only intended for use by ProcessorInput
+    pub(super) fn make_input_argument(
         &mut self,
-        input_id: SoundInputId,
-        function: ScalarReadFunc,
-    ) -> SoundExpressionArgumentHandle {
-        self.add_input_argument_helper(
-            input_id,
-            Rc::new(ScalarInputExpressionArgument::new(input_id, function)),
-        )
-    }
-
-    /// Add an expression argument which reads an entire array from the
-    /// given sound input's state using the provided function.
-    /// NOTE that currently the length of that array must match
-    /// the chunk length.
-    pub fn add_input_array_argument(
-        &mut self,
-        input_id: SoundInputId,
-        function: ArrayReadFunc,
-    ) -> SoundExpressionArgumentHandle {
-        self.add_input_argument_helper(
-            input_id,
-            Rc::new(ArrayInputExpressionArgument::new(input_id, function)),
-        )
+        instance: Rc<dyn AnySoundInputArgument>,
+    ) -> SoundInputArgument {
+        SoundInputArgument::new(self.input_arg_idgen.next_id(), instance)
     }
 
     /// Add an expression argument which reads a single scalar value
     /// from the processor's state using the given function.
-    pub fn add_processor_scalar_argument(
+    pub fn make_processor_scalar_argument(
         &mut self,
         function: ScalarReadFunc,
-    ) -> SoundExpressionArgumentHandle {
-        self.add_processor_argument_helper(Rc::new(ScalarProcessorExpressionArgument::new(
-            self.processor_id,
-            function,
-        )))
+    ) -> ProcessorArgument {
+        ProcessorArgument::new(
+            self.proc_arg_idgen.next_id(),
+            Rc::new(ScalarProcessorExpressionArgument::new(function)),
+        )
     }
 
     /// Add an expression argument which reads an entire array from the
     /// sound processor's state using the provided function.
     /// NOTE that currently the length of that array must match
     /// the chunk length.
-    pub fn add_processor_array_argument(
-        &mut self,
-        function: ArrayReadFunc,
-    ) -> SoundExpressionArgumentHandle {
-        self.add_processor_argument_helper(Rc::new(ArrayProcessorExpressionArgument::new(
-            self.processor_id,
-            function,
-        )))
+    pub fn make_processor_array_argument(&mut self, function: ArrayReadFunc) -> ProcessorArgument {
+        ProcessorArgument::new(
+            self.proc_arg_idgen.next_id(),
+            Rc::new(ArrayProcessorExpressionArgument::new(function)),
+        )
     }
 
     /// Add an expression argument which reads an entire array that
@@ -136,69 +101,22 @@ impl<'a> SoundProcessorTools<'a> {
     /// routine and must be provided with Context::push_processor_state.
     /// NOTE that currently the length of that array must match
     /// the chunk length.
-    pub fn add_local_array_argument(&mut self) -> SoundExpressionArgumentHandle {
-        self.add_processor_argument_helper(Rc::new(ProcessorLocalArrayExpressionArgument::new(
-            self.processor_id,
-        )))
+    pub fn make_local_array_argument(&mut self) -> ProcessorArgument {
+        ProcessorArgument::new(
+            self.proc_arg_idgen.next_id(),
+            Rc::new(ProcessorLocalArrayExpressionArgument::new()),
+        )
     }
 
     /// Add an expression to the sound processor.
     /// When compiled, that expression can be
     /// executed directly on the audio thread
     /// to compute the result. See `make_expression_nodes`
-    pub fn add_expression(
+    pub fn make_expression(
         &mut self,
         default_value: f32,
         scope: SoundExpressionScope,
     ) -> ProcessorExpression {
         ProcessorExpression::new(self.expression_idgen.next_id(), scope, default_value)
-    }
-
-    /// Access the current sound graph graph
-    pub(crate) fn graph(&self) -> &SoundGraph {
-        self.graph
-    }
-
-    /// Mutably access the current sound graph graph
-    // TODO: why?
-    pub(crate) fn graph_mut(&mut self) -> &mut SoundGraph {
-        self.graph
-    }
-
-    /// Internal helper method for adding an expression argument to a sound input
-    /// belonging to the sound processor that the tools were created for.
-    fn add_input_argument_helper(
-        &mut self,
-        input_id: SoundInputId,
-        instance: Rc<dyn SoundExpressionArgument>,
-    ) -> SoundExpressionArgumentHandle {
-        assert!(
-            self.graph.sound_input(input_id).unwrap().owner() == self.processor_id,
-            "The sound input should belong to the processor which the tools were created for"
-        );
-
-        let id = self
-            .graph
-            .add_expression_argument(instance, SoundExpressionArgumentOwner::SoundInput(input_id))
-            .unwrap();
-
-        SoundExpressionArgumentHandle::new(id)
-    }
-
-    /// Internal helper method for adding an expression to the sound processor
-    /// which the tools were created for.
-    fn add_processor_argument_helper(
-        &mut self,
-        instance: Rc<dyn SoundExpressionArgument>,
-    ) -> SoundExpressionArgumentHandle {
-        let id = self
-            .graph
-            .add_expression_argument(
-                instance,
-                SoundExpressionArgumentOwner::SoundProcessor(self.processor_id),
-            )
-            .unwrap();
-
-        SoundExpressionArgumentHandle::new(id)
     }
 }

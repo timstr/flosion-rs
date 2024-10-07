@@ -1,5 +1,4 @@
 pub mod compiledexpression;
-pub mod compiledsoundinput;
 pub(crate) mod diffgraph;
 pub(crate) mod garbage;
 pub(crate) mod scratcharena;

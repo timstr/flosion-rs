@@ -1,5 +1,7 @@
 use super::{
-    expressionargument::SoundExpressionArgumentId, soundinput::SoundInputId,
+    expression::ProcessorExpressionLocation,
+    expressionargument::{ArgumentLocation, ProcessorArgumentLocation, SoundInputArgumentLocation},
+    soundinput::SoundInputLocation,
     soundprocessor::SoundProcessorId,
 };
 
@@ -28,63 +30,92 @@ impl From<&SoundProcessorId> for SoundObjectId {
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
-pub enum SoundGraphId {
-    SoundInput(SoundInputId),
-    SoundProcessor(SoundProcessorId),
-    ExpressionArgument(SoundExpressionArgumentId),
+pub enum SoundGraphComponentLocation {
+    Processor(SoundProcessorId),
+    Input(SoundInputLocation),
+    Expression(ProcessorExpressionLocation),
+    ProcessorArgument(ProcessorArgumentLocation),
+    InputArgument(SoundInputArgumentLocation),
 }
 
-impl SoundGraphId {
-    pub fn as_usize(&self) -> usize {
-        match self {
-            SoundGraphId::SoundInput(id) => id.value(),
-            SoundGraphId::SoundProcessor(id) => id.value(),
-            SoundGraphId::ExpressionArgument(id) => id.value(),
+impl From<SoundProcessorId> for SoundGraphComponentLocation {
+    fn from(x: SoundProcessorId) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::Processor(x)
+    }
+}
+impl From<&SoundProcessorId> for SoundGraphComponentLocation {
+    fn from(x: &SoundProcessorId) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::Processor(*x)
+    }
+}
+impl From<SoundInputLocation> for SoundGraphComponentLocation {
+    fn from(x: SoundInputLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::Input(x)
+    }
+}
+impl From<&SoundInputLocation> for SoundGraphComponentLocation {
+    fn from(x: &SoundInputLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::Input(*x)
+    }
+}
+impl From<ProcessorExpressionLocation> for SoundGraphComponentLocation {
+    fn from(x: ProcessorExpressionLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::Expression(x)
+    }
+}
+impl From<&ProcessorExpressionLocation> for SoundGraphComponentLocation {
+    fn from(x: &ProcessorExpressionLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::Expression(*x)
+    }
+}
+impl From<ProcessorArgumentLocation> for SoundGraphComponentLocation {
+    fn from(x: ProcessorArgumentLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::ProcessorArgument(x)
+    }
+}
+impl From<&ProcessorArgumentLocation> for SoundGraphComponentLocation {
+    fn from(x: &ProcessorArgumentLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::ProcessorArgument(*x)
+    }
+}
+impl From<SoundInputArgumentLocation> for SoundGraphComponentLocation {
+    fn from(x: SoundInputArgumentLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::InputArgument(x)
+    }
+}
+impl From<&SoundInputArgumentLocation> for SoundGraphComponentLocation {
+    fn from(x: &SoundInputArgumentLocation) -> SoundGraphComponentLocation {
+        SoundGraphComponentLocation::InputArgument(*x)
+    }
+}
+impl From<ArgumentLocation> for SoundGraphComponentLocation {
+    fn from(x: ArgumentLocation) -> Self {
+        match x {
+            ArgumentLocation::Processor(x) => SoundGraphComponentLocation::ProcessorArgument(x),
+            ArgumentLocation::Input(x) => SoundGraphComponentLocation::InputArgument(x),
+        }
+    }
+}
+impl From<&ArgumentLocation> for SoundGraphComponentLocation {
+    fn from(x: &ArgumentLocation) -> Self {
+        match *x {
+            ArgumentLocation::Processor(x) => SoundGraphComponentLocation::ProcessorArgument(x),
+            ArgumentLocation::Input(x) => SoundGraphComponentLocation::InputArgument(x),
         }
     }
 }
 
-impl From<SoundInputId> for SoundGraphId {
-    fn from(id: SoundInputId) -> SoundGraphId {
-        SoundGraphId::SoundInput(id)
-    }
-}
-impl From<SoundProcessorId> for SoundGraphId {
-    fn from(id: SoundProcessorId) -> SoundGraphId {
-        SoundGraphId::SoundProcessor(id)
-    }
-}
-impl From<SoundExpressionArgumentId> for SoundGraphId {
-    fn from(id: SoundExpressionArgumentId) -> SoundGraphId {
-        SoundGraphId::ExpressionArgument(id)
-    }
-}
-impl From<SoundObjectId> for SoundGraphId {
-    fn from(id: SoundObjectId) -> SoundGraphId {
+impl From<SoundObjectId> for SoundGraphComponentLocation {
+    fn from(id: SoundObjectId) -> SoundGraphComponentLocation {
         match id {
-            SoundObjectId::Sound(i) => SoundGraphId::SoundProcessor(i),
+            SoundObjectId::Sound(i) => SoundGraphComponentLocation::Processor(i),
         }
     }
 }
-impl From<&SoundInputId> for SoundGraphId {
-    fn from(id: &SoundInputId) -> SoundGraphId {
-        SoundGraphId::SoundInput(*id)
-    }
-}
-impl From<&SoundProcessorId> for SoundGraphId {
-    fn from(id: &SoundProcessorId) -> SoundGraphId {
-        SoundGraphId::SoundProcessor(*id)
-    }
-}
-impl From<&SoundExpressionArgumentId> for SoundGraphId {
-    fn from(id: &SoundExpressionArgumentId) -> SoundGraphId {
-        SoundGraphId::ExpressionArgument(*id)
-    }
-}
-impl From<&SoundObjectId> for SoundGraphId {
-    fn from(id: &SoundObjectId) -> SoundGraphId {
+impl From<&SoundObjectId> for SoundGraphComponentLocation {
+    fn from(id: &SoundObjectId) -> SoundGraphComponentLocation {
         match id {
-            SoundObjectId::Sound(i) => SoundGraphId::SoundProcessor(*i),
+            SoundObjectId::Sound(i) => SoundGraphComponentLocation::Processor(*i),
         }
     }
 }

@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::core::sound::{
-    expression::ProcessorExpressionLocation, soundinput::SoundInputId,
+    expression::ProcessorExpressionLocation, soundinput::SoundInputLocation,
     soundprocessor::SoundProcessorId,
 };
 
@@ -104,10 +104,10 @@ pub(crate) struct ProcessorPosition {
 }
 
 pub(crate) struct SoundObjectPositions {
-    socket_jumpers: PositionedItems<SoundInputId>,
+    socket_jumpers: PositionedItems<SoundInputLocation>,
     processors: Vec<ProcessorPosition>,
     drag_drop_subjects: PositionedItems<DragDropSubject>,
-    socket_tabs: PositionedItems<SoundInputId>,
+    socket_tabs: PositionedItems<SoundInputLocation>,
     plug_tabs: PositionedItems<SoundProcessorId>,
     expressions: PositionedItems<ProcessorExpressionLocation>,
 }
@@ -124,7 +124,7 @@ impl SoundObjectPositions {
         }
     }
 
-    pub(crate) fn socket_jumpers(&self) -> &PositionedItems<SoundInputId> {
+    pub(crate) fn socket_jumpers(&self) -> &PositionedItems<SoundInputLocation> {
         &self.socket_jumpers
     }
 
@@ -158,12 +158,16 @@ impl SoundObjectPositions {
         tab_rect: egui::Rect,
     ) {
         self.drag_drop_subjects
-            .push(DragDropSubject::Socket(socket.input), rect);
-        self.socket_tabs.push(socket.input, tab_rect);
+            .push(DragDropSubject::Socket(socket.location), rect);
+        self.socket_tabs.push(socket.location, tab_rect);
     }
 
-    pub(crate) fn record_socket_jumper(&mut self, input_id: SoundInputId, rect: egui::Rect) {
-        self.socket_jumpers.push(input_id, rect);
+    pub(crate) fn record_socket_jumper(
+        &mut self,
+        input_location: SoundInputLocation,
+        rect: egui::Rect,
+    ) {
+        self.socket_jumpers.push(input_location, rect);
     }
 
     pub(crate) fn record_expression(

@@ -216,7 +216,7 @@ impl StackedGroup {
                         for spid in &self.processors {
                             let processor_data = graph.sound_processor(*spid).unwrap();
 
-                            let inputs = processor_data.sound_inputs();
+                            let inputs = processor_data.input_locations();
 
                             let processor_color =
                                 ui_state.object_states().get_object_color(spid.into());
@@ -225,12 +225,19 @@ impl StackedGroup {
                                 self.draw_barrier(ui);
                             } else {
                                 for input_id in inputs {
-                                    let input_data = graph.sound_input(*input_id).unwrap();
+                                    let input_socket = graph
+                                        .with_sound_input(input_id, |input| {
+                                            InputSocket::from_input_data(
+                                                input_id.processor(),
+                                                input,
+                                            )
+                                        })
+                                        .unwrap();
                                     self.draw_input_socket(
                                         ui,
                                         ui_state,
                                         graph,
-                                        InputSocket::from_input_data(input_data),
+                                        input_socket,
                                         processor_color,
                                         top_of_stack,
                                     );
@@ -372,7 +379,10 @@ impl StackedGroup {
                 egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
                 egui::Sense::hover(),
             );
-            if let Some(target_spid) = graph.sound_input(socket.input).unwrap().target() {
+            if let Some(target_spid) = graph
+                .with_sound_input(socket.location, |i| i.target())
+                .unwrap()
+            {
                 let jumper_color = ui_state
                     .object_states()
                     .get_object_color(target_spid.into());
@@ -381,7 +391,7 @@ impl StackedGroup {
             }
             ui_state
                 .positions_mut()
-                .record_socket_jumper(socket.input, jumper_rect);
+                .record_socket_jumper(socket.location, jumper_rect);
         }
 
         let (bar_rect, bar_response) = ui.allocate_exact_size(
@@ -416,7 +426,7 @@ impl StackedGroup {
 
         let tab_response = ui.interact(
             tab_rect,
-            ui.id().with("socket").with(socket.input),
+            ui.id().with("socket").with(socket.location),
             egui::Sense::click_and_drag(),
         );
 
@@ -425,7 +435,7 @@ impl StackedGroup {
         if response.drag_started() {
             ui_state
                 .interactions_mut()
-                .start_dragging(DragDropSubject::Socket(socket.input), bar_rect);
+                .start_dragging(DragDropSubject::Socket(socket.location), bar_rect);
         }
 
         if response.dragged() {

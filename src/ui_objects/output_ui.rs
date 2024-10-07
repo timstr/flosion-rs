@@ -26,7 +26,7 @@ impl SoundObjectUi for OutputUi {
         sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(output.id(), "Output")
-            .add_sound_input(output.get().input.id(), "input", sound_graph)
+            .add_sound_input(output.get().input.id(), "input")
             .show_with(
                 ui,
                 ctx,

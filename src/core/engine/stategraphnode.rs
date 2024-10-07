@@ -1,143 +1,71 @@
 use std::{
+    any::Any,
     ops::{Deref, DerefMut},
     sync::Arc,
-    time::{Duration, Instant},
 };
 
 use parking_lot::Mutex;
 
 use crate::core::{
-    anydata::AnyData,
     sound::{
-        context::{Context, LocalArrayList},
-        soundgraphdata::SoundInputBranchId,
-        soundinput::{InputTiming, SoundInputId},
+        context::{Context, InputFrameData, ProcessorFrameData, Stack},
+        soundinput::{InputTiming, SoundInputLocation},
         soundprocessor::{
-            ProcessorState, SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+            ProcessorTiming, SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
         },
     },
     soundchunk::SoundChunk,
 };
 
 use super::{
-    compiledexpression::{CompiledExpression, CompiledExpressionCollection},
-    compiledsoundinput::{CompiledSoundInput, SoundProcessorInput},
     garbage::{Droppable, Garbage, GarbageChute},
     scratcharena::ScratchArena,
-    soundgraphcompiler::SoundGraphCompiler,
 };
 
 /// A compiled static processor for use in the state graph.
-pub struct CompiledStaticProcessor<'ctx, T: WhateverSoundProcessor> {
+pub struct CompiledProcessorData<T> {
     id: SoundProcessorId,
-    state: StateAndTiming<T::StateType>,
-    sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-    expressions: T::Expressions<'ctx>,
+    timing: ProcessorTiming,
+    processor: T,
 }
 
-impl<'ctx, T: WhateverSoundProcessor> CompiledStaticProcessor<'ctx, T> {
+impl<'ctx, T: WhateverCompiledSoundProcessor<'ctx>> CompiledProcessorData<T>
+where
+    T: WhateverCompiledSoundProcessor<'ctx>,
+{
     /// Compile a new static processor for the state graph
     pub(crate) fn new<'a>(
         processor_id: SoundProcessorId,
-        processor: &T,
-        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self {
-        let start = Instant::now();
-        let state = StateAndTiming::new(processor.make_state());
-        let sound_input = processor.get_sound_input().make_node(compiler);
-        let expressions = processor.compile_expressions(processor_id, compiler);
-        let finish = Instant::now();
-        let time_to_compile: Duration = finish - start;
-        let time_to_compile_ms = time_to_compile.as_millis();
-        if time_to_compile_ms > 10 {
-            println!(
-                "Compiling static sound processor {} took {} ms",
-                processor_id.value(),
-                time_to_compile_ms
-            );
-        }
-        Self {
+        processor: T,
+    ) -> CompiledProcessorData<T> {
+        CompiledProcessorData {
             id: processor_id,
-            state,
-            sound_input,
-            expressions,
-        }
-    }
-}
-
-/// A compiled dynamic processor for use in the state graph.
-// TODO: this identical to CompiledStaticProcessor. Merge.
-pub struct CompiledDynamicProcessor<'ctx, T: WhateverSoundProcessor> {
-    id: SoundProcessorId,
-    state: StateAndTiming<T::StateType>,
-    sound_input: <T::SoundInputType as SoundProcessorInput>::NodeType<'ctx>,
-    expressions: T::Expressions<'ctx>,
-}
-
-impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledDynamicProcessor<'ctx, T> {
-    /// Compile a new dynamic sound processor for the state graph
-    pub(crate) fn new<'a>(
-        processor_id: SoundProcessorId,
-        processor: &T,
-        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self {
-        let start = Instant::now();
-        let state = StateAndTiming::new(processor.make_state());
-        let sound_input = processor.get_sound_input().make_node(compiler);
-        let expressions = processor.compile_expressions(processor_id, compiler);
-        let finish = Instant::now();
-        let time_to_compile: Duration = finish - start;
-        let time_to_compile_ms = time_to_compile.as_millis();
-        if time_to_compile_ms > 10 {
-            println!(
-                "Compiling dynamic sound processor {} took {} ms",
-                processor_id.value(),
-                time_to_compile_ms
-            );
-        }
-        Self {
-            id: processor_id,
-            state,
-            sound_input,
-            expressions,
+            timing: ProcessorTiming::new(),
+            processor,
         }
     }
 
-    /// Make the compiled processor start over, that is revert its timing
-    /// back to zero and cleanly reinitialize all state such that it starts
-    /// processing audio from a new clean state when it is next processed.
     fn start_over(&mut self) {
-        self.state.start_over();
-        for t in self.sound_input.targets_mut() {
-            t.timing_mut().flag_to_start_over();
-        }
-        self.expressions
-            .visit_mut(&mut |expr: &mut CompiledExpression<'ctx>| {
-                expr.start_over();
-            });
+        self.timing.start_over();
+        self.processor.start_over();
     }
 
-    /// Process the next chunk of audio. This calls into the sound processor's
-    /// own `DynamicSoundProcessor::process_audio()` method and provides all the
-    /// additional timing and compiled sound inputs and expressions that it needs.
-    /// The sound processor's stream status is forwarded and indicates whether
-    /// the processor intends to keep producing audio or is finished.
-    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
-        let status = T::process_audio(
-            &mut self.state,
-            &mut self.sound_input,
-            &mut self.expressions,
-            dst,
-            ctx,
-        );
-        self.state.timing.advance_one_chunk();
+    fn process_audio(
+        &mut self,
+        dst: &mut SoundChunk,
+        stack: Stack,
+        scratch_arena: &ScratchArena,
+    ) -> StreamStatus {
+        let context = Context::new(self.id, &self.timing, scratch_arena, stack);
+        let status = self.processor.process_audio(dst, context);
+        self.timing.advance_one_chunk();
         status
     }
 }
 
 /// Trait for a compiled sound processor living in the state graph, intended
 /// to unify both static and dynamic sound processors.
-pub(crate) trait CompiledSoundProcessor<'ctx>: Send {
+pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
     /// The sound processor's id
     fn id(&self) -> SoundProcessorId;
 
@@ -155,7 +83,12 @@ pub(crate) trait CompiledSoundProcessor<'ctx>: Send {
     /// For dynamic processors, the returned stream status is forwarded to indicate
     /// whether it is done processing audio. Static sound processors always keep
     /// producing audio.
-    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus;
+    fn process_audio(
+        &mut self,
+        dst: &mut SoundChunk,
+        stack: Stack,
+        scratch_arena: &ScratchArena,
+    ) -> StreamStatus;
 
     /// Used for book-keeping optimizations, e.g. to avoid visiting shared nodes twice
     /// and because comparing trait objects (fat pointers) for equality is fraught
@@ -164,101 +97,31 @@ pub(crate) trait CompiledSoundProcessor<'ctx>: Send {
     /// Consume the compiled processor and convert it to something that can be
     /// tossed into a GarbageChute.
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable>;
-
-    /// Access the processor's compiled sound input
-    fn sound_input(&self) -> &dyn CompiledSoundInput<'ctx>;
-
-    /// Mutably access the processor's compiled sound input
-    fn sound_input_mut(&mut self) -> &mut dyn CompiledSoundInput<'ctx>;
-
-    /// Access the collection of compiled expressions
-    fn expressions(&self) -> &dyn CompiledExpressionCollection<'ctx>;
-
-    /// Mutably access the collection of compiled expressions
-    fn expressions_mut(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx>;
 }
 
-impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledSoundProcessor<'ctx>
-    for CompiledStaticProcessor<'ctx, T>
+impl<'ctx, T: 'ctx + WhateverCompiledSoundProcessor<'ctx>> AnyCompiledProcessorData<'ctx>
+    for CompiledProcessorData<T>
 {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
 
     fn start_over(&mut self) {
-        self.state.start_over();
+        CompiledProcessorData::start_over(self);
     }
 
-    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
-        T::process_audio(
-            &mut self.state,
-            &mut self.sound_input,
-            &mut self.expressions,
-            dst,
-            ctx,
-        );
-        self.state.timing.advance_one_chunk();
-        StreamStatus::Playing
+    fn process_audio(
+        &mut self,
+        dst: &mut SoundChunk,
+        stack: Stack,
+        scratch_arena: &ScratchArena,
+    ) -> StreamStatus {
+        CompiledProcessorData::process_audio(self, dst, stack, scratch_arena)
     }
 
     fn address(&self) -> *const () {
-        let ptr: *const CompiledStaticProcessor<T> = self;
+        let ptr: *const CompiledProcessorData<T> = self;
         ptr as *const ()
-    }
-
-    fn sound_input(&self) -> &dyn CompiledSoundInput<'ctx> {
-        &self.sound_input
-    }
-    fn sound_input_mut(&mut self) -> &mut dyn CompiledSoundInput<'ctx> {
-        &mut self.sound_input
-    }
-
-    fn expressions(&self) -> &dyn CompiledExpressionCollection<'ctx> {
-        &self.expressions
-    }
-
-    fn expressions_mut(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx> {
-        &mut self.expressions
-    }
-
-    fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable> {
-        self
-    }
-}
-
-impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledSoundProcessor<'ctx>
-    for CompiledDynamicProcessor<'ctx, T>
-{
-    fn id(&self) -> SoundProcessorId {
-        self.id
-    }
-
-    fn start_over(&mut self) {
-        (self as &mut CompiledDynamicProcessor<T>).start_over()
-    }
-
-    fn process_audio(&mut self, dst: &mut SoundChunk, ctx: Context) -> StreamStatus {
-        (self as &mut CompiledDynamicProcessor<T>).process_audio(dst, ctx)
-    }
-
-    fn address(&self) -> *const () {
-        let ptr: *const CompiledDynamicProcessor<T> = self;
-        ptr as *const ()
-    }
-
-    fn sound_input(&self) -> &dyn CompiledSoundInput<'ctx> {
-        &self.sound_input
-    }
-    fn sound_input_mut(&mut self) -> &mut dyn CompiledSoundInput<'ctx> {
-        &mut self.sound_input
-    }
-
-    fn expressions(&self) -> &dyn CompiledExpressionCollection<'ctx> {
-        &self.expressions
-    }
-
-    fn expressions_mut(&mut self) -> &mut dyn CompiledExpressionCollection<'ctx> {
-        &mut self.expressions
     }
 
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable> {
@@ -271,13 +134,13 @@ impl<'ctx, T: 'static + WhateverSoundProcessor> CompiledSoundProcessor<'ctx>
 /// to produce audio, it does so immediately and produces audio into the
 /// given buffer directly.
 pub struct UniqueCompiledSoundProcessor<'ctx> {
-    processor: Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>,
+    processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
 }
 
 impl<'ctx> UniqueCompiledSoundProcessor<'ctx> {
     /// Creates a new unique compiled sound processor.
     pub(crate) fn new(
-        processor: Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>,
+        processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
     ) -> UniqueCompiledSoundProcessor {
         UniqueCompiledSoundProcessor { processor }
     }
@@ -288,39 +151,27 @@ impl<'ctx> UniqueCompiledSoundProcessor<'ctx> {
     }
 
     /// Access the compiled processor
-    pub(crate) fn processor(&self) -> &dyn CompiledSoundProcessor<'ctx> {
+    pub(crate) fn processor(&self) -> &dyn AnyCompiledProcessorData<'ctx> {
         &*self.processor
     }
 
     /// Converts self into merely a boxed compiled processor
-    fn into_box(self) -> Box<dyn 'ctx + CompiledSoundProcessor<'ctx>> {
+    fn into_box(self) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>> {
         self.processor
-    }
-
-    /// Process the next chunk of audio
-    fn step<T: ProcessorState>(
-        &mut self,
-        timing: &mut InputTiming,
-        state: &T,
-        dst: &mut SoundChunk,
-        ctx: &Context,
-        input_id: SoundInputId,
-        input_state: AnyData,
-        local_arrays: LocalArrayList,
-    ) -> StreamStatus {
-        let ctx = ctx.push_processor_state(state, local_arrays);
-        let ctx = ctx.push_input(Some(self.processor.id()), input_id, input_state, timing);
-        let status = self.processor.process_audio(dst, ctx);
-        if status == StreamStatus::Done {
-            debug_assert!(!timing.is_done());
-            timing.mark_as_done();
-        }
-        status
     }
 
     /// Make audio processing start over
     fn start_over(&mut self) {
         self.processor.start_over();
+    }
+
+    fn process_audio(
+        &mut self,
+        dst: &mut SoundChunk,
+        stack: Stack<'_>,
+        scratch_arena: &ScratchArena,
+    ) -> StreamStatus {
+        self.processor.process_audio(dst, stack, scratch_arena)
     }
 }
 
@@ -328,16 +179,16 @@ impl<'ctx> UniqueCompiledSoundProcessor<'ctx> {
 /// compiled processor. It's here that the caching logic and cached
 /// audio processing result lives.
 pub(crate) struct SharedCompiledProcessorCache<'ctx> {
-    processor: Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>,
+    processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
     cached_output: SoundChunk, // TODO: generalize to >1 output
-    target_inputs: Vec<(SoundInputId, bool)>,
+    target_inputs: Vec<(SoundInputLocation, bool)>,
     stream_status: StreamStatus,
 }
 
 impl<'ctx> SharedCompiledProcessorCache<'ctx> {
     /// Creates a new cache for a shared compiled processor node.
     fn new(
-        processor: Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>,
+        processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
     ) -> SharedCompiledProcessorCache<'ctx> {
         SharedCompiledProcessorCache {
             processor,
@@ -348,25 +199,32 @@ impl<'ctx> SharedCompiledProcessorCache<'ctx> {
     }
 
     /// Access the compiled processor
-    pub(crate) fn processor(&self) -> &dyn CompiledSoundProcessor<'ctx> {
+    pub(crate) fn processor(&self) -> &dyn AnyCompiledProcessorData<'ctx> {
         &*self.processor
     }
 
     /// Register a new sound input that co-owns the cache. This sound input
     /// will be expected to call on the shared node to process audio in step
     /// with the rest of the group of inputs that own it.
-    pub(crate) fn add_target_input(&mut self, input: SoundInputId) {
-        debug_assert!(self.target_inputs.iter().find(|x| x.0 == input).is_none());
-        self.target_inputs.push((input, true));
+    pub(crate) fn add_target_input(&mut self, location: SoundInputLocation) {
+        debug_assert!(self
+            .target_inputs
+            .iter()
+            .find(|x| x.0 == location)
+            .is_none());
+        self.target_inputs.push((location, true));
     }
 
     /// Remove a previously-added sound input as a co-owner of the cache.
-    pub(crate) fn remove_target_input(&mut self, input: SoundInputId) {
+    pub(crate) fn remove_target_input(&mut self, location: SoundInputLocation) {
         debug_assert_eq!(
-            self.target_inputs.iter().filter(|x| x.0 == input).count(),
+            self.target_inputs
+                .iter()
+                .filter(|x| x.0 == location)
+                .count(),
             1
         );
-        self.target_inputs.retain(|(siid, _)| *siid != input);
+        self.target_inputs.retain(|(siid, _)| *siid != location);
     }
 
     /// The number of sound inputs co-owning the cache
@@ -403,7 +261,7 @@ pub struct SharedCompiledProcessor<'ctx> {
 impl<'ctx> SharedCompiledProcessor<'ctx> {
     /// Creates a new shared compiled processor.
     pub(crate) fn new(
-        processor: Box<dyn 'ctx + CompiledSoundProcessor<'ctx>>,
+        processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
     ) -> SharedCompiledProcessor<'ctx> {
         SharedCompiledProcessor {
             processor_id: processor.id(),
@@ -432,13 +290,8 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         self.cache.lock()
     }
 
-    /// Call on the inner sound processor to produce the next chunk of
-    /// audio without reference to any sound input. This requires that
-    /// `is_entry_point()` returns true, i.e. that there are no sound
-    /// inputs co-owning this shared node.
-    pub(crate) fn invoke_externally(&self, scratch_space: &ScratchArena) {
+    pub(crate) fn invoke_externally(&self, scratch_arena: &ScratchArena) {
         let mut data = self.cache.lock();
-        let context = Context::new(self.processor_id, scratch_space);
         let &mut SharedCompiledProcessorCache {
             ref mut processor,
             ref mut cached_output,
@@ -446,7 +299,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
             stream_status: _,
         } = &mut *data;
         debug_assert!(target_inputs.len() == 0);
-        processor.process_audio(cached_output, context);
+        processor.process_audio(cached_output, Stack::Root, scratch_arena);
     }
 
     /// The number of sound inputs co-owning this shared processor.
@@ -469,21 +322,21 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     /// input in the group to call on the shared processor this turn.
     /// All inputs in the group must collectively call on the shared
     /// processor in order to advance it correctly.
-    fn step<T: ProcessorState>(
+    fn process_audio(
         &mut self,
-        timing: &mut InputTiming,
-        state: &T,
         dst: &mut SoundChunk,
-        ctx: &Context,
-        input_id: SoundInputId,
-        input_state: AnyData,
-        local_arrays: LocalArrayList,
+        stack: Stack,
+        scratch_arena: &ScratchArena,
     ) -> StreamStatus {
+        let top_frame = stack.top_frame().unwrap();
+        let input_location =
+            SoundInputLocation::new(top_frame.processor_id(), top_frame.input_data().input_id());
+
         let mut data = self.cache.lock();
         debug_assert_eq!(
             data.target_inputs
                 .iter()
-                .filter(|(siid, _was_used)| { *siid == input_id })
+                .filter(|(loc, _was_used)| { *loc == input_location })
                 .count(),
             1,
             "Attempted to step a shared compiled processor for a target sound input which is not listed \
@@ -497,11 +350,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         } = &mut *data;
         let all_used = target_inputs.iter().all(|(_, used)| *used);
         if all_used {
-            // TODO: this processor state likely can never be read. Skip it?
-            // See also note about combining processor and input frames in context.rs
-            let ctx = ctx.push_processor_state(state, local_arrays);
-            let ctx = ctx.push_input(Some(self.processor_id), input_id, input_state, timing);
-            *stream_status = processor.process_audio(cached_output, ctx);
+            *stream_status = processor.process_audio(cached_output, stack, scratch_arena);
             for (_target, used) in target_inputs.iter_mut() {
                 *used = false;
             }
@@ -509,8 +358,8 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         *dst = *cached_output;
         let input_used = target_inputs
             .iter_mut()
-            .find_map(|(target_id, used)| {
-                if *target_id == input_id {
+            .find_map(|(target_loc, used)| {
+                if *target_loc == input_location {
                     Some(used)
                 } else {
                     None
@@ -571,8 +420,7 @@ pub enum StateGraphNodeValue<'ctx> {
 /// state graph as well as communicate changes to a concrete sound
 /// input type, in terms of adding and removing compiled inputs and branches.
 pub struct CompiledSoundInputBranch<'ctx> {
-    input_id: SoundInputId,
-    branch_id: SoundInputBranchId,
+    location: SoundInputLocation,
     timing: InputTiming,
     target: StateGraphNodeValue<'ctx>,
 }
@@ -580,26 +428,19 @@ pub struct CompiledSoundInputBranch<'ctx> {
 impl<'ctx> CompiledSoundInputBranch<'ctx> {
     /// Compile a new CompiledSoundInputBranch.
     pub(crate) fn new<'a>(
-        input_id: SoundInputId,
-        branch_id: SoundInputBranchId,
-        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+        location: SoundInputLocation,
+        target: StateGraphNodeValue<'ctx>,
     ) -> CompiledSoundInputBranch<'ctx> {
         CompiledSoundInputBranch {
-            input_id,
-            branch_id,
+            location,
             timing: InputTiming::default(),
-            target: compiler.compile_sound_input(input_id),
+            target,
         }
     }
 
-    /// The sound input's id
-    pub(crate) fn id(&self) -> SoundInputId {
-        self.input_id
-    }
-
-    /// The branch id within the sound input
-    pub(crate) fn branch_id(&self) -> SoundInputBranchId {
-        self.branch_id
+    /// The sound input's location
+    pub(crate) fn location(&self) -> SoundInputLocation {
+        self.location
     }
 
     /// Access the input timing
@@ -638,11 +479,11 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         mut target: StateGraphNodeValue<'ctx>,
     ) -> StateGraphNodeValue<'ctx> {
         if let StateGraphNodeValue::Shared(proc) = &mut self.target {
-            proc.borrow_cache_mut().remove_target_input(self.input_id);
+            proc.borrow_cache_mut().remove_target_input(self.location);
         }
         std::mem::swap(&mut self.target, &mut target);
         if let StateGraphNodeValue::Shared(proc) = &mut self.target {
-            proc.borrow_cache_mut().add_target_input(self.input_id);
+            proc.borrow_cache_mut().add_target_input(self.location);
         }
         target
     }
@@ -660,25 +501,12 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     }
 
     /// Process the next chunk of audio
-    // TODO: this is a bit of a mess. It should be possible to
-    // fold 'state', 'input_state', and  'local_arrays' into one
-    // or two calls to push onto the Context stack, and thus
-    // removed here. This method really doesn't need to be generic.
-    //
-    // The nice thing about taking all these arguments is that it
-    // ultimately forces sound processors' `process_audio` methods
-    // to provide the necessary information to correctly push the
-    // audio call stack. Perhaps that can still be achieved with
-    // something a bit tidier? Maybe compiled sound inputs can be
-    // wrapped in something that demands the same context info
-    // before the sound input's 'step' method is available? Hmmmm.
-    pub(crate) fn step<T: ProcessorState>(
+    pub(crate) fn step(
         &mut self,
-        state: &T,
         dst: &mut SoundChunk,
-        ctx: &Context,
-        input_state: AnyData,
-        local_arrays: LocalArrayList,
+        input_state: &dyn Any,
+        processor_frame: ProcessorFrameData,
+        ctx: Context,
     ) -> StreamStatus {
         if self.timing.need_to_start_over() {
             // NOTE: implicitly starting over doesn't use any fine timing
@@ -690,25 +518,17 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         }
         let release_pending = self.timing.pending_release().is_some();
 
+        let input_frame = InputFrameData::new(self.location.input(), input_state, &self.timing);
+
+        let stack = ctx.push_frame(processor_frame, input_frame);
+
         let status = match &mut self.target {
-            StateGraphNodeValue::Unique(proc) => proc.step(
-                &mut self.timing,
-                state,
-                dst,
-                ctx,
-                self.input_id,
-                input_state,
-                local_arrays,
-            ),
-            StateGraphNodeValue::Shared(proc) => proc.step(
-                &mut self.timing,
-                state,
-                dst,
-                ctx,
-                self.input_id,
-                input_state,
-                local_arrays,
-            ),
+            StateGraphNodeValue::Unique(proc) => {
+                proc.process_audio(dst, stack, ctx.scratch_arena())
+            }
+            StateGraphNodeValue::Shared(proc) => {
+                proc.process_audio(dst, stack, ctx.scratch_arena())
+            }
             StateGraphNodeValue::Empty => {
                 dst.silence();
                 self.timing.mark_as_done();

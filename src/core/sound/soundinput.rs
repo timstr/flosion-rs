@@ -1,8 +1,55 @@
-use crate::core::{soundchunk::CHUNK_SIZE, uniqueid::UniqueId};
+use std::rc::Rc;
+
+use crate::core::{
+    engine::{
+        soundgraphcompiler::SoundGraphCompiler,
+        stategraphnode::{CompiledSoundInputBranch, StateGraphNodeValue},
+    },
+    jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
+    soundchunk::CHUNK_SIZE,
+    uniqueid::UniqueId,
+};
+
+use super::{
+    expressionargument::{
+        ArrayInputExpressionArgument, ScalarInputExpressionArgument, SoundInputArgument,
+    },
+    soundprocessor::SoundProcessorId,
+    soundprocessortools::SoundProcessorTools,
+};
 
 pub struct SoundInputTag;
 
+// TODO: remove
 pub type SoundInputId = UniqueId<SoundInputTag>;
+
+pub struct ProcessorInputTag;
+
+pub type ProcessorInputId = UniqueId<ProcessorInputTag>;
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
+pub struct SoundInputLocation {
+    processor: SoundProcessorId,
+    input: ProcessorInputId,
+}
+
+impl SoundInputLocation {
+    pub(crate) fn new(processor: SoundProcessorId, input: ProcessorInputId) -> SoundInputLocation {
+        SoundInputLocation { processor, input }
+    }
+
+    pub(crate) fn processor(&self) -> SoundProcessorId {
+        self.processor
+    }
+
+    pub(crate) fn input(&self) -> ProcessorInputId {
+        self.input
+    }
+}
+
+pub struct SoundInputBranchTag;
+
+pub type SoundInputBranchId = UniqueId<SoundInputBranchTag>;
 
 // TODO: rename to (an)isochronous
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -18,6 +65,7 @@ enum ReleaseStatus {
     Released,
 }
 
+// TODO: move, make not specific to inputs
 #[derive(Clone, Copy)]
 pub struct InputTiming {
     sample_offset: usize,
@@ -108,5 +156,80 @@ impl Default for InputTiming {
             is_done: false,
             release: ReleaseStatus::NotYet,
         }
+    }
+}
+
+// TODO: rename to ProcessorInputBase?
+pub struct ProcessorInput {
+    id: ProcessorInputId,
+    options: InputOptions,
+    // LOL this doesn't really mean anything anymore. What's
+    // a good way to report to the rest of the soundgraph
+    // how many copies of the input will be allocated?
+    branches: Vec<SoundInputBranchId>,
+    target: Option<SoundProcessorId>,
+}
+
+impl ProcessorInput {
+    pub(crate) fn new(
+        id: ProcessorInputId,
+        options: InputOptions,
+        branches: Vec<SoundInputBranchId>,
+    ) -> ProcessorInput {
+        ProcessorInput {
+            id,
+            options,
+            branches,
+            target: None,
+        }
+    }
+
+    pub(crate) fn id(&self) -> ProcessorInputId {
+        self.id
+    }
+
+    pub(crate) fn options(&self) -> InputOptions {
+        self.options
+    }
+
+    pub(crate) fn branches(&self) -> &[SoundInputBranchId] {
+        &self.branches
+    }
+
+    pub(crate) fn target(&self) -> Option<SoundProcessorId> {
+        self.target
+    }
+
+    pub(crate) fn set_target(&mut self, target: Option<SoundProcessorId>) {
+        self.target = target;
+    }
+
+    pub fn make_scalar_argument(
+        &self,
+        function: ScalarReadFunc,
+        tools: &mut SoundProcessorTools,
+    ) -> SoundInputArgument {
+        tools.make_input_argument(Rc::new(ScalarInputExpressionArgument::new(function)))
+    }
+
+    pub fn make_array_argument(
+        &self,
+        function: ArrayReadFunc,
+        tools: &mut SoundProcessorTools,
+    ) -> SoundInputArgument {
+        tools.make_input_argument(Rc::new(ArrayInputExpressionArgument::new(function)))
+    }
+
+    pub fn compile<'ctx>(
+        &self,
+        processor_id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> CompiledSoundInputBranch<'ctx> {
+        let target = match self.target {
+            Some(target_spid) => compiler.compile_sound_processor(target_spid),
+            None => StateGraphNodeValue::Empty,
+        };
+        let location = SoundInputLocation::new(processor_id, self.id);
+        CompiledSoundInputBranch::new(location, target)
     }
 }

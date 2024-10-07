@@ -13,12 +13,11 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::Context,
-            expression::ProcessorExpression,
             soundprocessor::{
-                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+                ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
+                StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
             },
             soundprocessortools::SoundProcessorTools,
-            state::State,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
@@ -45,26 +44,18 @@ impl Drop for Input {
     }
 }
 
-pub struct InputState {
+pub struct CompiledInput {
     chunk_receiver: spmcq::Reader<SoundChunk>,
 }
 
-impl State for InputState {
-    fn start_over(&mut self) {
-        // ???
-    }
-}
-
 impl WhateverSoundProcessor for Input {
-    type SoundInputType = ();
-    type Expressions<'ctx> = ();
-    type StateType = InputState;
+    type CompiledType<'ctx> = CompiledInput;
 
-    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
+    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Input {
         let host = cpal::default_host();
         let device = host
             .default_input_device()
-            .ok_or_else(|| println!("No input device available"))?;
+            .expect("No input device available"); // TODO: error handling
 
         println!("Selected input device {}", device.name().unwrap());
 
@@ -118,45 +109,34 @@ impl WhateverSoundProcessor for Input {
             stream.pause().unwrap();
         });
 
-        Ok(Input {
+        Input {
             chunk_receiver: rx,
             stream_end_barrier: barrier,
-        })
+        }
     }
 
     fn is_static(&self) -> bool {
         true
     }
 
-    fn get_sound_input(&self) -> &() {
-        &()
-    }
+    fn visit<'a>(&self, _visitor: &'a mut dyn ProcessorComponentVisitor) {}
 
-    fn visit_expressions<'a>(&self, _f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
-    fn visit_expressions_mut<'a>(&mut self, _f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {}
+    fn visit_mut<'a>(&mut self, _visitor: &'a mut dyn ProcessorComponentVisitorMut) {}
 
-    fn compile_expressions<'a, 'ctx>(
+    fn compile<'ctx>(
         &self,
-        _processor_id: SoundProcessorId,
-        _compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        ()
-    }
-
-    fn make_state(&self) -> Self::StateType {
-        InputState {
+        _id: SoundProcessorId,
+        _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::CompiledType<'ctx> {
+        CompiledInput {
             chunk_receiver: self.chunk_receiver.clone(),
         }
     }
+}
 
-    fn process_audio<'ctx>(
-        state: &mut StateAndTiming<Self::StateType>,
-        _sound_inputs: &mut (),
-        _expressions: &mut (),
-        dst: &mut SoundChunk,
-        _context: Context,
-    ) -> StreamStatus {
-        let chunk = match state.chunk_receiver.read() {
+impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledInput {
+    fn process_audio(&mut self, dst: &mut SoundChunk, _context: Context) -> StreamStatus {
+        let chunk = match self.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,
             ReadResult::Dropout(ch) => {
                 println!("WARNING: Input dropout");
@@ -166,6 +146,10 @@ impl WhateverSoundProcessor for Input {
         };
         *dst = chunk;
         StreamStatus::Playing
+    }
+
+    fn start_over(&mut self) {
+        self.chunk_receiver.skip_ahead();
     }
 }
 

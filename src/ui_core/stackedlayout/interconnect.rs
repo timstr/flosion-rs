@@ -1,8 +1,8 @@
 use hashstash::{Stashable, Stasher};
 
 use crate::core::sound::{
-    soundgraphdata::{SoundInputData, SoundProcessorData},
-    soundinput::{InputOptions, SoundInputId},
+    soundgraphdata::SoundProcessorData,
+    soundinput::{InputOptions, ProcessorInput, SoundInputLocation},
     soundprocessor::SoundProcessorId,
 };
 
@@ -30,15 +30,18 @@ impl Stashable for ProcessorPlug {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct InputSocket {
-    pub(crate) input: SoundInputId,
+    pub(crate) location: SoundInputLocation,
     pub(crate) options: InputOptions,
     pub(crate) branches: usize,
 }
 
 impl InputSocket {
-    pub(crate) fn from_input_data(data: &SoundInputData) -> InputSocket {
+    pub(crate) fn from_input_data(
+        processor_id: SoundProcessorId,
+        data: &ProcessorInput,
+    ) -> InputSocket {
         InputSocket {
-            input: data.id(),
+            location: SoundInputLocation::new(processor_id, data.id()),
             options: data.options(),
             branches: data.branches().len(),
         }
@@ -47,7 +50,8 @@ impl InputSocket {
 
 impl Stashable for InputSocket {
     fn stash(&self, stasher: &mut Stasher) {
-        stasher.u64(self.input.value() as _);
+        stasher.u64(self.location.processor().value() as _);
+        stasher.u64(self.location.input().value() as _);
         stasher.u8(match self.options {
             InputOptions::Synchronous => 0,
             InputOptions::NonSynchronous => 1,

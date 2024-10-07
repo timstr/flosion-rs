@@ -3,14 +3,13 @@ use std::collections::{HashMap, HashSet};
 use hashstash::HashCache;
 
 use crate::core::sound::{
-    expression::ProcessorExpressionLocation, expressionargument::SoundExpressionArgumentId,
+    expression::ProcessorExpressionLocation, expressionargument::ArgumentLocation,
     soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
 };
 
 pub(crate) struct GraphProperties {
     // TODO: others?
-    available_arguments:
-        HashCache<HashMap<ProcessorExpressionLocation, HashSet<SoundExpressionArgumentId>>>,
+    available_arguments: HashCache<HashMap<ProcessorExpressionLocation, HashSet<ArgumentLocation>>>,
 }
 
 impl GraphProperties {
@@ -24,7 +23,7 @@ impl GraphProperties {
 
     pub(crate) fn available_arguments(
         &self,
-    ) -> &HashMap<ProcessorExpressionLocation, HashSet<SoundExpressionArgumentId>> {
+    ) -> &HashMap<ProcessorExpressionLocation, HashSet<ArgumentLocation>> {
         self.available_arguments.get_cached().unwrap()
     }
 

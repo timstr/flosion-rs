@@ -2,8 +2,8 @@ use eframe::egui;
 
 use crate::{
     core::sound::{
-        expression::ProcessorExpressionLocation, soundgraph::SoundGraph, soundinput::SoundInputId,
-        soundprocessor::SoundProcessorId,
+        expression::ProcessorExpressionLocation, soundgraph::SoundGraph,
+        soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
     },
     ui_core::{
         expressiongraphuicontext::OuterProcessorExpressionContext,
@@ -119,7 +119,7 @@ pub(crate) enum KeyboardNavInteraction {
     // OnJumperCable(???)
     AroundSoundProcessor(SoundProcessorId),
     AroundProcessorPlug(SoundProcessorId),
-    AroundInputSocket(SoundInputId),
+    AroundInputSocket(SoundInputLocation),
     AroundExpression(ProcessorExpressionLocation),
     InsideExpression(ProcessorExpressionLocation, LexicalLayoutFocus),
 }
@@ -144,7 +144,7 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
                 rect = positions.find_processor(*spid).unwrap().rect;
                 let proc_data = graph.sound_processor(*spid).unwrap();
-                let last_input = proc_data.sound_inputs().last();
+                let last_input = proc_data.input_locations().last().cloned();
 
                 let first_expr: Option<ProcessorExpressionLocation> = positions
                     .expressions()
@@ -162,7 +162,7 @@ impl KeyboardNavInteraction {
                 if requested_dirs.go_up {
                     // go the processor's last input, if it has any inputs
                     if let Some(last_input) = last_input {
-                        *self = KeyboardNavInteraction::AroundInputSocket(*last_input);
+                        *self = KeyboardNavInteraction::AroundInputSocket(last_input);
                     }
                 } else if requested_dirs.go_down {
                     // go to the processor's plug
@@ -196,10 +196,11 @@ impl KeyboardNavInteraction {
                         let first_input = graph
                             .sound_processor(proc_below)
                             .unwrap()
-                            .sound_inputs()
+                            .input_locations()
                             .first()
+                            .cloned()
                             .unwrap();
-                        *self = KeyboardNavInteraction::AroundInputSocket(*first_input);
+                        *self = KeyboardNavInteraction::AroundInputSocket(first_input);
                     } else {
                         // TODO: ???
                     }
@@ -210,8 +211,8 @@ impl KeyboardNavInteraction {
                     .drag_drop_subjects()
                     .position(&DragDropSubject::Socket(*siid))
                     .unwrap();
-                let owner = graph.sound_input(*siid).unwrap().owner();
-                let other_inputs = graph.sound_processor(owner).unwrap().sound_inputs();
+                let owner = siid.processor();
+                let other_inputs = graph.sound_processor(owner).unwrap().input_locations();
                 let index = other_inputs.iter().position(|id| *id == *siid).unwrap();
 
                 allowed_dirs.go_up = index > 0 || !layout.is_top_of_group(owner);
@@ -303,7 +304,7 @@ impl KeyboardNavInteraction {
                     let available_arguments = properties.available_arguments().get(eid).unwrap();
 
                     graph
-                        .sound_processor(eid.processor())
+                        .sound_processor_mut(eid.processor())
                         .unwrap()
                         .with_expression_mut(eid.expression(), |expr| {
                             let (mapping, expr_graph) = expr.parts_mut();

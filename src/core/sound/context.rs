@@ -1,20 +1,17 @@
-use crate::core::{
-    anydata::AnyData,
-    engine::scratcharena::{BorrowedSlice, ScratchArena},
-    samplefrequency::SAMPLE_FREQUENCY,
-    soundchunk::CHUNK_SIZE,
-};
+use std::any::Any;
+
+use crate::core::engine::scratcharena::{BorrowedSlice, ScratchArena};
 
 use super::{
-    expressionargument::SoundExpressionArgumentId,
-    soundinput::{InputTiming, SoundInputId},
-    soundprocessor::{ProcessorState, SoundProcessorId},
+    expressionargument::ProcessorArgumentId,
+    soundinput::{InputTiming, ProcessorInputId, SoundInputLocation},
+    soundprocessor::{ProcessorTiming, SoundProcessorId},
 };
 
 #[derive(Clone, Copy)]
 pub(crate) struct LocalArray<'a> {
     array: &'a [f32],
-    argument_id: SoundExpressionArgumentId,
+    argument_id: ProcessorArgumentId,
 }
 
 impl<'a> LocalArray<'a> {
@@ -22,7 +19,7 @@ impl<'a> LocalArray<'a> {
         self.array
     }
 
-    pub(crate) fn argument_id(&self) -> SoundExpressionArgumentId {
+    pub(crate) fn argument_id(&self) -> ProcessorArgumentId {
         self.argument_id
     }
 }
@@ -48,14 +45,14 @@ impl<'a> LocalArrayList<'a> {
     pub fn push(
         &'a self,
         array: &'a [f32],
-        argument_id: SoundExpressionArgumentId,
+        argument_id: ProcessorArgumentId,
     ) -> LocalArrayList<'a> {
         LocalArrayList {
             value: LocalArrayListValue::Containing(LocalArray { array, argument_id }, self),
         }
     }
 
-    pub fn get(&self, argument_id: SoundExpressionArgumentId) -> &'a [f32] {
+    pub fn get(&self, argument_id: ProcessorArgumentId) -> &'a [f32] {
         match &self.value {
             LocalArrayListValue::Empty => {
                 panic!("Attempted to get a LocalArray which was never pushed")
@@ -87,238 +84,211 @@ impl<'a> LocalArrayList<'a> {
     }
 }
 
-pub(crate) struct ProcessorStackFrame<'a> {
-    parent: &'a StackFrame<'a>,
-    processor_id: SoundProcessorId,
-    state: &'a dyn ProcessorState,
+/// Things that a sound processor pushes onto the call
+/// stack when it invokes one of its sound inputs
+#[derive(Copy, Clone)]
+pub(crate) struct ProcessorFrameData<'a> {
+    /// The processor's state
+    state: Option<&'a dyn Any>,
+
+    /// Any local arrays that the processor pushed
     local_arrays: LocalArrayList<'a>,
 }
 
-impl<'a> ProcessorStackFrame<'a> {
-    pub(crate) fn local_arrays(&self) -> &LocalArrayList<'a> {
-        &self.local_arrays
+impl<'a> ProcessorFrameData<'a> {
+    pub(crate) fn new(
+        state: Option<&'a dyn Any>,
+        local_arrays: LocalArrayList<'a>,
+    ) -> ProcessorFrameData<'a> {
+        ProcessorFrameData {
+            state,
+            local_arrays,
+        }
+    }
+
+    pub(crate) fn state(&self) -> Option<&'a dyn Any> {
+        self.state
+    }
+
+    pub(crate) fn local_arrays(&self) -> LocalArrayList<'a> {
+        self.local_arrays
     }
 }
 
-pub(crate) struct InputStackFrame<'a> {
-    parent: &'a StackFrame<'a>,
-    input_id: SoundInputId,
-    state: AnyData<'a>,
-    timing: &'a mut InputTiming,
+/// Things that a sound input pushes onto the call
+/// stack when it is invoked
+#[derive(Copy, Clone)]
+pub(crate) struct InputFrameData<'a> {
+    /// The input's id
+    input_id: ProcessorInputId,
+
+    /// The input's state
+    state: &'a dyn Any,
+
+    /// The input's timing
+    timing: &'a InputTiming,
 }
 
-impl<'a> InputStackFrame<'a> {
-    pub(crate) fn state(&self) -> &AnyData<'a> {
-        &self.state
+impl<'a> InputFrameData<'a> {
+    pub(crate) fn new(
+        input_id: ProcessorInputId,
+        state: &'a dyn Any,
+        timing: &'a InputTiming,
+    ) -> InputFrameData<'a> {
+        InputFrameData {
+            input_id,
+            state,
+            timing,
+        }
     }
 
-    pub(crate) fn timing(&'a self) -> &'a InputTiming {
-        self.timing
+    pub(crate) fn input_id(&self) -> ProcessorInputId {
+        self.input_id
     }
 
-    pub(super) fn take_pending_release(&mut self) -> Option<usize> {
-        self.timing.take_pending_release()
+    pub(crate) fn state(&self) -> &'a dyn Any {
+        self.state
     }
 }
 
-pub(crate) enum StackFrame<'a> {
-    Processor(ProcessorStackFrame<'a>),
-    Input(InputStackFrame<'a>),
-    Root,
+#[derive(Copy, Clone)]
+pub(crate) struct StackFrame<'a> {
+    /// The parent stack frame
+    parent: &'a Stack<'a>,
+
+    /// The previous processor's id
+    processor_id: SoundProcessorId,
+
+    /// The previous processor's timing
+    processor_timing: &'a ProcessorTiming,
+
+    /// Data pushed by the invoking sound processor
+    processor_data: ProcessorFrameData<'a>,
+
+    /// Data pushed by the invoking sound input
+    input_data: InputFrameData<'a>,
 }
 
 impl<'a> StackFrame<'a> {
-    fn find_processor_frame(&self, processor_id: SoundProcessorId) -> &ProcessorStackFrame<'a> {
+    pub(crate) fn processor_id(&self) -> SoundProcessorId {
+        self.processor_id
+    }
+
+    pub(crate) fn processor_data(&self) -> &ProcessorFrameData<'a> {
+        &self.processor_data
+    }
+
+    pub(crate) fn input_data(&self) -> &InputFrameData<'a> {
+        &self.input_data
+    }
+}
+
+#[derive(Copy, Clone)]
+pub(crate) enum Stack<'a> {
+    Frame(StackFrame<'a>),
+    Root,
+}
+
+impl<'a> Stack<'a> {
+    fn find_frame(&self, processor_id: SoundProcessorId) -> &StackFrame<'a> {
         match self {
-            StackFrame::Processor(p) => {
-                if p.processor_id == processor_id {
-                    p
+            Stack::Frame(frame) => {
+                if frame.processor_id == processor_id {
+                    frame
                 } else {
-                    p.parent.find_processor_frame(processor_id)
+                    frame.parent.find_frame(processor_id)
                 }
             }
-            StackFrame::Input(i) => i.parent.find_processor_frame(processor_id),
-            StackFrame::Root => {
+            Stack::Root => {
                 panic!("Attempted to find a processor frame which is not in the context call stack")
             }
         }
     }
 
-    fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
+    pub(crate) fn top_frame(&self) -> Option<&StackFrame<'a>> {
         match self {
-            StackFrame::Processor(p) => p.parent.find_input_frame(input_id),
-            StackFrame::Input(i) => {
-                if i.input_id == input_id {
-                    i
-                } else {
-                    i.parent.find_input_frame(input_id)
-                }
-            }
-            StackFrame::Root => {
-                panic!("Attempted to find an input frame which is not in the context call stack")
-            }
-        }
-    }
-
-    fn find_processor_sample_offset_and_time_speed(
-        &self,
-        processor_id: SoundProcessorId,
-    ) -> (usize, f32) {
-        match self {
-            StackFrame::Processor(p) => {
-                if p.processor_id == processor_id {
-                    (p.state.timing().elapsed_chunks() * CHUNK_SIZE, 1.0)
-                } else {
-                    p.parent
-                        .find_processor_sample_offset_and_time_speed(processor_id)
-                }
-            }
-            StackFrame::Input(i) => {
-                let (o, s) = i
-                    .parent
-                    .find_processor_sample_offset_and_time_speed(processor_id);
-                (o + i.timing.sample_offset(), s * i.timing.time_speed())
-            }
-            StackFrame::Root => {
-                panic!("Attempted to find a processor frame which is not in the context call stack")
-            }
-        }
-    }
-
-    fn find_input_sample_offset_and_time_speed(&self, input_id: SoundInputId) -> (usize, f32) {
-        match self {
-            StackFrame::Processor(p) => {
-                let (o, s) = p.parent.find_input_sample_offset_and_time_speed(input_id);
-                (o + p.state.timing().elapsed_chunks() * CHUNK_SIZE, s)
-            }
-            StackFrame::Input(i) => {
-                if i.input_id == input_id {
-                    (0, 1.0)
-                } else {
-                    let (o, s) = i.parent.find_input_sample_offset_and_time_speed(input_id);
-                    (o + i.timing.sample_offset(), s * i.timing.time_speed())
-                }
-            }
-            StackFrame::Root => {
-                panic!("Attempted to find an input frame which is not in the context call stack")
-            }
+            Stack::Frame(stack_frame) => Some(stack_frame),
+            Stack::Root => None,
         }
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct Context<'a> {
-    target_processor_id: Option<SoundProcessorId>,
-    scratch_space: &'a ScratchArena,
-    stack: StackFrame<'a>,
+    current_processor_id: SoundProcessorId,
+    current_processor_timing: &'a ProcessorTiming,
+    scratch_arena: &'a ScratchArena,
+    stack: Stack<'a>,
 }
 
 impl<'a> Context<'a> {
     pub(crate) fn new(
-        target_processor_id: SoundProcessorId,
-        scratch_space: &'a ScratchArena,
+        current_processor_id: SoundProcessorId,
+        current_processor_timing: &'a ProcessorTiming,
+        scratch_arena: &'a ScratchArena,
+        stack: Stack<'a>,
     ) -> Context<'a> {
         Context {
-            target_processor_id: Some(target_processor_id),
-            scratch_space,
-            stack: StackFrame::Root,
+            current_processor_id,
+            current_processor_timing,
+            scratch_arena,
+            stack,
         }
     }
 
-    pub(crate) fn stack(&self) -> &StackFrame<'a> {
+    pub(crate) fn current_processor_id(&self) -> SoundProcessorId {
+        self.current_processor_id
+    }
+
+    pub(crate) fn stack(&self) -> &Stack<'a> {
         &self.stack
     }
 
-    pub(crate) fn push_input(
+    pub(crate) fn push_frame(
         &'a self,
-        target: Option<SoundProcessorId>,
-        input_id: SoundInputId,
-        state: AnyData<'a>,
-        timing: &'a mut InputTiming,
-    ) -> Context<'a> {
-        Context {
-            target_processor_id: target,
-            stack: StackFrame::Input(InputStackFrame {
-                parent: &self.stack,
-                input_id,
-                state,
-                timing,
-            }),
-            scratch_space: self.scratch_space,
-        }
+        processor_data: ProcessorFrameData<'a>,
+        input_data: InputFrameData<'a>,
+    ) -> Stack<'a> {
+        Stack::Frame(StackFrame {
+            parent: &self.stack,
+            processor_id: self.current_processor_id,
+            processor_timing: self.current_processor_timing,
+            processor_data,
+            input_data,
+        })
     }
 
-    pub fn push_processor_state<T: ProcessorState>(
-        &'a self,
-        state: &'a T,
-        local_arrays: LocalArrayList<'a>,
-    ) -> Context<'a> {
-        Context {
-            target_processor_id: None,
-            stack: StackFrame::Processor(ProcessorStackFrame {
-                parent: &self.stack,
-                processor_id: self.target_processor_id.unwrap(),
-                state,
-                local_arrays,
-            }),
-            scratch_space: self.scratch_space,
-        }
+    pub(crate) fn scratch_arena(&self) -> &'a ScratchArena {
+        self.scratch_arena
     }
 
-    pub(crate) fn find_processor_local_array(
-        &self,
-        processor_id: SoundProcessorId,
-        argument_id: SoundExpressionArgumentId,
-    ) -> &'a [f32] {
-        self.stack
-            .find_processor_frame(processor_id)
-            .local_arrays
-            .get(argument_id)
-    }
-
-    pub(crate) fn find_processor_state(&self, processor_id: SoundProcessorId) -> AnyData<'a> {
-        let state = self.stack.find_processor_frame(processor_id).state.state();
-        // TODO: remove AnyData
-        AnyData::new(state)
+    pub(crate) fn find_frame(&self, processor_id: SoundProcessorId) -> &StackFrame<'a> {
+        self.stack.find_frame(processor_id)
     }
 
     pub fn get_scratch_space(&self, size: usize) -> BorrowedSlice {
-        self.scratch_space.borrow_slice(size)
-    }
-
-    pub(crate) fn find_input_frame(&self, input_id: SoundInputId) -> &InputStackFrame {
-        self.stack.find_input_frame(input_id)
+        self.scratch_arena.borrow_slice(size)
     }
 
     pub(crate) fn time_offset_and_speed_at_processor(
         &self,
         processor_id: SoundProcessorId,
     ) -> (f32, f32) {
-        let (samples, speed) = self
-            .stack
-            .find_processor_sample_offset_and_time_speed(processor_id);
-        (samples as f32 / SAMPLE_FREQUENCY as f32, speed)
+        todo!()
     }
 
-    pub(crate) fn time_offset_and_speed_at_input(&self, input_id: SoundInputId) -> (f32, f32) {
-        let (samples, speed) = self.stack.find_input_sample_offset_and_time_speed(input_id);
-        (samples as f32 / SAMPLE_FREQUENCY as f32, speed)
+    pub(crate) fn time_offset_and_speed_at_input(
+        &self,
+        location: SoundInputLocation,
+    ) -> (f32, f32) {
+        todo!()
     }
 
     pub fn pending_release(&self) -> Option<usize> {
-        if let StackFrame::Input(i) = &self.stack {
-            i.timing().pending_release()
-        } else {
-            debug_assert!(false);
-            None
-        }
+        todo!()
     }
 
     pub fn take_pending_release(&mut self) -> Option<usize> {
-        if let StackFrame::Input(i) = &mut self.stack {
-            i.take_pending_release()
-        } else {
-            debug_assert!(false);
-            None
-        }
+        todo!()
     }
 }

@@ -9,9 +9,9 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
-            expression::ProcessorExpression,
             soundprocessor::{
-                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+                ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
+                StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
             },
             soundprocessortools::SoundProcessorTools,
             state::State,
@@ -51,12 +51,14 @@ impl State for AudioClipState {
     }
 }
 
-impl WhateverSoundProcessor for AudioClip {
-    type StateType = AudioClipState;
-    type SoundInputType = ();
-    type Expressions<'ctx> = ();
+pub struct CompiledAudioclip {
+    state: AudioClipState,
+}
 
-    fn new(_tools: SoundProcessorTools, args: &ParsedArguments) -> Result<Self, ()> {
+impl WhateverSoundProcessor for AudioClip {
+    type CompiledType<'ctx> = CompiledAudioclip;
+
+    fn new(_tools: SoundProcessorTools, args: &ParsedArguments) -> AudioClip {
         let buffer = if let Some(path) = args.get(&Self::ARG_PATH) {
             if let Ok(b) = load_audio_file(&path) {
                 b
@@ -67,69 +69,63 @@ impl WhateverSoundProcessor for AudioClip {
         } else {
             SoundBuffer::new_empty()
         };
-        Ok(AudioClip {
+        AudioClip {
             data: Arc::new(RwLock::new(buffer)),
-        })
+        }
     }
 
     fn is_static(&self) -> bool {
         false
     }
 
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &()
-    }
+    fn visit<'a>(&self, _visitor: &'a mut dyn ProcessorComponentVisitor) {}
 
-    fn make_state(&self) -> Self::StateType {
-        AudioClipState {
-            data: Arc::clone(&self.data),
-            playhead: 0,
+    fn visit_mut<'a>(&mut self, _visitor: &'a mut dyn ProcessorComponentVisitorMut) {}
+
+    fn compile<'ctx>(
+        &self,
+        _id: SoundProcessorId,
+        _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::CompiledType<'ctx> {
+        CompiledAudioclip {
+            state: AudioClipState {
+                data: Arc::clone(&self.data),
+                playhead: 0,
+            },
         }
     }
+}
 
-    fn visit_expressions<'a>(&self, _f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
-    fn visit_expressions_mut<'a>(&mut self, _f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {}
-
-    fn compile_expressions<'a, 'ctx>(
-        &self,
-        _processor_id: SoundProcessorId,
-        _compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        ()
-    }
-
-    fn process_audio(
-        state: &mut StateAndTiming<AudioClipState>,
-        _sound_inputs: &mut Self::SoundInputType,
-        _expressions: &mut (),
-        dst: &mut SoundChunk,
-        _context: Context,
-    ) -> StreamStatus {
-        let st = state.state_mut();
+impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledAudioclip {
+    fn process_audio(&mut self, dst: &mut SoundChunk, _context: Context) -> StreamStatus {
         // TODO: avoid locking here? Maybe use ArcSwap
-        let data = st.data.read();
+        let data = self.state.data.read();
         if data.sample_len() == 0 {
             dst.silence();
             return StreamStatus::Done;
         }
-        if st.playhead >= data.sample_len() {
-            st.playhead = 0;
+        if self.state.playhead >= data.sample_len() {
+            self.state.playhead = 0;
         }
         for i in 0..CHUNK_SIZE {
             // TODO: don't repeat this every sample
-            let ci = st.playhead / CHUNK_SIZE;
-            let si = st.playhead % CHUNK_SIZE;
+            let ci = self.state.playhead / CHUNK_SIZE;
+            let si = self.state.playhead % CHUNK_SIZE;
             let c = &data.chunks()[ci];
-            st.playhead += 1;
-            if st.playhead >= data.sample_len() {
+            self.state.playhead += 1;
+            if self.state.playhead >= data.sample_len() {
                 // TODO: add an option to enable/disable looping
-                st.playhead = 0;
+                self.state.playhead = 0;
             }
-            debug_assert!(st.playhead < data.sample_len());
+            debug_assert!(self.state.playhead < data.sample_len());
             dst.l[i] = c.l[si];
             dst.r[i] = c.r[si];
         }
         StreamStatus::Playing
+    }
+
+    fn start_over(&mut self) {
+        self.state.start_over();
     }
 }
 

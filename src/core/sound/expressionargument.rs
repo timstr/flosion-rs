@@ -1,6 +1,9 @@
+use std::rc::Rc;
+
 use inkwell::values::FloatValue;
 
 use crate::core::{
+    engine::soundgraphcompiler::SoundGraphCompiler,
     jit::{
         jit::Jit,
         wrappers::{ArrayReadFunc, ScalarReadFunc},
@@ -9,261 +12,364 @@ use crate::core::{
 };
 
 use super::{
-    soundgraphid::SoundGraphId, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    soundinput::{ProcessorInputId, SoundInputLocation},
+    soundprocessor::{
+        ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+        SoundProcessorId,
+    },
 };
 
-pub struct SoundExpressionArgumentTag;
+pub struct ProcessorArgumentTag;
 
-pub type SoundExpressionArgumentId = UniqueId<SoundExpressionArgumentTag>;
+pub type ProcessorArgumentId = UniqueId<ProcessorArgumentTag>;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum SoundExpressionArgumentOwner {
-    SoundProcessor(SoundProcessorId),
-    SoundInput(SoundInputId),
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
+pub(crate) struct ProcessorArgumentLocation {
+    processor: SoundProcessorId,
+    argument: ProcessorArgumentId,
 }
 
-impl From<SoundExpressionArgumentOwner> for SoundGraphId {
-    fn from(value: SoundExpressionArgumentOwner) -> Self {
-        match value {
-            SoundExpressionArgumentOwner::SoundProcessor(spid) => spid.into(),
-            SoundExpressionArgumentOwner::SoundInput(siid) => siid.into(),
+impl ProcessorArgumentLocation {
+    pub(crate) fn new(
+        processor: SoundProcessorId,
+        argument: ProcessorArgumentId,
+    ) -> ProcessorArgumentLocation {
+        ProcessorArgumentLocation {
+            processor,
+            argument,
         }
     }
-}
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SoundExpressionArgumentOrigin {
-    ProcessorState(SoundProcessorId),
-    InputState(SoundInputId),
-    Local(SoundProcessorId),
-}
-
-pub struct SoundExpressionArgumentHandle {
-    id: SoundExpressionArgumentId,
-}
-
-impl SoundExpressionArgumentHandle {
-    pub(super) fn new(id: SoundExpressionArgumentId) -> SoundExpressionArgumentHandle {
-        SoundExpressionArgumentHandle { id }
+    pub(crate) fn processor(&self) -> SoundProcessorId {
+        self.processor
     }
 
-    pub(crate) fn id(&self) -> SoundExpressionArgumentId {
+    pub(crate) fn argument(&self) -> ProcessorArgumentId {
+        self.argument
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ProcessorArgumentDataSource {
+    ProcessorState,
+    LocalVariable,
+}
+
+pub struct ProcessorArgument {
+    id: ProcessorArgumentId,
+    instance: Rc<dyn AnyProcessorArgument>,
+}
+
+impl ProcessorArgument {
+    pub(super) fn new(
+        id: ProcessorArgumentId,
+        instance: Rc<dyn AnyProcessorArgument>,
+    ) -> ProcessorArgument {
+        ProcessorArgument { id, instance }
+    }
+
+    pub(crate) fn id(&self) -> ProcessorArgumentId {
         self.id
     }
+
+    pub(crate) fn instance(&self) -> &dyn AnyProcessorArgument {
+        &*self.instance
+    }
 }
 
-// Trait holding the runtime information on how to evaluate/compile a specific
-// sound processor or sound input's expression argument from its state.
-// To prevent reference cycles, implementations of this trait should NOT hold
-// an Arc to the sound processor or sound input. Rather, any shared data should
-// be stored in a separate Arc held by both, and state is always read from the
-// Context's state chain during audio processing
-pub(crate) trait SoundExpressionArgument {
-    // Where does the argument's data come from?
-    fn origin(&self) -> SoundExpressionArgumentOrigin;
+impl ProcessorComponent for ProcessorArgument {
+    type CompiledType<'ctx> = ();
 
-    // Produce JIT instructions that evaluate the argument
-    // at each sample
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        visitor.processor_argument(self);
+    }
+
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        visitor.processor_argument(self);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        _processor_id: SoundProcessorId,
+        _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> () {
+        ()
+    }
+}
+
+pub(crate) trait AnyProcessorArgument {
+    fn data_source(&self) -> ProcessorArgumentDataSource;
+
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        own_id: SoundExpressionArgumentId,
+        location: ProcessorArgumentLocation,
     ) -> FloatValue<'ctx>;
 }
+
+// ----------------------------
+
+pub struct SoundInputArgumentTag;
+
+pub type SoundInputArgumentId = UniqueId<SoundInputArgumentTag>;
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
+pub(crate) struct SoundInputArgumentLocation {
+    processor: SoundProcessorId,
+    input: ProcessorInputId,
+    argument: SoundInputArgumentId,
+}
+
+impl SoundInputArgumentLocation {
+    pub(crate) fn new(
+        processor: SoundProcessorId,
+        input: ProcessorInputId,
+        argument: SoundInputArgumentId,
+    ) -> SoundInputArgumentLocation {
+        SoundInputArgumentLocation {
+            processor,
+            input,
+            argument,
+        }
+    }
+
+    pub(crate) fn processor(&self) -> SoundProcessorId {
+        self.processor
+    }
+
+    pub(crate) fn input(&self) -> ProcessorInputId {
+        self.input
+    }
+
+    pub(crate) fn argument(&self) -> SoundInputArgumentId {
+        self.argument
+    }
+}
+
+pub struct SoundInputArgument {
+    id: SoundInputArgumentId,
+    instance: Rc<dyn AnySoundInputArgument>,
+}
+
+impl SoundInputArgument {
+    pub(super) fn new(
+        id: SoundInputArgumentId,
+        instance: Rc<dyn AnySoundInputArgument>,
+    ) -> SoundInputArgument {
+        SoundInputArgument { id, instance }
+    }
+
+    pub(crate) fn id(&self) -> SoundInputArgumentId {
+        self.id
+    }
+
+    pub(crate) fn instance(&self) -> &dyn AnySoundInputArgument {
+        &*self.instance
+    }
+}
+
+pub(crate) trait AnySoundInputArgument {
+    fn compile<'ctx>(
+        &self,
+        jit: &mut Jit<'ctx>,
+        location: SoundInputArgumentLocation,
+    ) -> FloatValue<'ctx>;
+}
+
+// ----------------------------
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
+pub(crate) enum ArgumentLocation {
+    Processor(ProcessorArgumentLocation),
+    Input(SoundInputArgumentLocation),
+}
+
+impl From<ProcessorArgumentLocation> for ArgumentLocation {
+    fn from(value: ProcessorArgumentLocation) -> Self {
+        ArgumentLocation::Processor(value)
+    }
+}
+impl From<&ProcessorArgumentLocation> for ArgumentLocation {
+    fn from(value: &ProcessorArgumentLocation) -> Self {
+        ArgumentLocation::Processor(*value)
+    }
+}
+impl From<SoundInputArgumentLocation> for ArgumentLocation {
+    fn from(value: SoundInputArgumentLocation) -> Self {
+        ArgumentLocation::Input(value)
+    }
+}
+impl From<&SoundInputArgumentLocation> for ArgumentLocation {
+    fn from(value: &SoundInputArgumentLocation) -> Self {
+        ArgumentLocation::Input(*value)
+    }
+}
+
+// ----------------------------
 
 // A SoundExpressionArgument that reads a scalar from the state of a sound input
 pub(crate) struct ScalarInputExpressionArgument {
     function: ScalarReadFunc,
-    input_id: SoundInputId,
 }
 
 impl ScalarInputExpressionArgument {
-    pub(super) fn new(
-        input_id: SoundInputId,
-        function: ScalarReadFunc,
-    ) -> ScalarInputExpressionArgument {
-        ScalarInputExpressionArgument { function, input_id }
+    pub(super) fn new(function: ScalarReadFunc) -> ScalarInputExpressionArgument {
+        ScalarInputExpressionArgument { function }
     }
 }
 
-impl SoundExpressionArgument for ScalarInputExpressionArgument {
-    fn origin(&self) -> SoundExpressionArgumentOrigin {
-        SoundExpressionArgumentOrigin::InputState(self.input_id)
-    }
-
+impl AnySoundInputArgument for ScalarInputExpressionArgument {
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        _own_id: SoundExpressionArgumentId,
+        location: SoundInputArgumentLocation,
     ) -> FloatValue<'ctx> {
-        jit.build_input_scalar_read(self.input_id, self.function)
+        jit.build_input_scalar_read(
+            SoundInputLocation::new(location.processor(), location.input()),
+            self.function,
+        )
     }
 }
 
 // A SoundExpressionArgument that reads an array from the state of a sound input
 pub(crate) struct ArrayInputExpressionArgument {
     function: ArrayReadFunc,
-    input_id: SoundInputId,
 }
 
 impl ArrayInputExpressionArgument {
-    pub(super) fn new(
-        input_id: SoundInputId,
-        function: ArrayReadFunc,
-    ) -> ArrayInputExpressionArgument {
-        ArrayInputExpressionArgument { function, input_id }
+    pub(super) fn new(function: ArrayReadFunc) -> ArrayInputExpressionArgument {
+        ArrayInputExpressionArgument { function }
     }
 }
 
-impl SoundExpressionArgument for ArrayInputExpressionArgument {
-    fn origin(&self) -> SoundExpressionArgumentOrigin {
-        SoundExpressionArgumentOrigin::InputState(self.input_id)
-    }
-
+impl AnySoundInputArgument for ArrayInputExpressionArgument {
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        _own_id: SoundExpressionArgumentId,
+        location: SoundInputArgumentLocation,
     ) -> FloatValue<'ctx> {
-        jit.build_input_array_read(self.input_id, self.function)
+        jit.build_input_array_read(
+            SoundInputLocation::new(location.processor(), location.input()),
+            self.function,
+        )
     }
 }
 
 // A SoundExpressionArgument that reads a scalar from the state of a sound processor
 pub(crate) struct ScalarProcessorExpressionArgument {
     function: ScalarReadFunc,
-    processor_id: SoundProcessorId,
 }
 
 impl ScalarProcessorExpressionArgument {
-    pub(super) fn new(
-        processor_id: SoundProcessorId,
-        function: ScalarReadFunc,
-    ) -> ScalarProcessorExpressionArgument {
-        ScalarProcessorExpressionArgument {
-            function,
-            processor_id,
-        }
+    pub(super) fn new(function: ScalarReadFunc) -> ScalarProcessorExpressionArgument {
+        ScalarProcessorExpressionArgument { function }
     }
 }
 
-impl SoundExpressionArgument for ScalarProcessorExpressionArgument {
-    fn origin(&self) -> SoundExpressionArgumentOrigin {
-        SoundExpressionArgumentOrigin::ProcessorState(self.processor_id)
+impl AnyProcessorArgument for ScalarProcessorExpressionArgument {
+    fn data_source(&self) -> ProcessorArgumentDataSource {
+        ProcessorArgumentDataSource::ProcessorState
     }
 
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        _own_id: SoundExpressionArgumentId,
+        location: ProcessorArgumentLocation,
     ) -> FloatValue<'ctx> {
-        jit.build_processor_scalar_read(self.processor_id, self.function)
+        jit.build_processor_scalar_read(location.processor, self.function)
     }
 }
 
 // A SoundExpressionArgument that reads an array from the state of a sound processor
 pub(crate) struct ArrayProcessorExpressionArgument {
     function: ArrayReadFunc,
-    processor_id: SoundProcessorId,
 }
 
 impl ArrayProcessorExpressionArgument {
-    pub(super) fn new(
-        processor_id: SoundProcessorId,
-        function: ArrayReadFunc,
-    ) -> ArrayProcessorExpressionArgument {
-        ArrayProcessorExpressionArgument {
-            function,
-            processor_id,
-        }
+    pub(super) fn new(function: ArrayReadFunc) -> ArrayProcessorExpressionArgument {
+        ArrayProcessorExpressionArgument { function }
     }
 }
 
-impl SoundExpressionArgument for ArrayProcessorExpressionArgument {
-    fn origin(&self) -> SoundExpressionArgumentOrigin {
-        SoundExpressionArgumentOrigin::ProcessorState(self.processor_id)
+impl AnyProcessorArgument for ArrayProcessorExpressionArgument {
+    fn data_source(&self) -> ProcessorArgumentDataSource {
+        ProcessorArgumentDataSource::ProcessorState
     }
+
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        _own_id: SoundExpressionArgumentId,
+        location: ProcessorArgumentLocation,
     ) -> FloatValue<'ctx> {
-        jit.build_processor_array_read(self.processor_id, self.function)
+        jit.build_processor_array_read(location.processor, self.function)
     }
 }
 
 // An ExpressionArgument that evaluates the current time at a sound processor
-pub(crate) struct ProcessorTimeExpressionArgument {
-    processor_id: SoundProcessorId,
-}
+pub(crate) struct ProcessorTimeExpressionArgument {}
 
 impl ProcessorTimeExpressionArgument {
-    pub(super) fn new(processor_id: SoundProcessorId) -> ProcessorTimeExpressionArgument {
-        ProcessorTimeExpressionArgument { processor_id }
+    pub(super) fn new() -> ProcessorTimeExpressionArgument {
+        ProcessorTimeExpressionArgument {}
     }
 }
 
-impl SoundExpressionArgument for ProcessorTimeExpressionArgument {
-    fn origin(&self) -> SoundExpressionArgumentOrigin {
-        SoundExpressionArgumentOrigin::ProcessorState(self.processor_id)
+impl AnyProcessorArgument for ProcessorTimeExpressionArgument {
+    fn data_source(&self) -> ProcessorArgumentDataSource {
+        ProcessorArgumentDataSource::ProcessorState
     }
 
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        _own_id: SoundExpressionArgumentId,
+        location: ProcessorArgumentLocation,
     ) -> FloatValue<'ctx> {
-        jit.build_processor_time(self.processor_id)
+        jit.build_processor_time(location.processor)
     }
 }
 
 // An ExpressionArgument that evaluates the current time at a sound input
-pub(crate) struct InputTimeExpressionArgument {
-    input_id: SoundInputId,
-}
+pub(crate) struct InputTimeExpressionArgument {}
 
 impl InputTimeExpressionArgument {
-    pub(super) fn new(input_id: SoundInputId) -> InputTimeExpressionArgument {
-        InputTimeExpressionArgument { input_id }
+    pub(super) fn new() -> InputTimeExpressionArgument {
+        InputTimeExpressionArgument {}
     }
 }
 
-impl SoundExpressionArgument for InputTimeExpressionArgument {
-    fn origin(&self) -> SoundExpressionArgumentOrigin {
-        SoundExpressionArgumentOrigin::InputState(self.input_id)
-    }
-
+impl AnySoundInputArgument for InputTimeExpressionArgument {
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        _own_id: SoundExpressionArgumentId,
+        location: SoundInputArgumentLocation,
     ) -> FloatValue<'ctx> {
-        jit.build_input_time(self.input_id)
+        jit.build_input_time(SoundInputLocation::new(
+            location.processor(),
+            location.input(),
+        ))
     }
 }
 
 // An ExpressionArgument that evaluates an array of data that is local to the
 // sound processor's audio callback function
-pub(crate) struct ProcessorLocalArrayExpressionArgument {
-    processor_id: SoundProcessorId,
-}
+pub(crate) struct ProcessorLocalArrayExpressionArgument {}
 
 impl ProcessorLocalArrayExpressionArgument {
-    pub(super) fn new(processor_id: SoundProcessorId) -> ProcessorLocalArrayExpressionArgument {
-        ProcessorLocalArrayExpressionArgument { processor_id }
+    pub(super) fn new() -> ProcessorLocalArrayExpressionArgument {
+        ProcessorLocalArrayExpressionArgument {}
     }
 }
 
-impl SoundExpressionArgument for ProcessorLocalArrayExpressionArgument {
-    fn origin(&self) -> SoundExpressionArgumentOrigin {
-        SoundExpressionArgumentOrigin::Local(self.processor_id)
+impl AnyProcessorArgument for ProcessorLocalArrayExpressionArgument {
+    fn data_source(&self) -> ProcessorArgumentDataSource {
+        ProcessorArgumentDataSource::LocalVariable
     }
 
     fn compile<'ctx>(
         &self,
         jit: &mut Jit<'ctx>,
-        own_id: SoundExpressionArgumentId,
+        location: ProcessorArgumentLocation,
     ) -> FloatValue<'ctx> {
-        jit.build_processor_local_array_read(self.processor_id, own_id)
+        jit.build_processor_local_array_read(location.processor, location.argument)
     }
 }

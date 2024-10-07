@@ -1,13 +1,6 @@
-use crate::core::{
-    expression::expressionnodeinput::ExpressionNodeInputId,
-    jit::compiledexpression::CompiledExpressionFunction,
-    sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId},
-};
+use crate::core::sound::soundprocessor::SoundProcessorId;
 
-use super::{
-    stategraph::StateGraph,
-    stategraphnode::{SharedCompiledProcessor, StateGraphNodeValue},
-};
+use super::{stategraph::StateGraph, stategraphnode::SharedCompiledProcessor};
 
 /// Edits to be made to the state graph on the audio thread. These are heavily
 /// focused on efficiently inserting pre-allocated state graph data, rather
@@ -24,7 +17,7 @@ use super::{
 /// processing proceeds without audible changes due to an unrelated graph
 /// change.
 ///
-/// NOTE: (2024/05/30) the diffing algorithm has not been implimented yet, and
+/// NOTE: (2024/05/30) the diffing algorithm has not been implemented yet, and
 /// updates currently just replace the entire graph at once.
 pub(crate) enum StateGraphEdit<'ctx> {
     /// Add a static sound processor node to the state graph. Every static
@@ -48,44 +41,6 @@ pub(crate) enum StateGraphEdit<'ctx> {
     /// nodes belonging to the processor, but does not remove any other static
     /// processors it may depend on.
     RemoveStaticSoundProcessor(SoundProcessorId),
-
-    /// Edit an existing sound input within the state graph and add a new
-    /// branch to it. Each item in the vector of targets is assumed to contain
-    /// all pre-allocated dependencies properly filled as with
-    /// AddStaticSoundProcessor. There must be enough targets allocated to
-    /// cover all nodes allocated for the given processor.
-    // TODO: sound processor id?
-    AddSoundInputBranch {
-        input_id: SoundInputId,
-        owner_id: SoundProcessorId,
-        key_index: usize,
-        targets: Vec<StateGraphNodeValue<'ctx>>,
-    },
-
-    /// Remove a branch from all nodes in the state graph for the given
-    /// sound input.
-    // TODO: sound processor id?
-    RemoveSoundInputBranch {
-        input_id: SoundInputId,
-        owner_id: SoundProcessorId,
-        key_index: usize,
-    },
-
-    /// Replace a branch for all nodes in the state graph for the given id.
-    /// Like other edits, the vector of targets must enough copies of deeply
-    /// pre-allocated data to cover each node in the graph.
-    // TODO: sound processor id?
-    ReplaceSoundInputBranch {
-        input_id: SoundInputId,
-        owner_id: SoundProcessorId,
-        targets: Vec<StateGraphNodeValue<'ctx>>,
-    },
-
-    /// Replace a compiled expression for each expression node in the
-    /// graph matching the given id. Compiled expressions are Copy, so the
-    /// data for each node doesn't need to be separately pre-allocated.
-    // TODO: sound processor id?
-    UpdateExpression(ExpressionNodeInputId, CompiledExpressionFunction<'ctx>),
 
     /// Debugging aid. Calls the given function with the current state graph,
     /// e.g. to test its invariants and whether it matches a desired state.

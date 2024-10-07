@@ -2,9 +2,8 @@ use crate::{
     core::sound::{
         sounderror::SoundError,
         soundgraph::SoundGraph,
-        soundgraphdata::SoundInputBranchId,
         soundgraphvalidation::find_sound_error,
-        soundinput::InputOptions,
+        soundinput::{InputOptions, SoundInputBranchId},
         test::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor},
     },
     ui_core::arguments::ParsedArguments,

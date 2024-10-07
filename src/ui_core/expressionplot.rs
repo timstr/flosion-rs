@@ -1,14 +1,14 @@
 use eframe::egui;
 
 use crate::core::{
-    expression::{context::MockExpressionContext, expressiongraph::ExpressionGraph},
+    expression::expressiongraph::ExpressionGraph,
     jit::{
         cache::JitCache,
         compiledexpression::{CompiledExpressionFunction, Discretization},
     },
     sound::{
         expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
-        expressionargument::SoundExpressionArgumentId,
+        expressionargument::ArgumentLocation,
         soundgraph::SoundGraph,
     },
 };
@@ -23,7 +23,7 @@ enum VerticalRange {
 
 enum HorizontalDomain {
     Temporal,
-    WithRespectTo(SoundExpressionArgumentId, std::ops::RangeInclusive<f32>),
+    WithRespectTo(ArgumentLocation, std::ops::RangeInclusive<f32>),
 }
 
 pub struct PlotConfig {
@@ -47,7 +47,7 @@ impl PlotConfig {
 
     pub fn with_respect_to(
         mut self,
-        source: SoundExpressionArgumentId,
+        source: ArgumentLocation,
         domain: std::ops::RangeInclusive<f32>,
     ) -> Self {
         self.horizontal_domain = HorizontalDomain::WithRespectTo(source, domain);
@@ -121,14 +121,18 @@ impl ExpressionPlot {
         let len = rect.width().floor() as usize;
         let mut dst = Vec::new();
         dst.resize(len, 0.0);
-        let expr_context = MockExpressionContext::new(len);
+        // TODO
+        // - make this work without mock context
+        // - consider recompiling the input with the domain swapped out
+        //   for something controlled? That would scale nicely to e.g. 2D plots
+        let expr_context = todo!(); // MockExpressionContext::new(len);
 
         let discretization = match horizontal_domain {
             HorizontalDomain::Temporal => Discretization::Temporal(time_axis.time_per_x_pixel),
             HorizontalDomain::WithRespectTo(_, _) => Discretization::None,
         };
 
-        compiled_fn.eval(&mut dst, &expr_context, discretization);
+        compiled_fn.eval(&mut dst, expr_context, discretization);
 
         let (vmin, vmax) = match vertical_range {
             VerticalRange::Automatic => {

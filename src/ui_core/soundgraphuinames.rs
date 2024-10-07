@@ -1,16 +1,19 @@
 use eframe::epaint::ahash::{HashMap, HashMapExt};
 
 use crate::core::sound::{
-    expression::ProcessorExpressionLocation,
-    expressionargument::{SoundExpressionArgumentId, SoundExpressionArgumentOwner},
+    expression::{ProcessorExpression, ProcessorExpressionLocation},
+    expressionargument::{
+        ArgumentLocation, ProcessorArgument, ProcessorArgumentLocation, SoundInputArgument,
+        SoundInputArgumentLocation,
+    },
     soundgraph::SoundGraph,
-    soundinput::SoundInputId,
-    soundprocessor::SoundProcessorId,
+    soundinput::{ProcessorInput, ProcessorInputId, SoundInputLocation},
+    soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
 };
 
 pub(crate) struct SoundArgumentNameData {
     name: String,
-    owner: SoundExpressionArgumentOwner,
+    location: ArgumentLocation,
 }
 
 impl SoundArgumentNameData {
@@ -18,8 +21,8 @@ impl SoundArgumentNameData {
         &self.name
     }
 
-    pub(crate) fn owner(&self) -> SoundExpressionArgumentOwner {
-        self.owner
+    pub(crate) fn location(&self) -> ArgumentLocation {
+        self.location
     }
 }
 
@@ -35,7 +38,7 @@ impl SoundExpressionNameData {
 
 pub(crate) struct SoundInputNameData {
     name: String,
-    owner: SoundProcessorId,
+    location: SoundInputLocation,
 }
 
 impl SoundInputNameData {
@@ -43,8 +46,8 @@ impl SoundInputNameData {
         &self.name
     }
 
-    pub(crate) fn owner(&self) -> SoundProcessorId {
-        self.owner
+    pub(crate) fn location(&self) -> SoundInputLocation {
+        self.location
     }
 }
 
@@ -59,9 +62,9 @@ impl SoundProcessorNameData {
 }
 
 pub(crate) struct SoundGraphUiNames {
-    arguments: HashMap<SoundExpressionArgumentId, SoundArgumentNameData>,
+    arguments: HashMap<ArgumentLocation, SoundArgumentNameData>,
     expressions: HashMap<ProcessorExpressionLocation, SoundExpressionNameData>,
-    sound_inputs: HashMap<SoundInputId, SoundInputNameData>,
+    sound_inputs: HashMap<SoundInputLocation, SoundInputNameData>,
     sound_processors: HashMap<SoundProcessorId, SoundProcessorNameData>,
 }
 
@@ -76,80 +79,100 @@ impl SoundGraphUiNames {
     }
 
     pub(crate) fn regenerate(&mut self, graph: &SoundGraph) {
-        self.arguments.retain(|k, _v| graph.contains(*k));
-        self.expressions.retain(|k, _v| {
-            // TODO: check expression exists also
-            graph.contains(k.processor())
-        });
-        self.sound_inputs.retain(|k, _v| graph.contains(*k));
-        self.sound_processors.retain(|k, _v| graph.contains(*k));
+        self.arguments.retain(|k, _v| graph.contains(k));
+        self.expressions.retain(|k, _v| graph.contains(k));
+        self.sound_inputs.retain(|k, _v| graph.contains(k));
+        self.sound_processors.retain(|k, _v| graph.contains(k));
 
-        for ns_data in graph.expression_arguments().values() {
-            self.arguments
-                .entry(ns_data.id())
-                .or_insert_with(|| SoundArgumentNameData {
-                    name: format!("argument_{}", ns_data.id().value()),
-                    owner: ns_data.owner(),
-                });
+        struct DefaultNameVisitor<'a> {
+            names: &'a mut SoundGraphUiNames,
+            processor_id: SoundProcessorId,
         }
 
-        for si_data in graph.sound_inputs().values() {
-            self.sound_inputs
-                .entry(si_data.id())
-                .or_insert_with(|| SoundInputNameData {
-                    name: format!("sound_input_{}", si_data.id().value()),
-                    owner: si_data.owner(),
-                });
-        }
+        impl<'a> ProcessorComponentVisitor for DefaultNameVisitor<'a> {
+            fn input(&mut self, input: &ProcessorInput) {
+                let location = SoundInputLocation::new(self.processor_id, input.id());
+                self.names
+                    .sound_inputs
+                    .entry(location)
+                    .or_insert_with(|| SoundInputNameData {
+                        name: format!("input_{}", location.input().value()),
+                        location,
+                    });
+            }
 
-        for sp_data in graph.sound_processors().values() {
-            self.sound_processors
-                .entry(sp_data.id())
-                .or_insert_with(|| SoundProcessorNameData {
-                    name: sp_data
-                        .instance_rc()
-                        .as_graph_object()
-                        .get_type()
-                        .name()
-                        .to_string(),
-                });
-
-            sp_data.foreach_expression(|expr| {
-                let location = ProcessorExpressionLocation::new(sp_data.id(), expr.id());
-                self.expressions
+            fn expression(&mut self, expression: &ProcessorExpression) {
+                let location = ProcessorExpressionLocation::new(self.processor_id, expression.id());
+                self.names
+                    .expressions
                     .entry(location)
                     .or_insert_with(|| SoundExpressionNameData {
-                        name: format!("expression_{}", expr.id().value()),
+                        name: format!("expression_{}", location.expression().value()),
                     });
-            });
+            }
+
+            fn processor_argument(&mut self, argument: &ProcessorArgument) {
+                let location = ProcessorArgumentLocation::new(self.processor_id, argument.id());
+                self.names
+                    .arguments
+                    .entry(location.into())
+                    .or_insert_with(|| SoundArgumentNameData {
+                        name: format!("argument_{}", location.argument().value()),
+                        location: location.into(),
+                    });
+            }
+
+            fn input_argument(
+                &mut self,
+                argument: &SoundInputArgument,
+                input_id: ProcessorInputId,
+            ) {
+                let location =
+                    SoundInputArgumentLocation::new(self.processor_id, input_id, argument.id());
+                self.names
+                    .arguments
+                    .entry(location.into())
+                    .or_insert_with(|| SoundArgumentNameData {
+                        name: format!("argument_{}", location.argument().value()),
+                        location: location.into(),
+                    });
+            }
+        }
+
+        for proc_data in graph.sound_processors().values() {
+            let mut visitor = DefaultNameVisitor {
+                names: self,
+                processor_id: proc_data.id(),
+            };
+            proc_data.instance().visit(&mut visitor);
         }
     }
 
-    pub(crate) fn argument(&self, id: SoundExpressionArgumentId) -> Option<&SoundArgumentNameData> {
-        self.arguments.get(&id)
+    pub(crate) fn argument(&self, location: ArgumentLocation) -> Option<&SoundArgumentNameData> {
+        self.arguments.get(&location)
     }
 
     pub(crate) fn expression(
         &self,
-        id: ProcessorExpressionLocation,
+        location: ProcessorExpressionLocation,
     ) -> Option<&SoundExpressionNameData> {
-        self.expressions.get(&id)
+        self.expressions.get(&location)
     }
 
-    pub(crate) fn sound_input(&self, id: SoundInputId) -> Option<&SoundInputNameData> {
-        self.sound_inputs.get(&id)
+    pub(crate) fn sound_input(&self, location: SoundInputLocation) -> Option<&SoundInputNameData> {
+        self.sound_inputs.get(&location)
     }
 
     pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&SoundProcessorNameData> {
         self.sound_processors.get(&id)
     }
 
-    pub(crate) fn record_argument_name(&mut self, id: SoundExpressionArgumentId, name: String) {
-        self.arguments.get_mut(&id).unwrap().name = name;
+    pub(crate) fn record_argument_name(&mut self, location: ArgumentLocation, name: String) {
+        self.arguments.get_mut(&location).unwrap().name = name;
     }
 
-    pub(crate) fn record_sound_input_name(&mut self, id: SoundInputId, name: String) {
-        self.sound_inputs.get_mut(&id).unwrap().name = name;
+    pub(crate) fn record_sound_input_name(&mut self, location: SoundInputLocation, name: String) {
+        self.sound_inputs.get_mut(&location).unwrap().name = name;
     }
 
     pub(crate) fn record_sound_processor_name(&mut self, id: SoundProcessorId, name: String) {
@@ -160,17 +183,27 @@ impl SoundGraphUiNames {
         self.expressions.get_mut(&id).unwrap().name = name;
     }
 
-    pub(crate) fn combined_parameter_name(&self, id: SoundExpressionArgumentId) -> String {
-        let ns_data = self.argument(id).unwrap();
-        match ns_data.owner() {
-            SoundExpressionArgumentOwner::SoundProcessor(spid) => {
-                let sp_name = self.sound_processor(spid).unwrap().name();
-                format!("{}.{}", sp_name, ns_data.name())
+    pub(crate) fn combined_parameter_name(&self, location: ArgumentLocation) -> String {
+        match location {
+            ArgumentLocation::Processor(location) => {
+                format!(
+                    "{}.{}",
+                    self.sound_processor(location.processor()).unwrap().name(),
+                    self.argument(location.into()).unwrap().name()
+                )
             }
-            SoundExpressionArgumentOwner::SoundInput(siid) => {
-                let si_data = self.sound_input(siid).unwrap();
-                let sp_name = self.sound_processor(si_data.owner()).unwrap().name();
-                format!("{}.{}.{}", sp_name, si_data.name(), ns_data.name())
+            ArgumentLocation::Input(location) => {
+                format!(
+                    "{}.{}.{}",
+                    self.sound_processor(location.processor()).unwrap().name(),
+                    self.sound_input(SoundInputLocation::new(
+                        location.processor(),
+                        location.input()
+                    ))
+                    .unwrap()
+                    .name(),
+                    self.argument(location.into()).unwrap().name()
+                )
             }
         }
     }

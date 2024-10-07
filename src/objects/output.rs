@@ -12,11 +12,12 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
-            expression::ProcessorExpression,
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
-                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
+                WhateverSoundProcessor,
             },
             soundprocessortools::SoundProcessorTools,
             state::State,
@@ -68,12 +69,15 @@ impl State for OutputState {
     }
 }
 
-impl WhateverSoundProcessor for Output {
-    type SoundInputType = SingleInput;
-    type Expressions<'ctx> = ();
-    type StateType = OutputState;
+pub struct CompiledOutput<'ctx> {
+    input: SingleInputNode<'ctx>,
+    state: OutputState,
+}
 
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
+impl WhateverSoundProcessor for Output {
+    type CompiledType<'ctx> = CompiledOutput<'ctx>;
+
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Output {
         let host = cpal::default_host();
         // TODO: propagate these errors
         let device = host
@@ -168,61 +172,61 @@ impl WhateverSoundProcessor for Output {
             stream.pause().unwrap();
         });
 
-        Ok(Output {
+        Output {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             shared_data,
-        })
+        }
     }
 
     fn is_static(&self) -> bool {
         true
     }
 
-    fn get_sound_input(&self) -> &SingleInput {
-        &self.input
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        self.input.visit(visitor);
     }
 
-    fn visit_expressions<'a>(&self, _f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {}
-    fn visit_expressions_mut<'a>(&mut self, _f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {}
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        self.input.visit_mut(visitor);
+    }
 
-    fn compile_expressions<'a, 'ctx>(
+    fn compile<'ctx>(
         &self,
-        _processor_id: SoundProcessorId,
-        _compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        ()
-    }
-
-    fn make_state(&self) -> Self::StateType {
-        OutputState {
-            shared_data: Arc::clone(&self.shared_data),
+        id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> CompiledOutput<'ctx> {
+        CompiledOutput {
+            input: self.input.compile(id, compiler),
+            state: OutputState {
+                shared_data: Arc::clone(&self.shared_data),
+            },
         }
     }
+}
 
-    fn process_audio(
-        state: &mut StateAndTiming<Self::StateType>,
-        sound_input: &mut SingleInputNode,
-        _expressions: &mut (),
-        _dst: &mut SoundChunk,
-        ctx: Context,
-    ) -> StreamStatus {
-        if state
+impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
+    fn process_audio(&mut self, dst: &mut SoundChunk, context: Context) -> StreamStatus {
+        if self
+            .state
             .shared_data
             .pending_startover
             .swap(false, Ordering::SeqCst)
         {
-            sound_input.start_over(0);
+            self.input.start_over(0);
         }
-        let mut ch = SoundChunk::new();
-        sound_input.step(state, &mut ch, &ctx, LocalArrayList::new());
+        self.input.step(dst, None, LocalArrayList::new(), context);
 
-        if let Err(e) = state.shared_data.chunk_sender.try_send(ch) {
+        if let Err(e) = self.state.shared_data.chunk_sender.try_send(*dst) {
             match e {
                 TrySendError::Full(_) => println!("Output sound processor dropped a chunk"),
                 TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
             }
         }
         StreamStatus::Playing
+    }
+
+    fn start_over(&mut self) {
+        self.input.start_over(0);
     }
 }
 

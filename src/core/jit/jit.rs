@@ -18,8 +18,11 @@ use crate::core::{
         expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
     },
     sound::{
-        expression::ExpressionParameterMapping, expressionargument::SoundExpressionArgumentId,
-        soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+        expression::ExpressionParameterMapping,
+        expressionargument::{ArgumentLocation, ProcessorArgumentId},
+        soundgraph::SoundGraph,
+        soundinput::SoundInputLocation,
+        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -462,16 +465,20 @@ impl<'ctx> Jit<'ctx> {
 
     pub fn build_input_scalar_read(
         &mut self,
-        input_id: SoundInputId,
+        input_location: SoundInputLocation,
         function: ScalarReadFunc,
     ) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
         let function_addr = self.types.usize_type.const_int(function as u64, false);
-        let siid = self
+        let proc_id = self
             .types
             .usize_type
-            .const_int(input_id.value() as u64, false);
+            .const_int(input_location.processor().value() as u64, false);
+        let input_id = self
+            .types
+            .usize_type
+            .const_int(input_location.input().value() as u64, false);
         let call_site_value = self
             .builder
             .build_call(
@@ -480,7 +487,8 @@ impl<'ctx> Jit<'ctx> {
                     function_addr.into(),
                     self.local_variables.context_1.into(),
                     self.local_variables.context_2.into(),
-                    siid.into(),
+                    proc_id.into(),
+                    input_id.into(),
                 ],
                 "si_scalar_fn_retv",
             )
@@ -536,16 +544,20 @@ impl<'ctx> Jit<'ctx> {
 
     pub fn build_input_array_read(
         &mut self,
-        input_id: SoundInputId,
+        input_location: SoundInputLocation,
         function: ArrayReadFunc,
     ) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
         let function_addr = self.types.usize_type.const_int(function as u64, false);
-        let siid = self
+        let proc_id = self
             .types
             .usize_type
-            .const_int(input_id.value() as u64, false);
+            .const_int(input_location.processor().value() as u64, false);
+        let input_id = self
+            .types
+            .usize_type
+            .const_int(input_location.input().value() as u64, false);
         let call_site_value = self
             .builder
             .build_call(
@@ -554,7 +566,8 @@ impl<'ctx> Jit<'ctx> {
                     function_addr.into(),
                     self.local_variables.context_1.into(),
                     self.local_variables.context_2.into(),
-                    siid.into(),
+                    proc_id.into(),
+                    input_id.into(),
                     self.local_variables.dst_len.into(),
                 ],
                 "si_arr_fn_retv",
@@ -641,7 +654,7 @@ impl<'ctx> Jit<'ctx> {
     pub fn build_processor_local_array_read(
         &mut self,
         processor_id: SoundProcessorId,
-        argument_id: SoundExpressionArgumentId,
+        argument_id: ProcessorArgumentId,
     ) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
@@ -758,13 +771,17 @@ impl<'ctx> Jit<'ctx> {
         curr_time
     }
 
-    pub fn build_input_time(&mut self, input_id: SoundInputId) -> FloatValue<'ctx> {
+    pub fn build_input_time(&mut self, input_location: SoundInputLocation) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
-        let siid = self
+        let proc_id = self
             .types
             .usize_type
-            .const_int(input_id.value() as u64, false);
+            .const_int(input_location.processor().value() as u64, false);
+        let input_id = self
+            .types
+            .usize_type
+            .const_int(input_location.input().value() as u64, false);
         let ptr_time = self
             .builder
             .build_alloca(self.types.f32_type, "time")
@@ -779,7 +796,8 @@ impl<'ctx> Jit<'ctx> {
                 &[
                     self.local_variables.context_1.into(),
                     self.local_variables.context_2.into(),
-                    siid.into(),
+                    proc_id.into(),
+                    input_id.into(),
                     ptr_time.into(),
                     ptr_speed.into(),
                 ],
@@ -922,13 +940,31 @@ impl<'ctx> Jit<'ctx> {
         graph: &SoundGraph,
     ) -> CompiledExpressionArtefact<'ctx> {
         // pre-compile all expression graph arguments
-        for (param_id, arg_id) in parameter_mapping.items() {
-            let value = graph
-                .expression_argument(*arg_id)
-                .unwrap()
-                .instance()
-                .compile(&mut self, *arg_id);
-            self.assign_target(ExpressionTarget::Parameter(*param_id), value);
+        for (param_id, arg_location) in parameter_mapping.items() {
+            match arg_location {
+                ArgumentLocation::Processor(arg_location) => {
+                    graph
+                        .sound_processor(arg_location.processor())
+                        .unwrap()
+                        .with_processor_argument(arg_location.argument(), |arg| {
+                            let value = arg.instance().compile(&mut self, *arg_location);
+                            self.assign_target(ExpressionTarget::Parameter(*param_id), value);
+                        });
+                }
+                ArgumentLocation::Input(arg_location) => {
+                    graph
+                        .sound_processor(arg_location.processor())
+                        .unwrap()
+                        .with_input_argument(
+                            arg_location.input(),
+                            arg_location.argument(),
+                            |arg| {
+                                let value = arg.instance().compile(&mut self, *arg_location);
+                                self.assign_target(ExpressionTarget::Parameter(*param_id), value);
+                            },
+                        );
+                }
+            }
         }
 
         // TODO: add support for multiple results

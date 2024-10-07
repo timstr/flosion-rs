@@ -6,7 +6,13 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{expressionargument::SoundExpressionArgumentId, soundprocessor::SoundProcessorId};
+use super::{
+    expressionargument::{ArgumentLocation, ProcessorArgumentId},
+    soundprocessor::{
+        ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+        SoundProcessorId,
+    },
+};
 
 pub(crate) struct ProcessorExpressionTag;
 
@@ -40,7 +46,7 @@ impl ProcessorExpressionLocation {
 
 #[derive(Clone)]
 pub(crate) struct ExpressionParameterMapping {
-    mapping: HashMap<ExpressionGraphParameterId, SoundExpressionArgumentId>,
+    mapping: HashMap<ExpressionGraphParameterId, ArgumentLocation>,
 }
 
 impl ExpressionParameterMapping {
@@ -53,13 +59,13 @@ impl ExpressionParameterMapping {
     pub(crate) fn argument_from_parameter(
         &self,
         id: ExpressionGraphParameterId,
-    ) -> Option<SoundExpressionArgumentId> {
+    ) -> Option<ArgumentLocation> {
         self.mapping.get(&id).cloned()
     }
 
     pub(crate) fn parameter_from_argument(
         &self,
-        id: SoundExpressionArgumentId,
+        id: ArgumentLocation,
     ) -> Option<ExpressionGraphParameterId> {
         for (giid, nsid) in &self.mapping {
             if *nsid == id {
@@ -74,7 +80,7 @@ impl ExpressionParameterMapping {
     // This is useful for making LexicalLayout more reusable accross different types of expressions
     pub(crate) fn add_argument(
         &mut self,
-        argument_id: SoundExpressionArgumentId,
+        argument_id: ArgumentLocation,
         expr_graph: &mut ExpressionGraph,
     ) -> ExpressionGraphParameterId {
         debug_assert!(self.check_invariants(expr_graph));
@@ -90,7 +96,7 @@ impl ExpressionParameterMapping {
 
     pub(crate) fn remove_argument(
         &mut self,
-        argument_id: SoundExpressionArgumentId,
+        argument_id: ArgumentLocation,
         expr_graph: &mut ExpressionGraph,
     ) {
         debug_assert!(self.check_invariants(expr_graph));
@@ -114,7 +120,7 @@ impl ExpressionParameterMapping {
         }
     }
 
-    pub(crate) fn items(&self) -> &HashMap<ExpressionGraphParameterId, SoundExpressionArgumentId> {
+    pub(crate) fn items(&self) -> &HashMap<ExpressionGraphParameterId, ArgumentLocation> {
         &self.mapping
     }
 }
@@ -122,7 +128,7 @@ impl ExpressionParameterMapping {
 #[derive(Clone)]
 pub struct SoundExpressionScope {
     processor_state_available: bool,
-    available_local_arguments: Vec<SoundExpressionArgumentId>,
+    available_local_arguments: Vec<ProcessorArgumentId>,
 }
 
 impl SoundExpressionScope {
@@ -140,7 +146,7 @@ impl SoundExpressionScope {
         }
     }
 
-    pub fn add_local(mut self, id: SoundExpressionArgumentId) -> SoundExpressionScope {
+    pub fn add_local(mut self, id: ProcessorArgumentId) -> SoundExpressionScope {
         self.available_local_arguments.push(id);
         self
     }
@@ -149,7 +155,7 @@ impl SoundExpressionScope {
         self.processor_state_available
     }
 
-    pub(crate) fn available_local_arguments(&self) -> &[SoundExpressionArgumentId] {
+    pub(crate) fn available_local_arguments(&self) -> &[ProcessorArgumentId] {
         &self.available_local_arguments
     }
 }
@@ -206,13 +212,13 @@ impl ProcessorExpression {
 
     pub(crate) fn add_argument(
         &mut self,
-        argument_id: SoundExpressionArgumentId,
+        argument_id: ArgumentLocation,
     ) -> ExpressionGraphParameterId {
         self.param_mapping
             .add_argument(argument_id, &mut self.expression_graph)
     }
 
-    pub(crate) fn remove_argument(&mut self, argument_id: SoundExpressionArgumentId) {
+    pub(crate) fn remove_argument(&mut self, argument_id: ArgumentLocation) {
         self.param_mapping
             .remove_argument(argument_id, &mut self.expression_graph);
     }
@@ -232,6 +238,39 @@ impl ProcessorExpression {
         &self,
         processor_id: SoundProcessorId,
         compiler: &SoundGraphCompiler<'a, 'ctx>,
+    ) -> CompiledExpression<'ctx> {
+        // Pass scope to enable validation
+        let function = compiler.get_compiled_expression(processor_id, self);
+        CompiledExpression::new(self.id, function, self.scope.clone())
+    }
+}
+
+impl ProcessorComponent for ProcessorExpression {
+    type CompiledType<'ctx> = CompiledExpression<'ctx>;
+
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        visitor.expression(self);
+    }
+
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        visitor.expression(self);
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn compile<'ctx>(
+        &self,
+        processor_id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> CompiledExpression<'ctx> {
+        let function = compiler.get_compiled_expression(processor_id, self);
+        CompiledExpression::new(self.id, function)
+    }
+
+    #[cfg(debug_assertions)]
+    fn compile<'ctx>(
+        &self,
+        processor_id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> CompiledExpression<'ctx> {
         // Pass scope to enable validation
         let function = compiler.get_compiled_expression(processor_id, self);

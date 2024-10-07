@@ -1,21 +1,19 @@
 use crate::{
     core::{
-        engine::{
-            compiledexpression::{
-                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-                CompiledExpressionVisitorMut,
-            },
-            soundgraphcompiler::SoundGraphCompiler,
-        },
+        engine::soundgraphcompiler::SoundGraphCompiler,
+        expression::context::ExpressionContext,
+        jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
             expression::{ProcessorExpression, SoundExpressionScope},
             soundinput::InputOptions,
-            soundinputtypes::{SingleInput, SingleInputNode},
+            soundinputtypes::SingleInput,
             soundprocessor::{
-                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
+                WhateverSoundProcessor,
             },
             soundprocessortools::SoundProcessorTools,
             state::State,
@@ -32,29 +30,6 @@ enum Phase {
     Decay,
     Sustain,
     Release,
-}
-
-pub struct ADSRExpressions<'ctx> {
-    attack_time: CompiledExpression<'ctx>,
-    decay_time: CompiledExpression<'ctx>,
-    sustain_level: CompiledExpression<'ctx>,
-    release_time: CompiledExpression<'ctx>,
-}
-
-impl<'ctx> CompiledExpressionCollection<'ctx> for ADSRExpressions<'ctx> {
-    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit(&self.attack_time);
-        visitor.visit(&self.decay_time);
-        visitor.visit(&self.sustain_level);
-        visitor.visit(&self.release_time);
-    }
-
-    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit(&mut self.attack_time);
-        visitor.visit(&mut self.decay_time);
-        visitor.visit(&mut self.sustain_level);
-        visitor.visit(&mut self.release_time);
-    }
 }
 
 pub struct ADSRState {
@@ -79,6 +54,15 @@ pub struct ADSR {
     pub decay_time: ProcessorExpression,
     pub sustain_level: ProcessorExpression,
     pub release_time: ProcessorExpression,
+}
+
+pub struct CompiledADSR<'ctx> {
+    input: <SingleInput as ProcessorComponent>::CompiledType<'ctx>,
+    attack_time: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
+    decay_time: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
+    sustain_level: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
+    release_time: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
+    state: ADSRState,
 }
 
 // out_level : slice at the beginning of which to produce output level
@@ -124,141 +108,134 @@ fn chunked_interp(
 }
 
 impl WhateverSoundProcessor for ADSR {
-    type StateType = ADSRState;
+    type CompiledType<'ctx> = CompiledADSR<'ctx>;
 
-    type SoundInputType = SingleInput;
-
-    type Expressions<'ctx> = ADSRExpressions<'ctx>;
-
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(ADSR {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> ADSR {
+        ADSR {
             input: SingleInput::new(InputOptions::Synchronous, &mut tools),
             attack_time: tools
-                .add_expression(0.01, SoundExpressionScope::without_processor_state()),
-            decay_time: tools.add_expression(0.2, SoundExpressionScope::without_processor_state()),
+                .make_expression(0.01, SoundExpressionScope::without_processor_state()),
+            decay_time: tools.make_expression(0.2, SoundExpressionScope::without_processor_state()),
             sustain_level: tools
-                .add_expression(0.5, SoundExpressionScope::without_processor_state()),
+                .make_expression(0.5, SoundExpressionScope::without_processor_state()),
             release_time: tools
-                .add_expression(0.25, SoundExpressionScope::without_processor_state()),
-        })
+                .make_expression(0.25, SoundExpressionScope::without_processor_state()),
+        }
     }
 
     fn is_static(&self) -> bool {
         false
     }
 
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &self.input
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        self.attack_time.visit(visitor);
+        self.decay_time.visit(visitor);
+        self.sustain_level.visit(visitor);
+        self.release_time.visit(visitor);
     }
 
-    fn make_state(&self) -> Self::StateType {
-        ADSRState {
-            phase: Phase::Init,
-            phase_samples: 0,
-            phase_samples_so_far: 0,
-            prev_level: 0.0,
-            next_level: 0.0,
-            was_released: false,
-        }
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        self.attack_time.visit_mut(visitor);
+        self.decay_time.visit_mut(visitor);
+        self.sustain_level.visit_mut(visitor);
+        self.release_time.visit_mut(visitor);
     }
 
-    fn visit_expressions<'a>(&self, mut f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {
-        f(&self.attack_time);
-        f(&self.decay_time);
-        f(&self.sustain_level);
-        f(&self.release_time);
-    }
-
-    fn visit_expressions_mut<'a>(&mut self, mut f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {
-        f(&mut self.attack_time);
-        f(&mut self.decay_time);
-        f(&mut self.sustain_level);
-        f(&mut self.release_time);
-    }
-
-    fn compile_expressions<'a, 'ctx>(
+    fn compile<'ctx>(
         &self,
-        processor_id: SoundProcessorId,
-        compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        ADSRExpressions {
-            attack_time: self.attack_time.compile(processor_id, compiler),
-            decay_time: self.decay_time.compile(processor_id, compiler),
-            sustain_level: self.sustain_level.compile(processor_id, compiler),
-            release_time: self.release_time.compile(processor_id, compiler),
+        id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> CompiledADSR<'ctx> {
+        CompiledADSR {
+            input: self.input.compile(id, compiler),
+            attack_time: self.attack_time.compile(id, compiler),
+            decay_time: self.decay_time.compile(id, compiler),
+            sustain_level: self.sustain_level.compile(id, compiler),
+            release_time: self.release_time.compile(id, compiler),
+            state: ADSRState {
+                phase: Phase::Init,
+                phase_samples: 0,
+                phase_samples_so_far: 0,
+                prev_level: 0.0,
+                next_level: 0.0,
+                was_released: false,
+            },
         }
     }
+}
 
-    fn process_audio(
-        state: &mut StateAndTiming<ADSRState>,
-        sound_input: &mut SingleInputNode,
-        expressions: &mut ADSRExpressions,
-        dst: &mut SoundChunk,
-        mut context: Context,
-    ) -> StreamStatus {
+impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
+    fn process_audio(&mut self, dst: &mut SoundChunk, mut context: Context) -> StreamStatus {
         let pending_release = context.take_pending_release();
 
-        if let Phase::Init = state.phase {
-            state.phase = Phase::Attack;
-            state.prev_level = 0.0;
-            state.next_level = 1.0;
-            let ctx = context.push_processor_state(state, LocalArrayList::new());
-            state.phase_samples =
-                (expressions.attack_time.eval_scalar(&ctx) * SAMPLE_FREQUENCY as f32) as usize;
-            state.phase_samples_so_far = 0;
+        if let Phase::Init = self.state.phase {
+            self.state.phase = Phase::Attack;
+            self.state.prev_level = 0.0;
+            self.state.next_level = 1.0;
+            self.state.phase_samples = (self.attack_time.eval_scalar(
+                Discretization::chunkwise_temporal(),
+                ExpressionContext::new_minimal(context),
+            ) * SAMPLE_FREQUENCY as f32) as usize;
+            self.state.phase_samples_so_far = 0;
         }
 
         let mut cursor: usize = 0;
         let mut level = context.get_scratch_space(CHUNK_SIZE);
         let mut status = StreamStatus::Playing;
 
-        if let Phase::Attack = state.phase {
+        if let Phase::Attack = self.state.phase {
             let samples_covered = chunked_interp(
                 &mut level[..],
-                state.phase_samples,
-                state.phase_samples_so_far,
-                state.prev_level,
-                state.next_level,
+                self.state.phase_samples,
+                self.state.phase_samples_so_far,
+                self.state.prev_level,
+                self.state.next_level,
             );
-            state.phase_samples_so_far += samples_covered;
+            self.state.phase_samples_so_far += samples_covered;
             cursor += samples_covered;
             debug_assert!(cursor <= CHUNK_SIZE);
 
             if cursor < CHUNK_SIZE {
-                state.phase = Phase::Decay;
-                state.phase_samples_so_far = 0;
-                let ctx = context.push_processor_state(state, LocalArrayList::new());
-                state.phase_samples =
-                    (expressions.decay_time.eval_scalar(&ctx) * SAMPLE_FREQUENCY as f32) as usize;
-                state.prev_level = 1.0;
-                let ctx = context.push_processor_state(state, LocalArrayList::new());
-                state.next_level = expressions.sustain_level.eval_scalar(&ctx).clamp(0.0, 1.0);
+                self.state.phase = Phase::Decay;
+                self.state.phase_samples_so_far = 0;
+                self.state.phase_samples = (self.decay_time.eval_scalar(
+                    Discretization::chunkwise_temporal(),
+                    ExpressionContext::new_minimal(context),
+                ) * SAMPLE_FREQUENCY as f32) as usize;
+                self.state.prev_level = 1.0;
+                self.state.next_level = self
+                    .sustain_level
+                    .eval_scalar(
+                        Discretization::chunkwise_temporal(),
+                        ExpressionContext::new_minimal(context),
+                    )
+                    .clamp(0.0, 1.0);
             }
         }
 
-        if let Phase::Decay = state.phase {
+        if let Phase::Decay = self.state.phase {
             let samples_covered = chunked_interp(
                 &mut level[cursor..],
-                state.phase_samples,
-                state.phase_samples_so_far,
-                state.prev_level,
-                state.next_level,
+                self.state.phase_samples,
+                self.state.phase_samples_so_far,
+                self.state.prev_level,
+                self.state.next_level,
             );
-            state.phase_samples_so_far += samples_covered;
+            self.state.phase_samples_so_far += samples_covered;
             cursor += samples_covered;
             debug_assert!(cursor <= CHUNK_SIZE);
 
             if cursor < CHUNK_SIZE {
-                state.phase = Phase::Sustain;
+                self.state.phase = Phase::Sustain;
                 // NOTE: sustain is held until release message is received
-                state.phase_samples = 0;
-                state.phase_samples_so_far = 0;
-                // NOTE: state.next_level already holds sustain level after transition to decay phase
+                self.state.phase_samples = 0;
+                self.state.phase_samples_so_far = 0;
+                // NOTE: self.state.next_level already holds sustain level after transition to decay phase
             }
         }
 
-        if let Phase::Sustain = state.phase {
-            let sample_offset = if state.was_released {
+        if let Phase::Sustain = self.state.phase {
+            let sample_offset = if self.state.was_released {
                 Some(0)
             } else {
                 pending_release
@@ -268,31 +245,32 @@ impl WhateverSoundProcessor for ADSR {
                 // TODO: consider optionally propagating, e.g.
                 // inputs.request_release(sample_offset);
                 if sample_offset > cursor {
-                    slicemath::fill(&mut level[cursor..sample_offset], state.next_level);
+                    slicemath::fill(&mut level[cursor..sample_offset], self.state.next_level);
                     cursor = sample_offset;
                 }
-                state.phase = Phase::Release;
-                let ctx = context.push_processor_state(state, LocalArrayList::new());
-                state.phase_samples =
-                    (expressions.release_time.eval_scalar(&ctx) * SAMPLE_FREQUENCY as f32) as usize;
-                state.phase_samples_so_far = 0;
-                state.prev_level = state.next_level;
-                state.next_level = 0.0;
+                self.state.phase = Phase::Release;
+                self.state.phase_samples = (self.release_time.eval_scalar(
+                    Discretization::chunkwise_temporal(),
+                    ExpressionContext::new_minimal(context),
+                ) * SAMPLE_FREQUENCY as f32) as usize;
+                self.state.phase_samples_so_far = 0;
+                self.state.prev_level = self.state.next_level;
+                self.state.next_level = 0.0;
             } else {
-                slicemath::fill(&mut level[cursor..], state.next_level);
+                slicemath::fill(&mut level[cursor..], self.state.next_level);
                 cursor = CHUNK_SIZE;
             }
         }
 
-        if let Phase::Release = state.phase {
+        if let Phase::Release = self.state.phase {
             let samples_covered = chunked_interp(
                 &mut level[cursor..],
-                state.phase_samples,
-                state.phase_samples_so_far,
-                state.prev_level,
+                self.state.phase_samples,
+                self.state.phase_samples_so_far,
+                self.state.prev_level,
                 0.0,
             );
-            state.phase_samples_so_far += samples_covered;
+            self.state.phase_samples_so_far += samples_covered;
             cursor += samples_covered;
             debug_assert!(cursor <= CHUNK_SIZE);
 
@@ -304,16 +282,20 @@ impl WhateverSoundProcessor for ADSR {
         }
 
         if pending_release.is_some() {
-            state.was_released = true;
+            self.state.was_released = true;
         }
 
         debug_assert!(cursor == CHUNK_SIZE);
 
-        sound_input.step(state, dst, &context, LocalArrayList::new());
+        self.input.step(dst, None, LocalArrayList::new(), context);
         slicemath::mul_inplace(&mut dst.l, &level);
         slicemath::mul_inplace(&mut dst.r, &level);
 
         status
+    }
+
+    fn start_over(&mut self) {
+        todo!()
     }
 }
 

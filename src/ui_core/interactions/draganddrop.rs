@@ -5,7 +5,7 @@ use hashstash::{HashCache, Order, Stashable, Stasher};
 
 use crate::{
     core::sound::{
-        soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
     },
     ui_core::{
         soundobjectpositions::SoundObjectPositions, soundobjectuistate::SoundObjectUiStates,
@@ -17,7 +17,7 @@ use crate::{
 pub enum DragDropSubject {
     Processor(SoundProcessorId),
     Plug(SoundProcessorId),
-    Socket(SoundInputId),
+    Socket(SoundInputLocation),
     Group { top_processor: SoundProcessorId },
 }
 
@@ -30,18 +30,18 @@ impl DragDropSubject {
         }
     }
 
-    fn as_input(&self) -> Option<SoundInputId> {
+    fn as_input(&self) -> Option<SoundInputLocation> {
         match self {
             DragDropSubject::Socket(siid) => Some(*siid),
             _ => None,
         }
     }
 
-    fn parent_processor(&self, graph: &SoundGraph) -> Option<SoundProcessorId> {
+    fn parent_processor(&self) -> Option<SoundProcessorId> {
         match self {
             DragDropSubject::Processor(spid) => Some(*spid),
             DragDropSubject::Plug(spid) => Some(*spid),
-            DragDropSubject::Socket(siid) => Some(graph.sound_input(*siid).unwrap().owner()),
+            DragDropSubject::Socket(siid) => Some(siid.processor()),
             DragDropSubject::Group { top_processor: _ } => None,
         }
     }
@@ -69,7 +69,8 @@ impl Stashable for DragDropSubject {
             }
             DragDropSubject::Socket(siid) => {
                 stasher.u8(2);
-                stasher.u64(siid.value() as _);
+                stasher.u64(siid.processor().value() as _);
+                stasher.u64(siid.input().value() as _);
             }
             DragDropSubject::Group { top_processor } => {
                 stasher.u8(3);
@@ -94,7 +95,6 @@ pub enum SelectionChange {
 }
 
 fn drop_and_drop_should_be_ignored(
-    graph: &mut SoundGraph,
     layout: &StackedLayout,
     drag_from: DragDropSubject,
     drop_onto: DragDropSubject,
@@ -111,20 +111,20 @@ fn drop_and_drop_should_be_ignored(
     match drag_from {
         DragDropSubject::Processor(spid) => {
             // If dragging a processor, ignore that processor's own things
-            drop_onto.parent_processor(graph) == Some(spid)
+            drop_onto.parent_processor() == Some(spid)
         }
         DragDropSubject::Plug(spid) => {
             // If dragging a processor's plug, ignore its own things
-            drop_onto.parent_processor(graph) == Some(spid)
+            drop_onto.parent_processor() == Some(spid)
         }
         DragDropSubject::Socket(siid) => {
             // If dragging an input socket, ignore its own processor
-            let owner = graph.sound_input(siid).unwrap().owner();
-            drop_onto.parent_processor(graph) == Some(owner)
+            let owner = siid.processor();
+            drop_onto.parent_processor() == Some(owner)
         }
         DragDropSubject::Group { top_processor } => {
             // If dragging a group, ignore anything in the group
-            if let Some(parent) = drop_onto.parent_processor(graph) {
+            if let Some(parent) = drop_onto.parent_processor() {
                 let parents_top_proc = layout
                     .find_group(parent)
                     .unwrap()
@@ -147,7 +147,7 @@ fn drag_and_drop_in_graph(
     drop_onto: DragDropSubject,
 ) -> DragDropLegality {
     // ignore some basic things first
-    if drop_and_drop_should_be_ignored(graph, layout, drag_from, drop_onto) {
+    if drop_and_drop_should_be_ignored(layout, drag_from, drop_onto) {
         return DragDropLegality::Irrelevant;
     }
 
@@ -184,7 +184,9 @@ fn drag_and_drop_in_graph(
 
         // Note the target of the input being dropped onto, if any,
         // before disconnecting it
-        let input_target = graph.sound_input(onto_input).unwrap().target();
+        let input_target = graph
+            .with_sound_input(onto_input, |input| input.target())
+            .unwrap();
         if input_target.is_some() {
             graph.disconnect_sound_input(onto_input).unwrap();
         }
@@ -196,10 +198,11 @@ fn drag_and_drop_in_graph(
 
         // If there was something connected to the input, and the top
         // processor has exactly one input, reconnect it
-        if let (Some(input_target), [top_input]) = (
-            input_target,
-            graph.sound_processor(drag_top_proc).unwrap().sound_inputs(),
-        ) {
+        let sound_inputs = graph
+            .sound_processor(drag_top_proc)
+            .unwrap()
+            .input_locations();
+        if let (Some(input_target), [top_input]) = (input_target, &sound_inputs[..]) {
             graph.connect_sound_input(*top_input, input_target).unwrap();
         }
 
@@ -210,10 +213,14 @@ fn drag_and_drop_in_graph(
         // If dragging an entire processor/group onto a plug, splice it in
 
         // Only allowed if dropping a top processor with one input
-        let [top_input] = graph.sound_processor(drag_top_proc).unwrap().sound_inputs() else {
+        let [top_input] = &graph
+            .sound_processor(drag_top_proc)
+            .unwrap()
+            .input_locations()[..]
+        else {
             return DragDropLegality::Irrelevant;
         };
-        let top_input: SoundInputId = *top_input;
+        let top_input: SoundInputLocation = *top_input;
 
         // Disconnect the top processor's inputs
         disconnect_all_inputs_of_processor(drag_top_proc, graph);
@@ -222,7 +229,7 @@ fn drag_and_drop_in_graph(
         disconnect_processor_from_all_inputs(drag_bottom_proc, graph);
 
         // Note the inputs the plug is connected to, and disconnect them
-        let plug_targets: Vec<SoundInputId> = graph.sound_processor_targets(onto_plug).collect();
+        let plug_targets = graph.sound_processor_targets(onto_plug);
         for target in &plug_targets {
             graph.disconnect_sound_input(*target).unwrap();
         }
@@ -242,9 +249,9 @@ fn drag_and_drop_in_graph(
         // If dragging an input socket onto a processor or its plug, connect it
 
         // Disconnect the input first
-        if graph.sound_input(drag_input).unwrap().target().is_some() {
-            graph.disconnect_sound_input(drag_input).unwrap();
-        }
+        graph
+            .with_sound_input_mut(drag_input, |input| input.set_target(None))
+            .unwrap();
 
         graph.connect_sound_input(drag_input, onto_proc).unwrap();
 
@@ -254,12 +261,9 @@ fn drag_and_drop_in_graph(
     {
         // If dragging a processor plug onto an input socket, connect it
 
-        // Disconnect the input first
-        if graph.sound_input(onto_input).unwrap().target().is_some() {
-            graph.disconnect_sound_input(onto_input).unwrap();
-        }
-
-        graph.connect_sound_input(onto_input, drag_proc).unwrap();
+        graph
+            .with_sound_input_mut(onto_input, |input| input.set_target(Some(drag_proc)))
+            .unwrap();
 
         DragDropLegality::Legal
     } else {
@@ -290,8 +294,7 @@ fn drag_and_drop_in_layout(
         (Some(processors), DragDropSubject::Socket(input)) => {
             // Dragging a processor onto an input. Move the processor
             // and insert it at the group under the input.
-            let input_data = graph.sound_input(input).unwrap();
-            let proc_below = input_data.owner();
+            let proc_below = input.processor();
 
             if layout.is_top_of_group(proc_below) {
                 for proc in processors {
@@ -450,7 +453,7 @@ impl DragInteraction {
         let drag_subject_processor = match self.subject {
             DragDropSubject::Processor(spid) => Some(spid),
             DragDropSubject::Plug(spid) => Some(spid),
-            DragDropSubject::Socket(siid) => Some(graph.sound_input(siid).unwrap().owner()),
+            DragDropSubject::Socket(siid) => Some(siid.processor()),
             DragDropSubject::Group { top_processor: _ } => {
                 // Groups get dragged directly and so don't need a
                 // preview. They don't have just one colour anyway.
@@ -584,34 +587,19 @@ impl DropInteraction {
 // TODO: move these methods to soundgraph.rs?
 
 fn disconnect_all_inputs_of_processor(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
-    let mut inputs_to_disconnect_from: Vec<SoundInputId> = Vec::new();
-    for i in graph.sound_processor(processor_id).unwrap().sound_inputs() {
-        if graph.sound_input(*i).unwrap().target().is_some() {
-            inputs_to_disconnect_from.push(*i);
-        }
-    }
-    for i in inputs_to_disconnect_from {
-        graph.disconnect_sound_input(i).unwrap();
-    }
+    graph
+        .sound_processor_mut(processor_id)
+        .unwrap()
+        .foreach_input_mut(|input, _| input.set_target(None));
 }
 
 fn disconnect_processor_from_all_inputs(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
-    let inputs_to_disconnect_from: Vec<SoundInputId> =
-        graph.sound_processor_targets(processor_id).collect();
-    for i in inputs_to_disconnect_from {
+    for i in graph.sound_processor_targets(processor_id) {
         graph.disconnect_sound_input(i).unwrap();
     }
 }
 
 fn disconnect_processor_in_graph(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
-    let mut inputs_to_disconnect_from: Vec<SoundInputId> =
-        graph.sound_processor_targets(processor_id).collect();
-    for i in graph.sound_processor(processor_id).unwrap().sound_inputs() {
-        if graph.sound_input(*i).unwrap().target().is_some() {
-            inputs_to_disconnect_from.push(*i);
-        }
-    }
-    for i in inputs_to_disconnect_from {
-        graph.disconnect_sound_input(i).unwrap();
-    }
+    disconnect_all_inputs_of_processor(processor_id, graph);
+    disconnect_processor_from_all_inputs(processor_id, graph);
 }

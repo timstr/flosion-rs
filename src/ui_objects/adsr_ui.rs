@@ -38,7 +38,7 @@ impl SoundObjectUi for ADSRUi {
         } = adsr;
 
         ProcessorUi::new(id, "ADSR")
-            .add_sound_input(input.id(), "input", sound_graph)
+            .add_sound_input(input.id(), "input")
             .add_expression(attack_time, "attack_time", PlotConfig::new())
             .add_expression(decay_time, "decay_time", PlotConfig::new())
             .add_expression(sustain_level, "sustain_level", PlotConfig::new())

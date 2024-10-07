@@ -1,22 +1,19 @@
 use crate::{
     core::{
-        engine::{
-            compiledexpression::{
-                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-                CompiledExpressionVisitorMut,
-            },
-            soundgraphcompiler::SoundGraphCompiler,
-        },
+        engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
+        expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
             expression::{ProcessorExpression, SoundExpressionScope},
-            expressionargument::{SoundExpressionArgumentHandle, SoundExpressionArgumentId},
+            expressionargument::{ProcessorArgument, ProcessorArgumentId},
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
-                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
+                WhateverSoundProcessor,
             },
             soundprocessortools::SoundProcessorTools,
         },
@@ -31,91 +28,76 @@ pub struct Definitions {
     // TODO: store these in a vector. Might need to rethink how DefinitionsExpressions works,
     // e.g. does it need to use Vec or can it use something friendlier to the audio thread?
     pub expression: ProcessorExpression,
-    pub argument: SoundExpressionArgumentHandle,
+    pub argument: ProcessorArgument,
 }
 
-pub struct DefinitionsExpressions<'ctx> {
-    input: CompiledExpression<'ctx>,
-    argument_id: SoundExpressionArgumentId,
-}
-
-impl<'ctx> CompiledExpressionCollection<'ctx> for DefinitionsExpressions<'ctx> {
-    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit(&self.input);
-    }
-
-    fn visit_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit(&mut self.input);
-    }
+pub struct CompiledDefinitions<'ctx> {
+    sound_input: SingleInputNode<'ctx>,
+    expression: CompiledExpression<'ctx>,
+    argument_id: ProcessorArgumentId,
 }
 
 impl WhateverSoundProcessor for Definitions {
-    type StateType = ();
+    type CompiledType<'ctx> = CompiledDefinitions<'ctx>;
 
-    type SoundInputType = SingleInput;
-
-    type Expressions<'ctx> = DefinitionsExpressions<'ctx>;
-
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(Definitions {
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Definitions {
+        Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
-            argument: tools.add_local_array_argument(),
-        })
+            expression: tools.make_expression(0.0, SoundExpressionScope::with_processor_state()),
+            argument: tools.make_local_array_argument(),
+        }
     }
 
     fn is_static(&self) -> bool {
         false
     }
 
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &self.sound_input
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        self.sound_input.visit(visitor);
+        self.expression.visit(visitor);
+        self.argument.visit(visitor);
     }
 
-    fn make_state(&self) -> Self::StateType {
-        ()
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        self.sound_input.visit_mut(visitor);
+        self.expression.visit_mut(visitor);
+        self.argument.visit_mut(visitor);
     }
 
-    fn visit_expressions<'a>(&self, mut f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {
-        f(&self.expression);
-    }
-
-    fn visit_expressions_mut<'a>(&mut self, mut f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {
-        f(&mut self.expression)
-    }
-
-    fn compile_expressions<'a, 'ctx>(
+    fn compile<'ctx>(
         &self,
-        processor_id: SoundProcessorId,
-        compile: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        DefinitionsExpressions {
-            input: self.expression.compile(processor_id, compile),
+        id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> CompiledDefinitions<'ctx> {
+        CompiledDefinitions {
+            sound_input: self.sound_input.compile(id, compiler),
+            expression: self.expression.compile(id, compiler),
             argument_id: self.argument.id(),
         }
     }
+}
 
-    fn process_audio<'ctx>(
-        state: &mut StateAndTiming<()>,
-        sound_inputs: &mut SingleInputNode<'ctx>,
-        expressions: &mut DefinitionsExpressions<'ctx>,
-        dst: &mut SoundChunk,
-        context: Context,
-    ) -> StreamStatus {
+impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledDefinitions<'ctx> {
+    fn process_audio(&mut self, dst: &mut SoundChunk, context: Context) -> StreamStatus {
         let mut buffer = context.get_scratch_space(CHUNK_SIZE);
 
-        expressions.input.eval(
+        self.expression.eval(
             &mut buffer,
             Discretization::samplewise_temporal(),
-            &context.push_processor_state(state, LocalArrayList::new()),
+            ExpressionContext::new_minimal(context),
         );
 
-        sound_inputs.step(
-            state,
+        self.sound_input.step(
             dst,
-            &context,
-            LocalArrayList::new().push(&buffer, expressions.argument_id),
+            None,
+            LocalArrayList::new().push(&buffer, self.argument_id),
+            context,
         )
+    }
+
+    fn start_over(&mut self) {
+        self.sound_input.start_over(0);
+        self.expression.start_over();
     }
 }
 

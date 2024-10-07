@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{objecttype::ObjectType, sound::expressionargument::SoundExpressionArgumentId},
+    core::{objecttype::ObjectType, sound::expressionargument::ArgumentLocation},
     ui_core::{
         expressiongraphuicontext::OuterProcessorExpressionContext,
         expressionobjectui::ExpressionObjectUiFactory,
@@ -15,7 +15,7 @@ use super::ast::{VariableDefinition, VariableId};
 pub(super) enum ExpressionSummonValue {
     ExpressionNodeType(ObjectType),
     Constant(f32),
-    Argument(SoundExpressionArgumentId),
+    Argument(ArgumentLocation),
     Variable(VariableId),
 }
 

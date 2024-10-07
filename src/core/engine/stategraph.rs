@@ -1,11 +1,9 @@
-use crate::core::sound::{soundinput::SoundInputId, soundprocessor::SoundProcessorId};
+use crate::core::sound::soundprocessor::SoundProcessorId;
 
 use super::{
-    compiledsoundinput::CompiledSoundInput,
     garbage::{Garbage, GarbageChute},
     stategraphedit::StateGraphEdit,
-    stategraphnode::CompiledSoundProcessor,
-    stategraphnode::{SharedCompiledProcessor, StateGraphNodeValue},
+    stategraphnode::SharedCompiledProcessor,
 };
 
 /// A directed acyclic graph of nodes representing invidual sound processors,
@@ -44,23 +42,6 @@ impl<'ctx> StateGraph<'ctx> {
             StateGraphEdit::RemoveStaticSoundProcessor(spid) => {
                 self.remove_static_processor(spid, garbage_chute)
             }
-            StateGraphEdit::AddSoundInputBranch {
-                input_id,
-                owner_id,
-                key_index,
-                targets,
-            } => self.add_sound_input_branch(input_id, key_index, owner_id, targets),
-            StateGraphEdit::RemoveSoundInputBranch {
-                input_id,
-                owner_id,
-                key_index,
-            } => self.remove_sound_input_branch(input_id, key_index, owner_id, garbage_chute),
-            StateGraphEdit::ReplaceSoundInputBranch {
-                input_id,
-                owner_id,
-                targets,
-            } => self.replace_sound_input_branch(input_id, owner_id, targets, garbage_chute),
-            StateGraphEdit::UpdateExpression(_, _) => todo!(),
             StateGraphEdit::DebugInspection(f) => f(self),
         }
     }
@@ -91,94 +72,6 @@ impl<'ctx> StateGraph<'ctx> {
             .unwrap();
         let old_node = self.static_processors.remove(i);
         old_node.toss(garbage_chute);
-    }
-
-    /// Modify all compiled sound inputs corresponding to the given sound input
-    /// to add pre-allocated targets at the given branch index. There must
-    /// be enough targets allocated for all replicated nodes in the graph.
-    /// Internally, this calls `CompiledSoundInput::insert_target`.
-    fn add_sound_input_branch(
-        &mut self,
-        input_id: SoundInputId,
-        index: usize,
-        owner_id: SoundProcessorId,
-        mut targets: Vec<StateGraphNodeValue<'ctx>>,
-    ) {
-        Self::modify_compiled_sound_inputs(
-            &mut self.static_processors,
-            owner_id,
-            |compiled_input| {
-                compiled_input.insert(input_id, index, targets.pop().unwrap());
-            },
-        );
-    }
-
-    /// Modify all compiled sound inputs corresponding to the given sound input
-    /// to remove targets at the given branch index. The removed targets are
-    /// all tossed into the given GarbageChute. Internally, this calls
-    /// `CompiledSoundInput::erase_target`
-    fn remove_sound_input_branch(
-        &mut self,
-        input_id: SoundInputId,
-        index: usize,
-        owner_id: SoundProcessorId,
-        garbage_chute: &GarbageChute<'ctx>,
-    ) {
-        Self::modify_compiled_sound_inputs(
-            &mut self.static_processors,
-            owner_id,
-            |compiled_input| {
-                let old_target = compiled_input.erase(input_id, index);
-                old_target.toss(garbage_chute);
-            },
-        );
-    }
-
-    /// Modify all compiled sound inputs corresponding to the given sound input
-    /// to swap their targets in-place with the given, pre-allocated targets.
-    /// The removed targets are all tossed into the given GarbageChute. There
-    /// must be enough targets allocated for all replicated nodes in the graph.
-    fn replace_sound_input_branch(
-        &mut self,
-        input_id: SoundInputId,
-        owner_id: SoundProcessorId,
-        mut targets: Vec<StateGraphNodeValue<'ctx>>,
-        garbage_chute: &GarbageChute<'ctx>,
-    ) {
-        Self::modify_compiled_sound_inputs(
-            &mut self.static_processors,
-            owner_id,
-            |compiled_input| {
-                for target in compiled_input.targets_mut() {
-                    if target.id() != input_id {
-                        continue;
-                    }
-                    let old_target = target.swap_target(targets.pop().unwrap());
-                    old_target.toss(garbage_chute);
-                }
-            },
-        );
-        // TODO: toss the vec also
-    }
-
-    /// Internal helper method for looking up all copies of and making
-    /// changes to the nodes of a sound input in the StateGraph.
-    fn modify_compiled_sound_inputs<F: FnMut(&mut dyn CompiledSoundInput<'ctx>)>(
-        _static_nodes: &mut [SharedCompiledProcessor<'ctx>],
-        _owner_id: SoundProcessorId,
-        _f: F,
-    ) {
-        todo!()
-    }
-
-    /// Internal helper method for looking up all copies of and making
-    /// changes to the nodes of a sound processor in the StateGraph.
-    fn modify_compiled_processors<F: FnMut(&mut dyn CompiledSoundProcessor<'ctx>)>(
-        _static_nodes: &mut [SharedCompiledProcessor<'ctx>],
-        _processor_id: SoundProcessorId,
-        _f: F,
-    ) {
-        todo!()
     }
 }
 

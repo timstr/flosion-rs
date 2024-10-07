@@ -5,7 +5,6 @@ use crate::core::{
     sound::{
         expression::{ProcessorExpression, ProcessorExpressionLocation},
         soundgraph::SoundGraph,
-        soundinput::SoundInputId,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -73,8 +72,6 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         }
     }
 
-    /// Compile an expression using the JIT compiler, or retrieve
-    /// it if it's already compiled
     pub(crate) fn get_compiled_expression(
         &self,
         processor_id: SoundProcessorId,
@@ -87,27 +84,5 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
             expression.mapping(),
             self.graph,
         )
-    }
-
-    /// Compile a sound input node for execution on the audio thread
-    /// as part of the state graph. This is called automatically when
-    /// a sound processor node is compiled.
-    pub(crate) fn compile_sound_input(
-        &mut self,
-        sound_input_id: SoundInputId,
-    ) -> StateGraphNodeValue<'ctx> {
-        let input_data = self.graph.sound_input(sound_input_id).unwrap();
-        match input_data.target() {
-            Some(spid) => {
-                let mut node = self.compile_sound_processor(spid);
-                if let StateGraphNodeValue::Shared(shared_node) = &mut node {
-                    shared_node
-                        .borrow_cache_mut()
-                        .add_target_input(sound_input_id);
-                }
-                node
-            }
-            None => StateGraphNodeValue::Empty,
-        }
     }
 }

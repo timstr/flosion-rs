@@ -3,26 +3,26 @@ use rand::prelude::*;
 use crate::{
     core::{
         engine::{
-            compiledexpression::{
-                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-                CompiledExpressionVisitorMut,
-            },
-            scratcharena::ScratchArena,
+            compiledexpression::CompiledExpression, scratcharena::ScratchArena,
             soundgraphcompiler::SoundGraphCompiler,
         },
-        expression::{expressiongraphdata::ExpressionTarget, expressionnode::PureExpressionNode},
-        jit::{compiledexpression::Discretization, jit::Jit},
+        expression::{
+            context::ExpressionContext, expressiongraphdata::ExpressionTarget,
+            expressionnode::PureExpressionNode,
+        },
+        jit::{cache::JitCache, compiledexpression::Discretization},
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::{Context, LocalArrayList},
-            expression::{ProcessorExpression, SoundExpressionScope},
-            expressionargument::SoundExpressionArgumentHandle,
+            context::{Context, LocalArrayList, Stack},
+            expression::{ProcessorExpression, ProcessorExpressionLocation, SoundExpressionScope},
+            expressionargument::{ArgumentLocation, ProcessorArgument, ProcessorArgumentLocation},
             soundgraph::SoundGraph,
             soundprocessor::{
-                SoundProcessorId, StateAndTiming, StreamStatus, WhateverSoundProcessor,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                ProcessorTiming, SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
+                WhateverSoundProcessor,
             },
             soundprocessortools::SoundProcessorTools,
-            state::State,
         },
         soundchunk::SoundChunk,
     },
@@ -37,111 +37,64 @@ const MAX_NUM_INPUTS: usize = 3;
 struct TestSoundProcessor {
     expression: ProcessorExpression,
     input_values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
-    argument_0: SoundExpressionArgumentHandle,
-    argument_1: SoundExpressionArgumentHandle,
-    argument_2: SoundExpressionArgumentHandle,
+    argument_0: ProcessorArgument,
+    argument_1: ProcessorArgument,
+    argument_2: ProcessorArgument,
 }
 
-struct TestExpressions<'ctx> {
-    input: CompiledExpression<'ctx>,
-}
-
-impl<'ctx> CompiledExpressionCollection<'ctx> for TestExpressions<'ctx> {
-    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit(&self.input);
-    }
-
-    fn visit_mut(&mut self, visitor: &'_ mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit(&mut self.input);
-    }
-}
-struct TestSoundProcessorState {
-    values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
-}
-
-impl State for TestSoundProcessorState {
-    fn start_over(&mut self) {
-        // NOTE: values shouldn't be overwritten
-    }
-}
-impl TestSoundProcessor {
-    fn set_input_values(&mut self, values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS]) {
-        self.input_values = values;
-    }
+struct CompiledTestSoundProcessor<'ctx> {
+    expression: CompiledExpression<'ctx>,
 }
 
 impl WhateverSoundProcessor for TestSoundProcessor {
-    type StateType = TestSoundProcessorState;
+    type CompiledType<'ctx> = CompiledTestSoundProcessor<'ctx>;
 
-    type SoundInputType = ();
-
-    type Expressions<'ctx> = TestExpressions<'ctx>;
-
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(TestSoundProcessor {
-            expression: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
+    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> TestSoundProcessor {
+        TestSoundProcessor {
+            expression: tools.make_expression(0.0, SoundExpressionScope::with_processor_state()),
             input_values: [[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
-            argument_0: tools.add_processor_array_argument(|data| {
-                &data
-                    .downcast_if::<TestSoundProcessorState>()
-                    .unwrap()
-                    .values[0]
-            }),
-            argument_1: tools.add_processor_array_argument(|data| {
-                &data
-                    .downcast_if::<TestSoundProcessorState>()
-                    .unwrap()
-                    .values[1]
-            }),
-            argument_2: tools.add_processor_array_argument(|data| {
-                &data
-                    .downcast_if::<TestSoundProcessorState>()
-                    .unwrap()
-                    .values[2]
-            }),
-        })
-    }
-
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &()
-    }
-
-    fn visit_expressions<'a>(&self, mut f: Box<dyn 'a + FnMut(&ProcessorExpression)>) {
-        f(&self.expression);
-    }
-
-    fn visit_expressions_mut<'a>(&mut self, mut f: Box<dyn 'a + FnMut(&mut ProcessorExpression)>) {
-        f(&mut self.expression)
-    }
-
-    fn compile_expressions<'ctx>(
-        &self,
-        processor_id: SoundProcessorId,
-        compiler: &SoundGraphCompiler<'_, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        TestExpressions {
-            input: self.expression.compile(processor_id, compiler),
+            argument_0: tools.make_local_array_argument(),
+            argument_1: tools.make_local_array_argument(),
+            argument_2: tools.make_local_array_argument(),
         }
     }
 
-    fn make_state(&self) -> Self::StateType {
-        TestSoundProcessorState {
-            values: self.input_values,
-        }
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        self.expression.visit(visitor);
+        self.argument_0.visit(visitor);
+        self.argument_1.visit(visitor);
+        self.argument_2.visit(visitor);
     }
 
-    fn process_audio<'ctx>(
-        _state: &mut StateAndTiming<Self::StateType>,
-        _sound_inputs: &mut (),
-        _expressions: &mut Self::Expressions<'ctx>,
-        _dst: &mut SoundChunk,
-        _context: Context,
-    ) -> StreamStatus {
-        panic!("Not used")
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        self.expression.visit_mut(visitor);
+        self.argument_0.visit_mut(visitor);
+        self.argument_1.visit_mut(visitor);
+        self.argument_2.visit_mut(visitor);
     }
 
     fn is_static(&self) -> bool {
         false
+    }
+
+    fn compile<'ctx>(
+        &self,
+        id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> CompiledTestSoundProcessor<'ctx> {
+        CompiledTestSoundProcessor {
+            expression: self.expression.compile(id, compiler),
+        }
+    }
+}
+
+impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledTestSoundProcessor<'ctx> {
+    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: Context) -> StreamStatus {
+        panic!("Unused")
+    }
+
+    fn start_over(&mut self) {
+        self.expression.start_over();
     }
 }
 
@@ -161,7 +114,7 @@ macro_rules! assert_near {
             let diff = (($expected) - ($actual)).abs();
             let mag = ($expected).abs().max(($actual).abs()).max(1e-3);
             assert!(
-                diff < 1e-3 * mag,
+                diff < 1e-3 * mag, // TODO: 1e-3 is a bit permissive is it not?
                 "Expected something near {} but instead got {}",
                 $expected,
                 $actual,
@@ -180,6 +133,8 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
         .add_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
+    let proc_id = proc.id();
+
     {
         let mut proc = proc.get_mut();
 
@@ -187,9 +142,15 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
         let arg1_id = proc.argument_1.id();
         let arg2_id = proc.argument_2.id();
 
-        let giid0 = proc.expression.add_argument(arg0_id);
-        let giid1 = proc.expression.add_argument(arg1_id);
-        let giid2 = proc.expression.add_argument(arg2_id);
+        let giid0 = proc.expression.add_argument(ArgumentLocation::Processor(
+            ProcessorArgumentLocation::new(proc_id, arg0_id),
+        ));
+        let giid1 = proc.expression.add_argument(ArgumentLocation::Processor(
+            ProcessorArgumentLocation::new(proc_id, arg1_id),
+        ));
+        let giid2 = proc.expression.add_argument(ArgumentLocation::Processor(
+            ProcessorArgumentLocation::new(proc_id, arg2_id),
+        ));
 
         let expr_graph = proc.expression.graph_mut();
 
@@ -228,21 +189,27 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let inkwell_context = inkwell::context::Context::create();
 
-    let jit = Jit::new(&inkwell_context);
+    let jit_cache = JitCache::new(&inkwell_context);
 
-    let compiled_input;
+    let mut compiled_expression;
 
     {
         let proc = proc.get();
 
-        compiled_input =
-            jit.compile_expression(proc.expression.graph(), proc.expression.mapping(), &graph);
+        let location = ProcessorExpressionLocation::new(proc_id, proc.expression.id());
+
+        compiled_expression = jit_cache.get_compiled_expression(
+            location,
+            proc.expression.graph(),
+            proc.expression.mapping(),
+            &graph,
+        );
     }
 
-    let mut compiled_function = compiled_input.make_function();
-
-    let scratch_space = ScratchArena::new();
-    let context = Context::new(SoundProcessorId::new(1), &scratch_space);
+    let scratch_arena = ScratchArena::new();
+    let stack = Stack::Root;
+    let processor_timing = ProcessorTiming::new();
+    let context = Context::new(proc_id, &processor_timing, &scratch_arena, stack);
 
     //------------------------
 
@@ -255,41 +222,39 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
         }
     }
 
-    proc.get_mut().set_input_values(input_values);
-
     let mut expected_values = [0.0_f32; TEST_ARRAY_SIZE];
-    let mut inputs_arr = [0.0_f32; MAX_NUM_INPUTS];
-    for i in 0..TEST_ARRAY_SIZE {
-        for j in 0..MAX_NUM_INPUTS {
-            inputs_arr[j] = input_values[j][i];
+    {
+        let mut inputs_arr = [0.0_f32; MAX_NUM_INPUTS];
+        for i in 0..TEST_ARRAY_SIZE {
+            for j in 0..MAX_NUM_INPUTS {
+                inputs_arr[j] = input_values[j][i];
+            }
+            expected_values[i] = test_function(&inputs_arr);
         }
-        expected_values[i] = test_function(&inputs_arr);
     }
     let expected_values = expected_values;
 
     //------------------------
 
-    let sp_state = StateAndTiming::new(proc.get().make_state());
-    let context = context.push_processor_state(&sp_state, LocalArrayList::new());
-
-    let state_from_context = context.find_processor_state(proc.id());
-    let state_from_context = state_from_context
-        .downcast_if::<TestSoundProcessorState>()
-        .unwrap();
-
-    for (expected_arr, actual_arr) in input_values
-        .into_iter()
-        .zip(state_from_context.values.iter().cloned())
-    {
-        for (expected, actual) in expected_arr.into_iter().zip(actual_arr.iter().cloned()) {
-            assert_near!(expected, actual);
-        }
-    }
-    //------------------------
-
     // test compiled evaluation
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];
-    compiled_function.eval(&mut actual_values_compiled, &context, Discretization::None);
+
+    let proc = proc.get();
+    let arg0_id = proc.argument_0.id();
+    let arg1_id = proc.argument_1.id();
+    let arg2_id = proc.argument_2.id();
+
+    compiled_expression.eval(
+        &mut actual_values_compiled,
+        ExpressionContext::new_with_arrays(
+            context,
+            LocalArrayList::new()
+                .push(&input_values[0], arg0_id)
+                .push(&input_values[1], arg1_id)
+                .push(&input_values[2], arg2_id),
+        ),
+        Discretization::None,
+    );
 
     for (expected, actual) in expected_values
         .into_iter()

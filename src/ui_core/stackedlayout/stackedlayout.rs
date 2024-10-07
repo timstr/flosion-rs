@@ -129,18 +129,23 @@ impl StackedLayout {
         let mut dependent_counts: HashMap<SoundProcessorId, usize> =
             graph.sound_processors().keys().map(|k| (*k, 0)).collect();
 
-        for si in graph.sound_inputs().values() {
-            if let Some(spid) = si.target() {
-                *dependent_counts.entry(spid).or_insert(0) += 1;
-            }
+        for proc_data in graph.sound_processors().values() {
+            proc_data.foreach_input(|input, _| {
+                if let Some(spid) = input.target() {
+                    *dependent_counts.entry(spid).or_insert(0) += 1;
+                }
+            });
         }
 
         // Every processor except those with a single connected sound
         // input must be at the top of a group
         for proc in graph.sound_processors().values() {
-            let inputs = proc.sound_inputs();
+            let inputs = proc.input_locations();
             if inputs.len() == 1 {
-                if graph.sound_input(inputs[0]).unwrap().target().is_some() {
+                if proc
+                    .with_input(inputs[0].input(), |i| i.target().is_some())
+                    .unwrap()
+                {
                     continue;
                 }
             }
@@ -187,10 +192,13 @@ impl StackedLayout {
         while !remaining_processors.is_empty() {
             let mut added_processor = None;
             for spid in &remaining_processors {
-                let inputs = graph.sound_processor(*spid).unwrap().sound_inputs();
+                let proc_data = graph.sound_processor(*spid).unwrap();
+                let inputs = proc_data.input_locations();
                 debug_assert_eq!(inputs.len(), 1);
-                let input = graph.sound_input(inputs[0]).unwrap();
-                let target = input.target().unwrap();
+                let target = proc_data
+                    .with_input(inputs[0].input(), |i| i.target())
+                    .unwrap()
+                    .unwrap();
 
                 if self.is_bottom_of_group(target) {
                     let existing_group = self.find_group_mut(target).unwrap();
@@ -227,9 +235,8 @@ impl StackedLayout {
         // TODO: make this prettier
         for (jumper_input, jumper_pos) in ui_state.positions().socket_jumpers().items() {
             let Some(target_spid) = graph
-                .sound_input(*jumper_input)
-                .map(|i| i.target())
-                .flatten()
+                .with_sound_input(*jumper_input, |i| i.target())
+                .unwrap()
             else {
                 continue;
             };
@@ -481,7 +488,7 @@ impl StackedLayout {
         let inputs = graph
             .sound_processor(bottom_processor)
             .unwrap()
-            .sound_inputs();
+            .input_locations();
 
         // check that the bottom processor has 1 input
         if inputs.len() != 1 {
@@ -490,16 +497,15 @@ impl StackedLayout {
 
         // check that the top processor is connected to that input
         let input_id = inputs[0];
-        let input_target = graph.sound_input(input_id).unwrap().target();
+        let input_target = graph.with_sound_input(input_id, |i| i.target()).unwrap();
         if input_target != Some(top_processor) {
             return false;
         }
 
         // check that no other inputs are connected to the top processor
-        for other_input in graph.sound_inputs().values() {
-            if other_input.id() != input_id && other_input.target() == Some(top_processor) {
-                return false;
-            }
+        let all_connected_inputs = graph.sound_processor_targets(top_processor);
+        if all_connected_inputs != [input_id] {
+            return false;
         }
 
         true

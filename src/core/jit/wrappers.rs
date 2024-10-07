@@ -1,41 +1,43 @@
+use std::any::Any;
+
 use inkwell::values::FunctionValue;
 
 use crate::core::{
-    anydata::AnyData,
-    expression::context::{usize_pair_to_expression_context, ExpressionContext},
+    expression::context::ExpressionContext,
     sound::{
-        expressionargument::SoundExpressionArgumentId, soundinput::SoundInputId,
+        expressionargument::ProcessorArgumentId,
+        soundinput::{ProcessorInputId, SoundInputLocation},
         soundprocessor::SoundProcessorId,
     },
 };
 
 use super::types::JitTypes;
 
-pub type ScalarReadFunc = fn(&AnyData) -> f32;
-pub type ArrayReadFunc = for<'a> fn(&AnyData<'a>) -> &'a [f32];
+pub type ScalarReadFunc = fn(&dyn Any) -> f32;
+pub type ArrayReadFunc = for<'a> fn(&'a dyn Any) -> &'a [f32];
 
 pub(super) unsafe extern "C" fn input_scalar_read_wrapper(
     scalar_read_fn: *const (),
-    context_1: usize,
-    context_2: usize,
-    sound_input_id: usize,
+    ptr_context: *const (),
+    processor_id: usize,
+    input_id: usize,
 ) -> f32 {
     assert_eq!(
         std::mem::size_of::<ScalarReadFunc>(),
         std::mem::size_of::<*const ()>()
     );
     let read_fn: ScalarReadFunc = std::mem::transmute(scalar_read_fn);
-    let ctx: *const dyn ExpressionContext =
-        usize_pair_to_expression_context((context_1, context_2));
-    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
-    let siid = SoundInputId::new(sound_input_id);
-    ctx.read_scalar_from_sound_input(siid, read_fn)
+    let ctx: *const ExpressionContext = ptr_context as _;
+    let ctx: &ExpressionContext = unsafe { &*ctx };
+    let processor_id = SoundProcessorId::new(processor_id);
+    let input_id = ProcessorInputId::new(input_id);
+    let location = SoundInputLocation::new(processor_id, input_id);
+    ctx.read_scalar_from_input_state(location, read_fn)
 }
 
 pub(super) unsafe extern "C" fn processor_scalar_read_wrapper(
     scalar_read_fn: *const (),
-    context_1: usize,
-    context_2: usize,
+    ptr_context: *const (),
     sound_processor_id: usize,
 ) -> f32 {
     assert_eq!(
@@ -43,18 +45,17 @@ pub(super) unsafe extern "C" fn processor_scalar_read_wrapper(
         std::mem::size_of::<*const ()>()
     );
     let read_fn: ScalarReadFunc = std::mem::transmute(scalar_read_fn);
-    let ctx: *const dyn ExpressionContext =
-        usize_pair_to_expression_context((context_1, context_2));
-    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
+    let ctx: *const ExpressionContext = ptr_context as _;
+    let ctx: &ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
-    ctx.read_scalar_from_sound_processor(spid, read_fn)
+    ctx.read_scalar_from_processor_state(spid, read_fn)
 }
 
 pub(super) unsafe extern "C" fn input_array_read_wrapper(
     array_read_fn: *const (),
-    context_1: usize,
-    context_2: usize,
-    sound_input_id: usize,
+    ptr_context: *const (),
+    processor_id: usize,
+    input_id: usize,
     expected_len: usize,
 ) -> *const f32 {
     assert_eq!(
@@ -62,11 +63,12 @@ pub(super) unsafe extern "C" fn input_array_read_wrapper(
         std::mem::size_of::<*const ()>()
     );
     let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
-    let ctx: *const dyn ExpressionContext =
-        usize_pair_to_expression_context((context_1, context_2));
-    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
-    let siid = SoundInputId::new(sound_input_id);
-    let s = ctx.read_array_from_sound_input(siid, f);
+    let ctx: *const ExpressionContext = ptr_context as _;
+    let ctx: &ExpressionContext = unsafe { &*ctx };
+    let processor_id = SoundProcessorId::new(processor_id);
+    let input_id = ProcessorInputId::new(input_id);
+    let location = SoundInputLocation::new(processor_id, input_id);
+    let s = ctx.read_array_from_input_state(location, f);
     if s.len() != expected_len {
         panic!("input_array_read_wrapper received a slice of incorrect length");
     }
@@ -75,8 +77,7 @@ pub(super) unsafe extern "C" fn input_array_read_wrapper(
 
 pub(super) unsafe extern "C" fn processor_array_read_wrapper(
     array_read_fn: *const (),
-    context_1: usize,
-    context_2: usize,
+    ptr_context: *const (),
     sound_processor_id: usize,
     expected_len: usize,
 ) -> *const f32 {
@@ -85,11 +86,10 @@ pub(super) unsafe extern "C" fn processor_array_read_wrapper(
         std::mem::size_of::<*const ()>()
     );
     let f: ArrayReadFunc = std::mem::transmute_copy(&array_read_fn);
-    let ctx: *const dyn ExpressionContext =
-        usize_pair_to_expression_context((context_1, context_2));
-    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
+    let ctx: *const ExpressionContext = ptr_context as _;
+    let ctx: &ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
-    let s = ctx.read_array_from_sound_processor(spid, f);
+    let s = ctx.read_array_from_processor_state(spid, f);
     if s.len() != expected_len {
         panic!("processor_array_read_wrapper received a slice of incorrect length");
     }
@@ -97,15 +97,13 @@ pub(super) unsafe extern "C" fn processor_array_read_wrapper(
 }
 
 pub(super) unsafe extern "C" fn processor_time_wrapper(
-    context_1: usize,
-    context_2: usize,
+    ptr_context: *const (),
     sound_processor_id: usize,
     ptr_time: *mut f32,
     ptr_speed: *mut f32,
 ) {
-    let ctx: *const dyn ExpressionContext =
-        usize_pair_to_expression_context((context_1, context_2));
-    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
+    let ctx: *const ExpressionContext = ptr_context as _;
+    let ctx: &ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
     let (time, speed) = ctx.get_time_and_speed_at_sound_processor(spid);
     *ptr_time = time;
@@ -113,34 +111,33 @@ pub(super) unsafe extern "C" fn processor_time_wrapper(
 }
 
 pub(super) unsafe extern "C" fn input_time_wrapper(
-    context_1: usize,
-    context_2: usize,
-    sound_input_id: usize,
+    ptr_context: *const (),
+    processor_id: usize,
+    input_id: usize,
     ptr_time: *mut f32,
     ptr_speed: *mut f32,
 ) {
-    let ctx: *const dyn ExpressionContext =
-        usize_pair_to_expression_context((context_1, context_2));
-    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
-    let siid = SoundInputId::new(sound_input_id);
-    let (time, speed) = ctx.get_time_and_speed_at_sound_input(siid);
+    let ctx: *const ExpressionContext = ptr_context as _;
+    let ctx: &ExpressionContext = unsafe { &*ctx };
+    let processor_id = SoundProcessorId::new(processor_id);
+    let input_id = ProcessorInputId::new(input_id);
+    let location = SoundInputLocation::new(processor_id, input_id);
+    let (time, speed) = ctx.get_time_and_speed_at_sound_input(location);
     *ptr_time = time;
     *ptr_speed = speed;
 }
 
 pub(super) unsafe extern "C" fn processor_local_array_read_wrapper(
-    context_1: usize,
-    context_2: usize,
+    ptr_context: *const (),
     sound_processor_id: usize,
     argument_id: usize,
     expected_len: usize,
 ) -> *const f32 {
-    let ctx: *const dyn ExpressionContext =
-        usize_pair_to_expression_context((context_1, context_2));
-    let ctx: &dyn ExpressionContext = unsafe { &*ctx };
+    let ctx: *const ExpressionContext = ptr_context as _;
+    let ctx: &ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
-    let nsid = SoundExpressionArgumentId::new(argument_id);
-    let s = ctx.read_local_array_from_sound_processor(spid, nsid);
+    let arg_id = ProcessorArgumentId::new(argument_id);
+    let s = ctx.read_local_array_from_sound_processor(spid, arg_id);
     if s.len() != expected_len {
         panic!("processor_array_read_wrapper received a slice of incorrect length");
     }
@@ -163,29 +160,39 @@ impl<'ctx> WrapperFunctions<'ctx> {
         module: &inkwell::module::Module<'ctx>,
         execution_engine: &inkwell::execution_engine::ExecutionEngine<'ctx>,
     ) -> WrapperFunctions<'ctx> {
-        let fn_scalar_read_wrapper_type = types.f32_type.fn_type(
+        let fn_processor_scalar_read_wrapper_type = types.f32_type.fn_type(
             &[
                 // array_read_fn
                 types.usize_type.into(),
-                // context_1
-                types.usize_type.into(),
-                // context_2
-                types.usize_type.into(),
-                // sound_input_id/sound_processor_id
+                // ptr_context
+                types.pointer_type.into(),
+                // processor_id
                 types.usize_type.into(),
             ],
             false,
         );
 
-        let fn_array_read_wrapper_type = types.f32_pointer_type.fn_type(
+        let fn_input_scalar_read_wrapper_type = types.f32_type.fn_type(
+            &[
+                // array_read_fn
+                types.usize_type.into(),
+                // ptr_context
+                types.pointer_type.into(),
+                // processor_id
+                types.usize_type.into(),
+                // input_id
+                types.usize_type.into(),
+            ],
+            false,
+        );
+
+        let fn_processor_array_read_wrapper_type = types.f32_pointer_type.fn_type(
             &[
                 // array_read_fn
                 types.pointer_type.into(),
-                // context_1
-                types.usize_type.into(),
-                // context_2
-                types.usize_type.into(),
-                // sound_input_id/sound_processor_id
+                // ptr_context
+                types.pointer_type.into(),
+                // processor_id
                 types.usize_type.into(),
                 // expected_len
                 types.usize_type.into(),
@@ -193,13 +200,43 @@ impl<'ctx> WrapperFunctions<'ctx> {
             false,
         );
 
-        let fn_time_wrapper_type = types.void_type.fn_type(
+        let fn_input_array_read_wrapper_type = types.f32_pointer_type.fn_type(
             &[
-                // context_1
+                // array_read_fn
+                types.pointer_type.into(),
+                // ptr_context
+                types.pointer_type.into(),
+                // processor_id
                 types.usize_type.into(),
-                // context_2
+                // input_id
                 types.usize_type.into(),
-                // sound_input_id/sound_processor_id
+                // expected_len
+                types.usize_type.into(),
+            ],
+            false,
+        );
+
+        let fn_processor_time_wrapper_type = types.void_type.fn_type(
+            &[
+                // ptr_context
+                types.pointer_type.into(),
+                // processor_id
+                types.usize_type.into(),
+                // ptr_time
+                types.f32_pointer_type.into(),
+                // ptr_speed
+                types.f32_pointer_type.into(),
+            ],
+            false,
+        );
+
+        let fn_input_time_wrapper_type = types.void_type.fn_type(
+            &[
+                // ptr_context
+                types.pointer_type.into(),
+                // processor_id
+                types.usize_type.into(),
+                // input_id
                 types.usize_type.into(),
                 // ptr_time
                 types.f32_pointer_type.into(),
@@ -211,10 +248,8 @@ impl<'ctx> WrapperFunctions<'ctx> {
 
         let fn_local_array_read_wrapper = types.f32_pointer_type.fn_type(
             &[
-                // context_1
-                types.usize_type.into(),
-                // context_2
-                types.usize_type.into(),
+                // ptr_context
+                types.pointer_type.into(),
                 // sound_processor_id
                 types.usize_type.into(),
                 // argument_id
@@ -227,30 +262,36 @@ impl<'ctx> WrapperFunctions<'ctx> {
 
         let fn_input_scalar_read_wrapper = module.add_function(
             "input_scalar_read_wrapper",
-            fn_scalar_read_wrapper_type,
+            fn_input_scalar_read_wrapper_type,
             None,
         );
 
         let fn_proc_scalar_read_wrapper = module.add_function(
             "processor_scalar_read_wrapper",
-            fn_scalar_read_wrapper_type,
+            fn_processor_scalar_read_wrapper_type,
             None,
         );
 
         let fn_proc_array_read_wrapper = module.add_function(
             "processor_array_read_wrapper",
-            fn_array_read_wrapper_type,
+            fn_processor_array_read_wrapper_type,
             None,
         );
 
-        let fn_input_array_read_wrapper =
-            module.add_function("input_array_read_wrapper", fn_array_read_wrapper_type, None);
+        let fn_input_array_read_wrapper = module.add_function(
+            "input_array_read_wrapper",
+            fn_input_array_read_wrapper_type,
+            None,
+        );
 
-        let fn_processor_time_wrapper =
-            module.add_function("processor_time_wrapper", fn_time_wrapper_type, None);
+        let fn_processor_time_wrapper = module.add_function(
+            "processor_time_wrapper",
+            fn_processor_time_wrapper_type,
+            None,
+        );
 
         let fn_input_time_wrapper =
-            module.add_function("input_time_wrapper", fn_time_wrapper_type, None);
+            module.add_function("input_time_wrapper", fn_input_time_wrapper_type, None);
 
         let fn_proc_local_array_read_wrapper = module.add_function(
             "processor_local_time_wrapepr",
