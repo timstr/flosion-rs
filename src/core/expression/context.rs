@@ -132,6 +132,9 @@ impl<'a> ExpressionContext<'a> {
         proc_id: SoundProcessorId,
         arg_id: ProcessorArgumentId,
     ) -> &[f32] {
+        if self.audio_context.current_processor_id() == proc_id {
+            return self.top_processor_arrays.get(arg_id);
+        }
         let frame = self.audio_context.find_frame(proc_id);
         frame.processor_data().local_arrays().get(arg_id)
     }

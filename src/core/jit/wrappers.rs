@@ -267,7 +267,7 @@ impl<'ctx> WrapperFunctions<'ctx> {
         );
 
         let fn_proc_scalar_read_wrapper = module.add_function(
-            "processor_scalar_read_wrapper",
+            "proc_scalar_read_wrapper",
             fn_processor_scalar_read_wrapper_type,
             None,
         );
@@ -294,7 +294,7 @@ impl<'ctx> WrapperFunctions<'ctx> {
             module.add_function("input_time_wrapper", fn_input_time_wrapper_type, None);
 
         let fn_proc_local_array_read_wrapper = module.add_function(
-            "processor_local_time_wrapepr",
+            "processor_local_array_wrapper",
             fn_local_array_read_wrapper,
             None,
         );

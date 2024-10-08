@@ -48,8 +48,7 @@ pub(super) struct LocalVariables<'ctx> {
     pub(super) loop_counter: IntValue<'ctx>,
     pub(super) dst_ptr: PointerValue<'ctx>,
     pub(super) dst_len: IntValue<'ctx>,
-    pub(super) context_1: IntValue<'ctx>,
-    pub(super) context_2: IntValue<'ctx>,
+    pub(super) context_ptr: PointerValue<'ctx>,
     pub(super) time_step: FloatValue<'ctx>,
     pub(super) state: PointerValue<'ctx>,
 }
@@ -103,10 +102,8 @@ impl<'ctx> Jit<'ctx> {
                 types.usize_type.into(),
                 // f32 : time step
                 types.f32_type.into(),
-                // usize : context 1
-                types.usize_type.into(),
-                // usize : context 2
-                types.usize_type.into(),
+                // *mut () : context ptr
+                types.pointer_type.into(),
                 // *mut u8 : pointer to init flag
                 types.u8_pointer_type.into(),
                 // *mut f32 : pointer to state
@@ -140,28 +137,23 @@ impl<'ctx> Jit<'ctx> {
             .get_nth_param(2)
             .unwrap()
             .into_float_value();
-        let arg_ctx_1 = fn_eval_expression
+        let arg_ctx_ptr = fn_eval_expression
             .get_nth_param(3)
             .unwrap()
-            .into_int_value();
-        let arg_ctx_2 = fn_eval_expression
-            .get_nth_param(4)
-            .unwrap()
-            .into_int_value();
+            .into_pointer_value();
         let arg_ptr_init_flag = fn_eval_expression
-            .get_nth_param(5)
+            .get_nth_param(4)
             .unwrap()
             .into_pointer_value();
         let arg_ptr_state = fn_eval_expression
-            .get_nth_param(6)
+            .get_nth_param(5)
             .unwrap()
             .into_pointer_value();
 
         arg_f32_dst_ptr.set_name("dst_ptr");
         arg_dst_len.set_name("dst_len");
         arg_time_step.set_name("time_step");
-        arg_ctx_1.set_name("context_1");
-        arg_ctx_2.set_name("context_2");
+        arg_ctx_ptr.set_name("context_ptr");
 
         let inst_end_of_entry;
         let inst_end_of_startover;
@@ -305,8 +297,7 @@ impl<'ctx> Jit<'ctx> {
             loop_counter: v_loop_counter,
             dst_ptr: arg_f32_dst_ptr,
             dst_len: arg_dst_len,
-            context_1: arg_ctx_1,
-            context_2: arg_ctx_2,
+            context_ptr: arg_ctx_ptr,
             time_step: arg_time_step,
             state: arg_ptr_state,
         };
@@ -485,8 +476,7 @@ impl<'ctx> Jit<'ctx> {
                 self.wrapper_functions.input_scalar_read_wrapper,
                 &[
                     function_addr.into(),
-                    self.local_variables.context_1.into(),
-                    self.local_variables.context_2.into(),
+                    self.local_variables.context_ptr.into(),
                     proc_id.into(),
                     input_id.into(),
                 ],
@@ -523,8 +513,7 @@ impl<'ctx> Jit<'ctx> {
                 self.wrapper_functions.processor_scalar_read_wrapper,
                 &[
                     function_addr.into(),
-                    self.local_variables.context_1.into(),
-                    self.local_variables.context_2.into(),
+                    self.local_variables.context_ptr.into(),
                     spid.into(),
                 ],
                 "sp_scalar_fn_retv",
@@ -564,8 +553,7 @@ impl<'ctx> Jit<'ctx> {
                 self.wrapper_functions.input_array_read_wrapper,
                 &[
                     function_addr.into(),
-                    self.local_variables.context_1.into(),
-                    self.local_variables.context_2.into(),
+                    self.local_variables.context_ptr.into(),
                     proc_id.into(),
                     input_id.into(),
                     self.local_variables.dst_len.into(),
@@ -619,8 +607,7 @@ impl<'ctx> Jit<'ctx> {
                 self.wrapper_functions.processor_array_read_wrapper,
                 &[
                     function_addr.into(),
-                    self.local_variables.context_1.into(),
-                    self.local_variables.context_2.into(),
+                    self.local_variables.context_ptr.into(),
                     spid.into(),
                     self.local_variables.dst_len.into(),
                 ],
@@ -671,8 +658,7 @@ impl<'ctx> Jit<'ctx> {
             .build_call(
                 self.wrapper_functions.processor_local_array_read_wrapper,
                 &[
-                    self.local_variables.context_1.into(),
-                    self.local_variables.context_2.into(),
+                    self.local_variables.context_ptr.into(),
                     spid.into(),
                     nsid.into(),
                     self.local_variables.dst_len.into(),
@@ -723,8 +709,7 @@ impl<'ctx> Jit<'ctx> {
             .build_call(
                 self.wrapper_functions.processor_time_wrapper,
                 &[
-                    self.local_variables.context_1.into(),
-                    self.local_variables.context_2.into(),
+                    self.local_variables.context_ptr.into(),
                     spid.into(),
                     ptr_time.into(),
                     ptr_speed.into(),
@@ -794,8 +779,7 @@ impl<'ctx> Jit<'ctx> {
             .build_call(
                 self.wrapper_functions.input_time_wrapper,
                 &[
-                    self.local_variables.context_1.into(),
-                    self.local_variables.context_2.into(),
+                    self.local_variables.context_ptr.into(),
                     proc_id.into(),
                     input_id.into(),
                     ptr_time.into(),

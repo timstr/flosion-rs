@@ -36,7 +36,6 @@ const MAX_NUM_INPUTS: usize = 3;
 
 struct TestSoundProcessor {
     expression: ProcessorExpression,
-    input_values: [[f32; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
     argument_0: ProcessorArgument,
     argument_1: ProcessorArgument,
     argument_2: ProcessorArgument,
@@ -52,7 +51,6 @@ impl WhateverSoundProcessor for TestSoundProcessor {
     fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> TestSoundProcessor {
         TestSoundProcessor {
             expression: tools.make_expression(0.0, SoundExpressionScope::with_processor_state()),
-            input_values: [[0.0; TEST_ARRAY_SIZE]; MAX_NUM_INPUTS],
             argument_0: tools.make_local_array_argument(),
             argument_1: tools.make_local_array_argument(),
             argument_2: tools.make_local_array_argument(),
@@ -160,21 +158,14 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
         let input_ids = expr_graph.node(ns_handle.id()).unwrap().inputs().to_vec();
 
-        for (niid, giid) in input_ids.into_iter().zip(
-            [giid0, giid1, giid2]
-                .into_iter()
-                .map(Some)
-                .chain(std::iter::repeat(None)),
-        ) {
-            if let Some(giid) = giid {
-                expr_graph
-                    .connect_node_input(niid, ExpressionTarget::Parameter(giid))
-                    .unwrap();
-            } else {
-                panic!(
-                    "An expression node has more than three inputs and not all are being tested"
-                );
-            }
+        if input_ids.len() > 3 {
+            panic!("An expression node has more than three inputs and not all are being tested");
+        }
+
+        for (niid, giid) in input_ids.into_iter().zip([giid0, giid1, giid2]) {
+            expr_graph
+                .connect_node_input(niid, ExpressionTarget::Parameter(giid))
+                .unwrap();
         }
 
         expr_graph

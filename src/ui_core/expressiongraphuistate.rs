@@ -151,9 +151,7 @@ impl ExpressionUiCollection {
 
         // Add data for newly-added expressions
         for proc_data in graph.sound_processors().values() {
-            proc_data.foreach_expression(|expr| {
-                let location = ProcessorExpressionLocation::new(proc_data.id(), expr.id());
-
+            proc_data.foreach_expression(|expr, location| {
                 if self.data.contains_key(&location) {
                     return;
                 }

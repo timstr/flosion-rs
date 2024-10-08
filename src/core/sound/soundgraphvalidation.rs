@@ -3,8 +3,8 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 use crate::core::sound::expressionargument::ProcessorArgumentDataSource;
 
 use super::{
-    expression::{ProcessorExpression, ProcessorExpressionLocation},
-    expressionargument::{ArgumentLocation, ProcessorArgumentLocation, SoundInputArgumentLocation},
+    expression::ProcessorExpressionLocation,
+    expressionargument::ArgumentLocation,
     sounderror::SoundError,
     soundgraph::SoundGraph,
     soundinput::{InputOptions, SoundInputLocation},
@@ -240,7 +240,7 @@ pub(super) fn find_invalid_expression_arguments(
     let mut bad_connections: Vec<(ArgumentLocation, ProcessorExpressionLocation)> = Vec::new();
 
     for proc_data in graph.sound_processors().values() {
-        proc_data.foreach_expression(|expr| {
+        proc_data.foreach_expression(|expr, expr_location| {
             for target in expr.mapping().items().values() {
                 let depends = match target {
                     ArgumentLocation::Processor(arg_location) => processor_depends_on_processor(
@@ -255,10 +255,7 @@ pub(super) fn find_invalid_expression_arguments(
                     }
                 };
                 if !depends {
-                    bad_connections.push((
-                        *target,
-                        ProcessorExpressionLocation::new(proc_data.id(), expr.id()),
-                    ));
+                    bad_connections.push((*target, expr_location));
                 }
             }
         });
@@ -276,8 +273,7 @@ pub(crate) fn available_sound_expression_arguments(
     for proc_data in graph.sound_processors().values() {
         if proc_data.instance().is_static() {
             let mut static_args = HashSet::<ArgumentLocation>::new();
-            proc_data.foreach_processor_argument(|arg| {
-                let location = ProcessorArgumentLocation::new(proc_data.id(), arg.id());
+            proc_data.foreach_processor_argument(|_, location| {
                 static_args.insert(ArgumentLocation::Processor(location));
             });
             available_arguments_by_processor.insert(proc_data.id(), static_args);
@@ -303,12 +299,8 @@ pub(crate) fn available_sound_expression_arguments(
         graph
             .sound_processor(input_location.processor())
             .unwrap()
-            .foreach_input_argument(|arg| {
-                arguments.insert(ArgumentLocation::Input(SoundInputArgumentLocation::new(
-                    input_location.processor(),
-                    input_location.input(),
-                    arg.id(),
-                )));
+            .foreach_input_argument(|_, location| {
+                arguments.insert(location.into());
             });
         arguments
     };
@@ -359,10 +351,8 @@ pub(crate) fn available_sound_expression_arguments(
         graph
             .sound_processor(next_proc_id)
             .unwrap()
-            .foreach_processor_argument(|arg| {
-                available_arguments.insert(ArgumentLocation::Processor(
-                    ProcessorArgumentLocation::new(next_proc_id, arg.id()),
-                ));
+            .foreach_processor_argument(|_, location| {
+                available_arguments.insert(ArgumentLocation::Processor(location));
             });
 
         available_arguments_by_processor.insert(next_proc_id, available_arguments);
@@ -373,35 +363,29 @@ pub(crate) fn available_sound_expression_arguments(
     // Each expression's available arguments are those available from the processor minus
     // any out-of-scope locals
     for proc_data in graph.sound_processors().values() {
-        proc_data.foreach_expression(|expr: &ProcessorExpression| {
+        proc_data.foreach_expression(|expr, expr_location| {
             let mut available_arguments = available_arguments_by_processor
                 .get(&proc_data.id())
                 .unwrap()
                 .clone();
 
-            proc_data.foreach_processor_argument(|arg| {
-                let location = ArgumentLocation::Processor(ProcessorArgumentLocation::new(
-                    proc_data.id(),
-                    arg.id(),
-                ));
-                debug_assert!(available_arguments.contains(&location));
+            proc_data.foreach_processor_argument(|arg, location| {
+                debug_assert!(available_arguments.contains(&location.into()));
                 match arg.instance().data_source() {
                     ProcessorArgumentDataSource::ProcessorState => {
                         if !expr.scope().processor_state_available() {
-                            available_arguments.remove(&location);
+                            available_arguments.remove(&location.into());
                         }
                     }
                     ProcessorArgumentDataSource::LocalVariable => {
                         if !expr.scope().available_local_arguments().contains(&arg.id()) {
-                            available_arguments.remove(&location);
+                            available_arguments.remove(&location.into());
                         }
                     }
                 }
             });
 
-            let location = ProcessorExpressionLocation::new(proc_data.id(), expr.id());
-
-            available_arguments_by_expression.insert(location, available_arguments);
+            available_arguments_by_expression.insert(expr_location, available_arguments);
         });
     }
 
