@@ -7,23 +7,22 @@ use crate::core::{
 
 use super::{
     context::{Context, LocalArrayList, ProcessorFrameData},
-    soundinput::{InputOptions, InputTiming, ProcessorInput, ProcessorInputId, SoundInputBranchId},
+    soundinput::{InputOptions, InputTiming, BasicProcessorInput, ProcessorInputId, SoundInputBranchId},
     soundprocessor::{
         CompiledProcessorComponent, ProcessorComponent, ProcessorComponentVisitor,
         ProcessorComponentVisitorMut, SoundProcessorId, StreamStatus,
     },
-    soundprocessortools::SoundProcessorTools,
 };
 
 pub struct SingleInput {
-    input: ProcessorInput,
+    input: BasicProcessorInput,
 }
 
 impl SingleInput {
-    pub fn new(options: InputOptions, tools: &mut SoundProcessorTools) -> SingleInput {
+    pub fn new(options: InputOptions) -> SingleInput {
         let branches = vec![Self::THE_ONLY_BRANCH];
         SingleInput {
-            input: tools.make_sound_input(options, branches),
+            input: BasicProcessorInput::new(options, branches),
         }
     }
 

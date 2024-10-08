@@ -3,7 +3,7 @@ use crate::{
         sounderror::SoundError,
         soundgraph::SoundGraph,
         soundgraphvalidation::find_sound_error,
-        soundinput::{InputOptions, SoundInputBranchId},
+        soundinput::{BasicProcessorInput, InputOptions, SoundInputBranchId},
         test::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor},
     },
     ui_core::arguments::ParsedArguments,
@@ -41,13 +41,10 @@ fn find_error_static_to_self_cycle() {
         .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
         .unwrap();
 
-    graph
-        .with_processor_tools(proc.id(), |mut tools| {
-            proc.get_mut()
-                .add_input(InputOptions::Synchronous, Vec::new(), &mut tools);
-            Ok(())
-        })
-        .unwrap();
+    proc.get_mut().inputs.push(BasicProcessorInput::new(
+        InputOptions::Synchronous,
+        Vec::new(),
+    ));
 
     proc.get_mut().inputs[0].set_target(Some(proc.id()));
 

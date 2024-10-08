@@ -1,22 +1,13 @@
-use std::rc::Rc;
-
 use crate::core::{
     engine::{
         soundgraphcompiler::SoundGraphCompiler,
         stategraphnode::{CompiledSoundInputBranch, StateGraphNodeValue},
     },
-    jit::wrappers::{ArrayReadFunc, ScalarReadFunc},
     soundchunk::CHUNK_SIZE,
     uniqueid::UniqueId,
 };
 
-use super::{
-    expressionargument::{
-        ArrayInputExpressionArgument, ScalarInputExpressionArgument, SoundInputArgument,
-    },
-    soundprocessor::SoundProcessorId,
-    soundprocessortools::SoundProcessorTools,
-};
+use super::soundprocessor::SoundProcessorId;
 
 pub struct SoundInputTag;
 
@@ -159,8 +150,7 @@ impl Default for InputTiming {
     }
 }
 
-// TODO: rename to ProcessorInputBase?
-pub struct ProcessorInput {
+pub struct BasicProcessorInput {
     id: ProcessorInputId,
     options: InputOptions,
     // LOL this doesn't really mean anything anymore. What's
@@ -170,14 +160,10 @@ pub struct ProcessorInput {
     target: Option<SoundProcessorId>,
 }
 
-impl ProcessorInput {
-    pub(crate) fn new(
-        id: ProcessorInputId,
-        options: InputOptions,
-        branches: Vec<SoundInputBranchId>,
-    ) -> ProcessorInput {
-        ProcessorInput {
-            id,
+impl BasicProcessorInput {
+    pub fn new(options: InputOptions, branches: Vec<SoundInputBranchId>) -> BasicProcessorInput {
+        BasicProcessorInput {
+            id: ProcessorInputId::new_unique(),
             options,
             branches,
             target: None,
@@ -202,22 +188,6 @@ impl ProcessorInput {
 
     pub(crate) fn set_target(&mut self, target: Option<SoundProcessorId>) {
         self.target = target;
-    }
-
-    pub fn make_scalar_argument(
-        &self,
-        function: ScalarReadFunc,
-        tools: &mut SoundProcessorTools,
-    ) -> SoundInputArgument {
-        tools.make_input_argument(Rc::new(ScalarInputExpressionArgument::new(function)))
-    }
-
-    pub fn make_array_argument(
-        &self,
-        function: ArrayReadFunc,
-        tools: &mut SoundProcessorTools,
-    ) -> SoundInputArgument {
-        tools.make_input_argument(Rc::new(ArrayInputExpressionArgument::new(function)))
     }
 
     pub fn compile<'ctx>(

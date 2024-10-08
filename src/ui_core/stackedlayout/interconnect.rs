@@ -2,7 +2,7 @@ use hashstash::{Stashable, Stasher};
 
 use crate::core::sound::{
     soundgraphdata::SoundProcessorData,
-    soundinput::{InputOptions, ProcessorInput, SoundInputLocation},
+    soundinput::{InputOptions, BasicProcessorInput, SoundInputLocation},
     soundprocessor::SoundProcessorId,
 };
 
@@ -38,7 +38,7 @@ pub(crate) struct InputSocket {
 impl InputSocket {
     pub(crate) fn from_input_data(
         processor_id: SoundProcessorId,
-        data: &ProcessorInput,
+        data: &BasicProcessorInput,
     ) -> InputSocket {
         InputSocket {
             location: SoundInputLocation::new(processor_id, data.id()),

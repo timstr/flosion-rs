@@ -61,11 +61,25 @@ pub struct ProcessorArgument {
 }
 
 impl ProcessorArgument {
-    pub(super) fn new(
-        id: ProcessorArgumentId,
-        instance: Rc<dyn AnyProcessorArgument>,
-    ) -> ProcessorArgument {
-        ProcessorArgument { id, instance }
+    pub fn new_scalar_read(function: ScalarReadFunc) -> ProcessorArgument {
+        ProcessorArgument {
+            id: ProcessorArgumentId::new_unique(),
+            instance: Rc::new(ScalarProcessorExpressionArgument::new(function)),
+        }
+    }
+
+    pub fn new_array_read(function: ArrayReadFunc) -> ProcessorArgument {
+        ProcessorArgument {
+            id: ProcessorArgumentId::new_unique(),
+            instance: Rc::new(ArrayProcessorExpressionArgument::new(function)),
+        }
+    }
+
+    pub fn new_local_array() -> ProcessorArgument {
+        ProcessorArgument {
+            id: ProcessorArgumentId::new_unique(),
+            instance: Rc::new(ProcessorLocalArrayExpressionArgument::new()),
+        }
     }
 
     pub(crate) fn id(&self) -> ProcessorArgumentId {
@@ -152,11 +166,18 @@ pub struct SoundInputArgument {
 }
 
 impl SoundInputArgument {
-    pub(super) fn new(
-        id: SoundInputArgumentId,
-        instance: Rc<dyn AnySoundInputArgument>,
-    ) -> SoundInputArgument {
-        SoundInputArgument { id, instance }
+    pub fn new_scalar_read(function: ScalarReadFunc) -> SoundInputArgument {
+        SoundInputArgument {
+            id: SoundInputArgumentId::new_unique(),
+            instance: Rc::new(ScalarInputExpressionArgument::new(function)),
+        }
+    }
+
+    pub fn new_array_read(function: ArrayReadFunc) -> SoundInputArgument {
+        SoundInputArgument {
+            id: SoundInputArgumentId::new_unique(),
+            instance: Rc::new(ArrayInputExpressionArgument::new(function)),
+        }
     }
 
     pub(crate) fn id(&self) -> SoundInputArgumentId {

@@ -15,7 +15,6 @@ use crate::{
                 SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
                 WhateverSoundProcessor,
             },
-            soundprocessortools::SoundProcessorTools,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
@@ -40,11 +39,11 @@ pub struct CompiledDefinitions<'ctx> {
 impl WhateverSoundProcessor for Definitions {
     type CompiledType<'ctx> = CompiledDefinitions<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Definitions {
+    fn new(_args: &ParsedArguments) -> Definitions {
         Definitions {
-            sound_input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            expression: tools.make_expression(0.0, SoundExpressionScope::with_processor_state()),
-            argument: tools.make_local_array_argument(),
+            sound_input: SingleInput::new(InputOptions::Synchronous),
+            expression: ProcessorExpression::new(0.0, SoundExpressionScope::with_processor_state()),
+            argument: ProcessorArgument::new_local_array(),
         }
     }
 

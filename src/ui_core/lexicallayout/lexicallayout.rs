@@ -7,7 +7,6 @@ use crate::{
             expressionnode::ExpressionNodeId, expressionobject::ExpressionObjectFactory,
         },
         objecttype::{ObjectType, WithObjectType},
-        uniqueid::IdGenerator,
     },
     objects::purefunctions::Constant,
     ui_core::{
@@ -184,7 +183,6 @@ fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
 pub(crate) struct LexicalLayout {
     variable_definitions: Vec<VariableDefinition>,
     final_expression: ASTNode,
-    variable_id_generator: IdGenerator<VariableId>,
 }
 
 impl LexicalLayout {
@@ -199,14 +197,11 @@ impl LexicalLayout {
 
         let mut variable_assignments: Vec<VariableDefinition> = Vec::new();
 
-        let mut variable_id_generator = IdGenerator::<VariableId>::new();
-
         fn visit_target(
             target: ExpressionTarget,
             variable_assignments: &mut Vec<VariableDefinition>,
             graph: &ExpressionGraph,
             object_ui_states: &ExpressionNodeObjectUiStates,
-            variable_id_generator: &mut IdGenerator<VariableId>,
             ui_factory: &ExpressionObjectUiFactory,
         ) -> ASTNode {
             let nsid = match target {
@@ -236,7 +231,6 @@ impl LexicalLayout {
                         variable_assignments,
                         graph,
                         object_ui_states,
-                        variable_id_generator,
                         ui_factory,
                     ),
                     None => ASTNode::new(ASTNodeValue::Empty),
@@ -250,7 +244,7 @@ impl LexicalLayout {
             let node = make_internal_node(nsid, layout, arguments);
 
             if create_new_variable {
-                let id = variable_id_generator.next_id();
+                let id = VariableId::new_unique();
                 let new_variable_name = format!("x{}", id.value());
                 variable_assignments.push(VariableDefinition::new(
                     id,
@@ -269,7 +263,6 @@ impl LexicalLayout {
                 &mut variable_assignments,
                 graph,
                 object_ui_states,
-                &mut variable_id_generator,
                 ui_factory,
             ),
             None => ASTNode::new(ASTNodeValue::Empty),
@@ -278,7 +271,6 @@ impl LexicalLayout {
         let layout = LexicalLayout {
             variable_definitions: variable_assignments,
             final_expression,
-            variable_id_generator,
         };
 
         debug_assert!(lexical_layout_matches_expression_graph(&layout, graph));
@@ -704,7 +696,7 @@ impl LexicalLayout {
                     }
                     LineLocation::FinalExpression => self.variable_definitions().len(),
                 };
-                let new_var_id = self.variable_id_generator.next_id();
+                let new_var_id = VariableId::new_unique();
                 let new_var_name = format!("x{}", new_var_id.value());
                 self.variable_definitions.insert(
                     new_var_index,

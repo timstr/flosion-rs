@@ -1,10 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
-    core::{
-        expression::expressiongraphvalidation::find_expression_error,
-        uniqueid::{IdGenerator, UniqueId},
-    },
+    core::{expression::expressiongraphvalidation::find_expression_error, uniqueid::UniqueId},
     ui_core::arguments::ParsedArguments,
 };
 
@@ -47,10 +44,6 @@ pub struct ExpressionGraph {
     node_inputs: HashMap<ExpressionNodeInputId, ExpressionNodeInputData>,
     parameters: Vec<ExpressionGraphParameterId>,
     results: Vec<ExpressionGraphResultData>,
-    node_idgen: IdGenerator<ExpressionNodeId>,
-    node_input_idgen: IdGenerator<ExpressionNodeInputId>,
-    parameter_idgen: IdGenerator<ExpressionGraphParameterId>,
-    result_idgen: IdGenerator<ExpressionGraphResultId>,
 }
 
 impl ExpressionGraph {
@@ -60,10 +53,6 @@ impl ExpressionGraph {
             node_inputs: HashMap::new(),
             parameters: Vec::new(),
             results: Vec::new(),
-            node_idgen: IdGenerator::new(),
-            node_input_idgen: IdGenerator::new(),
-            parameter_idgen: IdGenerator::new(),
-            result_idgen: IdGenerator::new(),
         }
     }
 
@@ -125,7 +114,7 @@ impl ExpressionGraph {
             return Err(ExpressionError::NodeNotFound(owner));
         }
 
-        let id = self.node_input_idgen.next_id();
+        let id = ExpressionNodeInputId::new_unique();
         let data = ExpressionNodeInputData::new(id, owner, default_value);
 
         let ns_data = self
@@ -168,7 +157,7 @@ impl ExpressionGraph {
         &mut self,
         args: &ParsedArguments,
     ) -> Result<PureExpressionNodeHandle<T>, ExpressionError> {
-        let id = self.node_idgen.next_id();
+        let id = ExpressionNodeId::new_unique();
         self.nodes.insert(id, ExpressionNodeData::new_empty(id));
         let tools = ExpressionNodeTools::new(id, self);
         let node = Rc::new(PureExpressionNodeWithId::new(
@@ -184,7 +173,7 @@ impl ExpressionGraph {
         &mut self,
         args: &ParsedArguments,
     ) -> Result<StatefulExpressionNodeHandle<T>, ExpressionError> {
-        let id = self.node_idgen.next_id();
+        let id = ExpressionNodeId::new_unique();
         self.nodes.insert(id, ExpressionNodeData::new_empty(id));
         let tools = ExpressionNodeTools::new(id, self);
         let node = Rc::new(StatefulExpressionNodeWithId::new(
@@ -265,7 +254,7 @@ impl ExpressionGraph {
     }
 
     pub(crate) fn add_parameter(&mut self) -> ExpressionGraphParameterId {
-        let id = self.parameter_idgen.next_id();
+        let id = ExpressionGraphParameterId::new_unique();
         self.parameters.push(id);
         id
     }
@@ -297,7 +286,7 @@ impl ExpressionGraph {
     }
 
     pub(crate) fn add_result(&mut self, default_value: f32) -> ExpressionGraphResultId {
-        let id = self.result_idgen.next_id();
+        let id = ExpressionGraphResultId::new_unique();
         let data = ExpressionGraphResultData::new(id, default_value);
         self.results.push(data);
         id

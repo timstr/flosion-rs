@@ -1,4 +1,4 @@
-use super::uniqueid::{IdGenerator, UniqueId};
+use super::uniqueid::UniqueId;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TimePointTag;
@@ -62,13 +62,11 @@ impl TimePointGenerator {
 pub struct Timeline {
     // must be sorted in topological order
     recipes: Vec<(TimePointId, TimePointRecipe)>,
-
-    id_generator: IdGenerator<TimePointId>,
 }
 
 impl Timeline {
     pub fn add_recipe(&mut self, recipe: TimePointRecipe) -> TimePointId {
-        let id = self.id_generator.next_id();
+        let id = TimePointId::new_unique();
 
         todo!()
     }

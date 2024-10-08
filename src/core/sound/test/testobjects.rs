@@ -4,12 +4,11 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
-            soundinput::{InputOptions, ProcessorInput, SoundInputBranchId},
+            soundinput::BasicProcessorInput,
             soundprocessor::{
                 ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
                 StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
             },
-            soundprocessortools::SoundProcessorTools,
         },
         soundchunk::SoundChunk,
     },
@@ -17,18 +16,7 @@ use crate::{
 };
 
 pub(super) struct TestStaticSoundProcessor {
-    pub(super) inputs: Vec<ProcessorInput>,
-}
-
-impl TestStaticSoundProcessor {
-    pub(super) fn add_input(
-        &mut self,
-        options: InputOptions,
-        branches: Vec<SoundInputBranchId>,
-        tools: &mut SoundProcessorTools,
-    ) {
-        self.inputs.push(tools.make_sound_input(options, branches));
-    }
+    pub(super) inputs: Vec<BasicProcessorInput>,
 }
 
 pub(super) struct CompiledTestStaticSoundProcessor {}
@@ -36,7 +24,7 @@ pub(super) struct CompiledTestStaticSoundProcessor {}
 impl WhateverSoundProcessor for TestStaticSoundProcessor {
     type CompiledType<'ctx> = CompiledTestStaticSoundProcessor;
 
-    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Self {
+    fn new(_args: &ParsedArguments) -> Self {
         Self { inputs: Vec::new() }
     }
 
@@ -84,7 +72,7 @@ pub(super) struct CompiledTestDynamicSoundProcessor {}
 impl WhateverSoundProcessor for TestDynamicSoundProcessor {
     type CompiledType<'ctx> = CompiledTestDynamicSoundProcessor;
 
-    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Self {
+    fn new(_args: &ParsedArguments) -> Self {
         Self {}
     }
 

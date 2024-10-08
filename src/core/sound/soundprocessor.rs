@@ -25,9 +25,8 @@ use super::{
     expressionargument::{ProcessorArgument, SoundInputArgument},
     soundgraph::SoundGraph,
     soundgraphid::SoundObjectId,
-    soundinput::{ProcessorInput, ProcessorInputId},
+    soundinput::{BasicProcessorInput, ProcessorInputId},
     soundobject::{AnySoundObjectHandle, SoundGraphObject, SoundObjectHandle},
-    soundprocessortools::SoundProcessorTools,
 };
 
 pub struct SoundProcessorTag;
@@ -68,14 +67,14 @@ pub trait ProcessorComponent {
 }
 
 pub trait ProcessorComponentVisitor {
-    fn input(&mut self, _input: &ProcessorInput) {}
+    fn input(&mut self, _input: &BasicProcessorInput) {}
     fn expression(&mut self, _expression: &ProcessorExpression) {}
     fn processor_argument(&mut self, _argument: &ProcessorArgument) {}
     fn input_argument(&mut self, _argument: &SoundInputArgument, _input_id: ProcessorInputId) {}
 }
 
 pub trait ProcessorComponentVisitorMut {
-    fn input(&mut self, _input: &mut ProcessorInput) {}
+    fn input(&mut self, _input: &mut BasicProcessorInput) {}
     fn expression(&mut self, _expression: &mut ProcessorExpression) {}
     fn processor_argument(&mut self, _argument: &mut ProcessorArgument) {}
     fn input_argument(&mut self, _argument: &mut SoundInputArgument, _input_id: ProcessorInputId) {}
@@ -90,7 +89,7 @@ pub trait WhateverCompiledSoundProcessor<'ctx>: Send {
 pub trait WhateverSoundProcessor: Sized + WithObjectType {
     type CompiledType<'ctx>: WhateverCompiledSoundProcessor<'ctx>;
 
-    fn new(tools: SoundProcessorTools, args: &ParsedArguments) -> Self;
+    fn new(args: &ParsedArguments) -> Self;
 
     fn is_static(&self) -> bool;
 

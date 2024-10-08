@@ -17,7 +17,6 @@ use crate::{
                 ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
                 StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
             },
-            soundprocessortools::SoundProcessorTools,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
@@ -51,7 +50,7 @@ pub struct CompiledInput {
 impl WhateverSoundProcessor for Input {
     type CompiledType<'ctx> = CompiledInput;
 
-    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Input {
+    fn new(_args: &ParsedArguments) -> Input {
         let host = cpal::default_host();
         let device = host
             .default_input_device()

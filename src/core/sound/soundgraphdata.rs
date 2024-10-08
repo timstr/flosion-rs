@@ -11,7 +11,7 @@ use super::{
         ProcessorArgument, ProcessorArgumentId, SoundInputArgument, SoundInputArgumentId,
         SoundInputArgumentLocation,
     },
-    soundinput::{ProcessorInput, ProcessorInputId, SoundInputLocation},
+    soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
     soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
@@ -33,7 +33,7 @@ impl SoundProcessorData {
         self.id
     }
 
-    pub(crate) fn with_input<R, F: FnMut(&ProcessorInput) -> R>(
+    pub(crate) fn with_input<R, F: FnMut(&BasicProcessorInput) -> R>(
         &self,
         input_id: ProcessorInputId,
         f: F,
@@ -43,8 +43,8 @@ impl SoundProcessorData {
             result: Option<R2>,
             f: F2,
         }
-        impl<R2, F2: FnMut(&ProcessorInput) -> R2> ProcessorComponentVisitor for Visitor<R2, F2> {
-            fn input(&mut self, input: &ProcessorInput) {
+        impl<R2, F2: FnMut(&BasicProcessorInput) -> R2> ProcessorComponentVisitor for Visitor<R2, F2> {
+            fn input(&mut self, input: &BasicProcessorInput) {
                 if input.id() == self.input_id {
                     debug_assert!(self.result.is_none());
                     self.result = Some((self.f)(input));
@@ -60,7 +60,7 @@ impl SoundProcessorData {
         visitor.result
     }
 
-    pub(crate) fn with_input_mut<R, F: FnMut(&mut ProcessorInput) -> R>(
+    pub(crate) fn with_input_mut<R, F: FnMut(&mut BasicProcessorInput) -> R>(
         &mut self,
         input_id: ProcessorInputId,
         f: F,
@@ -70,8 +70,8 @@ impl SoundProcessorData {
             result: Option<R2>,
             f: F2,
         }
-        impl<R2, F2: FnMut(&mut ProcessorInput) -> R2> ProcessorComponentVisitorMut for Visitor<R2, F2> {
-            fn input(&mut self, input: &mut ProcessorInput) {
+        impl<R2, F2: FnMut(&mut BasicProcessorInput) -> R2> ProcessorComponentVisitorMut for Visitor<R2, F2> {
+            fn input(&mut self, input: &mut BasicProcessorInput) {
                 if input.id() == self.input_id {
                     debug_assert!(self.result.is_none());
                     self.result = Some((self.f)(input));
@@ -191,14 +191,14 @@ impl SoundProcessorData {
         visitor.result
     }
 
-    pub(crate) fn foreach_input<F: FnMut(&ProcessorInput, SoundInputLocation)>(&self, f: F) {
+    pub(crate) fn foreach_input<F: FnMut(&BasicProcessorInput, SoundInputLocation)>(&self, f: F) {
         struct Visitor<F2> {
             processor_id: SoundProcessorId,
             f: F2,
         }
 
-        impl<F2: FnMut(&ProcessorInput, SoundInputLocation)> ProcessorComponentVisitor for Visitor<F2> {
-            fn input(&mut self, input: &ProcessorInput) {
+        impl<F2: FnMut(&BasicProcessorInput, SoundInputLocation)> ProcessorComponentVisitor for Visitor<F2> {
+            fn input(&mut self, input: &BasicProcessorInput) {
                 (self.f)(
                     input,
                     SoundInputLocation::new(self.processor_id, input.id()),
@@ -212,7 +212,7 @@ impl SoundProcessorData {
         });
     }
 
-    pub(crate) fn foreach_input_mut<F: FnMut(&mut ProcessorInput, SoundInputLocation)>(
+    pub(crate) fn foreach_input_mut<F: FnMut(&mut BasicProcessorInput, SoundInputLocation)>(
         &self,
         f: F,
     ) {

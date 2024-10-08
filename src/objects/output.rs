@@ -19,7 +19,6 @@ use crate::{
                 SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
                 WhateverSoundProcessor,
             },
-            soundprocessortools::SoundProcessorTools,
             state::State,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -77,7 +76,7 @@ pub struct CompiledOutput<'ctx> {
 impl WhateverSoundProcessor for Output {
     type CompiledType<'ctx> = CompiledOutput<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Output {
+    fn new(_args: &ParsedArguments) -> Output {
         let host = cpal::default_host();
         // TODO: propagate these errors
         let device = host
@@ -173,7 +172,7 @@ impl WhateverSoundProcessor for Output {
         });
 
         Output {
-            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
+            input: SingleInput::new(InputOptions::Synchronous),
             shared_data,
         }
     }

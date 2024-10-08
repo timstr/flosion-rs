@@ -13,7 +13,6 @@ use crate::{
                 ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
                 StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
             },
-            soundprocessortools::SoundProcessorTools,
             state::State,
         },
         soundbuffer::SoundBuffer,
@@ -58,7 +57,7 @@ pub struct CompiledAudioclip {
 impl WhateverSoundProcessor for AudioClip {
     type CompiledType<'ctx> = CompiledAudioclip;
 
-    fn new(_tools: SoundProcessorTools, args: &ParsedArguments) -> AudioClip {
+    fn new(args: &ParsedArguments) -> AudioClip {
         let buffer = if let Some(path) = args.get(&Self::ARG_PATH) {
             if let Ok(b) = load_audio_file(&path) {
                 b

@@ -1,5 +1,7 @@
 use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
+use rand::{thread_rng, Rng};
+
 pub struct UniqueId<T> {
     value: usize,
     phantom_data: PhantomData<T>,
@@ -45,6 +47,13 @@ impl<T> Debug for UniqueId<T> {
 }
 
 impl<T> UniqueId<T> {
+    pub fn new_unique() -> Self {
+        Self {
+            value: thread_rng().gen(),
+            phantom_data: PhantomData,
+        }
+    }
+
     pub const fn new(value: usize) -> Self {
         Self {
             value,
@@ -61,24 +70,5 @@ impl<T> UniqueId<T> {
             value: self.value + 1,
             phantom_data: PhantomData,
         }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct IdGenerator<T> {
-    current_id: T,
-}
-
-impl<T> IdGenerator<UniqueId<T>> {
-    pub(crate) fn new() -> IdGenerator<UniqueId<T>> {
-        IdGenerator {
-            current_id: UniqueId::new(1),
-        }
-    }
-
-    pub(crate) fn next_id(&mut self) -> UniqueId<T> {
-        let ret = self.current_id;
-        self.current_id = self.current_id.next();
-        ret
     }
 }

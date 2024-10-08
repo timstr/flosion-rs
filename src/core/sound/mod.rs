@@ -11,7 +11,6 @@ pub mod soundinput;
 pub mod soundinputtypes;
 pub mod soundobject;
 pub mod soundprocessor;
-pub mod soundprocessortools;
 pub mod state;
 
 #[cfg(test)]

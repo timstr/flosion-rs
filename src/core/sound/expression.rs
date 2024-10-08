@@ -168,18 +168,14 @@ pub struct ProcessorExpression {
 }
 
 impl ProcessorExpression {
-    pub(crate) fn new(
-        id: ProcessorExpressionId,
-        scope: SoundExpressionScope,
-        default_value: f32,
-    ) -> ProcessorExpression {
+    pub(crate) fn new(default_value: f32, scope: SoundExpressionScope) -> ProcessorExpression {
         let mut expression_graph = ExpressionGraph::new();
 
         // HACK assuming 1 output for now
         expression_graph.add_result(default_value);
 
         ProcessorExpression {
-            id,
+            id: ProcessorExpressionId::new_unique(),
             param_mapping: ExpressionParameterMapping::new(),
             expression_graph,
             scope,

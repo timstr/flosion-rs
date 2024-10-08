@@ -15,7 +15,6 @@ use crate::{
                 SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
                 WhateverSoundProcessor,
             },
-            soundprocessortools::SoundProcessorTools,
             state::State,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -110,16 +109,25 @@ fn chunked_interp(
 impl WhateverSoundProcessor for ADSR {
     type CompiledType<'ctx> = CompiledADSR<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> ADSR {
+    fn new(_args: &ParsedArguments) -> ADSR {
         ADSR {
-            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
-            attack_time: tools
-                .make_expression(0.01, SoundExpressionScope::without_processor_state()),
-            decay_time: tools.make_expression(0.2, SoundExpressionScope::without_processor_state()),
-            sustain_level: tools
-                .make_expression(0.5, SoundExpressionScope::without_processor_state()),
-            release_time: tools
-                .make_expression(0.25, SoundExpressionScope::without_processor_state()),
+            input: SingleInput::new(InputOptions::Synchronous),
+            attack_time: ProcessorExpression::new(
+                0.01,
+                SoundExpressionScope::without_processor_state(),
+            ),
+            decay_time: ProcessorExpression::new(
+                0.2,
+                SoundExpressionScope::without_processor_state(),
+            ),
+            sustain_level: ProcessorExpression::new(
+                0.5,
+                SoundExpressionScope::without_processor_state(),
+            ),
+            release_time: ProcessorExpression::new(
+                0.25,
+                SoundExpressionScope::without_processor_state(),
+            ),
         }
     }
 

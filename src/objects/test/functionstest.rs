@@ -22,7 +22,6 @@ use crate::{
                 ProcessorTiming, SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
                 WhateverSoundProcessor,
             },
-            soundprocessortools::SoundProcessorTools,
         },
         soundchunk::SoundChunk,
     },
@@ -48,12 +47,12 @@ struct CompiledTestSoundProcessor<'ctx> {
 impl WhateverSoundProcessor for TestSoundProcessor {
     type CompiledType<'ctx> = CompiledTestSoundProcessor<'ctx>;
 
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> TestSoundProcessor {
+    fn new(_args: &ParsedArguments) -> TestSoundProcessor {
         TestSoundProcessor {
-            expression: tools.make_expression(0.0, SoundExpressionScope::with_processor_state()),
-            argument_0: tools.make_local_array_argument(),
-            argument_1: tools.make_local_array_argument(),
-            argument_2: tools.make_local_array_argument(),
+            expression: ProcessorExpression::new(0.0, SoundExpressionScope::with_processor_state()),
+            argument_0: ProcessorArgument::new_local_array(),
+            argument_1: ProcessorArgument::new_local_array(),
+            argument_2: ProcessorArgument::new_local_array(),
         }
     }
 
