@@ -41,9 +41,7 @@ pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
                 .sound_processor(processor_id)
                 .unwrap()
                 .foreach_input(|input, location| {
-                    println!("Visiting {:?}", location);
                     if visited_inputs.contains(&location) {
-                        println!("Aaaaaaaaaaaah cycle");
                         any_cycles = true;
                         return;
                     }
@@ -53,7 +51,6 @@ pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
                     }
                 });
         }
-        println!("any_cycles={}", any_cycles);
         any_cycles
     }
 
@@ -66,10 +63,8 @@ pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
             .find(|pid| !visited_processors.contains(&pid))
             .cloned()
         else {
-            println!("No more processors");
             return false;
         };
-        println!("visiting processor {}", proc_to_visit.value());
         let mut visited_inputs = HashSet::new();
         if find_cycle(proc_to_visit, &mut visited_inputs, graph) {
             return true;
