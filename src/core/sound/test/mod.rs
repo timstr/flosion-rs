@@ -1,2 +1,2 @@
-// mod soundgraphvalidationtest;
+mod soundgraphvalidationtest;
 mod testobjects;

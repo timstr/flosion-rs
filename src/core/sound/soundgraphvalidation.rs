@@ -26,25 +26,34 @@ pub(super) fn find_sound_error(graph: &SoundGraph) -> Option<SoundError> {
 }
 
 pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
-    fn dfs_find_cycle(
+    fn find_cycle(
         processor_id: SoundProcessorId,
         visited_inputs: &mut HashSet<SoundInputLocation>,
         graph: &SoundGraph,
     ) -> bool {
         let mut any_cycles = false;
-        graph
-            .sound_processor(processor_id)
-            .unwrap()
-            .foreach_input(|input, location| {
-                if visited_inputs.contains(&location) {
-                    any_cycles = true;
-                    return;
-                }
-                visited_inputs.insert(location);
-                if let Some(target_id) = input.target() {
-                    dfs_find_cycle(target_id, visited_inputs, graph);
-                }
-            });
+
+        let mut queue = vec![processor_id];
+
+        while !queue.is_empty() && !any_cycles {
+            let processor_id = queue.remove(0);
+            graph
+                .sound_processor(processor_id)
+                .unwrap()
+                .foreach_input(|input, location| {
+                    println!("Visiting {:?}", location);
+                    if visited_inputs.contains(&location) {
+                        println!("Aaaaaaaaaaaah cycle");
+                        any_cycles = true;
+                        return;
+                    }
+                    visited_inputs.insert(location);
+                    if let Some(target_id) = input.target() {
+                        queue.push(target_id);
+                    }
+                });
+        }
+        println!("any_cycles={}", any_cycles);
         any_cycles
     }
 
@@ -57,13 +66,15 @@ pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
             .find(|pid| !visited_processors.contains(&pid))
             .cloned()
         else {
+            println!("No more processors");
             return false;
         };
-
+        println!("visiting processor {}", proc_to_visit.value());
         let mut visited_inputs = HashSet::new();
-        if dfs_find_cycle(proc_to_visit, &mut visited_inputs, graph) {
+        if find_cycle(proc_to_visit, &mut visited_inputs, graph) {
             return true;
         }
+        visited_processors.insert(proc_to_visit);
         for input_location in visited_inputs {
             visited_processors.insert(input_location.processor());
         }

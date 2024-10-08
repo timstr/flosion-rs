@@ -4,6 +4,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
+            soundinput::{InputOptions, ProcessorInput, SoundInputBranchId},
             soundprocessor::{
                 ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
                 StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
@@ -15,7 +16,20 @@ use crate::{
     ui_core::arguments::ParsedArguments,
 };
 
-pub(super) struct TestStaticSoundProcessor {}
+pub(super) struct TestStaticSoundProcessor {
+    pub(super) inputs: Vec<ProcessorInput>,
+}
+
+impl TestStaticSoundProcessor {
+    pub(super) fn add_input(
+        &mut self,
+        options: InputOptions,
+        branches: Vec<SoundInputBranchId>,
+        tools: &mut SoundProcessorTools,
+    ) {
+        self.inputs.push(tools.make_sound_input(options, branches));
+    }
+}
 
 pub(super) struct CompiledTestStaticSoundProcessor {}
 
@@ -23,12 +37,20 @@ impl WhateverSoundProcessor for TestStaticSoundProcessor {
     type CompiledType<'ctx> = CompiledTestStaticSoundProcessor;
 
     fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Self {
-        Self {}
+        Self { inputs: Vec::new() }
     }
 
-    fn visit<'a>(&self, _visitor: &'a mut dyn ProcessorComponentVisitor) {}
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        for input in &self.inputs {
+            visitor.input(input);
+        }
+    }
 
-    fn visit_mut<'a>(&mut self, _visitor: &'a mut dyn ProcessorComponentVisitorMut) {}
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        for input in &mut self.inputs {
+            visitor.input(input);
+        }
+    }
 
     fn is_static(&self) -> bool {
         true
