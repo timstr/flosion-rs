@@ -147,8 +147,31 @@ impl SoundGraph {
     }
 
     /// Check whether the entity referred to by the given id exists in the graph
-    pub fn contains<I: Into<SoundGraphComponentLocation>>(&self, id: I) -> bool {
-        todo!()
+    pub fn contains<I: Into<SoundGraphComponentLocation>>(&self, location: I) -> bool {
+        let location: SoundGraphComponentLocation = location.into();
+        let mut exists = false;
+        match location {
+            SoundGraphComponentLocation::Processor(spid) => {
+                exists = self.sound_processors.contains_key(&spid);
+            }
+            SoundGraphComponentLocation::Input(sil) => {
+                self.sound_processor(sil.processor())
+                    .map(|p| p.with_input(sil.input(), |_| exists = true));
+            }
+            SoundGraphComponentLocation::Expression(el) => {
+                self.sound_processor(el.processor())
+                    .map(|p| p.with_expression(el.expression(), |_| exists = true));
+            }
+            SoundGraphComponentLocation::ProcessorArgument(pal) => {
+                self.sound_processor(pal.processor())
+                    .map(|p| p.with_processor_argument(pal.argument(), |_| exists = true));
+            }
+            SoundGraphComponentLocation::InputArgument(ial) => {
+                self.sound_processor(ial.processor())
+                    .map(|p| p.with_input_argument(ial.input(), ial.argument(), |_| exists = true));
+            }
+        }
+        exists
     }
 
     pub fn with_sound_input<R, F: FnMut(&BasicProcessorInput) -> R>(
