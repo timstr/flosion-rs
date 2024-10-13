@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use hashstash::{Order, Stashable};
+use hashstash::{Order, Stashable, UnstashError, Unstashable, Unstasher};
 
 use crate::ui_core::arguments::ParsedArguments;
 
@@ -237,10 +237,14 @@ impl Stashable for SoundGraph {
             self.sound_processors.values(),
             |proc_data, stasher| {
                 stasher.u64(proc_data.id().value() as u64);
-                // TODO: processor instance?
-                // TODO: call visit() method to stash components?
             },
             Order::Unordered,
         );
+    }
+}
+
+impl Unstashable for SoundGraph {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        todo!()
     }
 }

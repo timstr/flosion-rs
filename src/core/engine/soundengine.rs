@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hashstash::ObjectHash;
+use hashstash::{stash_clone, ObjectHash, Stash};
 
 use super::{
     diffgraph::diff_sound_graph,
@@ -128,6 +128,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         &mut self,
         new_graph: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
+        stash: &Stash,
     ) -> Result<(), ()> {
         let new_revision = ObjectHash::from_stashable(new_graph);
 
@@ -151,7 +152,10 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        self.current_graph = todo!(); //new_graph.clone();
+        let (cloned_graph, handle) = stash_clone(new_graph, stash).unwrap();
+
+        debug_assert_eq!(handle.object_hash(), new_revision);
+        self.current_graph = cloned_graph;
         self.current_hash = new_revision;
 
         Ok(())

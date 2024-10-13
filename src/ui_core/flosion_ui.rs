@@ -16,7 +16,7 @@ use eframe::{
     self,
     egui::{self},
 };
-use hashstash::ObjectHash;
+use hashstash::{ObjectHash, Stash};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
@@ -92,6 +92,8 @@ pub struct FlosionApp<'ctx> {
     garbage_disposer: GarbageDisposer<'ctx>,
 
     jit_cache: JitCache<'ctx>,
+
+    stash: Stash,
 }
 
 impl<'ctx> FlosionApp<'ctx> {
@@ -127,6 +129,7 @@ impl<'ctx> FlosionApp<'ctx> {
             engine_interface,
             garbage_disposer,
             jit_cache,
+            stash: Stash::new(),
         };
 
         // Initialize all necessary ui state
@@ -199,7 +202,7 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
             self.check_invariants();
 
             self.engine_interface
-                .update(&self.graph, &self.jit_cache)
+                .update(&self.graph, &self.jit_cache, &self.stash)
                 .expect("Failed to update engine");
 
             self.garbage_disposer.clear();
