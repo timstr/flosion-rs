@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use crate::core::sound::{
     soundgraph::SoundGraph,
-    soundprocessor::{SoundProcessor, SoundProcessorId},
+    soundprocessor::{AnySoundProcessor, SoundProcessorId},
 };
 
 use super::{
     stategraph::StateGraph,
     stategraphnode::{
         AnyCompiledProcessorData, SharedCompiledProcessor, SharedCompiledProcessorCache,
-        UniqueCompiledSoundProcessor,
+        UniqueCompiledProcessor,
     },
 };
 
@@ -57,7 +57,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
 
     /// Recursively inspect a unique compiled processor and test whether it matches
     /// the sound graph
-    fn visit_unique_processor(&mut self, proc: &UniqueCompiledSoundProcessor<'ctx>) -> bool {
+    fn visit_unique_processor(&mut self, proc: &UniqueCompiledProcessor<'ctx>) -> bool {
         if !self.check_processor(proc.processor(), None) {
             return false;
         }
@@ -118,7 +118,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn check_processor_sound_inputs(
         &self,
         proc: &dyn AnyCompiledProcessorData,
-        proc_data: &dyn SoundProcessor,
+        proc_data: &dyn AnySoundProcessor,
     ) -> bool {
         todo!()
     }
@@ -127,7 +127,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn check_processor_expressions(
         &self,
         proc: &dyn AnyCompiledProcessorData,
-        proc_data: &dyn SoundProcessor,
+        proc_data: &dyn AnySoundProcessor,
     ) -> bool {
         todo!()
     }

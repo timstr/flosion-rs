@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{audiofileio::load_audio_file, sound::soundprocessor::WhateverSoundProcessorWithId},
+    core::{audiofileio::load_audio_file, sound::soundprocessor::SoundProcessorWithId},
     objects::audioclip::AudioClip,
     ui_core::{
         arguments::{ArgumentList, ParsedArguments},
@@ -28,11 +28,11 @@ impl Default for AudioClipUiState {
 }
 
 impl SoundObjectUi for AudioClipUi {
-    type ObjectType = WhateverSoundProcessorWithId<AudioClip>;
+    type ObjectType = SoundProcessorWithId<AudioClip>;
     type StateType = AudioClipUiState;
     fn ui(
         &self,
-        audioclip: &mut WhateverSoundProcessorWithId<AudioClip>,
+        audioclip: &mut SoundProcessorWithId<AudioClip>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,

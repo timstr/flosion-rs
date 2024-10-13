@@ -15,7 +15,7 @@ use crate::{
             context::Context,
             soundprocessor::{
                 ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
-                StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
+                StreamStatus, CompiledSoundProcessor, SoundProcessor,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -47,7 +47,7 @@ pub struct CompiledInput {
     chunk_receiver: spmcq::Reader<SoundChunk>,
 }
 
-impl WhateverSoundProcessor for Input {
+impl SoundProcessor for Input {
     type CompiledType<'ctx> = CompiledInput;
 
     fn new(_args: &ParsedArguments) -> Input {
@@ -133,7 +133,7 @@ impl WhateverSoundProcessor for Input {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledInput {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledInput {
     fn process_audio(&mut self, dst: &mut SoundChunk, _context: Context) -> StreamStatus {
         let chunk = match self.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,

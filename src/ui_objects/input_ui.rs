@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::{
-        sound::soundprocessor::WhateverSoundProcessorWithId,
+        sound::soundprocessor::SoundProcessorWithId,
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
     objects::input::Input,
@@ -41,11 +41,11 @@ impl InputUi {
 }
 
 impl SoundObjectUi for InputUi {
-    type ObjectType = WhateverSoundProcessorWithId<Input>;
+    type ObjectType = SoundProcessorWithId<Input>;
     type StateType = InputUiState;
     fn ui(
         &self,
-        input: &mut WhateverSoundProcessorWithId<Input>,
+        input: &mut SoundProcessorWithId<Input>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,

@@ -18,9 +18,9 @@ use crate::{
             expressionargument::{ArgumentLocation, ProcessorArgument, ProcessorArgumentLocation},
             soundgraph::SoundGraph,
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                ProcessorTiming, SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
-                WhateverSoundProcessor,
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, ProcessorTiming, SoundProcessor, SoundProcessorId,
+                StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -44,7 +44,7 @@ struct CompiledTestSoundProcessor<'ctx> {
     expression: CompiledExpression<'ctx>,
 }
 
-impl WhateverSoundProcessor for TestSoundProcessor {
+impl SoundProcessor for TestSoundProcessor {
     type CompiledType<'ctx> = CompiledTestSoundProcessor<'ctx>;
 
     fn new(_args: &ParsedArguments) -> TestSoundProcessor {
@@ -85,7 +85,7 @@ impl WhateverSoundProcessor for TestSoundProcessor {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledTestSoundProcessor<'ctx> {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestSoundProcessor<'ctx> {
     fn process_audio(&mut self, _dst: &mut SoundChunk, _context: Context) -> StreamStatus {
         panic!("Unused")
     }

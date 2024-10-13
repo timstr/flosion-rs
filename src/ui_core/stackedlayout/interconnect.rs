@@ -2,7 +2,7 @@ use hashstash::{Stashable, Stasher};
 
 use crate::core::sound::{
     soundinput::{BasicProcessorInput, InputOptions, SoundInputLocation},
-    soundprocessor::{SoundProcessor, SoundProcessorId},
+    soundprocessor::{AnySoundProcessor, SoundProcessorId},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -12,7 +12,7 @@ pub(crate) struct ProcessorPlug {
 }
 
 impl ProcessorPlug {
-    pub(crate) fn from_processor_data(data: &dyn SoundProcessor) -> ProcessorPlug {
+    pub(crate) fn from_processor_data(data: &dyn AnySoundProcessor) -> ProcessorPlug {
         ProcessorPlug {
             processor: data.id(),
             is_static: data.is_static(),

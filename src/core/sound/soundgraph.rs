@@ -9,13 +9,11 @@ use super::{
     soundgraphid::{SoundGraphComponentLocation, SoundObjectId},
     soundgraphvalidation::find_sound_error,
     soundinput::{BasicProcessorInput, SoundInputLocation},
-    soundprocessor::{
-        SoundProcessor, SoundProcessorId, WhateverSoundProcessor, WhateverSoundProcessorWithId,
-    },
+    soundprocessor::{AnySoundProcessor, SoundProcessor, SoundProcessorId, SoundProcessorWithId},
 };
 
 pub struct SoundGraph {
-    sound_processors: HashMap<SoundProcessorId, Box<dyn SoundProcessor>>,
+    sound_processors: HashMap<SoundProcessorId, Box<dyn AnySoundProcessor>>,
 }
 
 impl SoundGraph {
@@ -26,12 +24,14 @@ impl SoundGraph {
     }
 
     /// Access the set of sound processors stored in the graph
-    pub(crate) fn sound_processors(&self) -> &HashMap<SoundProcessorId, Box<dyn SoundProcessor>> {
+    pub(crate) fn sound_processors(
+        &self,
+    ) -> &HashMap<SoundProcessorId, Box<dyn AnySoundProcessor>> {
         &self.sound_processors
     }
 
     /// Look up a specific sound processor by its id
-    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&dyn SoundProcessor> {
+    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&dyn AnySoundProcessor> {
         match self.sound_processors.get(&id) {
             Some(p) => Some(&**p),
             None => None,
@@ -41,7 +41,7 @@ impl SoundGraph {
     pub(crate) fn sound_processor_mut(
         &mut self,
         id: SoundProcessorId,
-    ) -> Option<&mut dyn SoundProcessor> {
+    ) -> Option<&mut dyn AnySoundProcessor> {
         match self.sound_processors.get_mut(&id) {
             Some(p) => Some(&mut **p),
             None => None,
@@ -79,10 +79,10 @@ impl SoundGraph {
     /// The type must be known statically and given.
     /// For other ways of creating a sound processor,
     /// see ObjectFactory.
-    pub fn add_sound_processor<'a, T: 'static + WhateverSoundProcessor>(
+    pub fn add_sound_processor<'a, T: 'static + SoundProcessor>(
         &'a mut self,
         args: &ParsedArguments,
-    ) -> &'a mut WhateverSoundProcessorWithId<T> {
+    ) -> &'a mut SoundProcessorWithId<T> {
         let id = SoundProcessorId::new_unique();
 
         // construct the actual processor instance by its
@@ -90,7 +90,7 @@ impl SoundGraph {
         let processor = T::new(args);
 
         // wrap the processor in a type-erased Box
-        let processor = Box::new(WhateverSoundProcessorWithId::new(processor, id));
+        let processor = Box::new(SoundProcessorWithId::new(processor, id));
 
         let processor = self.sound_processors.entry(id).or_insert(processor);
 

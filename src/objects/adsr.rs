@@ -12,8 +12,8 @@ use crate::{
             soundinputtypes::SingleInput,
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
-                WhateverSoundProcessor,
+                SoundProcessorId, StreamStatus, CompiledSoundProcessor,
+                SoundProcessor,
             },
             state::State,
         },
@@ -106,7 +106,7 @@ fn chunked_interp(
     }
 }
 
-impl WhateverSoundProcessor for ADSR {
+impl SoundProcessor for ADSR {
     type CompiledType<'ctx> = CompiledADSR<'ctx>;
 
     fn new(_args: &ParsedArguments) -> ADSR {
@@ -172,7 +172,7 @@ impl WhateverSoundProcessor for ADSR {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
     fn process_audio(&mut self, dst: &mut SoundChunk, mut context: Context) -> StreamStatus {
         let pending_release = context.take_pending_release();
 

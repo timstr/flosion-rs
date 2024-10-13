@@ -7,7 +7,7 @@ use crate::{
             soundinput::BasicProcessorInput,
             soundprocessor::{
                 ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
-                StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
+                StreamStatus, CompiledSoundProcessor, SoundProcessor,
             },
         },
         soundchunk::SoundChunk,
@@ -21,7 +21,7 @@ pub(super) struct TestStaticSoundProcessor {
 
 pub(super) struct CompiledTestStaticSoundProcessor {}
 
-impl WhateverSoundProcessor for TestStaticSoundProcessor {
+impl SoundProcessor for TestStaticSoundProcessor {
     type CompiledType<'ctx> = CompiledTestStaticSoundProcessor;
 
     fn new(_args: &ParsedArguments) -> Self {
@@ -53,7 +53,7 @@ impl WhateverSoundProcessor for TestStaticSoundProcessor {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledTestStaticSoundProcessor {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestStaticSoundProcessor {
     fn process_audio(&mut self, _dst: &mut SoundChunk, _context: Context) -> StreamStatus {
         StreamStatus::Done
     }
@@ -69,7 +69,7 @@ pub(super) struct TestDynamicSoundProcessor {}
 
 pub(super) struct CompiledTestDynamicSoundProcessor {}
 
-impl WhateverSoundProcessor for TestDynamicSoundProcessor {
+impl SoundProcessor for TestDynamicSoundProcessor {
     type CompiledType<'ctx> = CompiledTestDynamicSoundProcessor;
 
     fn new(_args: &ParsedArguments) -> Self {
@@ -93,7 +93,7 @@ impl WhateverSoundProcessor for TestDynamicSoundProcessor {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledTestDynamicSoundProcessor {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestDynamicSoundProcessor {
     fn process_audio(&mut self, _dst: &mut SoundChunk, _context: Context) -> StreamStatus {
         StreamStatus::Done
     }

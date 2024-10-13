@@ -82,14 +82,14 @@ pub trait ProcessorComponentVisitorMut {
     fn input_argument(&mut self, _argument: &mut SoundInputArgument, _input_id: ProcessorInputId) {}
 }
 
-pub trait WhateverCompiledSoundProcessor<'ctx>: Send {
+pub trait CompiledSoundProcessor<'ctx>: Send {
     fn process_audio(&mut self, dst: &mut SoundChunk, context: Context) -> StreamStatus;
 
     fn start_over(&mut self);
 }
 
-pub trait WhateverSoundProcessor: Sized + WithObjectType {
-    type CompiledType<'ctx>: WhateverCompiledSoundProcessor<'ctx>;
+pub trait SoundProcessor: Sized + WithObjectType {
+    type CompiledType<'ctx>: CompiledSoundProcessor<'ctx>;
 
     fn new(args: &ParsedArguments) -> Self;
 
@@ -105,12 +105,12 @@ pub trait WhateverSoundProcessor: Sized + WithObjectType {
     ) -> Self::CompiledType<'ctx>;
 }
 
-pub struct WhateverSoundProcessorWithId<T: WhateverSoundProcessor> {
+pub struct SoundProcessorWithId<T: SoundProcessor> {
     id: SoundProcessorId,
     processor: T,
 }
 
-impl<T: WhateverSoundProcessor> WhateverSoundProcessorWithId<T> {
+impl<T: SoundProcessor> SoundProcessorWithId<T> {
     pub(crate) fn new(processor: T, id: SoundProcessorId) -> Self {
         Self { id, processor }
     }
@@ -120,7 +120,7 @@ impl<T: WhateverSoundProcessor> WhateverSoundProcessorWithId<T> {
     }
 }
 
-impl<T: WhateverSoundProcessor> Deref for WhateverSoundProcessorWithId<T> {
+impl<T: SoundProcessor> Deref for SoundProcessorWithId<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -128,21 +128,17 @@ impl<T: WhateverSoundProcessor> Deref for WhateverSoundProcessorWithId<T> {
     }
 }
 
-impl<T: WhateverSoundProcessor> DerefMut for WhateverSoundProcessorWithId<T> {
+impl<T: SoundProcessor> DerefMut for SoundProcessorWithId<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.processor
     }
 }
 
-impl<T: WhateverSoundProcessor> WithObjectType for WhateverSoundProcessorWithId<T> {
+impl<T: SoundProcessor> WithObjectType for SoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
 
-pub struct WhateverSoundProcessorHandle<T: WhateverSoundProcessor> {
-    instance: Rc<WhateverSoundProcessorWithId<T>>,
-}
-
-pub(crate) trait SoundProcessor {
+pub(crate) trait AnySoundProcessor {
     fn id(&self) -> SoundProcessorId;
 
     fn is_static(&self) -> bool;
@@ -163,8 +159,7 @@ pub(crate) trait SoundProcessor {
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>;
 }
 
-// TODO: remove this and merge with what is currently known as WhateverSoundProcessor.
-impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProcessorWithId<T> {
+impl<T: 'static + SoundProcessor> AnySoundProcessor for SoundProcessorWithId<T> {
     fn id(&self) -> SoundProcessorId {
         self.id
     }
@@ -217,16 +212,14 @@ impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProces
     }
 }
 
-impl<'a> dyn SoundProcessor + 'a {
-    pub(crate) fn downcast<T: 'static + WhateverSoundProcessor>(
-        &self,
-    ) -> Option<&WhateverSoundProcessorWithId<T>> {
+impl<'a> dyn AnySoundProcessor + 'a {
+    pub(crate) fn downcast<T: 'static + SoundProcessor>(&self) -> Option<&SoundProcessorWithId<T>> {
         self.as_any().downcast_ref()
     }
 
-    pub(crate) fn downcast_mut<T: 'static + WhateverSoundProcessor>(
+    pub(crate) fn downcast_mut<T: 'static + SoundProcessor>(
         &mut self,
-    ) -> Option<&mut WhateverSoundProcessorWithId<T>> {
+    ) -> Option<&mut SoundProcessorWithId<T>> {
         self.as_mut_any().downcast_mut()
     }
 
@@ -541,16 +534,16 @@ impl ProcessorTiming {
     }
 }
 
-impl<T: 'static + WhateverSoundProcessor> SoundGraphObject for WhateverSoundProcessorWithId<T> {
+impl<T: 'static + SoundProcessor> SoundGraphObject for SoundProcessorWithId<T> {
     fn create<'a>(
         graph: &'a mut SoundGraph,
         args: &ParsedArguments,
-    ) -> &'a mut WhateverSoundProcessorWithId<T> {
+    ) -> &'a mut SoundProcessorWithId<T> {
         graph.add_sound_processor::<T>(args)
     }
 
     fn id(&self) -> SoundObjectId {
-        WhateverSoundProcessorWithId::id(self).into()
+        SoundProcessorWithId::id(self).into()
     }
 
     fn get_type() -> ObjectType {

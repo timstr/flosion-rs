@@ -16,8 +16,8 @@ use crate::{
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
-                WhateverSoundProcessor,
+                SoundProcessorId, StreamStatus, CompiledSoundProcessor,
+                SoundProcessor,
             },
             state::State,
         },
@@ -73,7 +73,7 @@ pub struct CompiledOutput<'ctx> {
     state: OutputState,
 }
 
-impl WhateverSoundProcessor for Output {
+impl SoundProcessor for Output {
     type CompiledType<'ctx> = CompiledOutput<'ctx>;
 
     fn new(_args: &ParsedArguments) -> Output {
@@ -203,7 +203,7 @@ impl WhateverSoundProcessor for Output {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
     fn process_audio(&mut self, dst: &mut SoundChunk, context: Context) -> StreamStatus {
         if self
             .state

@@ -12,8 +12,8 @@ use crate::{
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
-                WhateverSoundProcessor,
+                SoundProcessorId, StreamStatus, CompiledSoundProcessor,
+                SoundProcessor,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -36,7 +36,7 @@ pub struct CompiledDefinitions<'ctx> {
     argument_id: ProcessorArgumentId,
 }
 
-impl WhateverSoundProcessor for Definitions {
+impl SoundProcessor for Definitions {
     type CompiledType<'ctx> = CompiledDefinitions<'ctx>;
 
     fn new(_args: &ParsedArguments) -> Definitions {
@@ -76,7 +76,7 @@ impl WhateverSoundProcessor for Definitions {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledDefinitions<'ctx> {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledDefinitions<'ctx> {
     fn process_audio(&mut self, dst: &mut SoundChunk, context: Context) -> StreamStatus {
         let mut buffer = context.get_scratch_space(CHUNK_SIZE);
 

@@ -8,7 +8,7 @@ use crate::{
             SoundInputArgument, SoundInputArgumentId, SoundInputArgumentLocation,
         },
         soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
-        soundprocessor::{ProcessorComponentVisitor, SoundProcessor, SoundProcessorId},
+        soundprocessor::{ProcessorComponentVisitor, AnySoundProcessor, SoundProcessorId},
     },
     ui_core::soundgraphuinames::SoundGraphUiNames,
 };
@@ -82,7 +82,7 @@ impl ProcessorUi {
         self
     }
 
-    pub fn show<T: SoundProcessor>(
+    pub fn show<T: AnySoundProcessor>(
         self,
         processor: &mut T,
         ui: &mut egui::Ui,
@@ -99,7 +99,7 @@ impl ProcessorUi {
     }
 
     pub fn show_with<
-        T: SoundProcessor,
+        T: AnySoundProcessor,
         F: FnOnce(&mut T, &mut egui::Ui, &mut SoundGraphUiState),
     >(
         mut self,
@@ -198,7 +198,7 @@ impl ProcessorUi {
     }
 
     fn show_with_impl<
-        T: SoundProcessor,
+        T: AnySoundProcessor,
         F: FnOnce(&mut T, &mut egui::Ui, &mut SoundGraphUiState),
     >(
         &mut self,
@@ -346,7 +346,7 @@ impl ProcessorUi {
     }
 
     fn show_expression(
-        processor: &mut dyn SoundProcessor,
+        processor: &mut dyn AnySoundProcessor,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         expr_id: ProcessorExpressionId,

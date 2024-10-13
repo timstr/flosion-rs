@@ -9,7 +9,7 @@ use crate::core::{
 };
 
 use super::stategraphnode::{
-    SharedCompiledProcessor, StateGraphNodeValue, UniqueCompiledSoundProcessor,
+    SharedCompiledProcessor, StateGraphNodeValue, UniqueCompiledProcessor,
 };
 
 /// Struct through which compilation of sound graph components for direct
@@ -65,7 +65,7 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         } else {
             // TODO: for shared dynamic processors, some kind of clever
             // book-keeping will be needed here
-            StateGraphNodeValue::Unique(UniqueCompiledSoundProcessor::new(proc.compile(self)))
+            StateGraphNodeValue::Unique(UniqueCompiledProcessor::new(proc.compile(self)))
         }
     }
 

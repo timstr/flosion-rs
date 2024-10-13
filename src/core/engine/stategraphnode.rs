@@ -10,9 +10,7 @@ use crate::core::{
     sound::{
         context::{Context, InputFrameData, ProcessorFrameData, Stack},
         soundinput::{InputTiming, SoundInputLocation},
-        soundprocessor::{
-            ProcessorTiming, SoundProcessorId, StreamStatus, WhateverCompiledSoundProcessor,
-        },
+        soundprocessor::{CompiledSoundProcessor, ProcessorTiming, SoundProcessorId, StreamStatus},
     },
     soundchunk::SoundChunk,
 };
@@ -29,9 +27,9 @@ pub struct CompiledProcessorData<T> {
     processor: T,
 }
 
-impl<'ctx, T: WhateverCompiledSoundProcessor<'ctx>> CompiledProcessorData<T>
+impl<'ctx, T: CompiledSoundProcessor<'ctx>> CompiledProcessorData<T>
 where
-    T: WhateverCompiledSoundProcessor<'ctx>,
+    T: CompiledSoundProcessor<'ctx>,
 {
     /// Compile a new static processor for the state graph
     pub(crate) fn new<'a>(
@@ -99,7 +97,7 @@ pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable>;
 }
 
-impl<'ctx, T: 'ctx + WhateverCompiledSoundProcessor<'ctx>> AnyCompiledProcessorData<'ctx>
+impl<'ctx, T: 'ctx + CompiledSoundProcessor<'ctx>> AnyCompiledProcessorData<'ctx>
     for CompiledProcessorData<T>
 {
     fn id(&self) -> SoundProcessorId {
@@ -133,16 +131,16 @@ impl<'ctx, T: 'ctx + WhateverCompiledSoundProcessor<'ctx>> AnyCompiledProcessorD
 /// that is not shared and is not cached. When the processor is called on
 /// to produce audio, it does so immediately and produces audio into the
 /// given buffer directly.
-pub struct UniqueCompiledSoundProcessor<'ctx> {
+pub struct UniqueCompiledProcessor<'ctx> {
     processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
 }
 
-impl<'ctx> UniqueCompiledSoundProcessor<'ctx> {
+impl<'ctx> UniqueCompiledProcessor<'ctx> {
     /// Creates a new unique compiled sound processor.
     pub(crate) fn new(
         processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
-    ) -> UniqueCompiledSoundProcessor {
-        UniqueCompiledSoundProcessor { processor }
+    ) -> UniqueCompiledProcessor {
+        UniqueCompiledProcessor { processor }
     }
 
     /// The sound processor's id
@@ -233,8 +231,8 @@ impl<'ctx> SharedCompiledProcessorCache<'ctx> {
     }
 
     /// Consume the cache and convert it into a unique compiled processor.
-    fn into_unique(self) -> UniqueCompiledSoundProcessor<'ctx> {
-        UniqueCompiledSoundProcessor::new(self.processor)
+    fn into_unique(self) -> UniqueCompiledProcessor<'ctx> {
+        UniqueCompiledProcessor::new(self.processor)
     }
 }
 
@@ -404,7 +402,7 @@ impl<'ctx> Clone for SharedCompiledProcessor<'ctx> {
 /// The contents of a compiled sound input branch.
 pub enum StateGraphNodeValue<'ctx> {
     /// A uniquely owned and directly invocable compiled sound processor
-    Unique(UniqueCompiledSoundProcessor<'ctx>),
+    Unique(UniqueCompiledProcessor<'ctx>),
 
     /// A co-owned and cached compiled sound processor
     Shared(SharedCompiledProcessor<'ctx>),

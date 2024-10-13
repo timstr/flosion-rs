@@ -1,5 +1,5 @@
 use crate::{
-    core::sound::soundprocessor::WhateverSoundProcessorWithId,
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::adsr::ADSR,
     ui_core::{
         arguments::ParsedArguments, expressionplot::PlotConfig,
@@ -12,12 +12,12 @@ use crate::{
 pub struct ADSRUi {}
 
 impl SoundObjectUi for ADSRUi {
-    type ObjectType = WhateverSoundProcessorWithId<ADSR>;
+    type ObjectType = SoundProcessorWithId<ADSR>;
     type StateType = ();
 
     fn ui(
         &self,
-        adsr: &mut WhateverSoundProcessorWithId<ADSR>,
+        adsr: &mut SoundProcessorWithId<ADSR>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,

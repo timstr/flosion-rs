@@ -11,7 +11,7 @@ use crate::{
             context::Context,
             soundprocessor::{
                 ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
-                StreamStatus, WhateverCompiledSoundProcessor, WhateverSoundProcessor,
+                StreamStatus, CompiledSoundProcessor, SoundProcessor,
             },
             state::State,
         },
@@ -54,7 +54,7 @@ pub struct CompiledAudioclip {
     state: AudioClipState,
 }
 
-impl WhateverSoundProcessor for AudioClip {
+impl SoundProcessor for AudioClip {
     type CompiledType<'ctx> = CompiledAudioclip;
 
     fn new(args: &ParsedArguments) -> AudioClip {
@@ -95,7 +95,7 @@ impl WhateverSoundProcessor for AudioClip {
     }
 }
 
-impl<'ctx> WhateverCompiledSoundProcessor<'ctx> for CompiledAudioclip {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledAudioclip {
     fn process_audio(&mut self, dst: &mut SoundChunk, _context: Context) -> StreamStatus {
         // TODO: avoid locking here? Maybe use ArcSwap
         let data = self.state.data.read();
