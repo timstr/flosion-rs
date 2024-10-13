@@ -1,12 +1,10 @@
-use crate::{
-    core::sound::{
-        sounderror::SoundError,
-        soundgraph::SoundGraph,
-        soundgraphvalidation::find_sound_error,
-        soundinput::{BasicProcessorInput, InputOptions},
-        test::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor},
-    },
-    ui_core::arguments::ParsedArguments,
+use crate::core::sound::{
+    sounderror::SoundError,
+    soundgraph::SoundGraph,
+    soundgraphvalidation::find_sound_error,
+    soundinput::{BasicProcessorInput, InputOptions},
+    soundprocessor::SoundProcessorWithId,
+    test::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor},
 };
 
 #[test]
@@ -17,24 +15,29 @@ fn find_error_empty_graph() {
 
 #[test]
 fn find_error_one_static_proc() {
+    let proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
+
     let mut graph = SoundGraph::new();
-    graph.add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty());
+
+    graph.add_sound_processor(Box::new(proc));
 
     assert_eq!(find_sound_error(&graph), None);
 }
 
 #[test]
 fn find_error_one_dynamic_proc() {
+    let proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
+
     let mut graph = SoundGraph::new();
-    graph.add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty());
+
+    graph.add_sound_processor(Box::new(proc));
+
     assert_eq!(find_sound_error(&graph), None);
 }
 
 #[test]
 fn find_error_static_to_self_cycle() {
-    let mut graph = SoundGraph::new();
-
-    let proc = graph.add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty());
+    let mut proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc.inputs.push(BasicProcessorInput::new(
         InputOptions::Synchronous,
@@ -44,6 +47,9 @@ fn find_error_static_to_self_cycle() {
     let proc_id = proc.id();
 
     proc.inputs[0].set_target(Some(proc_id));
+
+    let mut graph = SoundGraph::new();
+    graph.add_sound_processor(Box::new(proc));
 
     assert_eq!(
         find_sound_error(&graph),

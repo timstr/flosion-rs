@@ -1,3 +1,5 @@
+use hashstash::{Stashable, Stasher};
+
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
@@ -6,8 +8,8 @@ use crate::{
             context::Context,
             soundinput::BasicProcessorInput,
             soundprocessor::{
-                ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
-                StreamStatus, CompiledSoundProcessor, SoundProcessor,
+                CompiledSoundProcessor, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -65,6 +67,12 @@ impl WithObjectType for TestStaticSoundProcessor {
     const TYPE: ObjectType = ObjectType::new("teststatic");
 }
 
+impl Stashable for TestStaticSoundProcessor {
+    fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
+}
+
 pub(super) struct TestDynamicSoundProcessor {}
 
 pub(super) struct CompiledTestDynamicSoundProcessor {}
@@ -103,4 +111,10 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestDynamicSoundProcessor {
 
 impl WithObjectType for TestDynamicSoundProcessor {
     const TYPE: ObjectType = ObjectType::new("testdynamic");
+}
+
+impl Stashable for TestDynamicSoundProcessor {
+    fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
 }

@@ -2,14 +2,12 @@ use std::collections::HashMap;
 
 use hashstash::{Order, Stashable, UnstashError, Unstashable, Unstasher};
 
-use crate::ui_core::arguments::ParsedArguments;
-
 use super::{
     sounderror::SoundError,
     soundgraphid::{SoundGraphComponentLocation, SoundObjectId},
     soundgraphvalidation::find_sound_error,
     soundinput::{BasicProcessorInput, SoundInputLocation},
-    soundprocessor::{AnySoundProcessor, SoundProcessor, SoundProcessorId, SoundProcessorWithId},
+    soundprocessor::{AnySoundProcessor, SoundProcessorId},
 };
 
 pub struct SoundGraph {
@@ -76,25 +74,9 @@ impl SoundGraph {
     /// Add a static sound processor to the sound graph,
     /// i.e. a sound processor which always has a single
     /// instance running in realtime and cannot be replicated.
-    /// The type must be known statically and given.
-    /// For other ways of creating a sound processor,
-    /// see ObjectFactory.
-    pub fn add_sound_processor<'a, T: 'static + SoundProcessor>(
-        &'a mut self,
-        args: &ParsedArguments,
-    ) -> &'a mut SoundProcessorWithId<T> {
-        let id = SoundProcessorId::new_unique();
-
-        // construct the actual processor instance by its
-        // concrete type
-        let processor = T::new(args);
-
-        // wrap the processor in a type-erased Box
-        let processor = Box::new(SoundProcessorWithId::new(processor, id));
-
-        let processor = self.sound_processors.entry(id).or_insert(processor);
-
-        processor.as_mut_any().downcast_mut().unwrap()
+    pub fn add_sound_processor(&mut self, processor: Box<dyn AnySoundProcessor>) {
+        let prev = self.sound_processors.insert(processor.id(), processor);
+        debug_assert!(prev.is_none());
     }
 
     pub fn remove_sound_processor(
@@ -232,12 +214,9 @@ impl SoundGraph {
 
 impl Stashable for SoundGraph {
     fn stash(&self, stasher: &mut hashstash::Stasher) {
-        // sound processors
         stasher.array_of_proxy_objects(
             self.sound_processors.values(),
-            |proc_data, stasher| {
-                stasher.u64(proc_data.id().value() as u64);
-            },
+            |proc_data, stasher| proc_data.stash(stasher),
             Order::Unordered,
         );
     }

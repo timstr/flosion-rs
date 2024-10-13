@@ -15,9 +15,8 @@ use crate::{
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessorId, StreamStatus, CompiledSoundProcessor,
-                SoundProcessor,
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StreamStatus,
             },
             state::State,
         },
@@ -30,6 +29,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, StreamConfig, StreamError,
 };
+use hashstash::{Stashable, Stasher};
 
 pub struct OutputData {
     stream_end_barrier: Barrier,
@@ -77,6 +77,10 @@ impl SoundProcessor for Output {
     type CompiledType<'ctx> = CompiledOutput<'ctx>;
 
     fn new(_args: &ParsedArguments) -> Output {
+        // TODO: move all this to the compile method!
+        // There should be no side effects until the processor
+        // is compiled and thus clearly being used to process audio
+
         let host = cpal::default_host();
         // TODO: propagate these errors
         let device = host
@@ -231,4 +235,10 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
 
 impl WithObjectType for Output {
     const TYPE: ObjectType = ObjectType::new("output");
+}
+
+impl Stashable for Output {
+    fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
 }

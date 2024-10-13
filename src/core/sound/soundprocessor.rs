@@ -1,9 +1,10 @@
 use std::{
     any::{type_name, Any},
     ops::{Deref, DerefMut},
-    rc::Rc,
     time::{Duration, Instant},
 };
+
+use hashstash::{Stashable, Stasher, UnstashError, Unstasher};
 
 use crate::{
     core::{
@@ -25,10 +26,9 @@ use super::{
         ProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation, SoundInputArgument,
         SoundInputArgumentId, SoundInputArgumentLocation,
     },
-    soundgraph::SoundGraph,
     soundgraphid::SoundObjectId,
     soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
-    soundobject::SoundGraphObject,
+    soundobject::{SoundGraphObject, SoundObjectFactory},
 };
 
 pub struct SoundProcessorTag;
@@ -88,10 +88,12 @@ pub trait CompiledSoundProcessor<'ctx>: Send {
     fn start_over(&mut self);
 }
 
-pub trait SoundProcessor: Sized + WithObjectType {
+pub trait SoundProcessor {
     type CompiledType<'ctx>: CompiledSoundProcessor<'ctx>;
 
-    fn new(args: &ParsedArguments) -> Self;
+    fn new(args: &ParsedArguments) -> Self
+    where
+        Self: Sized;
 
     fn is_static(&self) -> bool;
 
@@ -111,7 +113,18 @@ pub struct SoundProcessorWithId<T: SoundProcessor> {
 }
 
 impl<T: SoundProcessor> SoundProcessorWithId<T> {
-    pub(crate) fn new(processor: T, id: SoundProcessorId) -> Self {
+    pub fn new_default() -> SoundProcessorWithId<T> {
+        Self::new_from_args(&ParsedArguments::new_empty())
+    }
+
+    pub fn new_from_args(args: &ParsedArguments) -> SoundProcessorWithId<T> {
+        SoundProcessorWithId {
+            id: SoundProcessorId::new_unique(),
+            processor: T::new(args),
+        }
+    }
+
+    pub(crate) fn new_from_parts(processor: T, id: SoundProcessorId) -> Self {
         Self { id, processor }
     }
 
@@ -134,7 +147,7 @@ impl<T: SoundProcessor> DerefMut for SoundProcessorWithId<T> {
     }
 }
 
-impl<T: SoundProcessor> WithObjectType for SoundProcessorWithId<T> {
+impl<T: SoundProcessor + WithObjectType> WithObjectType for SoundProcessorWithId<T> {
     const TYPE: ObjectType = T::TYPE;
 }
 
@@ -157,9 +170,14 @@ pub(crate) trait AnySoundProcessor {
         &self,
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>;
+
+    fn stash(&self, stasher: &mut Stasher);
 }
 
-impl<T: 'static + SoundProcessor> AnySoundProcessor for SoundProcessorWithId<T> {
+impl<T> AnySoundProcessor for SoundProcessorWithId<T>
+where
+    T: 'static + SoundProcessor + WithObjectType + Stashable,
+{
     fn id(&self) -> SoundProcessorId {
         self.id
     }
@@ -210,6 +228,28 @@ impl<T: 'static + SoundProcessor> AnySoundProcessor for SoundProcessorWithId<T> 
         }
         Box::new(CompiledProcessorData::new(self.id, compiled_processor))
     }
+
+    fn stash(&self, stasher: &mut Stasher) {
+        // processor type (needed for unstashing with factory)
+        stasher.string(self.as_graph_object().get_dynamic_type().name());
+
+        // id
+        // ?????????????????????????????????????????????????????????????????????????????
+
+        // contents
+        stasher.object(&self.processor);
+    }
+}
+
+pub(crate) fn unstash_sound_processor(
+    unstasher: &mut Unstasher,
+    factory: &SoundObjectFactory,
+) -> Result<Box<dyn AnySoundProcessor>, UnstashError> {
+    let type_name = unstasher.string()?;
+
+    let object = factory.create(&type_name, &ParsedArguments::new_empty());
+
+    todo!()
 }
 
 impl<'a> dyn AnySoundProcessor + 'a {
@@ -534,12 +574,12 @@ impl ProcessorTiming {
     }
 }
 
-impl<T: 'static + SoundProcessor> SoundGraphObject for SoundProcessorWithId<T> {
-    fn create<'a>(
-        graph: &'a mut SoundGraph,
-        args: &ParsedArguments,
-    ) -> &'a mut SoundProcessorWithId<T> {
-        graph.add_sound_processor::<T>(args)
+impl<T> SoundGraphObject for SoundProcessorWithId<T>
+where
+    T: 'static + SoundProcessor + WithObjectType + Stashable,
+{
+    fn create(args: &ParsedArguments) -> SoundProcessorWithId<T> {
+        SoundProcessorWithId::new_from_args(args)
     }
 
     fn id(&self) -> SoundObjectId {
@@ -552,6 +592,14 @@ impl<T: 'static + SoundProcessor> SoundGraphObject for SoundProcessorWithId<T> {
 
     fn get_dynamic_type(&self) -> ObjectType {
         T::TYPE
+    }
+
+    fn as_sound_processor(&self) -> Option<&dyn AnySoundProcessor> {
+        Some(self)
+    }
+
+    fn into_boxed_sound_processor(self: Box<Self>) -> Option<Box<dyn AnySoundProcessor>> {
+        Some(self)
     }
 
     fn friendly_name(&self) -> String {

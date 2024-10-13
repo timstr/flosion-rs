@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use hashstash::{Stashable, Stasher};
+
 use crate::core::{
     engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
     expression::expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
@@ -254,5 +256,11 @@ impl ProcessorComponent for ProcessorExpression {
             .get_compiled_expression(ProcessorExpressionLocation::new(processor_id, self.id))
             .unwrap();
         CompiledExpression::new(self.id, function, self.scope.clone())
+    }
+}
+
+impl Stashable for ProcessorExpression {
+    fn stash(&self, stasher: &mut Stasher) {
+        println!("TODO: stash expressions");
     }
 }

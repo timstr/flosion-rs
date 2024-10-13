@@ -232,13 +232,10 @@ impl GlobalInteractions {
                 ui.add(SummonWidget::new(summon_widget));
 
                 if let Some((object_type, args)) = summon_widget.final_choice() {
-                    let new_obj =
-                        factories
-                            .sound_objects()
-                            .create(object_type.name(), graph, &args);
+                    let new_obj = factories.sound_objects().create(object_type.name(), &args);
 
                     let object_ui = factories.sound_uis().get(new_obj.get_dynamic_type());
-                    let state = object_ui.make_ui_state(new_obj, &args).unwrap();
+                    let state = object_ui.make_ui_state(&*new_obj, &args).unwrap();
 
                     object_states.set_object_data(new_obj.id(), state);
 
@@ -251,6 +248,8 @@ impl GlobalInteractions {
                             pos,
                         ),
                     }
+
+                    graph.add_sound_processor(new_obj.into_boxed_sound_processor().unwrap());
 
                     self.mode = UiMode::Passive;
                 } else if summon_widget.was_cancelled() {

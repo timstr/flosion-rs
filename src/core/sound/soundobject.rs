@@ -2,10 +2,10 @@ use std::{any::Any, collections::HashMap};
 
 use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
-use super::{soundgraph::SoundGraph, soundgraphid::SoundObjectId};
+use super::{soundgraphid::SoundObjectId, soundprocessor::AnySoundProcessor};
 
 pub trait SoundGraphObject {
-    fn create<'a>(graph: &'a mut SoundGraph, args: &ParsedArguments) -> &'a mut Self
+    fn create<'a>(args: &ParsedArguments) -> Self
     where
         Self: Sized;
 
@@ -19,6 +19,10 @@ pub trait SoundGraphObject {
 
     fn friendly_name(&self) -> String;
 
+    fn as_sound_processor(&self) -> Option<&dyn AnySoundProcessor>;
+    fn into_boxed_sound_processor(self: Box<Self>) -> Option<Box<dyn AnySoundProcessor>>;
+
+    // Are these needed?
     fn as_any(&self) -> &dyn Any;
     fn as_mut_any(&mut self) -> &mut dyn Any;
 
@@ -26,13 +30,12 @@ pub trait SoundGraphObject {
     fn get_language_type_name(&self) -> &'static str;
 }
 
-struct SoundObjectData {
-    create:
-        Box<dyn for<'a> Fn(&'a mut SoundGraph, &ParsedArguments) -> &'a mut dyn SoundGraphObject>,
+struct SoundObjectCreator {
+    create: Box<dyn Fn(&ParsedArguments) -> Box<dyn SoundGraphObject>>,
 }
 
 pub struct SoundObjectFactory {
-    mapping: HashMap<&'static str, SoundObjectData>,
+    mapping: HashMap<&'static str, SoundObjectCreator>,
 }
 
 impl SoundObjectFactory {
@@ -43,29 +46,21 @@ impl SoundObjectFactory {
     }
 
     pub fn register<T: 'static + SoundGraphObject>(&mut self) {
-        fn create<'a, T2: 'static + SoundGraphObject>(
-            g: &'a mut SoundGraph,
-            args: &ParsedArguments,
-        ) -> &'a mut dyn SoundGraphObject {
-            T2::create(g, args)
-        }
-
         self.mapping.insert(
             T::get_type().name(),
-            SoundObjectData {
-                create: Box::new(create::<T>),
+            SoundObjectCreator {
+                create: Box::new(|args| Box::new(T::create(args))),
             },
         );
     }
 
-    pub(crate) fn create<'a>(
+    pub(crate) fn create(
         &self,
         object_type_str: &str,
-        graph: &'a mut SoundGraph,
         args: &ParsedArguments,
-    ) -> &'a mut dyn SoundGraphObject {
+    ) -> Box<dyn SoundGraphObject> {
         match self.mapping.get(object_type_str) {
-            Some(data) => (*data.create)(graph, args),
+            Some(data) => (*data.create)(args),
             None => panic!(
                 "Tried to create a sound object of unrecognized type \"{}\"",
                 object_type_str

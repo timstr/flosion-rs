@@ -1,3 +1,5 @@
+use hashstash::{Stashable, Stasher};
+
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
@@ -11,9 +13,8 @@ use crate::{
             soundinput::InputOptions,
             soundinputtypes::SingleInput,
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessorId, StreamStatus, CompiledSoundProcessor,
-                SoundProcessor,
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StreamStatus,
             },
             state::State,
         },
@@ -309,4 +310,14 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
 
 impl WithObjectType for ADSR {
     const TYPE: ObjectType = ObjectType::new("adsr");
+}
+
+impl Stashable for ADSR {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.input);
+        stasher.object(&self.attack_time);
+        stasher.object(&self.decay_time);
+        stasher.object(&self.sustain_level);
+        stasher.object(&self.release_time);
+    }
 }

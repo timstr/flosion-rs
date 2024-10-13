@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use hashstash::{Stashable, Stasher};
+
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     soundchunk::SoundChunk,
@@ -7,7 +9,9 @@ use crate::core::{
 
 use super::{
     context::{Context, LocalArrayList, ProcessorFrameData},
-    soundinput::{InputOptions, InputTiming, BasicProcessorInput, ProcessorInputId, SoundInputBranchId},
+    soundinput::{
+        BasicProcessorInput, InputOptions, InputTiming, ProcessorInputId, SoundInputBranchId,
+    },
     soundprocessor::{
         CompiledProcessorComponent, ProcessorComponent, ProcessorComponentVisitor,
         ProcessorComponentVisitorMut, SoundProcessorId, StreamStatus,
@@ -50,6 +54,12 @@ impl ProcessorComponent for SingleInput {
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
         SingleInputNode::new(self.input.compile(processor_id, compiler))
+    }
+}
+
+impl Stashable for SingleInput {
+    fn stash(&self, stasher: &mut Stasher) {
+        self.input.stash(stasher);
     }
 }
 

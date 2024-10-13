@@ -1,3 +1,4 @@
+use hashstash::{Stashable, Stasher};
 use rand::prelude::*;
 
 use crate::{
@@ -20,7 +21,7 @@ use crate::{
             soundprocessor::{
                 CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
                 ProcessorComponentVisitorMut, ProcessorTiming, SoundProcessor, SoundProcessorId,
-                StreamStatus,
+                SoundProcessorWithId, StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -99,6 +100,12 @@ impl WithObjectType for TestSoundProcessor {
     const TYPE: ObjectType = ObjectType::new("testsoundprocessor");
 }
 
+impl Stashable for TestSoundProcessor {
+    fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
+}
+
 macro_rules! assert_near {
     ($expected: expr, $actual: expr) => {
         if ($expected).is_nan() {
@@ -124,52 +131,54 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     input_ranges: &[(f32, f32)],
     test_function: F,
 ) {
-    let mut graph = SoundGraph::new();
-
-    let proc = graph.add_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty());
+    let mut proc = SoundProcessorWithId::<TestSoundProcessor>::new_default();
 
     let proc_id = proc.id();
 
-    {
-        let arg0_id = proc.argument_0.id();
-        let arg1_id = proc.argument_1.id();
-        let arg2_id = proc.argument_2.id();
+    let arg0_id = proc.argument_0.id();
+    let arg1_id = proc.argument_1.id();
+    let arg2_id = proc.argument_2.id();
 
-        let giid0 = proc.expression.add_argument(ArgumentLocation::Processor(
-            ProcessorArgumentLocation::new(proc_id, arg0_id),
-        ));
-        let giid1 = proc.expression.add_argument(ArgumentLocation::Processor(
-            ProcessorArgumentLocation::new(proc_id, arg1_id),
-        ));
-        let giid2 = proc.expression.add_argument(ArgumentLocation::Processor(
-            ProcessorArgumentLocation::new(proc_id, arg2_id),
-        ));
+    let giid0 =
+        proc.expression
+            .add_argument(ArgumentLocation::Processor(ProcessorArgumentLocation::new(
+                proc_id, arg0_id,
+            )));
+    let giid1 =
+        proc.expression
+            .add_argument(ArgumentLocation::Processor(ProcessorArgumentLocation::new(
+                proc_id, arg1_id,
+            )));
+    let giid2 =
+        proc.expression
+            .add_argument(ArgumentLocation::Processor(ProcessorArgumentLocation::new(
+                proc_id, arg2_id,
+            )));
 
-        let expr_graph = proc.expression.graph_mut();
+    let expr_graph = proc.expression.graph_mut();
 
-        let ns_handle = expr_graph
-            .add_pure_expression_node::<T>(&ParsedArguments::new_empty())
-            .unwrap();
+    let ns_handle = expr_graph
+        .add_pure_expression_node::<T>(&ParsedArguments::new_empty())
+        .unwrap();
 
-        let input_ids = expr_graph.node(ns_handle.id()).unwrap().inputs().to_vec();
+    let input_ids = expr_graph.node(ns_handle.id()).unwrap().inputs().to_vec();
 
-        if input_ids.len() > 3 {
-            panic!("An expression node has more than three inputs and not all are being tested");
-        }
+    if input_ids.len() > 3 {
+        panic!("An expression node has more than three inputs and not all are being tested");
+    }
 
-        for (niid, giid) in input_ids.into_iter().zip([giid0, giid1, giid2]) {
-            expr_graph
-                .connect_node_input(niid, ExpressionTarget::Parameter(giid))
-                .unwrap();
-        }
-
+    for (niid, giid) in input_ids.into_iter().zip([giid0, giid1, giid2]) {
         expr_graph
-            .connect_result(
-                expr_graph.results()[0].id(),
-                ExpressionTarget::Node(ns_handle.id()),
-            )
+            .connect_node_input(niid, ExpressionTarget::Parameter(giid))
             .unwrap();
     }
+
+    expr_graph
+        .connect_result(
+            expr_graph.results()[0].id(),
+            ExpressionTarget::Node(ns_handle.id()),
+        )
+        .unwrap();
 
     //------------------------
 
@@ -179,16 +188,19 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let mut compiled_expression;
 
+    let location = ProcessorExpressionLocation::new(proc_id, proc.expression.id());
+
+    let mut graph = SoundGraph::new();
+    graph.add_sound_processor(Box::new(proc));
+
     // get non-mut reference to processor to allow using other parts of soundgraph
-    let proc = graph
-        .sound_processor(proc_id)
-        .unwrap()
-        .downcast::<TestSoundProcessor>()
-        .unwrap();
+    // let proc = graph
+    //     .sound_processor(proc_id)
+    //     .unwrap()
+    //     .downcast::<TestSoundProcessor>()
+    //     .unwrap();
 
     jit_cache.refresh(&graph);
-
-    let location = ProcessorExpressionLocation::new(proc_id, proc.expression.id());
 
     compiled_expression = jit_cache.get_compiled_expression(location).unwrap();
 
@@ -224,10 +236,6 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     // test compiled evaluation
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];
-
-    let arg0_id = proc.argument_0.id();
-    let arg1_id = proc.argument_1.id();
-    let arg2_id = proc.argument_2.id();
 
     compiled_expression.eval(
         &mut actual_values_compiled,

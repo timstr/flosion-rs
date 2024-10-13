@@ -6,11 +6,10 @@ use crate::{
         sound::{
             expression::{ProcessorExpression, ProcessorExpressionLocation},
             soundgraph::SoundGraph,
-            soundprocessor::SoundProcessorId,
+            soundprocessor::{SoundProcessorId, SoundProcessorWithId},
         },
     },
     objects::audioclip::AudioClip,
-    ui_core::arguments::ParsedArguments,
 };
 
 use super::{
@@ -103,9 +102,9 @@ impl SoundGraphUiState {
             let path = dropped_file.path.as_ref().unwrap();
             println!("Loading {}", path.display());
             if let Ok(buf) = load_audio_file(path) {
-                let audioclip =
-                    graph.add_sound_processor::<AudioClip>(&ParsedArguments::new_empty());
+                let audioclip = SoundProcessorWithId::<AudioClip>::new_default();
                 audioclip.set_data(buf);
+                graph.add_sound_processor(Box::new(audioclip));
                 println!("Loaded {}", path.display());
             } else {
                 println!("Failed to load {}", path.display());

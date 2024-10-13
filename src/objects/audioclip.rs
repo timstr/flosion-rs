@@ -1,5 +1,6 @@
 use std::{ops::Deref, sync::Arc};
 
+use hashstash::{Stashable, Stasher};
 use parking_lot::RwLock;
 
 use crate::{
@@ -10,8 +11,8 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
-                StreamStatus, CompiledSoundProcessor, SoundProcessor,
+                CompiledSoundProcessor, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StreamStatus,
             },
             state::State,
         },
@@ -130,4 +131,10 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledAudioclip {
 
 impl WithObjectType for AudioClip {
     const TYPE: ObjectType = ObjectType::new("audioclip");
+}
+
+impl Stashable for AudioClip {
+    fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
 }

@@ -4,6 +4,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     BufferSize, SampleRate, StreamConfig,
 };
+use hashstash::{Stashable, Stasher};
 use spmcq::ReadResult;
 
 use crate::{
@@ -14,8 +15,8 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
-                StreamStatus, CompiledSoundProcessor, SoundProcessor,
+                CompiledSoundProcessor, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -154,4 +155,10 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledInput {
 
 impl WithObjectType for Input {
     const TYPE: ObjectType = ObjectType::new("input");
+}
+
+impl Stashable for Input {
+    fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
 }

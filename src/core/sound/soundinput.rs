@@ -1,3 +1,5 @@
+use hashstash::{Stashable, Stasher};
+
 use crate::core::{
     engine::{
         soundgraphcompiler::SoundGraphCompiler,
@@ -201,5 +203,23 @@ impl BasicProcessorInput {
         };
         let location = SoundInputLocation::new(processor_id, self.id);
         CompiledSoundInputBranch::new(location, target)
+    }
+}
+
+impl Stashable for BasicProcessorInput {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.u64(self.id.value() as _);
+        stasher.u8(match self.options {
+            InputOptions::Synchronous => 0,
+            InputOptions::NonSynchronous => 1,
+        });
+        stasher.array_of_u64_iter(self.branches.iter().map(|i| i.value() as u64));
+        match self.target {
+            Some(spid) => {
+                stasher.u8(1);
+                stasher.u64(spid.value() as _);
+            }
+            None => stasher.u8(0),
+        }
     }
 }
