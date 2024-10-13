@@ -1,13 +1,15 @@
-use std::{any::Any, collections::HashMap, rc::Rc};
+use std::{any::Any, collections::HashMap};
 
 use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
 use super::{soundgraph::SoundGraph, soundgraphid::SoundObjectId};
 
 pub trait SoundGraphObject {
-    fn create(graph: &mut SoundGraph, args: &ParsedArguments) -> Result<AnySoundObjectHandle, ()>
+    fn create<'a>(graph: &'a mut SoundGraph, args: &ParsedArguments) -> &'a mut Self
     where
         Self: Sized;
+
+    fn id(&self) -> SoundObjectId;
 
     fn get_type() -> ObjectType
     where
@@ -15,47 +17,18 @@ pub trait SoundGraphObject {
 
     fn get_dynamic_type(&self) -> ObjectType;
 
-    fn get_id(&self) -> SoundObjectId;
-    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn friendly_name(&self) -> String;
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_mut_any(&mut self) -> &mut dyn Any;
+
+    // TODO: remove, this was only made to debug Any downcasts
     fn get_language_type_name(&self) -> &'static str;
 }
 
-// TODO: this is used exclusively for looking up processor types from handles and for
-// downcasting type-erased handles. Rename it to something more suitable
-pub trait SoundObjectHandle: Sized {
-    // TODO: consider renaming this
-    type ObjectType: SoundGraphObject;
-
-    fn from_graph_object(object: AnySoundObjectHandle) -> Option<Self>;
-
-    fn object_type() -> ObjectType;
-}
-
-#[derive(Clone)]
-pub struct AnySoundObjectHandle {
-    instance: Rc<dyn SoundGraphObject>,
-}
-
-impl AnySoundObjectHandle {
-    pub(crate) fn new(instance: Rc<dyn SoundGraphObject>) -> Self {
-        Self { instance }
-    }
-
-    pub(crate) fn id(&self) -> SoundObjectId {
-        self.instance.get_id()
-    }
-
-    pub(crate) fn get_type(&self) -> ObjectType {
-        self.instance.get_dynamic_type()
-    }
-
-    pub(crate) fn into_instance_rc(self) -> Rc<dyn SoundGraphObject> {
-        self.instance
-    }
-}
-
 struct SoundObjectData {
-    create: Box<dyn Fn(&mut SoundGraph, &ParsedArguments) -> Result<AnySoundObjectHandle, ()>>,
+    create:
+        Box<dyn for<'a> Fn(&'a mut SoundGraph, &ParsedArguments) -> &'a mut dyn SoundGraphObject>,
 }
 
 pub struct SoundObjectFactory {
@@ -69,24 +42,28 @@ impl SoundObjectFactory {
         }
     }
 
-    pub fn register<T: SoundGraphObject>(&mut self) {
-        let create = |g: &mut SoundGraph,
-                      args: &ParsedArguments|
-         -> Result<AnySoundObjectHandle, ()> { T::create(g, args) };
+    pub fn register<T: 'static + SoundGraphObject>(&mut self) {
+        fn create<'a, T2: 'static + SoundGraphObject>(
+            g: &'a mut SoundGraph,
+            args: &ParsedArguments,
+        ) -> &'a mut dyn SoundGraphObject {
+            T2::create(g, args)
+        }
+
         self.mapping.insert(
             T::get_type().name(),
             SoundObjectData {
-                create: Box::new(create),
+                create: Box::new(create::<T>),
             },
         );
     }
 
-    pub(crate) fn create(
+    pub(crate) fn create<'a>(
         &self,
         object_type_str: &str,
-        graph: &mut SoundGraph,
+        graph: &'a mut SoundGraph,
         args: &ParsedArguments,
-    ) -> Result<AnySoundObjectHandle, ()> {
+    ) -> &'a mut dyn SoundGraphObject {
         match self.mapping.get(object_type_str) {
             Some(data) => (*data.create)(graph, args),
             None => panic!(

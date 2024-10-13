@@ -126,15 +126,11 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 ) {
     let mut graph = SoundGraph::new();
 
-    let proc = graph
-        .add_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty())
-        .unwrap();
+    let proc = graph.add_sound_processor::<TestSoundProcessor>(&ParsedArguments::new_empty());
 
     let proc_id = proc.id();
 
     {
-        let mut proc = proc.get_mut();
-
         let arg0_id = proc.argument_0.id();
         let arg1_id = proc.argument_1.id();
         let arg2_id = proc.argument_2.id();
@@ -179,22 +175,22 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let inkwell_context = inkwell::context::Context::create();
 
-    let jit_cache = JitCache::new(&inkwell_context);
+    let mut jit_cache = JitCache::new(&inkwell_context);
 
     let mut compiled_expression;
 
-    {
-        let proc = proc.get();
+    // get non-mut reference to processor to allow using other parts of soundgraph
+    let proc = graph
+        .sound_processor(proc_id)
+        .unwrap()
+        .downcast::<TestSoundProcessor>()
+        .unwrap();
 
-        let location = ProcessorExpressionLocation::new(proc_id, proc.expression.id());
+    jit_cache.refresh(&graph);
 
-        compiled_expression = jit_cache.get_compiled_expression(
-            location,
-            proc.expression.graph(),
-            proc.expression.mapping(),
-            &graph,
-        );
-    }
+    let location = ProcessorExpressionLocation::new(proc_id, proc.expression.id());
+
+    compiled_expression = jit_cache.get_compiled_expression(location).unwrap();
 
     let scratch_arena = ScratchArena::new();
     let stack = Stack::Root;
@@ -229,7 +225,6 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     // test compiled evaluation
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];
 
-    let proc = proc.get();
     let arg0_id = proc.argument_0.id();
     let arg1_id = proc.argument_1.id();
     let arg2_id = proc.argument_2.id();

@@ -2,14 +2,13 @@ use eframe::egui;
 
 use crate::{
     core::sound::{
-        expression::{ProcessorExpression, ProcessorExpressionLocation},
+        expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
         expressionargument::{
             ArgumentLocation, ProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation,
             SoundInputArgument, SoundInputArgumentId, SoundInputArgumentLocation,
         },
-        soundgraph::SoundGraph,
         soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
-        soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
+        soundprocessor::{ProcessorComponentVisitor, SoundProcessor, SoundProcessorId},
     },
     ui_core::soundgraphuinames::SoundGraphUiNames,
 };
@@ -19,10 +18,11 @@ use super::{
     soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
 };
 
-pub struct ProcessorUi<'a> {
+pub struct ProcessorUi {
+    // TODO: remove?
     processor_id: SoundProcessorId,
     label: &'static str,
-    expressions: Vec<(&'a mut ProcessorExpression, String, PlotConfig)>,
+    expressions: Vec<(ProcessorExpressionId, String, PlotConfig)>,
     arguments: Vec<(ArgumentLocation, String)>,
     sound_inputs: Vec<(SoundInputLocation, String)>,
 }
@@ -32,8 +32,8 @@ struct ProcessorUiProps {
     origin: egui::Pos2,
 }
 
-impl<'a> ProcessorUi<'a> {
-    pub fn new(processor_id: SoundProcessorId, label: &'static str) -> ProcessorUi<'a> {
+impl ProcessorUi {
+    pub fn new(processor_id: SoundProcessorId, label: &'static str) -> ProcessorUi {
         ProcessorUi {
             processor_id,
             label,
@@ -53,11 +53,11 @@ impl<'a> ProcessorUi<'a> {
 
     pub fn add_expression(
         mut self,
-        expr: &'a mut ProcessorExpression,
+        expr: &ProcessorExpression,
         label: impl Into<String>,
         config: PlotConfig,
     ) -> Self {
-        self.expressions.push((expr, label.into(), config));
+        self.expressions.push((expr.id(), label.into(), config));
         self
     }
 
@@ -82,28 +82,31 @@ impl<'a> ProcessorUi<'a> {
         self
     }
 
-    pub fn show(
+    pub fn show<T: SoundProcessor>(
         self,
+        processor: &mut T,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
-        sound_graph: &mut SoundGraph,
     ) {
         self.show_with(
+            processor,
             ui,
             ctx,
             ui_state,
-            sound_graph,
-            |_ui, _ui_state, _sound_graph| {},
+            |_processor, _ui, _ui_state| {},
         );
     }
 
-    pub fn show_with<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(
+    pub fn show_with<
+        T: SoundProcessor,
+        F: FnOnce(&mut T, &mut egui::Ui, &mut SoundGraphUiState),
+    >(
         mut self,
+        processor: &mut T,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
-        sound_graph: &mut SoundGraph,
         add_contents: F,
     ) {
         for (nsid, name) in &self.arguments {
@@ -174,19 +177,17 @@ impl<'a> ProcessorUi<'a> {
                 }
             }
 
-            let proc_data = sound_graph.sound_processor(self.processor_id).unwrap();
-
             let mut visitor = MissingNameVisitor {
                 names: ui_state.names(),
-                processor_id: proc_data.id(),
-                friendly_processor_name: proc_data.friendly_name(),
+                processor_id: processor.id(),
+                friendly_processor_name: processor.as_graph_object().friendly_name(),
             };
 
-            proc_data.instance().visit(&mut visitor);
+            processor.visit(&mut visitor);
         }
 
         let r = ui.push_id(self.processor_id, |ui| {
-            self.show_with_impl(ui, ctx, ui_state, sound_graph, add_contents);
+            self.show_with_impl(processor, ui, ctx, ui_state, add_contents);
         });
 
         ui_state.positions_mut().record_processor(
@@ -196,12 +197,15 @@ impl<'a> ProcessorUi<'a> {
         );
     }
 
-    fn show_with_impl<F: FnOnce(&mut egui::Ui, &mut SoundGraphUiState, &mut SoundGraph)>(
+    fn show_with_impl<
+        T: SoundProcessor,
+        F: FnOnce(&mut T, &mut egui::Ui, &mut SoundGraphUiState),
+    >(
         &mut self,
+        processor: &mut T,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         ui_state: &mut SoundGraphUiState,
-        sound_graph: &mut SoundGraph,
         add_contents: F,
     ) {
         // Clip to the entire screen, not just outside the area
@@ -242,15 +246,14 @@ impl<'a> ProcessorUi<'a> {
                 ui.set_width(desired_width);
 
                 // Show all expressions in order
-                for (expr, input_label, config) in &mut self.expressions {
+                for (expr_id, input_label, config) in &mut self.expressions {
                     Self::show_expression(
-                        self.processor_id,
+                        processor,
                         ui,
                         ctx,
-                        *expr,
+                        *expr_id,
                         input_label,
                         ui_state,
-                        sound_graph,
                         config,
                     );
                 }
@@ -287,7 +290,7 @@ impl<'a> ProcessorUi<'a> {
                 });
 
                 // Add any per-processor custom contents
-                add_contents(ui, ui_state, sound_graph);
+                add_contents(processor, ui, ui_state);
 
                 // Check for interactions with the background of the
                 // processor so that it can be dragged
@@ -343,13 +346,12 @@ impl<'a> ProcessorUi<'a> {
     }
 
     fn show_expression(
-        processor_id: SoundProcessorId,
+        processor: &mut dyn SoundProcessor,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        expr: &mut ProcessorExpression,
+        expr_id: ProcessorExpressionId,
         expr_label: &str,
         ui_state: &mut SoundGraphUiState,
-        sound_graph: &mut SoundGraph,
         plot_config: &PlotConfig,
     ) {
         let fill = egui::Color32::from_black_alpha(64);
@@ -359,21 +361,17 @@ impl<'a> ProcessorUi<'a> {
             .inner_margin(egui::vec2(5.0, 5.0))
             .stroke(egui::Stroke::new(2.0, egui::Color32::from_black_alpha(128)));
 
-        let location = ProcessorExpressionLocation::new(processor_id, expr.id());
+        let location = ProcessorExpressionLocation::new(processor.id(), expr_id);
 
         let r = expr_frame.show(ui, |ui| {
             ui_state
                 .names_mut()
                 .record_expression_name(location, expr_label.to_string());
 
-            ui_state.show_expression_graph_ui(
-                processor_id,
-                expr,
-                sound_graph,
-                ctx,
-                plot_config,
-                ui,
-            );
+            let processor_id = processor.id();
+            processor.with_expression_mut(expr_id, |expr| {
+                ui_state.show_expression_graph_ui(processor_id, expr, ctx, plot_config, ui);
+            });
         });
 
         // Track the expression's position

@@ -92,7 +92,7 @@ fn compute_implied_processor_allocations(
         allocations: &mut HashMap<SoundProcessorId, ProcessorAllocation>,
     ) {
         let proc_data = graph.sound_processor(processor_id).unwrap();
-        let is_static = proc_data.instance().is_static();
+        let is_static = proc_data.is_static();
 
         match allocations.entry(processor_id) {
             Entry::Occupied(mut entry) => {
@@ -179,7 +179,7 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
     for (proc_id, allocation) in &allocations {
         let proc_data = graph.sound_processor(*proc_id).unwrap();
 
-        if proc_data.instance().is_static() {
+        if proc_data.is_static() {
             // Static processors must always be sync
             if !allocation.always_sync {
                 return Some(SoundError::StaticNotSynchronous(*proc_id));
@@ -277,7 +277,7 @@ pub(crate) fn available_sound_expression_arguments(
     let mut available_arguments_by_processor: HashMap<SoundProcessorId, HashSet<ArgumentLocation>> =
         HashMap::new();
     for proc_data in graph.sound_processors().values() {
-        if proc_data.instance().is_static() {
+        if proc_data.is_static() {
             let mut static_args = HashSet::<ArgumentLocation>::new();
             proc_data.foreach_processor_argument(|_, location| {
                 static_args.insert(ArgumentLocation::Processor(location));

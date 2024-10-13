@@ -144,7 +144,7 @@ impl SoundGraphUiNames {
                 names: self,
                 processor_id: proc_data.id(),
             };
-            proc_data.instance().visit(&mut visitor);
+            proc_data.visit(&mut visitor);
         }
     }
 

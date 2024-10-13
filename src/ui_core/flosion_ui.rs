@@ -160,6 +160,8 @@ impl<'ctx> FlosionApp<'ctx> {
     fn cleanup(&mut self) {
         self.properties.refresh(&self.graph);
 
+        self.jit_cache.refresh(&self.graph);
+
         let current_revision = ObjectHash::from_stashable(&self.graph);
 
         if self.previous_clean_revision != Some(current_revision) {

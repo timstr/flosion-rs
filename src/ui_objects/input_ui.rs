@@ -2,7 +2,7 @@ use eframe::egui;
 
 use crate::{
     core::{
-        sound::{soundgraph::SoundGraph, soundprocessor::WhateverSoundProcessorHandle},
+        sound::soundprocessor::WhateverSoundProcessorWithId,
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
     objects::input::Input,
@@ -41,27 +41,26 @@ impl InputUi {
 }
 
 impl SoundObjectUi for InputUi {
-    type HandleType = WhateverSoundProcessorHandle<Input>;
+    type ObjectType = WhateverSoundProcessorWithId<Input>;
     type StateType = InputUiState;
     fn ui(
         &self,
-        input: WhateverSoundProcessorHandle<Input>,
+        input: &mut WhateverSoundProcessorWithId<Input>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         state: &mut InputUiState,
-        sound_graph: &mut SoundGraph,
     ) {
         Self::update_amplitude_history(state);
 
         // TODO: controls for choosing input device?
         // Would require changes to input
         ProcessorUi::new(input.id(), "Input").show_with(
+            input,
             ui,
             ctx,
             graph_ui_state,
-            sound_graph,
-            |ui, _ui_state, _sound_graph| {
+            |_input, ui, _ui_state| {
                 let (_, rect) = ui.allocate_space(egui::vec2(100.0, 100.0));
                 let painter = ui.painter();
                 painter.rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
@@ -98,13 +97,13 @@ impl SoundObjectUi for InputUi {
 
     fn make_ui_state(
         &self,
-        handle: &Self::HandleType,
+        audioclip: &Self::ObjectType,
         _args: &ParsedArguments,
     ) -> Result<InputUiState, ()> {
         let mut amplitude_history = Vec::new();
         amplitude_history.resize(100, 0.0);
         Ok(InputUiState {
-            buffer_reader: handle.get().get_buffer_reader(),
+            buffer_reader: audioclip.get_buffer_reader(),
             amplitude_history,
         })
     }

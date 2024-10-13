@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use hashstash::{Order, Stashable};
 
@@ -6,19 +6,16 @@ use crate::ui_core::arguments::ParsedArguments;
 
 use super::{
     sounderror::SoundError,
-    soundgraphdata::SoundProcessorData,
     soundgraphid::{SoundGraphComponentLocation, SoundObjectId},
     soundgraphvalidation::find_sound_error,
     soundinput::{BasicProcessorInput, SoundInputLocation},
     soundprocessor::{
-        SoundProcessorId, WhateverSoundProcessor, WhateverSoundProcessorHandle,
-        WhateverSoundProcessorWithId,
+        SoundProcessor, SoundProcessorId, WhateverSoundProcessor, WhateverSoundProcessorWithId,
     },
 };
 
-#[derive(Clone)]
 pub struct SoundGraph {
-    sound_processors: HashMap<SoundProcessorId, SoundProcessorData>,
+    sound_processors: HashMap<SoundProcessorId, Box<dyn SoundProcessor>>,
 }
 
 impl SoundGraph {
@@ -29,20 +26,26 @@ impl SoundGraph {
     }
 
     /// Access the set of sound processors stored in the graph
-    pub(crate) fn sound_processors(&self) -> &HashMap<SoundProcessorId, SoundProcessorData> {
+    pub(crate) fn sound_processors(&self) -> &HashMap<SoundProcessorId, Box<dyn SoundProcessor>> {
         &self.sound_processors
     }
 
     /// Look up a specific sound processor by its id
-    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&SoundProcessorData> {
-        self.sound_processors.get(&id)
+    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&dyn SoundProcessor> {
+        match self.sound_processors.get(&id) {
+            Some(p) => Some(&**p),
+            None => None,
+        }
     }
 
     pub(crate) fn sound_processor_mut(
         &mut self,
         id: SoundProcessorId,
-    ) -> Option<&mut SoundProcessorData> {
-        self.sound_processors.get_mut(&id)
+    ) -> Option<&mut dyn SoundProcessor> {
+        match self.sound_processors.get_mut(&id) {
+            Some(p) => Some(&mut **p),
+            None => None,
+        }
     }
 
     // TODO: rename to e.g. inputs_connected_to
@@ -76,24 +79,22 @@ impl SoundGraph {
     /// The type must be known statically and given.
     /// For other ways of creating a sound processor,
     /// see ObjectFactory.
-    pub fn add_sound_processor<T: 'static + WhateverSoundProcessor>(
-        &mut self,
+    pub fn add_sound_processor<'a, T: 'static + WhateverSoundProcessor>(
+        &'a mut self,
         args: &ParsedArguments,
-    ) -> Result<WhateverSoundProcessorHandle<T>, SoundError> {
+    ) -> &'a mut WhateverSoundProcessorWithId<T> {
         let id = SoundProcessorId::new_unique();
 
         // construct the actual processor instance by its
         // concrete type
         let processor = T::new(args);
 
-        // wrap the processor in a type-erased Rc
-        let processor = Rc::new(WhateverSoundProcessorWithId::new(processor, id));
-        let processor2 = Rc::clone(&processor);
+        // wrap the processor in a type-erased Box
+        let processor = Box::new(WhateverSoundProcessorWithId::new(processor, id));
 
-        self.sound_processors
-            .insert(id, SoundProcessorData::new(id, processor));
+        let processor = self.sound_processors.entry(id).or_insert(processor);
 
-        Ok(WhateverSoundProcessorHandle::new(processor2))
+        processor.as_mut_any().downcast_mut().unwrap()
     }
 
     pub fn remove_sound_processor(
@@ -209,7 +210,7 @@ impl SoundGraph {
                 e.explain(self)
             );
         }
-        let previous_graph = self.clone();
+        let previous_graph = todo!(); // self.clone();
         let res = f(self);
         if res.is_err() {
             *self = previous_graph;

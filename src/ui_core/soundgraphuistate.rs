@@ -103,10 +103,9 @@ impl SoundGraphUiState {
             let path = dropped_file.path.as_ref().unwrap();
             println!("Loading {}", path.display());
             if let Ok(buf) = load_audio_file(path) {
-                let audioclip = graph
-                    .add_sound_processor::<AudioClip>(&ParsedArguments::new_empty())
-                    .unwrap();
-                audioclip.get_mut().set_data(buf);
+                let audioclip =
+                    graph.add_sound_processor::<AudioClip>(&ParsedArguments::new_empty());
+                audioclip.set_data(buf);
                 println!("Loaded {}", path.display());
             } else {
                 println!("Failed to load {}", path.display());
@@ -159,7 +158,6 @@ impl SoundGraphUiState {
         &mut self,
         processor_id: SoundProcessorId,
         expr: &mut ProcessorExpression,
-        sound_graph: &SoundGraph,
         ctx: &SoundGraphUiContext,
         plot_config: &PlotConfig,
         ui: &mut egui::Ui,
@@ -193,7 +191,6 @@ impl SoundGraphUiState {
             expr_graph,
             &outer_ctx.into(),
             plot_config,
-            sound_graph,
         );
     }
 }

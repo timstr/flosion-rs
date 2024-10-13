@@ -151,7 +151,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        self.current_graph = new_graph.clone();
+        self.current_graph = todo!(); //new_graph.clone();
         self.current_hash = new_revision;
 
         Ok(())

@@ -7,7 +7,8 @@ use crate::{
     core::{
         jit::cache::JitCache,
         sound::{
-            soundgraph::SoundGraph, soundinput::InputOptions, soundprocessor::SoundProcessorId,
+            soundgraph::SoundGraph, soundinput::InputOptions, soundobject::SoundGraphObject,
+            soundprocessor::SoundProcessorId,
         },
     },
     ui_core::{
@@ -214,7 +215,7 @@ impl StackedGroup {
                         let mut top_of_stack = true;
 
                         for spid in &self.processors {
-                            let processor_data = graph.sound_processor(*spid).unwrap();
+                            let processor_data = graph.sound_processor_mut(*spid).unwrap();
 
                             let inputs = processor_data.input_locations();
 
@@ -224,19 +225,22 @@ impl StackedGroup {
                             if inputs.is_empty() {
                                 self.draw_barrier(ui);
                             } else {
-                                for input_id in inputs {
-                                    let input_socket = graph
-                                        .with_sound_input(input_id, |input| {
-                                            InputSocket::from_input_data(
-                                                input_id.processor(),
-                                                input,
+                                for input_loc in inputs {
+                                    let (input_socket, target) = processor_data
+                                        .with_input(input_loc.input(), |input| {
+                                            (
+                                                InputSocket::from_input_data(
+                                                    input_loc.processor(),
+                                                    input,
+                                                ),
+                                                input.target(),
                                             )
                                         })
                                         .unwrap();
                                     self.draw_input_socket(
                                         ui,
                                         ui_state,
-                                        graph,
+                                        target,
                                         input_socket,
                                         processor_color,
                                         top_of_stack,
@@ -246,7 +250,8 @@ impl StackedGroup {
 
                             top_of_stack = false;
 
-                            let object = processor_data.instance_rc().as_graph_object();
+                            let object: &mut dyn SoundGraphObject =
+                                processor_data.as_graph_object_mut();
                             let ctx = SoundGraphUiContext::new(
                                 factories,
                                 self.time_axis,
@@ -256,14 +261,7 @@ impl StackedGroup {
                                 jit_cache,
                             );
 
-                            show_sound_object_ui(
-                                factories.sound_uis(),
-                                &object,
-                                ui_state,
-                                ui,
-                                &ctx,
-                                graph,
-                            );
+                            show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
 
                             let processor_data = graph.sound_processor(*spid).unwrap();
                             self.draw_processor_plug(
@@ -367,7 +365,7 @@ impl StackedGroup {
         &self,
         ui: &mut egui::Ui,
         ui_state: &mut SoundGraphUiState,
-        graph: &SoundGraph,
+        target: Option<SoundProcessorId>,
         socket: InputSocket,
         color: egui::Color32,
         top_of_stack: bool,
@@ -379,10 +377,7 @@ impl StackedGroup {
                 egui::vec2(self.width_pixels as f32, Self::PLUG_HEIGHT),
                 egui::Sense::hover(),
             );
-            if let Some(target_spid) = graph
-                .with_sound_input(socket.location, |i| i.target())
-                .unwrap()
-            {
+            if let Some(target_spid) = target {
                 let jumper_color = ui_state
                     .object_states()
                     .get_object_color(target_spid.into());

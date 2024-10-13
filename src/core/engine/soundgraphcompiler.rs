@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use crate::core::{
     jit::{cache::JitCache, compiledexpression::CompiledExpressionFunction},
     sound::{
-        expression::{ProcessorExpression, ProcessorExpressionLocation},
-        soundgraph::SoundGraph,
+        expression::ProcessorExpressionLocation, soundgraph::SoundGraph,
         soundprocessor::SoundProcessorId,
     },
 };
@@ -54,11 +53,11 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         processor_id: SoundProcessorId,
     ) -> StateGraphNodeValue<'ctx> {
         let proc = self.graph.sound_processor(processor_id).unwrap();
-        if proc.instance().is_static() {
+        if proc.is_static() {
             if let Some(node) = self.static_processor_nodes.get(&processor_id) {
                 StateGraphNodeValue::Shared(node.clone())
             } else {
-                let node = SharedCompiledProcessor::new(proc.instance().compile(self));
+                let node = SharedCompiledProcessor::new(proc.compile(self));
                 self.static_processor_nodes
                     .insert(processor_id, node.clone());
                 StateGraphNodeValue::Shared(node)
@@ -66,23 +65,14 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         } else {
             // TODO: for shared dynamic processors, some kind of clever
             // book-keeping will be needed here
-            StateGraphNodeValue::Unique(UniqueCompiledSoundProcessor::new(
-                proc.instance().compile(self),
-            ))
+            StateGraphNodeValue::Unique(UniqueCompiledSoundProcessor::new(proc.compile(self)))
         }
     }
 
     pub(crate) fn get_compiled_expression(
         &self,
-        processor_id: SoundProcessorId,
-        expression: &ProcessorExpression,
-    ) -> CompiledExpressionFunction<'ctx> {
-        let location = ProcessorExpressionLocation::new(processor_id, expression.id());
-        self.jit_cache.get_compiled_expression(
-            location,
-            expression.graph(),
-            expression.mapping(),
-            self.graph,
-        )
+        location: ProcessorExpressionLocation,
+    ) -> Option<CompiledExpressionFunction<'ctx>> {
+        self.jit_cache.get_compiled_expression(location)
     }
 }

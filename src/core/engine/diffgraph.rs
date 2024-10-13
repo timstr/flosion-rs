@@ -37,7 +37,7 @@ pub(crate) fn diff_sound_graph<'ctx>(
     // TODO: diff current and new topology and create a list of fine-grained state graph edits
     // HACK deleting everything and then adding it back
     for proc in graph_before.sound_processors().values() {
-        if proc.instance().is_static() {
+        if proc.is_static() {
             edits.push(StateGraphEdit::RemoveStaticSoundProcessor(proc.id()));
         }
     }
@@ -57,7 +57,7 @@ pub(crate) fn diff_sound_graph<'ctx>(
     // that static processors are allocated only once and reused.
     let mut compiler = SoundGraphCompiler::new(&graph_after, jit_cache);
     for proc in graph_after.sound_processors().values() {
-        if proc.instance().is_static() {
+        if proc.is_static() {
             let StateGraphNodeValue::Shared(node) = compiler.compile_sound_processor(proc.id())
             else {
                 panic!("Static sound processors must compile to shared state graph nodes");

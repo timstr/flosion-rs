@@ -2,13 +2,7 @@ use std::{any::Any, cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
 
 use eframe::egui;
 
-use crate::core::{
-    objecttype::ObjectType,
-    sound::{
-        soundgraph::SoundGraph,
-        soundobject::{AnySoundObjectHandle, SoundObjectHandle},
-    },
-};
+use crate::core::{objecttype::ObjectType, sound::soundobject::SoundGraphObject};
 
 use super::{
     arguments::{ArgumentList, ParsedArguments},
@@ -17,17 +11,16 @@ use super::{
 };
 
 pub trait SoundObjectUi: Default {
-    type HandleType: SoundObjectHandle;
+    type ObjectType: SoundGraphObject;
     type StateType;
 
     fn ui<'a>(
         &self,
-        handle: Self::HandleType,
+        object: &mut Self::ObjectType,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         state: &mut Self::StateType,
-        graph: &mut SoundGraph,
     );
 
     fn summon_names(&self) -> &'static [&'static str];
@@ -41,7 +34,7 @@ pub trait SoundObjectUi: Default {
 
     fn make_ui_state(
         &self,
-        _handle: &Self::HandleType,
+        _object: &Self::ObjectType,
         _args: &ParsedArguments,
     ) -> Result<Self::StateType, ()>;
 }
@@ -49,12 +42,11 @@ pub trait SoundObjectUi: Default {
 pub trait AnySoundObjectUi {
     fn apply(
         &self,
-        object: &AnySoundObjectHandle,
+        object: &mut dyn SoundGraphObject,
         state: &mut dyn Any,
         graph_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        graph: &mut SoundGraph,
     );
 
     fn summon_names(&self) -> &'static [&'static str];
@@ -68,7 +60,7 @@ pub trait AnySoundObjectUi {
 
     fn make_ui_state(
         &self,
-        object: &AnySoundObjectHandle,
+        object: &dyn SoundGraphObject,
         args: &ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()>;
 }
@@ -76,21 +68,19 @@ pub trait AnySoundObjectUi {
 impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
     fn apply(
         &self,
-        object: &AnySoundObjectHandle,
+        object: &mut dyn SoundGraphObject,
         state: &mut dyn Any,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        graph: &mut SoundGraph,
     ) {
-        let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
+        let object = object.as_mut_any().downcast_mut::<T::ObjectType>().unwrap();
         self.ui(
-            handle,
+            object,
             graph_ui_state,
             ui,
             ctx,
             state.downcast_mut().unwrap(),
-            graph,
         );
     }
 
@@ -103,7 +93,7 @@ impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
     }
 
     fn object_type(&self) -> ObjectType {
-        <T::HandleType as SoundObjectHandle>::object_type()
+        <T::ObjectType as SoundGraphObject>::get_type()
     }
 
     // TODO: remove
@@ -113,11 +103,11 @@ impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
 
     fn make_ui_state(
         &self,
-        object: &AnySoundObjectHandle,
+        object: &dyn SoundGraphObject,
         args: &ParsedArguments,
     ) -> Result<Rc<RefCell<dyn Any>>, ()> {
-        let handle = T::HandleType::from_graph_object(object.clone()).unwrap();
-        let state = self.make_ui_state(&handle, args)?;
+        let object = object.as_any().downcast_ref::<T::ObjectType>().unwrap();
+        let state = self.make_ui_state(object, args)?;
         Ok(Rc::new(RefCell::new(state)))
     }
 }
@@ -158,17 +148,16 @@ impl SoundObjectUiFactory {
 
 pub(crate) fn show_sound_object_ui(
     factory: &SoundObjectUiFactory,
-    object: &AnySoundObjectHandle,
+    object: &mut dyn SoundGraphObject,
     ui_state: &mut SoundGraphUiState,
     ui: &mut egui::Ui,
     ctx: &SoundGraphUiContext,
-    graph: &mut SoundGraph,
 ) {
-    let object_type = object.get_type();
+    let object_type = object.get_dynamic_type();
 
     let object_ui = factory.get(object_type);
 
     let state = ui_state.object_states().get_object_data(object.id());
     let state: &mut dyn Any = &mut *state.borrow_mut();
-    object_ui.apply(object, state, ui_state, ui, ctx, graph);
+    object_ui.apply(object, state, ui_state, ui, ctx);
 }

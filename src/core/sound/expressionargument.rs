@@ -24,7 +24,7 @@ pub struct ProcessorArgumentTag;
 pub type ProcessorArgumentId = UniqueId<ProcessorArgumentTag>;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-pub(crate) struct ProcessorArgumentLocation {
+pub struct ProcessorArgumentLocation {
     processor: SoundProcessorId,
     argument: ProcessorArgumentId,
 }
@@ -128,7 +128,7 @@ pub struct SoundInputArgumentTag;
 pub type SoundInputArgumentId = UniqueId<SoundInputArgumentTag>;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
-pub(crate) struct SoundInputArgumentLocation {
+pub struct SoundInputArgumentLocation {
     processor: SoundProcessorId,
     input: ProcessorInputId,
     argument: SoundInputArgumentId,
@@ -200,7 +200,7 @@ pub(crate) trait AnySoundInputArgument {
 // ----------------------------
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
-pub(crate) enum ArgumentLocation {
+pub enum ArgumentLocation {
     Processor(ProcessorArgumentLocation),
     Input(SoundInputArgumentLocation),
 }

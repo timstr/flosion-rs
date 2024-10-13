@@ -1,7 +1,7 @@
 pub(crate) use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::WhateverSoundProcessorHandle},
+    core::sound::soundprocessor::WhateverSoundProcessorWithId,
     objects::output::Output,
     ui_core::{
         arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
@@ -14,33 +14,26 @@ use crate::{
 pub struct OutputUi {}
 
 impl SoundObjectUi for OutputUi {
-    type HandleType = WhateverSoundProcessorHandle<Output>;
+    type ObjectType = WhateverSoundProcessorWithId<Output>;
     type StateType = ();
     fn ui(
         &self,
-        output: WhateverSoundProcessorHandle<Output>,
+        output: &mut WhateverSoundProcessorWithId<Output>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         _state: &mut (),
-        sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(output.id(), "Output")
-            .add_sound_input(output.get().input.id(), "input")
-            .show_with(
-                ui,
-                ctx,
-                graph_ui_state,
-                sound_graph,
-                |ui, _ui_state, _sound_graph| {
-                    if ui
-                        .add(egui::Button::new("Start over").wrap_mode(egui::TextWrapMode::Extend))
-                        .clicked()
-                    {
-                        output.get().start_over();
-                    }
-                },
-            );
+            .add_sound_input(output.input.id(), "input")
+            .show_with(output, ui, ctx, graph_ui_state, |output, ui, _ui_state| {
+                if ui
+                    .add(egui::Button::new("Start over").wrap_mode(egui::TextWrapMode::Extend))
+                    .clicked()
+                {
+                    output.start_over();
+                }
+            });
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -51,7 +44,7 @@ impl SoundObjectUi for OutputUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

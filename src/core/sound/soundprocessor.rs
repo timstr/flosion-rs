@@ -1,6 +1,5 @@
 use std::{
     any::{type_name, Any},
-    cell::RefCell,
     ops::{Deref, DerefMut},
     rc::Rc,
     time::{Duration, Instant},
@@ -21,12 +20,15 @@ use crate::{
 
 use super::{
     context::Context,
-    expression::ProcessorExpression,
-    expressionargument::{ProcessorArgument, SoundInputArgument},
+    expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
+    expressionargument::{
+        ProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation, SoundInputArgument,
+        SoundInputArgumentId, SoundInputArgumentLocation,
+    },
     soundgraph::SoundGraph,
     soundgraphid::SoundObjectId,
-    soundinput::{BasicProcessorInput, ProcessorInputId},
-    soundobject::{AnySoundObjectHandle, SoundGraphObject, SoundObjectHandle},
+    soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
+    soundobject::SoundGraphObject,
 };
 
 pub struct SoundProcessorTag;
@@ -104,20 +106,31 @@ pub trait WhateverSoundProcessor: Sized + WithObjectType {
 }
 
 pub struct WhateverSoundProcessorWithId<T: WhateverSoundProcessor> {
-    processor: RefCell<T>,
     id: SoundProcessorId,
+    processor: T,
 }
 
 impl<T: WhateverSoundProcessor> WhateverSoundProcessorWithId<T> {
     pub(crate) fn new(processor: T, id: SoundProcessorId) -> Self {
-        Self {
-            processor: RefCell::new(processor),
-            id,
-        }
+        Self { id, processor }
     }
 
     pub fn id(&self) -> SoundProcessorId {
         self.id
+    }
+}
+
+impl<T: WhateverSoundProcessor> Deref for WhateverSoundProcessorWithId<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.processor
+    }
+}
+
+impl<T: WhateverSoundProcessor> DerefMut for WhateverSoundProcessorWithId<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.processor
     }
 }
 
@@ -129,56 +142,20 @@ pub struct WhateverSoundProcessorHandle<T: WhateverSoundProcessor> {
     instance: Rc<WhateverSoundProcessorWithId<T>>,
 }
 
-// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
-// requires T: Clone even if it isn't stored as a direct field
-impl<T: WhateverSoundProcessor> Clone for WhateverSoundProcessorHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Rc::clone(&self.instance),
-        }
-    }
-}
-
-impl<T: 'static + WhateverSoundProcessor> WhateverSoundProcessorHandle<T> {
-    pub(super) fn new(instance: Rc<WhateverSoundProcessorWithId<T>>) -> Self {
-        Self { instance }
-    }
-
-    pub(super) fn from_graph_object(handle: AnySoundObjectHandle) -> Option<Self> {
-        let rc_any = handle.into_instance_rc().into_rc_any();
-        match rc_any.downcast::<WhateverSoundProcessorWithId<T>>() {
-            Ok(obj) => Some(WhateverSoundProcessorHandle::new(obj)),
-            Err(_) => None,
-        }
-    }
-
-    pub fn id(&self) -> SoundProcessorId {
-        self.instance.id()
-    }
-
-    pub fn into_graph_object(self) -> AnySoundObjectHandle {
-        AnySoundObjectHandle::new(self.instance)
-    }
-
-    pub fn get<'a>(&'a self) -> impl 'a + Deref<Target = T> {
-        self.instance.processor.borrow()
-    }
-
-    pub fn get_mut<'a>(&'a self) -> impl 'a + DerefMut<Target = T> {
-        self.instance.processor.borrow_mut()
-    }
-}
-
 pub(crate) trait SoundProcessor {
     fn id(&self) -> SoundProcessorId;
 
     fn is_static(&self) -> bool;
 
-    fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle;
+    fn as_graph_object(&self) -> &dyn SoundGraphObject;
+    fn as_graph_object_mut(&mut self) -> &mut dyn SoundGraphObject;
 
     fn visit(&self, visitor: &mut dyn ProcessorComponentVisitor);
 
-    fn visit_mut(&self, visitor: &mut dyn ProcessorComponentVisitorMut);
+    fn visit_mut(&mut self, visitor: &mut dyn ProcessorComponentVisitorMut);
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_mut_any(&mut self) -> &mut dyn Any;
 
     fn compile<'a, 'ctx>(
         &self,
@@ -192,20 +169,32 @@ impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProces
         self.id
     }
 
-    fn is_static(&self) -> bool {
-        T::is_static(&self.processor.borrow())
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    fn as_graph_object(self: Rc<Self>) -> AnySoundObjectHandle {
-        AnySoundObjectHandle::new(self)
+    fn as_mut_any(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn is_static(&self) -> bool {
+        T::is_static(&self.processor)
+    }
+
+    fn as_graph_object(&self) -> &dyn SoundGraphObject {
+        self
+    }
+
+    fn as_graph_object_mut(&mut self) -> &mut dyn SoundGraphObject {
+        self
     }
 
     fn visit(&self, visitor: &mut dyn ProcessorComponentVisitor) {
-        T::visit(&self.processor.borrow(), visitor);
+        T::visit(&self.processor, visitor);
     }
 
-    fn visit_mut(&self, visitor: &mut dyn ProcessorComponentVisitorMut) {
-        T::visit_mut(&mut self.processor.borrow_mut(), visitor);
+    fn visit_mut(&mut self, visitor: &mut dyn ProcessorComponentVisitorMut) {
+        T::visit_mut(&mut self.processor, visitor);
     }
 
     fn compile<'a, 'ctx>(
@@ -213,7 +202,7 @@ impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProces
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>> {
         let start = Instant::now();
-        let compiled_processor = self.processor.borrow().compile(self.id, compiler);
+        let compiled_processor = self.processor.compile(self.id, compiler);
         let finish = Instant::now();
         let time_to_compile: Duration = finish - start;
         let time_to_compile_ms = time_to_compile.as_millis();
@@ -225,6 +214,304 @@ impl<T: 'static + WhateverSoundProcessor> SoundProcessor for WhateverSoundProces
             );
         }
         Box::new(CompiledProcessorData::new(self.id, compiled_processor))
+    }
+}
+
+impl<'a> dyn SoundProcessor + 'a {
+    pub(crate) fn downcast<T: 'static + WhateverSoundProcessor>(
+        &self,
+    ) -> Option<&WhateverSoundProcessorWithId<T>> {
+        self.as_any().downcast_ref()
+    }
+
+    pub(crate) fn downcast_mut<T: 'static + WhateverSoundProcessor>(
+        &mut self,
+    ) -> Option<&mut WhateverSoundProcessorWithId<T>> {
+        self.as_mut_any().downcast_mut()
+    }
+
+    pub(crate) fn with_input<R, F: FnMut(&BasicProcessorInput) -> R>(
+        &self,
+        input_id: ProcessorInputId,
+        f: F,
+    ) -> Option<R> {
+        struct Visitor<R2, F2> {
+            input_id: ProcessorInputId,
+            result: Option<R2>,
+            f: F2,
+        }
+        impl<R2, F2: FnMut(&BasicProcessorInput) -> R2> ProcessorComponentVisitor for Visitor<R2, F2> {
+            fn input(&mut self, input: &BasicProcessorInput) {
+                if input.id() == self.input_id {
+                    debug_assert!(self.result.is_none());
+                    self.result = Some((self.f)(input));
+                }
+            }
+        }
+        let mut visitor = Visitor {
+            input_id,
+            result: None,
+            f,
+        };
+        self.visit(&mut visitor);
+        visitor.result
+    }
+
+    pub(crate) fn with_input_mut<R, F: FnMut(&mut BasicProcessorInput) -> R>(
+        &mut self,
+        input_id: ProcessorInputId,
+        f: F,
+    ) -> Option<R> {
+        struct Visitor<R2, F2> {
+            input_id: ProcessorInputId,
+            result: Option<R2>,
+            f: F2,
+        }
+        impl<R2, F2: FnMut(&mut BasicProcessorInput) -> R2> ProcessorComponentVisitorMut
+            for Visitor<R2, F2>
+        {
+            fn input(&mut self, input: &mut BasicProcessorInput) {
+                if input.id() == self.input_id {
+                    debug_assert!(self.result.is_none());
+                    self.result = Some((self.f)(input));
+                }
+            }
+        }
+        let mut visitor = Visitor {
+            input_id,
+            result: None,
+            f,
+        };
+
+        self.visit_mut(&mut visitor);
+        visitor.result
+    }
+
+    pub(crate) fn with_expression<F: FnMut(&ProcessorExpression)>(
+        &self,
+        id: ProcessorExpressionId,
+        f: F,
+    ) {
+        todo!()
+    }
+
+    pub(crate) fn with_expression_mut<R, F: FnMut(&mut ProcessorExpression) -> R>(
+        &mut self,
+        id: ProcessorExpressionId,
+        f: F,
+    ) -> Option<R> {
+        struct Visitor<F2, R2> {
+            id: ProcessorExpressionId,
+            f: F2,
+            result: Option<R2>,
+        }
+
+        impl<R2, F2: FnMut(&mut ProcessorExpression) -> R2> ProcessorComponentVisitorMut
+            for Visitor<F2, R2>
+        {
+            fn expression(&mut self, expression: &mut ProcessorExpression) {
+                if expression.id() == self.id {}
+                debug_assert!(self.result.is_none());
+                self.result = Some((self.f)(expression));
+            }
+        }
+
+        let mut visitor = Visitor {
+            id,
+            f,
+            result: None,
+        };
+        self.visit_mut(&mut visitor);
+        visitor.result
+    }
+
+    pub(crate) fn with_processor_argument<R, F: FnMut(&ProcessorArgument) -> R>(
+        &self,
+        id: ProcessorArgumentId,
+        f: F,
+    ) -> Option<R> {
+        struct Visitor<F2, R2> {
+            id: ProcessorArgumentId,
+            f: F2,
+            result: Option<R2>,
+        }
+
+        impl<R2, F2: FnMut(&ProcessorArgument) -> R2> ProcessorComponentVisitor for Visitor<F2, R2> {
+            fn processor_argument(&mut self, argument: &ProcessorArgument) {
+                if argument.id() == self.id {
+                    debug_assert!(self.result.is_none());
+                    self.result = Some((self.f)(argument));
+                }
+            }
+        }
+
+        let mut visitor = Visitor {
+            id,
+            f,
+            result: None,
+        };
+        self.visit(&mut visitor);
+        visitor.result
+    }
+
+    pub(crate) fn with_input_argument<R, F: FnMut(&SoundInputArgument) -> R>(
+        &self,
+        input_id: ProcessorInputId,
+        argument_id: SoundInputArgumentId,
+        f: F,
+    ) -> Option<R> {
+        struct Visitor<F2, R2> {
+            input_id: ProcessorInputId,
+            argument_id: SoundInputArgumentId,
+            f: F2,
+            result: Option<R2>,
+        }
+
+        impl<R2, F2: FnMut(&SoundInputArgument) -> R2> ProcessorComponentVisitor for Visitor<F2, R2> {
+            fn input_argument(
+                &mut self,
+                argument: &SoundInputArgument,
+                input_id: ProcessorInputId,
+            ) {
+                if argument.id() == self.argument_id && input_id == self.input_id {
+                    debug_assert!(self.result.is_none());
+                    self.result = Some((self.f)(argument));
+                }
+            }
+        }
+
+        let mut visitor = Visitor {
+            input_id,
+            argument_id,
+            f,
+            result: None,
+        };
+        self.visit(&mut visitor);
+        visitor.result
+    }
+
+    pub(crate) fn foreach_input<F: FnMut(&BasicProcessorInput, SoundInputLocation)>(&self, f: F) {
+        struct Visitor<F2> {
+            processor_id: SoundProcessorId,
+            f: F2,
+        }
+
+        impl<F2: FnMut(&BasicProcessorInput, SoundInputLocation)> ProcessorComponentVisitor
+            for Visitor<F2>
+        {
+            fn input(&mut self, input: &BasicProcessorInput) {
+                (self.f)(
+                    input,
+                    SoundInputLocation::new(self.processor_id, input.id()),
+                )
+            }
+        }
+
+        self.visit(&mut Visitor {
+            processor_id: self.id(),
+            f,
+        });
+    }
+
+    pub(crate) fn foreach_input_mut<F: FnMut(&mut BasicProcessorInput, SoundInputLocation)>(
+        &self,
+        f: F,
+    ) {
+        todo!()
+    }
+
+    pub(crate) fn foreach_expression<
+        F: FnMut(&ProcessorExpression, ProcessorExpressionLocation),
+    >(
+        &self,
+        f: F,
+    ) {
+        struct Visitor<F2> {
+            processor_id: SoundProcessorId,
+            f: F2,
+        }
+
+        impl<F2: FnMut(&ProcessorExpression, ProcessorExpressionLocation)> ProcessorComponentVisitor
+            for Visitor<F2>
+        {
+            fn expression(&mut self, expression: &ProcessorExpression) {
+                (self.f)(
+                    expression,
+                    ProcessorExpressionLocation::new(self.processor_id, expression.id()),
+                )
+            }
+        }
+
+        self.visit(&mut Visitor {
+            processor_id: self.id(),
+            f,
+        });
+    }
+
+    pub(crate) fn foreach_processor_argument<
+        F: FnMut(&ProcessorArgument, ProcessorArgumentLocation),
+    >(
+        &self,
+        f: F,
+    ) {
+        struct Visitor<F2> {
+            processor_id: SoundProcessorId,
+            f: F2,
+        }
+
+        impl<F2: FnMut(&ProcessorArgument, ProcessorArgumentLocation)> ProcessorComponentVisitor
+            for Visitor<F2>
+        {
+            fn processor_argument(&mut self, argument: &ProcessorArgument) {
+                (self.f)(
+                    argument,
+                    ProcessorArgumentLocation::new(self.processor_id, argument.id()),
+                )
+            }
+        }
+
+        self.visit(&mut Visitor {
+            processor_id: self.id(),
+            f,
+        });
+    }
+
+    pub(crate) fn foreach_input_argument<
+        F: FnMut(&SoundInputArgument, SoundInputArgumentLocation),
+    >(
+        &self,
+        f: F,
+    ) {
+        struct Visitor<F2> {
+            processor_id: SoundProcessorId,
+            f: F2,
+        }
+
+        impl<F2: FnMut(&SoundInputArgument, SoundInputArgumentLocation)> ProcessorComponentVisitor
+            for Visitor<F2>
+        {
+            fn input_argument(
+                &mut self,
+                argument: &SoundInputArgument,
+                input_id: ProcessorInputId,
+            ) {
+                (self.f)(
+                    argument,
+                    SoundInputArgumentLocation::new(self.processor_id, input_id, argument.id()),
+                )
+            }
+        }
+
+        self.visit(&mut Visitor {
+            processor_id: self.id(),
+            f,
+        });
+    }
+
+    pub(crate) fn input_locations(&self) -> Vec<SoundInputLocation> {
+        let mut locations = Vec::new();
+        self.foreach_input(|_, l| locations.push(l));
+        locations
     }
 }
 
@@ -255,15 +542,15 @@ impl ProcessorTiming {
 }
 
 impl<T: 'static + WhateverSoundProcessor> SoundGraphObject for WhateverSoundProcessorWithId<T> {
-    fn create(graph: &mut SoundGraph, args: &ParsedArguments) -> Result<AnySoundObjectHandle, ()> {
-        graph
-            .add_sound_processor::<T>(args)
-            .map(|h| h.into_graph_object())
-            .map_err(|_| ()) // TODO: report error
+    fn create<'a>(
+        graph: &'a mut SoundGraph,
+        args: &ParsedArguments,
+    ) -> &'a mut WhateverSoundProcessorWithId<T> {
+        graph.add_sound_processor::<T>(args)
     }
 
-    fn get_id(&self) -> SoundObjectId {
-        self.id().into()
+    fn id(&self) -> SoundObjectId {
+        WhateverSoundProcessorWithId::id(self).into()
     }
 
     fn get_type() -> ObjectType {
@@ -274,33 +561,19 @@ impl<T: 'static + WhateverSoundProcessor> SoundGraphObject for WhateverSoundProc
         T::TYPE
     }
 
-    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+    fn friendly_name(&self) -> String {
+        format!("{}#{}", T::TYPE.name(), self.id.value())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn Any {
         self
     }
 
     fn get_language_type_name(&self) -> &'static str {
         type_name::<Self>()
-    }
-}
-
-pub trait ProcessorHandle {
-    fn id(&self) -> SoundProcessorId;
-}
-
-impl<T: 'static + WhateverSoundProcessor> ProcessorHandle for WhateverSoundProcessorHandle<T> {
-    fn id(&self) -> SoundProcessorId {
-        WhateverSoundProcessorHandle::id(self)
-    }
-}
-
-impl<T: 'static + WhateverSoundProcessor> SoundObjectHandle for WhateverSoundProcessorHandle<T> {
-    type ObjectType = WhateverSoundProcessorWithId<T>;
-
-    fn from_graph_object(object: AnySoundObjectHandle) -> Option<Self> {
-        WhateverSoundProcessorHandle::from_graph_object(object)
-    }
-
-    fn object_type() -> ObjectType {
-        T::TYPE
     }
 }

@@ -9,7 +9,6 @@ use crate::core::{
     sound::{
         expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
         expressionargument::ArgumentLocation,
-        soundgraph::SoundGraph,
     },
 };
 
@@ -74,13 +73,12 @@ impl ExpressionPlot {
         time_axis: TimeAxis,
         config: &PlotConfig,
         names: &SoundGraphUiNames,
-        graph: &SoundGraph,
     ) {
         let PlotConfig {
             vertical_range,
             horizontal_domain,
         } = config;
-        let compiled_fn = jit_cache.get_compiled_expression(location, expr_graph, &mapping, graph);
+        let compiled_fn = jit_cache.get_compiled_expression(location).unwrap();
         // TODO: make this configurable / draggable. Where to store such ui state?
         let desired_height = 30.0;
         let desired_width = match horizontal_domain {

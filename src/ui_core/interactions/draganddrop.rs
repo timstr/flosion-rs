@@ -349,7 +349,8 @@ fn compute_legal_drop_sites(
     debug_assert_eq!(graph.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
     for drop_site in drop_sites.0 {
-        let mut graph_clone = graph.clone();
+        let mut graph_clone = todo!(); // graph.clone();
+
         // drag_and_drop_in_graph only does superficial error
         // detection, here we additionally check whether the
         // resulting graph is valid.

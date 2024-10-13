@@ -232,19 +232,19 @@ impl GlobalInteractions {
                 ui.add(SummonWidget::new(summon_widget));
 
                 if let Some((object_type, args)) = summon_widget.final_choice() {
-                    let new_obj_handle = factories
-                        .sound_objects()
-                        .create(object_type.name(), graph, &args)
-                        .expect("Oops, failed to create object");
+                    let new_obj =
+                        factories
+                            .sound_objects()
+                            .create(object_type.name(), graph, &args);
 
-                    let object_ui = factories.sound_uis().get(new_obj_handle.get_type());
-                    let state = object_ui.make_ui_state(&new_obj_handle, &args).unwrap();
+                    let object_ui = factories.sound_uis().get(new_obj.get_dynamic_type());
+                    let state = object_ui.make_ui_state(new_obj, &args).unwrap();
 
-                    object_states.set_object_data(new_obj_handle.id(), state);
+                    object_states.set_object_data(new_obj.id(), state);
 
                     // Move the processor to the cursor location
                     let pos = summon_widget.position();
-                    match new_obj_handle.id() {
+                    match new_obj.id() {
                         SoundObjectId::Sound(id) => positions.record_processor(
                             id,
                             egui::Rect::from_min_size(pos, egui::Vec2::ZERO),

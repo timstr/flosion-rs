@@ -1,4 +1,4 @@
-use super::uniqueid::UniqueId;
+use super::uniqueid::IdGeneratorUniqueId;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TimePointTag;

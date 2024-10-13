@@ -3,7 +3,6 @@ pub mod expression;
 pub mod expressionargument;
 pub mod sounderror;
 pub mod soundgraph;
-pub(crate) mod soundgraphdata;
 pub mod soundgraphid;
 pub mod soundgraphproperties;
 pub(crate) mod soundgraphvalidation;

@@ -282,12 +282,20 @@ impl StackedLayout {
                 if number_of_appearances == 0 {
                     println!(
                         "The sound processor {} does not appear any groups",
-                        graph.sound_processor(spid).unwrap().friendly_name()
+                        graph
+                            .sound_processor(spid)
+                            .unwrap()
+                            .as_graph_object()
+                            .friendly_name()
                     );
                 } else {
                     println!(
                         "The sound processor {} appears in more than one group",
-                        graph.sound_processor(spid).unwrap().friendly_name()
+                        graph
+                            .sound_processor(spid)
+                            .unwrap()
+                            .as_graph_object()
+                            .friendly_name()
                     );
                 }
                 return false;
@@ -319,8 +327,8 @@ impl StackedLayout {
                 if !Self::connection_is_unique(*top_proc, *bottom_proc, graph) {
                     println!(
                         "Processor {} is above processor {} in a group but the two do not have a unique connection",
-                        graph.sound_processor(*top_proc).unwrap().friendly_name(),
-                        graph.sound_processor(*bottom_proc).unwrap().friendly_name()
+                        graph.sound_processor(*top_proc).unwrap().as_graph_object().friendly_name(),
+                        graph.sound_processor(*bottom_proc).unwrap().as_graph_object().friendly_name()
                     );
                     return false;
                 }

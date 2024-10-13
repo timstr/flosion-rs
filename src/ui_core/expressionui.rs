@@ -25,7 +25,6 @@ impl SoundExpressionUi {
         expr_graph: &mut ExpressionGraph,
         outer_context: &OuterExpressionGraphUiContext,
         plot_config: &PlotConfig,
-        sound_graph: &SoundGraph,
     ) {
         // TODO: expandable/collapsible popup window with full layout
         let frame = egui::Frame::default()
@@ -49,7 +48,6 @@ impl SoundExpressionUi {
                                 *proc_expr_ctx.time_axis(),
                                 plot_config,
                                 proc_expr_ctx.sound_graph_names(),
-                                sound_graph,
                             );
                         }
                     }

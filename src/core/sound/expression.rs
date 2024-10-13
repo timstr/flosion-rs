@@ -218,27 +218,6 @@ impl ProcessorExpression {
         self.param_mapping
             .remove_argument(argument_id, &mut self.expression_graph);
     }
-
-    #[cfg(not(debug_assertions))]
-    pub fn compile<'a, 'ctx>(
-        &self,
-        processor_id: SoundProcessorId,
-        compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> CompiledExpression<'ctx> {
-        let function = compiler.get_compiled_expression(processor_id, self);
-        CompiledExpression::new(self.id, function)
-    }
-
-    #[cfg(debug_assertions)]
-    pub fn compile<'a, 'ctx>(
-        &self,
-        processor_id: SoundProcessorId,
-        compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> CompiledExpression<'ctx> {
-        // Pass scope to enable validation
-        let function = compiler.get_compiled_expression(processor_id, self);
-        CompiledExpression::new(self.id, function, self.scope.clone())
-    }
 }
 
 impl ProcessorComponent for ProcessorExpression {
@@ -258,7 +237,9 @@ impl ProcessorComponent for ProcessorExpression {
         processor_id: SoundProcessorId,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> CompiledExpression<'ctx> {
-        let function = compiler.get_compiled_expression(processor_id, self);
+        let function = compiler
+            .get_compiled_expression(ProcessorExpressionLocation::new(processor_id, self.id))
+            .unwrap();
         CompiledExpression::new(self.id, function)
     }
 
@@ -269,7 +250,9 @@ impl ProcessorComponent for ProcessorExpression {
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> CompiledExpression<'ctx> {
         // Pass scope to enable validation
-        let function = compiler.get_compiled_expression(processor_id, self);
+        let function = compiler
+            .get_compiled_expression(ProcessorExpressionLocation::new(processor_id, self.id))
+            .unwrap();
         CompiledExpression::new(self.id, function, self.scope.clone())
     }
 }

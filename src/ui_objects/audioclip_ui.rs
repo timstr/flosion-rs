@@ -1,10 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{
-        audiofileio::load_audio_file,
-        sound::{soundgraph::SoundGraph, soundprocessor::WhateverSoundProcessorHandle},
-    },
+    core::{audiofileio::load_audio_file, sound::soundprocessor::WhateverSoundProcessorWithId},
     objects::audioclip::AudioClip,
     ui_core::{
         arguments::{ArgumentList, ParsedArguments},
@@ -31,23 +28,22 @@ impl Default for AudioClipUiState {
 }
 
 impl SoundObjectUi for AudioClipUi {
-    type HandleType = WhateverSoundProcessorHandle<AudioClip>;
+    type ObjectType = WhateverSoundProcessorWithId<AudioClip>;
     type StateType = AudioClipUiState;
     fn ui(
         &self,
-        audioclip: WhateverSoundProcessorHandle<AudioClip>,
+        audioclip: &mut WhateverSoundProcessorWithId<AudioClip>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         state: &mut AudioClipUiState,
-        sound_graph: &mut SoundGraph,
     ) {
         ProcessorUi::new(audioclip.id(), "AudioClip").show_with(
+            audioclip,
             ui,
             ctx,
             graph_ui_state,
-            sound_graph,
-            |ui, _uistate, _sound_graph| {
+            |audioclip, ui, _uistate| {
                 ui.vertical(|ui| {
                     if !state.name.is_empty() {
                         ui.add(egui::Label::new(
@@ -66,7 +62,7 @@ impl SoundObjectUi for AudioClipUi {
                             println!("Loading audioclip from {}", path.display());
                             match load_audio_file(&path) {
                                 Ok(buf) => {
-                                    audioclip.get_mut().set_data(buf);
+                                    audioclip.set_data(buf);
                                     state.name =
                                         path.file_name().unwrap().to_str().unwrap().to_string();
                                 }
@@ -93,7 +89,7 @@ impl SoundObjectUi for AudioClipUi {
 
     fn make_ui_state(
         &self,
-        _handle: &Self::HandleType,
+        _handle: &Self::ObjectType,
         _args: &ParsedArguments,
     ) -> Result<AudioClipUiState, ()> {
         // TODO: use args

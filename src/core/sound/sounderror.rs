@@ -42,11 +42,19 @@ impl SoundError {
             SoundError::StaticNotOneState(spid) => format!(
                 "The static processor {} needs to have exactly one state, but it \
                 is connected to a branched sound input",
-                graph.sound_processor(*spid).unwrap().friendly_name()
+                graph
+                    .sound_processor(*spid)
+                    .unwrap()
+                    .as_graph_object()
+                    .friendly_name()
             ),
             SoundError::StaticNotSynchronous(spid) => format!(
                 "The static processor {} is connected to a non-synchronous input",
-                graph.sound_processor(*spid).unwrap().friendly_name()
+                graph
+                    .sound_processor(*spid)
+                    .unwrap()
+                    .as_graph_object()
+                    .friendly_name()
             ),
 
             SoundError::StateNotInScope {

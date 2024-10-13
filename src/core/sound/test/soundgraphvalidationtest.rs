@@ -3,7 +3,7 @@ use crate::{
         sounderror::SoundError,
         soundgraph::SoundGraph,
         soundgraphvalidation::find_sound_error,
-        soundinput::{BasicProcessorInput, InputOptions, SoundInputBranchId},
+        soundinput::{BasicProcessorInput, InputOptions},
         test::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor},
     },
     ui_core::arguments::ParsedArguments,
@@ -18,18 +18,15 @@ fn find_error_empty_graph() {
 #[test]
 fn find_error_one_static_proc() {
     let mut graph = SoundGraph::new();
-    graph
-        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
-        .unwrap();
+    graph.add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty());
+
     assert_eq!(find_sound_error(&graph), None);
 }
 
 #[test]
 fn find_error_one_dynamic_proc() {
     let mut graph = SoundGraph::new();
-    graph
-        .add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty())
-        .unwrap();
+    graph.add_sound_processor::<TestDynamicSoundProcessor>(&ParsedArguments::new_empty());
     assert_eq!(find_sound_error(&graph), None);
 }
 
@@ -37,16 +34,16 @@ fn find_error_one_dynamic_proc() {
 fn find_error_static_to_self_cycle() {
     let mut graph = SoundGraph::new();
 
-    let proc = graph
-        .add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty())
-        .unwrap();
+    let proc = graph.add_sound_processor::<TestStaticSoundProcessor>(&ParsedArguments::new_empty());
 
-    proc.get_mut().inputs.push(BasicProcessorInput::new(
+    proc.inputs.push(BasicProcessorInput::new(
         InputOptions::Synchronous,
         Vec::new(),
     ));
 
-    proc.get_mut().inputs[0].set_target(Some(proc.id()));
+    let proc_id = proc.id();
+
+    proc.inputs[0].set_target(Some(proc_id));
 
     assert_eq!(
         find_sound_error(&graph),

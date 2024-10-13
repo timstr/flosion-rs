@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::core::sound::{
-    soundgraph::SoundGraph, soundgraphdata::SoundProcessorData, soundprocessor::SoundProcessorId,
+    soundgraph::SoundGraph,
+    soundprocessor::{SoundProcessor, SoundProcessorId},
 };
 
 use super::{
@@ -69,14 +70,14 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         proc: &dyn AnyCompiledProcessorData<'ctx>,
         shared_data: Option<*const SharedCompiledProcessorCache<'ctx>>,
     ) -> bool {
-        let Some(proc_data) = self.sound_graph.sound_processors().get(&proc.id()) else {
+        let Some(proc_data) = self.sound_graph.sound_processor(proc.id()) else {
             println!(
                 "state_graph_matches_sound_graph: a sound processor was found which shouldn't exist"
             );
             return false;
         };
 
-        if proc_data.instance().is_static() {
+        if proc_data.is_static() {
             let Some(shared_data_ptr) = shared_data else {
                 println!(
                     "state_graph_matches_sound_graph: found a unique node for a static processor \
@@ -117,7 +118,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn check_processor_sound_inputs(
         &self,
         proc: &dyn AnyCompiledProcessorData,
-        proc_data: &SoundProcessorData,
+        proc_data: &dyn SoundProcessor,
     ) -> bool {
         todo!()
     }
@@ -126,7 +127,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     fn check_processor_expressions(
         &self,
         proc: &dyn AnyCompiledProcessorData,
-        proc_data: &SoundProcessorData,
+        proc_data: &dyn SoundProcessor,
     ) -> bool {
         todo!()
     }
@@ -156,7 +157,7 @@ pub(crate) fn state_graph_matches_sound_graph(
     }
 
     for static_proc_id in sound_graph.sound_processors().values().filter_map(|pd| {
-        if pd.instance().is_static() {
+        if pd.is_static() {
             Some(pd.id())
         } else {
             None
