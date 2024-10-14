@@ -1,30 +1,24 @@
+use flosion_macros::ProcessorComponents;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
-        engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
         expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
             expression::{ProcessorExpression, SoundExpressionScope},
-            soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
-            },
+            soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
     },
     ui_core::arguments::ParsedArguments,
 };
 
+#[derive(ProcessorComponents)]
 pub struct WriteWaveform {
     pub waveform: ProcessorExpression,
-}
-
-pub struct CompiledWriteWaveform<'ctx> {
-    waveform: CompiledExpression<'ctx>,
 }
 
 impl SoundProcessor for WriteWaveform {
@@ -54,34 +48,6 @@ impl SoundProcessor for WriteWaveform {
         slicemath::copy(&dst.l, &mut dst.r);
 
         StreamStatus::Playing
-    }
-}
-
-impl ProcessorComponent for WriteWaveform {
-    type CompiledType<'ctx> = CompiledWriteWaveform<'ctx>;
-
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        self.waveform.visit(visitor);
-    }
-
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        self.waveform.visit_mut(visitor);
-    }
-
-    fn compile<'ctx>(
-        &self,
-        processor_id: SoundProcessorId,
-        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> Self::CompiledType<'ctx> {
-        CompiledWriteWaveform {
-            waveform: self.waveform.compile(processor_id, compiler),
-        }
-    }
-}
-
-impl<'ctx> StartOver for CompiledWriteWaveform<'ctx> {
-    fn start_over(&mut self) {
-        self.waveform.start_over();
     }
 }
 

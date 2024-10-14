@@ -1,4 +1,4 @@
-use flosion_macros::ProcessorComponent;
+use flosion_macros::ProcessorComponents;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use rand::prelude::*;
 
@@ -18,7 +18,7 @@ use crate::{
     ui_core::arguments::ParsedArguments,
 };
 
-#[derive(ProcessorComponent)]
+#[derive(ProcessorComponents)]
 pub struct WhiteNoise {}
 
 impl SoundProcessor for WhiteNoise {
@@ -45,10 +45,6 @@ impl SoundProcessor for WhiteNoise {
         }
         StreamStatus::Playing
     }
-}
-
-impl<'ctx> StartOver for CompiledWhiteNoise<'ctx> {
-    fn start_over(&mut self) {}
 }
 
 impl WithObjectType for WhiteNoise {
