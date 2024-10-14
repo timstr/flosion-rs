@@ -1327,6 +1327,10 @@ dependencies = [
 [[package]]
 name = "flosion-macros"
 version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.77",
+]
 
 [[package]]
 name = "fnv"

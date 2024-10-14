@@ -8,8 +8,9 @@ use crate::{
             context::Context,
             soundinput::BasicProcessorInput,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StreamStatus,
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -24,11 +25,17 @@ pub(super) struct TestStaticSoundProcessor {
 pub(super) struct CompiledTestStaticSoundProcessor {}
 
 impl SoundProcessor for TestStaticSoundProcessor {
-    type CompiledType<'ctx> = CompiledTestStaticSoundProcessor;
-
     fn new(_args: &ParsedArguments) -> Self {
         Self { inputs: Vec::new() }
     }
+
+    fn is_static(&self) -> bool {
+        true
+    }
+}
+
+impl ProcessorComponent for TestStaticSoundProcessor {
+    type CompiledType<'ctx> = CompiledTestStaticSoundProcessor;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         for input in &self.inputs {
@@ -42,10 +49,6 @@ impl SoundProcessor for TestStaticSoundProcessor {
         }
     }
 
-    fn is_static(&self) -> bool {
-        true
-    }
-
     fn compile<'ctx>(
         &self,
         _id: SoundProcessorId,
@@ -55,12 +58,14 @@ impl SoundProcessor for TestStaticSoundProcessor {
     }
 }
 
+impl<'ctx> StartOver for CompiledTestStaticSoundProcessor {
+    fn start_over(&mut self) {}
+}
+
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestStaticSoundProcessor {
     fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         StreamStatus::Done
     }
-
-    fn start_over(&mut self) {}
 }
 
 impl WithObjectType for TestStaticSoundProcessor {
@@ -86,11 +91,17 @@ pub(super) struct TestDynamicSoundProcessor {
 pub(super) struct CompiledTestDynamicSoundProcessor {}
 
 impl SoundProcessor for TestDynamicSoundProcessor {
-    type CompiledType<'ctx> = CompiledTestDynamicSoundProcessor;
-
     fn new(_args: &ParsedArguments) -> Self {
         Self { inputs: Vec::new() }
     }
+
+    fn is_static(&self) -> bool {
+        false
+    }
+}
+
+impl ProcessorComponent for TestDynamicSoundProcessor {
+    type CompiledType<'ctx> = CompiledTestDynamicSoundProcessor;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         for input in &self.inputs {
@@ -104,10 +115,6 @@ impl SoundProcessor for TestDynamicSoundProcessor {
         }
     }
 
-    fn is_static(&self) -> bool {
-        false
-    }
-
     fn compile<'ctx>(
         &self,
         _id: SoundProcessorId,
@@ -117,12 +124,14 @@ impl SoundProcessor for TestDynamicSoundProcessor {
     }
 }
 
+impl StartOver for CompiledTestDynamicSoundProcessor {
+    fn start_over(&mut self) {}
+}
+
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestDynamicSoundProcessor {
     fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         StreamStatus::Done
     }
-
-    fn start_over(&mut self) {}
 }
 
 impl WithObjectType for TestDynamicSoundProcessor {

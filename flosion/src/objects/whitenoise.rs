@@ -1,3 +1,5 @@
+use flosion_macros::ProcessorComponent;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use rand::prelude::*;
 
 use crate::{
@@ -6,47 +8,36 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
-            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-            soundprocessortools::SoundProcessorTools,
+            soundprocessor::{
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
+            },
         },
         soundchunk::SoundChunk,
     },
     ui_core::arguments::ParsedArguments,
 };
 
+#[derive(ProcessorComponent)]
 pub struct WhiteNoise {}
 
-impl DynamicSoundProcessor for WhiteNoise {
-    type StateType = ();
-    type SoundInputType = ();
-    type Expressions<'ctx> = ();
-
-    fn new(_tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(WhiteNoise {})
+impl SoundProcessor for WhiteNoise {
+    fn new(_args: &ParsedArguments) -> WhiteNoise {
+        WhiteNoise {}
     }
 
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &()
+    fn is_static(&self) -> bool {
+        false
     }
+}
 
-    fn make_state(&self) -> Self::StateType {
-        ()
-    }
+impl<'ctx> StartOver for CompiledWhiteNoise<'ctx> {
+    fn start_over(&mut self) {}
+}
 
-    fn compile_expressions<'a, 'ctx>(
-        &self,
-        _compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        ()
-    }
-
-    fn process_audio(
-        _state: &mut StateAndTiming<()>,
-        _sound_inputs: &mut (),
-        _expressions: &mut (),
-        dst: &mut SoundChunk,
-        _ctx: Context,
-    ) -> StreamStatus {
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledWhiteNoise<'ctx> {
+    fn process_audio(&mut self, dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         for s in dst.l.iter_mut() {
             let r: f32 = thread_rng().gen();
             *s = 0.2 * r - 0.1;
@@ -61,4 +52,14 @@ impl DynamicSoundProcessor for WhiteNoise {
 
 impl WithObjectType for WhiteNoise {
     const TYPE: ObjectType = ObjectType::new("whitenoise");
+}
+
+impl Stashable for WhiteNoise {
+    fn stash(&self, _stasher: &mut Stasher) {}
+}
+
+impl UnstashableInplace for WhiteNoise {
+    fn unstash_inplace(&mut self, _unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        Ok(())
+    }
 }

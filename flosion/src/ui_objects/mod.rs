@@ -18,5 +18,5 @@ pub mod pure_function_uis;
 // pub mod scatter_ui;
 // pub mod stateful_function_uis;
 // pub mod wavegenerator_ui;
-// pub mod whitenoise_ui;
-// pub mod writewaveform_ui;
+pub mod whitenoise_ui;
+pub mod writewaveform_ui;

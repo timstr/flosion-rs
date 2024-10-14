@@ -1,20 +1,19 @@
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+
 use crate::{
     core::{
-        engine::{
-            compiledexpression::{
-                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-                CompiledExpressionVisitorMut,
-            },
-            soundgraphcompiler::SoundGraphCompiler,
-        },
+        engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
+        expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::{Context, LocalArrayList},
-            expression::SoundExpressionHandle,
-            soundgraphdata::SoundExpressionScope,
-            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-            soundprocessortools::SoundProcessorTools,
+            context::Context,
+            expression::{ProcessorExpression, SoundExpressionScope},
+            soundprocessor::{
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
+            },
         },
         soundchunk::SoundChunk,
     },
@@ -22,62 +21,59 @@ use crate::{
 };
 
 pub struct WriteWaveform {
-    pub waveform: SoundExpressionHandle,
+    pub waveform: ProcessorExpression,
 }
 
-pub struct WriteWaveformExpressions<'ctx> {
+pub struct CompiledWriteWaveform<'ctx> {
     waveform: CompiledExpression<'ctx>,
 }
 
-impl<'ctx> CompiledExpressionCollection<'ctx> for WriteWaveformExpressions<'ctx> {
-    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit(&self.waveform);
-    }
-
-    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit(&mut self.waveform);
-    }
-}
-
-impl DynamicSoundProcessor for WriteWaveform {
-    type StateType = ();
-    type SoundInputType = ();
-    type Expressions<'ctx> = WriteWaveformExpressions<'ctx>;
-
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(WriteWaveform {
-            waveform: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
-        })
-    }
-
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &()
-    }
-
-    fn make_state(&self) -> Self::StateType {
-        ()
-    }
-
-    fn compile_expressions<'a, 'ctx>(
-        &self,
-        compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        WriteWaveformExpressions {
-            waveform: self.waveform.compile(compiler),
+impl SoundProcessor for WriteWaveform {
+    fn new(_args: &ParsedArguments) -> WriteWaveform {
+        WriteWaveform {
+            waveform: ProcessorExpression::new(0.0, SoundExpressionScope::with_processor_state()),
         }
     }
 
-    fn process_audio(
-        state: &mut StateAndTiming<()>,
-        _sound_inputs: &mut (),
-        expressions: &mut WriteWaveformExpressions,
-        dst: &mut SoundChunk,
-        context: Context,
-    ) -> StreamStatus {
-        expressions.waveform.eval(
+    fn is_static(&self) -> bool {
+        false
+    }
+}
+
+impl ProcessorComponent for WriteWaveform {
+    type CompiledType<'ctx> = CompiledWriteWaveform<'ctx>;
+
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        self.waveform.visit(visitor);
+    }
+
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        self.waveform.visit_mut(visitor);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        processor_id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::CompiledType<'ctx> {
+        CompiledWriteWaveform {
+            waveform: self.waveform.compile(processor_id, compiler),
+        }
+    }
+}
+
+impl<'ctx> StartOver for CompiledWriteWaveform<'ctx> {
+    fn start_over(&mut self) {
+        self.waveform.start_over();
+    }
+}
+
+impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledWriteWaveform<'ctx> {
+    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
+        self.waveform.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
-            &context.push_processor_state(state, LocalArrayList::new()),
+            ExpressionContext::new_minimal(context),
         );
         slicemath::copy(&dst.l, &mut dst.r);
 
@@ -87,4 +83,16 @@ impl DynamicSoundProcessor for WriteWaveform {
 
 impl WithObjectType for WriteWaveform {
     const TYPE: ObjectType = ObjectType::new("writewaveform");
+}
+
+impl Stashable for WriteWaveform {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.waveform);
+    }
+}
+
+impl UnstashableInplace for WriteWaveform {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.waveform)
+    }
 }

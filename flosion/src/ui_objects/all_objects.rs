@@ -34,8 +34,8 @@ use super::{
     //     ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
     // },
     // wavegenerator_ui::WaveGeneratorUi,
-    // whitenoise_ui::WhiteNoiseUi,
-    // writewaveform_ui::WriteWaveformUi,
+    whitenoise_ui::WhiteNoiseUi,
+    writewaveform_ui::WriteWaveformUi,
 };
 
 struct ExpressionObjectRegistrationHelper<'a> {
@@ -107,8 +107,8 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     // helper.register::<ResamplerUi>();
     // helper.register::<ScatterUi>();
     // helper.register::<WaveGeneratorUi>();
-    // helper.register::<WhiteNoiseUi>();
-    // helper.register::<WriteWaveformUi>();
+    helper.register::<WhiteNoiseUi>();
+    helper.register::<WriteWaveformUi>();
 
     (object_factory, ui_factory)
 }

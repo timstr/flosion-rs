@@ -12,7 +12,8 @@ use crate::{
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
                 CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StreamStatus,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -36,8 +37,6 @@ pub struct CompiledDefinitions<'ctx> {
 }
 
 impl SoundProcessor for Definitions {
-    type CompiledType<'ctx> = CompiledDefinitions<'ctx>;
-
     fn new(_args: &ParsedArguments) -> Definitions {
         Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous),
@@ -49,6 +48,10 @@ impl SoundProcessor for Definitions {
     fn is_static(&self) -> bool {
         false
     }
+}
+
+impl ProcessorComponent for Definitions {
+    type CompiledType<'ctx> = CompiledDefinitions<'ctx>;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         self.sound_input.visit(visitor);
@@ -75,6 +78,13 @@ impl SoundProcessor for Definitions {
     }
 }
 
+impl<'ctx> StartOver for CompiledDefinitions<'ctx> {
+    fn start_over(&mut self) {
+        self.sound_input.start_over(0);
+        self.expression.start_over();
+    }
+}
+
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledDefinitions<'ctx> {
     fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
         let mut buffer = context.get_scratch_space(CHUNK_SIZE);
@@ -91,11 +101,6 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledDefinitions<'ctx> {
             LocalArrayList::new().push(&buffer, self.argument_id),
             context,
         )
-    }
-
-    fn start_over(&mut self) {
-        self.sound_input.start_over(0);
-        self.expression.start_over();
     }
 }
 

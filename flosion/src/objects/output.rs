@@ -16,7 +16,8 @@ use crate::{
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
                 CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StreamStatus,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
             },
             state::State,
         },
@@ -74,8 +75,6 @@ pub struct CompiledOutput<'ctx> {
 }
 
 impl SoundProcessor for Output {
-    type CompiledType<'ctx> = CompiledOutput<'ctx>;
-
     fn new(_args: &ParsedArguments) -> Output {
         // TODO: move all this to the compile method!
         // There should be no side effects until the processor
@@ -184,6 +183,10 @@ impl SoundProcessor for Output {
     fn is_static(&self) -> bool {
         true
     }
+}
+
+impl ProcessorComponent for Output {
+    type CompiledType<'ctx> = CompiledOutput<'ctx>;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         self.input.visit(visitor);
@@ -207,6 +210,12 @@ impl SoundProcessor for Output {
     }
 }
 
+impl<'ctx> StartOver for CompiledOutput<'ctx> {
+    fn start_over(&mut self) {
+        self.input.start_over(0);
+    }
+}
+
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
     fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
         if self
@@ -226,10 +235,6 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
             }
         }
         StreamStatus::Playing
-    }
-
-    fn start_over(&mut self) {
-        self.input.start_over(0);
     }
 }
 

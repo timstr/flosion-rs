@@ -158,7 +158,7 @@ impl<'ctx> CompiledExpression<'ctx> {
     }
 }
 
-impl<'ctx> StartOver<'ctx> for CompiledExpression<'ctx> {
+impl<'ctx> StartOver for CompiledExpression<'ctx> {
     fn start_over(&mut self) {
         CompiledExpression::start_over(self);
     }

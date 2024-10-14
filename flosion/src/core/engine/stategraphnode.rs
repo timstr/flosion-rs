@@ -10,7 +10,9 @@ use crate::core::{
     sound::{
         context::{Context, InputFrameData, ProcessorFrameData, Stack},
         soundinput::{InputTiming, SoundInputLocation},
-        soundprocessor::{CompiledSoundProcessor, ProcessorTiming, SoundProcessorId, StreamStatus},
+        soundprocessor::{
+            CompiledSoundProcessor, ProcessorTiming, SoundProcessorId, StartOver, StreamStatus,
+        },
     },
     soundchunk::SoundChunk,
 };
@@ -29,7 +31,7 @@ pub struct CompiledProcessorData<T> {
 
 impl<'ctx, T: CompiledSoundProcessor<'ctx>> CompiledProcessorData<T>
 where
-    T: CompiledSoundProcessor<'ctx>,
+    T: CompiledSoundProcessor<'ctx> + StartOver,
 {
     /// Compile a new static processor for the state graph
     pub(crate) fn new<'a>(
@@ -97,8 +99,9 @@ pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable>;
 }
 
-impl<'ctx, T: 'ctx + CompiledSoundProcessor<'ctx>> AnyCompiledProcessorData<'ctx>
-    for CompiledProcessorData<T>
+impl<'ctx, T> AnyCompiledProcessorData<'ctx> for CompiledProcessorData<T>
+where
+    T: 'ctx + CompiledSoundProcessor<'ctx> + StartOver,
 {
     fn id(&self) -> SoundProcessorId {
         self.id

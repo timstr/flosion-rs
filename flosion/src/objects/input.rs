@@ -15,8 +15,9 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StreamStatus,
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -49,8 +50,6 @@ pub struct CompiledInput {
 }
 
 impl SoundProcessor for Input {
-    type CompiledType<'ctx> = CompiledInput;
-
     fn new(_args: &ParsedArguments) -> Input {
         let host = cpal::default_host();
         let device = host
@@ -118,6 +117,10 @@ impl SoundProcessor for Input {
     fn is_static(&self) -> bool {
         true
     }
+}
+
+impl ProcessorComponent for Input {
+    type CompiledType<'ctx> = CompiledInput;
 
     fn visit<'a>(&self, _visitor: &'a mut dyn ProcessorComponentVisitor) {}
 
@@ -125,12 +128,18 @@ impl SoundProcessor for Input {
 
     fn compile<'ctx>(
         &self,
-        _id: SoundProcessorId,
+        _processor_id: SoundProcessorId,
         _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
         CompiledInput {
             chunk_receiver: self.chunk_receiver.clone(),
         }
+    }
+}
+
+impl StartOver for CompiledInput {
+    fn start_over(&mut self) {
+        self.chunk_receiver.skip_ahead();
     }
 }
 
@@ -146,10 +155,6 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledInput {
         };
         *dst = chunk;
         StreamStatus::Playing
-    }
-
-    fn start_over(&mut self) {
-        self.chunk_receiver.skip_ahead();
     }
 }
 

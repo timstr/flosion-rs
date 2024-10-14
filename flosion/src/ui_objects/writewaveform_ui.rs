@@ -1,5 +1,5 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::writewaveform::WriteWaveform,
     ui_core::{
         arguments::ParsedArguments, expressionplot::PlotConfig,
@@ -12,21 +12,20 @@ use crate::{
 pub struct WriteWaveformUi {}
 
 impl SoundObjectUi for WriteWaveformUi {
-    type HandleType = DynamicSoundProcessorHandle<WriteWaveform>;
+    type ObjectType = SoundProcessorWithId<WriteWaveform>;
     type StateType = ();
 
     fn ui(
         &self,
-        ww: DynamicSoundProcessorHandle<WriteWaveform>,
+        ww: &mut SoundProcessorWithId<WriteWaveform>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
         _state: &mut (),
-        sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&ww, "WriteWaveform")
-            .add_expression(ww.get().waveform.id(), "waveform", PlotConfig::new())
-            .show(ui, ctx, graph_ui_state, sound_graph);
+        ProcessorUi::new(ww.id(), "WriteWaveform")
+            .add_expression(&ww.waveform, "waveform", PlotConfig::new())
+            .show(ww, ui, ctx, graph_ui_state);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -37,7 +36,7 @@ impl SoundObjectUi for WriteWaveformUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

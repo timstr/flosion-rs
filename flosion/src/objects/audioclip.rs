@@ -11,8 +11,9 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StreamStatus,
+                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
             },
             state::State,
         },
@@ -56,8 +57,6 @@ pub struct CompiledAudioclip {
 }
 
 impl SoundProcessor for AudioClip {
-    type CompiledType<'ctx> = CompiledAudioclip;
-
     fn new(args: &ParsedArguments) -> AudioClip {
         let buffer = if let Some(path) = args.get(&Self::ARG_PATH) {
             if let Ok(b) = load_audio_file(&path) {
@@ -77,6 +76,10 @@ impl SoundProcessor for AudioClip {
     fn is_static(&self) -> bool {
         false
     }
+}
+
+impl ProcessorComponent for AudioClip {
+    type CompiledType<'ctx> = CompiledAudioclip;
 
     fn visit<'a>(&self, _visitor: &'a mut dyn ProcessorComponentVisitor) {}
 
@@ -93,6 +96,12 @@ impl SoundProcessor for AudioClip {
                 playhead: 0,
             },
         }
+    }
+}
+
+impl StartOver for CompiledAudioclip {
+    fn start_over(&mut self) {
+        self.state.start_over();
     }
 }
 
@@ -122,10 +131,6 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledAudioclip {
             dst.r[i] = c.r[si];
         }
         StreamStatus::Playing
-    }
-
-    fn start_over(&mut self) {
-        self.state.start_over();
     }
 }
 

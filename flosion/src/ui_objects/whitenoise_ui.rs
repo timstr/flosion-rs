@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::whitenoise::WhiteNoise,
     ui_core::{
         arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
@@ -14,19 +14,18 @@ use crate::{
 pub struct WhiteNoiseUi {}
 
 impl SoundObjectUi for WhiteNoiseUi {
-    type HandleType = DynamicSoundProcessorHandle<WhiteNoise>;
+    type ObjectType = SoundProcessorWithId<WhiteNoise>;
     type StateType = ();
 
     fn ui(
         &self,
-        whitenoise: DynamicSoundProcessorHandle<WhiteNoise>,
+        whitenoise: &mut SoundProcessorWithId<WhiteNoise>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         _state: &mut (),
-        sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&whitenoise, "WhiteNoise").show(ui, ctx, graph_ui_state, sound_graph);
+        ProcessorUi::new(whitenoise.id(), "WhiteNoise").show(whitenoise, ui, ctx, graph_ui_state);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -37,7 +36,7 @@ impl SoundObjectUi for WhiteNoiseUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

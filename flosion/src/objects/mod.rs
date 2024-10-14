@@ -16,8 +16,8 @@ pub mod purefunctions;
 // pub mod scatter;
 // pub mod statefulfunctions;
 // pub mod wavegenerator;
-// pub mod whitenoise;
-// pub mod writewaveform;
+pub mod whitenoise;
+pub mod writewaveform;
 
 #[cfg(test)]
 mod test;

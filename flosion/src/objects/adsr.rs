@@ -14,7 +14,8 @@ use crate::{
             soundinputtypes::SingleInput,
             soundprocessor::{
                 CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StreamStatus,
+                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
+                StreamStatus,
             },
             state::State,
         },
@@ -108,8 +109,6 @@ fn chunked_interp(
 }
 
 impl SoundProcessor for ADSR {
-    type CompiledType<'ctx> = CompiledADSR<'ctx>;
-
     fn new(_args: &ParsedArguments) -> ADSR {
         let adsr = ADSR {
             input: SingleInput::new(InputOptions::Synchronous),
@@ -137,6 +136,10 @@ impl SoundProcessor for ADSR {
     fn is_static(&self) -> bool {
         false
     }
+}
+
+impl ProcessorComponent for ADSR {
+    type CompiledType<'ctx> = CompiledADSR<'ctx>;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         self.input.visit(visitor);
@@ -174,6 +177,17 @@ impl SoundProcessor for ADSR {
                 was_released: false,
             },
         }
+    }
+}
+
+impl<'ctx> StartOver for CompiledADSR<'ctx> {
+    fn start_over(&mut self) {
+        self.input.start_over(0);
+        self.attack_time.start_over();
+        self.decay_time.start_over();
+        self.sustain_level.start_over();
+        self.release_time.start_over();
+        self.state.start_over();
     }
 }
 
@@ -305,15 +319,6 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
         slicemath::mul_inplace(&mut dst.r, &level);
 
         status
-    }
-
-    fn start_over(&mut self) {
-        self.input.start_over(0);
-        self.attack_time.start_over();
-        self.decay_time.start_over();
-        self.sustain_level.start_over();
-        self.release_time.start_over();
-        self.state.start_over();
     }
 }
 

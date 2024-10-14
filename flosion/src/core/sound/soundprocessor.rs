@@ -41,16 +41,16 @@ pub enum StreamStatus {
     Done,
 }
 
-pub trait StartOver<'ctx>: Send {
+pub trait StartOver: Send {
     fn start_over(&mut self);
 }
 
-impl<'ctx> StartOver<'ctx> for () {
+impl StartOver for () {
     fn start_over(&mut self) {}
 }
 
 pub trait ProcessorComponent {
-    type CompiledType<'ctx>: StartOver<'ctx>;
+    type CompiledType<'ctx>: StartOver;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor);
     fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut);
@@ -84,27 +84,14 @@ pub trait ProcessorComponentVisitorMut {
 
 pub trait CompiledSoundProcessor<'ctx>: Send {
     fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus;
-
-    fn start_over(&mut self);
 }
 
 pub trait SoundProcessor {
-    type CompiledType<'ctx>: CompiledSoundProcessor<'ctx>;
-
     fn new(args: &ParsedArguments) -> Self
     where
         Self: Sized;
 
     fn is_static(&self) -> bool;
-
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor);
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut);
-
-    fn compile<'ctx>(
-        &self,
-        id: SoundProcessorId,
-        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> Self::CompiledType<'ctx>;
 }
 
 pub struct SoundProcessorWithId<T: SoundProcessor> {
@@ -177,7 +164,12 @@ pub(crate) trait AnySoundProcessor {
 
 impl<T> AnySoundProcessor for SoundProcessorWithId<T>
 where
-    T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
+    for<'ctx> T: 'static
+        + SoundProcessor
+        + WithObjectType
+        + Stashable
+        + UnstashableInplace
+        + ProcessorComponent<CompiledType<'ctx>: CompiledSoundProcessor<'ctx>>,
 {
     fn id(&self) -> SoundProcessorId {
         self.id
@@ -615,7 +607,12 @@ impl ProcessorTiming {
 
 impl<T> SoundGraphObject for SoundProcessorWithId<T>
 where
-    T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
+    for<'ctx> T: 'static
+        + SoundProcessor
+        + WithObjectType
+        + Stashable
+        + UnstashableInplace
+        + ProcessorComponent<CompiledType<'ctx>: CompiledSoundProcessor<'ctx>>,
 {
     fn create(args: &ParsedArguments) -> SoundProcessorWithId<T> {
         SoundProcessorWithId::new_from_args(args)

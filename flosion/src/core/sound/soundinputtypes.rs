@@ -109,7 +109,7 @@ impl<'ctx> SingleInputNode<'ctx> {
     }
 }
 
-impl<'ctx> StartOver<'ctx> for SingleInputNode<'ctx> {
+impl<'ctx> StartOver for SingleInputNode<'ctx> {
     fn start_over(&mut self) {
         SingleInputNode::start_over(self, 0);
     }

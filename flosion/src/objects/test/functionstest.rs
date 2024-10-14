@@ -21,7 +21,7 @@ use crate::{
             soundprocessor::{
                 CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
                 ProcessorComponentVisitorMut, ProcessorTiming, SoundProcessor, SoundProcessorId,
-                SoundProcessorWithId, StreamStatus,
+                SoundProcessorWithId, StartOver, StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -46,8 +46,6 @@ struct CompiledTestSoundProcessor<'ctx> {
 }
 
 impl SoundProcessor for TestSoundProcessor {
-    type CompiledType<'ctx> = CompiledTestSoundProcessor<'ctx>;
-
     fn new(_args: &ParsedArguments) -> TestSoundProcessor {
         TestSoundProcessor {
             expression: ProcessorExpression::new(0.0, SoundExpressionScope::with_processor_state()),
@@ -56,6 +54,14 @@ impl SoundProcessor for TestSoundProcessor {
             argument_2: ProcessorArgument::new_local_array(),
         }
     }
+
+    fn is_static(&self) -> bool {
+        false
+    }
+}
+
+impl ProcessorComponent for TestSoundProcessor {
+    type CompiledType<'ctx> = CompiledTestSoundProcessor<'ctx>;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         self.expression.visit(visitor);
@@ -71,10 +77,6 @@ impl SoundProcessor for TestSoundProcessor {
         self.argument_2.visit_mut(visitor);
     }
 
-    fn is_static(&self) -> bool {
-        false
-    }
-
     fn compile<'ctx>(
         &self,
         id: SoundProcessorId,
@@ -86,13 +88,15 @@ impl SoundProcessor for TestSoundProcessor {
     }
 }
 
+impl<'ctx> StartOver for CompiledTestSoundProcessor<'ctx> {
+    fn start_over(&mut self) {
+        self.expression.start_over();
+    }
+}
+
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestSoundProcessor<'ctx> {
     fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         panic!("Unused")
-    }
-
-    fn start_over(&mut self) {
-        self.expression.start_over();
     }
 }
 
