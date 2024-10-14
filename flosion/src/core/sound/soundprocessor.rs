@@ -41,16 +41,16 @@ pub enum StreamStatus {
     Done,
 }
 
-pub trait CompiledProcessorComponent<'ctx>: Send {
+pub trait StartOver<'ctx>: Send {
     fn start_over(&mut self);
 }
 
-impl<'ctx> CompiledProcessorComponent<'ctx> for () {
+impl<'ctx> StartOver<'ctx> for () {
     fn start_over(&mut self) {}
 }
 
 pub trait ProcessorComponent {
-    type CompiledType<'ctx>: CompiledProcessorComponent<'ctx>;
+    type CompiledType<'ctx>: StartOver<'ctx>;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor);
     fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut);

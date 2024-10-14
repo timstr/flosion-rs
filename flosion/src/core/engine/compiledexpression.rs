@@ -4,7 +4,7 @@ use crate::core::{
     engine::garbage::{Garbage, GarbageChute},
     expression::context::ExpressionContext,
     jit::compiledexpression::{CompiledExpressionFunction, Discretization},
-    sound::{expression::ProcessorExpressionId, soundprocessor::CompiledProcessorComponent},
+    sound::{expression::ProcessorExpressionId, soundprocessor::StartOver},
 };
 
 #[cfg(debug_assertions)]
@@ -158,7 +158,7 @@ impl<'ctx> CompiledExpression<'ctx> {
     }
 }
 
-impl<'ctx> CompiledProcessorComponent<'ctx> for CompiledExpression<'ctx> {
+impl<'ctx> StartOver<'ctx> for CompiledExpression<'ctx> {
     fn start_over(&mut self) {
         CompiledExpression::start_over(self);
     }

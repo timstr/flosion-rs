@@ -13,8 +13,8 @@ use super::{
         BasicProcessorInput, InputOptions, InputTiming, ProcessorInputId, SoundInputBranchId,
     },
     soundprocessor::{
-        CompiledProcessorComponent, ProcessorComponent, ProcessorComponentVisitor,
-        ProcessorComponentVisitorMut, SoundProcessorId, StreamStatus,
+        ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+        SoundProcessorId, StartOver, StreamStatus,
     },
 };
 
@@ -109,7 +109,7 @@ impl<'ctx> SingleInputNode<'ctx> {
     }
 }
 
-impl<'ctx> CompiledProcessorComponent<'ctx> for SingleInputNode<'ctx> {
+impl<'ctx> StartOver<'ctx> for SingleInputNode<'ctx> {
     fn start_over(&mut self) {
         SingleInputNode::start_over(self, 0);
     }
