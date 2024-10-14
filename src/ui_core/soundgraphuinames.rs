@@ -11,63 +11,11 @@ use crate::core::sound::{
     soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
 };
 
-// TODO: replace all of these with just String
-
-pub(crate) struct SoundArgumentNameData {
-    name: String,
-    location: ArgumentLocation,
-}
-
-impl SoundArgumentNameData {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub(crate) fn location(&self) -> ArgumentLocation {
-        self.location
-    }
-}
-
-pub(crate) struct SoundExpressionNameData {
-    name: String,
-}
-
-impl SoundExpressionNameData {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-}
-
-pub(crate) struct SoundInputNameData {
-    name: String,
-    location: SoundInputLocation,
-}
-
-impl SoundInputNameData {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub(crate) fn location(&self) -> SoundInputLocation {
-        self.location
-    }
-}
-
-pub(crate) struct SoundProcessorNameData {
-    name: String,
-}
-
-impl SoundProcessorNameData {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
-    }
-}
-
 pub(crate) struct SoundGraphUiNames {
-    arguments: HashMap<ArgumentLocation, SoundArgumentNameData>,
-    expressions: HashMap<ProcessorExpressionLocation, SoundExpressionNameData>,
-    sound_inputs: HashMap<SoundInputLocation, SoundInputNameData>,
-    sound_processors: HashMap<SoundProcessorId, SoundProcessorNameData>,
+    arguments: HashMap<ArgumentLocation, String>,
+    expressions: HashMap<ProcessorExpressionLocation, String>,
+    sound_inputs: HashMap<SoundInputLocation, String>,
+    sound_processors: HashMap<SoundProcessorId, String>,
 }
 
 impl SoundGraphUiNames {
@@ -97,10 +45,7 @@ impl SoundGraphUiNames {
                 self.names
                     .sound_inputs
                     .entry(location)
-                    .or_insert_with(|| SoundInputNameData {
-                        name: format!("input_{}", location.input().value()),
-                        location,
-                    });
+                    .or_insert_with(|| format!("input_{}", location.input().value()));
             }
 
             fn expression(&mut self, expression: &ProcessorExpression) {
@@ -108,9 +53,7 @@ impl SoundGraphUiNames {
                 self.names
                     .expressions
                     .entry(location)
-                    .or_insert_with(|| SoundExpressionNameData {
-                        name: format!("expression_{}", location.expression().value()),
-                    });
+                    .or_insert_with(|| format!("expression_{}", location.expression().value()));
             }
 
             fn processor_argument(&mut self, argument: &ProcessorArgument) {
@@ -118,10 +61,7 @@ impl SoundGraphUiNames {
                 self.names
                     .arguments
                     .entry(location.into())
-                    .or_insert_with(|| SoundArgumentNameData {
-                        name: format!("argument_{}", location.argument().value()),
-                        location: location.into(),
-                    });
+                    .or_insert_with(|| format!("argument_{}", location.argument().value()));
             }
 
             fn input_argument(
@@ -134,19 +74,14 @@ impl SoundGraphUiNames {
                 self.names
                     .arguments
                     .entry(location.into())
-                    .or_insert_with(|| SoundArgumentNameData {
-                        name: format!("argument_{}", location.argument().value()),
-                        location: location.into(),
-                    });
+                    .or_insert_with(|| format!("argument_{}", location.argument().value()));
             }
         }
 
         for proc_data in graph.sound_processors().values() {
             self.sound_processors
                 .entry(proc_data.id())
-                .or_insert_with(|| SoundProcessorNameData {
-                    name: proc_data.as_graph_object().friendly_name(),
-                });
+                .or_insert_with(|| proc_data.as_graph_object().friendly_name());
             let mut visitor = DefaultNameVisitor {
                 names: self,
                 processor_id: proc_data.id(),
@@ -155,39 +90,36 @@ impl SoundGraphUiNames {
         }
     }
 
-    pub(crate) fn argument(&self, location: ArgumentLocation) -> Option<&SoundArgumentNameData> {
-        self.arguments.get(&location)
+    pub(crate) fn argument(&self, location: ArgumentLocation) -> Option<&str> {
+        self.arguments.get(&location).map(|s| s.as_str())
     }
 
-    pub(crate) fn expression(
-        &self,
-        location: ProcessorExpressionLocation,
-    ) -> Option<&SoundExpressionNameData> {
-        self.expressions.get(&location)
+    pub(crate) fn expression(&self, location: ProcessorExpressionLocation) -> Option<&str> {
+        self.expressions.get(&location).map(|s| s.as_str())
     }
 
-    pub(crate) fn sound_input(&self, location: SoundInputLocation) -> Option<&SoundInputNameData> {
-        self.sound_inputs.get(&location)
+    pub(crate) fn sound_input(&self, location: SoundInputLocation) -> Option<&str> {
+        self.sound_inputs.get(&location).map(|s| s.as_str())
     }
 
-    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&SoundProcessorNameData> {
-        self.sound_processors.get(&id)
+    pub(crate) fn sound_processor(&self, id: SoundProcessorId) -> Option<&str> {
+        self.sound_processors.get(&id).map(|s| s.as_str())
     }
 
     pub(crate) fn record_argument_name(&mut self, location: ArgumentLocation, name: String) {
-        self.arguments.get_mut(&location).unwrap().name = name;
+        *self.arguments.get_mut(&location).unwrap() = name;
     }
 
     pub(crate) fn record_sound_input_name(&mut self, location: SoundInputLocation, name: String) {
-        self.sound_inputs.get_mut(&location).unwrap().name = name;
+        *self.sound_inputs.get_mut(&location).unwrap() = name;
     }
 
     pub(crate) fn record_sound_processor_name(&mut self, id: SoundProcessorId, name: String) {
-        self.sound_processors.get_mut(&id).unwrap().name = name;
+        *self.sound_processors.get_mut(&id).unwrap() = name;
     }
 
     pub(crate) fn record_expression_name(&mut self, id: ProcessorExpressionLocation, name: String) {
-        self.expressions.get_mut(&id).unwrap().name = name;
+        *self.expressions.get_mut(&id).unwrap() = name;
     }
 
     pub(crate) fn combined_parameter_name(&self, location: ArgumentLocation) -> String {
@@ -195,21 +127,20 @@ impl SoundGraphUiNames {
             ArgumentLocation::Processor(location) => {
                 format!(
                     "{}.{}",
-                    self.sound_processor(location.processor()).unwrap().name(),
-                    self.argument(location.into()).unwrap().name()
+                    self.sound_processor(location.processor()).unwrap(),
+                    self.argument(location.into()).unwrap()
                 )
             }
             ArgumentLocation::Input(location) => {
                 format!(
                     "{}.{}.{}",
-                    self.sound_processor(location.processor()).unwrap().name(),
+                    self.sound_processor(location.processor()).unwrap(),
                     self.sound_input(SoundInputLocation::new(
                         location.processor(),
                         location.input()
                     ))
-                    .unwrap()
-                    .name(),
-                    self.argument(location.into()).unwrap().name()
+                    .unwrap(),
+                    self.argument(location.into()).unwrap()
                 )
             }
         }

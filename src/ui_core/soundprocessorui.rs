@@ -261,16 +261,10 @@ impl ProcessorUi {
                 // Show the processor name and also type name if it differs
                 ui.horizontal(|ui| {
                     ui.spacing();
-                    let name = ui_state
-                        .names()
-                        .sound_processor(self.processor_id)
-                        .unwrap()
-                        .name()
-                        .to_string();
-
+                    let name = ui_state.names().sound_processor(self.processor_id).unwrap();
                     ui.add(
                         egui::Label::new(
-                            egui::RichText::new(&name)
+                            egui::RichText::new(name)
                                 .color(egui::Color32::BLACK)
                                 .strong(),
                         )

@@ -244,7 +244,7 @@ impl ExpressionPlot {
                     names
                         .argument(*arg_id)
                         .iter()
-                        .map(|n| n.name())
+                        .cloned()
                         .next()
                         .unwrap_or("???"),
                     font_id.clone(),

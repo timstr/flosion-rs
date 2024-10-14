@@ -111,14 +111,11 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
         }
     }
 
-    pub(crate) fn result_name(&self, output_id: ExpressionGraphResultId) -> String {
+    pub(crate) fn result_name(&self, output_id: ExpressionGraphResultId) -> &str {
         match self {
-            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx
-                .sound_graph_names()
-                .expression(ctx.location())
-                .unwrap()
-                .name()
-                .to_string(),
+            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
+                ctx.sound_graph_names().expression(ctx.location()).unwrap()
+            }
         }
     }
 
