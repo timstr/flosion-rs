@@ -15,9 +15,8 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -117,6 +116,23 @@ impl SoundProcessor for Input {
     fn is_static(&self) -> bool {
         true
     }
+
+    fn process_audio(
+        input: &mut CompiledInput,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        let chunk = match input.chunk_receiver.read() {
+            ReadResult::Ok(ch) => ch,
+            ReadResult::Dropout(ch) => {
+                println!("WARNING: Input dropout");
+                ch
+            }
+            ReadResult::Empty => return StreamStatus::Playing,
+        };
+        *dst = chunk;
+        StreamStatus::Playing
+    }
 }
 
 impl ProcessorComponent for Input {
@@ -140,21 +156,6 @@ impl ProcessorComponent for Input {
 impl StartOver for CompiledInput {
     fn start_over(&mut self) {
         self.chunk_receiver.skip_ahead();
-    }
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledInput {
-    fn process_audio(&mut self, dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
-        let chunk = match self.chunk_receiver.read() {
-            ReadResult::Ok(ch) => ch,
-            ReadResult::Dropout(ch) => {
-                println!("WARNING: Input dropout");
-                ch
-            }
-            ReadResult::Empty => return StreamStatus::Playing,
-        };
-        *dst = chunk;
-        StreamStatus::Playing
     }
 }
 

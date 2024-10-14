@@ -9,9 +9,8 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -30,14 +29,12 @@ impl SoundProcessor for WhiteNoise {
     fn is_static(&self) -> bool {
         false
     }
-}
 
-impl<'ctx> StartOver for CompiledWhiteNoise<'ctx> {
-    fn start_over(&mut self) {}
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledWhiteNoise<'ctx> {
-    fn process_audio(&mut self, dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
+    fn process_audio(
+        _whitenoise: &mut CompiledWhiteNoise,
+        dst: &mut SoundChunk,
+        _context: &mut Context,
+    ) -> StreamStatus {
         for s in dst.l.iter_mut() {
             let r: f32 = thread_rng().gen();
             *s = 0.2 * r - 0.1;
@@ -48,6 +45,10 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledWhiteNoise<'ctx> {
         }
         StreamStatus::Playing
     }
+}
+
+impl<'ctx> StartOver for CompiledWhiteNoise<'ctx> {
+    fn start_over(&mut self) {}
 }
 
 impl WithObjectType for WhiteNoise {

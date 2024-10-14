@@ -8,9 +8,8 @@ use crate::{
             context::Context,
             soundinput::BasicProcessorInput,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -31,6 +30,14 @@ impl SoundProcessor for TestStaticSoundProcessor {
 
     fn is_static(&self) -> bool {
         true
+    }
+
+    fn process_audio(
+        processor: &mut Self::CompiledType<'_>,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        StreamStatus::Done
     }
 }
 
@@ -60,12 +67,6 @@ impl ProcessorComponent for TestStaticSoundProcessor {
 
 impl<'ctx> StartOver for CompiledTestStaticSoundProcessor {
     fn start_over(&mut self) {}
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestStaticSoundProcessor {
-    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
-        StreamStatus::Done
-    }
 }
 
 impl WithObjectType for TestStaticSoundProcessor {
@@ -98,6 +99,14 @@ impl SoundProcessor for TestDynamicSoundProcessor {
     fn is_static(&self) -> bool {
         false
     }
+
+    fn process_audio(
+        processor: &mut Self::CompiledType<'_>,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        StreamStatus::Done
+    }
 }
 
 impl ProcessorComponent for TestDynamicSoundProcessor {
@@ -126,12 +135,6 @@ impl ProcessorComponent for TestDynamicSoundProcessor {
 
 impl StartOver for CompiledTestDynamicSoundProcessor {
     fn start_over(&mut self) {}
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestDynamicSoundProcessor {
-    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
-        StreamStatus::Done
-    }
 }
 
 impl WithObjectType for TestDynamicSoundProcessor {

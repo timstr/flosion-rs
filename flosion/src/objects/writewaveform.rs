@@ -10,9 +10,8 @@ use crate::{
             context::Context,
             expression::{ProcessorExpression, SoundExpressionScope},
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -31,12 +30,30 @@ pub struct CompiledWriteWaveform<'ctx> {
 impl SoundProcessor for WriteWaveform {
     fn new(_args: &ParsedArguments) -> WriteWaveform {
         WriteWaveform {
-            waveform: ProcessorExpression::new(0.0, SoundExpressionScope::with_processor_state()),
+            waveform: ProcessorExpression::new(
+                0.0,
+                SoundExpressionScope::without_processor_state(),
+            ),
         }
     }
 
     fn is_static(&self) -> bool {
         false
+    }
+
+    fn process_audio(
+        wwf: &mut Self::CompiledType<'_>,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        wwf.waveform.eval(
+            &mut dst.l,
+            Discretization::samplewise_temporal(),
+            ExpressionContext::new_minimal(context),
+        );
+        slicemath::copy(&dst.l, &mut dst.r);
+
+        StreamStatus::Playing
     }
 }
 
@@ -65,19 +82,6 @@ impl ProcessorComponent for WriteWaveform {
 impl<'ctx> StartOver for CompiledWriteWaveform<'ctx> {
     fn start_over(&mut self) {
         self.waveform.start_over();
-    }
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledWriteWaveform<'ctx> {
-    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
-        self.waveform.eval(
-            &mut dst.l,
-            Discretization::samplewise_temporal(),
-            ExpressionContext::new_minimal(context),
-        );
-        slicemath::copy(&dst.l, &mut dst.r);
-
-        StreamStatus::Playing
     }
 }
 

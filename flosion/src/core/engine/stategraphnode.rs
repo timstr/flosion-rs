@@ -11,7 +11,7 @@ use crate::core::{
         context::{Context, InputFrameData, ProcessorFrameData, Stack},
         soundinput::{InputTiming, SoundInputLocation},
         soundprocessor::{
-            CompiledSoundProcessor, ProcessorTiming, SoundProcessorId, StartOver, StreamStatus,
+            ProcessorTiming, SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
         },
     },
     soundchunk::SoundChunk,
@@ -23,21 +23,18 @@ use super::{
 };
 
 /// A compiled static processor for use in the state graph.
-pub struct CompiledProcessorData<T> {
+pub struct CompiledProcessorData<'ctx, T: SoundProcessor> {
     id: SoundProcessorId,
     timing: ProcessorTiming,
-    processor: T,
+    processor: T::CompiledType<'ctx>,
 }
 
-impl<'ctx, T: CompiledSoundProcessor<'ctx>> CompiledProcessorData<T>
-where
-    T: CompiledSoundProcessor<'ctx> + StartOver,
-{
+impl<'ctx, T: SoundProcessor> CompiledProcessorData<'ctx, T> {
     /// Compile a new static processor for the state graph
     pub(crate) fn new<'a>(
         processor_id: SoundProcessorId,
-        processor: T,
-    ) -> CompiledProcessorData<T> {
+        processor: T::CompiledType<'ctx>,
+    ) -> CompiledProcessorData<'ctx, T> {
         CompiledProcessorData {
             id: processor_id,
             timing: ProcessorTiming::new(),
@@ -57,7 +54,7 @@ where
         scratch_arena: &ScratchArena,
     ) -> StreamStatus {
         let mut context = Context::new(self.id, &self.timing, scratch_arena, stack);
-        let status = self.processor.process_audio(dst, &mut context);
+        let status = T::process_audio(&mut self.processor, dst, &mut context);
         self.timing.advance_one_chunk();
         status
     }
@@ -99,9 +96,8 @@ pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
     fn into_droppable(self: Box<Self>) -> Box<dyn 'ctx + Droppable>;
 }
 
-impl<'ctx, T> AnyCompiledProcessorData<'ctx> for CompiledProcessorData<T>
-where
-    T: 'ctx + CompiledSoundProcessor<'ctx> + StartOver,
+impl<'ctx, T: 'static + SoundProcessor> AnyCompiledProcessorData<'ctx>
+    for CompiledProcessorData<'ctx, T>
 {
     fn id(&self) -> SoundProcessorId {
         self.id

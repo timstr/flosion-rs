@@ -19,9 +19,9 @@ use crate::{
             expressionargument::{ArgumentLocation, ProcessorArgument, ProcessorArgumentLocation},
             soundgraph::SoundGraph,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, ProcessorTiming, SoundProcessor, SoundProcessorId,
-                SoundProcessorWithId, StartOver, StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                ProcessorTiming, SoundProcessor, SoundProcessorId, SoundProcessorWithId, StartOver,
+                StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -58,6 +58,14 @@ impl SoundProcessor for TestSoundProcessor {
     fn is_static(&self) -> bool {
         false
     }
+
+    fn process_audio(
+        processor: &mut Self::CompiledType<'_>,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        panic!("unused")
+    }
 }
 
 impl ProcessorComponent for TestSoundProcessor {
@@ -91,12 +99,6 @@ impl ProcessorComponent for TestSoundProcessor {
 impl<'ctx> StartOver for CompiledTestSoundProcessor<'ctx> {
     fn start_over(&mut self) {
         self.expression.start_over();
-    }
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestSoundProcessor<'ctx> {
-    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
-        panic!("Unused")
     }
 }
 

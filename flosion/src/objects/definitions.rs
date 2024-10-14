@@ -11,9 +11,8 @@ use crate::{
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -47,6 +46,27 @@ impl SoundProcessor for Definitions {
 
     fn is_static(&self) -> bool {
         false
+    }
+
+    fn process_audio(
+        defns: &mut CompiledDefinitions,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        let mut buffer = context.get_scratch_space(CHUNK_SIZE);
+
+        defns.expression.eval(
+            &mut buffer,
+            Discretization::samplewise_temporal(),
+            ExpressionContext::new_minimal(context),
+        );
+
+        defns.sound_input.step(
+            dst,
+            None,
+            LocalArrayList::new().push(&buffer, defns.argument_id),
+            context,
+        )
     }
 }
 
@@ -82,25 +102,6 @@ impl<'ctx> StartOver for CompiledDefinitions<'ctx> {
     fn start_over(&mut self) {
         self.sound_input.start_over(0);
         self.expression.start_over();
-    }
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledDefinitions<'ctx> {
-    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
-        let mut buffer = context.get_scratch_space(CHUNK_SIZE);
-
-        self.expression.eval(
-            &mut buffer,
-            Discretization::samplewise_temporal(),
-            ExpressionContext::new_minimal(context),
-        );
-
-        self.sound_input.step(
-            dst,
-            None,
-            LocalArrayList::new().push(&buffer, self.argument_id),
-            context,
-        )
     }
 }
 

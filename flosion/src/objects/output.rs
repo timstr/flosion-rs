@@ -15,9 +15,8 @@ use crate::{
             soundinput::InputOptions,
             soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
             state::State,
         },
@@ -183,6 +182,30 @@ impl SoundProcessor for Output {
     fn is_static(&self) -> bool {
         true
     }
+
+    fn process_audio(
+        output: &mut CompiledOutput,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        if output
+            .state
+            .shared_data
+            .pending_startover
+            .swap(false, Ordering::SeqCst)
+        {
+            output.input.start_over(0);
+        }
+        output.input.step(dst, None, LocalArrayList::new(), context);
+
+        if let Err(e) = output.state.shared_data.chunk_sender.try_send(*dst) {
+            match e {
+                TrySendError::Full(_) => println!("Output sound processor dropped a chunk"),
+                TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
+            }
+        }
+        StreamStatus::Playing
+    }
 }
 
 impl ProcessorComponent for Output {
@@ -213,28 +236,6 @@ impl ProcessorComponent for Output {
 impl<'ctx> StartOver for CompiledOutput<'ctx> {
     fn start_over(&mut self) {
         self.input.start_over(0);
-    }
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
-    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
-        if self
-            .state
-            .shared_data
-            .pending_startover
-            .swap(false, Ordering::SeqCst)
-        {
-            self.input.start_over(0);
-        }
-        self.input.step(dst, None, LocalArrayList::new(), context);
-
-        if let Err(e) = self.state.shared_data.chunk_sender.try_send(*dst) {
-            match e {
-                TrySendError::Full(_) => println!("Output sound processor dropped a chunk"),
-                TrySendError::Disconnected(_) => panic!("Idk what to do, maybe nothing?"),
-            }
-        }
-        StreamStatus::Playing
     }
 }
 

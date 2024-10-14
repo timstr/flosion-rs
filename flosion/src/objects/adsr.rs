@@ -13,9 +13,8 @@ use crate::{
             soundinput::InputOptions,
             soundinputtypes::SingleInput,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
             state::State,
         },
@@ -136,6 +135,139 @@ impl SoundProcessor for ADSR {
     fn is_static(&self) -> bool {
         false
     }
+
+    fn process_audio(
+        adsr: &mut CompiledADSR,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        let pending_release = context.take_pending_release();
+
+        if let Phase::Init = adsr.state.phase {
+            adsr.state.phase = Phase::Attack;
+            adsr.state.prev_level = 0.0;
+            adsr.state.next_level = 1.0;
+            adsr.state.phase_samples = (adsr.attack_time.eval_scalar(
+                Discretization::chunkwise_temporal(),
+                ExpressionContext::new_minimal(context),
+            ) * SAMPLE_FREQUENCY as f32) as usize;
+            adsr.state.phase_samples_so_far = 0;
+        }
+
+        let mut cursor: usize = 0;
+        let mut level = context.get_scratch_space(CHUNK_SIZE);
+        let mut status = StreamStatus::Playing;
+
+        if let Phase::Attack = adsr.state.phase {
+            let samples_covered = chunked_interp(
+                &mut level[..],
+                adsr.state.phase_samples,
+                adsr.state.phase_samples_so_far,
+                adsr.state.prev_level,
+                adsr.state.next_level,
+            );
+            adsr.state.phase_samples_so_far += samples_covered;
+            cursor += samples_covered;
+            debug_assert!(cursor <= CHUNK_SIZE);
+
+            if cursor < CHUNK_SIZE {
+                adsr.state.phase = Phase::Decay;
+                adsr.state.phase_samples_so_far = 0;
+                adsr.state.phase_samples = (adsr.decay_time.eval_scalar(
+                    Discretization::chunkwise_temporal(),
+                    ExpressionContext::new_minimal(context),
+                ) * SAMPLE_FREQUENCY as f32) as usize;
+                adsr.state.prev_level = 1.0;
+                adsr.state.next_level = adsr
+                    .sustain_level
+                    .eval_scalar(
+                        Discretization::chunkwise_temporal(),
+                        ExpressionContext::new_minimal(context),
+                    )
+                    .clamp(0.0, 1.0);
+            }
+        }
+
+        if let Phase::Decay = adsr.state.phase {
+            let samples_covered = chunked_interp(
+                &mut level[cursor..],
+                adsr.state.phase_samples,
+                adsr.state.phase_samples_so_far,
+                adsr.state.prev_level,
+                adsr.state.next_level,
+            );
+            adsr.state.phase_samples_so_far += samples_covered;
+            cursor += samples_covered;
+            debug_assert!(cursor <= CHUNK_SIZE);
+
+            if cursor < CHUNK_SIZE {
+                adsr.state.phase = Phase::Sustain;
+                // NOTE: sustain is held until release message is received
+                adsr.state.phase_samples = 0;
+                adsr.state.phase_samples_so_far = 0;
+                // NOTE: adsr.state.next_level already holds sustain level after transition to decay phase
+            }
+        }
+
+        if let Phase::Sustain = adsr.state.phase {
+            let sample_offset = if adsr.state.was_released {
+                Some(0)
+            } else {
+                pending_release
+            };
+
+            if let Some(sample_offset) = sample_offset {
+                // TODO: consider optionally propagating, e.g.
+                // inputs.request_release(sample_offset);
+                if sample_offset > cursor {
+                    slicemath::fill(&mut level[cursor..sample_offset], adsr.state.next_level);
+                    cursor = sample_offset;
+                }
+                adsr.state.phase = Phase::Release;
+                adsr.state.phase_samples = (adsr.release_time.eval_scalar(
+                    Discretization::chunkwise_temporal(),
+                    ExpressionContext::new_minimal(context),
+                ) * SAMPLE_FREQUENCY as f32) as usize;
+                adsr.state.phase_samples_so_far = 0;
+                adsr.state.prev_level = adsr.state.next_level;
+                adsr.state.next_level = 0.0;
+            } else {
+                slicemath::fill(&mut level[cursor..], adsr.state.next_level);
+                cursor = CHUNK_SIZE;
+            }
+        }
+
+        if let Phase::Release = adsr.state.phase {
+            let samples_covered = chunked_interp(
+                &mut level[cursor..],
+                adsr.state.phase_samples,
+                adsr.state.phase_samples_so_far,
+                adsr.state.prev_level,
+                0.0,
+            );
+            adsr.state.phase_samples_so_far += samples_covered;
+            cursor += samples_covered;
+            debug_assert!(cursor <= CHUNK_SIZE);
+
+            if cursor < CHUNK_SIZE {
+                slicemath::fill(&mut level[cursor..], 0.0);
+                cursor = CHUNK_SIZE;
+                status = StreamStatus::Done;
+            }
+        }
+
+        if pending_release.is_some() {
+            adsr.state.was_released = true;
+        }
+
+        debug_assert!(cursor == CHUNK_SIZE);
+
+        adsr.input.step(dst, None, LocalArrayList::new(), context);
+        slicemath::mul_inplace(&mut dst.l, &level);
+        slicemath::mul_inplace(&mut dst.r, &level);
+
+        status
+    }
 }
 
 impl ProcessorComponent for ADSR {
@@ -188,137 +320,6 @@ impl<'ctx> StartOver for CompiledADSR<'ctx> {
         self.sustain_level.start_over();
         self.release_time.start_over();
         self.state.start_over();
-    }
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
-    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
-        let pending_release = context.take_pending_release();
-
-        if let Phase::Init = self.state.phase {
-            self.state.phase = Phase::Attack;
-            self.state.prev_level = 0.0;
-            self.state.next_level = 1.0;
-            self.state.phase_samples = (self.attack_time.eval_scalar(
-                Discretization::chunkwise_temporal(),
-                ExpressionContext::new_minimal(context),
-            ) * SAMPLE_FREQUENCY as f32) as usize;
-            self.state.phase_samples_so_far = 0;
-        }
-
-        let mut cursor: usize = 0;
-        let mut level = context.get_scratch_space(CHUNK_SIZE);
-        let mut status = StreamStatus::Playing;
-
-        if let Phase::Attack = self.state.phase {
-            let samples_covered = chunked_interp(
-                &mut level[..],
-                self.state.phase_samples,
-                self.state.phase_samples_so_far,
-                self.state.prev_level,
-                self.state.next_level,
-            );
-            self.state.phase_samples_so_far += samples_covered;
-            cursor += samples_covered;
-            debug_assert!(cursor <= CHUNK_SIZE);
-
-            if cursor < CHUNK_SIZE {
-                self.state.phase = Phase::Decay;
-                self.state.phase_samples_so_far = 0;
-                self.state.phase_samples = (self.decay_time.eval_scalar(
-                    Discretization::chunkwise_temporal(),
-                    ExpressionContext::new_minimal(context),
-                ) * SAMPLE_FREQUENCY as f32) as usize;
-                self.state.prev_level = 1.0;
-                self.state.next_level = self
-                    .sustain_level
-                    .eval_scalar(
-                        Discretization::chunkwise_temporal(),
-                        ExpressionContext::new_minimal(context),
-                    )
-                    .clamp(0.0, 1.0);
-            }
-        }
-
-        if let Phase::Decay = self.state.phase {
-            let samples_covered = chunked_interp(
-                &mut level[cursor..],
-                self.state.phase_samples,
-                self.state.phase_samples_so_far,
-                self.state.prev_level,
-                self.state.next_level,
-            );
-            self.state.phase_samples_so_far += samples_covered;
-            cursor += samples_covered;
-            debug_assert!(cursor <= CHUNK_SIZE);
-
-            if cursor < CHUNK_SIZE {
-                self.state.phase = Phase::Sustain;
-                // NOTE: sustain is held until release message is received
-                self.state.phase_samples = 0;
-                self.state.phase_samples_so_far = 0;
-                // NOTE: self.state.next_level already holds sustain level after transition to decay phase
-            }
-        }
-
-        if let Phase::Sustain = self.state.phase {
-            let sample_offset = if self.state.was_released {
-                Some(0)
-            } else {
-                pending_release
-            };
-
-            if let Some(sample_offset) = sample_offset {
-                // TODO: consider optionally propagating, e.g.
-                // inputs.request_release(sample_offset);
-                if sample_offset > cursor {
-                    slicemath::fill(&mut level[cursor..sample_offset], self.state.next_level);
-                    cursor = sample_offset;
-                }
-                self.state.phase = Phase::Release;
-                self.state.phase_samples = (self.release_time.eval_scalar(
-                    Discretization::chunkwise_temporal(),
-                    ExpressionContext::new_minimal(context),
-                ) * SAMPLE_FREQUENCY as f32) as usize;
-                self.state.phase_samples_so_far = 0;
-                self.state.prev_level = self.state.next_level;
-                self.state.next_level = 0.0;
-            } else {
-                slicemath::fill(&mut level[cursor..], self.state.next_level);
-                cursor = CHUNK_SIZE;
-            }
-        }
-
-        if let Phase::Release = self.state.phase {
-            let samples_covered = chunked_interp(
-                &mut level[cursor..],
-                self.state.phase_samples,
-                self.state.phase_samples_so_far,
-                self.state.prev_level,
-                0.0,
-            );
-            self.state.phase_samples_so_far += samples_covered;
-            cursor += samples_covered;
-            debug_assert!(cursor <= CHUNK_SIZE);
-
-            if cursor < CHUNK_SIZE {
-                slicemath::fill(&mut level[cursor..], 0.0);
-                cursor = CHUNK_SIZE;
-                status = StreamStatus::Done;
-            }
-        }
-
-        if pending_release.is_some() {
-            self.state.was_released = true;
-        }
-
-        debug_assert!(cursor == CHUNK_SIZE);
-
-        self.input.step(dst, None, LocalArrayList::new(), context);
-        slicemath::mul_inplace(&mut dst.l, &level);
-        slicemath::mul_inplace(&mut dst.r, &level);
-
-        status
     }
 }
 

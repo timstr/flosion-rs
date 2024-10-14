@@ -41,7 +41,7 @@ pub enum StreamStatus {
     Done,
 }
 
-pub trait StartOver: Send {
+pub trait StartOver {
     fn start_over(&mut self);
 }
 
@@ -50,7 +50,7 @@ impl StartOver for () {
 }
 
 pub trait ProcessorComponent {
-    type CompiledType<'ctx>: StartOver;
+    type CompiledType<'ctx>: Send + StartOver;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor);
     fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut);
@@ -82,16 +82,18 @@ pub trait ProcessorComponentVisitorMut {
     fn input_argument(&mut self, _argument: &mut SoundInputArgument, _input_id: ProcessorInputId) {}
 }
 
-pub trait CompiledSoundProcessor<'ctx>: Send {
-    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus;
-}
-
-pub trait SoundProcessor {
+pub trait SoundProcessor: ProcessorComponent {
     fn new(args: &ParsedArguments) -> Self
     where
         Self: Sized;
 
     fn is_static(&self) -> bool;
+
+    fn process_audio(
+        processor: &mut Self::CompiledType<'_>,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus;
 }
 
 pub struct SoundProcessorWithId<T: SoundProcessor> {
@@ -164,12 +166,7 @@ pub(crate) trait AnySoundProcessor {
 
 impl<T> AnySoundProcessor for SoundProcessorWithId<T>
 where
-    for<'ctx> T: 'static
-        + SoundProcessor
-        + WithObjectType
-        + Stashable
-        + UnstashableInplace
-        + ProcessorComponent<CompiledType<'ctx>: CompiledSoundProcessor<'ctx>>,
+    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
 {
     fn id(&self) -> SoundProcessorId {
         self.id
@@ -219,7 +216,10 @@ where
                 time_to_compile_ms
             );
         }
-        Box::new(CompiledProcessorData::new(self.id, compiled_processor))
+
+        let data = CompiledProcessorData::<'ctx, T>::new(self.id, compiled_processor);
+
+        Box::new(data)
     }
 
     fn stash(&self, stasher: &mut Stasher) {
@@ -607,12 +607,7 @@ impl ProcessorTiming {
 
 impl<T> SoundGraphObject for SoundProcessorWithId<T>
 where
-    for<'ctx> T: 'static
-        + SoundProcessor
-        + WithObjectType
-        + Stashable
-        + UnstashableInplace
-        + ProcessorComponent<CompiledType<'ctx>: CompiledSoundProcessor<'ctx>>,
+    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
 {
     fn create(args: &ParsedArguments) -> SoundProcessorWithId<T> {
         SoundProcessorWithId::new_from_args(args)

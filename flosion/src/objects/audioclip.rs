@@ -11,9 +11,8 @@ use crate::{
         sound::{
             context::Context,
             soundprocessor::{
-                CompiledSoundProcessor, ProcessorComponent, ProcessorComponentVisitor,
-                ProcessorComponentVisitorMut, SoundProcessor, SoundProcessorId, StartOver,
-                StreamStatus,
+                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
             state::State,
         },
@@ -76,6 +75,37 @@ impl SoundProcessor for AudioClip {
     fn is_static(&self) -> bool {
         false
     }
+
+    fn process_audio(
+        audioclip: &mut CompiledAudioclip,
+        dst: &mut SoundChunk,
+        context: &mut Context,
+    ) -> StreamStatus {
+        // TODO: avoid locking here? Maybe use ArcSwap
+        let data = audioclip.state.data.read();
+        if data.sample_len() == 0 {
+            dst.silence();
+            return StreamStatus::Done;
+        }
+        if audioclip.state.playhead >= data.sample_len() {
+            audioclip.state.playhead = 0;
+        }
+        for i in 0..CHUNK_SIZE {
+            // TODO: don't repeat this every sample
+            let ci = audioclip.state.playhead / CHUNK_SIZE;
+            let si = audioclip.state.playhead % CHUNK_SIZE;
+            let c = &data.chunks()[ci];
+            audioclip.state.playhead += 1;
+            if audioclip.state.playhead >= data.sample_len() {
+                // TODO: add an option to enable/disable looping
+                audioclip.state.playhead = 0;
+            }
+            debug_assert!(audioclip.state.playhead < data.sample_len());
+            dst.l[i] = c.l[si];
+            dst.r[i] = c.r[si];
+        }
+        StreamStatus::Playing
+    }
 }
 
 impl ProcessorComponent for AudioClip {
@@ -102,35 +132,6 @@ impl ProcessorComponent for AudioClip {
 impl StartOver for CompiledAudioclip {
     fn start_over(&mut self) {
         self.state.start_over();
-    }
-}
-
-impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledAudioclip {
-    fn process_audio(&mut self, dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
-        // TODO: avoid locking here? Maybe use ArcSwap
-        let data = self.state.data.read();
-        if data.sample_len() == 0 {
-            dst.silence();
-            return StreamStatus::Done;
-        }
-        if self.state.playhead >= data.sample_len() {
-            self.state.playhead = 0;
-        }
-        for i in 0..CHUNK_SIZE {
-            // TODO: don't repeat this every sample
-            let ci = self.state.playhead / CHUNK_SIZE;
-            let si = self.state.playhead % CHUNK_SIZE;
-            let c = &data.chunks()[ci];
-            self.state.playhead += 1;
-            if self.state.playhead >= data.sample_len() {
-                // TODO: add an option to enable/disable looping
-                self.state.playhead = 0;
-            }
-            debug_assert!(self.state.playhead < data.sample_len());
-            dst.l[i] = c.l[si];
-            dst.r[i] = c.r[si];
-        }
-        StreamStatus::Playing
     }
 }
 
