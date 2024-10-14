@@ -94,7 +94,7 @@ impl<'ctx> SingleInputNode<'ctx> {
         dst: &mut SoundChunk,
         processor_state: Option<&dyn Any>,
         local_arrays: LocalArrayList,
-        ctx: Context,
+        ctx: &mut Context,
     ) -> StreamStatus {
         self.target.step(
             dst,

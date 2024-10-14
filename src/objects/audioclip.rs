@@ -97,7 +97,7 @@ impl SoundProcessor for AudioClip {
 }
 
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledAudioclip {
-    fn process_audio(&mut self, dst: &mut SoundChunk, _context: Context) -> StreamStatus {
+    fn process_audio(&mut self, dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         // TODO: avoid locking here? Maybe use ArcSwap
         let data = self.state.data.read();
         if data.sample_len() == 0 {

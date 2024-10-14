@@ -87,7 +87,7 @@ impl SoundProcessor for TestSoundProcessor {
 }
 
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestSoundProcessor<'ctx> {
-    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: Context) -> StreamStatus {
+    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         panic!("Unused")
     }
 
@@ -101,14 +101,14 @@ impl WithObjectType for TestSoundProcessor {
 }
 
 impl Stashable for TestSoundProcessor {
-    fn stash(&self, stasher: &mut Stasher) {
-        todo!()
+    fn stash(&self, _stasher: &mut Stasher) {
+        panic!("Unused")
     }
 }
 
 impl UnstashableInplace for TestSoundProcessor {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        todo!()
+    fn unstash_inplace(&mut self, _unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        panic!("Unused")
     }
 }
 
@@ -213,7 +213,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     let scratch_arena = ScratchArena::new();
     let stack = Stack::Root;
     let processor_timing = ProcessorTiming::new();
-    let context = Context::new(proc_id, &processor_timing, &scratch_arena, stack);
+    let mut context = Context::new(proc_id, &processor_timing, &scratch_arena, stack);
 
     //------------------------
 
@@ -246,7 +246,7 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     compiled_expression.eval(
         &mut actual_values_compiled,
         ExpressionContext::new_with_arrays(
-            context,
+            &mut context,
             LocalArrayList::new()
                 .push(&input_values[0], arg0_id)
                 .push(&input_values[1], arg1_id)

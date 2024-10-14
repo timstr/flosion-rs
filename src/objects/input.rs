@@ -135,7 +135,7 @@ impl SoundProcessor for Input {
 }
 
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledInput {
-    fn process_audio(&mut self, dst: &mut SoundChunk, _context: Context) -> StreamStatus {
+    fn process_audio(&mut self, dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         let chunk = match self.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,
             ReadResult::Dropout(ch) => {

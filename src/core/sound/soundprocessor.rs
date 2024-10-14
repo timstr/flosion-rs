@@ -83,7 +83,7 @@ pub trait ProcessorComponentVisitorMut {
 }
 
 pub trait CompiledSoundProcessor<'ctx>: Send {
-    fn process_audio(&mut self, dst: &mut SoundChunk, context: Context) -> StreamStatus;
+    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus;
 
     fn start_over(&mut self);
 }

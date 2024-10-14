@@ -56,7 +56,7 @@ impl SoundProcessor for TestStaticSoundProcessor {
 }
 
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestStaticSoundProcessor {
-    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: Context) -> StreamStatus {
+    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         StreamStatus::Done
     }
 
@@ -118,7 +118,7 @@ impl SoundProcessor for TestDynamicSoundProcessor {
 }
 
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledTestDynamicSoundProcessor {
-    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: Context) -> StreamStatus {
+    fn process_audio(&mut self, _dst: &mut SoundChunk, _context: &mut Context) -> StreamStatus {
         StreamStatus::Done
     }
 

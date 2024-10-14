@@ -54,8 +54,8 @@ where
         stack: Stack,
         scratch_arena: &ScratchArena,
     ) -> StreamStatus {
-        let context = Context::new(self.id, &self.timing, scratch_arena, stack);
-        let status = self.processor.process_audio(dst, context);
+        let mut context = Context::new(self.id, &self.timing, scratch_arena, stack);
+        let status = self.processor.process_audio(dst, &mut context);
         self.timing.advance_one_chunk();
         status
     }
@@ -504,7 +504,7 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         dst: &mut SoundChunk,
         input_state: &dyn Any,
         processor_frame: ProcessorFrameData,
-        ctx: Context,
+        ctx: &mut Context,
     ) -> StreamStatus {
         if self.timing.need_to_start_over() {
             // NOTE: implicitly starting over doesn't use any fine timing
@@ -516,7 +516,7 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         }
         let release_pending = self.timing.pending_release().is_some();
 
-        let input_frame = InputFrameData::new(self.location.input(), input_state, &self.timing);
+        let input_frame = InputFrameData::new(self.location.input(), input_state, &mut self.timing);
 
         let stack = ctx.push_frame(processor_frame, input_frame);
 

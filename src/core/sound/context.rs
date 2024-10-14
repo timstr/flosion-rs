@@ -117,7 +117,6 @@ impl<'a> ProcessorFrameData<'a> {
 
 /// Things that a sound input pushes onto the call
 /// stack when it is invoked
-#[derive(Copy, Clone)]
 pub(crate) struct InputFrameData<'a> {
     /// The input's id
     input_id: ProcessorInputId,
@@ -126,14 +125,14 @@ pub(crate) struct InputFrameData<'a> {
     state: &'a dyn Any,
 
     /// The input's timing
-    timing: &'a InputTiming,
+    timing: &'a mut InputTiming,
 }
 
 impl<'a> InputFrameData<'a> {
     pub(crate) fn new(
         input_id: ProcessorInputId,
         state: &'a dyn Any,
-        timing: &'a InputTiming,
+        timing: &'a mut InputTiming,
     ) -> InputFrameData<'a> {
         InputFrameData {
             input_id,
@@ -151,7 +150,6 @@ impl<'a> InputFrameData<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
 pub(crate) struct StackFrame<'a> {
     /// The parent stack frame
     parent: &'a Stack<'a>,
@@ -183,7 +181,6 @@ impl<'a> StackFrame<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
 pub(crate) enum Stack<'a> {
     Frame(StackFrame<'a>),
     Root,
@@ -211,9 +208,15 @@ impl<'a> Stack<'a> {
             Stack::Root => None,
         }
     }
+
+    pub(crate) fn top_frame_mut(&mut self) -> Option<&mut StackFrame<'a>> {
+        match self {
+            Stack::Frame(stack_frame) => Some(stack_frame),
+            Stack::Root => None,
+        }
+    }
 }
 
-#[derive(Copy, Clone)]
 pub struct Context<'a> {
     current_processor_id: SoundProcessorId,
     current_processor_timing: &'a ProcessorTiming,
@@ -285,10 +288,14 @@ impl<'a> Context<'a> {
     }
 
     pub fn pending_release(&self) -> Option<usize> {
-        todo!()
+        self.stack
+            .top_frame()
+            .and_then(|f| f.input_data.timing.pending_release())
     }
 
     pub fn take_pending_release(&mut self) -> Option<usize> {
-        todo!()
+        self.stack
+            .top_frame_mut()
+            .and_then(|f| f.input_data.timing.take_pending_release())
     }
 }

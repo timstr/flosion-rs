@@ -11,13 +11,13 @@ use crate::core::{
 };
 
 pub struct ExpressionContext<'a> {
-    audio_context: Context<'a>,
+    audio_context: &'a Context<'a>,
     top_processor_state: Option<&'a dyn Any>,
     top_processor_arrays: LocalArrayList<'a>,
 }
 
 impl<'a> ExpressionContext<'a> {
-    pub fn new_minimal(audio_context: Context<'a>) -> ExpressionContext<'a> {
+    pub fn new_minimal(audio_context: &'a Context<'a>) -> ExpressionContext<'a> {
         ExpressionContext {
             audio_context,
             top_processor_state: None,
@@ -26,7 +26,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     pub fn new_with_state(
-        audio_context: Context<'a>,
+        audio_context: &'a Context<'a>,
         processor_state: &'a dyn Any,
     ) -> ExpressionContext<'a> {
         ExpressionContext {
@@ -37,7 +37,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     pub fn new_with_arrays(
-        audio_context: Context<'a>,
+        audio_context: &'a Context<'a>,
         arrays: LocalArrayList<'a>,
     ) -> ExpressionContext<'a> {
         ExpressionContext {
@@ -48,7 +48,7 @@ impl<'a> ExpressionContext<'a> {
     }
 
     pub fn new_with_state_and_arrays(
-        audio_context: Context<'a>,
+        audio_context: &'a Context<'a>,
         processor_state: &'a dyn Any,
         arrays: LocalArrayList<'a>,
     ) -> ExpressionContext<'a> {

@@ -178,7 +178,7 @@ impl SoundProcessor for ADSR {
 }
 
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
-    fn process_audio(&mut self, dst: &mut SoundChunk, mut context: Context) -> StreamStatus {
+    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
         let pending_release = context.take_pending_release();
 
         if let Phase::Init = self.state.phase {

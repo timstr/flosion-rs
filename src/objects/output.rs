@@ -208,7 +208,7 @@ impl SoundProcessor for Output {
 }
 
 impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledOutput<'ctx> {
-    fn process_audio(&mut self, dst: &mut SoundChunk, context: Context) -> StreamStatus {
+    fn process_audio(&mut self, dst: &mut SoundChunk, context: &mut Context) -> StreamStatus {
         if self
             .state
             .shared_data
