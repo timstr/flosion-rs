@@ -11,7 +11,7 @@ use hashstash::{ObjectHash, Stash};
 
 use super::{
     diffgraph::diff_sound_graph,
-    garbage::{new_garbage_disposer, GarbageChute, GarbageDisposer},
+    garbage::{new_garbage_disposer, Garbage, GarbageChute, GarbageDisposer},
     scratcharena::ScratchArena,
     stategraph::StateGraph,
     stategraphedit::StateGraphEdit,
@@ -243,6 +243,10 @@ impl<'ctx> SoundEngine<'ctx> {
             }
             deadline += chunk_duration;
         }
+
+        // Throw out the state graph to ensure resource cleanup (particularly of
+        // LLVM resources) happens on the correct thread
+        state_graph.toss(&self.garbage_chute);
     }
 
     /// Receive and incorporate any edits to the given state graph from
