@@ -1,32 +1,6 @@
-[package]
-name = "flosion"
-version = "0.1.0"
-authors = ["timstr <straubinger.tim@gmail.com"]
-edition = "2021"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-# TODO: read about profiles and optimization settings
-# https://doc.rust-lang.org/cargo/reference/profiles.html
-
-[dependencies]
-atomic_float = "0.1.0"
-atomicslice = "0.1.0"
-base64 = "0.13.0"
-cpal = "0.13.3"
-# eframe = "0.27.2"
-# NOTE: using own fork of egui for now because of https://github.com/emilk/egui/issues/2152
-eframe = { git = "https://github.com/timstr/egui", rev = "df6fa145" }
-# hashrevise = "0.1.2"
-hashstash = { path = "/home/tim/dev/rust/hashstash" }
-inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm14-0"] }
-parking_lot = "0.11.2"
-rand = "0.8.3"
-rfd = "0.10.0"
-send_wrapper = "0.6.0"
-# chive = "0.1.0"
-slicemath = "0.1.0"
-spin_sleep = "1.0.0"
-spmcq = "0.1.0"
-symphonia = { version = "0.5.3", features = ["all"] }
-thread-priority = "0.4.1"
+members = [
+    "flosion-macros",
+    "flosion",
+]

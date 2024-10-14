@@ -1310,6 +1310,7 @@ dependencies = [
  "base64",
  "cpal",
  "eframe",
+ "flosion-macros",
  "hashstash",
  "inkwell",
  "parking_lot 0.11.2",
@@ -1322,6 +1323,10 @@ dependencies = [
  "symphonia",
  "thread-priority",
 ]
+
+[[package]]
+name = "flosion-macros"
+version = "0.1.0"
 
 [[package]]
 name = "fnv"
