@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
@@ -59,7 +59,13 @@ impl ProcessorComponent for SingleInput {
 
 impl Stashable for SingleInput {
     fn stash(&self, stasher: &mut Stasher) {
-        self.input.stash(stasher);
+        stasher.object(&self.input);
+    }
+}
+
+impl UnstashableInplace for SingleInput {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)
     }
 }
 

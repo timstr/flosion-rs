@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use eframe::egui;
+use hashstash::Stash;
 
 use crate::core::{
     objecttype::ObjectType,
@@ -88,6 +89,7 @@ impl GlobalInteractions {
         expression_uis: &mut ExpressionUiCollection,
         names: &SoundGraphUiNames,
         bg_response: egui::Response,
+        stash: &Stash,
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -138,7 +140,7 @@ impl GlobalInteractions {
                     return;
                 } else if pressed_delete {
                     graph
-                        .try_make_change(|graph| {
+                        .try_make_change(stash, factories.sound_objects(), |graph| {
                             let objects: Vec<SoundObjectId> =
                                 selection.objects.iter().cloned().collect();
                             for oid in objects {
@@ -222,10 +224,18 @@ impl GlobalInteractions {
                 // TODO: cut, copy
             }
             UiMode::Dragging(drag) => {
-                drag.interact_and_draw(ui, graph, object_states, layout, positions);
+                drag.interact_and_draw(
+                    ui,
+                    graph,
+                    object_states,
+                    layout,
+                    positions,
+                    stash,
+                    factories,
+                );
             }
             UiMode::Dropping(dropped_proc) => {
-                dropped_proc.handle_drop(graph, layout, positions);
+                dropped_proc.handle_drop(graph, layout, positions, stash, factories);
                 self.mode = UiMode::Passive;
             }
             UiMode::Summoning(summon_widget) => {

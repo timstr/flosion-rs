@@ -89,15 +89,16 @@ impl ExpressionPlot {
         ui.painter()
             .rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
 
-        self.plot_compiled_function(
-            ui,
-            compiled_fn,
-            rect,
-            horizontal_domain,
-            vertical_range,
-            time_axis,
-            names,
-        );
+        // TODO: re-enable
+        // self.plot_compiled_function(
+        //     ui,
+        //     compiled_fn,
+        //     rect,
+        //     horizontal_domain,
+        //     vertical_range,
+        //     time_axis,
+        //     names,
+        // );
 
         ui.painter().rect_stroke(
             rect,

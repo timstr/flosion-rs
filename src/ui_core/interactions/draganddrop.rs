@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
 use eframe::egui;
-use hashstash::{HashCache, Order, Stashable, Stasher};
+use hashstash::{HashCache, Order, Stash, Stashable, Stasher};
 
 use crate::{
     core::sound::{
-        soundgraph::SoundGraph, soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
+        soundgraph::SoundGraph, soundinput::SoundInputLocation, soundobject::SoundObjectFactory,
+        soundprocessor::SoundProcessorId,
     },
     ui_core::{
-        soundobjectpositions::SoundObjectPositions, soundobjectuistate::SoundObjectUiStates,
-        stackedlayout::stackedlayout::StackedLayout,
+        flosion_ui::Factories, soundobjectpositions::SoundObjectPositions,
+        soundobjectuistate::SoundObjectUiStates, stackedlayout::stackedlayout::StackedLayout,
     },
 };
 
@@ -345,11 +346,13 @@ fn compute_legal_drop_sites(
     layout: &StackedLayout,
     drag_subject: DragDropSubject,
     drop_sites: AvailableDropSites,
+    stash: &Stash,
+    factory: &SoundObjectFactory,
 ) -> HashMap<DragDropSubject, DragDropLegality> {
     debug_assert_eq!(graph.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
     for drop_site in drop_sites.0 {
-        let mut graph_clone = todo!(); // graph.clone();
+        let mut graph_clone = graph.stash_clone(stash, factory).unwrap().0;
 
         // drag_and_drop_in_graph only does superficial error
         // detection, here we additionally check whether the
@@ -406,11 +409,13 @@ impl DragInteraction {
         object_states: &SoundObjectUiStates,
         layout: &StackedLayout,
         positions: &SoundObjectPositions,
+        stash: &Stash,
+        factories: &Factories,
     ) {
         // Ensure that the legal connections are up to date, since these are used
         // to highlight legal/illegal interconnects to drop onto
         self.legal_drop_sites.refresh4(
-            compute_legal_drop_sites,
+            |a, b, c, d| compute_legal_drop_sites(a, b, c, d, stash, factories.sound_objects()),
             graph,
             layout,
             self.subject,
@@ -505,6 +510,8 @@ impl DropInteraction {
         graph: &mut SoundGraph,
         layout: &mut StackedLayout,
         positions: &mut SoundObjectPositions,
+        stash: &Stash,
+        factories: &Factories,
     ) {
         let nearest_drop_site = positions.drag_drop_subjects().find_closest_where(
             self.rect,
@@ -518,14 +525,15 @@ impl DropInteraction {
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph));
 
-            let drag_and_drop_result = graph.try_make_change(|graph| {
-                Ok(drag_and_drop_in_graph(
-                    graph,
-                    layout,
-                    self.subject,
-                    *nearest_drop_site,
-                ))
-            });
+            let drag_and_drop_result =
+                graph.try_make_change(stash, factories.sound_objects(), |graph| {
+                    Ok(drag_and_drop_in_graph(
+                        graph,
+                        layout,
+                        self.subject,
+                        *nearest_drop_site,
+                    ))
+                });
 
             match drag_and_drop_result {
                 Ok(DragDropLegality::Legal) => { /* nice */ }
@@ -554,7 +562,7 @@ impl DropInteraction {
             if let DragDropSubject::Processor(spid) = self.subject {
                 if !layout.is_processor_alone(spid) {
                     graph
-                        .try_make_change(|graph| {
+                        .try_make_change(stash, factories.sound_objects(), |graph| {
                             disconnect_processor_in_graph(spid, graph);
                             Ok(())
                         })

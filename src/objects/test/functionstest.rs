@@ -1,4 +1,4 @@
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use rand::prelude::*;
 
 use crate::{
@@ -102,6 +102,12 @@ impl WithObjectType for TestSoundProcessor {
 
 impl Stashable for TestSoundProcessor {
     fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
+}
+
+impl UnstashableInplace for TestSoundProcessor {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         todo!()
     }
 }

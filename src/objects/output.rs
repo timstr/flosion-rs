@@ -29,7 +29,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, StreamConfig, StreamError,
 };
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 pub struct OutputData {
     stream_end_barrier: Barrier,
@@ -239,6 +239,12 @@ impl WithObjectType for Output {
 
 impl Stashable for Output {
     fn stash(&self, stasher: &mut Stasher) {
-        todo!()
+        stasher.object(&self.input);
+    }
+}
+
+impl UnstashableInplace for Output {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)
     }
 }

@@ -8,7 +8,7 @@ use crate::{
             SoundInputArgument, SoundInputArgumentId, SoundInputArgumentLocation,
         },
         soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
-        soundprocessor::{ProcessorComponentVisitor, AnySoundProcessor, SoundProcessorId},
+        soundprocessor::{AnySoundProcessor, ProcessorComponentVisitor, SoundProcessorId},
     },
     ui_core::soundgraphuinames::SoundGraphUiNames,
 };

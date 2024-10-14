@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hashstash::{stash_clone, ObjectHash, Stash};
+use hashstash::{ObjectHash, Stash};
 
 use super::{
     diffgraph::diff_sound_graph,
@@ -18,7 +18,9 @@ use super::{
 };
 
 use crate::core::{
-    jit::cache::JitCache, samplefrequency::SAMPLE_FREQUENCY, sound::soundgraph::SoundGraph,
+    jit::cache::JitCache,
+    samplefrequency::SAMPLE_FREQUENCY,
+    sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
     soundchunk::CHUNK_SIZE,
 };
 
@@ -129,6 +131,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         new_graph: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
         stash: &Stash,
+        factory: &SoundObjectFactory,
     ) -> Result<(), ()> {
         let new_revision = ObjectHash::from_stashable(new_graph);
 
@@ -152,7 +155,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        let (cloned_graph, handle) = stash_clone(new_graph, stash).unwrap();
+        let (cloned_graph, handle) = new_graph.stash_clone(stash, factory).unwrap();
 
         debug_assert_eq!(handle.object_hash(), new_revision);
         self.current_graph = cloned_graph;

@@ -47,7 +47,7 @@ impl SoundObjectUiStates {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, graph: &SoundGraph) -> bool {
+    pub(crate) fn check_invariants(&self, graph: &SoundGraph) {
         let mut good = true;
         for i in graph.sound_processors().keys() {
             if !self.data.contains_key(&i.into()) {
@@ -69,6 +69,6 @@ impl SoundObjectUiStates {
             }
         }
         // TODO: invariant check for expression object states
-        good
+        assert!(good);
     }
 }

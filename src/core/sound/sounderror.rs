@@ -1,12 +1,15 @@
 use super::{
-    expression::ProcessorExpressionLocation, expressionargument::ArgumentLocation,
-    soundgraph::SoundGraph, soundinput::SoundInputId, soundprocessor::SoundProcessorId,
+    expression::ProcessorExpressionLocation,
+    expressionargument::ArgumentLocation,
+    soundgraph::SoundGraph,
+    soundinput::{SoundInputId, SoundInputLocation},
+    soundprocessor::SoundProcessorId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SoundError {
     ProcessorNotFound(SoundProcessorId),
-    SoundInputNotFound(SoundInputId),
+    SoundInputNotFound(SoundInputLocation),
     SoundInputOccupied {
         input_id: SoundInputId,
         current_target: SoundProcessorId,
@@ -26,8 +29,12 @@ impl SoundError {
             SoundError::ProcessorNotFound(spid) => {
                 format!("A processor with id #{} could not be found", spid.value())
             }
-            SoundError::SoundInputNotFound(siid) => {
-                format!("A sound input with id #{} could not be found", siid.value())
+            SoundError::SoundInputNotFound(loc) => {
+                format!(
+                    "A sound input with id #{} on processor #{} could not be found",
+                    loc.input().value(),
+                    loc.processor().value()
+                )
             }
             SoundError::SoundInputOccupied {
                 input_id,

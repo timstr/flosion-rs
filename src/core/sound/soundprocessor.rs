@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hashstash::{Stashable, Stasher, UnstashError, Unstasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
@@ -28,7 +28,7 @@ use super::{
     },
     soundgraphid::SoundObjectId,
     soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
-    soundobject::{SoundGraphObject, SoundObjectFactory},
+    soundobject::SoundGraphObject,
 };
 
 pub struct SoundProcessorTag;
@@ -172,11 +172,12 @@ pub(crate) trait AnySoundProcessor {
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>;
 
     fn stash(&self, stasher: &mut Stasher);
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError>;
 }
 
 impl<T> AnySoundProcessor for SoundProcessorWithId<T>
 where
-    T: 'static + SoundProcessor + WithObjectType + Stashable,
+    T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
 {
     fn id(&self) -> SoundProcessorId {
         self.id
@@ -230,26 +231,23 @@ where
     }
 
     fn stash(&self, stasher: &mut Stasher) {
-        // processor type (needed for unstashing with factory)
-        stasher.string(self.as_graph_object().get_dynamic_type().name());
-
         // id
-        // ?????????????????????????????????????????????????????????????????????????????
+        stasher.u64(self.id.value() as _);
 
         // contents
-        stasher.object(&self.processor);
+        stasher.object_proxy(|stasher| self.processor.stash(stasher));
     }
-}
 
-pub(crate) fn unstash_sound_processor(
-    unstasher: &mut Unstasher,
-    factory: &SoundObjectFactory,
-) -> Result<Box<dyn AnySoundProcessor>, UnstashError> {
-    let type_name = unstasher.string()?;
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        // id
+        let id = SoundProcessorId::new(unstasher.u64_always()? as _);
+        if unstasher.time_to_write() {
+            self.id = id;
+        }
 
-    let object = factory.create(&type_name, &ParsedArguments::new_empty());
-
-    todo!()
+        // contents
+        unstasher.object_proxy_inplace(|unstasher| self.processor.unstash_inplace(unstasher))
+    }
 }
 
 impl<'a> dyn AnySoundProcessor + 'a {
@@ -320,12 +318,33 @@ impl<'a> dyn AnySoundProcessor + 'a {
         visitor.result
     }
 
-    pub(crate) fn with_expression<F: FnMut(&ProcessorExpression)>(
+    pub(crate) fn with_expression<R, F: FnMut(&ProcessorExpression) -> R>(
         &self,
         id: ProcessorExpressionId,
         f: F,
-    ) {
-        todo!()
+    ) -> Option<R> {
+        struct Visitor<F2, R2> {
+            id: ProcessorExpressionId,
+            f: F2,
+            result: Option<R2>,
+        }
+
+        impl<R2, F2: FnMut(&ProcessorExpression) -> R2> ProcessorComponentVisitor for Visitor<F2, R2> {
+            fn expression(&mut self, expression: &ProcessorExpression) {
+                if expression.id() == self.id {
+                    debug_assert!(self.result.is_none(),);
+                    self.result = Some((self.f)(expression));
+                }
+            }
+        }
+
+        let mut visitor = Visitor {
+            id,
+            f,
+            result: None,
+        };
+        self.visit(&mut visitor);
+        visitor.result
     }
 
     pub(crate) fn with_expression_mut<R, F: FnMut(&mut ProcessorExpression) -> R>(
@@ -343,9 +362,10 @@ impl<'a> dyn AnySoundProcessor + 'a {
             for Visitor<F2, R2>
         {
             fn expression(&mut self, expression: &mut ProcessorExpression) {
-                if expression.id() == self.id {}
-                debug_assert!(self.result.is_none());
-                self.result = Some((self.f)(expression));
+                if expression.id() == self.id {
+                    debug_assert!(self.result.is_none());
+                    self.result = Some((self.f)(expression));
+                }
             }
         }
 
@@ -447,10 +467,29 @@ impl<'a> dyn AnySoundProcessor + 'a {
     }
 
     pub(crate) fn foreach_input_mut<F: FnMut(&mut BasicProcessorInput, SoundInputLocation)>(
-        &self,
+        &mut self,
         f: F,
     ) {
-        todo!()
+        struct Visitor<F2> {
+            processor_id: SoundProcessorId,
+            f: F2,
+        }
+
+        impl<F2: FnMut(&mut BasicProcessorInput, SoundInputLocation)> ProcessorComponentVisitorMut
+            for Visitor<F2>
+        {
+            fn input(&mut self, input: &mut BasicProcessorInput) {
+                (self.f)(
+                    input,
+                    SoundInputLocation::new(self.processor_id, input.id()),
+                )
+            }
+        }
+
+        self.visit_mut(&mut Visitor {
+            processor_id: self.id(),
+            f,
+        });
     }
 
     pub(crate) fn foreach_expression<
@@ -576,7 +615,7 @@ impl ProcessorTiming {
 
 impl<T> SoundGraphObject for SoundProcessorWithId<T>
 where
-    T: 'static + SoundProcessor + WithObjectType + Stashable,
+    T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
 {
     fn create(args: &ParsedArguments) -> SoundProcessorWithId<T> {
         SoundProcessorWithId::new_from_args(args)

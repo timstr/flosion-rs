@@ -4,7 +4,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     BufferSize, SampleRate, StreamConfig,
 };
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use spmcq::ReadResult;
 
 use crate::{
@@ -159,6 +159,12 @@ impl WithObjectType for Input {
 
 impl Stashable for Input {
     fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
+}
+
+impl UnstashableInplace for Input {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         todo!()
     }
 }

@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
-use hashstash::{Order, Stashable, UnstashError, Unstashable, Unstasher};
+use hashstash::{stash_clone_proxy, Order, Stash, StashHandle, Stashable, UnstashError, Unstasher};
+
+use crate::ui_core::arguments::ParsedArguments;
 
 use super::{
     sounderror::SoundError,
     soundgraphid::{SoundGraphComponentLocation, SoundObjectId},
     soundgraphvalidation::find_sound_error,
     soundinput::{BasicProcessorInput, SoundInputLocation},
+    soundobject::SoundObjectFactory,
     soundprocessor::{AnySoundProcessor, SoundProcessorId},
 };
 
@@ -84,7 +87,7 @@ impl SoundGraph {
         processor_id: SoundProcessorId,
     ) -> Result<(), SoundError> {
         // Disconnect all inputs from the processor
-        for proc_data in self.sound_processors.values() {
+        for proc_data in self.sound_processors.values_mut() {
             proc_data.foreach_input_mut(|input, _| {
                 if input.target() == Some(processor_id) {
                     input.set_target(None);
@@ -105,13 +108,18 @@ impl SoundGraph {
     /// possible to invalidate existing expression that rely
     /// on state from higher up the audio call stack by creating
     /// a separate pathway through which that state is not available.
-    // TODO: remove?
     pub(crate) fn connect_sound_input(
         &mut self,
         input_location: SoundInputLocation,
         processor_id: SoundProcessorId,
     ) -> Result<(), SoundError> {
-        todo!()
+        let Some(proc) = self.sound_processor_mut(input_location.processor()) else {
+            return Err(SoundError::ProcessorNotFound(input_location.processor()));
+        };
+        proc.with_input_mut(input_location.input(), |input| {
+            input.set_target(Some(processor_id));
+        })
+        .ok_or(SoundError::SoundInputNotFound(input_location))
     }
 
     /// Disconnect the given sound input from the processor it points to.
@@ -126,7 +134,13 @@ impl SoundGraph {
         &mut self,
         input_location: SoundInputLocation,
     ) -> Result<(), SoundError> {
-        todo!()
+        let Some(proc) = self.sound_processor_mut(input_location.processor()) else {
+            return Err(SoundError::ProcessorNotFound(input_location.processor()));
+        };
+        proc.with_input_mut(input_location.input(), |input| {
+            input.set_target(None);
+        })
+        .ok_or(SoundError::SoundInputNotFound(input_location))
     }
 
     /// Check whether the entity referred to by the given id exists in the graph
@@ -184,6 +198,8 @@ impl SoundGraph {
     /// keeping the change.
     pub fn try_make_change<R, F: FnOnce(&mut SoundGraph) -> Result<R, SoundError>>(
         &mut self,
+        stash: &Stash,
+        factory: &SoundObjectFactory,
         f: F,
     ) -> Result<R, SoundError> {
         if let Err(e) = self.validate() {
@@ -192,7 +208,8 @@ impl SoundGraph {
                 e.explain(self)
             );
         }
-        let previous_graph = todo!(); // self.clone();
+
+        let (previous_graph, _) = self.stash_clone(&stash, &factory).unwrap();
         let res = f(self);
         if res.is_err() {
             *self = previous_graph;
@@ -216,14 +233,51 @@ impl Stashable for SoundGraph {
     fn stash(&self, stasher: &mut hashstash::Stasher) {
         stasher.array_of_proxy_objects(
             self.sound_processors.values(),
-            |proc_data, stasher| proc_data.stash(stasher),
+            |processor, stasher| {
+                // type name (needed for factory during unstashing)
+                stasher.string(processor.as_graph_object().get_dynamic_type().name());
+
+                // contents
+                stasher.object_proxy(|stasher| processor.stash(stasher));
+            },
             Order::Unordered,
         );
     }
 }
 
-impl Unstashable for SoundGraph {
-    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
-        todo!()
+impl SoundGraph {
+    pub(crate) fn unstash(
+        unstasher: &mut Unstasher,
+        factory: &SoundObjectFactory,
+    ) -> Result<SoundGraph, UnstashError> {
+        let mut graph = SoundGraph::new();
+        unstasher.array_of_proxy_objects(|unstasher| {
+            // type name
+            let type_name = unstasher.string()?;
+
+            let mut processor = factory
+                .create(&type_name, &ParsedArguments::new_empty())
+                .into_boxed_sound_processor()
+                .unwrap();
+
+            // contents
+            unstasher.object_proxy_inplace(|unstasher| processor.unstash_inplace(unstasher))?;
+
+            graph.add_sound_processor(processor);
+
+            Ok(())
+        })?;
+
+        Ok(graph)
+    }
+
+    pub(crate) fn stash_clone(
+        &self,
+        stash: &Stash,
+        factory: &SoundObjectFactory,
+    ) -> Result<(SoundGraph, StashHandle<SoundGraph>), UnstashError> {
+        stash_clone_proxy(self, stash, |unstasher| {
+            SoundGraph::unstash(unstasher, factory)
+        })
     }
 }

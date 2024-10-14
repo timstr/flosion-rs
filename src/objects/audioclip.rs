@@ -1,6 +1,6 @@
 use std::{ops::Deref, sync::Arc};
 
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use parking_lot::RwLock;
 
 use crate::{
@@ -135,6 +135,12 @@ impl WithObjectType for AudioClip {
 
 impl Stashable for AudioClip {
     fn stash(&self, stasher: &mut Stasher) {
+        todo!()
+    }
+}
+
+impl UnstashableInplace for AudioClip {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         todo!()
     }
 }

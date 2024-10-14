@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::Stash;
 
 use crate::{
     core::{
@@ -72,6 +73,7 @@ impl SoundGraphUiState {
         graph: &mut SoundGraph,
         properties: &GraphProperties,
         layout: &mut StackedLayout,
+        stash: &Stash,
     ) {
         let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
 
@@ -92,6 +94,7 @@ impl SoundGraphUiState {
                     &mut self.expression_uis,
                     &self.names,
                     bg_response,
+                    stash,
                 );
             },
         );
@@ -114,11 +117,7 @@ impl SoundGraphUiState {
 
     /// Remove any state associated with objects that are no longer present
     /// in the graph, and create new states for new objects
-    pub(super) fn cleanup_stale_graph_objects(
-        &mut self,
-        graph: &SoundGraph,
-        factories: &Factories,
-    ) {
+    pub(super) fn cleanup(&mut self, graph: &SoundGraph, factories: &Factories) {
         self.object_states.cleanup(graph);
 
         self.expression_uis
@@ -133,8 +132,9 @@ impl SoundGraphUiState {
     }
 
     #[cfg(debug_assertions)]
-    pub(crate) fn check_invariants(&self, graph: &SoundGraph) -> bool {
-        self.object_states.check_invariants(graph)
+    pub(crate) fn check_invariants(&self, graph: &SoundGraph) {
+        self.object_states.check_invariants(graph);
+        self.names.check_invariants(graph);
     }
 
     pub(crate) fn names(&self) -> &SoundGraphUiNames {

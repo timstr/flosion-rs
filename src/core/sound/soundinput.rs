@@ -1,4 +1,6 @@
-use hashstash::{Stashable, Stasher};
+use hashstash::{
+    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
+};
 
 use crate::core::{
     engine::{
@@ -45,7 +47,7 @@ pub struct SoundInputBranchTag;
 pub type SoundInputBranchId = UniqueId<SoundInputBranchTag>;
 
 // TODO: rename to (an)isochronous
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum InputOptions {
     Synchronous,
     NonSynchronous,
@@ -152,6 +154,7 @@ impl Default for InputTiming {
     }
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub struct BasicProcessorInput {
     id: ProcessorInputId,
     options: InputOptions,
@@ -221,5 +224,67 @@ impl Stashable for BasicProcessorInput {
             }
             None => stasher.u8(0),
         }
+    }
+}
+
+impl Unstashable for BasicProcessorInput {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let id = ProcessorInputId::new(unstasher.u64()? as _);
+
+        let options = match unstasher.u8()? {
+            0 => InputOptions::Synchronous,
+            1 => InputOptions::NonSynchronous,
+            _ => panic!(),
+        };
+
+        let branches = unstasher.array_of_u64_iter()?;
+
+        let target = match unstasher.u8()? {
+            1 => Some(SoundProcessorId::new(unstasher.u64()? as _)),
+            0 => None,
+            _ => panic!(),
+        };
+
+        Ok(BasicProcessorInput {
+            id: id,
+            options: options,
+            branches: branches.map(|i| SoundInputBranchId::new(i as _)).collect(),
+            target: target,
+        })
+    }
+}
+
+impl UnstashableInplace for BasicProcessorInput {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        // TODO: this code duplication could be avoided with an InplaceUnstasher
+        // method that reuses a Unstashable implementation *without* inserting
+        // an object value type
+
+        let id = ProcessorInputId::new(unstasher.u64_always()? as _);
+
+        let options = match unstasher.u8_always()? {
+            0 => InputOptions::Synchronous,
+            1 => InputOptions::NonSynchronous,
+            _ => panic!(),
+        };
+
+        let branches = unstasher.array_of_u64_iter()?;
+
+        let target = match unstasher.u8_always()? {
+            1 => Some(SoundProcessorId::new(unstasher.u64_always()? as _)),
+            0 => None,
+            _ => panic!(),
+        };
+
+        if unstasher.time_to_write() {
+            *self = BasicProcessorInput {
+                id: id,
+                options: options,
+                branches: branches.map(|i| SoundInputBranchId::new(i as _)).collect(),
+                target: target,
+            };
+        }
+
+        Ok(())
     }
 }

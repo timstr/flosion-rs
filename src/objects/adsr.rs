@@ -1,4 +1,4 @@
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
@@ -111,7 +111,7 @@ impl SoundProcessor for ADSR {
     type CompiledType<'ctx> = CompiledADSR<'ctx>;
 
     fn new(_args: &ParsedArguments) -> ADSR {
-        ADSR {
+        let adsr = ADSR {
             input: SingleInput::new(InputOptions::Synchronous),
             attack_time: ProcessorExpression::new(
                 0.01,
@@ -129,7 +129,9 @@ impl SoundProcessor for ADSR {
                 0.25,
                 SoundExpressionScope::without_processor_state(),
             ),
-        }
+        };
+
+        adsr
     }
 
     fn is_static(&self) -> bool {
@@ -137,6 +139,7 @@ impl SoundProcessor for ADSR {
     }
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        self.input.visit(visitor);
         self.attack_time.visit(visitor);
         self.decay_time.visit(visitor);
         self.sustain_level.visit(visitor);
@@ -144,6 +147,7 @@ impl SoundProcessor for ADSR {
     }
 
     fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        self.input.visit_mut(visitor);
         self.attack_time.visit_mut(visitor);
         self.decay_time.visit_mut(visitor);
         self.sustain_level.visit_mut(visitor);
@@ -304,7 +308,12 @@ impl<'ctx> CompiledSoundProcessor<'ctx> for CompiledADSR<'ctx> {
     }
 
     fn start_over(&mut self) {
-        todo!()
+        self.input.start_over(0);
+        self.attack_time.start_over();
+        self.decay_time.start_over();
+        self.sustain_level.start_over();
+        self.release_time.start_over();
+        self.state.start_over();
     }
 }
 
@@ -319,5 +328,16 @@ impl Stashable for ADSR {
         stasher.object(&self.decay_time);
         stasher.object(&self.sustain_level);
         stasher.object(&self.release_time);
+    }
+}
+
+impl UnstashableInplace for ADSR {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        unstasher.object_inplace(&mut self.attack_time)?;
+        unstasher.object_inplace(&mut self.decay_time)?;
+        unstasher.object_inplace(&mut self.sustain_level)?;
+        unstasher.object_inplace(&mut self.release_time)?;
+        Ok(())
     }
 }

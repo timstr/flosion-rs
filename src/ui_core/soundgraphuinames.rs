@@ -11,6 +11,8 @@ use crate::core::sound::{
     soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
 };
 
+// TODO: replace all of these with just String
+
 pub(crate) struct SoundArgumentNameData {
     name: String,
     location: ArgumentLocation,
@@ -140,6 +142,11 @@ impl SoundGraphUiNames {
         }
 
         for proc_data in graph.sound_processors().values() {
+            self.sound_processors
+                .entry(proc_data.id())
+                .or_insert_with(|| SoundProcessorNameData {
+                    name: proc_data.as_graph_object().friendly_name(),
+                });
             let mut visitor = DefaultNameVisitor {
                 names: self,
                 processor_id: proc_data.id(),
@@ -205,6 +212,43 @@ impl SoundGraphUiNames {
                     self.argument(location.into()).unwrap().name()
                 )
             }
+        }
+    }
+
+    pub(crate) fn check_invariants(&self, graph: &SoundGraph) {
+        // all named components exist in the graph
+        for location in self.arguments.keys() {
+            assert!(graph.contains(location));
+        }
+        for location in self.expressions.keys() {
+            assert!(graph.contains(location));
+        }
+        for location in self.sound_inputs.keys() {
+            assert!(graph.contains(location));
+        }
+        for location in self.sound_processors.keys() {
+            assert!(graph.contains(location));
+        }
+
+        // all components of the graph are named
+        for proc in graph.sound_processors().values() {
+            assert!(self.sound_processors.contains_key(&proc.id()));
+
+            proc.foreach_input(|_, location| {
+                assert!(self.sound_inputs.contains_key(&location));
+            });
+
+            proc.foreach_expression(|_, location| {
+                assert!(self.expressions.contains_key(&location));
+            });
+
+            proc.foreach_processor_argument(|_, location| {
+                assert!(self.arguments.contains_key(&location.into()));
+            });
+
+            proc.foreach_input_argument(|_, location| {
+                assert!(self.arguments.contains_key(&location.into()));
+            });
         }
     }
 }

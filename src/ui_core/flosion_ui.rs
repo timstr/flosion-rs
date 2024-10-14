@@ -157,6 +157,7 @@ impl<'ctx> FlosionApp<'ctx> {
             &mut self.graph,
             &self.properties,
             &mut self.graph_layout,
+            &self.stash,
         );
     }
 
@@ -171,8 +172,7 @@ impl<'ctx> FlosionApp<'ctx> {
             self.graph_layout
                 .regenerate(&self.graph, self.ui_state.positions());
 
-            self.ui_state
-                .cleanup_stale_graph_objects(&self.graph, &self.factories);
+            self.ui_state.cleanup(&self.graph, &self.factories);
 
             self.previous_clean_revision = Some(current_revision);
         }
@@ -183,7 +183,7 @@ impl<'ctx> FlosionApp<'ctx> {
     #[cfg(debug_assertions)]
     fn check_invariants(&self) {
         assert_eq!(self.graph.validate(), Ok(()));
-        assert!(self.ui_state.check_invariants(&self.graph));
+        self.ui_state.check_invariants(&self.graph);
         assert!(self.graph_layout.check_invariants(&self.graph));
     }
 }
@@ -202,7 +202,12 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
             self.check_invariants();
 
             self.engine_interface
-                .update(&self.graph, &self.jit_cache, &self.stash)
+                .update(
+                    &self.graph,
+                    &self.jit_cache,
+                    &self.stash,
+                    self.factories.sound_objects(),
+                )
                 .expect("Failed to update engine");
 
             self.garbage_disposer.clear();

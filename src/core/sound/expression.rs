@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::core::{
     engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
@@ -262,5 +262,12 @@ impl ProcessorComponent for ProcessorExpression {
 impl Stashable for ProcessorExpression {
     fn stash(&self, stasher: &mut Stasher) {
         println!("TODO: stash expressions");
+    }
+}
+
+impl UnstashableInplace for ProcessorExpression {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        println!("TODO: unstash expressions");
+        Ok(())
     }
 }

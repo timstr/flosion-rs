@@ -1,4 +1,4 @@
-use hashstash::{Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Order, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
@@ -69,11 +69,19 @@ impl WithObjectType for TestStaticSoundProcessor {
 
 impl Stashable for TestStaticSoundProcessor {
     fn stash(&self, stasher: &mut Stasher) {
-        todo!()
+        stasher.array_of_objects_slice(&self.inputs, Order::Ordered);
     }
 }
 
-pub(super) struct TestDynamicSoundProcessor {}
+impl UnstashableInplace for TestStaticSoundProcessor {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.array_of_objects_vec_inplace(&mut self.inputs)
+    }
+}
+
+pub(super) struct TestDynamicSoundProcessor {
+    pub(super) inputs: Vec<BasicProcessorInput>,
+}
 
 pub(super) struct CompiledTestDynamicSoundProcessor {}
 
@@ -81,12 +89,20 @@ impl SoundProcessor for TestDynamicSoundProcessor {
     type CompiledType<'ctx> = CompiledTestDynamicSoundProcessor;
 
     fn new(_args: &ParsedArguments) -> Self {
-        Self {}
+        Self { inputs: Vec::new() }
     }
 
-    fn visit<'a>(&self, _visitor: &'a mut dyn ProcessorComponentVisitor) {}
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        for input in &self.inputs {
+            visitor.input(input);
+        }
+    }
 
-    fn visit_mut<'a>(&mut self, _visitor: &'a mut dyn ProcessorComponentVisitorMut) {}
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        for input in &mut self.inputs {
+            visitor.input(input);
+        }
+    }
 
     fn is_static(&self) -> bool {
         false
@@ -115,6 +131,12 @@ impl WithObjectType for TestDynamicSoundProcessor {
 
 impl Stashable for TestDynamicSoundProcessor {
     fn stash(&self, stasher: &mut Stasher) {
-        todo!()
+        stasher.array_of_objects_slice(&self.inputs, Order::Ordered);
+    }
+}
+
+impl UnstashableInplace for TestDynamicSoundProcessor {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.array_of_objects_vec_inplace(&mut self.inputs)
     }
 }
