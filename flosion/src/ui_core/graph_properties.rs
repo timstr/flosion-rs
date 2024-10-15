@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use hashstash::HashCache;
+use hashstash::HashCacheProperty;
 
 use crate::core::sound::{
     expression::ProcessorExpressionLocation, expressionargument::ArgumentLocation,
@@ -9,13 +9,14 @@ use crate::core::sound::{
 
 pub(crate) struct GraphProperties {
     // TODO: others?
-    available_arguments: HashCache<HashMap<ProcessorExpressionLocation, HashSet<ArgumentLocation>>>,
+    available_arguments:
+        HashCacheProperty<HashMap<ProcessorExpressionLocation, HashSet<ArgumentLocation>>>,
 }
 
 impl GraphProperties {
     pub(crate) fn new(graph: &SoundGraph) -> GraphProperties {
         let mut props = GraphProperties {
-            available_arguments: HashCache::new(),
+            available_arguments: HashCacheProperty::new(),
         };
         props.refresh(graph);
         props

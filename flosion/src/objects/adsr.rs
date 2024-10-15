@@ -16,7 +16,6 @@ use crate::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
                 SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
-            state::State,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
@@ -41,7 +40,7 @@ pub struct ADSRState {
     was_released: bool,
 }
 
-impl State for ADSRState {
+impl StartOver for ADSRState {
     fn start_over(&mut self) {
         self.phase = Phase::Init;
         self.was_released = false;

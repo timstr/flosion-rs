@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use eframe::egui;
-use hashstash::{HashCache, Order, Stash, Stashable, Stasher};
+use hashstash::{HashCacheProperty, Order, Stash, Stashable, Stasher};
 
 use crate::{
     core::sound::{
@@ -341,9 +341,26 @@ impl<'a> Stashable for AvailableDropSites<'a> {
     }
 }
 
+// wrapper struct to stash just the topology of StackedLayout,
+// not its positions, to avoid redundant work when changes in
+// on-screen positions wouldn't make a difference
+struct StackedLayoutWrapper<'a>(&'a StackedLayout);
+
+impl<'a> Stashable for StackedLayoutWrapper<'a> {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_proxy_objects(
+            self.0.groups().iter(),
+            |group, stasher| {
+                stasher.array_of_u64_iter(group.processors().iter().map(|i| i.value() as u64));
+            },
+            Order::Unordered,
+        );
+    }
+}
+
 fn compute_legal_drop_sites(
     graph: &SoundGraph,
-    layout: &StackedLayout,
+    layout: &StackedLayoutWrapper,
     drag_subject: DragDropSubject,
     drop_sites: AvailableDropSites,
     stash: &Stash,
@@ -358,7 +375,7 @@ fn compute_legal_drop_sites(
         // detection, here we additionally check whether the
         // resulting graph is valid.
         let status =
-            match drag_and_drop_in_graph(&mut graph_clone, layout, drag_subject, *drop_site) {
+            match drag_and_drop_in_graph(&mut graph_clone, layout.0, drag_subject, *drop_site) {
                 DragDropLegality::Legal => {
                     if graph_clone.validate().is_err() {
                         DragDropLegality::Illegal
@@ -387,7 +404,7 @@ pub struct DragInteraction {
     subject: DragDropSubject,
     rect: egui::Rect,
     original_rect: egui::Rect,
-    legal_drop_sites: HashCache<HashMap<DragDropSubject, DragDropLegality>>,
+    legal_drop_sites: HashCacheProperty<HashMap<DragDropSubject, DragDropLegality>>,
     closest_legal_site: Option<DragDropSubject>,
 }
 
@@ -397,7 +414,7 @@ impl DragInteraction {
             subject,
             rect: original_rect,
             original_rect,
-            legal_drop_sites: HashCache::new(),
+            legal_drop_sites: HashCacheProperty::new(),
             closest_legal_site: None,
         }
     }
@@ -417,7 +434,7 @@ impl DragInteraction {
         self.legal_drop_sites.refresh4(
             |a, b, c, d| compute_legal_drop_sites(a, b, c, d, stash, factories.sound_objects()),
             graph,
-            layout,
+            &StackedLayoutWrapper(layout),
             self.subject,
             AvailableDropSites(positions.drag_drop_subjects().values()),
         );

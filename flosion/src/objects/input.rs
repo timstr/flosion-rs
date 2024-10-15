@@ -120,7 +120,7 @@ impl SoundProcessor for Input {
     fn process_audio(
         input: &mut CompiledInput,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        _context: &mut Context,
     ) -> StreamStatus {
         let chunk = match input.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,

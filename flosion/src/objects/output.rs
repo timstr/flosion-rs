@@ -18,7 +18,6 @@ use crate::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
                 SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
             },
-            state::State,
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
@@ -62,7 +61,7 @@ pub struct OutputState {
     shared_data: Arc<OutputData>,
 }
 
-impl State for OutputState {
+impl StartOver for OutputState {
     fn start_over(&mut self) {
         // ???
     }

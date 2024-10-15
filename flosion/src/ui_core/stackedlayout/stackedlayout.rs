@@ -39,6 +39,10 @@ impl StackedLayout {
         StackedLayout { groups: Vec::new() }
     }
 
+    pub(crate) fn groups(&self) -> &[StackedGroup] {
+        &self.groups
+    }
+
     /// Find the stacked group that a sound processor belongs to, if any.
     pub(crate) fn find_group(&self, id: SoundProcessorId) -> Option<&StackedGroup> {
         for g in &self.groups {

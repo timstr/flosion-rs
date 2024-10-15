@@ -1,10 +1,13 @@
 use std::{
     any::{type_name, Any},
+    marker::PhantomData,
     ops::{Deref, DerefMut},
     time::{Duration, Instant},
 };
 
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{
+    HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace,
+};
 
 use crate::{
     core::{
@@ -82,6 +85,26 @@ pub trait ProcessorComponentVisitorMut {
     fn input_argument(&mut self, _argument: &mut SoundInputArgument, _input_id: ProcessorInputId) {}
 }
 
+pub trait ProcessorState: Send {
+    type Processor: SoundProcessor;
+
+    fn new(processor: &Self::Processor) -> Self;
+
+    fn start_over(&mut self);
+}
+
+pub struct StateMarker<T: ProcessorState> {
+    _phantom_data: PhantomData<T>,
+}
+
+impl<T: ProcessorState> StateMarker<T> {
+    pub fn new() -> StateMarker<T> {
+        StateMarker {
+            _phantom_data: PhantomData,
+        }
+    }
+}
+
 pub trait SoundProcessor: ProcessorComponent {
     fn new(args: &ParsedArguments) -> Self
     where
@@ -98,7 +121,7 @@ pub trait SoundProcessor: ProcessorComponent {
 
 pub struct SoundProcessorWithId<T: SoundProcessor> {
     id: SoundProcessorId,
-    processor: T,
+    processor: HashCache<T>,
 }
 
 impl<T: SoundProcessor> SoundProcessorWithId<T> {
@@ -109,12 +132,8 @@ impl<T: SoundProcessor> SoundProcessorWithId<T> {
     pub fn new_from_args(args: &ParsedArguments) -> SoundProcessorWithId<T> {
         SoundProcessorWithId {
             id: SoundProcessorId::new_unique(),
-            processor: T::new(args),
+            processor: HashCache::new(T::new(args)),
         }
-    }
-
-    pub(crate) fn new_from_parts(processor: T, id: SoundProcessorId) -> Self {
-        Self { id, processor }
     }
 
     pub fn id(&self) -> SoundProcessorId {

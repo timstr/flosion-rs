@@ -1,3 +1,5 @@
+use hashstash::{Stashable, Stasher, UnstashError, Unstashable, Unstasher};
+
 use super::soundchunk::{SoundChunk, CHUNK_SIZE};
 
 pub struct SoundBuffer {
@@ -85,5 +87,32 @@ impl SoundBuffer {
         ch.l[offset] = l;
         ch.r[offset] = r;
         self.sample_len += 1;
+    }
+}
+
+impl Stashable for SoundBuffer {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_f32_iter(self.samples().flatten());
+    }
+}
+
+impl Unstashable for SoundBuffer {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let mut samples = unstasher.array_of_f32_iter()?;
+
+        let mut buffer = SoundBuffer::new_empty();
+
+        loop {
+            let Some(l) = samples.next() else {
+                break;
+            };
+            let Some(r) = samples.next() else {
+                panic!("Uh oh");
+            };
+
+            buffer.push_sample(l, r);
+        }
+
+        Ok(buffer)
     }
 }
