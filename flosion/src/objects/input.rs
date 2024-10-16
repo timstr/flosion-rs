@@ -5,19 +5,18 @@ use cpal::{
     BufferSize, SampleRate, StreamConfig,
 };
 use eframe::egui::mutex::Mutex;
+use flosion_macros::ProcessorComponents;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use spmcq::ReadResult;
 
 use crate::{
     core::{
-        engine::soundgraphcompiler::SoundGraphCompiler,
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::Context,
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
+                ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -28,12 +27,19 @@ use crate::{
 // TODO: rename to something less vague
 // AudioIn?
 
+#[derive(ProcessorComponents)]
 pub struct Input {
+    #[not_a_component]
     chunk_reader: spmcq::Reader<SoundChunk>,
+
     // TODO: improve this. It is only accessed by the
     // audio thread but the current compilation interface
     // doesn't lend itself to static processors in this way
+    #[not_a_component]
     chunk_writer: Arc<Mutex<spmcq::Writer<SoundChunk>>>,
+
+    #[state]
+    state: StateMarker<InputState>,
 }
 
 impl Input {
@@ -42,7 +48,7 @@ impl Input {
     }
 }
 
-pub struct CompiledInput {
+pub struct InputState {
     chunk_receiver: spmcq::Reader<SoundChunk>,
     stream_end_barrier: Arc<Barrier>,
 }
@@ -54,6 +60,7 @@ impl SoundProcessor for Input {
         Input {
             chunk_reader: reader,
             chunk_writer: Arc::new(Mutex::new(writer)),
+            state: StateMarker::new(),
         }
     }
 
@@ -66,7 +73,7 @@ impl SoundProcessor for Input {
         dst: &mut SoundChunk,
         _context: &mut Context,
     ) -> StreamStatus {
-        let chunk = match input.chunk_receiver.read() {
+        let chunk = match input.state.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,
             ReadResult::Dropout(ch) => {
                 println!("WARNING: Input dropout");
@@ -79,18 +86,10 @@ impl SoundProcessor for Input {
     }
 }
 
-impl ProcessorComponent for Input {
-    type CompiledType<'ctx> = CompiledInput;
+impl ProcessorState for InputState {
+    type Processor = Input;
 
-    fn visit<'a>(&self, _visitor: &'a mut dyn ProcessorComponentVisitor) {}
-
-    fn visit_mut<'a>(&mut self, _visitor: &'a mut dyn ProcessorComponentVisitorMut) {}
-
-    fn compile<'ctx>(
-        &self,
-        _processor_id: SoundProcessorId,
-        _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> Self::CompiledType<'ctx> {
+    fn new(processor: &Self::Processor) -> Self {
         let host = cpal::default_host();
         let device = host
             .default_input_device()
@@ -113,7 +112,7 @@ impl ProcessorComponent for Input {
         let mut current_chunk = SoundChunk::new();
         let mut chunk_cursor: usize = 0;
 
-        let chunk_writer = Arc::clone(&self.chunk_writer);
+        let chunk_writer = Arc::clone(&processor.chunk_writer);
 
         let data_callback = move |data: &[f32], _: &cpal::InputCallbackInfo| {
             for sample in data.chunks_exact(2) {
@@ -149,20 +148,20 @@ impl ProcessorComponent for Input {
             stream.pause().unwrap();
         });
 
-        CompiledInput {
-            chunk_receiver: self.chunk_reader.clone(),
+        InputState {
+            chunk_receiver: processor.chunk_reader.clone(),
             stream_end_barrier: barrier,
         }
     }
 }
 
-impl StartOver for CompiledInput {
+impl StartOver for InputState {
     fn start_over(&mut self) {
         self.chunk_receiver.skip_ahead();
     }
 }
 
-impl Drop for CompiledInput {
+impl Drop for InputState {
     fn drop(&mut self) {
         self.stream_end_barrier.wait();
     }
