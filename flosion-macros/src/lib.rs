@@ -140,6 +140,9 @@ fn impl_processor_component_macro(ast: &syn::DeriveInput) -> TokenStream {
                 processor_id: ::flosion::core::sound::soundprocessor::SoundProcessorId,
                 compiler: &mut ::flosion::core::engine::soundgraphcompiler::SoundGraphCompiler<'_, 'ctx>,
             ) -> Self::CompiledType<'ctx> {
+                // Silence warnings about unused state fields in processor
+                #(let _ = &self.#state_field_names;)*
+
                 #compiled_name {
                     #(#component_field_names : self.#component_field_names.compile(processor_id, compiler),)*
                     #(#state_field_type_inits,)*
