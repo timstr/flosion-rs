@@ -91,6 +91,7 @@ impl SoundProcessor for Input {
         let barrier2 = Arc::clone(&barrier);
 
         // NOTE: Stream is not Send, using a dedicated thread as a workaround
+        // See https://github.com/RustAudio/cpal/issues/818
         std::thread::spawn(move || {
             println!(
                 "Requesting input audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",
