@@ -1,6 +1,3 @@
 [workspace]
-
-members = [
-    "flosion-macros",
-    "flosion",
-]
+members = ["flosion-macros", "flosion"]
+resolver = "2"
