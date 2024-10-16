@@ -10,8 +10,8 @@ use crate::{
         sound::{
             context::{Context, LocalArrayList},
             expression::{ProcessorExpression, SoundExpressionScope},
+            input::singleinput::SingleInput,
             soundinput::InputOptions,
-            soundinputtypes::SingleInput,
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
                 SoundProcessor, SoundProcessorId, StartOver, StreamStatus,

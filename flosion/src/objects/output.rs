@@ -12,8 +12,8 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
+            input::singleinput::{CompiledSingleInput, SingleInput},
             soundinput::InputOptions,
-            soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
                 SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
@@ -68,7 +68,7 @@ impl StartOver for OutputState {
 }
 
 pub struct CompiledOutput<'ctx> {
-    input: SingleInputNode<'ctx>,
+    input: CompiledSingleInput<'ctx>,
     state: OutputState,
 }
 
@@ -158,6 +158,7 @@ impl SoundProcessor for Output {
         let shared_data_also = Arc::clone(&shared_data);
 
         // NOTE: Stream is not Send, using a dedicated thread as a workaround
+        // See https://github.com/RustAudio/cpal/issues/818
         std::thread::spawn(move || {
             println!(
                 "Requesting output audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",

@@ -8,8 +8,8 @@ use crate::{
             context::{Context, LocalArrayList},
             expression::{ProcessorExpression, SoundExpressionScope},
             expressionargument::{ProcessorArgument, ProcessorArgumentId},
+            input::singleinput::{CompiledSingleInput, SingleInput},
             soundinput::InputOptions,
-            soundinputtypes::{SingleInput, SingleInputNode},
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
                 SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
@@ -30,7 +30,7 @@ pub struct Definitions {
 }
 
 pub struct CompiledDefinitions<'ctx> {
-    sound_input: SingleInputNode<'ctx>,
+    sound_input: CompiledSingleInput<'ctx>,
     expression: CompiledExpression<'ctx>,
     argument_id: ProcessorArgumentId,
 }

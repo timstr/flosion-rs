@@ -4,18 +4,17 @@ use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableI
 
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
+    sound::{
+        context::{Context, LocalArrayList, ProcessorFrameData},
+        soundinput::{
+            BasicProcessorInput, InputOptions, InputTiming, ProcessorInputId, SoundInputBranchId,
+        },
+        soundprocessor::{
+            ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+            SoundProcessorId, StartOver, StreamStatus,
+        },
+    },
     soundchunk::SoundChunk,
-};
-
-use super::{
-    context::{Context, LocalArrayList, ProcessorFrameData},
-    soundinput::{
-        BasicProcessorInput, InputOptions, InputTiming, ProcessorInputId, SoundInputBranchId,
-    },
-    soundprocessor::{
-        ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-        SoundProcessorId, StartOver, StreamStatus,
-    },
 };
 
 pub struct SingleInput {
@@ -38,7 +37,7 @@ impl SingleInput {
 }
 
 impl ProcessorComponent for SingleInput {
-    type CompiledType<'ctx> = SingleInputNode<'ctx>;
+    type CompiledType<'ctx> = CompiledSingleInput<'ctx>;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         visitor.input(&self.input);
@@ -53,7 +52,7 @@ impl ProcessorComponent for SingleInput {
         processor_id: SoundProcessorId,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
-        SingleInputNode::new(self.input.compile(processor_id, compiler))
+        CompiledSingleInput::new(self.input.compile(processor_id, compiler))
     }
 }
 
@@ -70,13 +69,13 @@ impl UnstashableInplace for SingleInput {
 }
 
 // TODO: rename to CompiledSingleInput
-pub struct SingleInputNode<'ctx> {
+pub struct CompiledSingleInput<'ctx> {
     target: CompiledSoundInputBranch<'ctx>,
 }
 
-impl<'ctx> SingleInputNode<'ctx> {
-    fn new<'a>(compiled_input: CompiledSoundInputBranch<'ctx>) -> SingleInputNode<'ctx> {
-        SingleInputNode {
+impl<'ctx> CompiledSingleInput<'ctx> {
+    fn new<'a>(compiled_input: CompiledSoundInputBranch<'ctx>) -> CompiledSingleInput<'ctx> {
+        CompiledSingleInput {
             target: compiled_input,
         }
     }
@@ -109,8 +108,8 @@ impl<'ctx> SingleInputNode<'ctx> {
     }
 }
 
-impl<'ctx> StartOver for SingleInputNode<'ctx> {
+impl<'ctx> StartOver for CompiledSingleInput<'ctx> {
     fn start_over(&mut self) {
-        SingleInputNode::start_over(self, 0);
+        CompiledSingleInput::start_over(self, 0);
     }
 }
