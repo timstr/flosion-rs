@@ -12,7 +12,9 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
-            soundprocessor::{ProcessorState, SoundProcessor, StateMarker, StreamStatus},
+            soundprocessor::{
+                ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
+            },
         },
         soundbuffer::SoundBuffer,
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -58,7 +60,9 @@ impl ProcessorState for AudioClipState {
             playhead: 0,
         }
     }
+}
 
+impl StartOver for AudioClipState {
     fn start_over(&mut self) {
         self.playhead = 0;
     }

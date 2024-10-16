@@ -103,13 +103,13 @@ impl<'ctx> CompiledSingleInput<'ctx> {
         )
     }
 
-    pub fn start_over(&mut self, sample_offset: usize) {
-        self.target.start_over(sample_offset);
+    pub fn start_over_at(&mut self, sample_offset: usize) {
+        self.target.start_over_at(sample_offset);
     }
 }
 
 impl<'ctx> StartOver for CompiledSingleInput<'ctx> {
     fn start_over(&mut self) {
-        CompiledSingleInput::start_over(self, 0);
+        CompiledSingleInput::start_over_at(self, 0);
     }
 }

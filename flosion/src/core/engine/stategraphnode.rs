@@ -488,7 +488,7 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     /// Make audio processing start over. Resets the timing and
     /// regenerates any time-varying state of the inner compiled
     /// processor.
-    pub(crate) fn start_over(&mut self, sample_offset: usize) {
+    pub(crate) fn start_over_at(&mut self, sample_offset: usize) {
         self.timing.start_over(sample_offset);
         match &mut self.target {
             StateGraphNodeValue::Unique(proc) => proc.start_over(),
@@ -507,7 +507,7 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     ) -> StreamStatus {
         if self.timing.need_to_start_over() {
             // NOTE: implicitly starting over doesn't use any fine timing
-            self.start_over(0);
+            self.start_over_at(0);
         }
         if self.timing.is_done() {
             dst.silence();

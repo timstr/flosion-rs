@@ -1,8 +1,8 @@
+use flosion_macros::ProcessorComponents;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
-        engine::soundgraphcompiler::SoundGraphCompiler,
         expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
@@ -13,8 +13,7 @@ use crate::{
             input::singleinput::SingleInput,
             soundinput::InputOptions,
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
+                ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -40,28 +39,16 @@ pub struct ADSRState {
     was_released: bool,
 }
 
-impl StartOver for ADSRState {
-    fn start_over(&mut self) {
-        self.phase = Phase::Init;
-        self.was_released = false;
-    }
-}
-
+#[derive(ProcessorComponents)]
 pub struct ADSR {
     pub input: SingleInput,
     pub attack_time: ProcessorExpression,
     pub decay_time: ProcessorExpression,
     pub sustain_level: ProcessorExpression,
     pub release_time: ProcessorExpression,
-}
 
-pub struct CompiledADSR<'ctx> {
-    input: <SingleInput as ProcessorComponent>::CompiledType<'ctx>,
-    attack_time: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
-    decay_time: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
-    sustain_level: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
-    release_time: <ProcessorExpression as ProcessorComponent>::CompiledType<'ctx>,
-    state: ADSRState,
+    #[state]
+    state: StateMarker<ADSRState>,
 }
 
 // out_level : slice at the beginning of which to produce output level
@@ -126,6 +113,7 @@ impl SoundProcessor for ADSR {
                 0.25,
                 SoundExpressionScope::without_processor_state(),
             ),
+            state: StateMarker::new(),
         };
 
         adsr
@@ -269,56 +257,25 @@ impl SoundProcessor for ADSR {
     }
 }
 
-impl ProcessorComponent for ADSR {
-    type CompiledType<'ctx> = CompiledADSR<'ctx>;
+impl ProcessorState for ADSRState {
+    type Processor = ADSR;
 
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        self.input.visit(visitor);
-        self.attack_time.visit(visitor);
-        self.decay_time.visit(visitor);
-        self.sustain_level.visit(visitor);
-        self.release_time.visit(visitor);
-    }
-
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        self.input.visit_mut(visitor);
-        self.attack_time.visit_mut(visitor);
-        self.decay_time.visit_mut(visitor);
-        self.sustain_level.visit_mut(visitor);
-        self.release_time.visit_mut(visitor);
-    }
-
-    fn compile<'ctx>(
-        &self,
-        id: SoundProcessorId,
-        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> CompiledADSR<'ctx> {
-        CompiledADSR {
-            input: self.input.compile(id, compiler),
-            attack_time: self.attack_time.compile(id, compiler),
-            decay_time: self.decay_time.compile(id, compiler),
-            sustain_level: self.sustain_level.compile(id, compiler),
-            release_time: self.release_time.compile(id, compiler),
-            state: ADSRState {
-                phase: Phase::Init,
-                phase_samples: 0,
-                phase_samples_so_far: 0,
-                prev_level: 0.0,
-                next_level: 0.0,
-                was_released: false,
-            },
+    fn new(_processor: &Self::Processor) -> ADSRState {
+        ADSRState {
+            phase: Phase::Init,
+            phase_samples: 0,
+            phase_samples_so_far: 0,
+            prev_level: 0.0,
+            next_level: 0.0,
+            was_released: false,
         }
     }
 }
 
-impl<'ctx> StartOver for CompiledADSR<'ctx> {
+impl StartOver for ADSRState {
     fn start_over(&mut self) {
-        self.input.start_over(0);
-        self.attack_time.start_over();
-        self.decay_time.start_over();
-        self.sustain_level.start_over();
-        self.release_time.start_over();
-        self.state.start_over();
+        self.phase = Phase::Init;
+        self.was_released = false;
     }
 }
 

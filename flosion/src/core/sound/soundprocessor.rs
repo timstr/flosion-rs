@@ -89,8 +89,6 @@ pub trait ProcessorState: Send {
     type Processor: SoundProcessor;
 
     fn new(processor: &Self::Processor) -> Self;
-
-    fn start_over(&mut self);
 }
 
 pub struct StateMarker<T: ProcessorState> {

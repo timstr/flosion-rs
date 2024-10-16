@@ -100,7 +100,7 @@ impl ProcessorComponent for Definitions {
 
 impl<'ctx> StartOver for CompiledDefinitions<'ctx> {
     fn start_over(&mut self) {
-        self.sound_input.start_over(0);
+        self.sound_input.start_over_at(0);
         self.expression.start_over();
     }
 }

@@ -150,8 +150,8 @@ fn impl_processor_component_macro(ast: &syn::DeriveInput) -> TokenStream {
 
         impl<'ctx> ::flosion::core::sound::soundprocessor::StartOver for #compiled_name <'ctx> {
             fn start_over(&mut self) {
-                #(self.#component_field_names.start_over();)*
-                #(self.#state_field_names.start_over();)*
+                #(::flosion::core::sound::soundprocessor::StartOver::start_over(&mut self.#component_field_names);)*
+                #(::flosion::core::sound::soundprocessor::StartOver::start_over(&mut self.#state_field_names);)*
             }
         }
     };

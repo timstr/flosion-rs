@@ -194,7 +194,7 @@ impl SoundProcessor for Output {
             .pending_startover
             .swap(false, Ordering::SeqCst)
         {
-            output.input.start_over(0);
+            output.input.start_over_at(0);
         }
         output.input.step(dst, None, LocalArrayList::new(), context);
 
@@ -235,7 +235,7 @@ impl ProcessorComponent for Output {
 
 impl<'ctx> StartOver for CompiledOutput<'ctx> {
     fn start_over(&mut self) {
-        self.input.start_over(0);
+        self.input.start_over_at(0);
     }
 }
 
