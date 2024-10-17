@@ -1,6 +1,6 @@
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    mpsc::{sync_channel, SyncSender, TrySendError},
+    mpsc::{sync_channel, Receiver, SyncSender, TrySendError},
     Arc, Barrier,
 };
 
@@ -29,11 +29,13 @@ use cpal::{
     SampleRate, StreamConfig, StreamError,
 };
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use parking_lot::Mutex;
 
 pub struct OutputData {
-    stream_end_barrier: Barrier,
     pending_startover: AtomicBool,
     chunk_sender: SyncSender<SoundChunk>,
+    // TODO: improve this
+    chunk_receiver: Mutex<Receiver<SoundChunk>>,
 }
 
 // TODO: rename to e.g. "SoundOut", "Output" is too vague and overloaded
@@ -51,19 +53,20 @@ impl Output {
     }
 }
 
-impl Drop for Output {
-    fn drop(&mut self) {
-        self.shared_data.stream_end_barrier.wait();
-    }
-}
-
 pub struct OutputState {
     shared_data: Arc<OutputData>,
+    stream_end_barrier: Arc<Barrier>,
 }
 
 impl StartOver for OutputState {
     fn start_over(&mut self) {
         // ???
+    }
+}
+
+impl Drop for OutputState {
+    fn drop(&mut self) {
+        self.stream_end_barrier.wait();
     }
 }
 
@@ -74,103 +77,12 @@ pub struct CompiledOutput<'ctx> {
 
 impl SoundProcessor for Output {
     fn new(_args: &ParsedArguments) -> Output {
-        // TODO: move all this to the compile method!
-        // There should be no side effects until the processor
-        // is compiled and thus clearly being used to process audio
-
-        let host = cpal::default_host();
-        // TODO: propagate these errors
-        let device = host
-            .default_output_device()
-            .expect("No output device available");
-        println!("Using output device {}", device.name().unwrap());
-        let supported_configs = device
-            .supported_output_configs()
-            .expect("Error while querying configs")
-            .next()
-            .expect("No supported config!?");
-
-        println!(
-            "Supported sample rates are {:?} to {:?}",
-            supported_configs.min_sample_rate().0,
-            supported_configs.max_sample_rate().0
-        );
-
-        println!(
-            "Supported buffer sizes are {:?}",
-            supported_configs.buffer_size()
-        );
-
-        let sample_rate = SampleRate(supported_configs.min_sample_rate().0.max(44_100));
-        let mut config: StreamConfig = supported_configs.with_sample_rate(sample_rate).into();
-
-        config.channels = 2;
-        // config.sample_rate = SampleRate(SAMPLE_FREQUENCY as u32);
-        // config.buffer_size = BufferSize::Fixed(CHUNK_SIZE as u32);
-
         let (tx, rx) = sync_channel::<SoundChunk>(0);
 
         let shared_data = Arc::new(OutputData {
-            chunk_sender: tx,
             pending_startover: AtomicBool::new(false),
-            stream_end_barrier: Barrier::new(2),
-        });
-
-        let mut chunk_index: usize = 0;
-        let mut current_chunk: Option<SoundChunk> = None;
-
-        let mut get_next_sample = move || {
-            if current_chunk.is_none() || chunk_index >= CHUNK_SIZE {
-                current_chunk = Some(rx.recv().unwrap_or_else(|_| SoundChunk::new()));
-                chunk_index = 0;
-            }
-            let c = current_chunk.as_ref().unwrap();
-            let l = c.l[chunk_index];
-            let r = c.r[chunk_index];
-            chunk_index += 1;
-            let l = if l.is_finite() {
-                l.clamp(-1.0, 1.0)
-            } else {
-                0.0
-            };
-            let r = if r.is_finite() {
-                r.clamp(-1.0, 1.0)
-            } else {
-                0.0
-            };
-            (l, r)
-        };
-
-        let data_callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            debug_assert!(data.len() % 2 == 0);
-            resample_interleave(
-                data,
-                || get_next_sample(),
-                SAMPLE_FREQUENCY as u32,
-                sample_rate.0,
-            );
-        };
-
-        let err_callback = |err: StreamError| {
-            println!("CPAL StreamError: {:?}", err);
-        };
-
-        let shared_data_also = Arc::clone(&shared_data);
-
-        // NOTE: Stream is not Send, using a dedicated thread as a workaround
-        // See https://github.com/RustAudio/cpal/issues/818
-        std::thread::spawn(move || {
-            println!(
-                "Requesting output audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",
-                config.channels, config.sample_rate.0, config.buffer_size
-            );
-
-            let stream = device
-                .build_output_stream(&config, data_callback, err_callback)
-                .unwrap();
-            stream.play().unwrap();
-            shared_data_also.stream_end_barrier.wait();
-            stream.pause().unwrap();
+            chunk_sender: tx,
+            chunk_receiver: Mutex::new(rx),
         });
 
         Output {
@@ -224,10 +136,107 @@ impl ProcessorComponent for Output {
         id: SoundProcessorId,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> CompiledOutput<'ctx> {
+        let host = cpal::default_host();
+        // TODO: propagate these errors
+        let device = host
+            .default_output_device()
+            .expect("No output device available");
+        println!("Using output device {}", device.name().unwrap());
+        let supported_configs = device
+            .supported_output_configs()
+            .expect("Error while querying configs")
+            .next()
+            .expect("No supported config!?");
+
+        println!(
+            "Supported sample rates are {:?} to {:?}",
+            supported_configs.min_sample_rate().0,
+            supported_configs.max_sample_rate().0
+        );
+
+        println!(
+            "Supported buffer sizes are {:?}",
+            supported_configs.buffer_size()
+        );
+
+        let sample_rate = SampleRate(supported_configs.min_sample_rate().0.max(44_100));
+        let mut config: StreamConfig = supported_configs.with_sample_rate(sample_rate).into();
+
+        config.channels = 2;
+        // config.sample_rate = SampleRate(SAMPLE_FREQUENCY as u32);
+        // config.buffer_size = BufferSize::Fixed(CHUNK_SIZE as u32);
+
+        let mut chunk_index: usize = 0;
+        let mut current_chunk: Option<SoundChunk> = None;
+
+        let shared_data = Arc::clone(&self.shared_data);
+
+        let mut get_next_sample = move || {
+            if current_chunk.is_none() || chunk_index >= CHUNK_SIZE {
+                current_chunk = Some(
+                    shared_data
+                        .chunk_receiver
+                        .lock()
+                        .recv()
+                        .unwrap_or_else(|_| SoundChunk::new()),
+                );
+                chunk_index = 0;
+            }
+            let c = current_chunk.as_ref().unwrap();
+            let l = c.l[chunk_index];
+            let r = c.r[chunk_index];
+            chunk_index += 1;
+            let l = if l.is_finite() {
+                l.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            };
+            let r = if r.is_finite() {
+                r.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            };
+            (l, r)
+        };
+
+        let data_callback = move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            debug_assert!(data.len() % 2 == 0);
+            resample_interleave(
+                data,
+                || get_next_sample(),
+                SAMPLE_FREQUENCY as u32,
+                sample_rate.0,
+            );
+        };
+
+        let err_callback = |err: StreamError| {
+            println!("CPAL StreamError: {:?}", err);
+        };
+
+        let barrier = Arc::new(Barrier::new(2));
+        let barrier2 = Arc::clone(&barrier);
+
+        // NOTE: Stream is not Send, using a dedicated thread as a workaround
+        // See https://github.com/RustAudio/cpal/issues/818
+        std::thread::spawn(move || {
+            println!(
+                "Requesting output audio stream with {} channels, a {} Hz sample rate, and a buffer size of {:?}",
+                config.channels, config.sample_rate.0, config.buffer_size
+            );
+
+            let stream = device
+                .build_output_stream(&config, data_callback, err_callback)
+                .unwrap();
+            stream.play().unwrap();
+            barrier.wait();
+            stream.pause().unwrap();
+        });
+
         CompiledOutput {
             input: self.input.compile(id, compiler),
             state: OutputState {
                 shared_data: Arc::clone(&self.shared_data),
+                stream_end_barrier: barrier2,
             },
         }
     }
