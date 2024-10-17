@@ -1,4 +1,5 @@
 use flosion_macros::ProcessorComponents;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
@@ -22,8 +23,7 @@ use crate::{
 pub struct Definitions {
     pub sound_input: SingleInput,
 
-    // TODO: store these in a vector. Might need to rethink how DefinitionsExpressions works,
-    // e.g. does it need to use Vec or can it use something friendlier to the audio thread?
+    // TODO: store these in a vector
     pub expression: ProcessorExpression,
     pub argument: ProcessorArgument,
 }
@@ -65,4 +65,21 @@ impl SoundProcessor for Definitions {
 
 impl WithObjectType for Definitions {
     const TYPE: ObjectType = ObjectType::new("definitions");
+}
+
+impl Stashable for Definitions {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.sound_input);
+        stasher.object(&self.expression);
+        stasher.object(&self.argument);
+    }
+}
+
+impl UnstashableInplace for Definitions {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.sound_input)?;
+        unstasher.object_inplace(&mut self.expression)?;
+        unstasher.object_inplace(&mut self.argument)?;
+        Ok(())
+    }
 }

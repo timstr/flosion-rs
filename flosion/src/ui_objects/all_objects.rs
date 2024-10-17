@@ -12,7 +12,7 @@ use crate::{
 use super::{
     adsr_ui::ADSRUi,
     audioclip_ui::AudioClipUi,
-    // definitions_ui::DefinitionsUi,
+    definitions_ui::DefinitionsUi,
     // ensemble_ui::EnsembleUi,
     input_ui::InputUi,
     // keyboard_ui::KeyboardUi,
@@ -25,7 +25,7 @@ use super::{
         PowUi, RoundUi, SawWaveUi, SignumUi, SinUi, SineWaveUi, SliderUi, SquareWaveUi, SubtractUi,
         TriangleWaveUi, TruncUi,
     },
-    // readwritewaveform_ui::ReadWriteWaveformUi,
+    readwritewaveform_ui::ReadWriteWaveformUi,
     // recorder_ui::RecorderUi,
     // resampler_ui::ResamplerUi,
     // sampler1d_ui::Sampler1dUi,
@@ -99,11 +99,11 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     // Dynamic sound processors
     helper.register::<ADSRUi>();
     helper.register::<AudioClipUi>();
-    // helper.register::<DefinitionsUi>();
+    helper.register::<DefinitionsUi>();
     // helper.register::<EnsembleUi>();
     // helper.register_dynamic_sound_processor::<MelodyUi>();
     // helper.register::<MixerUi>();
-    // helper.register::<ReadWriteWaveformUi>();
+    helper.register::<ReadWriteWaveformUi>();
     // helper.register::<ResamplerUi>();
     // helper.register::<ScatterUi>();
     // helper.register::<WaveGeneratorUi>();

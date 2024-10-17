@@ -1,5 +1,5 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::definitions::Definitions,
     ui_core::{
         arguments::ParsedArguments, expressionplot::PlotConfig,
@@ -12,29 +12,27 @@ use crate::{
 pub struct DefinitionsUi {}
 
 impl SoundObjectUi for DefinitionsUi {
-    type HandleType = DynamicSoundProcessorHandle<Definitions>;
-
+    type ObjectType = SoundProcessorWithId<Definitions>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        definitions: DynamicSoundProcessorHandle<Definitions>,
+        definitions: &mut SoundProcessorWithId<Definitions>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
         _state: &mut (),
-        graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&definitions, "Definitions")
-            .add_expression(definitions.get().expression.id(), "a", PlotConfig::new())
-            .add_argument(definitions.get().argument.id(), "a")
-            .add_sound_input(definitions.get().sound_input.id(), "input", graph)
+        ProcessorUi::new(definitions.id(), "Definitions")
+            .add_expression(&definitions.expression, "a", PlotConfig::new())
+            .add_processor_argument(definitions.argument.id(), "a")
+            .add_sound_input(definitions.sound_input.id(), "input")
             .show_with(
+                definitions,
                 ui,
                 ctx,
                 graph_ui_state,
-                graph,
-                |_ui, _uistate, _sound_graph| {
+                |_definitions, _ui, _uistate| {
                     // TODO: controls to rename source
                     // TODO: buttons to add/remove terms
                 },
@@ -49,7 +47,7 @@ impl SoundObjectUi for DefinitionsUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

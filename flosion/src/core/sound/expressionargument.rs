@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use inkwell::values::FloatValue;
 
 use crate::core::{
@@ -108,6 +109,24 @@ impl ProcessorComponent for ProcessorArgument {
         _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> CompiledProcessorArgument {
         CompiledProcessorArgument { id: self.id }
+    }
+}
+
+impl Stashable for ProcessorArgument {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.u64(self.id.value() as _);
+        // instance is not stashed, it is assumed to be fixed
+        // and invariant to changes in id
+    }
+}
+
+impl UnstashableInplace for ProcessorArgument {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        let id = unstasher.u64_always()?;
+        if unstasher.time_to_write() {
+            self.id = ProcessorArgumentId::new(id as _);
+        }
+        Ok(())
     }
 }
 

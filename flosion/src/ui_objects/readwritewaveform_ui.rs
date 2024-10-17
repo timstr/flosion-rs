@@ -1,5 +1,5 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::readwritewaveform::ReadWriteWaveform,
     ui_core::{
         arguments::ParsedArguments, expressionplot::PlotConfig,
@@ -12,24 +12,23 @@ use crate::{
 pub struct ReadWriteWaveformUi {}
 
 impl SoundObjectUi for ReadWriteWaveformUi {
-    type HandleType = DynamicSoundProcessorHandle<ReadWriteWaveform>;
+    type ObjectType = SoundProcessorWithId<ReadWriteWaveform>;
     type StateType = ();
 
     fn ui(
         &self,
-        rww: DynamicSoundProcessorHandle<ReadWriteWaveform>,
+        rww: &mut SoundProcessorWithId<ReadWriteWaveform>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
         _state: &mut (),
-        sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&rww, "ReadWriteWaveform")
-            .add_sound_input(rww.get().sound_input.id(), "input", sound_graph)
-            .add_argument(rww.get().input_l.id(), "l")
-            .add_argument(rww.get().input_r.id(), "r")
-            .add_expression(rww.get().waveform.id(), "waveform", PlotConfig::new())
-            .show(ui, ctx, graph_ui_state, sound_graph);
+        ProcessorUi::new(rww.id(), "ReadWriteWaveform")
+            .add_sound_input(rww.sound_input.id(), "input")
+            .add_processor_argument(rww.input_l.id(), "l")
+            .add_processor_argument(rww.input_r.id(), "r")
+            .add_expression(&rww.waveform, "waveform", PlotConfig::new())
+            .show(rww, ui, ctx, graph_ui_state);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -40,7 +39,7 @@ impl SoundObjectUi for ReadWriteWaveformUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

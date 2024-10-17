@@ -9,7 +9,7 @@ pub mod input;
 // pub mod oscilloscope;
 pub mod output;
 pub mod purefunctions;
-// pub mod readwritewaveform;
+pub mod readwritewaveform;
 // pub mod recorder;
 // pub mod resampler;
 // pub mod sampler1d;

@@ -138,6 +138,6 @@ impl UnstashableInplace for AudioClip {
     fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         let mut buffer = self.data.lock();
         let buffer: &mut HashCache<SoundBuffer> = &mut buffer;
-        unstasher.object(buffer)
+        unstasher.object_replace(buffer)
     }
 }
