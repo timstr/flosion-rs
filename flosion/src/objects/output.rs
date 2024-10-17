@@ -6,17 +6,15 @@ use std::sync::{
 
 use crate::{
     core::{
-        engine::soundgraphcompiler::SoundGraphCompiler,
         objecttype::{ObjectType, WithObjectType},
         resample::resample_interleave,
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             context::{Context, LocalArrayList},
-            input::singleinput::{CompiledSingleInput, SingleInput},
+            input::singleinput::SingleInput,
             soundinput::InputOptions,
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
+                ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -28,6 +26,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, StreamConfig, StreamError,
 };
+use flosion_macros::ProcessorComponents;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use parking_lot::Mutex;
 
@@ -40,9 +39,15 @@ pub struct OutputData {
 
 // TODO: rename to e.g. "SoundOut", "Output" is too vague and overloaded
 // AudioOut?
+#[derive(ProcessorComponents)]
 pub struct Output {
     pub input: SingleInput,
+
+    #[not_a_component]
     shared_data: Arc<OutputData>,
+
+    #[state]
+    state: StateMarker<OutputState>,
 }
 
 impl Output {
@@ -70,11 +75,6 @@ impl Drop for OutputState {
     }
 }
 
-pub struct CompiledOutput<'ctx> {
-    input: CompiledSingleInput<'ctx>,
-    state: OutputState,
-}
-
 impl SoundProcessor for Output {
     fn new(_args: &ParsedArguments) -> Output {
         let (tx, rx) = sync_channel::<SoundChunk>(0);
@@ -88,6 +88,7 @@ impl SoundProcessor for Output {
         Output {
             input: SingleInput::new(InputOptions::Synchronous),
             shared_data,
+            state: StateMarker::new(),
         }
     }
 
@@ -120,22 +121,10 @@ impl SoundProcessor for Output {
     }
 }
 
-impl ProcessorComponent for Output {
-    type CompiledType<'ctx> = CompiledOutput<'ctx>;
+impl ProcessorState for OutputState {
+    type Processor = Output;
 
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        self.input.visit(visitor);
-    }
-
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        self.input.visit_mut(visitor);
-    }
-
-    fn compile<'ctx>(
-        &self,
-        id: SoundProcessorId,
-        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> CompiledOutput<'ctx> {
+    fn new(processor: &Self::Processor) -> Self {
         let host = cpal::default_host();
         // TODO: propagate these errors
         let device = host
@@ -169,7 +158,7 @@ impl ProcessorComponent for Output {
         let mut chunk_index: usize = 0;
         let mut current_chunk: Option<SoundChunk> = None;
 
-        let shared_data = Arc::clone(&self.shared_data);
+        let shared_data = Arc::clone(&processor.shared_data);
 
         let mut get_next_sample = move || {
             if current_chunk.is_none() || chunk_index >= CHUNK_SIZE {
@@ -232,19 +221,10 @@ impl ProcessorComponent for Output {
             stream.pause().unwrap();
         });
 
-        CompiledOutput {
-            input: self.input.compile(id, compiler),
-            state: OutputState {
-                shared_data: Arc::clone(&self.shared_data),
-                stream_end_barrier: barrier2,
-            },
+        OutputState {
+            shared_data: Arc::clone(&processor.shared_data),
+            stream_end_barrier: barrier2,
         }
-    }
-}
-
-impl<'ctx> StartOver for CompiledOutput<'ctx> {
-    fn start_over(&mut self) {
-        self.input.start_over_at(0);
     }
 }
 
