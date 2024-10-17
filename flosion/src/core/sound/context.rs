@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::core::engine::scratcharena::{BorrowedSlice, ScratchArena};
 
 use super::{
-    expressionargument::ProcessorArgumentId,
+    expressionargument::{CompiledProcessorArgument, ProcessorArgumentId},
     soundinput::{InputTiming, ProcessorInputId, SoundInputLocation},
     soundprocessor::{ProcessorTiming, SoundProcessorId},
 };
@@ -45,10 +45,16 @@ impl<'a> LocalArrayList<'a> {
     pub fn push(
         &'a self,
         array: &'a [f32],
-        argument_id: ProcessorArgumentId,
+        argument: &CompiledProcessorArgument,
     ) -> LocalArrayList<'a> {
         LocalArrayList {
-            value: LocalArrayListValue::Containing(LocalArray { array, argument_id }, self),
+            value: LocalArrayListValue::Containing(
+                LocalArray {
+                    array,
+                    argument_id: argument.id(),
+                },
+                self,
+            ),
         }
     }
 

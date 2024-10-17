@@ -1,25 +1,24 @@
+use flosion_macros::ProcessorComponents;
+
 use crate::{
     core::{
-        engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
         expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList},
             expression::{ProcessorExpression, SoundExpressionScope},
-            expressionargument::{ProcessorArgument, ProcessorArgumentId},
-            input::singleinput::{CompiledSingleInput, SingleInput},
+            expressionargument::ProcessorArgument,
+            input::singleinput::SingleInput,
             soundinput::InputOptions,
-            soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
-            },
+            soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
     },
     ui_core::arguments::ParsedArguments,
 };
 
+#[derive(ProcessorComponents)]
 pub struct Definitions {
     pub sound_input: SingleInput,
 
@@ -27,12 +26,6 @@ pub struct Definitions {
     // e.g. does it need to use Vec or can it use something friendlier to the audio thread?
     pub expression: ProcessorExpression,
     pub argument: ProcessorArgument,
-}
-
-pub struct CompiledDefinitions<'ctx> {
-    sound_input: CompiledSingleInput<'ctx>,
-    expression: CompiledExpression<'ctx>,
-    argument_id: ProcessorArgumentId,
 }
 
 impl SoundProcessor for Definitions {
@@ -49,7 +42,7 @@ impl SoundProcessor for Definitions {
     }
 
     fn process_audio(
-        defns: &mut CompiledDefinitions,
+        defns: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
         context: &mut Context,
     ) -> StreamStatus {
@@ -64,44 +57,9 @@ impl SoundProcessor for Definitions {
         defns.sound_input.step(
             dst,
             None,
-            LocalArrayList::new().push(&buffer, defns.argument_id),
+            LocalArrayList::new().push(&buffer, &defns.argument),
             context,
         )
-    }
-}
-
-impl ProcessorComponent for Definitions {
-    type CompiledType<'ctx> = CompiledDefinitions<'ctx>;
-
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        self.sound_input.visit(visitor);
-        self.expression.visit(visitor);
-        self.argument.visit(visitor);
-    }
-
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        self.sound_input.visit_mut(visitor);
-        self.expression.visit_mut(visitor);
-        self.argument.visit_mut(visitor);
-    }
-
-    fn compile<'ctx>(
-        &self,
-        id: SoundProcessorId,
-        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> CompiledDefinitions<'ctx> {
-        CompiledDefinitions {
-            sound_input: self.sound_input.compile(id, compiler),
-            expression: self.expression.compile(id, compiler),
-            argument_id: self.argument.id(),
-        }
-    }
-}
-
-impl<'ctx> StartOver for CompiledDefinitions<'ctx> {
-    fn start_over(&mut self) {
-        self.sound_input.start_over_at(0);
-        self.expression.start_over();
     }
 }
 

@@ -1,12 +1,10 @@
+use flosion_macros::ProcessorComponents;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use rand::prelude::*;
 
 use crate::{
     core::{
-        engine::{
-            compiledexpression::CompiledExpression, scratcharena::ScratchArena,
-            soundgraphcompiler::SoundGraphCompiler,
-        },
+        engine::{scratcharena::ScratchArena, soundgraphcompiler::SoundGraphCompiler},
         expression::{
             context::ExpressionContext, expressiongraphdata::ExpressionTarget,
             expressionnode::PureExpressionNode,
@@ -15,12 +13,11 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::{Context, LocalArrayList, Stack},
-            expression::{ProcessorExpression, ProcessorExpressionLocation, SoundExpressionScope},
+            expression::{ProcessorExpression, SoundExpressionScope},
             expressionargument::{ArgumentLocation, ProcessorArgument, ProcessorArgumentLocation},
             soundgraph::SoundGraph,
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                ProcessorTiming, SoundProcessor, SoundProcessorId, SoundProcessorWithId, StartOver,
+                ProcessorComponent, ProcessorTiming, SoundProcessor, SoundProcessorWithId,
                 StreamStatus,
             },
         },
@@ -34,15 +31,12 @@ const TEST_ARRAY_SIZE: usize = 1024;
 
 const MAX_NUM_INPUTS: usize = 3;
 
+#[derive(ProcessorComponents)]
 struct TestSoundProcessor {
     expression: ProcessorExpression,
     argument_0: ProcessorArgument,
     argument_1: ProcessorArgument,
     argument_2: ProcessorArgument,
-}
-
-struct CompiledTestSoundProcessor<'ctx> {
-    expression: CompiledExpression<'ctx>,
 }
 
 impl SoundProcessor for TestSoundProcessor {
@@ -60,45 +54,11 @@ impl SoundProcessor for TestSoundProcessor {
     }
 
     fn process_audio(
-        processor: &mut Self::CompiledType<'_>,
-        dst: &mut SoundChunk,
-        context: &mut Context,
+        _processor: &mut Self::CompiledType<'_>,
+        _dst: &mut SoundChunk,
+        _context: &mut Context,
     ) -> StreamStatus {
         panic!("unused")
-    }
-}
-
-impl ProcessorComponent for TestSoundProcessor {
-    type CompiledType<'ctx> = CompiledTestSoundProcessor<'ctx>;
-
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        self.expression.visit(visitor);
-        self.argument_0.visit(visitor);
-        self.argument_1.visit(visitor);
-        self.argument_2.visit(visitor);
-    }
-
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        self.expression.visit_mut(visitor);
-        self.argument_0.visit_mut(visitor);
-        self.argument_1.visit_mut(visitor);
-        self.argument_2.visit_mut(visitor);
-    }
-
-    fn compile<'ctx>(
-        &self,
-        id: SoundProcessorId,
-        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> CompiledTestSoundProcessor<'ctx> {
-        CompiledTestSoundProcessor {
-            expression: self.expression.compile(id, compiler),
-        }
-    }
-}
-
-impl<'ctx> StartOver for CompiledTestSoundProcessor<'ctx> {
-    fn start_over(&mut self) {
-        self.expression.start_over();
     }
 }
 
@@ -198,23 +158,21 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
 
     let mut jit_cache = JitCache::new(&inkwell_context);
 
-    let mut compiled_expression;
-
-    let location = ProcessorExpressionLocation::new(proc_id, proc.expression.id());
-
     let mut graph = SoundGraph::new();
     graph.add_sound_processor(Box::new(proc));
 
-    // get non-mut reference to processor to allow using other parts of soundgraph
-    // let proc = graph
-    //     .sound_processor(proc_id)
-    //     .unwrap()
-    //     .downcast::<TestSoundProcessor>()
-    //     .unwrap();
-
     jit_cache.refresh(&graph);
 
-    compiled_expression = jit_cache.get_compiled_expression(location).unwrap();
+    let mut compiler = SoundGraphCompiler::new(&graph, &jit_cache);
+
+    // get non-mut reference to processor to allow using other parts of soundgraph
+    let proc = graph
+        .sound_processor(proc_id)
+        .unwrap()
+        .downcast::<TestSoundProcessor>()
+        .unwrap();
+
+    let mut compiled_proc = proc.compile(proc.id(), &mut compiler);
 
     let scratch_arena = ScratchArena::new();
     let stack = Stack::Root;
@@ -249,16 +207,16 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     // test compiled evaluation
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];
 
-    compiled_expression.eval(
+    compiled_proc.expression.eval(
         &mut actual_values_compiled,
+        Discretization::None,
         ExpressionContext::new_with_arrays(
             &mut context,
             LocalArrayList::new()
-                .push(&input_values[0], arg0_id)
-                .push(&input_values[1], arg1_id)
-                .push(&input_values[2], arg2_id),
+                .push(&input_values[0], &compiled_proc.argument_0)
+                .push(&input_values[1], &compiled_proc.argument_1)
+                .push(&input_values[2], &compiled_proc.argument_2),
         ),
-        Discretization::None,
     );
 
     for (expected, actual) in expected_values

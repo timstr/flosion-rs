@@ -15,7 +15,7 @@ use super::{
     soundinput::{ProcessorInputId, SoundInputLocation},
     soundprocessor::{
         ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-        SoundProcessorId,
+        SoundProcessorId, StartOver,
     },
 };
 
@@ -92,7 +92,7 @@ impl ProcessorArgument {
 }
 
 impl ProcessorComponent for ProcessorArgument {
-    type CompiledType<'ctx> = ();
+    type CompiledType<'ctx> = CompiledProcessorArgument;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
         visitor.processor_argument(self);
@@ -106,9 +106,23 @@ impl ProcessorComponent for ProcessorArgument {
         &self,
         _processor_id: SoundProcessorId,
         _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> () {
-        ()
+    ) -> CompiledProcessorArgument {
+        CompiledProcessorArgument { id: self.id }
     }
+}
+
+pub struct CompiledProcessorArgument {
+    id: ProcessorArgumentId,
+}
+
+impl CompiledProcessorArgument {
+    pub(crate) fn id(&self) -> ProcessorArgumentId {
+        self.id
+    }
+}
+
+impl StartOver for CompiledProcessorArgument {
+    fn start_over(&mut self) {}
 }
 
 pub(crate) trait AnyProcessorArgument {
