@@ -617,7 +617,7 @@ impl ProcessorTiming {
         self.elapsed_chunks
     }
 
-    fn just_started(&self) -> bool {
+    pub fn just_started(&self) -> bool {
         self.elapsed_chunks == 0
     }
 }

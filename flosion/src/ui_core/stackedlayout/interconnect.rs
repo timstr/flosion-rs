@@ -42,7 +42,7 @@ impl InputSocket {
         InputSocket {
             location: SoundInputLocation::new(processor_id, data.id()),
             options: data.options(),
-            branches: data.branches().len(),
+            branches: data.branches(),
         }
     }
 }

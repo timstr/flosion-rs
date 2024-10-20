@@ -58,6 +58,7 @@ pub(crate) enum ProcessorArgumentDataSource {
 
 pub struct ProcessorArgument {
     id: ProcessorArgumentId,
+    // TODO: replace this with an enum. There are only three types.
     instance: Rc<dyn AnyProcessorArgument>,
 }
 
@@ -116,7 +117,9 @@ impl Stashable for ProcessorArgument {
     fn stash(&self, stasher: &mut Stasher) {
         stasher.u64(self.id.value() as _);
         // instance is not stashed, it is assumed to be fixed
-        // and invariant to changes in id
+        // and invariant to changes in id.
+        // This implies that it's an error to assign an argument
+        // over an existing argument. Perhaps this should be prevented?
     }
 }
 
@@ -195,6 +198,7 @@ impl SoundInputArgumentLocation {
 
 pub struct SoundInputArgument {
     id: SoundInputArgumentId,
+    // TODO: replace this with just an enum. There are only two types.
     instance: Rc<dyn AnySoundInputArgument>,
 }
 
@@ -360,6 +364,7 @@ impl AnyProcessorArgument for ArrayProcessorExpressionArgument {
 }
 
 // An ExpressionArgument that evaluates the current time at a sound processor
+// TODO: replace this with just an expression node type
 pub(crate) struct ProcessorTimeExpressionArgument {}
 
 impl ProcessorTimeExpressionArgument {
@@ -383,6 +388,7 @@ impl AnyProcessorArgument for ProcessorTimeExpressionArgument {
 }
 
 // An ExpressionArgument that evaluates the current time at a sound input
+// TODO: replace this with just an expression node type
 pub(crate) struct InputTimeExpressionArgument {}
 
 impl InputTimeExpressionArgument {

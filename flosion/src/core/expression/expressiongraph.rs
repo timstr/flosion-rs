@@ -38,6 +38,7 @@ pub type ExpressionGraphResultId = UniqueId<ExpressionGraphResultTag>;
 #[derive(Clone, Copy)]
 pub(crate) struct ExpressionGraphIdGenerators {}
 
+// TODO: straighten this out also
 #[derive(Clone)]
 pub struct ExpressionGraph {
     nodes: HashMap<ExpressionNodeId, ExpressionNodeData>,

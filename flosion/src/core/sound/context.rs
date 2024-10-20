@@ -92,6 +92,10 @@ impl<'a> LocalArrayList<'a> {
 
 /// Things that a sound processor pushes onto the call
 /// stack when it invokes one of its sound inputs
+// TODO: state and local arrays are nearly the same thing,
+// both are conceptually tied to an argument, and neither
+// is easy to use correctly right now. Make this general,
+// simple, and safe.
 #[derive(Copy, Clone)]
 pub(crate) struct ProcessorFrameData<'a> {
     /// The processor's state
@@ -247,6 +251,10 @@ impl<'a> Context<'a> {
 
     pub(crate) fn current_processor_id(&self) -> SoundProcessorId {
         self.current_processor_id
+    }
+
+    pub(crate) fn current_processor_timing(&self) -> &ProcessorTiming {
+        self.current_processor_timing
     }
 
     pub(crate) fn stack(&self) -> &Stack<'a> {

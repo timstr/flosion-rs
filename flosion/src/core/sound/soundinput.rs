@@ -42,9 +42,11 @@ impl SoundInputLocation {
     }
 }
 
-pub struct SoundInputBranchTag;
-
-pub type SoundInputBranchId = UniqueId<SoundInputBranchTag>;
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum InputBranching {
+    Single,
+    Multiple(usize),
+}
 
 // TODO: rename to (an)isochronous
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -158,15 +160,12 @@ impl Default for InputTiming {
 pub struct BasicProcessorInput {
     id: ProcessorInputId,
     options: InputOptions,
-    // LOL this doesn't really mean anything anymore. What's
-    // a good way to report to the rest of the soundgraph
-    // how many copies of the input will be allocated?
-    branches: Vec<SoundInputBranchId>,
+    branches: usize,
     target: Option<SoundProcessorId>,
 }
 
 impl BasicProcessorInput {
-    pub fn new(options: InputOptions, branches: Vec<SoundInputBranchId>) -> BasicProcessorInput {
+    pub fn new(options: InputOptions, branches: usize) -> BasicProcessorInput {
         BasicProcessorInput {
             id: ProcessorInputId::new_unique(),
             options,
@@ -183,8 +182,12 @@ impl BasicProcessorInput {
         self.options
     }
 
-    pub(crate) fn branches(&self) -> &[SoundInputBranchId] {
-        &self.branches
+    pub(crate) fn branches(&self) -> usize {
+        self.branches
+    }
+
+    pub(crate) fn set_branches(&mut self, branches: usize) {
+        self.branches = branches;
     }
 
     pub(crate) fn target(&self) -> Option<SoundProcessorId> {
@@ -195,7 +198,7 @@ impl BasicProcessorInput {
         self.target = target;
     }
 
-    pub fn compile<'ctx>(
+    pub fn compile_branch<'ctx>(
         &self,
         processor_id: SoundProcessorId,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
@@ -216,7 +219,7 @@ impl Stashable for BasicProcessorInput {
             InputOptions::Synchronous => 0,
             InputOptions::NonSynchronous => 1,
         });
-        stasher.array_of_u64_iter(self.branches.iter().map(|i| i.value() as u64));
+        stasher.u64(self.branches as _);
         match self.target {
             Some(spid) => {
                 stasher.u8(1);
@@ -237,7 +240,7 @@ impl Unstashable for BasicProcessorInput {
             _ => panic!(),
         };
 
-        let branches = unstasher.array_of_u64_iter()?;
+        let branches = unstasher.u64()? as usize;
 
         let target = match unstasher.u8()? {
             1 => Some(SoundProcessorId::new(unstasher.u64()? as _)),
@@ -248,7 +251,7 @@ impl Unstashable for BasicProcessorInput {
         Ok(BasicProcessorInput {
             id: id,
             options: options,
-            branches: branches.map(|i| SoundInputBranchId::new(i as _)).collect(),
+            branches,
             target: target,
         })
     }
@@ -268,7 +271,7 @@ impl UnstashableInplace for BasicProcessorInput {
             _ => panic!(),
         };
 
-        let branches = unstasher.array_of_u64_iter()?;
+        let branches = unstasher.u64_always()? as usize;
 
         let target = match unstasher.u8_always()? {
             1 => Some(SoundProcessorId::new(unstasher.u64_always()? as _)),
@@ -280,7 +283,7 @@ impl UnstashableInplace for BasicProcessorInput {
             *self = BasicProcessorInput {
                 id: id,
                 options: options,
-                branches: branches.map(|i| SoundInputBranchId::new(i as _)).collect(),
+                branches,
                 target: target,
             };
         }

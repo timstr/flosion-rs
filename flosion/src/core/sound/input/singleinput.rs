@@ -6,9 +6,7 @@ use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     sound::{
         context::{Context, LocalArrayList, ProcessorFrameData},
-        soundinput::{
-            BasicProcessorInput, InputOptions, InputTiming, ProcessorInputId, SoundInputBranchId,
-        },
+        soundinput::{BasicProcessorInput, InputOptions, InputTiming, ProcessorInputId},
         soundprocessor::{
             ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
             SoundProcessorId, StartOver, StreamStatus,
@@ -23,17 +21,14 @@ pub struct SingleInput {
 
 impl SingleInput {
     pub fn new(options: InputOptions) -> SingleInput {
-        let branches = vec![Self::THE_ONLY_BRANCH];
         SingleInput {
-            input: BasicProcessorInput::new(options, branches),
+            input: BasicProcessorInput::new(options, 1),
         }
     }
 
     pub fn id(&self) -> ProcessorInputId {
         self.input.id()
     }
-
-    const THE_ONLY_BRANCH: SoundInputBranchId = SoundInputBranchId::new(1);
 }
 
 impl ProcessorComponent for SingleInput {
@@ -52,7 +47,7 @@ impl ProcessorComponent for SingleInput {
         processor_id: SoundProcessorId,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
-        CompiledSingleInput::new(self.input.compile(processor_id, compiler))
+        CompiledSingleInput::new(self.input.compile_branch(processor_id, compiler))
     }
 }
 
@@ -82,10 +77,6 @@ impl<'ctx> CompiledSingleInput<'ctx> {
 
     pub fn timing(&self) -> &InputTiming {
         self.target.timing()
-    }
-
-    pub fn timing_mut(&mut self) -> &mut InputTiming {
-        self.target.timing_mut()
     }
 
     pub fn step(

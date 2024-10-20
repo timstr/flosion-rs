@@ -128,7 +128,7 @@ fn compute_implied_processor_allocations(
                 return;
             };
 
-            let states = processor_states * input.branches().len();
+            let states = processor_states * input.branches();
 
             let input_is_sync = match input.options() {
                 InputOptions::Synchronous => processor_is_sync,
@@ -190,7 +190,7 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
             // because that would overcount if there are multiple inputs.
             for input_id in graph.sound_processor_targets(*proc_id) {
                 let num_input_branches = graph
-                    .with_sound_input(input_id, |input| input.branches().len())
+                    .with_sound_input(input_id, |input| input.branches())
                     .unwrap();
                 let num_implied_states = allocations
                     .get(&input_id.processor())

@@ -39,10 +39,8 @@ fn find_error_one_dynamic_proc() {
 fn find_error_static_to_self_cycle() {
     let mut proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
-    proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
-        Vec::new(),
-    ));
+    proc.inputs
+        .push(BasicProcessorInput::new(InputOptions::Synchronous, 1));
 
     let proc_id = proc.id();
 

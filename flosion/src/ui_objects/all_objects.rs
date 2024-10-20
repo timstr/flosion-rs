@@ -101,7 +101,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     helper.register::<AudioClipUi>();
     helper.register::<DefinitionsUi>();
     // helper.register::<EnsembleUi>();
-    // helper.register_dynamic_sound_processor::<MelodyUi>();
+    // helper.register::<MelodyUi>();
     // helper.register::<MixerUi>();
     helper.register::<ReadWriteWaveformUi>();
     // helper.register::<ResamplerUi>();

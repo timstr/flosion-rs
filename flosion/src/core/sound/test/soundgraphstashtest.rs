@@ -3,7 +3,7 @@ use hashstash::{stash_clone, Stash};
 use crate::{
     core::sound::{
         soundgraph::SoundGraph,
-        soundinput::{BasicProcessorInput, InputOptions, SoundInputBranchId},
+        soundinput::{BasicProcessorInput, InputOptions},
         soundobject::SoundObjectFactory,
         soundprocessor::{SoundProcessor, SoundProcessorWithId},
     },
@@ -21,13 +21,7 @@ fn test_object_factory() -> SoundObjectFactory {
 
 #[test]
 fn stash_clone_basic_input() {
-    let input = BasicProcessorInput::new(
-        InputOptions::Synchronous,
-        vec![
-            SoundInputBranchId::new_unique(),
-            SoundInputBranchId::new_unique(),
-        ],
-    );
+    let input = BasicProcessorInput::new(InputOptions::Synchronous, 2);
 
     let stash = Stash::new();
 
@@ -39,13 +33,8 @@ fn stash_clone_basic_input() {
 #[test]
 fn stash_clone_test_static_processor() {
     let mut proc = TestStaticSoundProcessor::new(&ParsedArguments::new_empty());
-    proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
-        vec![
-            SoundInputBranchId::new_unique(),
-            SoundInputBranchId::new_unique(),
-        ],
-    ));
+    proc.inputs
+        .push(BasicProcessorInput::new(InputOptions::Synchronous, 2));
 
     // ----------------------------------
 
@@ -83,13 +72,8 @@ fn stash_clone_graph_with_one_static_processor() {
     let mut graph = SoundGraph::new();
 
     let mut proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
-        vec![
-            SoundInputBranchId::new_unique(),
-            SoundInputBranchId::new_unique(),
-        ],
-    ));
+    proc.inputs
+        .push(BasicProcessorInput::new(InputOptions::Synchronous, 2));
     let proc_id = proc.id();
 
     graph.add_sound_processor(Box::new(proc));
@@ -124,13 +108,8 @@ fn stash_clone_graph_with_one_dynamic_processor() {
     let mut graph = SoundGraph::new();
 
     let mut proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
-    proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
-        vec![
-            SoundInputBranchId::new_unique(),
-            SoundInputBranchId::new_unique(),
-        ],
-    ));
+    proc.inputs
+        .push(BasicProcessorInput::new(InputOptions::Synchronous, 2));
     let proc_id = proc.id();
 
     graph.add_sound_processor(Box::new(proc));
