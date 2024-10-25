@@ -40,7 +40,7 @@ pub trait PureExpressionNode: WithObjectType {
 /// A trait representing any type of expression node, both
 /// pure and stateful. Intended mainly for trait objects
 /// and easy grouping of the different types.
-pub trait ExpressionNode {
+pub trait AnyExpressionNode {
     fn num_variables(&self) -> usize;
 
     fn compile<'ctx>(
@@ -76,7 +76,7 @@ impl<T: PureExpressionNode> Deref for PureExpressionNodeWithId<T> {
     }
 }
 
-impl<T: 'static + PureExpressionNode> ExpressionNode for PureExpressionNodeWithId<T> {
+impl<T: 'static + PureExpressionNode> AnyExpressionNode for PureExpressionNodeWithId<T> {
     fn num_variables(&self) -> usize {
         0
     }
@@ -190,7 +190,7 @@ impl<T: 'static + PureExpressionNode> ExpressionObjectHandle for PureExpressionN
 /// special build-up and tear-down to be used. This includes calculations
 /// involving reccurences, e.g. relying on previous results, as well
 /// as data structures that e.g. require locking in order to read safely.
-pub trait StatefulExpressionNode: WithObjectType {
+pub trait ExpressionNode: WithObjectType {
     fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
     where
         Self: Sized;
@@ -226,8 +226,6 @@ pub trait StatefulExpressionNode: WithObjectType {
         compile_state: &Self::CompileState<'ctx>,
     );
 
-    // Generate instructions to compute a value from the given inputs
-
     // Generate instructions to read and update state variables and produce
     // each new value from the state variables and input values
     fn compile_loop<'ctx>(
@@ -239,14 +237,52 @@ pub trait StatefulExpressionNode: WithObjectType {
     ) -> FloatValue<'ctx>;
 }
 
-pub struct StatefulExpressionNodeWithId<T: StatefulExpressionNode> {
+impl<T: PureExpressionNode> ExpressionNode for T {
+    fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
+    where
+        Self: Sized,
+    {
+        T::new(tools, args)
+    }
+
+    const NUM_VARIABLES: usize = 0;
+
+    type CompileState<'ctx> = ();
+
+    fn compile_start_over<'ctx>(&self, _jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
+        Vec::new()
+    }
+
+    fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> Self::CompileState<'ctx> {
+        ()
+    }
+
+    fn compile_post_loop<'ctx>(
+        &self,
+        _jit: &mut Jit<'ctx>,
+        _compile_state: &Self::CompileState<'ctx>,
+    ) {
+    }
+
+    fn compile_loop<'ctx>(
+        &self,
+        jit: &mut Jit<'ctx>,
+        inputs: &[FloatValue<'ctx>],
+        _variables: &[PointerValue<'ctx>],
+        _compile_state: &Self::CompileState<'ctx>,
+    ) -> FloatValue<'ctx> {
+        T::compile(self, jit, inputs)
+    }
+}
+
+pub struct ExpressionNodeWithId<T: ExpressionNode> {
     instance: T,
     id: ExpressionNodeId,
 }
 
-impl<T: StatefulExpressionNode> StatefulExpressionNodeWithId<T> {
-    pub(crate) fn new(instance: T, id: ExpressionNodeId) -> StatefulExpressionNodeWithId<T> {
-        StatefulExpressionNodeWithId { instance, id }
+impl<T: ExpressionNode> ExpressionNodeWithId<T> {
+    pub(crate) fn new(instance: T, id: ExpressionNodeId) -> ExpressionNodeWithId<T> {
+        ExpressionNodeWithId { instance, id }
     }
 
     pub(crate) fn id(&self) -> ExpressionNodeId {
@@ -254,7 +290,7 @@ impl<T: StatefulExpressionNode> StatefulExpressionNodeWithId<T> {
     }
 }
 
-impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeWithId<T> {
+impl<T: ExpressionNode> Deref for ExpressionNodeWithId<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -262,7 +298,7 @@ impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeWithId<T> {
     }
 }
 
-impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionNodeWithId<T> {
+impl<T: 'static + ExpressionNode> AnyExpressionNode for ExpressionNodeWithId<T> {
     fn num_variables(&self) -> usize {
         T::NUM_VARIABLES
     }
@@ -356,7 +392,7 @@ impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionN
     }
 }
 
-impl<T: 'static + StatefulExpressionNode> ExpressionObject for StatefulExpressionNodeWithId<T> {
+impl<T: 'static + ExpressionNode> ExpressionObject for ExpressionNodeWithId<T> {
     fn create(
         graph: &mut ExpressionGraph,
         args: &ParsedArguments,
@@ -388,13 +424,13 @@ impl<T: 'static + StatefulExpressionNode> ExpressionObject for StatefulExpressio
     }
 }
 
-pub struct StatefulExpressionNodeHandle<T: StatefulExpressionNode> {
-    instance: Rc<StatefulExpressionNodeWithId<T>>,
+pub struct StatefulExpressionNodeHandle<T: ExpressionNode> {
+    instance: Rc<ExpressionNodeWithId<T>>,
 }
 
 // NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
 // requires T: Clone even if it isn't stored as a direct field
-impl<T: StatefulExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
+impl<T: ExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
     fn clone(&self) -> Self {
         Self {
             instance: Rc::clone(&self.instance),
@@ -402,14 +438,14 @@ impl<T: StatefulExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
     }
 }
 
-impl<T: 'static + StatefulExpressionNode> StatefulExpressionNodeHandle<T> {
-    pub(super) fn new(instance: Rc<StatefulExpressionNodeWithId<T>>) -> Self {
+impl<T: 'static + ExpressionNode> StatefulExpressionNodeHandle<T> {
+    pub(super) fn new(instance: Rc<ExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
 
     pub(super) fn from_graph_object(handle: AnyExpressionObjectHandle) -> Option<Self> {
         let any = handle.into_instance_rc().into_rc_any();
-        match any.downcast::<StatefulExpressionNodeWithId<T>>() {
+        match any.downcast::<ExpressionNodeWithId<T>>() {
             Ok(obj) => Some(StatefulExpressionNodeHandle::new(obj)),
             Err(_) => None,
         }
@@ -423,7 +459,7 @@ impl<T: 'static + StatefulExpressionNode> StatefulExpressionNodeHandle<T> {
         AnyExpressionObjectHandle::new(self.instance)
     }
 }
-impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeHandle<T> {
+impl<T: ExpressionNode> Deref for StatefulExpressionNodeHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -431,10 +467,8 @@ impl<T: StatefulExpressionNode> Deref for StatefulExpressionNodeHandle<T> {
     }
 }
 
-impl<T: 'static + StatefulExpressionNode> ExpressionObjectHandle
-    for StatefulExpressionNodeHandle<T>
-{
-    type ObjectType = StatefulExpressionNodeWithId<T>;
+impl<T: 'static + ExpressionNode> ExpressionObjectHandle for StatefulExpressionNodeHandle<T> {
+    type ObjectType = ExpressionNodeWithId<T>;
 
     fn from_graph_object(object: AnyExpressionObjectHandle) -> Option<Self> {
         StatefulExpressionNodeHandle::from_graph_object(object)

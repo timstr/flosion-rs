@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use super::{
     expressiongraph::{ExpressionGraphParameterId, ExpressionGraphResultId},
-    expressionnode::{ExpressionNode, ExpressionNodeId},
+    expressionnode::{AnyExpressionNode, ExpressionNodeId},
     expressionnodeinput::ExpressionNodeInputId,
 };
 
@@ -11,7 +11,7 @@ use super::{
 #[derive(Clone)]
 pub(crate) struct ExpressionNodeData {
     id: ExpressionNodeId,
-    instance: Option<Rc<dyn ExpressionNode>>,
+    instance: Option<Rc<dyn AnyExpressionNode>>,
     inputs: Vec<ExpressionNodeInputId>,
 }
 
@@ -35,18 +35,18 @@ impl ExpressionNodeData {
     }
 
     /// Access the expression node instance
-    pub(crate) fn instance(&self) -> &dyn ExpressionNode {
+    pub(crate) fn instance(&self) -> &dyn AnyExpressionNode {
         self.instance.as_deref().unwrap()
     }
 
     /// Access the expression node instance as an Rc
     // TODO: This is probably only used to create a graph object handle. Make that easier.
-    pub(crate) fn instance_rc(&self) -> Rc<dyn ExpressionNode> {
+    pub(crate) fn instance_rc(&self) -> Rc<dyn AnyExpressionNode> {
         Rc::clone(self.instance.as_ref().unwrap())
     }
 
     /// Set the instance, if self was created with `new_empty()`
-    pub(crate) fn set_instance(&mut self, instance: Rc<dyn ExpressionNode>) {
+    pub(crate) fn set_instance(&mut self, instance: Rc<dyn AnyExpressionNode>) {
         assert!(self.instance.is_none());
         self.instance = Some(instance);
     }

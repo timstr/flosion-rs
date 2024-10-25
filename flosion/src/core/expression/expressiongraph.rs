@@ -12,8 +12,8 @@ use super::{
     },
     expressiongrapherror::ExpressionError,
     expressionnode::{
-        ExpressionNodeId, PureExpressionNode, PureExpressionNodeHandle, PureExpressionNodeWithId,
-        StatefulExpressionNode, StatefulExpressionNodeHandle, StatefulExpressionNodeWithId,
+        ExpressionNode, ExpressionNodeId, ExpressionNodeWithId, PureExpressionNode,
+        PureExpressionNodeHandle, PureExpressionNodeWithId, StatefulExpressionNodeHandle,
     },
     expressionnodeinput::ExpressionNodeInputId,
     expressionnodetools::ExpressionNodeTools,
@@ -32,11 +32,6 @@ pub struct ExpressionGraphResultTag;
 /// No two results of the same expression graph may share
 /// the same id.
 pub type ExpressionGraphResultId = UniqueId<ExpressionGraphResultTag>;
-
-/// Convenience struct for passing the various id generators
-/// used by a expression graph together as a whole
-#[derive(Clone, Copy)]
-pub(crate) struct ExpressionGraphIdGenerators {}
 
 // TODO: straighten this out also
 #[derive(Clone)]
@@ -170,14 +165,14 @@ impl ExpressionGraph {
         Ok(PureExpressionNodeHandle::new(node2))
     }
 
-    pub fn add_stateful_expression_node<T: 'static + StatefulExpressionNode>(
+    pub fn add_stateful_expression_node<T: 'static + ExpressionNode>(
         &mut self,
         args: &ParsedArguments,
     ) -> Result<StatefulExpressionNodeHandle<T>, ExpressionError> {
         let id = ExpressionNodeId::new_unique();
         self.nodes.insert(id, ExpressionNodeData::new_empty(id));
         let tools = ExpressionNodeTools::new(id, self);
-        let node = Rc::new(StatefulExpressionNodeWithId::new(
+        let node = Rc::new(ExpressionNodeWithId::new(
             T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
             id,
         ));
