@@ -9,7 +9,7 @@ use inkwell::{
 use crate::{
     core::{
         expression::{
-            expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
+            expressionnode::ExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
             expressionnodetools::ExpressionNodeTools,
         },
         jit::jit::Jit,
@@ -35,7 +35,7 @@ pub struct Sampler1dCompileState<'ctx> {
     ptr_status: PointerValue<'ctx>,
 }
 
-impl StatefulExpressionNode for Sampler1d {
+impl ExpressionNode for Sampler1d {
     fn new(mut tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
         // TODO: use args?
         let mut value = Vec::new();
@@ -64,7 +64,7 @@ impl StatefulExpressionNode for Sampler1d {
         let addr_status = jit.types.usize_type.const_int(ptr_status as u64, false);
         let ptr_status = jit
             .builder()
-            .build_int_to_ptr(addr_status, jit.types.u64_pointer_type, "p_atomicstatus")
+            .build_int_to_ptr(addr_status, jit.types.pointer_type, "p_atomicstatus")
             .unwrap();
         let inc_all_slices = jit
             .types
@@ -129,7 +129,7 @@ impl StatefulExpressionNode for Sampler1d {
         let data_addr = jit.types.usize_type.const_int(ptr_data as u64, false);
         let ptr_data = jit
             .builder()
-            .build_int_to_ptr(data_addr, jit.types.f32_pointer_type, "ptr_data")
+            .build_int_to_ptr(data_addr, jit.types.pointer_type, "ptr_data")
             .unwrap();
         let offset = jit
             .builder()
@@ -141,8 +141,11 @@ impl StatefulExpressionNode for Sampler1d {
             )
             .unwrap()
             .into_int_value();
-        let ptr_slice =
-            unsafe { jit.builder().build_gep(ptr_data, &[offset], "ptr_slice") }.unwrap();
+        let ptr_slice = unsafe {
+            jit.builder()
+                .build_gep(jit.types.f32_type, ptr_data, &[offset], "ptr_slice")
+        }
+        .unwrap();
         Sampler1dCompileState {
             ptr_slice,
             current_slice,
@@ -263,16 +266,24 @@ impl StatefulExpressionNode for Sampler1d {
 
         let ptr_slice = compile_state.ptr_slice;
 
-        let ptr_v0 = unsafe { jit.builder().build_gep(ptr_slice, &[i0], "ptr_v0") }.unwrap();
-        let ptr_v1 = unsafe { jit.builder().build_gep(ptr_slice, &[i1], "ptr_v0") }.unwrap();
+        let ptr_v0 = unsafe {
+            jit.builder()
+                .build_gep(jit.types.f32_type, ptr_slice, &[i0], "ptr_v0")
+        }
+        .unwrap();
+        let ptr_v1 = unsafe {
+            jit.builder()
+                .build_gep(jit.types.f32_type, ptr_slice, &[i1], "ptr_v0")
+        }
+        .unwrap();
         let v0 = jit
             .builder()
-            .build_load(ptr_v0, "v0")
+            .build_load(jit.types.f32_type, ptr_v0, "v0")
             .unwrap()
             .into_float_value();
         let v1 = jit
             .builder()
-            .build_load(ptr_v1, "v1")
+            .build_load(jit.types.f32_type, ptr_v1, "v1")
             .unwrap()
             .into_float_value();
         let diff = jit.builder().build_float_sub(v1, v0, "diff").unwrap();

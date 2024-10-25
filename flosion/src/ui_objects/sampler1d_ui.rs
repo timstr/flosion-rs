@@ -1,9 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::expression::{
-        expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
-    },
+    core::expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeHandle},
     objects::sampler1d::Sampler1d,
     ui_core::{
         arguments::ParsedArguments,
@@ -19,12 +17,12 @@ use crate::{
 pub struct Sampler1dUi {}
 
 impl ExpressionObjectUi for Sampler1dUi {
-    type HandleType = StatefulExpressionNodeHandle<Sampler1d>;
+    type HandleType = ExpressionNodeHandle<Sampler1d>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        sampler1d: StatefulExpressionNodeHandle<Sampler1d>,
+        sampler1d: ExpressionNodeHandle<Sampler1d>,
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,

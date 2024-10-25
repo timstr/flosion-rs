@@ -12,8 +12,8 @@ use super::{
     },
     expressiongrapherror::ExpressionError,
     expressionnode::{
-        ExpressionNode, ExpressionNodeId, ExpressionNodeWithId, PureExpressionNode,
-        PureExpressionNodeHandle, PureExpressionNodeWithId, StatefulExpressionNodeHandle,
+        ExpressionNode, ExpressionNodeHandle, ExpressionNodeId, ExpressionNodeWithId,
+        PureExpressionNode,
     },
     expressionnodeinput::ExpressionNodeInputId,
     expressionnodetools::ExpressionNodeTools,
@@ -149,26 +149,10 @@ impl ExpressionGraph {
         Ok(())
     }
 
-    pub fn add_pure_expression_node<T: 'static + PureExpressionNode>(
+    pub fn add_expression_node<T: 'static + ExpressionNode>(
         &mut self,
         args: &ParsedArguments,
-    ) -> Result<PureExpressionNodeHandle<T>, ExpressionError> {
-        let id = ExpressionNodeId::new_unique();
-        self.nodes.insert(id, ExpressionNodeData::new_empty(id));
-        let tools = ExpressionNodeTools::new(id, self);
-        let node = Rc::new(PureExpressionNodeWithId::new(
-            T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
-            id,
-        ));
-        let node2 = Rc::clone(&node);
-        self.nodes.get_mut(&id).unwrap().set_instance(node);
-        Ok(PureExpressionNodeHandle::new(node2))
-    }
-
-    pub fn add_stateful_expression_node<T: 'static + ExpressionNode>(
-        &mut self,
-        args: &ParsedArguments,
-    ) -> Result<StatefulExpressionNodeHandle<T>, ExpressionError> {
+    ) -> Result<ExpressionNodeHandle<T>, ExpressionError> {
         let id = ExpressionNodeId::new_unique();
         self.nodes.insert(id, ExpressionNodeData::new_empty(id));
         let tools = ExpressionNodeTools::new(id, self);
@@ -178,7 +162,7 @@ impl ExpressionGraph {
         ));
         let node2 = Rc::clone(&node);
         self.nodes.get_mut(&id).unwrap().set_instance(node);
-        Ok(StatefulExpressionNodeHandle::new(node2))
+        Ok(ExpressionNodeHandle::new(node2))
     }
 
     pub(crate) fn remove_node(&mut self, node_id: ExpressionNodeId) -> Result<(), ExpressionError> {

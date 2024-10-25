@@ -1,9 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::expression::{
-        expressiongraph::ExpressionGraph, expressionnode::PureExpressionNodeHandle,
-    },
+    core::expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeHandle},
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, ParsedArguments, StringIdentifierArgument},
@@ -23,12 +21,12 @@ impl ConstantUi {
 }
 
 impl ExpressionObjectUi for ConstantUi {
-    type HandleType = PureExpressionNodeHandle<Constant>;
+    type HandleType = ExpressionNodeHandle<Constant>;
     type StateType = ();
 
     fn ui(
         &self,
-        constant: PureExpressionNodeHandle<Constant>,
+        constant: ExpressionNodeHandle<Constant>,
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
         ctx: &ExpressionGraphUiContext,
@@ -89,11 +87,11 @@ impl Default for SliderUiState {
 }
 
 impl ExpressionObjectUi for SliderUi {
-    type HandleType = PureExpressionNodeHandle<Variable>;
+    type HandleType = ExpressionNodeHandle<Variable>;
     type StateType = SliderUiState;
     fn ui(
         &self,
-        variable: PureExpressionNodeHandle<Variable>,
+        variable: ExpressionNodeHandle<Variable>,
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
@@ -138,7 +136,7 @@ impl ExpressionObjectUi for SliderUi {
 
     fn make_ui_state(
         &self,
-        object: &PureExpressionNodeHandle<Variable>,
+        object: &ExpressionNodeHandle<Variable>,
         args: ParsedArguments,
     ) -> Result<SliderUiState, ()> {
         let value = args.get(&Variable::ARG_VALUE);
@@ -182,11 +180,11 @@ macro_rules! unary_expression_node_ui {
         pub struct $name {}
 
         impl ExpressionObjectUi for $name {
-            type HandleType = PureExpressionNodeHandle<$object>;
+            type HandleType = ExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureExpressionNodeHandle<$object>,
+                object: ExpressionNodeHandle<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
@@ -207,7 +205,7 @@ macro_rules! unary_expression_node_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &PureExpressionNodeHandle<$object>,
+                _object: &ExpressionNodeHandle<$object>,
                 _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())
@@ -222,11 +220,11 @@ macro_rules! binary_expression_node_ui {
         pub struct $name {}
 
         impl ExpressionObjectUi for $name {
-            type HandleType = PureExpressionNodeHandle<$object>;
+            type HandleType = ExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureExpressionNodeHandle<$object>,
+                object: ExpressionNodeHandle<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
@@ -247,7 +245,7 @@ macro_rules! binary_expression_node_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &PureExpressionNodeHandle<$object>,
+                _object: &ExpressionNodeHandle<$object>,
                 _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())
@@ -262,11 +260,11 @@ macro_rules! ternary_expression_node_ui {
         pub struct $name {}
 
         impl ExpressionObjectUi for $name {
-            type HandleType = PureExpressionNodeHandle<$object>;
+            type HandleType = ExpressionNodeHandle<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: PureExpressionNodeHandle<$object>,
+                object: ExpressionNodeHandle<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,

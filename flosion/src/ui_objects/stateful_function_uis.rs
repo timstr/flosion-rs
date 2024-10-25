@@ -1,7 +1,5 @@
 use crate::{
-    core::expression::{
-        expressiongraph::ExpressionGraph, expressionnode::StatefulExpressionNodeHandle,
-    },
+    core::expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeHandle},
     objects::statefulfunctions::{
         ExponentialApproach, Integrator, LinearApproach, WrappingIntegrator,
     },
@@ -19,12 +17,12 @@ use crate::{
 pub struct LinearApproachUi {}
 
 impl ExpressionObjectUi for LinearApproachUi {
-    type HandleType = StatefulExpressionNodeHandle<LinearApproach>;
+    type HandleType = ExpressionNodeHandle<LinearApproach>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulExpressionNodeHandle<LinearApproach>,
+        handle: ExpressionNodeHandle<LinearApproach>,
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
@@ -56,12 +54,12 @@ impl ExpressionObjectUi for LinearApproachUi {
 pub struct ExponentialApproachUi {}
 
 impl ExpressionObjectUi for ExponentialApproachUi {
-    type HandleType = StatefulExpressionNodeHandle<ExponentialApproach>;
+    type HandleType = ExpressionNodeHandle<ExponentialApproach>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulExpressionNodeHandle<ExponentialApproach>,
+        handle: ExpressionNodeHandle<ExponentialApproach>,
         _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
@@ -93,12 +91,12 @@ impl ExpressionObjectUi for ExponentialApproachUi {
 pub struct IntegratorUi {}
 
 impl ExpressionObjectUi for IntegratorUi {
-    type HandleType = StatefulExpressionNodeHandle<Integrator>;
+    type HandleType = ExpressionNodeHandle<Integrator>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulExpressionNodeHandle<Integrator>,
+        handle: ExpressionNodeHandle<Integrator>,
         _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
@@ -126,12 +124,12 @@ impl ExpressionObjectUi for IntegratorUi {
 pub struct WrappingIntegratorUi {}
 
 impl ExpressionObjectUi for WrappingIntegratorUi {
-    type HandleType = StatefulExpressionNodeHandle<WrappingIntegrator>;
+    type HandleType = ExpressionNodeHandle<WrappingIntegrator>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        handle: StatefulExpressionNodeHandle<WrappingIntegrator>,
+        handle: ExpressionNodeHandle<WrappingIntegrator>,
         _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,

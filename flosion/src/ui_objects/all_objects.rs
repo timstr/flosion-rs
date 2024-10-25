@@ -28,11 +28,11 @@ use super::{
     readwritewaveform_ui::ReadWriteWaveformUi,
     // recorder_ui::RecorderUi,
     // resampler_ui::ResamplerUi,
-    // sampler1d_ui::Sampler1dUi,
+    sampler1d_ui::Sampler1dUi,
     // scatter_ui::ScatterUi,
-    // stateful_function_uis::{
-    //     ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
-    // },
+    stateful_function_uis::{
+        ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
+    },
     // wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
     writewaveform_ui::WriteWaveformUi,
@@ -123,11 +123,11 @@ pub(crate) fn all_expression_graph_objects() -> (ExpressionObjectFactory, Expres
     helper.register::<ConstantUi>();
     helper.register::<SliderUi>();
 
-    // helper.register::<LinearApproachUi>();
-    // helper.register::<ExponentialApproachUi>();
-    // helper.register::<IntegratorUi>();
-    // helper.register::<WrappingIntegratorUi>();
-    // helper.register::<Sampler1dUi>();
+    helper.register::<LinearApproachUi>();
+    helper.register::<ExponentialApproachUi>();
+    helper.register::<IntegratorUi>();
+    helper.register::<WrappingIntegratorUi>();
+    helper.register::<Sampler1dUi>();
 
     helper.register::<NegateUi>();
     helper.register::<FloorUi>();

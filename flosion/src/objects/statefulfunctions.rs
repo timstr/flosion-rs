@@ -6,7 +6,7 @@ use inkwell::{
 use crate::{
     core::{
         expression::{
-            expressionnode::StatefulExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
+            expressionnode::ExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
             expressionnodetools::ExpressionNodeTools,
         },
         jit::jit::Jit,
@@ -27,7 +27,7 @@ pub struct LinearApproach {
     _speed: ExpressionNodeInputHandle,
 }
 
-impl StatefulExpressionNode for LinearApproach {
+impl ExpressionNode for LinearApproach {
     fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(LinearApproach {
             _input: tools.add_input(0.0),
@@ -72,7 +72,7 @@ impl StatefulExpressionNode for LinearApproach {
 
         let value = jit
             .builder()
-            .build_load(variable, "value")
+            .build_load(jit.types.f32_type, variable, "value")
             .unwrap()
             .into_float_value();
         let value_lt_input = jit
@@ -127,7 +127,7 @@ pub struct ExponentialApproach {
     _decay_rate: ExpressionNodeInputHandle,
 }
 
-impl StatefulExpressionNode for ExponentialApproach {
+impl ExpressionNode for ExponentialApproach {
     fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(ExponentialApproach {
             _input: tools.add_input(0.0),
@@ -184,7 +184,7 @@ impl StatefulExpressionNode for ExponentialApproach {
         let ptr_val = variables[0];
         let prev_val = jit
             .builder()
-            .build_load(ptr_val, "prev_val")
+            .build_load(jit.types.f32_type, ptr_val, "prev_val")
             .unwrap()
             .into_float_value();
         let diff = jit
@@ -212,7 +212,7 @@ pub struct Integrator {
     _input: ExpressionNodeInputHandle,
 }
 
-impl StatefulExpressionNode for Integrator {
+impl ExpressionNode for Integrator {
     fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(Integrator {
             _input: tools.add_input(0.0),
@@ -250,7 +250,7 @@ impl StatefulExpressionNode for Integrator {
         let variable = variables[0];
         let prev_value = jit
             .builder()
-            .build_load(variable, "prev_value")
+            .build_load(jit.types.f32_type, variable, "prev_value")
             .unwrap()
             .into_float_value();
         let sum = jit
@@ -270,7 +270,7 @@ pub struct WrappingIntegrator {
     _input: ExpressionNodeInputHandle,
 }
 
-impl StatefulExpressionNode for WrappingIntegrator {
+impl ExpressionNode for WrappingIntegrator {
     fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
         Ok(WrappingIntegrator {
             _input: tools.add_input(0.0),
@@ -308,7 +308,7 @@ impl StatefulExpressionNode for WrappingIntegrator {
         let variable = variables[0];
         let prev_value = jit
             .builder()
-            .build_load(variable, "prev_value")
+            .build_load(jit.types.f32_type, variable, "prev_value")
             .unwrap()
             .into_float_value();
         let sum = jit

@@ -53,139 +53,6 @@ pub trait AnyExpressionNode {
     fn as_graph_object(self: Rc<Self>) -> AnyExpressionObjectHandle;
 }
 
-pub struct PureExpressionNodeWithId<T: PureExpressionNode> {
-    instance: T,
-    id: ExpressionNodeId,
-}
-
-impl<T: PureExpressionNode> PureExpressionNodeWithId<T> {
-    pub(crate) fn new(instance: T, id: ExpressionNodeId) -> PureExpressionNodeWithId<T> {
-        PureExpressionNodeWithId { instance, id }
-    }
-
-    pub(crate) fn id(&self) -> ExpressionNodeId {
-        self.id
-    }
-}
-
-impl<T: PureExpressionNode> Deref for PureExpressionNodeWithId<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &self.instance
-    }
-}
-
-impl<T: 'static + PureExpressionNode> AnyExpressionNode for PureExpressionNodeWithId<T> {
-    fn num_variables(&self) -> usize {
-        0
-    }
-
-    fn compile<'ctx>(
-        &self,
-        jit: &mut Jit<'ctx>,
-        inputs: &[FloatValue<'ctx>],
-        variables: &[PointerValue<'ctx>],
-    ) -> FloatValue<'ctx> {
-        debug_assert_eq!(variables.len(), 0);
-        jit.builder()
-            .position_before(&jit.instruction_locations.end_of_loop);
-        self.instance.compile(jit, inputs)
-    }
-
-    fn as_graph_object(self: Rc<Self>) -> AnyExpressionObjectHandle {
-        AnyExpressionObjectHandle::new(self)
-    }
-}
-
-impl<T: 'static + PureExpressionNode> ExpressionObject for PureExpressionNodeWithId<T> {
-    fn create(
-        graph: &mut ExpressionGraph,
-        args: &ParsedArguments,
-    ) -> Result<AnyExpressionObjectHandle, ()> {
-        graph
-            .add_pure_expression_node::<T>(args)
-            .map(|h| h.into_graph_object())
-            .map_err(|_| ()) // TODO: report error
-    }
-
-    fn get_type() -> ObjectType {
-        T::TYPE
-    }
-
-    fn get_dynamic_type(&self) -> ObjectType {
-        T::TYPE
-    }
-
-    fn get_id(&self) -> ExpressionNodeId {
-        self.id
-    }
-
-    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-
-    fn get_language_type_name(&self) -> &'static str {
-        type_name::<Self>()
-    }
-}
-
-pub struct PureExpressionNodeHandle<T: PureExpressionNode> {
-    instance: Rc<PureExpressionNodeWithId<T>>,
-}
-
-// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
-// requires T: Clone even if it isn't stored as a direct field
-impl<T: PureExpressionNode> Clone for PureExpressionNodeHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Rc::clone(&self.instance),
-        }
-    }
-}
-
-impl<T: 'static + PureExpressionNode> PureExpressionNodeHandle<T> {
-    pub(super) fn new(instance: Rc<PureExpressionNodeWithId<T>>) -> Self {
-        Self { instance }
-    }
-
-    pub(super) fn from_graph_object(handle: AnyExpressionObjectHandle) -> Option<Self> {
-        let rc_any = handle.into_instance_rc().into_rc_any();
-        match rc_any.downcast::<PureExpressionNodeWithId<T>>() {
-            Ok(obj) => Some(PureExpressionNodeHandle::new(obj)),
-            Err(_) => None,
-        }
-    }
-
-    pub fn id(&self) -> ExpressionNodeId {
-        self.instance.id()
-    }
-
-    pub fn into_graph_object(self) -> AnyExpressionObjectHandle {
-        AnyExpressionObjectHandle::new(self.instance)
-    }
-}
-
-impl<T: PureExpressionNode> Deref for PureExpressionNodeHandle<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.instance
-    }
-}
-
-impl<T: 'static + PureExpressionNode> ExpressionObjectHandle for PureExpressionNodeHandle<T> {
-    type ObjectType = PureExpressionNodeWithId<T>;
-
-    fn from_graph_object(object: AnyExpressionObjectHandle) -> Option<Self> {
-        PureExpressionNodeHandle::from_graph_object(object)
-    }
-
-    fn object_type() -> ObjectType {
-        T::TYPE
-    }
-}
-
 /// An Expression which might have hidden state and/or might require
 /// special build-up and tear-down to be used. This includes calculations
 /// involving reccurences, e.g. relying on previous results, as well
@@ -398,7 +265,7 @@ impl<T: 'static + ExpressionNode> ExpressionObject for ExpressionNodeWithId<T> {
         args: &ParsedArguments,
     ) -> Result<AnyExpressionObjectHandle, ()> {
         graph
-            .add_stateful_expression_node::<T>(args)
+            .add_expression_node::<T>(args)
             .map(|h| h.into_graph_object())
             .map_err(|_| ()) // TODO: report error
     }
@@ -424,13 +291,13 @@ impl<T: 'static + ExpressionNode> ExpressionObject for ExpressionNodeWithId<T> {
     }
 }
 
-pub struct StatefulExpressionNodeHandle<T: ExpressionNode> {
+pub struct ExpressionNodeHandle<T: ExpressionNode> {
     instance: Rc<ExpressionNodeWithId<T>>,
 }
 
 // NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
 // requires T: Clone even if it isn't stored as a direct field
-impl<T: ExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
+impl<T: ExpressionNode> Clone for ExpressionNodeHandle<T> {
     fn clone(&self) -> Self {
         Self {
             instance: Rc::clone(&self.instance),
@@ -438,7 +305,7 @@ impl<T: ExpressionNode> Clone for StatefulExpressionNodeHandle<T> {
     }
 }
 
-impl<T: 'static + ExpressionNode> StatefulExpressionNodeHandle<T> {
+impl<T: 'static + ExpressionNode> ExpressionNodeHandle<T> {
     pub(super) fn new(instance: Rc<ExpressionNodeWithId<T>>) -> Self {
         Self { instance }
     }
@@ -446,7 +313,7 @@ impl<T: 'static + ExpressionNode> StatefulExpressionNodeHandle<T> {
     pub(super) fn from_graph_object(handle: AnyExpressionObjectHandle) -> Option<Self> {
         let any = handle.into_instance_rc().into_rc_any();
         match any.downcast::<ExpressionNodeWithId<T>>() {
-            Ok(obj) => Some(StatefulExpressionNodeHandle::new(obj)),
+            Ok(obj) => Some(ExpressionNodeHandle::new(obj)),
             Err(_) => None,
         }
     }
@@ -459,7 +326,7 @@ impl<T: 'static + ExpressionNode> StatefulExpressionNodeHandle<T> {
         AnyExpressionObjectHandle::new(self.instance)
     }
 }
-impl<T: ExpressionNode> Deref for StatefulExpressionNodeHandle<T> {
+impl<T: ExpressionNode> Deref for ExpressionNodeHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -467,11 +334,11 @@ impl<T: ExpressionNode> Deref for StatefulExpressionNodeHandle<T> {
     }
 }
 
-impl<T: 'static + ExpressionNode> ExpressionObjectHandle for StatefulExpressionNodeHandle<T> {
+impl<T: 'static + ExpressionNode> ExpressionObjectHandle for ExpressionNodeHandle<T> {
     type ObjectType = ExpressionNodeWithId<T>;
 
     fn from_graph_object(object: AnyExpressionObjectHandle) -> Option<Self> {
-        StatefulExpressionNodeHandle::from_graph_object(object)
+        ExpressionNodeHandle::from_graph_object(object)
     }
 
     fn object_type() -> ObjectType {
