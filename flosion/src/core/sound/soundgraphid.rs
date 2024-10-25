@@ -1,8 +1,6 @@
 use super::{
-    expression::ProcessorExpressionLocation,
-    expressionargument::{ArgumentLocation, ProcessorArgumentLocation, SoundInputArgumentLocation},
-    soundinput::SoundInputLocation,
-    soundprocessor::SoundProcessorId,
+    expression::ProcessorExpressionLocation, argument::ProcessorArgumentLocation,
+    soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Eq, PartialEq, Clone, Copy, Hash, Debug)]
@@ -35,7 +33,6 @@ pub enum SoundGraphComponentLocation {
     Input(SoundInputLocation),
     Expression(ProcessorExpressionLocation),
     ProcessorArgument(ProcessorArgumentLocation),
-    InputArgument(SoundInputArgumentLocation),
 }
 
 impl From<SoundProcessorId> for SoundGraphComponentLocation {
@@ -76,32 +73,6 @@ impl From<ProcessorArgumentLocation> for SoundGraphComponentLocation {
 impl From<&ProcessorArgumentLocation> for SoundGraphComponentLocation {
     fn from(x: &ProcessorArgumentLocation) -> SoundGraphComponentLocation {
         SoundGraphComponentLocation::ProcessorArgument(*x)
-    }
-}
-impl From<SoundInputArgumentLocation> for SoundGraphComponentLocation {
-    fn from(x: SoundInputArgumentLocation) -> SoundGraphComponentLocation {
-        SoundGraphComponentLocation::InputArgument(x)
-    }
-}
-impl From<&SoundInputArgumentLocation> for SoundGraphComponentLocation {
-    fn from(x: &SoundInputArgumentLocation) -> SoundGraphComponentLocation {
-        SoundGraphComponentLocation::InputArgument(*x)
-    }
-}
-impl From<ArgumentLocation> for SoundGraphComponentLocation {
-    fn from(x: ArgumentLocation) -> Self {
-        match x {
-            ArgumentLocation::Processor(x) => SoundGraphComponentLocation::ProcessorArgument(x),
-            ArgumentLocation::Input(x) => SoundGraphComponentLocation::InputArgument(x),
-        }
-    }
-}
-impl From<&ArgumentLocation> for SoundGraphComponentLocation {
-    fn from(x: &ArgumentLocation) -> Self {
-        match *x {
-            ArgumentLocation::Processor(x) => SoundGraphComponentLocation::ProcessorArgument(x),
-            ArgumentLocation::Input(x) => SoundGraphComponentLocation::InputArgument(x),
-        }
     }
 }
 

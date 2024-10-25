@@ -81,7 +81,7 @@ impl<'ctx> CompiledExpression<'ctx> {
         context: ExpressionContext,
     ) {
         #[cfg(debug_assertions)]
-        self.validate_context(dst.len(), &context);
+        self.validate_context(&context);
 
         self.function.eval(dst, context, discretization)
     }
@@ -99,62 +99,38 @@ impl<'ctx> CompiledExpression<'ctx> {
 
     #[cfg(debug_assertions)]
     /// Test whether the provided context matches the scope that the expression expects
-    pub(crate) fn validate_context(
-        &self,
-        expected_len: usize,
-        context: &ExpressionContext,
-    ) -> bool {
-        if self.scope.processor_state_available() {
-            if context.top_processor_state().is_none() {
-                println!("The processor state was marked as available but it was not provided");
-                return false;
-            }
-        } else {
-            if context.top_processor_state().is_some() {
-                println!("The processor state was marked as unavailable but it was provided");
-                return false;
-            }
-        }
+    pub(crate) fn validate_context(&self, context: &ExpressionContext) -> bool {
+        use crate::core::sound::argument::ProcessorArgumentId;
 
-        let local_arrays = context.top_processor_arrays().as_vec();
-        for arr in &local_arrays {
-            if !self
-                .scope
-                .available_local_arguments()
-                .contains(&arr.argument_id())
-            {
+        let all_args = context.argument_stack().all_arguments();
+        let previous_args = context.audio_context().argument_stack().all_arguments();
+
+        let newly_pushed_args: Vec<ProcessorArgumentId> = all_args
+            .into_iter()
+            .filter(|arg| !previous_args.contains(arg))
+            .collect();
+
+        let mut all_good = true;
+        for arg in &newly_pushed_args {
+            if !self.scope.available_local_arguments().contains(&arg) {
                 println!(
-                    "A local array was pushed for expression argument {} which is not marked as being \
+                    "A value was pushed for argument {} which is not marked as being \
                     in scope.",
-                    arr.argument_id().value()
+                    arg.value()
                 );
-                return false;
-            }
-            if arr.array().len() != expected_len {
-                println!(
-                    "A local array was pushed for expression argument {}, but its length of {} doesn't \
-                    match the expected length from the destination array of {}.",
-                    arr.argument_id().value(),
-                    arr.array().len(),
-                    expected_len
-                );
-                return false;
+                all_good = false;
             }
         }
-        for nsid in self.scope.available_local_arguments() {
-            if local_arrays
-                .iter()
-                .find(|a| a.argument_id() == *nsid)
-                .is_none()
-            {
+        for arg in self.scope.available_local_arguments() {
+            if newly_pushed_args.iter().find(|a| **a == *arg).is_none() {
                 println!(
-                    "No local array was pushed for expression argument {}, which is marked as being in scope.",
-                    nsid.value()
+                    "No value was pushed for argument {}, which is marked as being in scope.",
+                    arg.value()
                 );
-                return false;
+                all_good = false;
             }
         }
-        true
+        all_good
     }
 }
 

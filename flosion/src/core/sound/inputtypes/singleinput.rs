@@ -1,12 +1,11 @@
-use std::any::Any;
-
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     sound::{
-        context::{Context, LocalArrayList, ProcessorFrameData},
-        soundinput::{BasicProcessorInput, InputOptions, InputTiming, ProcessorInputId},
+        soundinput::{
+            BasicProcessorInput, InputContext, InputOptions, InputTiming, ProcessorInputId,
+        },
         soundprocessor::{
             ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
             SoundProcessorId, StartOver, StreamStatus,
@@ -79,19 +78,8 @@ impl<'ctx> CompiledSingleInput<'ctx> {
         self.target.timing()
     }
 
-    pub fn step(
-        &mut self,
-        dst: &mut SoundChunk,
-        processor_state: Option<&dyn Any>,
-        local_arrays: LocalArrayList,
-        ctx: &mut Context,
-    ) -> StreamStatus {
-        self.target.step(
-            dst,
-            &(),
-            ProcessorFrameData::new(processor_state, local_arrays),
-            ctx,
-        )
+    pub fn step(&mut self, dst: &mut SoundChunk, ctx: InputContext) -> StreamStatus {
+        self.target.step(dst, ctx)
     }
 
     pub fn start_over_at(&mut self, sample_offset: usize) {

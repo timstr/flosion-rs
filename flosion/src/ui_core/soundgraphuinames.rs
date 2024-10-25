@@ -1,18 +1,15 @@
 use eframe::epaint::ahash::{HashMap, HashMapExt};
 
 use crate::core::sound::{
+    argument::{AnyProcessorArgument, ProcessorArgumentLocation},
     expression::{ProcessorExpression, ProcessorExpressionLocation},
-    expressionargument::{
-        ArgumentLocation, ProcessorArgument, ProcessorArgumentLocation, SoundInputArgument,
-        SoundInputArgumentLocation,
-    },
     soundgraph::SoundGraph,
-    soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
+    soundinput::{BasicProcessorInput, SoundInputLocation},
     soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
 };
 
 pub(crate) struct SoundGraphUiNames {
-    arguments: HashMap<ArgumentLocation, String>,
+    arguments: HashMap<ProcessorArgumentLocation, String>,
     expressions: HashMap<ProcessorExpressionLocation, String>,
     sound_inputs: HashMap<SoundInputLocation, String>,
     sound_processors: HashMap<SoundProcessorId, String>,
@@ -56,21 +53,8 @@ impl SoundGraphUiNames {
                     .or_insert_with(|| format!("expression_{}", location.expression().value()));
             }
 
-            fn processor_argument(&mut self, argument: &ProcessorArgument) {
+            fn argument(&mut self, argument: &dyn AnyProcessorArgument) {
                 let location = ProcessorArgumentLocation::new(self.processor_id, argument.id());
-                self.names
-                    .arguments
-                    .entry(location.into())
-                    .or_insert_with(|| format!("argument_{}", location.argument().value()));
-            }
-
-            fn input_argument(
-                &mut self,
-                argument: &SoundInputArgument,
-                input_id: ProcessorInputId,
-            ) {
-                let location =
-                    SoundInputArgumentLocation::new(self.processor_id, input_id, argument.id());
                 self.names
                     .arguments
                     .entry(location.into())
@@ -90,7 +74,7 @@ impl SoundGraphUiNames {
         }
     }
 
-    pub(crate) fn argument(&self, location: ArgumentLocation) -> Option<&str> {
+    pub(crate) fn argument(&self, location: ProcessorArgumentLocation) -> Option<&str> {
         self.arguments.get(&location).map(|s| s.as_str())
     }
 
@@ -106,7 +90,11 @@ impl SoundGraphUiNames {
         self.sound_processors.get(&id).map(|s| s.as_str())
     }
 
-    pub(crate) fn record_argument_name(&mut self, location: ArgumentLocation, name: String) {
+    pub(crate) fn record_argument_name(
+        &mut self,
+        location: ProcessorArgumentLocation,
+        name: String,
+    ) {
         *self.arguments.get_mut(&location).unwrap() = name;
     }
 
@@ -122,28 +110,12 @@ impl SoundGraphUiNames {
         *self.expressions.get_mut(&id).unwrap() = name;
     }
 
-    pub(crate) fn combined_parameter_name(&self, location: ArgumentLocation) -> String {
-        match location {
-            ArgumentLocation::Processor(location) => {
-                format!(
-                    "{}.{}",
-                    self.sound_processor(location.processor()).unwrap(),
-                    self.argument(location.into()).unwrap()
-                )
-            }
-            ArgumentLocation::Input(location) => {
-                format!(
-                    "{}.{}.{}",
-                    self.sound_processor(location.processor()).unwrap(),
-                    self.sound_input(SoundInputLocation::new(
-                        location.processor(),
-                        location.input()
-                    ))
-                    .unwrap(),
-                    self.argument(location.into()).unwrap()
-                )
-            }
-        }
+    pub(crate) fn combined_parameter_name(&self, location: ProcessorArgumentLocation) -> String {
+        format!(
+            "{}.{}",
+            self.sound_processor(location.processor()).unwrap(),
+            self.argument(location.into()).unwrap()
+        )
     }
 
     pub(crate) fn check_invariants(&self, graph: &SoundGraph) {
@@ -173,11 +145,7 @@ impl SoundGraphUiNames {
                 assert!(self.expressions.contains_key(&location));
             });
 
-            proc.foreach_processor_argument(|_, location| {
-                assert!(self.arguments.contains_key(&location.into()));
-            });
-
-            proc.foreach_input_argument(|_, location| {
+            proc.foreach_argument(|_, location| {
                 assert!(self.arguments.contains_key(&location.into()));
             });
         }

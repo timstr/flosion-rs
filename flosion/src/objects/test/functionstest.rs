@@ -9,12 +9,13 @@ use crate::{
             context::ExpressionContext, expressiongraphdata::ExpressionTarget,
             expressionnode::PureExpressionNode,
         },
-        jit::{cache::JitCache, compiledexpression::Discretization},
+        jit::{argumentstack::ArgumentStack, cache::JitCache, compiledexpression::Discretization},
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::{Context, LocalArrayList, Stack},
+            argument::{ProcessorArgument, ProcessorArgumentLocation},
+            argumenttypes::plainf32array::PlainF32Array,
+            context::{Context, Stack},
             expression::{ProcessorExpression, SoundExpressionScope},
-            expressionargument::{ArgumentLocation, ProcessorArgument, ProcessorArgumentLocation},
             soundgraph::SoundGraph,
             soundprocessor::{
                 ProcessorComponent, ProcessorTiming, SoundProcessor, SoundProcessorWithId,
@@ -34,18 +35,18 @@ const MAX_NUM_INPUTS: usize = 3;
 #[derive(ProcessorComponents)]
 struct TestSoundProcessor {
     expression: ProcessorExpression,
-    argument_0: ProcessorArgument,
-    argument_1: ProcessorArgument,
-    argument_2: ProcessorArgument,
+    argument_0: ProcessorArgument<PlainF32Array>,
+    argument_1: ProcessorArgument<PlainF32Array>,
+    argument_2: ProcessorArgument<PlainF32Array>,
 }
 
 impl SoundProcessor for TestSoundProcessor {
     fn new(_args: &ParsedArguments) -> TestSoundProcessor {
         TestSoundProcessor {
-            expression: ProcessorExpression::new(0.0, SoundExpressionScope::with_processor_state()),
-            argument_0: ProcessorArgument::new_local_array(),
-            argument_1: ProcessorArgument::new_local_array(),
-            argument_2: ProcessorArgument::new_local_array(),
+            expression: ProcessorExpression::new(0.0, SoundExpressionScope::new_empty()),
+            argument_0: ProcessorArgument::new(),
+            argument_1: ProcessorArgument::new(),
+            argument_2: ProcessorArgument::new(),
         }
     }
 
@@ -111,21 +112,15 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     let arg1_id = proc.argument_1.id();
     let arg2_id = proc.argument_2.id();
 
-    let giid0 =
-        proc.expression
-            .add_argument(ArgumentLocation::Processor(ProcessorArgumentLocation::new(
-                proc_id, arg0_id,
-            )));
-    let giid1 =
-        proc.expression
-            .add_argument(ArgumentLocation::Processor(ProcessorArgumentLocation::new(
-                proc_id, arg1_id,
-            )));
-    let giid2 =
-        proc.expression
-            .add_argument(ArgumentLocation::Processor(ProcessorArgumentLocation::new(
-                proc_id, arg2_id,
-            )));
+    let giid0 = proc
+        .expression
+        .add_argument(ProcessorArgumentLocation::new(proc_id, arg0_id));
+    let giid1 = proc
+        .expression
+        .add_argument(ProcessorArgumentLocation::new(proc_id, arg1_id));
+    let giid2 = proc
+        .expression
+        .add_argument(ProcessorArgumentLocation::new(proc_id, arg2_id));
 
     let expr_graph = proc.expression.graph_mut();
 
@@ -175,9 +170,16 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     let mut compiled_proc = proc.compile(proc.id(), &mut compiler);
 
     let scratch_arena = ScratchArena::new();
+    let argument_stack = ArgumentStack::new();
     let stack = Stack::Root;
     let processor_timing = ProcessorTiming::new();
-    let mut context = Context::new(proc_id, &processor_timing, &scratch_arena, stack);
+    let mut context = Context::new(
+        proc_id,
+        &processor_timing,
+        &scratch_arena,
+        argument_stack.view_at_bottom(),
+        stack,
+    );
 
     //------------------------
 
@@ -210,13 +212,10 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     compiled_proc.expression.eval(
         &mut actual_values_compiled,
         Discretization::None,
-        ExpressionContext::new_with_arrays(
-            &mut context,
-            LocalArrayList::new()
-                .push(&input_values[0], &compiled_proc.argument_0)
-                .push(&input_values[1], &compiled_proc.argument_1)
-                .push(&input_values[2], &compiled_proc.argument_2),
-        ),
+        ExpressionContext::new(&mut context)
+            .push(compiled_proc.argument_0, &input_values[0])
+            .push(compiled_proc.argument_1, &input_values[1])
+            .push(compiled_proc.argument_2, &input_values[2]),
     );
 
     for (expected, actual) in expected_values

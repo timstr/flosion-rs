@@ -163,10 +163,6 @@ impl SoundGraph {
                 self.sound_processor(pal.processor())
                     .map(|p| p.with_processor_argument(pal.argument(), |_| exists = true));
             }
-            SoundGraphComponentLocation::InputArgument(ial) => {
-                self.sound_processor(ial.processor())
-                    .map(|p| p.with_input_argument(ial.input(), ial.argument(), |_| exists = true));
-            }
         }
         exists
     }

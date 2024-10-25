@@ -1,10 +1,9 @@
-use std::{any::Any, marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     sound::{
-        context::{Context, LocalArrayList, ProcessorFrameData},
-        soundinput::{BasicProcessorInput, InputOptions, InputTiming},
+        soundinput::{BasicProcessorInput, InputContext, InputOptions, InputTiming},
         soundprocessor::{
             ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
             SoundProcessorId, StartOver, StreamStatus,
@@ -90,22 +89,8 @@ impl<'ctx, S: 'static> CompiledKeyedInputItem<'ctx, S> {
         self.input.timing()
     }
 
-    pub fn step(
-        &mut self,
-        dst: &mut SoundChunk,
-        processor_state: Option<&dyn Any>,
-        local_arrays: LocalArrayList,
-        ctx: &mut Context,
-    ) -> StreamStatus {
-        self.input.step(
-            dst,
-            self.state.as_ref().expect(
-                "Keyed input state needs to be provided with \
-                set_state before the input can be stepped",
-            ),
-            ProcessorFrameData::new(processor_state, local_arrays),
-            ctx,
-        )
+    pub fn step(&mut self, dst: &mut SoundChunk, ctx: InputContext) -> StreamStatus {
+        self.input.step(dst, ctx)
     }
 
     pub fn start_over_at(&mut self, sample_offset: usize) {

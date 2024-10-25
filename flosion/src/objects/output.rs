@@ -10,9 +10,9 @@ use crate::{
         resample::resample_interleave,
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
-            context::{Context, LocalArrayList},
-            input::singleinput::SingleInput,
-            soundinput::InputOptions,
+            context::Context,
+            inputtypes::singleinput::SingleInput,
+            soundinput::{InputContext, InputOptions},
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -109,7 +109,7 @@ impl SoundProcessor for Output {
         {
             output.input.start_over_at(0);
         }
-        output.input.step(dst, None, LocalArrayList::new(), context);
+        output.input.step(dst, InputContext::new(context));
 
         if let Err(e) = output.state.shared_data.chunk_sender.try_send(*dst) {
             match e {

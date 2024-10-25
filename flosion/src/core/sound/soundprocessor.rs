@@ -25,10 +25,7 @@ use crate::{
 use super::{
     context::Context,
     expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
-    expressionargument::{
-        ProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation, SoundInputArgument,
-        SoundInputArgumentId, SoundInputArgumentLocation,
-    },
+    argument::{AnyProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation},
     soundgraphid::SoundObjectId,
     soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
     soundobject::SoundGraphObject,
@@ -74,15 +71,13 @@ pub trait ProcessorComponent {
 pub trait ProcessorComponentVisitor {
     fn input(&mut self, _input: &BasicProcessorInput) {}
     fn expression(&mut self, _expression: &ProcessorExpression) {}
-    fn processor_argument(&mut self, _argument: &ProcessorArgument) {}
-    fn input_argument(&mut self, _argument: &SoundInputArgument, _input_id: ProcessorInputId) {}
+    fn argument(&mut self, _argument: &dyn AnyProcessorArgument) {}
 }
 
 pub trait ProcessorComponentVisitorMut {
     fn input(&mut self, _input: &mut BasicProcessorInput) {}
     fn expression(&mut self, _expression: &mut ProcessorExpression) {}
-    fn processor_argument(&mut self, _argument: &mut ProcessorArgument) {}
-    fn input_argument(&mut self, _argument: &mut SoundInputArgument, _input_id: ProcessorInputId) {}
+    fn argument(&mut self, _argument: &mut dyn AnyProcessorArgument) {}
 }
 
 pub trait ProcessorState: Send {
@@ -387,7 +382,7 @@ impl<'a> dyn AnySoundProcessor + 'a {
         visitor.result
     }
 
-    pub(crate) fn with_processor_argument<R, F: FnMut(&ProcessorArgument) -> R>(
+    pub(crate) fn with_processor_argument<R, F: FnMut(&dyn AnyProcessorArgument) -> R>(
         &self,
         id: ProcessorArgumentId,
         f: F,
@@ -398,8 +393,8 @@ impl<'a> dyn AnySoundProcessor + 'a {
             result: Option<R2>,
         }
 
-        impl<R2, F2: FnMut(&ProcessorArgument) -> R2> ProcessorComponentVisitor for Visitor<F2, R2> {
-            fn processor_argument(&mut self, argument: &ProcessorArgument) {
+        impl<R2, F2: FnMut(&dyn AnyProcessorArgument) -> R2> ProcessorComponentVisitor for Visitor<F2, R2> {
+            fn argument(&mut self, argument: &dyn AnyProcessorArgument) {
                 if argument.id() == self.id {
                     debug_assert!(self.result.is_none());
                     self.result = Some((self.f)(argument));
@@ -409,42 +404,6 @@ impl<'a> dyn AnySoundProcessor + 'a {
 
         let mut visitor = Visitor {
             id,
-            f,
-            result: None,
-        };
-        self.visit(&mut visitor);
-        visitor.result
-    }
-
-    pub(crate) fn with_input_argument<R, F: FnMut(&SoundInputArgument) -> R>(
-        &self,
-        input_id: ProcessorInputId,
-        argument_id: SoundInputArgumentId,
-        f: F,
-    ) -> Option<R> {
-        struct Visitor<F2, R2> {
-            input_id: ProcessorInputId,
-            argument_id: SoundInputArgumentId,
-            f: F2,
-            result: Option<R2>,
-        }
-
-        impl<R2, F2: FnMut(&SoundInputArgument) -> R2> ProcessorComponentVisitor for Visitor<F2, R2> {
-            fn input_argument(
-                &mut self,
-                argument: &SoundInputArgument,
-                input_id: ProcessorInputId,
-            ) {
-                if argument.id() == self.argument_id && input_id == self.input_id {
-                    debug_assert!(self.result.is_none());
-                    self.result = Some((self.f)(argument));
-                }
-            }
-        }
-
-        let mut visitor = Visitor {
-            input_id,
-            argument_id,
             f,
             result: None,
         };
@@ -529,8 +488,8 @@ impl<'a> dyn AnySoundProcessor + 'a {
         });
     }
 
-    pub(crate) fn foreach_processor_argument<
-        F: FnMut(&ProcessorArgument, ProcessorArgumentLocation),
+    pub(crate) fn foreach_argument<
+        F: FnMut(&dyn AnyProcessorArgument, ProcessorArgumentLocation),
     >(
         &self,
         f: F,
@@ -540,45 +499,13 @@ impl<'a> dyn AnySoundProcessor + 'a {
             f: F2,
         }
 
-        impl<F2: FnMut(&ProcessorArgument, ProcessorArgumentLocation)> ProcessorComponentVisitor
-            for Visitor<F2>
+        impl<F2: FnMut(&dyn AnyProcessorArgument, ProcessorArgumentLocation)>
+            ProcessorComponentVisitor for Visitor<F2>
         {
-            fn processor_argument(&mut self, argument: &ProcessorArgument) {
+            fn argument(&mut self, argument: &dyn AnyProcessorArgument) {
                 (self.f)(
                     argument,
                     ProcessorArgumentLocation::new(self.processor_id, argument.id()),
-                )
-            }
-        }
-
-        self.visit(&mut Visitor {
-            processor_id: self.id(),
-            f,
-        });
-    }
-
-    pub(crate) fn foreach_input_argument<
-        F: FnMut(&SoundInputArgument, SoundInputArgumentLocation),
-    >(
-        &self,
-        f: F,
-    ) {
-        struct Visitor<F2> {
-            processor_id: SoundProcessorId,
-            f: F2,
-        }
-
-        impl<F2: FnMut(&SoundInputArgument, SoundInputArgumentLocation)> ProcessorComponentVisitor
-            for Visitor<F2>
-        {
-            fn input_argument(
-                &mut self,
-                argument: &SoundInputArgument,
-                input_id: ProcessorInputId,
-            ) {
-                (self.f)(
-                    argument,
-                    SoundInputArgumentLocation::new(self.processor_id, input_id, argument.id()),
                 )
             }
         }

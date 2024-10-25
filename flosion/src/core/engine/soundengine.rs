@@ -18,7 +18,7 @@ use super::{
 };
 
 use crate::core::{
-    jit::cache::JitCache,
+    jit::{argumentstack::ArgumentStack, cache::JitCache},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
     soundchunk::CHUNK_SIZE,
@@ -267,12 +267,14 @@ impl<'ctx> SoundEngine<'ctx> {
     /// be invoked recursively from there.
     fn process_audio(&mut self, state_graph: &StateGraph) {
         Self::SCRATCH_SPACE.with(|scratch_space| {
+            // TODO: preserve this (to save allocation) between calls
+            let argument_stack = ArgumentStack::new();
             for node in state_graph.static_processors() {
                 // TODO: how does this ensure that:
                 // 1) static processors are evaluated in topological order and cached correctly, and
                 // 2) static processors are re-evaluated correctly in the chunk?
                 if node.is_entry_point() {
-                    node.invoke_externally(scratch_space);
+                    node.invoke_externally(scratch_space, &argument_stack);
                 }
             }
         });

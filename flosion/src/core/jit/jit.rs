@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use atomic_float::AtomicF32;
 use inkwell::{
     builder::Builder,
+    context::ContextRef,
     execution_engine::ExecutionEngine,
     intrinsics::Intrinsic,
     module::Module,
@@ -18,18 +19,13 @@ use crate::core::{
         expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
     },
     sound::{
-        expression::ExpressionParameterMapping,
-        expressionargument::{ArgumentLocation, ProcessorArgumentId},
-        soundgraph::SoundGraph,
-        soundinput::SoundInputLocation,
-        soundprocessor::SoundProcessorId,
+        argument::ProcessorArgumentId, expression::ExpressionParameterMapping,
+        soundgraph::SoundGraph, soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
     },
 };
 
 use super::{
-    compiledexpression::CompiledExpressionArtefact,
-    types::JitTypes,
-    wrappers::{ArrayReadFunc, ScalarReadFunc, WrapperFunctions},
+    compiledexpression::CompiledExpressionArtefact, types::JitTypes, wrappers::WrapperFunctions,
 };
 
 pub(super) const FLAG_NOT_INITIALIZED: u8 = 0;
@@ -44,12 +40,12 @@ pub(crate) struct InstructionLocations<'ctx> {
     pub(crate) end_of_loop: InstructionValue<'ctx>,
 }
 
-pub(super) struct LocalVariables<'ctx> {
-    pub(super) loop_counter: IntValue<'ctx>,
+pub struct LocalVariables<'ctx> {
+    pub loop_counter: IntValue<'ctx>,
     pub(super) dst_ptr: PointerValue<'ctx>,
     pub(super) dst_len: IntValue<'ctx>,
     pub(super) context_ptr: PointerValue<'ctx>,
-    pub(super) time_step: FloatValue<'ctx>,
+    pub time_step: FloatValue<'ctx>,
     pub(super) state: PointerValue<'ctx>,
 }
 
@@ -97,7 +93,7 @@ impl<'ctx> Jit<'ctx> {
         let fn_eval_expression_type = types.void_type.fn_type(
             &[
                 // *mut f32 : pointer to destination array
-                types.f32_pointer_type.into(),
+                types.pointer_type.into(),
                 // usize : length of destination array
                 types.usize_type.into(),
                 // f32 : time step
@@ -105,9 +101,9 @@ impl<'ctx> Jit<'ctx> {
                 // *mut () : context ptr
                 types.pointer_type.into(),
                 // *mut u8 : pointer to init flag
-                types.u8_pointer_type.into(),
+                types.pointer_type.into(),
                 // *mut f32 : pointer to state
-                types.f32_pointer_type.into(),
+                types.pointer_type.into(),
             ],
             false, // is_var_args
         );
@@ -187,7 +183,7 @@ impl<'ctx> Jit<'ctx> {
         {
             // init_flag = *ptr_init_flag
             let init_flag = builder
-                .build_load(arg_ptr_init_flag, "init_flag")?
+                .build_load(types.u8_type, arg_ptr_init_flag, "init_flag")?
                 .into_int_value();
 
             // was_init = init_flag == FLAG_INITIALIZED
@@ -422,7 +418,12 @@ impl<'ctx> Jit<'ctx> {
                         // ptr_state = ptr_all_states + offset
                         let ptr_state = unsafe {
                             self.builder
-                                .build_gep(ptr_all_states, &[offset], "ptr_state")
+                                .build_gep(
+                                    self.types.f32_type,
+                                    ptr_all_states,
+                                    &[offset],
+                                    "ptr_state",
+                                )
                                 .unwrap()
                         };
 
@@ -450,244 +451,42 @@ impl<'ctx> Jit<'ctx> {
         &self.builder
     }
 
+    pub fn local_variables(&self) -> &LocalVariables<'ctx> {
+        &self.local_variables
+    }
+
+    pub fn context(&self) -> ContextRef<'ctx> {
+        self.module.get_context()
+    }
+
+    // TODO: remove
     pub fn float_type(&self) -> FloatType<'ctx> {
         self.types.f32_type
     }
 
-    pub fn build_input_scalar_read(
+    pub(crate) fn build_argument_pointer(
         &mut self,
-        input_location: SoundInputLocation,
-        function: ScalarReadFunc,
-    ) -> FloatValue<'ctx> {
-        self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
-        let function_addr = self.types.usize_type.const_int(function as u64, false);
-        let proc_id = self
-            .types
-            .usize_type
-            .const_int(input_location.processor().value() as u64, false);
-        let input_id = self
-            .types
-            .usize_type
-            .const_int(input_location.input().value() as u64, false);
-        let call_site_value = self
-            .builder
-            .build_call(
-                self.wrapper_functions.input_scalar_read_wrapper,
-                &[
-                    function_addr.into(),
-                    self.local_variables.context_ptr.into(),
-                    proc_id.into(),
-                    input_id.into(),
-                ],
-                "si_scalar_fn_retv",
-            )
-            .unwrap();
-        let scalar_read_retv = call_site_value
-            .try_as_basic_value()
-            .left()
-            .unwrap()
-            .into_float_value();
-
-        self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
-
-        scalar_read_retv
-    }
-
-    pub fn build_processor_scalar_read(
-        &mut self,
-        processor_id: SoundProcessorId,
-        function: ScalarReadFunc,
-    ) -> FloatValue<'ctx> {
-        self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
-        let function_addr = self.types.usize_type.const_int(function as u64, false);
-        let spid = self
-            .types
-            .usize_type
-            .const_int(processor_id.value() as u64, false);
-        let call_site_value = self
-            .builder
-            .build_call(
-                self.wrapper_functions.processor_scalar_read_wrapper,
-                &[
-                    function_addr.into(),
-                    self.local_variables.context_ptr.into(),
-                    spid.into(),
-                ],
-                "sp_scalar_fn_retv",
-            )
-            .unwrap();
-        let scalar_read_retv = call_site_value
-            .try_as_basic_value()
-            .left()
-            .unwrap()
-            .into_float_value();
-
-        self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
-
-        scalar_read_retv
-    }
-
-    pub fn build_input_array_read(
-        &mut self,
-        input_location: SoundInputLocation,
-        function: ArrayReadFunc,
-    ) -> FloatValue<'ctx> {
-        self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
-        let function_addr = self.types.usize_type.const_int(function as u64, false);
-        let proc_id = self
-            .types
-            .usize_type
-            .const_int(input_location.processor().value() as u64, false);
-        let input_id = self
-            .types
-            .usize_type
-            .const_int(input_location.input().value() as u64, false);
-        let call_site_value = self
-            .builder
-            .build_call(
-                self.wrapper_functions.input_array_read_wrapper,
-                &[
-                    function_addr.into(),
-                    self.local_variables.context_ptr.into(),
-                    proc_id.into(),
-                    input_id.into(),
-                    self.local_variables.dst_len.into(),
-                ],
-                "si_arr_fn_retv",
-            )
-            .unwrap();
-        let array_read_retv = call_site_value
-            .try_as_basic_value()
-            .left()
-            .unwrap()
-            .into_pointer_value();
-
-        self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
-
-        let array_elem_ptr = unsafe {
-            self.builder.build_gep(
-                array_read_retv,
-                &[self.local_variables.loop_counter],
-                "array_elem_ptr",
-            )
-        }
-        .unwrap();
-        let array_elem = self
-            .builder
-            .build_load(array_elem_ptr, "array_elem")
-            .unwrap();
-        array_elem.into_float_value()
-    }
-
-    pub fn build_processor_array_read(
-        &mut self,
-        processor_id: SoundProcessorId,
-        function: ArrayReadFunc,
-    ) -> FloatValue<'ctx> {
-        self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
-        let function_addr = self.types.usize_type.const_int(function as u64, false);
-        let function_addr = self
-            .builder
-            .build_int_to_ptr(function_addr, self.types.pointer_type, "function_addr")
-            .unwrap();
-        let spid = self
-            .types
-            .usize_type
-            .const_int(processor_id.value() as u64, false);
-        let call_site_value = self
-            .builder
-            .build_call(
-                self.wrapper_functions.processor_array_read_wrapper,
-                &[
-                    function_addr.into(),
-                    self.local_variables.context_ptr.into(),
-                    spid.into(),
-                    self.local_variables.dst_len.into(),
-                ],
-                "sp_arr_fn_retv",
-            )
-            .unwrap();
-        let array_read_retv = call_site_value
-            .try_as_basic_value()
-            .left()
-            .unwrap()
-            .into_pointer_value();
-
-        self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
-
-        let array_elem_ptr = unsafe {
-            self.builder.build_gep(
-                array_read_retv,
-                &[self.local_variables.loop_counter],
-                "array_elem_ptr",
-            )
-        }
-        .unwrap();
-        let array_elem = self
-            .builder
-            .build_load(array_elem_ptr, "array_elem")
-            .unwrap();
-        array_elem.into_float_value()
-    }
-
-    pub fn build_processor_local_array_read(
-        &mut self,
-        processor_id: SoundProcessorId,
         argument_id: ProcessorArgumentId,
-    ) -> FloatValue<'ctx> {
+    ) -> PointerValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
-        let spid = self
-            .types
-            .usize_type
-            .const_int(processor_id.value() as u64, false);
-        let nsid = self
+        let arg_id = self
             .types
             .usize_type
             .const_int(argument_id.value() as u64, false);
-        let call_site_value = self
+        let callsiteval = self
             .builder
             .build_call(
-                self.wrapper_functions.processor_local_array_read_wrapper,
-                &[
-                    self.local_variables.context_ptr.into(),
-                    spid.into(),
-                    nsid.into(),
-                    self.local_variables.dst_len.into(),
-                ],
-                "sp_local_arr_fn_retv",
+                self.wrapper_functions.argument_pointer_wrapper,
+                &[self.local_variables.context_ptr.into(), arg_id.into()],
+                "arg_ptr_retv",
             )
             .unwrap();
-        let local_array_read_retv = call_site_value
+        callsiteval
             .try_as_basic_value()
             .left()
             .unwrap()
-            .into_pointer_value();
-
-        self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
-
-        let array_elem_ptr = unsafe {
-            self.builder.build_gep(
-                local_array_read_retv,
-                &[self.local_variables.loop_counter],
-                "array_elem_ptr",
-            )
-        }
-        .unwrap();
-        let array_elem = self
-            .builder
-            .build_load(array_elem_ptr, "array_elem")
-            .unwrap();
-        array_elem.into_float_value()
+            .into_pointer_value()
     }
 
     pub fn build_processor_time(&mut self, processor_id: SoundProcessorId) -> FloatValue<'ctx> {
@@ -719,12 +518,12 @@ impl<'ctx> Jit<'ctx> {
             .unwrap();
         let time = self
             .builder
-            .build_load(ptr_time, "time")
+            .build_load(self.types.f32_type, ptr_time, "time")
             .unwrap()
             .into_float_value();
         let speed = self
             .builder
-            .build_load(ptr_speed, "speed")
+            .build_load(self.types.f32_type, ptr_speed, "speed")
             .unwrap()
             .into_float_value();
         let adjusted_time_step = self
@@ -790,12 +589,12 @@ impl<'ctx> Jit<'ctx> {
             .unwrap();
         let time = self
             .builder
-            .build_load(ptr_time, "time")
+            .build_load(self.types.f32_type, ptr_time, "time")
             .unwrap()
             .into_float_value();
         let speed = self
             .builder
-            .build_load(ptr_speed, "speed")
+            .build_load(self.types.f32_type, ptr_speed, "speed")
             .unwrap()
             .into_float_value();
         let adjusted_time_step = self
@@ -896,9 +695,12 @@ impl<'ctx> Jit<'ctx> {
 
         let ptr_val = self
             .builder
-            .build_int_to_ptr(addr_val, self.types.f32_pointer_type, "p_atomicf32")
+            .build_int_to_ptr(addr_val, self.types.pointer_type, "p_atomicf32")
             .unwrap();
-        let load = self.builder.build_load(ptr_val, "atomic32_val").unwrap();
+        let load = self
+            .builder
+            .build_load(self.types.f32_type, ptr_val, "atomic32_val")
+            .unwrap();
         let load_inst = load.as_instruction_value().unwrap();
         load_inst
             .set_atomic_ordering(AtomicOrdering::SequentiallyConsistent)
@@ -925,30 +727,13 @@ impl<'ctx> Jit<'ctx> {
     ) -> CompiledExpressionArtefact<'ctx> {
         // pre-compile all expression graph arguments
         for (param_id, arg_location) in parameter_mapping.items() {
-            match arg_location {
-                ArgumentLocation::Processor(arg_location) => {
-                    graph
-                        .sound_processor(arg_location.processor())
-                        .unwrap()
-                        .with_processor_argument(arg_location.argument(), |arg| {
-                            let value = arg.instance().compile(&mut self, *arg_location);
-                            self.assign_target(ExpressionTarget::Parameter(*param_id), value);
-                        });
-                }
-                ArgumentLocation::Input(arg_location) => {
-                    graph
-                        .sound_processor(arg_location.processor())
-                        .unwrap()
-                        .with_input_argument(
-                            arg_location.input(),
-                            arg_location.argument(),
-                            |arg| {
-                                let value = arg.instance().compile(&mut self, *arg_location);
-                                self.assign_target(ExpressionTarget::Parameter(*param_id), value);
-                            },
-                        );
-                }
-            }
+            graph
+                .sound_processor(arg_location.processor())
+                .unwrap()
+                .with_processor_argument(arg_location.argument(), |arg| {
+                    let value = arg.compile_evaluation(&mut self);
+                    self.assign_target(ExpressionTarget::Parameter(*param_id), value);
+                });
         }
 
         // TODO: add support for multiple results
@@ -970,6 +755,7 @@ impl<'ctx> Jit<'ctx> {
 
         let dst_elem_ptr = unsafe {
             self.builder.build_gep(
+                self.types.f32_type,
                 self.local_variables.dst_ptr,
                 &[self.local_variables.loop_counter],
                 "dst_elem_ptr",

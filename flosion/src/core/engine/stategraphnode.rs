@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
@@ -7,9 +6,10 @@ use std::{
 use parking_lot::Mutex;
 
 use crate::core::{
+    jit::argumentstack::{ArgumentStack, ArgumentStackView},
     sound::{
-        context::{Context, InputFrameData, ProcessorFrameData, Stack},
-        soundinput::{InputTiming, SoundInputLocation},
+        context::{Context, InputFrameData, Stack},
+        soundinput::{InputContext, InputTiming, SoundInputLocation},
         soundprocessor::{
             ProcessorTiming, SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
         },
@@ -52,8 +52,9 @@ impl<'ctx, T: SoundProcessor> CompiledProcessorData<'ctx, T> {
         dst: &mut SoundChunk,
         stack: Stack,
         scratch_arena: &ScratchArena,
+        argument_stack: ArgumentStackView,
     ) -> StreamStatus {
-        let mut context = Context::new(self.id, &self.timing, scratch_arena, stack);
+        let mut context = Context::new(self.id, &self.timing, scratch_arena, argument_stack, stack);
         let status = T::process_audio(&mut self.processor, dst, &mut context);
         self.timing.advance_one_chunk();
         status
@@ -85,6 +86,7 @@ pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
         dst: &mut SoundChunk,
         stack: Stack,
         scratch_arena: &ScratchArena,
+        argument_stack: ArgumentStackView,
     ) -> StreamStatus;
 
     /// Used for book-keeping optimizations, e.g. to avoid visiting shared nodes twice
@@ -112,8 +114,9 @@ impl<'ctx, T: 'static + SoundProcessor> AnyCompiledProcessorData<'ctx>
         dst: &mut SoundChunk,
         stack: Stack,
         scratch_arena: &ScratchArena,
+        argument_stack: ArgumentStackView,
     ) -> StreamStatus {
-        CompiledProcessorData::process_audio(self, dst, stack, scratch_arena)
+        CompiledProcessorData::process_audio(self, dst, stack, scratch_arena, argument_stack)
     }
 
     fn address(&self) -> *const () {
@@ -167,8 +170,10 @@ impl<'ctx> UniqueCompiledProcessor<'ctx> {
         dst: &mut SoundChunk,
         stack: Stack<'_>,
         scratch_arena: &ScratchArena,
+        argument_stack: ArgumentStackView,
     ) -> StreamStatus {
-        self.processor.process_audio(dst, stack, scratch_arena)
+        self.processor
+            .process_audio(dst, stack, scratch_arena, argument_stack)
     }
 }
 
@@ -287,7 +292,11 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         self.cache.lock()
     }
 
-    pub(crate) fn invoke_externally(&self, scratch_arena: &ScratchArena) {
+    pub(crate) fn invoke_externally(
+        &self,
+        scratch_arena: &ScratchArena,
+        argument_stack: &ArgumentStack,
+    ) {
         let mut data = self.cache.lock();
         let &mut SharedCompiledProcessorCache {
             ref mut processor,
@@ -296,7 +305,12 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
             stream_status: _,
         } = &mut *data;
         debug_assert!(target_inputs.len() == 0);
-        processor.process_audio(cached_output, Stack::Root, scratch_arena);
+        processor.process_audio(
+            cached_output,
+            Stack::Root,
+            scratch_arena,
+            argument_stack.view_at_bottom(),
+        );
     }
 
     /// The number of sound inputs co-owning this shared processor.
@@ -324,6 +338,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         dst: &mut SoundChunk,
         stack: Stack,
         scratch_arena: &ScratchArena,
+        argument_stack: ArgumentStackView,
     ) -> StreamStatus {
         let top_frame = stack.top_frame().unwrap();
         let input_location =
@@ -347,7 +362,8 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         } = &mut *data;
         let all_used = target_inputs.iter().all(|(_, used)| *used);
         if all_used {
-            *stream_status = processor.process_audio(cached_output, stack, scratch_arena);
+            *stream_status =
+                processor.process_audio(cached_output, stack, scratch_arena, argument_stack);
             for (_target, used) in target_inputs.iter_mut() {
                 *used = false;
             }
@@ -498,13 +514,7 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     }
 
     /// Process the next chunk of audio
-    pub(crate) fn step(
-        &mut self,
-        dst: &mut SoundChunk,
-        input_state: &dyn Any,
-        processor_frame: ProcessorFrameData,
-        ctx: &mut Context,
-    ) -> StreamStatus {
+    pub(crate) fn step(&mut self, dst: &mut SoundChunk, ctx: InputContext) -> StreamStatus {
         if self.timing.need_to_start_over() {
             // NOTE: implicitly starting over doesn't use any fine timing
             self.start_over_at(0);
@@ -515,17 +525,23 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         }
         let release_pending = self.timing.pending_release().is_some();
 
-        let input_frame = InputFrameData::new(self.location.input(), input_state, &mut self.timing);
+        let input_frame = InputFrameData::new(self.location.input(), &mut self.timing);
 
-        let stack = ctx.push_frame(processor_frame, input_frame);
+        let stack = ctx.audio_context().push_frame(input_frame);
 
         let status = match &mut self.target {
-            StateGraphNodeValue::Unique(proc) => {
-                proc.process_audio(dst, stack, ctx.scratch_arena())
-            }
-            StateGraphNodeValue::Shared(proc) => {
-                proc.process_audio(dst, stack, ctx.scratch_arena())
-            }
+            StateGraphNodeValue::Unique(proc) => proc.process_audio(
+                dst,
+                stack,
+                ctx.audio_context().scratch_arena(),
+                ctx.argument_stack(),
+            ),
+            StateGraphNodeValue::Shared(proc) => proc.process_audio(
+                dst,
+                stack,
+                ctx.audio_context().scratch_arena(),
+                ctx.argument_stack(),
+            ),
             StateGraphNodeValue::Empty => {
                 dst.silence();
                 self.timing.mark_as_done();

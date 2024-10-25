@@ -7,7 +7,7 @@ use crate::core::{
     jit::cache::JitCache,
     sound::{
         expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
-        expressionargument::ArgumentLocation,
+        argument::ProcessorArgumentLocation,
     },
 };
 
@@ -21,7 +21,7 @@ pub(crate) struct OuterProcessorExpressionContext<'a> {
     parameter_mapping: &'a mut ExpressionParameterMapping,
     sound_graph_names: &'a SoundGraphUiNames,
     time_axis: TimeAxis,
-    available_arguments: &'a HashSet<ArgumentLocation>,
+    available_arguments: &'a HashSet<ProcessorArgumentLocation>,
 }
 
 impl<'a> OuterProcessorExpressionContext<'a> {
@@ -30,7 +30,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         parameter_mapping: &'a mut ExpressionParameterMapping,
         sound_graph_names: &'a SoundGraphUiNames,
         time_axis: TimeAxis,
-        available_arguments: &'a HashSet<ArgumentLocation>,
+        available_arguments: &'a HashSet<ProcessorArgumentLocation>,
     ) -> Self {
         Self {
             location,
@@ -49,7 +49,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         self.parameter_mapping
     }
 
-    pub(super) fn available_arguments(&self) -> &HashSet<ArgumentLocation> {
+    pub(super) fn available_arguments(&self) -> &HashSet<ProcessorArgumentLocation> {
         self.available_arguments
     }
 
@@ -63,7 +63,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
 
     pub(crate) fn find_graph_id_for_argument(
         &self,
-        argument_id: ArgumentLocation,
+        argument_id: ProcessorArgumentLocation,
     ) -> Option<ExpressionGraphParameterId> {
         self.parameter_mapping.parameter_from_argument(argument_id)
     }
@@ -71,7 +71,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
     pub(crate) fn connect_to_argument(
         &mut self,
         expression_graph: &mut ExpressionGraph,
-        argument_id: ArgumentLocation,
+        argument_id: ProcessorArgumentLocation,
     ) -> ExpressionGraphParameterId {
         self.parameter_mapping
             .add_argument(argument_id, expression_graph)
@@ -80,7 +80,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
     pub(crate) fn disconnect_from_argument(
         &mut self,
         expression_graph: &mut ExpressionGraph,
-        argument_id: ArgumentLocation,
+        argument_id: ProcessorArgumentLocation,
     ) {
         self.parameter_mapping
             .remove_argument(argument_id, expression_graph);

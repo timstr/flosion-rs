@@ -2,11 +2,8 @@ use eframe::egui;
 
 use crate::{
     core::sound::{
+        argument::{AnyProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation},
         expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
-        expressionargument::{
-            ArgumentLocation, ProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation,
-            SoundInputArgument, SoundInputArgumentId, SoundInputArgumentLocation,
-        },
         soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
         soundprocessor::{AnySoundProcessor, ProcessorComponentVisitor, SoundProcessorId},
     },
@@ -23,7 +20,7 @@ pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
     expressions: Vec<(ProcessorExpressionId, String, PlotConfig)>,
-    arguments: Vec<(ArgumentLocation, String)>,
+    arguments: Vec<(ProcessorArgumentLocation, String)>,
     sound_inputs: Vec<(SoundInputLocation, String)>,
 }
 
@@ -61,23 +58,12 @@ impl ProcessorUi {
         self
     }
 
-    pub fn add_processor_argument(
+    pub fn add_argument(
         mut self,
         argument_id: ProcessorArgumentId,
         label: impl Into<String>,
     ) -> Self {
         let location = ProcessorArgumentLocation::new(self.processor_id, argument_id);
-        self.arguments.push((location.into(), label.into()));
-        self
-    }
-
-    pub fn add_input_argument(
-        mut self,
-        input_id: ProcessorInputId,
-        argument_id: SoundInputArgumentId,
-        label: impl Into<String>,
-    ) -> Self {
-        let location = SoundInputArgumentLocation::new(self.processor_id, input_id, argument_id);
         self.arguments.push((location.into(), label.into()));
         self
     }
@@ -148,29 +134,12 @@ impl ProcessorUi {
                     }
                 }
 
-                fn processor_argument(&mut self, argument: &ProcessorArgument) {
+                fn argument(&mut self, argument: &dyn AnyProcessorArgument) {
                     let location = ProcessorArgumentLocation::new(self.processor_id, argument.id());
                     if self.names.argument(location.into()).is_none() {
                         println!(
                             "Warning: argument {} on processor {} is missing a name",
                             location.argument().value(),
-                            self.friendly_processor_name
-                        );
-                    }
-                }
-
-                fn input_argument(
-                    &mut self,
-                    argument: &SoundInputArgument,
-                    input_id: ProcessorInputId,
-                ) {
-                    let location =
-                        SoundInputArgumentLocation::new(self.processor_id, input_id, argument.id());
-                    if self.names.argument(location.into()).is_none() {
-                        println!(
-                            "Warning: argument {} on sound input {} of processor {} is missing a name",
-                            location.argument().value(),
-                            location.input().value(),
                             self.friendly_processor_name
                         );
                     }

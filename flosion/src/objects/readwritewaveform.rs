@@ -7,11 +7,12 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::{Context, LocalArrayList},
+            argument::ProcessorArgument,
+            argumenttypes::plainf32array::PlainF32Array,
+            context::Context,
             expression::{ProcessorExpression, SoundExpressionScope},
-            expressionargument::ProcessorArgument,
-            input::singleinput::SingleInput,
-            soundinput::InputOptions,
+            inputtypes::singleinput::SingleInput,
+            soundinput::{InputContext, InputOptions},
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
@@ -24,17 +25,15 @@ pub struct ReadWriteWaveform {
     pub sound_input: SingleInput,
     // TODO: multiple outputs to enable stereo
     pub waveform: ProcessorExpression,
-    pub input_l: ProcessorArgument,
-    pub input_r: ProcessorArgument,
+    pub input_l: ProcessorArgument<PlainF32Array>,
+    pub input_r: ProcessorArgument<PlainF32Array>,
 }
 
 impl SoundProcessor for ReadWriteWaveform {
     fn new(_args: &ParsedArguments) -> Self {
-        let input_l = ProcessorArgument::new_local_array();
-        let input_r = ProcessorArgument::new_local_array();
-        let waveform_scope = SoundExpressionScope::with_processor_state()
-            .add_local(input_l.id())
-            .add_local(input_r.id());
+        let input_l = ProcessorArgument::new();
+        let input_r = ProcessorArgument::new();
+        let waveform_scope = SoundExpressionScope::new(vec![input_l.id(), input_r.id()]);
         ReadWriteWaveform {
             sound_input: SingleInput::new(InputOptions::Synchronous),
             waveform: ProcessorExpression::new(0.0, waveform_scope),
@@ -53,17 +52,13 @@ impl SoundProcessor for ReadWriteWaveform {
         context: &mut Context,
     ) -> StreamStatus {
         let mut tmp = SoundChunk::new();
-        rwwf.sound_input
-            .step(&mut tmp, None, LocalArrayList::new(), context);
+        rwwf.sound_input.step(&mut tmp, InputContext::new(context));
         rwwf.waveform.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
-            ExpressionContext::new_with_arrays(
-                context,
-                LocalArrayList::new()
-                    .push(&tmp.l, &rwwf.input_l)
-                    .push(&tmp.r, &rwwf.input_r),
-            ),
+            ExpressionContext::new(context)
+                .push(rwwf.input_l, &tmp.l)
+                .push(rwwf.input_r, &tmp.r),
         );
         slicemath::copy(&dst.l, &mut dst.r);
 

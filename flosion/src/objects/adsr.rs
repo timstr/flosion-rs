@@ -8,10 +8,10 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
-            context::{Context, LocalArrayList},
+            context::Context,
             expression::{ProcessorExpression, SoundExpressionScope},
-            input::singleinput::SingleInput,
-            soundinput::InputOptions,
+            inputtypes::singleinput::SingleInput,
+            soundinput::{InputContext, InputOptions},
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -97,22 +97,10 @@ impl SoundProcessor for ADSR {
     fn new(_args: &ParsedArguments) -> ADSR {
         let adsr = ADSR {
             input: SingleInput::new(InputOptions::Synchronous),
-            attack_time: ProcessorExpression::new(
-                0.01,
-                SoundExpressionScope::without_processor_state(),
-            ),
-            decay_time: ProcessorExpression::new(
-                0.2,
-                SoundExpressionScope::without_processor_state(),
-            ),
-            sustain_level: ProcessorExpression::new(
-                0.5,
-                SoundExpressionScope::without_processor_state(),
-            ),
-            release_time: ProcessorExpression::new(
-                0.25,
-                SoundExpressionScope::without_processor_state(),
-            ),
+            attack_time: ProcessorExpression::new(0.01, SoundExpressionScope::new_empty()),
+            decay_time: ProcessorExpression::new(0.2, SoundExpressionScope::new_empty()),
+            sustain_level: ProcessorExpression::new(0.5, SoundExpressionScope::new_empty()),
+            release_time: ProcessorExpression::new(0.25, SoundExpressionScope::new_empty()),
             state: StateMarker::new(),
         };
 
@@ -136,7 +124,7 @@ impl SoundProcessor for ADSR {
             adsr.state.next_level = 1.0;
             adsr.state.phase_samples = (adsr.attack_time.eval_scalar(
                 Discretization::chunkwise_temporal(),
-                ExpressionContext::new_minimal(context),
+                ExpressionContext::new(context),
             ) * SAMPLE_FREQUENCY as f32) as usize;
             adsr.state.phase_samples_so_far = 0;
         }
@@ -162,14 +150,14 @@ impl SoundProcessor for ADSR {
                 adsr.state.phase_samples_so_far = 0;
                 adsr.state.phase_samples = (adsr.decay_time.eval_scalar(
                     Discretization::chunkwise_temporal(),
-                    ExpressionContext::new_minimal(context),
+                    ExpressionContext::new(context),
                 ) * SAMPLE_FREQUENCY as f32) as usize;
                 adsr.state.prev_level = 1.0;
                 adsr.state.next_level = adsr
                     .sustain_level
                     .eval_scalar(
                         Discretization::chunkwise_temporal(),
-                        ExpressionContext::new_minimal(context),
+                        ExpressionContext::new(context),
                     )
                     .clamp(0.0, 1.0);
             }
@@ -213,7 +201,7 @@ impl SoundProcessor for ADSR {
                 adsr.state.phase = Phase::Release;
                 adsr.state.phase_samples = (adsr.release_time.eval_scalar(
                     Discretization::chunkwise_temporal(),
-                    ExpressionContext::new_minimal(context),
+                    ExpressionContext::new(context),
                 ) * SAMPLE_FREQUENCY as f32) as usize;
                 adsr.state.phase_samples_so_far = 0;
                 adsr.state.prev_level = adsr.state.next_level;
@@ -249,7 +237,7 @@ impl SoundProcessor for ADSR {
 
         debug_assert!(cursor == CHUNK_SIZE);
 
-        adsr.input.step(dst, None, LocalArrayList::new(), context);
+        adsr.input.step(dst, InputContext::new(context));
         slicemath::mul_inplace(&mut dst.l, &level);
         slicemath::mul_inplace(&mut dst.r, &level);
 

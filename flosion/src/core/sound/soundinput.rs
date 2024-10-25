@@ -7,11 +7,16 @@ use crate::core::{
         soundgraphcompiler::SoundGraphCompiler,
         stategraphnode::{CompiledSoundInputBranch, StateGraphNodeValue},
     },
+    jit::argumentstack::ArgumentStackView,
     soundchunk::CHUNK_SIZE,
     uniqueid::UniqueId,
 };
 
-use super::soundprocessor::SoundProcessorId;
+use super::{
+    argument::{ArgumentTranslation, CompiledProcessorArgument},
+    context::Context,
+    soundprocessor::SoundProcessorId,
+};
 
 pub struct SoundInputTag;
 
@@ -289,5 +294,37 @@ impl UnstashableInplace for BasicProcessorInput {
         }
 
         Ok(())
+    }
+}
+
+pub struct InputContext<'a> {
+    audio_context: &'a Context<'a>,
+    argument_stack: ArgumentStackView<'a>,
+}
+
+impl<'a> InputContext<'a> {
+    pub fn new(audio_context: &'a Context<'a>) -> InputContext<'a> {
+        InputContext {
+            audio_context,
+            argument_stack: audio_context.argument_stack().clone(),
+        }
+    }
+
+    pub fn push<T: ArgumentTranslation>(
+        mut self,
+        arg: CompiledProcessorArgument<T>,
+        value: T::PushedType<'_>,
+    ) -> InputContext<'a> {
+        let converted = T::convert_value(value);
+        self.argument_stack.push(arg.id(), converted);
+        self
+    }
+
+    pub(crate) fn audio_context(&self) -> &Context<'a> {
+        self.audio_context
+    }
+
+    pub(crate) fn argument_stack(&self) -> ArgumentStackView<'a> {
+        self.argument_stack
     }
 }

@@ -307,7 +307,10 @@ impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionN
             .position_before(&jit.instruction_locations.end_of_resume);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *ptr_state
-            let tmp = jit.builder().build_load(*ptr_state, "tmp").unwrap();
+            let tmp = jit
+                .builder()
+                .build_load(jit.types.f32_type, *ptr_state, "tmp")
+                .unwrap();
             // *stack_var = tmp
             jit.builder().build_store(*stack_var, tmp).unwrap();
         }
@@ -328,7 +331,10 @@ impl<T: 'static + StatefulExpressionNode> ExpressionNode for StatefulExpressionN
             .position_before(&jit.instruction_locations.end_of_post_loop);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *stack_var
-            let tmp = jit.builder().build_load(*stack_var, "tmp").unwrap();
+            let tmp = jit
+                .builder()
+                .build_load(jit.types.f32_type, *stack_var, "tmp")
+                .unwrap();
             // *ptr_state = tmp
             jit.builder().build_store(*ptr_state, tmp).unwrap();
         }

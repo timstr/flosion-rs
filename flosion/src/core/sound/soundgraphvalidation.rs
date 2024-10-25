@@ -1,10 +1,8 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
-use crate::core::sound::expressionargument::ProcessorArgumentDataSource;
-
 use super::{
+    argument::ProcessorArgumentLocation,
     expression::ProcessorExpressionLocation,
-    expressionargument::ArgumentLocation,
     sounderror::SoundError,
     soundgraph::SoundGraph,
     soundinput::{InputOptions, SoundInputLocation},
@@ -240,160 +238,38 @@ fn processor_depends_on_processor(
     false
 }
 
+// TODO: why does this exist? Why not use available_sound_expression_arguments
+// and check for pairings not listed?
 pub(super) fn find_invalid_expression_arguments(
     graph: &SoundGraph,
-) -> Vec<(ArgumentLocation, ProcessorExpressionLocation)> {
-    let mut bad_connections: Vec<(ArgumentLocation, ProcessorExpressionLocation)> = Vec::new();
-
-    for proc_data in graph.sound_processors().values() {
-        proc_data.foreach_expression(|expr, expr_location| {
-            for target in expr.mapping().items().values() {
-                let depends = match target {
-                    ArgumentLocation::Processor(arg_location) => processor_depends_on_processor(
-                        arg_location.processor(),
-                        proc_data.id(),
-                        graph,
-                    ),
-                    ArgumentLocation::Input(arg_location) => {
-                        let input_location =
-                            SoundInputLocation::new(arg_location.processor(), arg_location.input());
-                        input_depends_on_processor(input_location, proc_data.id(), graph)
-                    }
-                };
-                if !depends {
-                    bad_connections.push((*target, expr_location));
-                }
-            }
-        });
-    }
-
-    return bad_connections;
+) -> Vec<(ProcessorArgumentLocation, ProcessorExpressionLocation)> {
+    // HACK: everything is valid
+    Vec::new()
 }
 
 // TODO: move to soundgraphproperties?
 pub(crate) fn available_sound_expression_arguments(
     graph: &SoundGraph,
-) -> HashMap<ProcessorExpressionLocation, HashSet<ArgumentLocation>> {
-    let mut available_arguments_by_processor: HashMap<SoundProcessorId, HashSet<ArgumentLocation>> =
-        HashMap::new();
-    for proc_data in graph.sound_processors().values() {
-        if proc_data.is_static() {
-            let mut static_args = HashSet::<ArgumentLocation>::new();
-            proc_data.foreach_processor_argument(|_, location| {
-                static_args.insert(ArgumentLocation::Processor(location));
-            });
-            available_arguments_by_processor.insert(proc_data.id(), static_args);
-        }
-    }
+) -> HashMap<ProcessorExpressionLocation, HashSet<ProcessorArgumentLocation>> {
+    // TODO:
+    // - (elswhere) add expression scopes to sound inputs
+    // - write a neat lil algorithm here
 
-    let all_targets_cached_for =
-        |processor_id: SoundProcessorId,
-         cache: &HashMap<SoundProcessorId, HashSet<ArgumentLocation>>| {
-            graph
-                .sound_processor_targets(processor_id)
-                .iter()
-                .all(|target_siid| cache.contains_key(&target_siid.processor()))
-        };
-
-    let sound_input_arguments = |input_location: SoundInputLocation,
-                                 cache: &HashMap<SoundProcessorId, HashSet<ArgumentLocation>>|
-     -> HashSet<ArgumentLocation> {
-        let mut arguments = cache
-            .get(&input_location.processor())
-            .expect("Processor expression arguments should have been cached")
-            .clone();
-        graph
-            .sound_processor(input_location.processor())
-            .unwrap()
-            .foreach_input_argument(|_, location| {
-                arguments.insert(location.into());
-            });
-        arguments
-    };
-
-    // Cache all processors in topological order
-    loop {
-        let next_proc_id = graph
-            .sound_processors()
-            .values()
-            .filter_map(|proc_data| {
-                // don't revisit processors that are already cached
-                if available_arguments_by_processor.contains_key(&proc_data.id()) {
-                    return None;
-                }
-                // visit processors for which all targets are cached
-                if all_targets_cached_for(proc_data.id(), &available_arguments_by_processor) {
-                    Some(proc_data.id())
-                } else {
-                    None
-                }
-            })
-            .next();
-
-        let Some(next_proc_id) = next_proc_id else {
-            // All done!
-            break;
-        };
-
-        let mut available_arguments: Option<HashSet<ArgumentLocation>> = None;
-
-        // Available upstream arguments are the intersection of all those
-        // available via each destination sound input
-        for target_input in graph.sound_processor_targets(next_proc_id) {
-            let target_input_arguments =
-                sound_input_arguments(target_input, &available_arguments_by_processor);
-            if let Some(arguments) = available_arguments.as_mut() {
-                *arguments = arguments
-                    .intersection(&target_input_arguments)
-                    .cloned()
-                    .collect();
-            } else {
-                available_arguments = Some(target_input_arguments);
-            }
-        }
-
-        let mut available_arguments = available_arguments.unwrap_or_else(HashSet::new);
-
-        graph
-            .sound_processor(next_proc_id)
-            .unwrap()
-            .foreach_processor_argument(|_, location| {
-                available_arguments.insert(ArgumentLocation::Processor(location));
-            });
-
-        available_arguments_by_processor.insert(next_proc_id, available_arguments);
-    }
-
-    let mut available_arguments_by_expression = HashMap::new();
-
-    // Each expression's available arguments are those available from the processor minus
-    // any out-of-scope locals
-    for proc_data in graph.sound_processors().values() {
-        proc_data.foreach_expression(|expr, expr_location| {
-            let mut available_arguments = available_arguments_by_processor
-                .get(&proc_data.id())
-                .unwrap()
-                .clone();
-
-            proc_data.foreach_processor_argument(|arg, location| {
-                debug_assert!(available_arguments.contains(&location.into()));
-                match arg.instance().data_source() {
-                    ProcessorArgumentDataSource::ProcessorState => {
-                        if !expr.scope().processor_state_available() {
-                            available_arguments.remove(&location.into());
-                        }
-                    }
-                    ProcessorArgumentDataSource::LocalVariable => {
-                        if !expr.scope().available_local_arguments().contains(&arg.id()) {
-                            available_arguments.remove(&location.into());
-                        }
-                    }
-                }
-            });
-
-            available_arguments_by_expression.insert(expr_location, available_arguments);
+    // HACK: free for all
+    let mut literally_all_arguments_everywhere = HashSet::<ProcessorArgumentLocation>::new();
+    for proc in graph.sound_processors().values() {
+        proc.foreach_argument(|_, location| {
+            literally_all_arguments_everywhere.insert(location);
         });
     }
 
-    available_arguments_by_expression
+    let mut expression_arguments = HashMap::new();
+
+    for proc in graph.sound_processors().values() {
+        proc.foreach_expression(|_, location| {
+            expression_arguments.insert(location, literally_all_arguments_everywhere.clone());
+        });
+    }
+
+    expression_arguments
 }

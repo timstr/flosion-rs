@@ -8,7 +8,7 @@ use crate::core::{
     },
     sound::{
         expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
-        expressionargument::ArgumentLocation,
+        argument::ProcessorArgumentLocation,
     },
 };
 
@@ -22,7 +22,7 @@ enum VerticalRange {
 
 enum HorizontalDomain {
     Temporal,
-    WithRespectTo(ArgumentLocation, std::ops::RangeInclusive<f32>),
+    WithRespectTo(ProcessorArgumentLocation, std::ops::RangeInclusive<f32>),
 }
 
 pub struct PlotConfig {
@@ -46,7 +46,7 @@ impl PlotConfig {
 
     pub fn with_respect_to(
         mut self,
-        source: ArgumentLocation,
+        source: ProcessorArgumentLocation,
         domain: std::ops::RangeInclusive<f32>,
     ) -> Self {
         self.horizontal_domain = HorizontalDomain::WithRespectTo(source, domain);

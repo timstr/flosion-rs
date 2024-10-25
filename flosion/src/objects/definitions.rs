@@ -7,11 +7,12 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::{Context, LocalArrayList},
+            argument::ProcessorArgument,
+            argumenttypes::plainf32array::PlainF32Array,
+            context::Context,
             expression::{ProcessorExpression, SoundExpressionScope},
-            expressionargument::ProcessorArgument,
-            input::singleinput::SingleInput,
-            soundinput::InputOptions,
+            inputtypes::singleinput::SingleInput,
+            soundinput::{InputContext, InputOptions},
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -25,15 +26,15 @@ pub struct Definitions {
 
     // TODO: store these in a vector
     pub expression: ProcessorExpression,
-    pub argument: ProcessorArgument,
+    pub argument: ProcessorArgument<PlainF32Array>,
 }
 
 impl SoundProcessor for Definitions {
     fn new(_args: &ParsedArguments) -> Definitions {
         Definitions {
             sound_input: SingleInput::new(InputOptions::Synchronous),
-            expression: ProcessorExpression::new(0.0, SoundExpressionScope::with_processor_state()),
-            argument: ProcessorArgument::new_local_array(),
+            expression: ProcessorExpression::new(0.0, SoundExpressionScope::new_empty()),
+            argument: ProcessorArgument::new(),
         }
     }
 
@@ -51,14 +52,12 @@ impl SoundProcessor for Definitions {
         defns.expression.eval(
             &mut buffer,
             Discretization::samplewise_temporal(),
-            ExpressionContext::new_minimal(context),
+            ExpressionContext::new(context),
         );
 
         defns.sound_input.step(
             dst,
-            None,
-            LocalArrayList::new().push(&buffer, &defns.argument),
-            context,
+            InputContext::new(context).push(defns.argument, &buffer),
         )
     }
 }

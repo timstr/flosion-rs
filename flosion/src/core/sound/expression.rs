@@ -9,7 +9,7 @@ use crate::core::{
 };
 
 use super::{
-    expressionargument::{ArgumentLocation, ProcessorArgumentId},
+    argument::{ProcessorArgumentId, ProcessorArgumentLocation},
     soundprocessor::{
         ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
         SoundProcessorId,
@@ -48,7 +48,7 @@ impl ProcessorExpressionLocation {
 
 #[derive(Clone)]
 pub(crate) struct ExpressionParameterMapping {
-    mapping: HashMap<ExpressionGraphParameterId, ArgumentLocation>,
+    mapping: HashMap<ExpressionGraphParameterId, ProcessorArgumentLocation>,
 }
 
 impl ExpressionParameterMapping {
@@ -61,13 +61,13 @@ impl ExpressionParameterMapping {
     pub(crate) fn argument_from_parameter(
         &self,
         id: ExpressionGraphParameterId,
-    ) -> Option<ArgumentLocation> {
+    ) -> Option<ProcessorArgumentLocation> {
         self.mapping.get(&id).cloned()
     }
 
     pub(crate) fn parameter_from_argument(
         &self,
-        id: ArgumentLocation,
+        id: ProcessorArgumentLocation,
     ) -> Option<ExpressionGraphParameterId> {
         for (giid, nsid) in &self.mapping {
             if *nsid == id {
@@ -82,7 +82,7 @@ impl ExpressionParameterMapping {
     // This is useful for making LexicalLayout more reusable accross different types of expressions
     pub(crate) fn add_argument(
         &mut self,
-        argument_id: ArgumentLocation,
+        argument_id: ProcessorArgumentLocation,
         expr_graph: &mut ExpressionGraph,
     ) -> ExpressionGraphParameterId {
         debug_assert!(self.check_invariants(expr_graph));
@@ -98,7 +98,7 @@ impl ExpressionParameterMapping {
 
     pub(crate) fn remove_argument(
         &mut self,
-        argument_id: ArgumentLocation,
+        argument_id: ProcessorArgumentLocation,
         expr_graph: &mut ExpressionGraph,
     ) {
         debug_assert!(self.check_invariants(expr_graph));
@@ -122,43 +122,32 @@ impl ExpressionParameterMapping {
         }
     }
 
-    pub(crate) fn items(&self) -> &HashMap<ExpressionGraphParameterId, ArgumentLocation> {
+    pub(crate) fn items(&self) -> &HashMap<ExpressionGraphParameterId, ProcessorArgumentLocation> {
         &self.mapping
     }
 }
 
+// TODO: make this shared by sound inputs too, and more ergonomic / self-enforcing
 #[derive(Clone)]
 pub struct SoundExpressionScope {
-    processor_state_available: bool,
-    available_local_arguments: Vec<ProcessorArgumentId>,
+    available_arguments: Vec<ProcessorArgumentId>,
 }
 
 impl SoundExpressionScope {
-    pub fn without_processor_state() -> SoundExpressionScope {
+    pub fn new_empty() -> SoundExpressionScope {
         SoundExpressionScope {
-            processor_state_available: false,
-            available_local_arguments: Vec::new(),
+            available_arguments: Vec::new(),
         }
     }
 
-    pub fn with_processor_state() -> SoundExpressionScope {
+    pub fn new(arguments: Vec<ProcessorArgumentId>) -> SoundExpressionScope {
         SoundExpressionScope {
-            processor_state_available: true,
-            available_local_arguments: Vec::new(),
+            available_arguments: arguments,
         }
-    }
-
-    pub fn add_local(mut self, id: ProcessorArgumentId) -> SoundExpressionScope {
-        self.available_local_arguments.push(id);
-        self
-    }
-
-    pub(crate) fn processor_state_available(&self) -> bool {
-        self.processor_state_available
     }
 
     pub(crate) fn available_local_arguments(&self) -> &[ProcessorArgumentId] {
-        &self.available_local_arguments
+        &self.available_arguments
     }
 }
 
@@ -210,13 +199,13 @@ impl ProcessorExpression {
 
     pub(crate) fn add_argument(
         &mut self,
-        argument_id: ArgumentLocation,
+        argument_id: ProcessorArgumentLocation,
     ) -> ExpressionGraphParameterId {
         self.param_mapping
             .add_argument(argument_id, &mut self.expression_graph)
     }
 
-    pub(crate) fn remove_argument(&mut self, argument_id: ArgumentLocation) {
+    pub(crate) fn remove_argument(&mut self, argument_id: ProcessorArgumentLocation) {
         self.param_mapping
             .remove_argument(argument_id, &mut self.expression_graph);
     }

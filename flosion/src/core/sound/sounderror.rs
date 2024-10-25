@@ -1,6 +1,6 @@
 use super::{
     expression::ProcessorExpressionLocation,
-    expressionargument::ArgumentLocation,
+    argument::ProcessorArgumentLocation,
     soundgraph::SoundGraph,
     soundinput::{SoundInputId, SoundInputLocation},
     soundprocessor::SoundProcessorId,
@@ -19,7 +19,7 @@ pub enum SoundError {
     StaticNotOneState(SoundProcessorId),
     StaticNotSynchronous(SoundProcessorId),
     StateNotInScope {
-        bad_dependencies: Vec<(ArgumentLocation, ProcessorExpressionLocation)>,
+        bad_dependencies: Vec<(ProcessorArgumentLocation, ProcessorExpressionLocation)>,
     },
 }
 

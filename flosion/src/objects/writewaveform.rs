@@ -24,10 +24,7 @@ pub struct WriteWaveform {
 impl SoundProcessor for WriteWaveform {
     fn new(_args: &ParsedArguments) -> WriteWaveform {
         WriteWaveform {
-            waveform: ProcessorExpression::new(
-                0.0,
-                SoundExpressionScope::without_processor_state(),
-            ),
+            waveform: ProcessorExpression::new(0.0, SoundExpressionScope::new_empty()),
         }
     }
 
@@ -43,7 +40,7 @@ impl SoundProcessor for WriteWaveform {
         wwf.waveform.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
-            ExpressionContext::new_minimal(context),
+            ExpressionContext::new(context),
         );
         slicemath::copy(&dst.l, &mut dst.r);
 
