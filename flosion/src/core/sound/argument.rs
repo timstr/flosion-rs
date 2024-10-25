@@ -151,7 +151,7 @@ impl<T> StartOver for CompiledProcessorArgument<T> {
     fn start_over(&mut self) {}
 }
 
-pub(crate) trait AnyProcessorArgument {
+pub trait AnyProcessorArgument {
     fn id(&self) -> ProcessorArgumentId;
 
     fn compile_evaluation<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx>;
