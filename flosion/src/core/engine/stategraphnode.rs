@@ -444,11 +444,17 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         location: SoundInputLocation,
         target: StateGraphNodeValue<'ctx>,
     ) -> CompiledSoundInputBranch<'ctx> {
-        CompiledSoundInputBranch {
+        // Create empty target first and then swap in the given
+        // target, in order to reuse shared caching logic
+        let mut compiled_input = CompiledSoundInputBranch {
             location,
             timing: InputTiming::default(),
-            target,
-        }
+            target: StateGraphNodeValue::Empty,
+        };
+
+        compiled_input.swap_target(target);
+
+        compiled_input
     }
 
     /// The sound input's location
