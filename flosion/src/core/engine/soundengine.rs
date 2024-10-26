@@ -18,6 +18,7 @@ use super::{
 };
 
 use crate::core::{
+    expression::expressionobject::ExpressionObjectFactory,
     jit::{argumentstack::ArgumentStack, cache::JitCache},
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
@@ -131,7 +132,8 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         new_graph: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
         stash: &Stash,
-        factory: &SoundObjectFactory,
+        sound_object_factory: &SoundObjectFactory,
+        expr_object_factory: &ExpressionObjectFactory,
     ) -> Result<(), ()> {
         let new_revision = ObjectHash::from_stashable(new_graph);
 
@@ -155,7 +157,9 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        let (cloned_graph, handle) = new_graph.stash_clone(stash, factory).unwrap();
+        let (cloned_graph, handle) = new_graph
+            .stash_clone(stash, sound_object_factory, expr_object_factory)
+            .unwrap();
 
         debug_assert_eq!(handle.object_hash(), new_revision);
         self.current_graph = cloned_graph;

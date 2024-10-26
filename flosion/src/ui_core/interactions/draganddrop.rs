@@ -4,9 +4,12 @@ use eframe::egui;
 use hashstash::{HashCacheProperty, Order, Stash, Stashable, Stasher};
 
 use crate::{
-    core::sound::{
-        soundgraph::SoundGraph, soundinput::SoundInputLocation, soundobject::SoundObjectFactory,
-        soundprocessor::SoundProcessorId,
+    core::{
+        expression::expressionobject::ExpressionObjectFactory,
+        sound::{
+            soundgraph::SoundGraph, soundinput::SoundInputLocation,
+            soundobject::SoundObjectFactory, soundprocessor::SoundProcessorId,
+        },
     },
     ui_core::{
         flosion_ui::Factories, soundobjectpositions::SoundObjectPositions,
@@ -364,12 +367,16 @@ fn compute_legal_drop_sites(
     drag_subject: DragDropSubject,
     drop_sites: AvailableDropSites,
     stash: &Stash,
-    factory: &SoundObjectFactory,
+    sound_object_factory: &SoundObjectFactory,
+    expr_object_factory: &ExpressionObjectFactory,
 ) -> HashMap<DragDropSubject, DragDropLegality> {
     debug_assert_eq!(graph.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
     for drop_site in drop_sites.0 {
-        let mut graph_clone = graph.stash_clone(stash, factory).unwrap().0;
+        let mut graph_clone = graph
+            .stash_clone(stash, sound_object_factory, expr_object_factory)
+            .unwrap()
+            .0;
 
         // drag_and_drop_in_graph only does superficial error
         // detection, here we additionally check whether the
@@ -432,7 +439,17 @@ impl DragInteraction {
         // Ensure that the legal connections are up to date, since these are used
         // to highlight legal/illegal interconnects to drop onto
         self.legal_drop_sites.refresh4(
-            |a, b, c, d| compute_legal_drop_sites(a, b, c, d, stash, factories.sound_objects()),
+            |a, b, c, d| {
+                compute_legal_drop_sites(
+                    a,
+                    b,
+                    c,
+                    d,
+                    stash,
+                    factories.sound_objects(),
+                    factories.expression_objects(),
+                )
+            },
             graph,
             &StackedLayoutWrapper(layout),
             self.subject,
@@ -542,15 +559,19 @@ impl DropInteraction {
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph));
 
-            let drag_and_drop_result =
-                graph.try_make_change(stash, factories.sound_objects(), |graph| {
+            let drag_and_drop_result = graph.try_make_change(
+                stash,
+                factories.sound_objects(),
+                factories.expression_objects(),
+                |graph| {
                     Ok(drag_and_drop_in_graph(
                         graph,
                         layout,
                         self.subject,
                         *nearest_drop_site,
                     ))
-                });
+                },
+            );
 
             match drag_and_drop_result {
                 Ok(DragDropLegality::Legal) => { /* nice */ }
@@ -579,10 +600,15 @@ impl DropInteraction {
             if let DragDropSubject::Processor(spid) = self.subject {
                 if !layout.is_processor_alone(spid) {
                     graph
-                        .try_make_change(stash, factories.sound_objects(), |graph| {
-                            disconnect_processor_in_graph(spid, graph);
-                            Ok(())
-                        })
+                        .try_make_change(
+                            stash,
+                            factories.sound_objects(),
+                            factories.expression_objects(),
+                            |graph| {
+                                disconnect_processor_in_graph(spid, graph);
+                                Ok(())
+                            },
+                        )
                         .unwrap();
 
                     layout.split_processor_into_own_group(spid, positions);

@@ -1,9 +1,10 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
 use rand::prelude::*;
 
 use crate::{
     core::{
+        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
@@ -41,6 +42,14 @@ impl SoundProcessor for WhiteNoise {
         }
         StreamStatus::Playing
     }
+
+    fn unstash_inplace(
+        &mut self,
+        _unstasher: &mut InplaceUnstasher,
+        _factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        Ok(())
+    }
 }
 
 impl WithObjectType for WhiteNoise {
@@ -49,10 +58,4 @@ impl WithObjectType for WhiteNoise {
 
 impl Stashable for WhiteNoise {
     fn stash(&self, _stasher: &mut Stasher) {}
-}
-
-impl UnstashableInplace for WhiteNoise {
-    fn unstash_inplace(&mut self, _unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        Ok(())
-    }
 }

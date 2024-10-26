@@ -1,8 +1,8 @@
 use crate::{
     core::{
         expression::{
-            expressionnode::PureExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
-            expressionnodetools::ExpressionNodeTools,
+            expressionnode::{ExpressionNodeVisitor, ExpressionNodeVisitorMut, PureExpressionNode},
+            expressioninput::ExpressionInput,
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
@@ -10,6 +10,7 @@ use crate::{
     ui_core::arguments::{FloatArgument, ParsedArguments},
 };
 use atomic_float::AtomicF32;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use inkwell::{values::FloatValue, FloatPredicate};
 use std::sync::{atomic::Ordering, Arc};
 
@@ -26,14 +27,30 @@ impl Constant {
 }
 
 impl PureExpressionNode for Constant {
-    fn new(_tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
+    fn new(args: &ParsedArguments) -> Constant {
         let value = args.get(&Constant::ARG_VALUE).unwrap_or(0.0) as f32;
-        Ok(Constant { value })
+        Constant { value }
     }
 
     fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());
         jit.float_type().const_float(self.value as f64)
+    }
+
+    fn visit(&self, _visitor: &mut dyn ExpressionNodeVisitor) {}
+    fn visit_mut(&mut self, _visitor: &mut dyn ExpressionNodeVisitorMut) {}
+}
+
+impl Stashable for Constant {
+    fn stash(&self, stasher: &mut hashstash::Stasher) {
+        // TODO: how should changes to this trigger a recompilation?
+        stasher.f32(self.value);
+    }
+}
+
+impl UnstashableInplace for Constant {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.f32_inplace(&mut self.value)
     }
 }
 
@@ -61,16 +78,36 @@ impl Variable {
 // but it is intended to not vary rapidly (e.g. at audio rates) and
 // doesn't need any extra per-node state to be stored.
 impl PureExpressionNode for Variable {
-    fn new(_tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
+    fn new(args: &ParsedArguments) -> Variable {
         let value = args.get(&Variable::ARG_VALUE).unwrap_or(0.0) as f32;
-        Ok(Variable {
+        Variable {
             value: Arc::new(AtomicF32::new(value)),
-        })
+        }
     }
 
     fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());
         jit.build_atomicf32_load(Arc::clone(&self.value))
+    }
+
+    fn visit(&self, _visitor: &mut dyn ExpressionNodeVisitor) {}
+    fn visit_mut(&mut self, _visitor: &mut dyn ExpressionNodeVisitorMut) {}
+}
+
+impl Stashable for Variable {
+    fn stash(&self, stasher: &mut hashstash::Stasher) {
+        // TODO: how should changes to this NOT trigger a recompilation?
+        stasher.f32(self.value.load(Ordering::SeqCst));
+    }
+}
+
+impl UnstashableInplace for Variable {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        let new_value = unstasher.f32_always()?;
+        if unstasher.time_to_write() {
+            self.value.store(new_value, Ordering::SeqCst);
+        }
+        Ok(())
     }
 }
 
@@ -134,18 +171,15 @@ impl LlvmImplementation {
 macro_rules! unary_expression_node {
     ($name: ident, $namestr: literal, $default_input: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
-            pub input: ExpressionNodeInputHandle,
+            pub input: ExpressionInput,
         }
 
         impl PureExpressionNode for $name {
-            fn new(
-                mut tools: ExpressionNodeTools<'_>,
-                _args: &ParsedArguments,
-            ) -> Result<$name, ()> {
+            fn new(_args: &ParsedArguments) -> $name {
                 let default_value: f32 = $default_input;
-                Ok($name {
-                    input: tools.add_input(default_value),
-                })
+                $name {
+                    input: ExpressionInput::new(default_value),
+                }
             }
 
             fn compile<'ctx>(
@@ -155,6 +189,29 @@ macro_rules! unary_expression_node {
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
                 imp.compile(jit, inputs)
+            }
+
+            fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+                visitor.input(&self.input);
+            }
+            fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+                visitor.input(&mut self.input);
+            }
+        }
+
+        impl Stashable for $name {
+            fn stash(&self, stasher: &mut Stasher) {
+                stasher.object(&self.input);
+            }
+        }
+
+        impl UnstashableInplace for $name {
+            fn unstash_inplace(
+                &mut self,
+                unstasher: &mut InplaceUnstasher,
+            ) -> Result<(), UnstashError> {
+                unstasher.object_inplace(&mut self.input)?;
+                Ok(())
             }
         }
 
@@ -167,20 +224,17 @@ macro_rules! unary_expression_node {
 macro_rules! binary_expression_node {
     ($name: ident, $namestr: literal, $default_inputs: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
-            pub input_1: ExpressionNodeInputHandle,
-            pub input_2: ExpressionNodeInputHandle,
+            pub input_1: ExpressionInput,
+            pub input_2: ExpressionInput,
         }
 
         impl PureExpressionNode for $name {
-            fn new(
-                mut tools: ExpressionNodeTools<'_>,
-                _args: &ParsedArguments,
-            ) -> Result<$name, ()> {
+            fn new(_args: &ParsedArguments) -> $name {
                 let default_values: (f32, f32) = $default_inputs;
-                Ok($name {
-                    input_1: tools.add_input(default_values.0),
-                    input_2: tools.add_input(default_values.1),
-                })
+                $name {
+                    input_1: ExpressionInput::new(default_values.0),
+                    input_2: ExpressionInput::new(default_values.1),
+                }
             }
 
             fn compile<'ctx>(
@@ -190,6 +244,33 @@ macro_rules! binary_expression_node {
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
                 imp.compile(jit, inputs)
+            }
+
+            fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+                visitor.input(&self.input_1);
+                visitor.input(&self.input_2);
+            }
+            fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+                visitor.input(&mut self.input_1);
+                visitor.input(&mut self.input_2);
+            }
+        }
+
+        impl Stashable for $name {
+            fn stash(&self, stasher: &mut Stasher) {
+                stasher.object(&self.input_1);
+                stasher.object(&self.input_2);
+            }
+        }
+
+        impl UnstashableInplace for $name {
+            fn unstash_inplace(
+                &mut self,
+                unstasher: &mut InplaceUnstasher,
+            ) -> Result<(), UnstashError> {
+                unstasher.object_inplace(&mut self.input_1)?;
+                unstasher.object_inplace(&mut self.input_2)?;
+                Ok(())
             }
         }
 
@@ -202,22 +283,19 @@ macro_rules! binary_expression_node {
 macro_rules! ternary_expression_node {
     ($name: ident, $namestr: literal, $default_inputs: expr, $f: expr, $llvm_impl: expr) => {
         pub struct $name {
-            pub input_1: ExpressionNodeInputHandle,
-            pub input_2: ExpressionNodeInputHandle,
-            pub input_3: ExpressionNodeInputHandle,
+            pub input_1: ExpressionInput,
+            pub input_2: ExpressionInput,
+            pub input_3: ExpressionInput,
         }
 
         impl PureExpressionNode for $name {
-            fn new(
-                mut tools: ExpressionNodeTools<'_>,
-                _args: &ParsedArguments,
-            ) -> Result<$name, ()> {
+            fn new(_args: &ParsedArguments) -> $name {
                 let default_values: (f32, f32, f32) = $default_inputs;
-                Ok($name {
-                    input_1: tools.add_input(default_values.0),
-                    input_2: tools.add_input(default_values.1),
-                    input_3: tools.add_input(default_values.2),
-                })
+                $name {
+                    input_1: ExpressionInput::new(default_values.0),
+                    input_2: ExpressionInput::new(default_values.1),
+                    input_3: ExpressionInput::new(default_values.2),
+                }
             }
 
             fn compile<'ctx>(
@@ -227,6 +305,37 @@ macro_rules! ternary_expression_node {
             ) -> FloatValue<'ctx> {
                 let imp: LlvmImplementation = $llvm_impl;
                 imp.compile(jit, inputs)
+            }
+
+            fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+                visitor.input(&self.input_1);
+                visitor.input(&self.input_2);
+                visitor.input(&self.input_3);
+            }
+            fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+                visitor.input(&mut self.input_1);
+                visitor.input(&mut self.input_2);
+                visitor.input(&mut self.input_3);
+            }
+        }
+
+        impl Stashable for $name {
+            fn stash(&self, stasher: &mut Stasher) {
+                stasher.object(&self.input_1);
+                stasher.object(&self.input_2);
+                stasher.object(&self.input_3);
+            }
+        }
+
+        impl UnstashableInplace for $name {
+            fn unstash_inplace(
+                &mut self,
+                unstasher: &mut InplaceUnstasher,
+            ) -> Result<(), UnstashError> {
+                unstasher.object_inplace(&mut self.input_1)?;
+                unstasher.object_inplace(&mut self.input_2)?;
+                unstasher.object_inplace(&mut self.input_3)?;
+                Ok(())
             }
         }
 

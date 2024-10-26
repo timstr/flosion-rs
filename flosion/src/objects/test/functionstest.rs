@@ -6,8 +6,10 @@ use crate::{
     core::{
         engine::{scratcharena::ScratchArena, soundgraphcompiler::SoundGraphCompiler},
         expression::{
-            context::ExpressionContext, expressiongraphdata::ExpressionTarget,
-            expressionnode::PureExpressionNode,
+            context::ExpressionContext,
+            expressiongraphdata::ExpressionTarget,
+            expressionnode::{AnyExpressionNode, ExpressionNodeWithId, PureExpressionNode},
+            expressionobject::ExpressionObjectFactory,
         },
         jit::{argumentstack::ArgumentStack, cache::JitCache, compiledexpression::Discretization},
         objecttype::{ObjectType, WithObjectType},
@@ -61,6 +63,14 @@ impl SoundProcessor for TestSoundProcessor {
     ) -> StreamStatus {
         panic!("unused")
     }
+
+    fn unstash_inplace(
+        &mut self,
+        _unstasher: &mut InplaceUnstasher,
+        _factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        panic!("Unused");
+    }
 }
 
 impl WithObjectType for TestSoundProcessor {
@@ -69,12 +79,6 @@ impl WithObjectType for TestSoundProcessor {
 
 impl Stashable for TestSoundProcessor {
     fn stash(&self, _stasher: &mut Stasher) {
-        panic!("Unused")
-    }
-}
-
-impl UnstashableInplace for TestSoundProcessor {
-    fn unstash_inplace(&mut self, _unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         panic!("Unused")
     }
 }
@@ -100,10 +104,11 @@ macro_rules! assert_near {
     };
 }
 
-fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
-    input_ranges: &[(f32, f32)],
-    test_function: F,
-) {
+fn do_expression_test<T, F>(input_ranges: &[(f32, f32)], test_function: F)
+where
+    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+    F: Fn(&[f32]) -> f32,
+{
     let mut proc = SoundProcessorWithId::<TestSoundProcessor>::new_default();
 
     let proc_id = proc.id();
@@ -112,38 +117,41 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     let arg1_id = proc.argument_1.id();
     let arg2_id = proc.argument_2.id();
 
-    let giid0 = proc
+    let param0_id = proc
         .expression
         .add_argument(ProcessorArgumentLocation::new(proc_id, arg0_id));
-    let giid1 = proc
+    let param1_id = proc
         .expression
         .add_argument(ProcessorArgumentLocation::new(proc_id, arg1_id));
-    let giid2 = proc
+    let param2_id = proc
         .expression
         .add_argument(ProcessorArgumentLocation::new(proc_id, arg2_id));
 
     let expr_graph = proc.expression.graph_mut();
 
-    let ns_handle = expr_graph
-        .add_pure_expression_node::<T>(&ParsedArguments::new_empty())
-        .unwrap();
+    let node = ExpressionNodeWithId::<T>::new_default();
+    let node_id = node.id();
+    let input_locations = (&node as &dyn AnyExpressionNode).input_locations();
 
-    let input_ids = expr_graph.node(ns_handle.id()).unwrap().inputs().to_vec();
-
-    if input_ids.len() > 3 {
+    if input_locations.len() > 3 {
         panic!("An expression node has more than three inputs and not all are being tested");
     }
 
-    for (niid, giid) in input_ids.into_iter().zip([giid0, giid1, giid2]) {
+    expr_graph.add_expression_node(Box::new(node));
+
+    for (input_loc, param_id) in input_locations
+        .into_iter()
+        .zip([param0_id, param1_id, param2_id])
+    {
         expr_graph
-            .connect_node_input(niid, ExpressionTarget::Parameter(giid))
+            .connect_input(input_loc, Some(ExpressionTarget::Parameter(param_id)))
             .unwrap();
     }
 
     expr_graph
         .connect_result(
             expr_graph.results()[0].id(),
-            ExpressionTarget::Node(ns_handle.id()),
+            ExpressionTarget::Node(node_id),
         )
         .unwrap();
 
@@ -226,29 +234,33 @@ fn do_expression_test<T: 'static + PureExpressionNode, F: Fn(&[f32]) -> f32>(
     }
 }
 
-fn do_expression_test_unary<T: 'static + PureExpressionNode>(
-    input_range: (f32, f32),
-    test_function: fn(f32) -> f32,
-) {
+fn do_expression_test_unary<T>(input_range: (f32, f32), test_function: fn(f32) -> f32)
+where
+    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+{
     do_expression_test::<T, _>(&[input_range], |inputs| test_function(inputs[0]))
 }
 
-fn do_expression_test_binary<T: 'static + PureExpressionNode>(
+fn do_expression_test_binary<T>(
     input0_range: (f32, f32),
     input1_range: (f32, f32),
     test_function: fn(f32, f32) -> f32,
-) {
+) where
+    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+{
     do_expression_test::<T, _>(&[input0_range, input1_range], |inputs| {
         test_function(inputs[0], inputs[1])
     })
 }
 
-fn do_expression_test_ternary<T: 'static + PureExpressionNode>(
+fn do_expression_test_ternary<T>(
     input0_range: (f32, f32),
     input1_range: (f32, f32),
     input2_range: (f32, f32),
     test_function: fn(f32, f32, f32) -> f32,
-) {
+) where
+    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+{
     do_expression_test::<T, _>(&[input0_range, input1_range, input2_range], |inputs| {
         test_function(inputs[0], inputs[1], inputs[2])
     })

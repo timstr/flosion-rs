@@ -123,6 +123,7 @@ impl GlobalInteractions {
                     positions,
                     expression_uis,
                     factories,
+                    stash,
                     names,
                     properties,
                 );
@@ -140,18 +141,23 @@ impl GlobalInteractions {
                     return;
                 } else if pressed_delete {
                     graph
-                        .try_make_change(stash, factories.sound_objects(), |graph| {
-                            let objects: Vec<SoundObjectId> =
-                                selection.objects.iter().cloned().collect();
-                            for oid in objects {
-                                match oid {
-                                    SoundObjectId::Sound(spid) => {
-                                        graph.remove_sound_processor(spid)?
+                        .try_make_change(
+                            stash,
+                            factories.sound_objects(),
+                            factories.expression_objects(),
+                            |graph| {
+                                let objects: Vec<SoundObjectId> =
+                                    selection.objects.iter().cloned().collect();
+                                for oid in objects {
+                                    match oid {
+                                        SoundObjectId::Sound(spid) => {
+                                            graph.remove_sound_processor(spid)?
+                                        }
                                     }
                                 }
-                            }
-                            Ok(())
-                        })
+                                Ok(())
+                            },
+                        )
                         .expect("Nah you can't delete those, sorry");
                     self.mode = UiMode::Passive;
                     return;

@@ -1,13 +1,17 @@
 use std::collections::HashSet;
 
+use hashstash::Stash;
+
 use crate::core::{
-    expression::expressiongraph::{
-        ExpressionGraph, ExpressionGraphParameterId, ExpressionGraphResultId,
+    expression::{
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+        expressioninput::ExpressionInputId,
+        expressionobject::ExpressionObjectFactory,
     },
     jit::cache::JitCache,
     sound::{
-        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
         argument::ProcessorArgumentLocation,
+        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
     },
 };
 
@@ -111,7 +115,7 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
         }
     }
 
-    pub(crate) fn result_name(&self, output_id: ExpressionGraphResultId) -> &str {
+    pub(crate) fn result_name(&self, result_id: ExpressionInputId) -> &str {
         match self {
             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
                 ctx.sound_graph_names().expression(ctx.location()).unwrap()
@@ -138,19 +142,29 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 }
 
 pub struct ExpressionGraphUiContext<'a, 'ctx> {
+    object_factory: &'a ExpressionObjectFactory,
     ui_factory: &'a ExpressionObjectUiFactory,
     jit_cache: &'a JitCache<'ctx>,
+    stash: &'a Stash,
 }
 
 impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
     pub(super) fn new(
+        object_factory: &'a ExpressionObjectFactory,
         ui_factory: &'a ExpressionObjectUiFactory,
         jit_cache: &'a JitCache<'ctx>,
+        stash: &'a Stash,
     ) -> ExpressionGraphUiContext<'a, 'ctx> {
         ExpressionGraphUiContext {
+            object_factory,
             ui_factory,
             jit_cache,
+            stash,
         }
+    }
+
+    pub(super) fn object_factory(&self) -> &ExpressionObjectFactory {
+        self.object_factory
     }
 
     pub(super) fn ui_factory(&self) -> &ExpressionObjectUiFactory {
@@ -159,5 +173,9 @@ impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
 
     pub(super) fn jit_cache(&self) -> &JitCache<'ctx> {
         self.jit_cache
+    }
+
+    pub(super) fn stash(&self) -> &Stash {
+        self.stash
     }
 }

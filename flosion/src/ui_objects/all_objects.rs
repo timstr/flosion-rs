@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        expression::expressionobject::{ExpressionObjectFactory, ExpressionObjectHandle},
+        expression::expressionobject::ExpressionObjectFactory,
         sound::soundobject::SoundObjectFactory,
     },
     ui_core::{
@@ -55,9 +55,7 @@ impl<'a> ExpressionObjectRegistrationHelper<'a> {
     }
 
     fn register<T: 'static + ExpressionObjectUi>(&mut self) {
-        // Yikes
-        self.object_factory
-            .register::<<<T as ExpressionObjectUi>::HandleType as ExpressionObjectHandle>::ObjectType>();
+        self.object_factory.register::<T::ObjectType>();
         self.ui_factory.register::<T>();
     }
 }

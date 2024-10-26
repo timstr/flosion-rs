@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use atomicslice::AtomicSlice;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use inkwell::{
     values::{FloatValue, IntValue, PointerValue},
     AtomicOrdering, AtomicRMWBinOp, IntPredicate,
@@ -9,8 +10,8 @@ use inkwell::{
 use crate::{
     core::{
         expression::{
-            expressionnode::ExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
-            expressionnodetools::ExpressionNodeTools,
+            expressioninput::ExpressionInput,
+            expressionnode::{ExpressionNode, ExpressionNodeVisitor, ExpressionNodeVisitorMut},
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
@@ -19,7 +20,7 @@ use crate::{
 };
 
 pub struct Sampler1d {
-    input: ExpressionNodeInputHandle,
+    input: ExpressionInput,
     value: Arc<AtomicSlice<f32>>,
 }
 
@@ -36,14 +37,14 @@ pub struct Sampler1dCompileState<'ctx> {
 }
 
 impl ExpressionNode for Sampler1d {
-    fn new(mut tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()> {
+    fn new(args: &ParsedArguments) -> Sampler1d {
         // TODO: use args?
         let mut value = Vec::new();
         value.resize(256, 0.0);
-        Ok(Sampler1d {
-            input: tools.add_input(0.0),
+        Sampler1d {
+            input: ExpressionInput::new(0.0),
             value: Arc::new(AtomicSlice::new(value)),
-        })
+        }
     }
 
     const NUM_VARIABLES: usize = 0;
@@ -294,6 +295,34 @@ impl ExpressionNode for Sampler1d {
         let v = jit.builder().build_float_add(v0, scaled_diff, "v").unwrap();
 
         v
+    }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        visitor.input(&self.input);
+    }
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        visitor.input(&mut self.input);
+    }
+}
+
+impl Stashable for Sampler1d {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.input);
+        // TODO: how should changes to this NOT trigger a recompilation?
+        let reader = self.value.read();
+        stasher.array_of_f32_slice(&reader);
+    }
+}
+
+impl UnstashableInplace for Sampler1d {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        let new_values = unstasher.array_of_f32_iter()?;
+        if unstasher.time_to_write() {
+            let new_values: Vec<f32> = new_values.collect();
+            self.value.write(&new_values);
+        }
+        Ok(())
     }
 }
 

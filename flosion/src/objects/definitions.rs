@@ -1,9 +1,9 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
 
 use crate::{
     core::{
-        expression::context::ExpressionContext,
+        expression::{context::ExpressionContext, expressionobject::ExpressionObjectFactory},
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
@@ -60,6 +60,19 @@ impl SoundProcessor for Definitions {
             InputContext::new(context).push(defns.argument, &buffer),
         )
     }
+
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.sound_input)?;
+        unstasher.object_proxy_inplace(|unstasher| {
+            self.expression.unstash_inplace(unstasher, factory)
+        })?;
+        unstasher.object_inplace(&mut self.argument)?;
+        Ok(())
+    }
 }
 
 impl WithObjectType for Definitions {
@@ -71,14 +84,5 @@ impl Stashable for Definitions {
         stasher.object(&self.sound_input);
         stasher.object(&self.expression);
         stasher.object(&self.argument);
-    }
-}
-
-impl UnstashableInplace for Definitions {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.sound_input)?;
-        unstasher.object_inplace(&mut self.expression)?;
-        unstasher.object_inplace(&mut self.argument)?;
-        Ok(())
     }
 }

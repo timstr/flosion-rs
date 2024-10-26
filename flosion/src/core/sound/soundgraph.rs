@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use hashstash::{stash_clone_proxy, Order, Stash, StashHandle, Stashable, UnstashError, Unstasher};
 
-use crate::ui_core::arguments::ParsedArguments;
+use crate::{
+    core::expression::expressionobject::ExpressionObjectFactory,
+    ui_core::arguments::ParsedArguments,
+};
 
 use super::{
     sounderror::SoundError,
@@ -195,7 +198,8 @@ impl SoundGraph {
     pub fn try_make_change<R, F: FnOnce(&mut SoundGraph) -> Result<R, SoundError>>(
         &mut self,
         stash: &Stash,
-        factory: &SoundObjectFactory,
+        sound_object_factory: &SoundObjectFactory,
+        expr_object_factory: &ExpressionObjectFactory,
         f: F,
     ) -> Result<R, SoundError> {
         if let Err(e) = self.validate() {
@@ -205,7 +209,9 @@ impl SoundGraph {
             );
         }
 
-        let (previous_graph, _) = self.stash_clone(&stash, &factory).unwrap();
+        let (previous_graph, _) = self
+            .stash_clone(stash, sound_object_factory, expr_object_factory)
+            .unwrap();
         let res = f(self);
         if res.is_err() {
             *self = previous_graph;
@@ -244,20 +250,23 @@ impl Stashable for SoundGraph {
 impl SoundGraph {
     pub(crate) fn unstash(
         unstasher: &mut Unstasher,
-        factory: &SoundObjectFactory,
+        sound_object_factory: &SoundObjectFactory,
+        expr_object_factory: &ExpressionObjectFactory,
     ) -> Result<SoundGraph, UnstashError> {
         let mut graph = SoundGraph::new();
         unstasher.array_of_proxy_objects(|unstasher| {
             // type name
             let type_name = unstasher.string()?;
 
-            let mut processor = factory
+            let mut processor = sound_object_factory
                 .create(&type_name, &ParsedArguments::new_empty())
                 .into_boxed_sound_processor()
                 .unwrap();
 
             // contents
-            unstasher.object_proxy_inplace(|unstasher| processor.unstash_inplace(unstasher))?;
+            unstasher.object_proxy_inplace(|unstasher| {
+                processor.unstash_inplace(unstasher, expr_object_factory)
+            })?;
 
             graph.add_sound_processor(processor);
 
@@ -270,10 +279,11 @@ impl SoundGraph {
     pub(crate) fn stash_clone(
         &self,
         stash: &Stash,
-        factory: &SoundObjectFactory,
+        sound_object_factory: &SoundObjectFactory,
+        expr_object_factory: &ExpressionObjectFactory,
     ) -> Result<(SoundGraph, StashHandle<SoundGraph>), UnstashError> {
         stash_clone_proxy(self, stash, |unstasher| {
-            SoundGraph::unstash(unstasher, factory)
+            SoundGraph::unstash(unstasher, sound_object_factory, expr_object_factory)
         })
     }
 }

@@ -5,9 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hashstash::{
-    HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace,
-};
+use hashstash::{HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError};
 
 use crate::{
     core::{
@@ -15,6 +13,7 @@ use crate::{
             soundgraphcompiler::SoundGraphCompiler,
             stategraphnode::{AnyCompiledProcessorData, CompiledProcessorData},
         },
+        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         soundchunk::SoundChunk,
         uniqueid::UniqueId,
@@ -110,6 +109,14 @@ pub trait SoundProcessor: ProcessorComponent {
         dst: &mut SoundChunk,
         context: &mut Context,
     ) -> StreamStatus;
+
+    // HACK putting this here to circumvent UnstashableInplace
+    // so long as it doesn't provide a way to pass the factory
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError>;
 }
 
 pub struct SoundProcessorWithId<T: SoundProcessor> {
@@ -161,7 +168,6 @@ pub(crate) trait AnySoundProcessor {
     fn as_graph_object_mut(&mut self) -> &mut dyn SoundGraphObject;
 
     fn visit(&self, visitor: &mut dyn ProcessorComponentVisitor);
-
     fn visit_mut(&mut self, visitor: &mut dyn ProcessorComponentVisitorMut);
 
     fn as_any(&self) -> &dyn Any;
@@ -173,12 +179,16 @@ pub(crate) trait AnySoundProcessor {
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>;
 
     fn stash(&self, stasher: &mut Stasher);
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError>;
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        expr_obj_factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError>;
 }
 
 impl<T> AnySoundProcessor for SoundProcessorWithId<T>
 where
-    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
+    T: 'static + SoundProcessor + WithObjectType + Stashable, /*+ UnstashableInplace*/
 {
     fn id(&self) -> SoundProcessorId {
         self.id
@@ -187,7 +197,6 @@ where
     fn as_any(&self) -> &dyn Any {
         self
     }
-
     fn as_mut_any(&mut self) -> &mut dyn Any {
         self
     }
@@ -199,7 +208,6 @@ where
     fn as_graph_object(&self) -> &dyn SoundGraphObject {
         self
     }
-
     fn as_graph_object_mut(&mut self) -> &mut dyn SoundGraphObject {
         self
     }
@@ -207,7 +215,6 @@ where
     fn visit(&self, visitor: &mut dyn ProcessorComponentVisitor) {
         T::visit(&self.processor, visitor);
     }
-
     fn visit_mut(&mut self, visitor: &mut dyn ProcessorComponentVisitorMut) {
         T::visit_mut(&mut self.processor, visitor);
     }
@@ -242,7 +249,11 @@ where
         stasher.object_proxy(|stasher| self.processor.stash(stasher));
     }
 
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        expr_obj_factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
         // id
         let id = SoundProcessorId::new(unstasher.u64_always()? as _);
         if unstasher.time_to_write() {
@@ -250,7 +261,9 @@ where
         }
 
         // contents
-        unstasher.object_proxy_inplace(|unstasher| self.processor.unstash_inplace(unstasher))
+        unstasher.object_proxy_inplace(|unstasher| {
+            self.processor.unstash_inplace(unstasher, expr_obj_factory)
+        })
     }
 }
 
@@ -551,7 +564,7 @@ impl ProcessorTiming {
 
 impl<T> SoundGraphObject for SoundProcessorWithId<T>
 where
-    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable + UnstashableInplace,
+    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable, /*+ UnstashableInplace*/
 {
     fn create(args: &ParsedArguments) -> SoundProcessorWithId<T> {
         SoundProcessorWithId::new_from_args(args)

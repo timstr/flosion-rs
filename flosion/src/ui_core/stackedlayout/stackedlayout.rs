@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use eframe::egui;
-use hashstash::{Stashable, Stasher};
+use hashstash::{Stash, Stashable, Stasher};
 
 use crate::{
     core::{
@@ -229,10 +229,11 @@ impl StackedLayout {
         graph: &mut SoundGraph,
         properties: &GraphProperties,
         jit_cache: &JitCache,
+        stash: &Stash,
     ) {
         // Draw each stacked group
         for group in &mut self.groups {
-            group.draw(ui, factories, ui_state, graph, jit_cache, properties);
+            group.draw(ui, factories, ui_state, graph, jit_cache, stash, properties);
         }
 
         // draw wires between connected groups

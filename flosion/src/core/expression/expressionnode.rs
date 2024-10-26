@@ -1,9 +1,9 @@
 use std::{
     any::{type_name, Any},
     ops::Deref,
-    rc::Rc,
 };
 
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use inkwell::values::{FloatValue, PointerValue};
 
 use crate::{
@@ -16,31 +16,43 @@ use crate::{
 };
 
 use super::{
-    expressiongraph::ExpressionGraph,
-    expressionnodetools::ExpressionNodeTools,
-    expressionobject::{AnyExpressionObjectHandle, ExpressionObject, ExpressionObjectHandle},
+    expressioninput::{ExpressionInput, ExpressionInputId, ExpressionInputLocation},
+    expressionobject::ExpressionObject,
 };
 
 pub struct ExpressionNodeTag;
 
 pub type ExpressionNodeId = UniqueId<ExpressionNodeTag>;
 
+pub trait ExpressionNodeVisitor {
+    fn input(&mut self, _input: &ExpressionInput) {}
+}
+
+pub trait ExpressionNodeVisitorMut {
+    fn input(&mut self, _input: &mut ExpressionInput) {}
+}
+
 /// An ExpressionNode whose values are computed as a pure function of the inputs,
 /// with no side effects or hidden state. Intended to be used for elementary
 /// mathematical functions and easy, closed-form calculations.
 pub trait PureExpressionNode: WithObjectType {
-    fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
+    fn new(args: &ParsedArguments) -> Self
     where
         Self: Sized;
 
     // Generate instructions to compute a value from the given inputs
     fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx>;
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor);
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut);
 }
 
 /// A trait representing any type of expression node, both
 /// pure and stateful. Intended mainly for trait objects
 /// and easy grouping of the different types.
 pub trait AnyExpressionNode {
+    fn id(&self) -> ExpressionNodeId;
+
     fn num_variables(&self) -> usize;
 
     fn compile<'ctx>(
@@ -50,15 +62,25 @@ pub trait AnyExpressionNode {
         state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx>;
 
-    fn as_graph_object(self: Rc<Self>) -> AnyExpressionObjectHandle;
+    fn as_any(&self) -> &dyn Any;
+    fn as_mut_any(&mut self) -> &mut dyn Any;
+
+    fn as_graph_object(&self) -> &dyn ExpressionObject;
+    fn as_graph_object_mut(&mut self) -> &mut dyn ExpressionObject;
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor);
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut);
+
+    fn stash(&self, stasher: &mut Stasher);
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError>;
 }
 
 /// An Expression which might have hidden state and/or might require
 /// special build-up and tear-down to be used. This includes calculations
 /// involving reccurences, e.g. relying on previous results, as well
 /// as data structures that e.g. require locking in order to read safely.
-pub trait ExpressionNode: WithObjectType {
-    fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
+pub trait ExpressionNode {
+    fn new(args: &ParsedArguments) -> Self
     where
         Self: Sized;
 
@@ -102,14 +124,17 @@ pub trait ExpressionNode: WithObjectType {
         variables: &[PointerValue<'ctx>],
         compile_state: &Self::CompileState<'ctx>,
     ) -> FloatValue<'ctx>;
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor);
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut);
 }
 
 impl<T: PureExpressionNode> ExpressionNode for T {
-    fn new(tools: ExpressionNodeTools<'_>, args: &ParsedArguments) -> Result<Self, ()>
+    fn new(args: &ParsedArguments) -> Self
     where
         Self: Sized,
     {
-        T::new(tools, args)
+        T::new(args)
     }
 
     const NUM_VARIABLES: usize = 0;
@@ -140,16 +165,30 @@ impl<T: PureExpressionNode> ExpressionNode for T {
     ) -> FloatValue<'ctx> {
         T::compile(self, jit, inputs)
     }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        T::visit(self, visitor);
+    }
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        T::visit_mut(self, visitor);
+    }
 }
 
 pub struct ExpressionNodeWithId<T: ExpressionNode> {
-    instance: T,
     id: ExpressionNodeId,
+    instance: T,
 }
 
 impl<T: ExpressionNode> ExpressionNodeWithId<T> {
-    pub(crate) fn new(instance: T, id: ExpressionNodeId) -> ExpressionNodeWithId<T> {
-        ExpressionNodeWithId { instance, id }
+    pub(crate) fn new_default() -> ExpressionNodeWithId<T> {
+        Self::new_from_args(&ParsedArguments::new_empty())
+    }
+
+    pub(crate) fn new_from_args(args: &ParsedArguments) -> ExpressionNodeWithId<T> {
+        ExpressionNodeWithId {
+            id: ExpressionNodeId::new_unique(),
+            instance: T::new(args),
+        }
     }
 
     pub(crate) fn id(&self) -> ExpressionNodeId {
@@ -165,7 +204,22 @@ impl<T: ExpressionNode> Deref for ExpressionNodeWithId<T> {
     }
 }
 
-impl<T: 'static + ExpressionNode> AnyExpressionNode for ExpressionNodeWithId<T> {
+impl<T> AnyExpressionNode for ExpressionNodeWithId<T>
+where
+    T: 'static + ExpressionNode + WithObjectType + Stashable + UnstashableInplace,
+{
+    fn id(&self) -> ExpressionNodeId {
+        self.id
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn num_variables(&self) -> usize {
         T::NUM_VARIABLES
     }
@@ -254,20 +308,169 @@ impl<T: 'static + ExpressionNode> AnyExpressionNode for ExpressionNodeWithId<T> 
         loop_value
     }
 
-    fn as_graph_object(self: Rc<Self>) -> AnyExpressionObjectHandle {
-        AnyExpressionObjectHandle::new(self)
+    fn as_graph_object(&self) -> &dyn ExpressionObject {
+        self
+    }
+    fn as_graph_object_mut(&mut self) -> &mut dyn ExpressionObject {
+        self
+    }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        T::visit(&self.instance, visitor);
+    }
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        T::visit_mut(&mut self.instance, visitor);
+    }
+
+    fn stash(&self, stasher: &mut Stasher) {
+        // id
+        stasher.u64(self.id.value() as _);
+
+        // contents
+        stasher.object_proxy(|stasher| self.instance.stash(stasher));
+    }
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        // id
+        let id = ExpressionNodeId::new(unstasher.u64_always()? as _);
+        if unstasher.time_to_write() {
+            self.id = id;
+        }
+
+        // contents
+        unstasher.object_proxy_inplace(|unstasher| self.instance.unstash_inplace(unstasher))
     }
 }
 
-impl<T: 'static + ExpressionNode> ExpressionObject for ExpressionNodeWithId<T> {
-    fn create(
-        graph: &mut ExpressionGraph,
-        args: &ParsedArguments,
-    ) -> Result<AnyExpressionObjectHandle, ()> {
-        graph
-            .add_expression_node::<T>(args)
-            .map(|h| h.into_graph_object())
-            .map_err(|_| ()) // TODO: report error
+impl<'a> dyn AnyExpressionNode + 'a {
+    pub(crate) fn downcast<T: 'static + ExpressionNode>(&self) -> Option<&ExpressionNodeWithId<T>> {
+        self.as_any().downcast_ref()
+    }
+
+    pub(crate) fn downcast_mut<T: 'static + ExpressionNode>(
+        &mut self,
+    ) -> Option<&mut ExpressionNodeWithId<T>> {
+        self.as_mut_any().downcast_mut()
+    }
+
+    pub(crate) fn with_input<R, F: FnMut(&ExpressionInput) -> R>(
+        &self,
+        input_id: ExpressionInputId,
+        f: F,
+    ) -> Option<R> {
+        struct Visitor<R2, F2> {
+            input_id: ExpressionInputId,
+            result: Option<R2>,
+            f: F2,
+        }
+        impl<R2, F2: FnMut(&ExpressionInput) -> R2> ExpressionNodeVisitor for Visitor<R2, F2> {
+            fn input(&mut self, input: &ExpressionInput) {
+                if input.id() == self.input_id {
+                    debug_assert!(self.result.is_none());
+                    self.result = Some((self.f)(input));
+                }
+            }
+        }
+        let mut visitor = Visitor {
+            input_id,
+            result: None,
+            f,
+        };
+        self.visit(&mut visitor);
+        visitor.result
+    }
+
+    pub(crate) fn with_input_mut<R, F: FnMut(&mut ExpressionInput) -> R>(
+        &mut self,
+        input_id: ExpressionInputId,
+        f: F,
+    ) -> Option<R> {
+        struct Visitor<R2, F2> {
+            input_id: ExpressionInputId,
+            result: Option<R2>,
+            f: F2,
+        }
+        impl<R2, F2: FnMut(&mut ExpressionInput) -> R2> ExpressionNodeVisitorMut for Visitor<R2, F2> {
+            fn input(&mut self, input: &mut ExpressionInput) {
+                if input.id() == self.input_id {
+                    debug_assert!(self.result.is_none());
+                    self.result = Some((self.f)(input));
+                }
+            }
+        }
+        let mut visitor = Visitor {
+            input_id,
+            result: None,
+            f,
+        };
+
+        self.visit_mut(&mut visitor);
+        visitor.result
+    }
+
+    pub(crate) fn foreach_input<F: FnMut(&ExpressionInput, ExpressionInputLocation)>(&self, f: F) {
+        struct Visitor<F2> {
+            node_id: ExpressionNodeId,
+            f: F2,
+        }
+
+        impl<F2: FnMut(&ExpressionInput, ExpressionInputLocation)> ExpressionNodeVisitor for Visitor<F2> {
+            fn input(&mut self, input: &ExpressionInput) {
+                (self.f)(
+                    input,
+                    ExpressionInputLocation::NodeInput(self.node_id, input.id()),
+                )
+            }
+        }
+
+        self.visit(&mut Visitor {
+            node_id: self.id(),
+            f,
+        });
+    }
+
+    pub(crate) fn foreach_input_mut<F: FnMut(&mut ExpressionInput, ExpressionInputLocation)>(
+        &mut self,
+        f: F,
+    ) {
+        struct Visitor<F2> {
+            node_id: ExpressionNodeId,
+            f: F2,
+        }
+
+        impl<F2: FnMut(&mut ExpressionInput, ExpressionInputLocation)> ExpressionNodeVisitorMut
+            for Visitor<F2>
+        {
+            fn input(&mut self, input: &mut ExpressionInput) {
+                (self.f)(
+                    input,
+                    ExpressionInputLocation::NodeInput(self.node_id, input.id()),
+                )
+            }
+        }
+
+        self.visit_mut(&mut Visitor {
+            node_id: self.id(),
+            f,
+        });
+    }
+
+    pub(crate) fn input_locations(&self) -> Vec<ExpressionInputLocation> {
+        let mut locations = Vec::new();
+        self.foreach_input(|_, l| locations.push(l));
+        locations
+    }
+}
+
+impl<T> ExpressionObject for ExpressionNodeWithId<T>
+where
+    T: 'static + ExpressionNode + WithObjectType + Stashable + UnstashableInplace,
+{
+    fn create(args: &ParsedArguments) -> ExpressionNodeWithId<T> {
+        ExpressionNodeWithId::new_from_args(args)
+    }
+
+    fn id(&self) -> ExpressionNodeId {
+        self.id
     }
 
     fn get_type() -> ObjectType {
@@ -278,70 +481,21 @@ impl<T: 'static + ExpressionNode> ExpressionObject for ExpressionNodeWithId<T> {
         T::TYPE
     }
 
-    fn get_id(&self) -> ExpressionNodeId {
-        self.id
+    fn as_any(&self) -> &dyn Any {
+        self
     }
-
-    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+    fn as_mut_any(&mut self) -> &mut dyn Any {
         self
     }
 
     fn get_language_type_name(&self) -> &'static str {
         type_name::<Self>()
     }
-}
 
-pub struct ExpressionNodeHandle<T: ExpressionNode> {
-    instance: Rc<ExpressionNodeWithId<T>>,
-}
-
-// NOTE: Deriving Clone explicitly because #[derive(Clone)] stupidly
-// requires T: Clone even if it isn't stored as a direct field
-impl<T: ExpressionNode> Clone for ExpressionNodeHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            instance: Rc::clone(&self.instance),
-        }
+    fn as_expression_node(&self) -> Option<&dyn AnyExpressionNode> {
+        Some(self)
     }
-}
-
-impl<T: 'static + ExpressionNode> ExpressionNodeHandle<T> {
-    pub(super) fn new(instance: Rc<ExpressionNodeWithId<T>>) -> Self {
-        Self { instance }
-    }
-
-    pub(super) fn from_graph_object(handle: AnyExpressionObjectHandle) -> Option<Self> {
-        let any = handle.into_instance_rc().into_rc_any();
-        match any.downcast::<ExpressionNodeWithId<T>>() {
-            Ok(obj) => Some(ExpressionNodeHandle::new(obj)),
-            Err(_) => None,
-        }
-    }
-
-    pub fn id(&self) -> ExpressionNodeId {
-        self.instance.id()
-    }
-
-    pub fn into_graph_object(self) -> AnyExpressionObjectHandle {
-        AnyExpressionObjectHandle::new(self.instance)
-    }
-}
-impl<T: ExpressionNode> Deref for ExpressionNodeHandle<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.instance
-    }
-}
-
-impl<T: 'static + ExpressionNode> ExpressionObjectHandle for ExpressionNodeHandle<T> {
-    type ObjectType = ExpressionNodeWithId<T>;
-
-    fn from_graph_object(object: AnyExpressionObjectHandle) -> Option<Self> {
-        ExpressionNodeHandle::from_graph_object(object)
-    }
-
-    fn object_type() -> ObjectType {
-        T::TYPE
+    fn into_boxed_expression_node(self: Box<Self>) -> Option<Box<dyn AnyExpressionNode>> {
+        Some(self)
     }
 }

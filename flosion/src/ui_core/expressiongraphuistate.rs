@@ -37,11 +37,11 @@ impl ExpressionNodeObjectUiStates {
         let mut states = Self::new();
 
         for node in graph.nodes().values() {
-            let object = node.instance_rc().as_graph_object();
-            let object_type = object.get_type();
+            let object = node.as_graph_object();
+            let object_type = object.get_dynamic_type();
             let object_ui = factory.get(object_type);
             let state = object_ui
-                .make_ui_state(&object, ParsedArguments::new_empty())
+                .make_ui_state(object, ParsedArguments::new_empty())
                 .unwrap();
             states.set_object_data(node.id(), state);
         }

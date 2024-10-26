@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeHandle},
+    core::expression::expressionnode::ExpressionNodeWithId,
     objects::sampler1d::Sampler1d,
     ui_core::{
         arguments::ParsedArguments,
@@ -17,17 +17,16 @@ use crate::{
 pub struct Sampler1dUi {}
 
 impl ExpressionObjectUi for Sampler1dUi {
-    type HandleType = ExpressionNodeHandle<Sampler1d>;
+    type ObjectType = ExpressionNodeWithId<Sampler1d>;
     type StateType = ();
 
     fn ui<'a, 'b>(
         &self,
-        sampler1d: ExpressionNodeHandle<Sampler1d>,
+        sampler1d: &mut ExpressionNodeWithId<Sampler1d>,
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
         _state: &mut (),
-        _graph: &mut ExpressionGraph,
     ) {
         // TODO: custom vertical range
 
@@ -106,7 +105,7 @@ impl ExpressionObjectUi for Sampler1dUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }

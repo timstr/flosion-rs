@@ -1,9 +1,9 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
 
 use crate::{
     core::{
-        expression::context::ExpressionContext,
+        expression::{context::ExpressionContext, expressionobject::ExpressionObjectFactory},
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
@@ -243,6 +243,27 @@ impl SoundProcessor for ADSR {
 
         status
     }
+
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        unstasher.object_proxy_inplace(|unstasher| {
+            self.attack_time.unstash_inplace(unstasher, factory)
+        })?;
+        unstasher.object_proxy_inplace(|unstasher| {
+            self.decay_time.unstash_inplace(unstasher, factory)
+        })?;
+        unstasher.object_proxy_inplace(|unstasher| {
+            self.sustain_level.unstash_inplace(unstasher, factory)
+        })?;
+        unstasher.object_proxy_inplace(|unstasher| {
+            self.release_time.unstash_inplace(unstasher, factory)
+        })?;
+        Ok(())
+    }
 }
 
 impl ProcessorState for ADSRState {
@@ -278,16 +299,5 @@ impl Stashable for ADSR {
         stasher.object(&self.decay_time);
         stasher.object(&self.sustain_level);
         stasher.object(&self.release_time);
-    }
-}
-
-impl UnstashableInplace for ADSR {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.input)?;
-        unstasher.object_inplace(&mut self.attack_time)?;
-        unstasher.object_inplace(&mut self.decay_time)?;
-        unstasher.object_inplace(&mut self.sustain_level)?;
-        unstasher.object_inplace(&mut self.release_time)?;
-        Ok(())
     }
 }

@@ -1,3 +1,4 @@
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use inkwell::{
     values::{FloatValue, PointerValue},
     FloatPredicate, IntPredicate,
@@ -6,8 +7,8 @@ use inkwell::{
 use crate::{
     core::{
         expression::{
-            expressionnode::ExpressionNode, expressionnodeinput::ExpressionNodeInputHandle,
-            expressionnodetools::ExpressionNodeTools,
+            expressioninput::ExpressionInput,
+            expressionnode::{ExpressionNode, ExpressionNodeVisitor, ExpressionNodeVisitorMut},
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
@@ -23,16 +24,16 @@ use crate::{
 
 // TODO: consider renaming to LinearSmooth
 pub struct LinearApproach {
-    _input: ExpressionNodeInputHandle,
-    _speed: ExpressionNodeInputHandle,
+    input: ExpressionInput,
+    speed: ExpressionInput,
 }
 
 impl ExpressionNode for LinearApproach {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(LinearApproach {
-            _input: tools.add_input(0.0),
-            _speed: tools.add_input(1.0),
-        })
+    fn new(_args: &ParsedArguments) -> LinearApproach {
+        LinearApproach {
+            input: ExpressionInput::new(0.0),
+            speed: ExpressionInput::new(1.0),
+        }
     }
 
     const NUM_VARIABLES: usize = 1;
@@ -115,6 +116,30 @@ impl ExpressionNode for LinearApproach {
         jit.builder().build_store(variable, new_value).unwrap();
         new_value
     }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        visitor.input(&self.input);
+        visitor.input(&self.speed);
+    }
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        visitor.input(&mut self.input);
+        visitor.input(&mut self.speed);
+    }
+}
+
+impl Stashable for LinearApproach {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.input);
+        stasher.object(&self.speed);
+    }
+}
+
+impl UnstashableInplace for LinearApproach {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        unstasher.object_inplace(&mut self.speed)?;
+        Ok(())
+    }
 }
 
 impl WithObjectType for LinearApproach {
@@ -123,16 +148,16 @@ impl WithObjectType for LinearApproach {
 
 // TODO: consider renaming to ExponetialSmooth
 pub struct ExponentialApproach {
-    _input: ExpressionNodeInputHandle,
-    _decay_rate: ExpressionNodeInputHandle,
+    input: ExpressionInput,
+    decay_rate: ExpressionInput,
 }
 
 impl ExpressionNode for ExponentialApproach {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(ExponentialApproach {
-            _input: tools.add_input(0.0),
-            _decay_rate: tools.add_input(0.5),
-        })
+    fn new(_args: &ParsedArguments) -> ExponentialApproach {
+        ExponentialApproach {
+            input: ExpressionInput::new(0.0),
+            decay_rate: ExpressionInput::new(0.5),
+        }
     }
 
     const NUM_VARIABLES: usize = 1;
@@ -162,6 +187,13 @@ impl ExpressionNode for ExponentialApproach {
         debug_assert_eq!(variables.len(), 1);
         let input = inputs[0];
         let decay_rate = inputs[1];
+
+        // TODO: this struggles numerically with long (but not that long, at audio
+        // sample rates) decay times, simply because representing a slow decay from
+        // one sample to the next requires multiplying accurately by a fraction
+        // a sliver less than 1, and f32 seems to suffer rounding issues here.
+        // Consider doing computations and storing state as f64 and converting only
+        // the final value to f32
 
         // Copied from Pow
         // TODO: put this and similar helpers somewhere shared, many
@@ -202,6 +234,30 @@ impl ExpressionNode for ExponentialApproach {
         jit.builder().build_store(ptr_val, next_val).unwrap();
         next_val
     }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        visitor.input(&self.input);
+        visitor.input(&self.decay_rate);
+    }
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        visitor.input(&mut self.input);
+        visitor.input(&mut self.decay_rate);
+    }
+}
+
+impl Stashable for ExponentialApproach {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.input);
+        stasher.object(&self.decay_rate);
+    }
+}
+
+impl UnstashableInplace for ExponentialApproach {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        unstasher.object_inplace(&mut self.decay_rate)?;
+        Ok(())
+    }
 }
 
 impl WithObjectType for ExponentialApproach {
@@ -209,14 +265,14 @@ impl WithObjectType for ExponentialApproach {
 }
 
 pub struct Integrator {
-    _input: ExpressionNodeInputHandle,
+    input: ExpressionInput,
 }
 
 impl ExpressionNode for Integrator {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(Integrator {
-            _input: tools.add_input(0.0),
-        })
+    fn new(_args: &ParsedArguments) -> Integrator {
+        Integrator {
+            input: ExpressionInput::new(0.0),
+        }
     }
 
     const NUM_VARIABLES: usize = 1;
@@ -260,6 +316,26 @@ impl ExpressionNode for Integrator {
         jit.builder().build_store(variable, sum).unwrap();
         sum
     }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        visitor.input(&self.input);
+    }
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        visitor.input(&mut self.input);
+    }
+}
+
+impl Stashable for Integrator {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.input);
+    }
+}
+
+impl UnstashableInplace for Integrator {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        Ok(())
+    }
 }
 
 impl WithObjectType for Integrator {
@@ -267,14 +343,14 @@ impl WithObjectType for Integrator {
 }
 
 pub struct WrappingIntegrator {
-    _input: ExpressionNodeInputHandle,
+    input: ExpressionInput,
 }
 
 impl ExpressionNode for WrappingIntegrator {
-    fn new(mut tools: ExpressionNodeTools<'_>, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(WrappingIntegrator {
-            _input: tools.add_input(0.0),
-        })
+    fn new(_args: &ParsedArguments) -> WrappingIntegrator {
+        WrappingIntegrator {
+            input: ExpressionInput::new(0.0),
+        }
     }
 
     const NUM_VARIABLES: usize = 1;
@@ -322,6 +398,26 @@ impl ExpressionNode for WrappingIntegrator {
             .unwrap();
         jit.builder().build_store(variable, fract_sum).unwrap();
         fract_sum
+    }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        visitor.input(&self.input);
+    }
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        visitor.input(&mut self.input);
+    }
+}
+
+impl Stashable for WrappingIntegrator {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.input);
+    }
+}
+
+impl UnstashableInplace for WrappingIntegrator {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        Ok(())
     }
 }
 

@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::Stash;
 
 use crate::{
     core::{
@@ -218,14 +219,14 @@ impl LexicalLayout {
                 return ASTNode::new(ASTNodeValue::Variable(existing_variable.id()));
             }
 
-            let create_new_variable = graph.destinations(target).count() >= 2;
+            let create_new_variable = graph.destinations(target).len() >= 2;
 
             let node = graph.node(nsid).unwrap();
 
-            let arguments: Vec<ASTNode> = node
-                .inputs()
-                .iter()
-                .map(|niid| match graph.node_input(*niid).unwrap().target() {
+            let mut arguments = Vec::<ASTNode>::new();
+
+            node.foreach_input(|input, _| {
+                let value = match input.target() {
                     Some(target) => visit_target(
                         target,
                         variable_assignments,
@@ -234,10 +235,11 @@ impl LexicalLayout {
                         ui_factory,
                     ),
                     None => ASTNode::new(ASTNodeValue::Empty),
-                })
-                .collect();
+                };
+                arguments.push(value);
+            });
 
-            let object_ui = ui_factory.get(node.instance_rc().as_graph_object().get_type());
+            let object_ui = ui_factory.get(node.as_graph_object().get_dynamic_type());
 
             let layout = object_ui.make_properties();
 
@@ -601,18 +603,11 @@ impl LexicalLayout {
         expr_graph: &mut ExpressionGraph,
         ctx: &ExpressionGraphUiContext,
     ) -> egui::Rect {
-        let graph_object = expr_graph.node(id).unwrap().instance_rc().as_graph_object();
+        let graph_object = expr_graph.node_mut(id).unwrap().as_graph_object_mut();
 
         ui.horizontal_centered(|ui| {
             // Huh?
-            show_expression_node_ui(
-                ctx.ui_factory(),
-                &graph_object,
-                ui_state,
-                ui,
-                ctx,
-                expr_graph,
-            );
+            show_expression_node_ui(ctx.ui_factory(), graph_object, ui_state, ui, ctx);
         })
         .response
         .rect
@@ -633,6 +628,7 @@ impl LexicalLayout {
         expr_graph: &mut ExpressionGraph,
         object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
+        stash: &Stash,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &mut OuterExpressionGraphUiContext,
     ) {
@@ -644,6 +640,7 @@ impl LexicalLayout {
             expr_graph,
             object_factory,
             ui_factory,
+            stash,
             object_ui_states,
             outer_context,
         );
@@ -681,7 +678,7 @@ impl LexicalLayout {
             });
 
             if pressed_delete {
-                delete_from_graph_at_cursor(self, cursor, expr_graph);
+                delete_from_graph_at_cursor(self, cursor, expr_graph, stash, object_factory);
                 remove_unreferenced_parameters(self, outer_context, expr_graph);
             }
 
@@ -720,6 +717,7 @@ impl LexicalLayout {
         expr_graph: &mut ExpressionGraph,
         object_factory: &ExpressionObjectFactory,
         ui_factory: &ExpressionObjectUiFactory,
+        stash: &Stash,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &mut OuterExpressionGraphUiContext,
     ) {
@@ -852,7 +850,14 @@ impl LexicalLayout {
                 }
             };
             let num_children = new_node.num_children();
-            insert_to_graph_at_cursor(self, focus.cursor_mut(), new_node, expr_graph);
+            insert_to_graph_at_cursor(
+                self,
+                focus.cursor_mut(),
+                new_node,
+                expr_graph,
+                stash,
+                object_factory,
+            );
             remove_unreferenced_parameters(self, outer_context, expr_graph);
 
             debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
@@ -881,34 +886,31 @@ impl LexicalLayout {
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         expr_graph: &mut ExpressionGraph,
     ) -> Result<(ASTNode, ExpressionNodeLayout), String> {
-        let new_object = object_factory.create(ns_type.name(), expr_graph, &arguments);
+        let new_object = object_factory.create(ns_type.name(), &arguments);
 
-        let new_object = match new_object {
-            Ok(o) => o,
-            Err(_) => {
-                return Err(format!(
-                    "Failed to create expression node of type {}",
-                    ns_type.name()
-                ));
-            }
-        };
-
-        let object_ui = ui_factory.get(new_object.get_type());
+        let object_ui = ui_factory.get(new_object.get_dynamic_type());
 
         let new_ui_state = object_ui
-            .make_ui_state(&new_object, arguments)
+            .make_ui_state(&*new_object, arguments)
             .map_err(|e| format!("Failed to create ui state: {:?}", e))?;
 
         let layout = object_ui.make_properties();
 
-        let num_inputs = expr_graph.node(new_object.id()).unwrap().inputs().len();
+        let new_node = new_object.into_boxed_expression_node().unwrap();
+        let new_node_id = new_node.id();
+
+        let num_inputs = new_node.input_locations().len();
+
+        expr_graph.add_expression_node(new_node);
+
         let child_nodes: Vec<ASTNode> = (0..num_inputs)
             .map(|_| ASTNode::new(ASTNodeValue::Empty))
             .collect();
-        let internal_node = make_internal_node(new_object.id(), layout, child_nodes);
+
+        let internal_node = make_internal_node(new_node_id, layout, child_nodes);
         let node = ASTNode::new(ASTNodeValue::Internal(Box::new(internal_node)));
 
-        object_ui_states.set_object_data(new_object.id(), new_ui_state);
+        object_ui_states.set_object_data(new_node_id.into(), new_ui_state);
 
         Ok((node, layout))
     }
@@ -956,10 +958,10 @@ impl LexicalLayout {
 
                 if let Some(internal_node) = node.as_internal_node_mut() {
                     let nsid = internal_node.expression_node_id();
-                    let expected_inputs = graph.node(nsid).unwrap().inputs();
+                    let expected_inputs = graph.node(nsid).unwrap().input_locations();
                     let expected_targets: Vec<Option<ExpressionTarget>> = expected_inputs
                         .iter()
-                        .map(|niid| graph.node_input(*niid).unwrap().target())
+                        .map(|niid| graph.input_target(*niid).unwrap())
                         .collect();
 
                     if internal_node.num_children() != expected_inputs.len() {

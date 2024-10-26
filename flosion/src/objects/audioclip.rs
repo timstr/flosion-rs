@@ -1,14 +1,13 @@
 use std::{ops::Deref, sync::Arc};
 
 use flosion_macros::ProcessorComponents;
-use hashstash::{
-    HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace,
-};
+use hashstash::{HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError};
 use parking_lot::Mutex;
 
 use crate::{
     core::{
         audiofileio::load_audio_file,
+        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
@@ -120,6 +119,16 @@ impl SoundProcessor for AudioClip {
         }
         StreamStatus::Playing
     }
+
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        _factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        let mut buffer = self.data.lock();
+        let buffer: &mut HashCache<SoundBuffer> = &mut buffer;
+        unstasher.object_replace(buffer)
+    }
 }
 
 impl WithObjectType for AudioClip {
@@ -131,13 +140,5 @@ impl Stashable for AudioClip {
         let buffer = self.data.lock();
         let buffer: &HashCache<SoundBuffer> = &buffer;
         stasher.object(buffer);
-    }
-}
-
-impl UnstashableInplace for AudioClip {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        let mut buffer = self.data.lock();
-        let buffer: &mut HashCache<SoundBuffer> = &mut buffer;
-        unstasher.object_replace(buffer)
     }
 }

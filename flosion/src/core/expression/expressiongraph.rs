@@ -1,4 +1,8 @@
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
+
+use hashstash::{
+    stash_clone_proxy, Order, Stash, StashHandle, Stashable, Stasher, UnstashError, Unstasher,
+};
 
 use crate::{
     core::{expression::expressiongraphvalidation::find_expression_error, uniqueid::UniqueId},
@@ -6,17 +10,11 @@ use crate::{
 };
 
 use super::{
-    expressiongraphdata::{
-        ExpressionDestination, ExpressionGraphResultData, ExpressionNodeData,
-        ExpressionNodeInputData, ExpressionTarget,
-    },
+    expressiongraphdata::ExpressionTarget,
     expressiongrapherror::ExpressionError,
-    expressionnode::{
-        ExpressionNode, ExpressionNodeHandle, ExpressionNodeId, ExpressionNodeWithId,
-        PureExpressionNode,
-    },
-    expressionnodeinput::ExpressionNodeInputId,
-    expressionnodetools::ExpressionNodeTools,
+    expressioninput::{ExpressionInput, ExpressionInputId, ExpressionInputLocation},
+    expressionnode::{AnyExpressionNode, ExpressionNodeId},
+    expressionobject::ExpressionObjectFactory,
 };
 
 pub struct ExpressionGraphParameterTag;
@@ -26,45 +24,36 @@ pub struct ExpressionGraphParameterTag;
 /// the same id.
 pub type ExpressionGraphParameterId = UniqueId<ExpressionGraphParameterTag>;
 
-pub struct ExpressionGraphResultTag;
-
-/// A unique integer identifier for an expression graph result.
-/// No two results of the same expression graph may share
-/// the same id.
-pub type ExpressionGraphResultId = UniqueId<ExpressionGraphResultTag>;
-
-// TODO: straighten this out also
-#[derive(Clone)]
 pub struct ExpressionGraph {
-    nodes: HashMap<ExpressionNodeId, ExpressionNodeData>,
-    node_inputs: HashMap<ExpressionNodeInputId, ExpressionNodeInputData>,
+    nodes: HashMap<ExpressionNodeId, Box<dyn AnyExpressionNode>>,
     parameters: Vec<ExpressionGraphParameterId>,
-    results: Vec<ExpressionGraphResultData>,
+    results: Vec<ExpressionInput>,
 }
 
 impl ExpressionGraph {
     pub(crate) fn new() -> ExpressionGraph {
         ExpressionGraph {
             nodes: HashMap::new(),
-            node_inputs: HashMap::new(),
             parameters: Vec::new(),
             results: Vec::new(),
         }
     }
 
-    pub(crate) fn node_input(&self, id: ExpressionNodeInputId) -> Option<&ExpressionNodeInputData> {
-        self.node_inputs.get(&id)
+    pub(crate) fn node(&self, id: ExpressionNodeId) -> Option<&dyn AnyExpressionNode> {
+        match self.nodes.get(&id) {
+            Some(n) => Some(&**n),
+            None => None,
+        }
     }
 
-    pub(crate) fn node(&self, id: ExpressionNodeId) -> Option<&ExpressionNodeData> {
-        self.nodes.get(&id)
+    pub(crate) fn node_mut(&mut self, id: ExpressionNodeId) -> Option<&mut dyn AnyExpressionNode> {
+        match self.nodes.get_mut(&id) {
+            Some(n) => Some(&mut **n),
+            None => None,
+        }
     }
 
-    pub(crate) fn node_inputs(&self) -> &HashMap<ExpressionNodeInputId, ExpressionNodeInputData> {
-        &self.node_inputs
-    }
-
-    pub(crate) fn nodes(&self) -> &HashMap<ExpressionNodeId, ExpressionNodeData> {
+    pub(crate) fn nodes(&self) -> &HashMap<ExpressionNodeId, Box<dyn AnyExpressionNode>> {
         &self.nodes
     }
 
@@ -72,165 +61,110 @@ impl ExpressionGraph {
         &self.parameters
     }
 
-    pub(crate) fn result(&self, id: ExpressionGraphResultId) -> Option<&ExpressionGraphResultData> {
+    pub(crate) fn result(&self, id: ExpressionInputId) -> Option<&ExpressionInput> {
         self.results.iter().filter(|x| x.id() == id).next()
     }
 
-    pub(crate) fn results(&self) -> &[ExpressionGraphResultData] {
+    pub(crate) fn result_mut(&mut self, id: ExpressionInputId) -> Option<&mut ExpressionInput> {
+        self.results.iter_mut().filter(|x| x.id() == id).next()
+    }
+
+    pub(crate) fn results(&self) -> &[ExpressionInput] {
         &self.results
     }
 
+    // TODO: rename to e.g. inputs_connected_to
     pub(crate) fn destinations<'a>(
         &'a self,
         target: ExpressionTarget,
-    ) -> impl 'a + Iterator<Item = ExpressionDestination> {
-        let matching_inputs = self.node_inputs.values().filter_map(move |i| {
-            if i.target() == Some(target) {
-                Some(ExpressionDestination::NodeInput(i.id()))
-            } else {
-                None
+    ) -> Vec<ExpressionInputLocation> {
+        let mut input_locations = Vec::new();
+        for node in self.nodes.values() {
+            node.foreach_input(|input, loc| {
+                if input.target() == Some(target) {
+                    input_locations.push(loc);
+                }
+            });
+        }
+        for result in &self.results {
+            if result.target() == Some(target) {
+                input_locations.push(ExpressionInputLocation::GraphResult(result.id()));
             }
-        });
-        let matching_results = self.results.iter().filter_map(move |i| {
-            if i.target() == Some(target) {
-                Some(ExpressionDestination::Result(i.id()))
-            } else {
-                None
-            }
-        });
-        matching_inputs.chain(matching_results)
+        }
+        input_locations
     }
 
-    pub fn add_node_input(
-        &mut self,
-        owner: ExpressionNodeId,
-        default_value: f32,
-    ) -> Result<ExpressionNodeInputId, ExpressionError> {
-        if self.node(owner).is_none() {
-            return Err(ExpressionError::NodeNotFound(owner));
+    pub fn add_expression_node(&mut self, node: Box<dyn AnyExpressionNode>) {
+        let prev = self.nodes.insert(node.id(), node);
+        debug_assert!(prev.is_none());
+    }
+
+    fn disconnect_all_inputs_from(&mut self, target: ExpressionTarget) {
+        for node in self.nodes.values_mut() {
+            node.foreach_input_mut(|input, _| {
+                if input.target() == Some(target) {
+                    input.set_target(None);
+                }
+            });
         }
 
-        let id = ExpressionNodeInputId::new_unique();
-        let data = ExpressionNodeInputData::new(id, owner, default_value);
-
-        let ns_data = self
-            .nodes
-            .get_mut(&owner)
-            .ok_or(ExpressionError::NodeNotFound(owner))?;
-
-        debug_assert!(!ns_data.inputs().contains(&data.id()));
-
-        ns_data.inputs_mut().push(data.id());
-
-        self.node_inputs.insert(data.id(), data);
-
-        Ok(id)
-    }
-
-    pub(crate) fn remove_node_input(
-        &mut self,
-        input_id: ExpressionNodeInputId,
-    ) -> Result<(), ExpressionError> {
-        let ni_data = self
-            .node_input(input_id)
-            .ok_or(ExpressionError::InputNotFound(input_id))?;
-        if ni_data.target().is_some() {
-            return Err(ExpressionError::BadInputCleanup(input_id));
+        for result in &mut self.results {
+            if result.target() == Some(target) {
+                result.set_target(None);
+            }
         }
-        let ns_data = self.nodes.get_mut(&ni_data.owner()).unwrap();
-        debug_assert_eq!(
-            ns_data.inputs().iter().filter(|x| **x == input_id).count(),
-            1
-        );
-        ns_data.inputs_mut().retain(|x| *x != input_id);
-        let prev = self.node_inputs.remove(&input_id);
-        debug_assert!(prev.is_some());
-
-        Ok(())
-    }
-
-    pub fn add_expression_node<T: 'static + ExpressionNode>(
-        &mut self,
-        args: &ParsedArguments,
-    ) -> Result<ExpressionNodeHandle<T>, ExpressionError> {
-        let id = ExpressionNodeId::new_unique();
-        self.nodes.insert(id, ExpressionNodeData::new_empty(id));
-        let tools = ExpressionNodeTools::new(id, self);
-        let node = Rc::new(ExpressionNodeWithId::new(
-            T::new(tools, args).map_err(|_| ExpressionError::BadNodeInit(id))?,
-            id,
-        ));
-        let node2 = Rc::clone(&node);
-        self.nodes.get_mut(&id).unwrap().set_instance(node);
-        Ok(ExpressionNodeHandle::new(node2))
     }
 
     pub(crate) fn remove_node(&mut self, node_id: ExpressionNodeId) -> Result<(), ExpressionError> {
-        if !self.nodes.contains_key(&node_id) {
-            return Err(ExpressionError::NodeNotFound(node_id));
-        }
-
-        // Does the node still own any inputs?
-        if self.node_inputs.values().any(|d| d.owner() == node_id) {
-            return Err(ExpressionError::BadNodeCleanup(node_id));
-        }
-        // Is anything connected to the node?
-        if self.destinations(node_id.into()).count() > 0 {
-            return Err(ExpressionError::BadNodeCleanup(node_id));
-        }
-
-        debug_assert!(self.nodes.get(&node_id).unwrap().inputs().is_empty());
+        self.disconnect_all_inputs_from(ExpressionTarget::Node(node_id));
 
         self.nodes.remove(&node_id);
 
         Ok(())
     }
 
-    pub(crate) fn connect_node_input(
-        &mut self,
-        input_id: ExpressionNodeInputId,
-        target: ExpressionTarget,
-    ) -> Result<(), ExpressionError> {
-        match target {
-            ExpressionTarget::Node(nsid) => {
-                if !self.nodes.contains_key(&nsid) {
-                    return Err(ExpressionError::NodeNotFound(nsid));
-                }
+    pub(crate) fn input_target(
+        &self,
+        input_location: ExpressionInputLocation,
+    ) -> Result<Option<ExpressionTarget>, ExpressionError> {
+        match input_location {
+            ExpressionInputLocation::NodeInput(node_id, input_id) => {
+                let node = self
+                    .node(node_id)
+                    .ok_or(ExpressionError::NodeNotFound(node_id))?;
+                node.with_input(input_id, |input| input.target())
+                    .ok_or(ExpressionError::NodeInputNotFound(node_id, input_id))
             }
-            ExpressionTarget::Parameter(giid) => {
-                if !self.parameters.contains(&giid) {
-                    return Err(ExpressionError::ParameterNotFound(giid));
-                }
+            ExpressionInputLocation::GraphResult(result_id) => {
+                let result = self
+                    .result(result_id)
+                    .ok_or(ExpressionError::ResultNotFound(result_id))?;
+                Ok(result.target())
             }
         }
-        let data = self
-            .node_inputs
-            .get_mut(&input_id)
-            .ok_or(ExpressionError::InputNotFound(input_id))?;
-        if let Some(current_target) = data.target() {
-            return Err(ExpressionError::InputOccupied {
-                input_id,
-                current_target,
-            });
-        }
-        data.set_target(Some(target));
-
-        Ok(())
     }
 
-    pub(crate) fn disconnect_node_input(
+    pub(crate) fn connect_input(
         &mut self,
-        input_id: ExpressionNodeInputId,
+        input_location: ExpressionInputLocation,
+        target: Option<ExpressionTarget>,
     ) -> Result<(), ExpressionError> {
-        let data = self
-            .node_inputs
-            .get_mut(&input_id)
-            .ok_or(ExpressionError::InputNotFound(input_id))?;
-        if data.target().is_none() {
-            return Err(ExpressionError::InputUnoccupied(input_id));
+        match input_location {
+            ExpressionInputLocation::NodeInput(node_id, input_id) => {
+                let node = self
+                    .node_mut(node_id)
+                    .ok_or(ExpressionError::NodeNotFound(node_id))?;
+                node.with_input_mut(input_id, |input| input.set_target(target))
+                    .ok_or(ExpressionError::NodeInputNotFound(node_id, input_id))
+            }
+            ExpressionInputLocation::GraphResult(result_id) => {
+                let result = self
+                    .result_mut(result_id)
+                    .ok_or(ExpressionError::ResultNotFound(result_id))?;
+                result.set_target(target);
+                Ok(())
+            }
         }
-        data.set_target(None);
-        Ok(())
     }
 
     pub(crate) fn add_parameter(&mut self) -> ExpressionGraphParameterId {
@@ -241,62 +175,48 @@ impl ExpressionGraph {
 
     pub(crate) fn remove_parameter(
         &mut self,
-        input_id: ExpressionGraphParameterId,
+        param_id: ExpressionGraphParameterId,
     ) -> Result<(), ExpressionError> {
-        if self.parameters.iter().filter(|x| **x == input_id).count() != 1 {
-            return Err(ExpressionError::ParameterNotFound(input_id));
+        if !self.parameters.iter().any(|x| *x == param_id) {
+            return Err(ExpressionError::ParameterNotFound(param_id));
         }
-        if self
-            .node_inputs
-            .values()
-            .any(|x| x.target() == Some(ExpressionTarget::Parameter(input_id)))
-        {
-            return Err(ExpressionError::BadParameterCleanup(input_id));
+        let param_target = ExpressionTarget::Parameter(param_id);
+        for node in self.nodes.values_mut() {
+            node.foreach_input_mut(|input, _| {
+                if input.target() == Some(param_target) {
+                    input.set_target(None);
+                }
+            });
         }
-        if self
-            .results
-            .iter()
-            .any(|x| x.target() == Some(ExpressionTarget::Parameter(input_id)))
-        {
-            return Err(ExpressionError::BadParameterCleanup(input_id));
+        for result in &mut self.results {
+            if result.target() == Some(param_target) {
+                result.set_target(None);
+            }
         }
 
-        self.parameters.retain(|x| *x != input_id);
+        self.parameters.retain(|x| *x != param_id);
         Ok(())
     }
 
-    pub(crate) fn add_result(&mut self, default_value: f32) -> ExpressionGraphResultId {
-        let id = ExpressionGraphResultId::new_unique();
-        let data = ExpressionGraphResultData::new(id, default_value);
-        self.results.push(data);
+    pub(crate) fn add_result(&mut self, default_value: f32) -> ExpressionInputId {
+        let result = ExpressionInput::new(default_value);
+        let id = result.id();
+        self.results.push(result);
         id
     }
 
     pub(crate) fn remove_result(
         &mut self,
-        output_id: ExpressionGraphResultId,
+        result_id: ExpressionInputId,
     ) -> Result<(), ExpressionError> {
-        if self.results.iter().filter(|x| x.id() == output_id).count() != 1 {
-            return Err(ExpressionError::BadResultCleanup(output_id));
-        }
-        if self
-            .results
-            .iter()
-            .filter(|x| x.id() == output_id)
-            .next()
-            .unwrap()
-            .target()
-            .is_some()
-        {
-            return Err(ExpressionError::BadResultCleanup(output_id));
-        }
-        self.results.retain(|x| x.id() != output_id);
+        self.results.retain(|x| x.id() != result_id);
         Ok(())
     }
 
+    // TODO: remove, merge with connect_input
     pub(crate) fn connect_result(
         &mut self,
-        output_id: ExpressionGraphResultId,
+        result_id: ExpressionInputId,
         target: ExpressionTarget,
     ) -> Result<(), ExpressionError> {
         match target {
@@ -314,57 +234,37 @@ impl ExpressionGraph {
         let data = self
             .results
             .iter_mut()
-            .filter(|x| x.id() == output_id)
+            .filter(|x| x.id() == result_id)
             .next()
-            .ok_or(ExpressionError::ResultNotFound(output_id))?;
-        if let Some(current_target) = data.target() {
-            return Err(ExpressionError::ResultOccupied {
-                result_id: output_id,
-                current_target,
-            });
-        }
+            .ok_or(ExpressionError::ResultNotFound(result_id))?;
         data.set_target(Some(target));
         Ok(())
     }
 
+    // TODO: remove
     pub(crate) fn disconnect_result(
         &mut self,
-        output_id: ExpressionGraphResultId,
+        result_id: ExpressionInputId,
     ) -> Result<(), ExpressionError> {
         let data = self
             .results
             .iter_mut()
-            .filter(|x| x.id() == output_id)
+            .filter(|x| x.id() == result_id)
             .next()
-            .ok_or(ExpressionError::ResultNotFound(output_id))?;
-        if data.target().is_none() {
-            return Err(ExpressionError::ResultUnoccupied(output_id));
-        }
+            .ok_or(ExpressionError::ResultNotFound(result_id))?;
         data.set_target(None);
         Ok(())
     }
 
     //-------------------------------------------
 
-    /// Create a ExpressionNodeTools instance for making
-    /// changes to a single expression node pass them to the
-    /// provided closure. The caller is assumed to already have
-    /// a handle to the expression node in question.
-    pub fn apply_expression_node_tools<F: FnOnce(ExpressionNodeTools)>(
-        &mut self,
-        node_id: ExpressionNodeId,
-        f: F,
-    ) -> Result<(), ExpressionError> {
-        let tools = ExpressionNodeTools::new(node_id, self);
-        f(tools);
-        Ok(())
-    }
-
     /// Helper method for editing the expression graph, detecting any errors,
     /// rolling back the changes if any errors were found, and otherwise
     /// keeping the change.
     pub fn try_make_change<R, F: FnOnce(&mut ExpressionGraph) -> Result<R, ExpressionError>>(
         &mut self,
+        stash: &Stash,
+        factory: &ExpressionObjectFactory,
         f: F,
     ) -> Result<R, ExpressionError> {
         if let Err(e) = self.validate() {
@@ -373,7 +273,7 @@ impl ExpressionGraph {
                 e
             );
         }
-        let previous_graph = self.clone();
+        let (previous_graph, _) = self.stash_clone(stash, factory).unwrap();
         let res = f(self);
         if res.is_err() {
             *self = previous_graph;
@@ -393,50 +293,75 @@ impl ExpressionGraph {
     }
 }
 
-pub fn clean_up_and_remove_expression_node(
-    graph: &mut ExpressionGraph,
-    id: ExpressionNodeId,
-) -> Result<(), ExpressionError> {
-    let mut inputs_to_remove = Vec::new();
-    let mut inputs_to_disconnect = Vec::new();
-    let mut results_to_disconnect = Vec::new();
+impl Stashable for ExpressionGraph {
+    fn stash(&self, stasher: &mut Stasher) {
+        // nodes
+        stasher.array_of_proxy_objects(
+            self.nodes.values(),
+            |node, stasher| {
+                // type name (needed for factory during unstashing)
+                stasher.string(node.as_graph_object().get_dynamic_type().name());
 
-    let node = graph.node(id).ok_or(ExpressionError::NodeNotFound(id))?;
+                // contents
+                stasher.object_proxy(|stasher| node.stash(stasher));
+            },
+            Order::Unordered,
+        );
 
-    for ni in node.inputs() {
-        inputs_to_remove.push(*ni);
-        if graph.node_input(*ni).unwrap().target().is_some() {
-            inputs_to_disconnect.push(*ni);
-        }
+        // parameters
+        stasher.array_of_u64_iter(self.parameters.iter().map(|i| i.value() as u64));
+
+        // results
+        stasher.array_of_objects_slice(&self.results, Order::Ordered);
+    }
+}
+
+// TODO: extend HashStash to allow some additional parameters during unstashing
+// so that its unstashing traits doen't need to be subverted like this
+impl ExpressionGraph {
+    pub(crate) fn unstash(
+        unstasher: &mut Unstasher,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<ExpressionGraph, UnstashError> {
+        let mut graph = ExpressionGraph::new();
+
+        // nodes
+        unstasher.array_of_proxy_objects(|unstasher| {
+            // type name
+            let type_name = unstasher.string()?;
+
+            let mut node = factory
+                .create(&type_name, &ParsedArguments::new_empty())
+                .into_boxed_expression_node()
+                .unwrap();
+
+            // contents
+            unstasher.object_proxy_inplace(|unstasher| node.unstash_inplace(unstasher))?;
+
+            graph.add_expression_node(node);
+
+            Ok(())
+        })?;
+
+        // parameters
+        graph.parameters = unstasher
+            .array_of_u64_iter()?
+            .map(|i| ExpressionGraphParameterId::new(i as _))
+            .collect();
+
+        // results
+        graph.results = unstasher.array_of_objects_vec()?;
+
+        Ok(graph)
     }
 
-    for ni in graph.node_inputs().values() {
-        if ni.target() == Some(ExpressionTarget::Node(id)) {
-            inputs_to_disconnect.push(ni.id());
-        }
+    pub(crate) fn stash_clone(
+        &self,
+        stash: &Stash,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<(ExpressionGraph, StashHandle<ExpressionGraph>), UnstashError> {
+        stash_clone_proxy(self, stash, |unstasher| {
+            ExpressionGraph::unstash(unstasher, factory)
+        })
     }
-
-    for go in graph.results() {
-        if go.target() == Some(ExpressionTarget::Node(id)) {
-            results_to_disconnect.push(go.id());
-        }
-    }
-
-    // ---
-
-    for ni in inputs_to_disconnect {
-        graph.disconnect_node_input(ni)?;
-    }
-
-    for go in results_to_disconnect {
-        graph.disconnect_result(go)?;
-    }
-
-    for ni in inputs_to_remove {
-        graph.remove_node_input(ni)?;
-    }
-
-    graph.remove_node(id)?;
-
-    Ok(())
 }

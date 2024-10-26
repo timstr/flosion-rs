@@ -6,6 +6,7 @@ use std::sync::{
 
 use crate::{
     core::{
+        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         resample::resample_interleave,
         samplefrequency::SAMPLE_FREQUENCY,
@@ -27,7 +28,7 @@ use cpal::{
     SampleRate, StreamConfig, StreamError,
 };
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
 use parking_lot::Mutex;
 
 pub struct OutputData {
@@ -118,6 +119,14 @@ impl SoundProcessor for Output {
             }
         }
         StreamStatus::Playing
+    }
+
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        _factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)
     }
 }
 
@@ -235,11 +244,5 @@ impl WithObjectType for Output {
 impl Stashable for Output {
     fn stash(&self, stasher: &mut Stasher) {
         stasher.object(&self.input);
-    }
-}
-
-impl UnstashableInplace for Output {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.input)
     }
 }

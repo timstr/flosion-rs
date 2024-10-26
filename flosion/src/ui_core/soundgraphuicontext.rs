@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::Stash;
 
 use crate::core::jit::cache::JitCache;
 
@@ -13,6 +14,7 @@ pub struct SoundGraphUiContext<'a, 'ctx> {
     group_origin: egui::Pos2,
     properties: &'a GraphProperties,
     jit_cache: &'a JitCache<'ctx>,
+    stash: &'a Stash,
 }
 
 impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
@@ -23,6 +25,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
         group_origin: egui::Pos2,
         properties: &'a GraphProperties,
         jit_cache: &'a JitCache<'ctx>,
+        stash: &'a Stash,
     ) -> SoundGraphUiContext<'a, 'ctx> {
         SoundGraphUiContext {
             factories,
@@ -31,6 +34,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
             group_origin,
             properties,
             jit_cache,
+            stash,
         }
     }
 
@@ -56,5 +60,9 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
 
     pub fn jit_cache(&self) -> &JitCache<'ctx> {
         self.jit_cache
+    }
+
+    pub fn stash(&self) -> &Stash {
+        self.stash
     }
 }

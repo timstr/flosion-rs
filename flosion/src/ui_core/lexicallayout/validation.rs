@@ -59,7 +59,7 @@ pub(super) fn lexical_layout_matches_expression_graph(
                 }
                 let ns_data = graph.node(nsid).unwrap();
                 let num_ast_children = inode.num_children();
-                let ns_inputs = ns_data.inputs();
+                let ns_inputs = ns_data.input_locations();
                 if ns_inputs.len() != num_ast_children {
                     println!(
                         "An internal ASTNode has a different number of inputs from \
@@ -69,14 +69,13 @@ pub(super) fn lexical_layout_matches_expression_graph(
                 }
                 for (i, ns_input) in ns_inputs.iter().cloned().enumerate() {
                     let ast_child = inode.get_child(i);
-                    let Some(ns_input) = graph.node_input(ns_input) else {
+                    let Ok(ns_input_target) = graph.input_target(ns_input) else {
                         println!(
                             "An internal ASTNode refers to expression node {} which doesn't exist",
                             nsid.value()
                         );
                         return false;
                     };
-                    let ns_input_target = ns_input.target();
                     if !ast_node_matches_graph(
                         ast_child,
                         variables_in_scope,
@@ -182,9 +181,8 @@ pub(super) fn lexical_layout_matches_expression_graph(
                 graph
                     .node(*nsid)
                     .unwrap()
-                    .instance_rc()
                     .as_graph_object()
-                    .get_type()
+                    .get_dynamic_type()
                     .name()
             );
             all_good = false;

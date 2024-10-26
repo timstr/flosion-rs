@@ -3,7 +3,7 @@ use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableI
 
 use crate::{
     core::{
-        expression::context::ExpressionContext,
+        expression::{context::ExpressionContext, expressionobject::ExpressionObjectFactory},
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
@@ -46,6 +46,16 @@ impl SoundProcessor for WriteWaveform {
 
         StreamStatus::Playing
     }
+
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        unstasher
+            .object_proxy_inplace(|unstasher| self.waveform.unstash_inplace(unstasher, factory))?;
+        Ok(())
+    }
 }
 
 impl WithObjectType for WriteWaveform {
@@ -55,11 +65,5 @@ impl WithObjectType for WriteWaveform {
 impl Stashable for WriteWaveform {
     fn stash(&self, stasher: &mut Stasher) {
         stasher.object(&self.waveform);
-    }
-}
-
-impl UnstashableInplace for WriteWaveform {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.waveform)
     }
 }

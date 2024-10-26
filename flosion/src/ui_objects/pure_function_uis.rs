@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeHandle},
+    core::expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeWithId},
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, ParsedArguments, StringIdentifierArgument},
@@ -21,17 +21,16 @@ impl ConstantUi {
 }
 
 impl ExpressionObjectUi for ConstantUi {
-    type HandleType = ExpressionNodeHandle<Constant>;
+    type ObjectType = ExpressionNodeWithId<Constant>;
     type StateType = ();
 
     fn ui(
         &self,
-        constant: ExpressionNodeHandle<Constant>,
+        constant: &mut ExpressionNodeWithId<Constant>,
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
         ctx: &ExpressionGraphUiContext,
         _state: &mut (),
-        _graph: &mut ExpressionGraph,
     ) {
         ExpressionNodeUi::new_named(
             constant.id(),
@@ -55,7 +54,7 @@ impl ExpressionObjectUi for ConstantUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: ParsedArguments) -> Result<(), ()> {
+    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
         Ok(())
     }
 }
@@ -87,16 +86,15 @@ impl Default for SliderUiState {
 }
 
 impl ExpressionObjectUi for SliderUi {
-    type HandleType = ExpressionNodeHandle<Variable>;
+    type ObjectType = ExpressionNodeWithId<Variable>;
     type StateType = SliderUiState;
     fn ui(
         &self,
-        variable: ExpressionNodeHandle<Variable>,
+        variable: &mut ExpressionNodeWithId<Variable>,
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
         state: &mut SliderUiState,
-        _graph: &mut ExpressionGraph,
     ) {
         ExpressionNodeUi::new_named(variable.id(), state.name.clone(), DisplayStyle::Framed)
             .show_with(ui, ctx, |ui| {
@@ -136,7 +134,7 @@ impl ExpressionObjectUi for SliderUi {
 
     fn make_ui_state(
         &self,
-        object: &ExpressionNodeHandle<Variable>,
+        object: &ExpressionNodeWithId<Variable>,
         args: ParsedArguments,
     ) -> Result<SliderUiState, ()> {
         let value = args.get(&Variable::ARG_VALUE);
@@ -180,16 +178,15 @@ macro_rules! unary_expression_node_ui {
         pub struct $name {}
 
         impl ExpressionObjectUi for $name {
-            type HandleType = ExpressionNodeHandle<$object>;
+            type ObjectType = ExpressionNodeWithId<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: ExpressionNodeHandle<$object>,
+                object: &mut ExpressionNodeWithId<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
                 _state: &mut (),
-                _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx);
@@ -205,7 +202,7 @@ macro_rules! unary_expression_node_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &ExpressionNodeHandle<$object>,
+                _object: &ExpressionNodeWithId<$object>,
                 _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())
@@ -220,16 +217,15 @@ macro_rules! binary_expression_node_ui {
         pub struct $name {}
 
         impl ExpressionObjectUi for $name {
-            type HandleType = ExpressionNodeHandle<$object>;
+            type ObjectType = ExpressionNodeWithId<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: ExpressionNodeHandle<$object>,
+                object: &mut ExpressionNodeWithId<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
                 _state: &mut (),
-                _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx);
@@ -245,7 +241,7 @@ macro_rules! binary_expression_node_ui {
 
             fn make_ui_state(
                 &self,
-                _object: &ExpressionNodeHandle<$object>,
+                _object: &ExpressionNodeWithId<$object>,
                 _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())
@@ -260,16 +256,15 @@ macro_rules! ternary_expression_node_ui {
         pub struct $name {}
 
         impl ExpressionObjectUi for $name {
-            type HandleType = ExpressionNodeHandle<$object>;
+            type ObjectType = ExpressionNodeWithId<$object>;
             type StateType = ();
             fn ui(
                 &self,
-                object: ExpressionNodeHandle<$object>,
+                object: &mut ExpressionNodeWithId<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
                 _state: &mut (),
-                _expr_graph: &mut ExpressionGraph,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx);
@@ -285,7 +280,7 @@ macro_rules! ternary_expression_node_ui {
 
             fn make_ui_state(
                 &self,
-                _handle: &Self::HandleType,
+                _object: &ExpressionNodeWithId<$object>,
                 _args: ParsedArguments,
             ) -> Result<(), ()> {
                 Ok(())

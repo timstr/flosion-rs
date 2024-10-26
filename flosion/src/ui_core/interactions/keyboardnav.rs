@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::Stash;
 
 use crate::{
     core::sound::{
@@ -133,6 +134,7 @@ impl KeyboardNavInteraction {
         positions: &SoundObjectPositions,
         expression_uis: &mut ExpressionUiCollection,
         factories: &Factories,
+        stash: &Stash,
         names: &SoundGraphUiNames,
         properties: &GraphProperties,
     ) {
@@ -323,6 +325,7 @@ impl KeyboardNavInteraction {
                                 expr_graph,
                                 factories.expression_objects(),
                                 factories.expression_uis(),
+                                stash,
                                 expr_ui_state.object_states_mut(),
                                 &mut outer_context.into(),
                             );

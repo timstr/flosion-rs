@@ -149,6 +149,7 @@ impl<'ctx> FlosionApp<'ctx> {
             &mut self.graph,
             &self.properties,
             &self.jit_cache,
+            &self.stash,
         );
 
         self.ui_state.interact_and_draw(
@@ -207,6 +208,7 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
                     &self.jit_cache,
                     &self.stash,
                     self.factories.sound_objects(),
+                    self.factories.expression_objects(),
                 )
                 .expect("Failed to update engine");
 

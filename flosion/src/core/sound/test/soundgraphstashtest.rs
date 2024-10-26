@@ -1,22 +1,29 @@
 use hashstash::{stash_clone, Stash};
 
 use crate::{
-    core::sound::{
-        soundgraph::SoundGraph,
-        soundinput::{BasicProcessorInput, InputOptions},
-        soundobject::SoundObjectFactory,
-        soundprocessor::{SoundProcessor, SoundProcessorWithId},
+    core::{
+        expression::expressionobject::ExpressionObjectFactory,
+        sound::{
+            soundgraph::SoundGraph,
+            soundinput::{BasicProcessorInput, InputOptions},
+            soundobject::SoundObjectFactory,
+            soundprocessor::{SoundProcessor, SoundProcessorWithId},
+        },
     },
     ui_core::arguments::ParsedArguments,
 };
 
 use super::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor};
 
-fn test_object_factory() -> SoundObjectFactory {
+fn test_sound_object_factory() -> SoundObjectFactory {
     let mut factory = SoundObjectFactory::new_empty();
     factory.register::<SoundProcessorWithId<TestStaticSoundProcessor>>();
     factory.register::<SoundProcessorWithId<TestDynamicSoundProcessor>>();
     factory
+}
+
+fn test_expression_object_factory() -> ExpressionObjectFactory {
+    ExpressionObjectFactory::new_empty()
 }
 
 #[test]
@@ -60,9 +67,12 @@ fn stash_clone_empty_graph() {
     let graph = SoundGraph::new();
 
     let stash = Stash::new();
-    let factory = test_object_factory();
+    let sound_object_factory = test_sound_object_factory();
+    let expr_object_factory = test_expression_object_factory();
 
-    let (new_graph, _) = graph.stash_clone(&stash, &factory).unwrap();
+    let (new_graph, _) = graph
+        .stash_clone(&stash, &sound_object_factory, &expr_object_factory)
+        .unwrap();
 
     assert!(new_graph.sound_processors().is_empty());
 }
@@ -87,9 +97,12 @@ fn stash_clone_graph_with_one_static_processor() {
     // ----------------------------------
 
     let stash = Stash::new();
-    let factory = test_object_factory();
+    let sound_object_factory = test_sound_object_factory();
+    let expr_obj_factory = test_expression_object_factory();
 
-    let (new_graph, _) = graph.stash_clone(&stash, &factory).unwrap();
+    let (new_graph, _) = graph
+        .stash_clone(&stash, &sound_object_factory, &expr_obj_factory)
+        .unwrap();
 
     // ----------------------------------
 
@@ -123,9 +136,12 @@ fn stash_clone_graph_with_one_dynamic_processor() {
     // ----------------------------------
 
     let stash = Stash::new();
-    let factory = test_object_factory();
+    let sound_object_factory = test_sound_object_factory();
+    let expr_object_factory = test_expression_object_factory();
 
-    let (new_graph, _) = graph.stash_clone(&stash, &factory).unwrap();
+    let (new_graph, _) = graph
+        .stash_clone(&stash, &sound_object_factory, &expr_object_factory)
+        .unwrap();
 
     // ----------------------------------
 

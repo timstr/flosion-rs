@@ -1,16 +1,15 @@
-use std::{any::Any, collections::HashMap, rc::Rc};
+use std::{any::Any, collections::HashMap};
 
 use crate::{core::objecttype::ObjectType, ui_core::arguments::ParsedArguments};
 
-use super::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeId};
+use super::expressionnode::{AnyExpressionNode, ExpressionNodeId};
 
 pub trait ExpressionObject {
-    fn create(
-        graph: &mut ExpressionGraph,
-        args: &ParsedArguments,
-    ) -> Result<AnyExpressionObjectHandle, ()>
+    fn create(args: &ParsedArguments) -> Self
     where
         Self: Sized;
+
+    fn id(&self) -> ExpressionNodeId;
 
     fn get_type() -> ObjectType
     where
@@ -18,53 +17,22 @@ pub trait ExpressionObject {
 
     fn get_dynamic_type(&self) -> ObjectType;
 
-    fn get_id(&self) -> ExpressionNodeId;
-    fn into_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn as_expression_node(&self) -> Option<&dyn AnyExpressionNode>;
+    fn into_boxed_expression_node(self: Box<Self>) -> Option<Box<dyn AnyExpressionNode>>;
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_mut_any(&mut self) -> &mut dyn Any;
+
+    // TODO: remove
     fn get_language_type_name(&self) -> &'static str;
 }
 
-// TODO: this is used exclusively for looking up expression node types from handles
-// and for downcasting type-erased handles. Rename it to something more suitable
-pub trait ExpressionObjectHandle: Sized {
-    // TODO: consider renaming this
-    type ObjectType: ExpressionObject;
-
-    fn from_graph_object(object: AnyExpressionObjectHandle) -> Option<Self>;
-
-    fn object_type() -> ObjectType;
-}
-
-#[derive(Clone)]
-pub struct AnyExpressionObjectHandle {
-    instance: Rc<dyn ExpressionObject>,
-}
-
-impl AnyExpressionObjectHandle {
-    pub(crate) fn new(instance: Rc<dyn ExpressionObject>) -> Self {
-        Self { instance }
-    }
-
-    pub(crate) fn id(&self) -> ExpressionNodeId {
-        self.instance.get_id()
-    }
-
-    pub(crate) fn get_type(&self) -> ObjectType {
-        self.instance.get_dynamic_type()
-    }
-
-    pub(crate) fn into_instance_rc(self) -> Rc<dyn ExpressionObject> {
-        self.instance
-    }
-}
-
-struct ExpressionObjectData {
-    create: Box<
-        dyn Fn(&mut ExpressionGraph, &ParsedArguments) -> Result<AnyExpressionObjectHandle, ()>,
-    >,
+struct ExpressionObjectCreator {
+    create: Box<dyn Fn(&ParsedArguments) -> Box<dyn ExpressionObject>>,
 }
 
 pub struct ExpressionObjectFactory {
-    mapping: HashMap<&'static str, ExpressionObjectData>,
+    mapping: HashMap<&'static str, ExpressionObjectCreator>,
 }
 
 impl ExpressionObjectFactory {
@@ -74,14 +42,11 @@ impl ExpressionObjectFactory {
         }
     }
 
-    pub fn register<T: ExpressionObject>(&mut self) {
-        let create = |g: &mut ExpressionGraph,
-                      args: &ParsedArguments|
-         -> Result<AnyExpressionObjectHandle, ()> { T::create(g, args) };
+    pub fn register<T: 'static + ExpressionObject>(&mut self) {
         self.mapping.insert(
             T::get_type().name(),
-            ExpressionObjectData {
-                create: Box::new(create),
+            ExpressionObjectCreator {
+                create: Box::new(|args| Box::new(T::create(args))),
             },
         );
     }
@@ -89,11 +54,10 @@ impl ExpressionObjectFactory {
     pub(crate) fn create(
         &self,
         object_type_str: &str,
-        graph: &mut ExpressionGraph,
         args: &ParsedArguments,
-    ) -> Result<AnyExpressionObjectHandle, ()> {
+    ) -> Box<dyn ExpressionObject> {
         match self.mapping.get(object_type_str) {
-            Some(data) => (*data.create)(graph, args),
+            Some(data) => (*data.create)(args),
             None => panic!(
                 "Tried to create an expression object of unrecognized type \"{}\"",
                 object_type_str

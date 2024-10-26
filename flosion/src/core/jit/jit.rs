@@ -16,7 +16,7 @@ use crate::core::{
     engine::garbage::Droppable,
     expression::{
         expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
-        expressionnode::ExpressionNodeId, expressionnodeinput::ExpressionNodeInputId,
+        expressionnode::ExpressionNodeId,
     },
     sound::{
         argument::ProcessorArgumentId, expression::ExpressionParameterMapping,
@@ -358,21 +358,6 @@ impl<'ctx> Jit<'ctx> {
         )
     }
 
-    fn visit_input(
-        &mut self,
-        input_id: ExpressionNodeInputId,
-        graph: &ExpressionGraph,
-    ) -> FloatValue<'ctx> {
-        let input_data = graph.node_input(input_id).unwrap();
-        match input_data.target() {
-            Some(target) => self.visit_target(target, graph),
-            None => self
-                .types
-                .f32_type
-                .const_float(input_data.default_value().into()),
-        }
-    }
-
     pub(super) fn assign_target(&mut self, target: ExpressionTarget, value: FloatValue<'ctx>) {
         self.compiled_targets.insert(target, value);
     }
@@ -388,15 +373,20 @@ impl<'ctx> Jit<'ctx> {
         match target {
             ExpressionTarget::Node(expr_node_id) => {
                 let expr_node_data = graph.node(expr_node_id).unwrap();
-                let expr = expr_node_data.instance();
 
-                let input_values: Vec<_> = expr_node_data
-                    .inputs()
-                    .iter()
-                    .map(|niid| self.visit_input(*niid, graph))
-                    .collect();
+                let mut input_values = Vec::new();
+                expr_node_data.foreach_input(|input, _| {
+                    let input_value = match input.target() {
+                        Some(target) => self.visit_target(target, graph),
+                        None => self
+                            .types
+                            .f32_type
+                            .const_float(input.default_value().into()),
+                    };
+                    input_values.push(input_value);
+                });
 
-                let num_variables = expr.num_variables();
+                let num_variables = expr_node_data.num_variables();
 
                 let base_state_index = self.num_state_variables;
 
@@ -431,7 +421,7 @@ impl<'ctx> Jit<'ctx> {
                     })
                     .collect();
 
-                let v = expr.compile(self, &input_values, &state_ptrs);
+                let v = expr_node_data.compile(self, &input_values, &state_ptrs);
 
                 self.compiled_targets
                     .insert(ExpressionTarget::Node(expr_node_id), v);

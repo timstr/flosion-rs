@@ -1,10 +1,15 @@
 use std::collections::{HashMap, HashSet};
 
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{
+    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace,
+};
 
 use crate::core::{
     engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
-    expression::expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+    expression::{
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+        expressionobject::ExpressionObjectFactory,
+    },
     uniqueid::UniqueId,
 };
 
@@ -127,6 +132,46 @@ impl ExpressionParameterMapping {
     }
 }
 
+impl Stashable for ExpressionParameterMapping {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_proxy_objects(
+            self.mapping.iter(),
+            |(param_id, arg_loc), stasher| {
+                stasher.u64(param_id.value() as _);
+                stasher.u64(arg_loc.processor().value() as _);
+                stasher.u64(arg_loc.argument().value() as _);
+            },
+            hashstash::Order::Unordered,
+        );
+    }
+}
+
+impl UnstashableInplace for ExpressionParameterMapping {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        let time_to_write = unstasher.time_to_write();
+
+        if time_to_write {
+            self.mapping.clear();
+        }
+
+        unstasher.array_of_proxy_objects(|unstasher| {
+            let param_id = ExpressionGraphParameterId::new(unstasher.u64()? as _);
+            let arg_loc = ProcessorArgumentLocation::new(
+                SoundProcessorId::new(unstasher.u64()? as _),
+                ProcessorArgumentId::new(unstasher.u64()? as _),
+            );
+
+            if time_to_write {
+                self.mapping.insert(param_id, arg_loc);
+            }
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
 // TODO: make this shared by sound inputs too, and more ergonomic / self-enforcing
 #[derive(Clone)]
 pub struct SoundExpressionScope {
@@ -148,6 +193,24 @@ impl SoundExpressionScope {
 
     pub(crate) fn available_local_arguments(&self) -> &[ProcessorArgumentId] {
         &self.available_arguments
+    }
+}
+
+impl Stashable for SoundExpressionScope {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_u64_iter(self.available_arguments.iter().map(|i| i.value() as u64));
+    }
+}
+
+impl UnstashableInplace for SoundExpressionScope {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        let ids = unstasher.array_of_u64_iter()?;
+
+        if unstasher.time_to_write() {
+            self.available_arguments = ids.map(|i| ProcessorArgumentId::new(i as _)).collect();
+        }
+
+        Ok(())
     }
 }
 
@@ -250,13 +313,34 @@ impl ProcessorComponent for ProcessorExpression {
 
 impl Stashable for ProcessorExpression {
     fn stash(&self, stasher: &mut Stasher) {
-        println!("TODO: stash expressions");
+        stasher.u64(self.id.value() as _);
+        stasher.object(&self.param_mapping);
+        stasher.object(&self.expression_graph);
+        stasher.object(&self.scope);
     }
 }
 
-impl UnstashableInplace for ProcessorExpression {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        println!("TODO: unstash expressions");
+// TODO: allow passing extra context with HashStash trait
+impl ProcessorExpression {
+    pub(crate) fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        expr_obj_factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        let id = ProcessorExpressionId::new(unstasher.u64_always()? as _);
+        if unstasher.time_to_write() {
+            self.id = id;
+        }
+        unstasher.object_inplace(&mut self.param_mapping)?;
+
+        // uhhhhhh
+        let new_graph = unstasher
+            .object_proxy(|unstasher| ExpressionGraph::unstash(unstasher, expr_obj_factory))?;
+        if unstasher.time_to_write() {
+            self.expression_graph = new_graph;
+        }
+
+        unstasher.object_inplace(&mut self.scope)?;
         Ok(())
     }
 }

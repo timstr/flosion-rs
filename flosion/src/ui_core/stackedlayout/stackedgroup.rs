@@ -1,7 +1,7 @@
 use std::ops::BitAnd;
 
 use eframe::egui::{self};
-use hashstash::{Stashable, Stasher};
+use hashstash::{Stash, Stashable, Stasher};
 
 use crate::{
     core::{
@@ -184,6 +184,7 @@ impl StackedGroup {
         ui_state: &mut SoundGraphUiState,
         graph: &mut SoundGraph,
         jit_cache: &JitCache,
+        stash: &Stash,
         properties: &GraphProperties,
     ) {
         // For a unique id for egui, hash the processor ids in the group
@@ -259,6 +260,7 @@ impl StackedGroup {
                                 group_origin,
                                 properties,
                                 jit_cache,
+                                stash,
                             );
 
                             show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
