@@ -2,7 +2,10 @@ use hashstash::{
     InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
 };
 
-use crate::core::{expression::expressiongraph::ExpressionGraphParameterId, uniqueid::UniqueId};
+use crate::core::{
+    expression::expressiongraph::ExpressionGraphParameterId, stashing::StashingContext,
+    uniqueid::UniqueId,
+};
 
 use super::{expressiongraphdata::ExpressionTarget, expressionnode::ExpressionNodeId};
 
@@ -49,7 +52,9 @@ impl ExpressionInput {
 }
 
 impl Stashable for ExpressionInput {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
         match self.target {
             None => {

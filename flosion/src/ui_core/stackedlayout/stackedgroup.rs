@@ -10,6 +10,7 @@ use crate::{
             soundgraph::SoundGraph, soundinput::InputOptions, soundobject::SoundGraphObject,
             soundprocessor::SoundProcessorId,
         },
+        stashing::StashingContext,
     },
     ui_core::{
         flosion_ui::Factories, graph_properties::GraphProperties,
@@ -735,7 +736,9 @@ impl StackedGroup {
 }
 
 impl Stashable for StackedGroup {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u32(self.width_pixels.to_bits());
         stasher.u32(self.time_axis.time_per_x_pixel.to_bits());
         stasher.array_of_u64_iter(self.processors.iter().map(|p| p.value() as u64));

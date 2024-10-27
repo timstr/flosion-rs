@@ -16,6 +16,7 @@ use crate::{
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -80,7 +81,9 @@ impl WithObjectType for Definitions {
 }
 
 impl Stashable for Definitions {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.sound_input);
         stasher.object(&self.expression);
         stasher.object(&self.argument);

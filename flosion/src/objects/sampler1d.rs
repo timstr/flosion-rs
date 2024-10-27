@@ -15,6 +15,7 @@ use crate::{
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -306,11 +307,18 @@ impl ExpressionNode for Sampler1d {
 }
 
 impl Stashable for Sampler1d {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
-        // TODO: how should changes to this NOT trigger a recompilation?
-        let reader = self.value.read();
-        stasher.array_of_f32_slice(&reader);
+
+        // If only checking for changes that require recompilation,
+        // ignore the value of the atomicslice because it will update
+        // itself on the audio thread.
+        if !stasher.context().checking_recompilation() {
+            let reader = self.value.read();
+            stasher.array_of_f32_slice(&reader);
+        }
     }
 }
 

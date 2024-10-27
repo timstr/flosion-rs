@@ -10,6 +10,7 @@ use crate::{
             soundgraph::SoundGraph, soundinput::SoundInputLocation,
             soundobject::SoundObjectFactory, soundprocessor::SoundProcessorId,
         },
+        stashing::StashingContext,
     },
     ui_core::{
         flosion_ui::Factories, soundobjectpositions::SoundObjectPositions,
@@ -61,7 +62,9 @@ impl DragDropSubject {
 }
 
 impl Stashable for DragDropSubject {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         match self {
             DragDropSubject::Processor(spid) => {
                 stasher.u8(0);
@@ -339,7 +342,9 @@ fn drag_and_drop_in_layout(
 struct AvailableDropSites<'a>(&'a [DragDropSubject]);
 
 impl<'a> Stashable for AvailableDropSites<'a> {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(self.0, Order::Unordered);
     }
 }
@@ -350,7 +355,9 @@ impl<'a> Stashable for AvailableDropSites<'a> {
 struct StackedLayoutWrapper<'a>(&'a StackedLayout);
 
 impl<'a> Stashable for StackedLayoutWrapper<'a> {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_proxy_objects(
             self.0.groups().iter(),
             |group, stasher| {
@@ -438,7 +445,7 @@ impl DragInteraction {
     ) {
         // Ensure that the legal connections are up to date, since these are used
         // to highlight legal/illegal interconnects to drop onto
-        self.legal_drop_sites.refresh4(
+        self.legal_drop_sites.refresh4_with_context(
             |a, b, c, d| {
                 compute_legal_drop_sites(
                     a,
@@ -454,6 +461,7 @@ impl DragInteraction {
             &StackedLayoutWrapper(layout),
             self.subject,
             AvailableDropSites(positions.drag_drop_subjects().values()),
+            &StashingContext::new_stashing_normally(),
         );
         let site_is_legal = |s: &DragDropSubject| -> bool {
             self.legal_drop_sites.get_cached().unwrap().get(s).cloned()

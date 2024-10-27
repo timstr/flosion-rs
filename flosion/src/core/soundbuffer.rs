@@ -1,6 +1,9 @@
 use hashstash::{Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
-use super::soundchunk::{SoundChunk, CHUNK_SIZE};
+use super::{
+    soundchunk::{SoundChunk, CHUNK_SIZE},
+    stashing::StashingContext,
+};
 
 pub struct SoundBuffer {
     chunks: Vec<SoundChunk>,
@@ -91,7 +94,8 @@ impl SoundBuffer {
 }
 
 impl Stashable for SoundBuffer {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_f32_iter(self.samples().flatten());
     }
 }

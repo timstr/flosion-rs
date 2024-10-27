@@ -7,6 +7,7 @@ use crate::{
     core::{
         jit::cache::JitCache,
         sound::{soundgraph::SoundGraph, soundprocessor::SoundProcessorId},
+        stashing::StashingContext,
     },
     ui_core::{
         flosion_ui::Factories, graph_properties::GraphProperties,
@@ -526,7 +527,9 @@ impl StackedLayout {
 }
 
 impl Stashable for StackedLayout {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(&self.groups, hashstash::Order::Unordered);
     }
 }

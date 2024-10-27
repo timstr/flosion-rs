@@ -10,4 +10,5 @@ pub mod samplefrequency;
 pub mod soundbuffer;
 pub mod soundchunk;
 // pub mod timepoint;
+pub mod stashing;
 pub(crate) mod uniqueid;

@@ -11,6 +11,7 @@ use crate::{
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -57,5 +58,7 @@ impl WithObjectType for WhiteNoise {
 }
 
 impl Stashable for WhiteNoise {
-    fn stash(&self, _stasher: &mut Stasher) {}
+    type Context = StashingContext;
+
+    fn stash(&self, _stasher: &mut Stasher<StashingContext>) {}
 }

@@ -17,6 +17,7 @@ use crate::{
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -293,7 +294,9 @@ impl WithObjectType for ADSR {
 }
 
 impl Stashable for ADSR {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
         stasher.object(&self.attack_time);
         stasher.object(&self.decay_time);

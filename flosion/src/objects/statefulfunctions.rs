@@ -12,6 +12,7 @@ use crate::{
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -128,7 +129,9 @@ impl ExpressionNode for LinearApproach {
 }
 
 impl Stashable for LinearApproach {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
         stasher.object(&self.speed);
     }
@@ -246,7 +249,9 @@ impl ExpressionNode for ExponentialApproach {
 }
 
 impl Stashable for ExponentialApproach {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
         stasher.object(&self.decay_rate);
     }
@@ -326,7 +331,9 @@ impl ExpressionNode for Integrator {
 }
 
 impl Stashable for Integrator {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
     }
 }
@@ -409,7 +416,9 @@ impl ExpressionNode for WrappingIntegrator {
 }
 
 impl Stashable for WrappingIntegrator {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
     }
 }

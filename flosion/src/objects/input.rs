@@ -21,6 +21,7 @@ use crate::{
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -181,7 +182,9 @@ impl WithObjectType for Input {
 }
 
 impl Stashable for Input {
-    fn stash(&self, _stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         // TODO: once different options are supported (e.g. which device?),
         // stash those
     }

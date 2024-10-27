@@ -19,6 +19,7 @@ use crate::{
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -242,7 +243,9 @@ impl WithObjectType for Output {
 }
 
 impl Stashable for Output {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
     }
 }

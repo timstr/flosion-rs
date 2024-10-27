@@ -1,4 +1,4 @@
-use hashstash::{stash_clone, Stash};
+use hashstash::{stash_clone, stash_clone_with_context, Stash};
 
 use crate::{
     core::{
@@ -9,6 +9,7 @@ use crate::{
             soundobject::SoundObjectFactory,
             soundprocessor::{SoundProcessor, SoundProcessorWithId},
         },
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -32,7 +33,9 @@ fn stash_clone_basic_input() {
 
     let stash = Stash::new();
 
-    let (new_input, _) = stash_clone(&input, &stash).unwrap();
+    let (new_input, _) =
+        stash_clone_with_context(&input, &stash, &StashingContext::new_stashing_normally())
+            .unwrap();
 
     assert_eq!(input, new_input);
 }
@@ -47,7 +50,7 @@ fn stash_clone_test_static_processor() {
 
     let stash = Stash::new();
 
-    let stash_handle = stash.stash(&proc);
+    let stash_handle = stash.stash_with_context(&proc, &StashingContext::new_stashing_normally());
 
     // ----------------------------------
 

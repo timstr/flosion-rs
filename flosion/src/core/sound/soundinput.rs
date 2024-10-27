@@ -9,6 +9,7 @@ use crate::core::{
     },
     jit::argumentstack::ArgumentStackView,
     soundchunk::CHUNK_SIZE,
+    stashing::StashingContext,
     uniqueid::UniqueId,
 };
 
@@ -218,7 +219,9 @@ impl BasicProcessorInput {
 }
 
 impl Stashable for BasicProcessorInput {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
         stasher.u8(match self.options {
             InputOptions::Synchronous => 0,

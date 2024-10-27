@@ -9,6 +9,7 @@ use crate::{
         expression::expressionobject::ExpressionObjectFactory,
         jit::cache::JitCache,
         sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
+        stashing::StashingContext,
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
 };
@@ -167,7 +168,10 @@ impl<'ctx> FlosionApp<'ctx> {
 
         self.jit_cache.refresh(&self.graph);
 
-        let current_revision = ObjectHash::from_stashable(&self.graph);
+        let current_revision = ObjectHash::from_stashable_and_context(
+            &self.graph,
+            &StashingContext::new_checking_recompilation(),
+        );
 
         if self.previous_clean_revision != Some(current_revision) {
             self.graph_layout

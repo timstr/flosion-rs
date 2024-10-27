@@ -25,6 +25,7 @@ use crate::{
             },
         },
         soundchunk::SoundChunk,
+        stashing::StashingContext,
     },
     objects::purefunctions::*,
     ui_core::arguments::ParsedArguments,
@@ -78,7 +79,9 @@ impl WithObjectType for TestSoundProcessor {
 }
 
 impl Stashable for TestSoundProcessor {
-    fn stash(&self, _stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, _stasher: &mut Stasher<StashingContext>) {
         panic!("Unused")
     }
 }
@@ -106,7 +109,7 @@ macro_rules! assert_near {
 
 fn do_expression_test<T, F>(input_ranges: &[(f32, f32)], test_function: F)
 where
-    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
     F: Fn(&[f32]) -> f32,
 {
     let mut proc = SoundProcessorWithId::<TestSoundProcessor>::new_default();
@@ -236,7 +239,7 @@ where
 
 fn do_expression_test_unary<T>(input_range: (f32, f32), test_function: fn(f32) -> f32)
 where
-    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
 {
     do_expression_test::<T, _>(&[input_range], |inputs| test_function(inputs[0]))
 }
@@ -246,7 +249,7 @@ fn do_expression_test_binary<T>(
     input1_range: (f32, f32),
     test_function: fn(f32, f32) -> f32,
 ) where
-    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
 {
     do_expression_test::<T, _>(&[input0_range, input1_range], |inputs| {
         test_function(inputs[0], inputs[1])
@@ -259,7 +262,7 @@ fn do_expression_test_ternary<T>(
     input2_range: (f32, f32),
     test_function: fn(f32, f32, f32) -> f32,
 ) where
-    T: 'static + PureExpressionNode + Stashable + UnstashableInplace,
+    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
 {
     do_expression_test::<T, _>(&[input0_range, input1_range, input2_range], |inputs| {
         test_function(inputs[0], inputs[1], inputs[2])

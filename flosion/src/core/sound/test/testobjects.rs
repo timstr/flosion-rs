@@ -3,6 +3,7 @@ use hashstash::{InplaceUnstasher, Order, Stashable, Stasher, UnstashError, Unsta
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
+        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
@@ -13,6 +14,7 @@ use crate::{
             },
         },
         soundchunk::SoundChunk,
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -38,6 +40,14 @@ impl SoundProcessor for TestStaticSoundProcessor {
         context: &mut Context,
     ) -> StreamStatus {
         StreamStatus::Done
+    }
+
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        todo!()
     }
 }
 
@@ -74,7 +84,9 @@ impl WithObjectType for TestStaticSoundProcessor {
 }
 
 impl Stashable for TestStaticSoundProcessor {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(&self.inputs, Order::Ordered);
     }
 }
@@ -106,6 +118,14 @@ impl SoundProcessor for TestDynamicSoundProcessor {
         context: &mut Context,
     ) -> StreamStatus {
         StreamStatus::Done
+    }
+
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher,
+        factory: &ExpressionObjectFactory,
+    ) -> Result<(), UnstashError> {
+        todo!()
     }
 }
 
@@ -142,7 +162,9 @@ impl WithObjectType for TestDynamicSoundProcessor {
 }
 
 impl Stashable for TestDynamicSoundProcessor {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(&self.inputs, Order::Ordered);
     }
 }

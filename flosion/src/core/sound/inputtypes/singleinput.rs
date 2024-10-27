@@ -12,6 +12,7 @@ use crate::core::{
         },
     },
     soundchunk::SoundChunk,
+    stashing::StashingContext,
 };
 
 pub struct SingleInput {
@@ -51,7 +52,9 @@ impl ProcessorComponent for SingleInput {
 }
 
 impl Stashable for SingleInput {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
     }
 }

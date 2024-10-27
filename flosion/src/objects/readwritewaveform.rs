@@ -16,6 +16,7 @@ use crate::{
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -84,7 +85,9 @@ impl WithObjectType for ReadWriteWaveform {
 }
 
 impl Stashable for ReadWriteWaveform {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.sound_input);
         stasher.object(&self.waveform);
         stasher.object(&self.input_l);

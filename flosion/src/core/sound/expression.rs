@@ -10,6 +10,7 @@ use crate::core::{
         expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
         expressionobject::ExpressionObjectFactory,
     },
+    stashing::StashingContext,
     uniqueid::UniqueId,
 };
 
@@ -133,7 +134,9 @@ impl ExpressionParameterMapping {
 }
 
 impl Stashable for ExpressionParameterMapping {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_proxy_objects(
             self.mapping.iter(),
             |(param_id, arg_loc), stasher| {
@@ -197,7 +200,9 @@ impl SoundExpressionScope {
 }
 
 impl Stashable for SoundExpressionScope {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_u64_iter(self.available_arguments.iter().map(|i| i.value() as u64));
     }
 }
@@ -312,7 +317,9 @@ impl ProcessorComponent for ProcessorExpression {
 }
 
 impl Stashable for ProcessorExpression {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
         stasher.object(&self.param_mapping);
         stasher.object(&self.expression_graph);

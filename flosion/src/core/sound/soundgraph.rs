@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
-use hashstash::{stash_clone_proxy, Order, Stash, StashHandle, Stashable, UnstashError, Unstasher};
+use hashstash::{
+    stash_clone_proxy_with_context, Order, Stash, StashHandle, Stashable, Stasher, UnstashError,
+    Unstasher,
+};
 
 use crate::{
-    core::expression::expressionobject::ExpressionObjectFactory,
+    core::{expression::expressionobject::ExpressionObjectFactory, stashing::StashingContext},
     ui_core::arguments::ParsedArguments,
 };
 
@@ -232,7 +235,9 @@ impl SoundGraph {
 }
 
 impl Stashable for SoundGraph {
-    fn stash(&self, stasher: &mut hashstash::Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_proxy_objects(
             self.sound_processors.values(),
             |processor, stasher| {
@@ -282,8 +287,11 @@ impl SoundGraph {
         sound_object_factory: &SoundObjectFactory,
         expr_object_factory: &ExpressionObjectFactory,
     ) -> Result<(SoundGraph, StashHandle<SoundGraph>), UnstashError> {
-        stash_clone_proxy(self, stash, |unstasher| {
-            SoundGraph::unstash(unstasher, sound_object_factory, expr_object_factory)
-        })
+        stash_clone_proxy_with_context(
+            self,
+            stash,
+            |unstasher| SoundGraph::unstash(unstasher, sound_object_factory, expr_object_factory),
+            &StashingContext::new_stashing_normally(),
+        )
     }
 }

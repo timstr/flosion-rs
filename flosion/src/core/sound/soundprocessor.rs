@@ -16,6 +16,7 @@ use crate::{
         expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         soundchunk::SoundChunk,
+        stashing::StashingContext,
         uniqueid::UniqueId,
     },
     ui_core::arguments::ParsedArguments,
@@ -178,7 +179,7 @@ pub(crate) trait AnySoundProcessor {
         compiler: &mut SoundGraphCompiler<'a, 'ctx>,
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>;
 
-    fn stash(&self, stasher: &mut Stasher);
+    fn stash(&self, stasher: &mut Stasher<StashingContext>);
     fn unstash_inplace(
         &mut self,
         unstasher: &mut InplaceUnstasher,
@@ -188,7 +189,7 @@ pub(crate) trait AnySoundProcessor {
 
 impl<T> AnySoundProcessor for SoundProcessorWithId<T>
 where
-    T: 'static + SoundProcessor + WithObjectType + Stashable, /*+ UnstashableInplace*/
+    T: 'static + SoundProcessor + WithObjectType + Stashable<Context = StashingContext>, /*+ UnstashableInplace*/
 {
     fn id(&self) -> SoundProcessorId {
         self.id
@@ -241,7 +242,7 @@ where
         Box::new(data)
     }
 
-    fn stash(&self, stasher: &mut Stasher) {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         // id
         stasher.u64(self.id.value() as _);
 
@@ -564,7 +565,7 @@ impl ProcessorTiming {
 
 impl<T> SoundGraphObject for SoundProcessorWithId<T>
 where
-    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable, /*+ UnstashableInplace*/
+    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable<Context = StashingContext>, /*+ UnstashableInplace*/
 {
     fn create(args: &ParsedArguments) -> SoundProcessorWithId<T> {
         SoundProcessorWithId::new_from_args(args)

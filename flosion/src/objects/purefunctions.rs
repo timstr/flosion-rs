@@ -1,11 +1,12 @@
 use crate::{
     core::{
         expression::{
-            expressionnode::{ExpressionNodeVisitor, ExpressionNodeVisitorMut, PureExpressionNode},
             expressioninput::ExpressionInput,
+            expressionnode::{ExpressionNodeVisitor, ExpressionNodeVisitorMut, PureExpressionNode},
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
+        stashing::StashingContext,
     },
     ui_core::arguments::{FloatArgument, ParsedArguments},
 };
@@ -42,8 +43,9 @@ impl PureExpressionNode for Constant {
 }
 
 impl Stashable for Constant {
-    fn stash(&self, stasher: &mut hashstash::Stasher) {
-        // TODO: how should changes to this trigger a recompilation?
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.f32(self.value);
     }
 }
@@ -95,9 +97,15 @@ impl PureExpressionNode for Variable {
 }
 
 impl Stashable for Variable {
-    fn stash(&self, stasher: &mut hashstash::Stasher) {
-        // TODO: how should changes to this NOT trigger a recompilation?
-        stasher.f32(self.value.load(Ordering::SeqCst));
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        // If only checking for changes that require recompilation,
+        // ignore the value of the atomic because it will update
+        // itself on the audio thread.
+        if !stasher.context().checking_recompilation() {
+            stasher.f32(self.value.load(Ordering::SeqCst));
+        }
     }
 }
 
@@ -200,7 +208,9 @@ macro_rules! unary_expression_node {
         }
 
         impl Stashable for $name {
-            fn stash(&self, stasher: &mut Stasher) {
+            type Context = StashingContext;
+
+            fn stash(&self, stasher: &mut Stasher<StashingContext>) {
                 stasher.object(&self.input);
             }
         }
@@ -257,7 +267,9 @@ macro_rules! binary_expression_node {
         }
 
         impl Stashable for $name {
-            fn stash(&self, stasher: &mut Stasher) {
+            type Context = StashingContext;
+
+            fn stash(&self, stasher: &mut Stasher<StashingContext>) {
                 stasher.object(&self.input_1);
                 stasher.object(&self.input_2);
             }
@@ -320,7 +332,9 @@ macro_rules! ternary_expression_node {
         }
 
         impl Stashable for $name {
-            fn stash(&self, stasher: &mut Stasher) {
+            type Context = StashingContext;
+
+            fn stash(&self, stasher: &mut Stasher<StashingContext>) {
                 stasher.object(&self.input_1);
                 stasher.object(&self.input_2);
                 stasher.object(&self.input_3);

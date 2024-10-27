@@ -17,6 +17,7 @@ use crate::{
         },
         soundbuffer::SoundBuffer,
         soundchunk::{SoundChunk, CHUNK_SIZE},
+        stashing::StashingContext,
     },
     ui_core::arguments::{FilePathArgument, ParsedArguments},
 };
@@ -136,7 +137,9 @@ impl WithObjectType for AudioClip {
 }
 
 impl Stashable for AudioClip {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         let buffer = self.data.lock();
         let buffer: &HashCache<SoundBuffer> = &buffer;
         stasher.object(buffer);

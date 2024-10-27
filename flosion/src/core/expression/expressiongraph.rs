@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
 use hashstash::{
-    stash_clone_proxy, Order, Stash, StashHandle, Stashable, Stasher, UnstashError, Unstasher,
+    stash_clone_proxy, stash_clone_proxy_with_context, Order, Stash, StashHandle, Stashable,
+    Stasher, UnstashError, Unstasher,
 };
 
 use crate::{
-    core::{expression::expressiongraphvalidation::find_expression_error, uniqueid::UniqueId},
+    core::{
+        expression::expressiongraphvalidation::find_expression_error, stashing::StashingContext,
+        uniqueid::UniqueId,
+    },
     ui_core::arguments::ParsedArguments,
 };
 
@@ -294,7 +298,9 @@ impl ExpressionGraph {
 }
 
 impl Stashable for ExpressionGraph {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         // nodes
         stasher.array_of_proxy_objects(
             self.nodes.values(),
@@ -360,8 +366,11 @@ impl ExpressionGraph {
         stash: &Stash,
         factory: &ExpressionObjectFactory,
     ) -> Result<(ExpressionGraph, StashHandle<ExpressionGraph>), UnstashError> {
-        stash_clone_proxy(self, stash, |unstasher| {
-            ExpressionGraph::unstash(unstasher, factory)
-        })
+        stash_clone_proxy_with_context(
+            self,
+            stash,
+            |unstasher| ExpressionGraph::unstash(unstasher, factory),
+            &StashingContext::new_stashing_normally(),
+        )
     }
 }

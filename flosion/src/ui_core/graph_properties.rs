@@ -2,9 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use hashstash::HashCacheProperty;
 
-use crate::core::sound::{
-    expression::ProcessorExpressionLocation, argument::ProcessorArgumentLocation,
-    soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
+use crate::core::{
+    sound::{
+        argument::ProcessorArgumentLocation, expression::ProcessorExpressionLocation,
+        soundgraph::SoundGraph, soundgraphvalidation::available_sound_expression_arguments,
+    },
+    stashing::StashingContext,
 };
 
 pub(crate) struct GraphProperties {
@@ -29,7 +32,10 @@ impl GraphProperties {
     }
 
     pub(crate) fn refresh(&mut self, graph: &SoundGraph) {
-        self.available_arguments
-            .refresh1(available_sound_expression_arguments, graph);
+        self.available_arguments.refresh1_with_context(
+            available_sound_expression_arguments,
+            graph,
+            &StashingContext::new_checking_recompilation(),
+        );
     }
 }

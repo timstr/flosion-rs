@@ -1,8 +1,11 @@
 use hashstash::{Stashable, Stasher};
 
-use crate::core::sound::{
-    soundinput::{BasicProcessorInput, InputOptions, SoundInputLocation},
-    soundprocessor::{AnySoundProcessor, SoundProcessorId},
+use crate::core::{
+    sound::{
+        soundinput::{BasicProcessorInput, InputOptions, SoundInputLocation},
+        soundprocessor::{AnySoundProcessor, SoundProcessorId},
+    },
+    stashing::StashingContext,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -21,7 +24,9 @@ impl ProcessorPlug {
 }
 
 impl Stashable for ProcessorPlug {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.processor.value() as _);
         stasher.bool(self.is_static);
     }
@@ -48,7 +53,9 @@ impl InputSocket {
 }
 
 impl Stashable for InputSocket {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.location.processor().value() as _);
         stasher.u64(self.location.input().value() as _);
         stasher.u8(match self.options {

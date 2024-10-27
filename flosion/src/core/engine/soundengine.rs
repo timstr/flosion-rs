@@ -23,6 +23,7 @@ use crate::core::{
     samplefrequency::SAMPLE_FREQUENCY,
     sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
     soundchunk::CHUNK_SIZE,
+    stashing::StashingContext,
 };
 
 /// A thread-safe signaling mechanism used to communicate
@@ -88,7 +89,10 @@ pub(crate) fn create_sound_engine<'ctx>(
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
     let current_graph = SoundGraph::new();
-    let current_hash = ObjectHash::from_stashable(&current_graph);
+    let current_hash = ObjectHash::from_stashable_and_context(
+        &current_graph,
+        &StashingContext::new_checking_recompilation(),
+    );
     let se_interface = SoundEngineInterface {
         current_graph,
         current_hash,
@@ -135,7 +139,10 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         sound_object_factory: &SoundObjectFactory,
         expr_object_factory: &ExpressionObjectFactory,
     ) -> Result<(), ()> {
-        let new_revision = ObjectHash::from_stashable(new_graph);
+        let new_revision = ObjectHash::from_stashable_and_context(
+            new_graph,
+            &StashingContext::new_checking_recompilation(),
+        );
 
         if new_revision == self.current_hash {
             return Ok(());
@@ -157,11 +164,10 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        let (cloned_graph, handle) = new_graph
+        let (cloned_graph, _) = new_graph
             .stash_clone(stash, sound_object_factory, expr_object_factory)
             .unwrap();
 
-        debug_assert_eq!(handle.object_hash(), new_revision);
         self.current_graph = cloned_graph;
         self.current_hash = new_revision;
 

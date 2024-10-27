@@ -6,6 +6,7 @@ use inkwell::values::FloatValue;
 use crate::core::{
     engine::soundgraphcompiler::SoundGraphCompiler,
     jit::{argumentstack::JitArgumentPack, jit::Jit},
+    stashing::StashingContext,
     uniqueid::UniqueId,
 };
 
@@ -106,12 +107,10 @@ impl<T: ArgumentTranslation + Send> ProcessorComponent for ProcessorArgument<T> 
 }
 
 impl<T> Stashable for ProcessorArgument<T> {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
-        // code generator is not stashed, it is assumed to be fixed
-        // and invariant to changes in id.
-        // This implies that it's an error to assign an argument
-        // over an existing argument. Perhaps this should be prevented?
     }
 }
 

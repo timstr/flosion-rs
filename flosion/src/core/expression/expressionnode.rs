@@ -10,6 +10,7 @@ use crate::{
     core::{
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
+        stashing::StashingContext,
         uniqueid::UniqueId,
     },
     ui_core::arguments::ParsedArguments,
@@ -71,7 +72,7 @@ pub trait AnyExpressionNode {
     fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor);
     fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut);
 
-    fn stash(&self, stasher: &mut Stasher);
+    fn stash(&self, stasher: &mut Stasher<StashingContext>);
     fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError>;
 }
 
@@ -206,7 +207,11 @@ impl<T: ExpressionNode> Deref for ExpressionNodeWithId<T> {
 
 impl<T> AnyExpressionNode for ExpressionNodeWithId<T>
 where
-    T: 'static + ExpressionNode + WithObjectType + Stashable + UnstashableInplace,
+    T: 'static
+        + ExpressionNode
+        + WithObjectType
+        + Stashable<Context = StashingContext>
+        + UnstashableInplace,
 {
     fn id(&self) -> ExpressionNodeId {
         self.id
@@ -322,7 +327,7 @@ where
         T::visit_mut(&mut self.instance, visitor);
     }
 
-    fn stash(&self, stasher: &mut Stasher) {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         // id
         stasher.u64(self.id.value() as _);
 
@@ -463,7 +468,11 @@ impl<'a> dyn AnyExpressionNode + 'a {
 
 impl<T> ExpressionObject for ExpressionNodeWithId<T>
 where
-    T: 'static + ExpressionNode + WithObjectType + Stashable + UnstashableInplace,
+    T: 'static
+        + ExpressionNode
+        + WithObjectType
+        + Stashable<Context = StashingContext>
+        + UnstashableInplace,
 {
     fn create(args: &ParsedArguments) -> ExpressionNodeWithId<T> {
         ExpressionNodeWithId::new_from_args(args)

@@ -1,5 +1,5 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
 
 use crate::{
     core::{
@@ -12,6 +12,7 @@ use crate::{
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -63,7 +64,9 @@ impl WithObjectType for WriteWaveform {
 }
 
 impl Stashable for WriteWaveform {
-    fn stash(&self, stasher: &mut Stasher) {
+    type Context = StashingContext;
+
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.waveform);
     }
 }
