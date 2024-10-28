@@ -8,8 +8,7 @@ use crate::{
         },
         expression::expressionobject::ExpressionObjectFactory,
         jit::cache::JitCache,
-        sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
-        stashing::StashingContext,
+        sound::soundobject::SoundObjectFactory,
     },
     ui_objects::all_objects::{all_expression_graph_objects, all_sound_graph_objects},
 };
@@ -17,13 +16,12 @@ use eframe::{
     self,
     egui::{self},
 };
-use hashstash::{ObjectHash, Stash};
+use hashstash::Stash;
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 use super::{
-    expressionobjectui::ExpressionObjectUiFactory, graph_properties::GraphProperties,
-    soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUiFactory,
-    stackedlayout::stackedlayout::StackedLayout,
+    appstate::AppState, expressionobjectui::ExpressionObjectUiFactory,
+    soundobjectui::SoundObjectUiFactory,
 };
 
 /// Convenience struct for passing all the different factories together
@@ -65,77 +63,6 @@ impl Factories {
     }
 }
 
-pub(crate) struct AppState {
-    /// The sound graph currently being used
-    graph: SoundGraph,
-
-    /// The state of the uis of all sound processors and their component uis
-    ui_state: SoundGraphUiState,
-
-    /// The on-screen layout of sound processors
-    graph_layout: StackedLayout,
-
-    properties: GraphProperties,
-
-    previous_clean_revision: Option<ObjectHash>,
-}
-
-impl AppState {
-    fn interact_and_draw(
-        &mut self,
-        ui: &mut egui::Ui,
-        factories: &Factories,
-        jit_cache: &JitCache,
-        stash: &Stash,
-    ) {
-        self.graph_layout.draw(
-            ui,
-            factories,
-            &mut self.ui_state,
-            &mut self.graph,
-            &self.properties,
-            jit_cache,
-            stash,
-        );
-
-        self.ui_state.interact_and_draw(
-            ui,
-            factories,
-            &mut self.graph,
-            &self.properties,
-            &mut self.graph_layout,
-            stash,
-        );
-    }
-
-    fn cleanup(&mut self, factories: &Factories) {
-        self.properties.refresh(&self.graph);
-
-        let current_revision = ObjectHash::from_stashable_and_context(
-            &self.graph,
-            &StashingContext::new_checking_recompilation(),
-        );
-
-        if self.previous_clean_revision != Some(current_revision) {
-            self.graph_layout
-                .regenerate(&self.graph, self.ui_state.positions());
-
-            self.ui_state.cleanup(&self.graph, factories);
-
-            self.previous_clean_revision = Some(current_revision);
-        }
-
-        self.ui_state.cleanup_frame_data();
-    }
-
-    #[cfg(debug_assertions)]
-    fn check_invariants(&self) {
-        assert_eq!(self.graph.validate(), Ok(()));
-        self.ui_state.check_invariants(&self.graph);
-        assert!(self.graph_layout.check_invariants(&self.graph));
-    }
-}
-
 /// The very root of the GUI, which manages a SoundGraph instance,
 /// responds to inputs, and draws the up-to-date ui via egui
 pub struct FlosionApp<'ctx> {
@@ -163,10 +90,6 @@ impl<'ctx> FlosionApp<'ctx> {
         inkwell_context: &'ctx inkwell::context::Context,
         scope: &'ctx thread::Scope<'ctx, '_>,
     ) -> FlosionApp<'ctx> {
-        let graph = SoundGraph::new();
-
-        let properties = GraphProperties::new(&graph);
-
         let stop_button = StopButton::new();
 
         let (engine_interface, engine, garbage_disposer) = create_sound_engine(&stop_button);
@@ -178,13 +101,7 @@ impl<'ctx> FlosionApp<'ctx> {
 
         let jit_cache = JitCache::new(inkwell_context);
 
-        let state = AppState {
-            graph,
-            ui_state: SoundGraphUiState::new(),
-            graph_layout: StackedLayout::new(),
-            properties,
-            previous_clean_revision: None,
-        };
+        let state = AppState::new();
 
         let mut app = FlosionApp {
             state,
@@ -214,11 +131,11 @@ impl<'ctx> FlosionApp<'ctx> {
     fn cleanup(&mut self) {
         self.state.cleanup(&self.factories);
 
-        self.jit_cache.refresh(&self.state.graph);
+        self.jit_cache.refresh(self.state.graph());
     }
 
     #[cfg(debug_assertions)]
-    fn check_invariants(&self) {
+    pub(crate) fn check_invariants(&self) {
         self.state.check_invariants();
         // TODO: all expressions are compiled in the jit cache?
     }
@@ -239,7 +156,7 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
 
             self.engine_interface
                 .update(
-                    &self.state.graph,
+                    self.state.graph(),
                     &self.jit_cache,
                     &self.stash,
                     self.factories.sound_objects(),
