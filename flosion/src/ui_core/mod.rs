@@ -8,6 +8,7 @@ pub mod expressionui;
 pub mod flosion_ui;
 pub mod globalinteractions;
 pub mod graph_properties;
+pub mod history;
 pub mod interactions;
 pub mod lexicallayout;
 pub mod object_ui;

@@ -3,6 +3,7 @@ use hashstash::{Stashable, Stasher};
 pub struct StashingContext {
     checking_recompilation: bool,
 }
+
 impl StashingContext {
     pub(crate) fn new_stashing_normally() -> StashingContext {
         StashingContext {
