@@ -18,8 +18,7 @@ cpal = "0.13.3"
 # NOTE: using own fork of egui for now because of https://github.com/emilk/egui/issues/2152
 eframe = { git = "https://github.com/timstr/egui", rev = "df6fa145" }
 flosion-macros = { path = "../flosion-macros" }
-# hashrevise = "0.1.2"
-hashstash = { path = "/home/tim/dev/rust/hashstash" }
+hashstash = "0.1.0"
 inkwell = { version = "0.5.0", features = ["llvm15-0"] }
 parking_lot = "0.11.2"
 rand = "0.8.3"

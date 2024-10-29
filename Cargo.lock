@@ -1728,6 +1728,8 @@ dependencies = [
 [[package]]
 name = "hashstash"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb189d9ba2e062a220c8d36d58b770471c385c83d016312d81321c66a7740a65"
 dependencies = [
  "seahash",
 ]
