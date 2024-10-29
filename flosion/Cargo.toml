@@ -14,9 +14,7 @@ atomic_float = "0.1.0"
 atomicslice = "0.1.0"
 base64 = "0.13.0"
 cpal = "0.13.3"
-# eframe = "0.27.2"
-# NOTE: using own fork of egui for now because of https://github.com/emilk/egui/issues/2152
-eframe = { git = "https://github.com/timstr/egui", rev = "df6fa145" }
+eframe = "0.29.1"
 flosion-macros = { path = "../flosion-macros" }
 hashstash = "0.1.0"
 inkwell = { version = "0.5.0", features = ["llvm15-0"] }
