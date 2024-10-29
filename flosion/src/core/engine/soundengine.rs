@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hashstash::{ObjectHash, Stash};
+use hashstash::{stash_clone_with_context, ObjectHash, Stash};
 
 use super::{
     diffgraph::diff_sound_graph,
@@ -17,13 +17,15 @@ use super::{
     stategraphedit::StateGraphEdit,
 };
 
-use crate::core::{
-    expression::expressionobject::ExpressionObjectFactory,
-    jit::{argumentstack::ArgumentStack, cache::JitCache},
-    samplefrequency::SAMPLE_FREQUENCY,
-    sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
-    soundchunk::CHUNK_SIZE,
-    stashing::StashingContext,
+use crate::{
+    core::{
+        jit::{argumentstack::ArgumentStack, cache::JitCache},
+        samplefrequency::SAMPLE_FREQUENCY,
+        sound::soundgraph::SoundGraph,
+        soundchunk::CHUNK_SIZE,
+        stashing::{StashingContext, UnstashingContext},
+    },
+    ui_core::flosion_ui::Factories,
 };
 
 /// A thread-safe signaling mechanism used to communicate
@@ -136,8 +138,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         new_graph: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
         stash: &Stash,
-        sound_object_factory: &SoundObjectFactory,
-        expr_object_factory: &ExpressionObjectFactory,
+        factories: &Factories,
     ) -> Result<(), ()> {
         let new_revision = ObjectHash::from_stashable_and_context(
             new_graph,
@@ -164,9 +165,13 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             }
         }
 
-        let (cloned_graph, _) = new_graph
-            .stash_clone(stash, sound_object_factory, expr_object_factory)
-            .unwrap();
+        let (cloned_graph, _) = stash_clone_with_context(
+            new_graph,
+            stash,
+            &StashingContext::new_stashing_normally(),
+            &UnstashingContext::new(factories),
+        )
+        .unwrap();
 
         self.current_graph = cloned_graph;
         self.current_hash = new_revision;

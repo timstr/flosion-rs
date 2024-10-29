@@ -1,9 +1,9 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
-        expression::{context::ExpressionContext, expressionobject::ExpressionObjectFactory},
+        expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
@@ -12,7 +12,7 @@ use crate::{
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -47,26 +47,24 @@ impl SoundProcessor for WriteWaveform {
 
         StreamStatus::Playing
     }
-
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        unstasher
-            .object_proxy_inplace(|unstasher| self.waveform.unstash_inplace(unstasher, factory))?;
-        Ok(())
-    }
 }
 
 impl WithObjectType for WriteWaveform {
     const TYPE: ObjectType = ObjectType::new("writewaveform");
 }
 
-impl Stashable for WriteWaveform {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for WriteWaveform {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.waveform);
+    }
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for WriteWaveform {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.waveform)?;
+        Ok(())
     }
 }

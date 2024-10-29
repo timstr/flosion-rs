@@ -3,7 +3,6 @@ use hashstash::{InplaceUnstasher, Order, Stashable, Stasher, UnstashError, Unsta
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
-        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
@@ -14,7 +13,7 @@ use crate::{
             },
         },
         soundchunk::SoundChunk,
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -35,19 +34,11 @@ impl SoundProcessor for TestStaticSoundProcessor {
     }
 
     fn process_audio(
-        processor: &mut Self::CompiledType<'_>,
-        dst: &mut SoundChunk,
-        context: &mut Context,
+        _processor: &mut Self::CompiledType<'_>,
+        _dst: &mut SoundChunk,
+        _context: &mut Context,
     ) -> StreamStatus {
         StreamStatus::Done
-    }
-
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        todo!()
     }
 }
 
@@ -83,16 +74,17 @@ impl WithObjectType for TestStaticSoundProcessor {
     const TYPE: ObjectType = ObjectType::new("teststatic");
 }
 
-impl Stashable for TestStaticSoundProcessor {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for TestStaticSoundProcessor {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(&self.inputs, Order::Ordered);
     }
 }
 
-impl UnstashableInplace for TestStaticSoundProcessor {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for TestStaticSoundProcessor {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.array_of_objects_vec_inplace(&mut self.inputs)
     }
 }
@@ -113,19 +105,11 @@ impl SoundProcessor for TestDynamicSoundProcessor {
     }
 
     fn process_audio(
-        processor: &mut Self::CompiledType<'_>,
-        dst: &mut SoundChunk,
-        context: &mut Context,
+        _processor: &mut Self::CompiledType<'_>,
+        _dst: &mut SoundChunk,
+        _context: &mut Context,
     ) -> StreamStatus {
         StreamStatus::Done
-    }
-
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        todo!()
     }
 }
 
@@ -161,16 +145,17 @@ impl WithObjectType for TestDynamicSoundProcessor {
     const TYPE: ObjectType = ObjectType::new("testdynamic");
 }
 
-impl Stashable for TestDynamicSoundProcessor {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for TestDynamicSoundProcessor {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(&self.inputs, Order::Ordered);
     }
 }
 
-impl UnstashableInplace for TestDynamicSoundProcessor {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for TestDynamicSoundProcessor {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.array_of_objects_vec_inplace(&mut self.inputs)
     }
 }

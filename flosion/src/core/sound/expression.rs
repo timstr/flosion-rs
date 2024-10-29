@@ -1,16 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use hashstash::{
-    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace,
-};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::core::{
     engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
-    expression::{
-        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
-        expressionobject::ExpressionObjectFactory,
-    },
-    stashing::StashingContext,
+    expression::expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+    stashing::{StashingContext, UnstashingContext},
     uniqueid::UniqueId,
 };
 
@@ -133,9 +128,7 @@ impl ExpressionParameterMapping {
     }
 }
 
-impl Stashable for ExpressionParameterMapping {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for ExpressionParameterMapping {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_proxy_objects(
             self.mapping.iter(),
@@ -149,8 +142,11 @@ impl Stashable for ExpressionParameterMapping {
     }
 }
 
-impl UnstashableInplace for ExpressionParameterMapping {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExpressionParameterMapping {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         let time_to_write = unstasher.time_to_write();
 
         if time_to_write {
@@ -199,16 +195,17 @@ impl SoundExpressionScope {
     }
 }
 
-impl Stashable for SoundExpressionScope {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for SoundExpressionScope {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_u64_iter(self.available_arguments.iter().map(|i| i.value() as u64));
     }
 }
 
-impl UnstashableInplace for SoundExpressionScope {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for SoundExpressionScope {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         let ids = unstasher.array_of_u64_iter()?;
 
         if unstasher.time_to_write() {
@@ -316,9 +313,7 @@ impl ProcessorComponent for ProcessorExpression {
     }
 }
 
-impl Stashable for ProcessorExpression {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for ProcessorExpression {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
         stasher.object(&self.param_mapping);
@@ -327,26 +322,17 @@ impl Stashable for ProcessorExpression {
     }
 }
 
-// TODO: allow passing extra context with HashStash trait
-impl ProcessorExpression {
-    pub(crate) fn unstash_inplace(
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for ProcessorExpression {
+    fn unstash_inplace(
         &mut self,
-        unstasher: &mut InplaceUnstasher,
-        expr_obj_factory: &ExpressionObjectFactory,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
     ) -> Result<(), UnstashError> {
         let id = ProcessorExpressionId::new(unstasher.u64_always()? as _);
         if unstasher.time_to_write() {
             self.id = id;
         }
         unstasher.object_inplace(&mut self.param_mapping)?;
-
-        // uhhhhhh
-        let new_graph = unstasher
-            .object_proxy(|unstasher| ExpressionGraph::unstash(unstasher, expr_obj_factory))?;
-        if unstasher.time_to_write() {
-            self.expression_graph = new_graph;
-        }
-
+        unstasher.object_inplace(&mut self.expression_graph)?;
         unstasher.object_inplace(&mut self.scope)?;
         Ok(())
     }

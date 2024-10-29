@@ -1,30 +1,30 @@
-use hashstash::{stash_clone, stash_clone_with_context, Stash};
+use hashstash::{stash_clone_with_context, Stash};
 
 use crate::{
     core::{
-        expression::expressionobject::ExpressionObjectFactory,
         sound::{
             soundgraph::SoundGraph,
             soundinput::{BasicProcessorInput, InputOptions},
-            soundobject::SoundObjectFactory,
             soundprocessor::{SoundProcessor, SoundProcessorWithId},
         },
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
-    ui_core::arguments::ParsedArguments,
+    ui_core::{arguments::ParsedArguments, flosion_ui::Factories},
 };
 
 use super::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor};
 
-fn test_sound_object_factory() -> SoundObjectFactory {
-    let mut factory = SoundObjectFactory::new_empty();
-    factory.register::<SoundProcessorWithId<TestStaticSoundProcessor>>();
-    factory.register::<SoundProcessorWithId<TestDynamicSoundProcessor>>();
-    factory
-}
+fn test_sound_object_factories() -> Factories {
+    let mut factories = Factories::new_empty();
 
-fn test_expression_object_factory() -> ExpressionObjectFactory {
-    ExpressionObjectFactory::new_empty()
+    factories
+        .sound_objects_mut()
+        .register::<SoundProcessorWithId<TestStaticSoundProcessor>>();
+    factories
+        .sound_objects_mut()
+        .register::<SoundProcessorWithId<TestDynamicSoundProcessor>>();
+
+    factories
 }
 
 #[test]
@@ -32,10 +32,15 @@ fn stash_clone_basic_input() {
     let input = BasicProcessorInput::new(InputOptions::Synchronous, 2);
 
     let stash = Stash::new();
+    let factories = test_sound_object_factories();
 
-    let (new_input, _) =
-        stash_clone_with_context(&input, &stash, &StashingContext::new_stashing_normally())
-            .unwrap();
+    let (new_input, _) = stash_clone_with_context(
+        &input,
+        &stash,
+        &StashingContext::new_stashing_normally(),
+        &UnstashingContext::new(&factories),
+    )
+    .unwrap();
 
     assert_eq!(input, new_input);
 }
@@ -49,6 +54,7 @@ fn stash_clone_test_static_processor() {
     // ----------------------------------
 
     let stash = Stash::new();
+    let factories = test_sound_object_factories();
 
     let stash_handle = stash.stash_with_context(&proc, &StashingContext::new_stashing_normally());
 
@@ -60,7 +66,13 @@ fn stash_clone_test_static_processor() {
 
     // ----------------------------------
 
-    stash.unstash_inplace(&stash_handle, &mut new_proc).unwrap();
+    stash
+        .unstash_inplace_with_context(
+            &stash_handle,
+            &mut new_proc,
+            &UnstashingContext::new(&factories),
+        )
+        .unwrap();
 
     assert_eq!(new_proc.inputs, proc.inputs);
 }
@@ -70,12 +82,15 @@ fn stash_clone_empty_graph() {
     let graph = SoundGraph::new();
 
     let stash = Stash::new();
-    let sound_object_factory = test_sound_object_factory();
-    let expr_object_factory = test_expression_object_factory();
+    let factories = test_sound_object_factories();
 
-    let (new_graph, _) = graph
-        .stash_clone(&stash, &sound_object_factory, &expr_object_factory)
-        .unwrap();
+    let (new_graph, _) = stash_clone_with_context(
+        &graph,
+        &stash,
+        &StashingContext::new_stashing_normally(),
+        &UnstashingContext::new(&factories),
+    )
+    .unwrap();
 
     assert!(new_graph.sound_processors().is_empty());
 }
@@ -100,12 +115,15 @@ fn stash_clone_graph_with_one_static_processor() {
     // ----------------------------------
 
     let stash = Stash::new();
-    let sound_object_factory = test_sound_object_factory();
-    let expr_obj_factory = test_expression_object_factory();
+    let factories = test_sound_object_factories();
 
-    let (new_graph, _) = graph
-        .stash_clone(&stash, &sound_object_factory, &expr_obj_factory)
-        .unwrap();
+    let (new_graph, _) = stash_clone_with_context(
+        &graph,
+        &stash,
+        &StashingContext::new_stashing_normally(),
+        &UnstashingContext::new(&factories),
+    )
+    .unwrap();
 
     // ----------------------------------
 
@@ -139,12 +157,15 @@ fn stash_clone_graph_with_one_dynamic_processor() {
     // ----------------------------------
 
     let stash = Stash::new();
-    let sound_object_factory = test_sound_object_factory();
-    let expr_object_factory = test_expression_object_factory();
+    let factories = test_sound_object_factories();
 
-    let (new_graph, _) = graph
-        .stash_clone(&stash, &sound_object_factory, &expr_object_factory)
-        .unwrap();
+    let (new_graph, _) = stash_clone_with_context(
+        &graph,
+        &stash,
+        &StashingContext::new_stashing_normally(),
+        &UnstashingContext::new(&factories),
+    )
+    .unwrap();
 
     // ----------------------------------
 

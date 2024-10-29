@@ -1,17 +1,16 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use rand::prelude::*;
 
 use crate::{
     core::{
-        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         sound::{
             context::Context,
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -43,22 +42,21 @@ impl SoundProcessor for WhiteNoise {
         }
         StreamStatus::Playing
     }
-
-    fn unstash_inplace(
-        &mut self,
-        _unstasher: &mut InplaceUnstasher,
-        _factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        Ok(())
-    }
 }
 
 impl WithObjectType for WhiteNoise {
     const TYPE: ObjectType = ObjectType::new("whitenoise");
 }
 
-impl Stashable for WhiteNoise {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for WhiteNoise {
     fn stash(&self, _stasher: &mut Stasher<StashingContext>) {}
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for WhiteNoise {
+    fn unstash_inplace(
+        &mut self,
+        _unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        Ok(())
+    }
 }

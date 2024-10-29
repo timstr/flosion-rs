@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
 use eframe::egui;
-use hashstash::{HashCacheProperty, Order, Stash, Stashable, Stasher};
+use hashstash::{stash_clone_with_context, HashCacheProperty, Order, Stash, Stashable, Stasher};
 
 use crate::{
     core::{
-        expression::expressionobject::ExpressionObjectFactory,
         sound::{
             soundgraph::SoundGraph, soundinput::SoundInputLocation,
-            soundobject::SoundObjectFactory, soundprocessor::SoundProcessorId,
+            soundprocessor::SoundProcessorId,
         },
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::{
         flosion_ui::Factories, soundobjectpositions::SoundObjectPositions,
@@ -61,9 +60,7 @@ impl DragDropSubject {
     }
 }
 
-impl Stashable for DragDropSubject {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for DragDropSubject {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         match self {
             DragDropSubject::Processor(spid) => {
@@ -341,9 +338,7 @@ fn drag_and_drop_in_layout(
 // wrapper struct to make &[DragDropSubject] Stashable
 struct AvailableDropSites<'a>(&'a [DragDropSubject]);
 
-impl<'a> Stashable for AvailableDropSites<'a> {
-    type Context = StashingContext;
-
+impl<'a> Stashable<StashingContext> for AvailableDropSites<'a> {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(self.0, Order::Unordered);
     }
@@ -354,9 +349,7 @@ impl<'a> Stashable for AvailableDropSites<'a> {
 // on-screen positions wouldn't make a difference
 struct StackedLayoutWrapper<'a>(&'a StackedLayout);
 
-impl<'a> Stashable for StackedLayoutWrapper<'a> {
-    type Context = StashingContext;
-
+impl<'a> Stashable<StashingContext> for StackedLayoutWrapper<'a> {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_proxy_objects(
             self.0.groups().iter(),
@@ -374,16 +367,18 @@ fn compute_legal_drop_sites(
     drag_subject: DragDropSubject,
     drop_sites: AvailableDropSites,
     stash: &Stash,
-    sound_object_factory: &SoundObjectFactory,
-    expr_object_factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) -> HashMap<DragDropSubject, DragDropLegality> {
     debug_assert_eq!(graph.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
     for drop_site in drop_sites.0 {
-        let mut graph_clone = graph
-            .stash_clone(stash, sound_object_factory, expr_object_factory)
-            .unwrap()
-            .0;
+        let (mut graph_clone, _) = stash_clone_with_context(
+            graph,
+            stash,
+            &StashingContext::new_stashing_normally(),
+            &UnstashingContext::new(factories),
+        )
+        .unwrap();
 
         // drag_and_drop_in_graph only does superficial error
         // detection, here we additionally check whether the
@@ -445,18 +440,11 @@ impl DragInteraction {
     ) {
         // Ensure that the legal connections are up to date, since these are used
         // to highlight legal/illegal interconnects to drop onto
+        // NOTE: all Stashable implementations in the ui use StashingContext
+        // even though it's irrelevant to them, all because this method uses
+        // a shared context type
         self.legal_drop_sites.refresh4_with_context(
-            |a, b, c, d| {
-                compute_legal_drop_sites(
-                    a,
-                    b,
-                    c,
-                    d,
-                    stash,
-                    factories.sound_objects(),
-                    factories.expression_objects(),
-                )
-            },
+            |a, b, c, d| compute_legal_drop_sites(a, b, c, d, stash, factories),
             graph,
             &StackedLayoutWrapper(layout),
             self.subject,
@@ -567,19 +555,14 @@ impl DropInteraction {
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph));
 
-            let drag_and_drop_result = graph.try_make_change(
-                stash,
-                factories.sound_objects(),
-                factories.expression_objects(),
-                |graph| {
-                    Ok(drag_and_drop_in_graph(
-                        graph,
-                        layout,
-                        self.subject,
-                        *nearest_drop_site,
-                    ))
-                },
-            );
+            let drag_and_drop_result = graph.try_make_change(stash, factories, |graph| {
+                Ok(drag_and_drop_in_graph(
+                    graph,
+                    layout,
+                    self.subject,
+                    *nearest_drop_site,
+                ))
+            });
 
             match drag_and_drop_result {
                 Ok(DragDropLegality::Legal) => { /* nice */ }
@@ -608,15 +591,10 @@ impl DropInteraction {
             if let DragDropSubject::Processor(spid) = self.subject {
                 if !layout.is_processor_alone(spid) {
                     graph
-                        .try_make_change(
-                            stash,
-                            factories.sound_objects(),
-                            factories.expression_objects(),
-                            |graph| {
-                                disconnect_processor_in_graph(spid, graph);
-                                Ok(())
-                            },
-                        )
+                        .try_make_change(stash, factories, |graph| {
+                            disconnect_processor_in_graph(spid, graph);
+                            Ok(())
+                        })
                         .unwrap();
 
                     layout.split_processor_into_own_group(spid, positions);

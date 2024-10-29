@@ -6,10 +6,10 @@ use crate::{
     core::expression::{
         expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
         expressiongraphdata::ExpressionTarget,
-        expressionobject::ExpressionObjectFactory,
     },
     ui_core::{
         expressiongraphuicontext::OuterExpressionGraphUiContext,
+        flosion_ui::Factories,
         lexicallayout::ast::{ASTPath, InternalASTNodeValue},
     },
 };
@@ -28,9 +28,9 @@ pub(super) fn delete_from_graph_at_cursor(
     cursor: &mut LexicalLayoutCursor,
     expr_graph: &mut ExpressionGraph,
     stash: &Stash,
-    factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) {
-    delete_nodes_from_graph_at_cursor(cursor, layout, expr_graph, stash, factory);
+    delete_nodes_from_graph_at_cursor(cursor, layout, expr_graph, stash, factories);
 
     match cursor {
         LexicalLayoutCursor::AtVariableName(i) => {
@@ -59,10 +59,10 @@ pub(super) fn insert_to_graph_at_cursor(
     node: ASTNode,
     expr_graph: &mut ExpressionGraph,
     stash: &Stash,
-    factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) {
     // TODO: allow inserting operators in-place (e.g. wrap a value in a function call?)
-    delete_from_graph_at_cursor(layout, cursor, expr_graph, stash, factory);
+    delete_from_graph_at_cursor(layout, cursor, expr_graph, stash, factories);
 
     if let Some(target) = node.indirect_target(cursor.get_variables_in_scope(layout)) {
         let (root_node, path) = match cursor.get(layout) {
@@ -72,7 +72,7 @@ pub(super) fn insert_to_graph_at_cursor(
             LexicalLayoutCursorValue::AtVariableValue(v, p) => {
                 if p.is_at_beginning() {
                     // if the cursor points to a variable definition, reconnect each use
-                    connect_each_variable_use(layout, v.id(), target, expr_graph, stash, factory);
+                    connect_each_variable_use(layout, v.id(), target, expr_graph, stash, factories);
                 }
                 (v.value(), p)
             }
@@ -111,16 +111,16 @@ fn delete_nodes_from_graph_at_cursor(
     layout: &mut LexicalLayout,
     expr_graph: &mut ExpressionGraph,
     stash: &Stash,
-    factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) {
     fn remove_node(
         node: &ASTNode,
         graph: &mut ExpressionGraph,
         stash: &Stash,
-        factory: &ExpressionObjectFactory,
+        factories: &Factories,
     ) {
         if let Some(internal_node) = node.as_internal_node() {
-            remove_internal_node(internal_node, graph, stash, factory);
+            remove_internal_node(internal_node, graph, stash, factories);
         }
     }
 
@@ -128,61 +128,61 @@ fn delete_nodes_from_graph_at_cursor(
         node: &InternalASTNode,
         graph: &mut ExpressionGraph,
         stash: &Stash,
-        factory: &ExpressionObjectFactory,
+        factories: &Factories,
     ) {
         let nsid = node.expression_node_id();
 
         // Recursively delete any expression nodes corresponding to direct AST children
         match node.value() {
             InternalASTNodeValue::Prefix(_, c) => {
-                remove_node(c, graph, stash, factory);
+                remove_node(c, graph, stash, factories);
             }
             InternalASTNodeValue::Infix(c1, _, c2) => {
-                remove_node(c1, graph, stash, factory);
-                remove_node(c2, graph, stash, factory);
+                remove_node(c1, graph, stash, factories);
+                remove_node(c2, graph, stash, factories);
             }
             InternalASTNodeValue::Postfix(c, _) => {
-                remove_node(c, graph, stash, factory);
+                remove_node(c, graph, stash, factories);
             }
             InternalASTNodeValue::Function(_, cs) => {
                 for c in cs {
-                    remove_node(c, graph, stash, factory);
+                    remove_node(c, graph, stash, factories);
                 }
             }
         }
 
         // Delete the expression node itself
         graph
-            .try_make_change(stash, factory, |graph| graph.remove_node(nsid))
+            .try_make_change(stash, factories, |graph| graph.remove_node(nsid))
             .unwrap();
     }
 
     let (root_node, path) = match cursor.get(layout) {
         LexicalLayoutCursorValue::AtVariableName(v) => {
-            disconnect_each_variable_use(layout, cursor, v.id(), expr_graph, stash, factory);
+            disconnect_each_variable_use(layout, cursor, v.id(), expr_graph, stash, factories);
             (v.value(), ASTPath::new_at_beginning())
         }
         LexicalLayoutCursorValue::AtVariableValue(v, p) => {
             if p.is_at_beginning() {
-                disconnect_each_variable_use(layout, cursor, v.id(), expr_graph, stash, factory);
+                disconnect_each_variable_use(layout, cursor, v.id(), expr_graph, stash, factories);
             }
             (v.value(), p)
         }
         LexicalLayoutCursorValue::AtFinalExpression(n, p) => {
             if p.is_at_beginning() {
-                disconnect_result(layout, expr_graph, stash, factory);
+                disconnect_result(layout, expr_graph, stash, factories);
             }
             (n, p)
         }
     };
 
     if let Some((parent_node, child_index)) = root_node.find_parent_along_path(path.steps()) {
-        disconnect_internal_node(parent_node, child_index, expr_graph, stash, factory);
+        disconnect_internal_node(parent_node, child_index, expr_graph, stash, factories);
     }
 
     // If the node is an internal node, disconnect and recursively delete it
     if let Some(internal_node) = root_node.get_along_path(path.steps()).as_internal_node() {
-        remove_internal_node(internal_node, expr_graph, stash, factory);
+        remove_internal_node(internal_node, expr_graph, stash, factories);
     }
 
     // If the cursor is pointing at a variable's name, delete all references to that variable
@@ -198,7 +198,7 @@ fn disconnect_each_variable_use(
     id: VariableId,
     graph: &mut ExpressionGraph,
     stash: &Stash,
-    factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) {
     let (var_defn, prev_defns) =
         find_variable_definition_and_scope(id, layout.variable_definitions()).unwrap();
@@ -223,14 +223,14 @@ fn disconnect_each_variable_use(
             ASTNodeParent::VariableDefinition(var_id) => {
                 debug_assert_ne!(var_id, id);
                 // The variable is aliased as another variable, disconnect its uses as well
-                disconnect_each_variable_use(layout, cursor, var_id, graph, stash, factory);
+                disconnect_each_variable_use(layout, cursor, var_id, graph, stash, factories);
             }
             ASTNodeParent::FinalExpression => {
                 let outputs = graph.results();
                 debug_assert_eq!(outputs.len(), 1);
                 let goid = outputs[0].id();
                 graph
-                    .try_make_change(stash, factory, |graph| graph.disconnect_result(goid))
+                    .try_make_change(stash, factories, |graph| graph.disconnect_result(goid))
                     .unwrap();
             }
             ASTNodeParent::InternalNode(internal_node, child_index) => {
@@ -239,7 +239,7 @@ fn disconnect_each_variable_use(
                 debug_assert_eq!(inputs.len(), internal_node.num_children());
                 let niid = inputs[child_index];
                 graph
-                    .try_make_change(stash, factory, |graph| graph.connect_input(niid, None))
+                    .try_make_change(stash, factories, |graph| graph.connect_input(niid, None))
                     .unwrap();
             }
         }
@@ -252,7 +252,7 @@ fn connect_each_variable_use(
     target: ExpressionTarget,
     expr_graph: &mut ExpressionGraph,
     stash: &Stash,
-    factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) {
     let mut variables_to_connect = vec![id];
 
@@ -277,7 +277,9 @@ fn connect_each_variable_use(
                     debug_assert_eq!(outputs.len(), 1);
                     let goid = outputs[0].id();
                     expr_graph
-                        .try_make_change(stash, factory, |graph| graph.connect_result(goid, target))
+                        .try_make_change(stash, factories, |graph| {
+                            graph.connect_result(goid, target)
+                        })
                         .unwrap();
                 }
                 ASTNodeParent::InternalNode(internal_node, child_index) => {
@@ -286,7 +288,7 @@ fn connect_each_variable_use(
                     debug_assert_eq!(inputs.len(), internal_node.num_children());
                     let niid = inputs[child_index];
                     expr_graph
-                        .try_make_change(stash, factory, |graph| {
+                        .try_make_change(stash, factories, |graph| {
                             graph.connect_input(niid, Some(target))
                         })
                         .unwrap();
@@ -344,7 +346,7 @@ fn disconnect_result(
     layout: &LexicalLayout,
     graph: &mut ExpressionGraph,
     stash: &Stash,
-    factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) {
     let results = graph.results();
     debug_assert_eq!(results.len(), 1);
@@ -361,7 +363,7 @@ fn disconnect_result(
         return;
     }
     graph
-        .try_make_change(stash, factory, |graph| graph.disconnect_result(result_id))
+        .try_make_change(stash, factories, |graph| graph.disconnect_result(result_id))
         .unwrap();
 }
 
@@ -370,7 +372,7 @@ fn disconnect_internal_node(
     child_index: usize,
     graph: &mut ExpressionGraph,
     stash: &Stash,
-    factory: &ExpressionObjectFactory,
+    factories: &Factories,
 ) {
     let nsid = parent_node.expression_node_id();
     let parent_ns_inputs = graph.node(nsid).unwrap().input_locations();
@@ -378,7 +380,7 @@ fn disconnect_internal_node(
     let input = parent_ns_inputs[child_index];
     if graph.input_target(input).unwrap().is_some() {
         graph
-            .try_make_change(stash, factory, |graph| graph.connect_input(input, None))
+            .try_make_change(stash, factories, |graph| graph.connect_input(input, None))
             .unwrap();
     }
 }

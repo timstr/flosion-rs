@@ -735,9 +735,7 @@ impl StackedGroup {
     }
 }
 
-impl Stashable for StackedGroup {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for StackedGroup {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u32(self.width_pixels.to_bits());
         stasher.u32(self.time_axis.time_per_x_pixel.to_bits());

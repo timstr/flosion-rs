@@ -1,5 +1,7 @@
 use eframe::egui;
-use hashstash::{ObjectHash, Stash};
+use hashstash::{
+    InplaceUnstasher, ObjectHash, Stash, Stashable, Stasher, UnstashError, UnstashableInplace,
+};
 
 use crate::core::{jit::cache::JitCache, sound::soundgraph::SoundGraph, stashing::StashingContext};
 
@@ -94,5 +96,31 @@ impl AppState {
         assert_eq!(self.graph.validate(), Ok(()));
         self.ui_state.check_invariants(&self.graph);
         assert!(self.graph_layout.check_invariants(&self.graph));
+    }
+}
+
+impl Stashable for AppState {
+    fn stash(&self, stasher: &mut Stasher<()>) {
+        // stash the graph
+        stasher.object_with_context(&self.graph, &StashingContext::new_stashing_normally());
+
+        // stash the ui state
+        todo!();
+        // stasher.object(&self.ui_state);
+
+        // stash the layout
+        todo!();
+        // stasher.object(&self.graph_layout);
+
+        // don't properties, they are derived from graph
+
+        // also don't stash previous clean revision,
+        // which is used for staying up to date
+    }
+}
+
+impl UnstashableInplace for AppState {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        todo!()
     }
 }

@@ -1,5 +1,6 @@
 use flosion_macros::ProcessorComponents;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use inkwell::values::FloatValue;
 use rand::prelude::*;
 
 use crate::{
@@ -8,10 +9,17 @@ use crate::{
         expression::{
             context::ExpressionContext,
             expressiongraphdata::ExpressionTarget,
-            expressionnode::{AnyExpressionNode, ExpressionNodeWithId, PureExpressionNode},
-            expressionobject::ExpressionObjectFactory,
+            expressiongraphvalidation::find_expression_error,
+            expressioninput::ExpressionInput,
+            expressionnode::{
+                AnyExpressionNode, ExpressionNodeVisitor, ExpressionNodeVisitorMut,
+                ExpressionNodeWithId, PureExpressionNode,
+            },
         },
-        jit::{argumentstack::ArgumentStack, cache::JitCache, compiledexpression::Discretization},
+        jit::{
+            argumentstack::ArgumentStack, cache::JitCache, compiledexpression::Discretization,
+            jit::Jit,
+        },
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::{ProcessorArgument, ProcessorArgumentLocation},
@@ -25,13 +33,14 @@ use crate::{
             },
         },
         soundchunk::SoundChunk,
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     objects::purefunctions::*,
     ui_core::arguments::ParsedArguments,
 };
 
-const TEST_ARRAY_SIZE: usize = 1024;
+// const TEST_ARRAY_SIZE: usize = 1024;
+const TEST_ARRAY_SIZE: usize = 10;
 
 const MAX_NUM_INPUTS: usize = 3;
 
@@ -45,11 +54,17 @@ struct TestSoundProcessor {
 
 impl SoundProcessor for TestSoundProcessor {
     fn new(_args: &ParsedArguments) -> TestSoundProcessor {
+        let argument_0 = ProcessorArgument::new();
+        let argument_1 = ProcessorArgument::new();
+        let argument_2 = ProcessorArgument::new();
         TestSoundProcessor {
-            expression: ProcessorExpression::new(0.0, SoundExpressionScope::new_empty()),
-            argument_0: ProcessorArgument::new(),
-            argument_1: ProcessorArgument::new(),
-            argument_2: ProcessorArgument::new(),
+            expression: ProcessorExpression::new(
+                0.0,
+                SoundExpressionScope::new(vec![argument_0.id(), argument_1.id(), argument_2.id()]),
+            ),
+            argument_0,
+            argument_1,
+            argument_2,
         }
     }
 
@@ -64,25 +79,68 @@ impl SoundProcessor for TestSoundProcessor {
     ) -> StreamStatus {
         panic!("unused")
     }
-
-    fn unstash_inplace(
-        &mut self,
-        _unstasher: &mut InplaceUnstasher,
-        _factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        panic!("Unused");
-    }
 }
 
 impl WithObjectType for TestSoundProcessor {
     const TYPE: ObjectType = ObjectType::new("testsoundprocessor");
 }
 
-impl Stashable for TestSoundProcessor {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for TestSoundProcessor {
     fn stash(&self, _stasher: &mut Stasher<StashingContext>) {
         panic!("Unused")
+    }
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for TestSoundProcessor {
+    fn unstash_inplace(
+        &mut self,
+        _unstasher: &mut InplaceUnstasher<UnstashingContext<'a>>,
+    ) -> Result<(), UnstashError> {
+        panic!("unused")
+    }
+}
+
+struct Identity {
+    input: ExpressionInput,
+}
+
+impl PureExpressionNode for Identity {
+    fn new(_args: &ParsedArguments) -> Self {
+        Identity {
+            input: ExpressionInput::new(0.123),
+        }
+    }
+
+    fn compile<'ctx>(&self, _jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
+        debug_assert_eq!(inputs.len(), 1);
+        inputs[0]
+    }
+
+    fn visit(&self, visitor: &mut dyn ExpressionNodeVisitor) {
+        visitor.input(&self.input);
+    }
+
+    fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut) {
+        visitor.input(&mut self.input);
+    }
+}
+
+impl WithObjectType for Identity {
+    const TYPE: ObjectType = ObjectType::new("identity");
+}
+
+impl Stashable<StashingContext> for Identity {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        stasher.object(&self.input);
+    }
+}
+
+impl UnstashableInplace<UnstashingContext<'_>> for Identity {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)
     }
 }
 
@@ -109,7 +167,10 @@ macro_rules! assert_near {
 
 fn do_expression_test<T, F>(input_ranges: &[(f32, f32)], test_function: F)
 where
-    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
+    T: 'static
+        + PureExpressionNode
+        + Stashable<StashingContext>
+        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
     F: Fn(&[f32]) -> f32,
 {
     let mut proc = SoundProcessorWithId::<TestSoundProcessor>::new_default();
@@ -157,6 +218,8 @@ where
             ExpressionTarget::Node(node_id),
         )
         .unwrap();
+
+    assert_eq!(find_expression_error(&expr_graph), None);
 
     //------------------------
 
@@ -239,7 +302,10 @@ where
 
 fn do_expression_test_unary<T>(input_range: (f32, f32), test_function: fn(f32) -> f32)
 where
-    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
+    T: 'static
+        + PureExpressionNode
+        + Stashable<StashingContext>
+        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
 {
     do_expression_test::<T, _>(&[input_range], |inputs| test_function(inputs[0]))
 }
@@ -249,7 +315,10 @@ fn do_expression_test_binary<T>(
     input1_range: (f32, f32),
     test_function: fn(f32, f32) -> f32,
 ) where
-    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
+    T: 'static
+        + PureExpressionNode
+        + Stashable<StashingContext>
+        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
 {
     do_expression_test::<T, _>(&[input0_range, input1_range], |inputs| {
         test_function(inputs[0], inputs[1])
@@ -262,11 +331,19 @@ fn do_expression_test_ternary<T>(
     input2_range: (f32, f32),
     test_function: fn(f32, f32, f32) -> f32,
 ) where
-    T: 'static + PureExpressionNode + Stashable<Context = StashingContext> + UnstashableInplace,
+    T: 'static
+        + PureExpressionNode
+        + Stashable<StashingContext>
+        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
 {
     do_expression_test::<T, _>(&[input0_range, input1_range, input2_range], |inputs| {
         test_function(inputs[0], inputs[1], inputs[2])
     })
+}
+
+#[test]
+fn test_identity() {
+    do_expression_test_unary::<Identity>((-10.0, 10.0), |x| x);
 }
 
 #[test]

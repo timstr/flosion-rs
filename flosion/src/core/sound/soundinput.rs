@@ -9,7 +9,7 @@ use crate::core::{
     },
     jit::argumentstack::ArgumentStackView,
     soundchunk::CHUNK_SIZE,
-    stashing::StashingContext,
+    stashing::{StashingContext, UnstashingContext},
     uniqueid::UniqueId,
 };
 
@@ -218,9 +218,7 @@ impl BasicProcessorInput {
     }
 }
 
-impl Stashable for BasicProcessorInput {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for BasicProcessorInput {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
         stasher.u8(match self.options {
@@ -238,8 +236,8 @@ impl Stashable for BasicProcessorInput {
     }
 }
 
-impl Unstashable for BasicProcessorInput {
-    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+impl<'a> Unstashable<UnstashingContext<'a>> for BasicProcessorInput {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<Self, UnstashError> {
         let id = ProcessorInputId::new(unstasher.u64()? as _);
 
         let options = match unstasher.u8()? {
@@ -265,8 +263,11 @@ impl Unstashable for BasicProcessorInput {
     }
 }
 
-impl UnstashableInplace for BasicProcessorInput {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for BasicProcessorInput {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         // TODO: this code duplication could be avoided with an InplaceUnstasher
         // method that reuses a Unstashable implementation *without* inserting
         // an object value type

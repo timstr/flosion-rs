@@ -6,7 +6,7 @@ use inkwell::values::FloatValue;
 use crate::core::{
     engine::soundgraphcompiler::SoundGraphCompiler,
     jit::{argumentstack::JitArgumentPack, jit::Jit},
-    stashing::StashingContext,
+    stashing::{StashingContext, UnstashingContext},
     uniqueid::UniqueId,
 };
 
@@ -106,16 +106,17 @@ impl<T: ArgumentTranslation + Send> ProcessorComponent for ProcessorArgument<T> 
     }
 }
 
-impl<T> Stashable for ProcessorArgument<T> {
-    type Context = StashingContext;
-
+impl<T> Stashable<StashingContext> for ProcessorArgument<T> {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
     }
 }
 
-impl<T> UnstashableInplace for ProcessorArgument<T> {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a, T> UnstashableInplace<UnstashingContext<'a>> for ProcessorArgument<T> {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         let id = unstasher.u64_always()?;
         if unstasher.time_to_write() {
             self.id = ProcessorArgumentId::new(id as _);

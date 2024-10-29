@@ -15,7 +15,7 @@ use crate::{
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -306,9 +306,7 @@ impl ExpressionNode for Sampler1d {
     }
 }
 
-impl Stashable for Sampler1d {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for Sampler1d {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
 
@@ -322,8 +320,11 @@ impl Stashable for Sampler1d {
     }
 }
 
-impl UnstashableInplace for Sampler1d {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for Sampler1d {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         let new_values = unstasher.array_of_f32_iter()?;
         if unstasher.time_to_write() {

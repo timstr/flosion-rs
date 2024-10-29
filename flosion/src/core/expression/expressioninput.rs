@@ -3,7 +3,8 @@ use hashstash::{
 };
 
 use crate::core::{
-    expression::expressiongraph::ExpressionGraphParameterId, stashing::StashingContext,
+    expression::expressiongraph::ExpressionGraphParameterId,
+    stashing::{StashingContext, UnstashingContext},
     uniqueid::UniqueId,
 };
 
@@ -51,9 +52,7 @@ impl ExpressionInput {
     }
 }
 
-impl Stashable for ExpressionInput {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for ExpressionInput {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
         match self.target {
@@ -73,8 +72,8 @@ impl Stashable for ExpressionInput {
     }
 }
 
-impl Unstashable for ExpressionInput {
-    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+impl<'a> Unstashable<UnstashingContext<'a>> for ExpressionInput {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<Self, UnstashError> {
         let id = ExpressionInputId::new(unstasher.u64()? as _);
         let target = match unstasher.u8()? {
             0 => None,
@@ -96,8 +95,11 @@ impl Unstashable for ExpressionInput {
     }
 }
 
-impl UnstashableInplace for ExpressionInput {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExpressionInput {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         // TODO: deduplicate this code
 
         let id = ExpressionInputId::new(unstasher.u64_always()? as _);

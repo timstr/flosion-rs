@@ -23,9 +23,7 @@ impl ProcessorPlug {
     }
 }
 
-impl Stashable for ProcessorPlug {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for ProcessorPlug {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.processor.value() as _);
         stasher.bool(self.is_static);
@@ -52,9 +50,7 @@ impl InputSocket {
     }
 }
 
-impl Stashable for InputSocket {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for InputSocket {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.location.processor().value() as _);
         stasher.u64(self.location.input().value() as _);

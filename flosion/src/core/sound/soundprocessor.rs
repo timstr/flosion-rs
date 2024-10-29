@@ -5,7 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hashstash::{HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{
+    HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace,
+};
 
 use crate::{
     core::{
@@ -13,10 +15,9 @@ use crate::{
             soundgraphcompiler::SoundGraphCompiler,
             stategraphnode::{AnyCompiledProcessorData, CompiledProcessorData},
         },
-        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         soundchunk::SoundChunk,
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
         uniqueid::UniqueId,
     },
     ui_core::arguments::ParsedArguments,
@@ -110,14 +111,6 @@ pub trait SoundProcessor: ProcessorComponent {
         dst: &mut SoundChunk,
         context: &mut Context,
     ) -> StreamStatus;
-
-    // HACK putting this here to circumvent UnstashableInplace
-    // so long as it doesn't provide a way to pass the factory
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError>;
 }
 
 pub struct SoundProcessorWithId<T: SoundProcessor> {
@@ -180,16 +173,19 @@ pub(crate) trait AnySoundProcessor {
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>;
 
     fn stash(&self, stasher: &mut Stasher<StashingContext>);
-    fn unstash_inplace(
+    fn unstash_inplace<'a>(
         &mut self,
-        unstasher: &mut InplaceUnstasher,
-        expr_obj_factory: &ExpressionObjectFactory,
+        unstasher: &mut InplaceUnstasher<UnstashingContext<'a>>,
     ) -> Result<(), UnstashError>;
 }
 
 impl<T> AnySoundProcessor for SoundProcessorWithId<T>
 where
-    T: 'static + SoundProcessor + WithObjectType + Stashable<Context = StashingContext>, /*+ UnstashableInplace*/
+    T: 'static
+        + SoundProcessor
+        + WithObjectType
+        + Stashable<StashingContext>
+        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
 {
     fn id(&self) -> SoundProcessorId {
         self.id
@@ -220,9 +216,9 @@ where
         T::visit_mut(&mut self.processor, visitor);
     }
 
-    fn compile<'a, 'ctx>(
+    fn compile<'ctx>(
         &self,
-        compiler: &mut SoundGraphCompiler<'a, 'ctx>,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>> {
         let start = Instant::now();
         let compiled_processor = self.processor.compile(self.id, compiler);
@@ -252,8 +248,7 @@ where
 
     fn unstash_inplace(
         &mut self,
-        unstasher: &mut InplaceUnstasher,
-        expr_obj_factory: &ExpressionObjectFactory,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
     ) -> Result<(), UnstashError> {
         // id
         let id = SoundProcessorId::new(unstasher.u64_always()? as _);
@@ -262,9 +257,9 @@ where
         }
 
         // contents
-        unstasher.object_proxy_inplace(|unstasher| {
-            self.processor.unstash_inplace(unstasher, expr_obj_factory)
-        })
+        unstasher.object_inplace(&mut self.processor)?;
+
+        Ok(())
     }
 }
 
@@ -565,7 +560,11 @@ impl ProcessorTiming {
 
 impl<T> SoundGraphObject for SoundProcessorWithId<T>
 where
-    for<'ctx> T: 'static + SoundProcessor + WithObjectType + Stashable<Context = StashingContext>, /*+ UnstashableInplace*/
+    T: 'static
+        + SoundProcessor
+        + WithObjectType
+        + Stashable<StashingContext>
+        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
 {
     fn create(args: &ParsedArguments) -> SoundProcessorWithId<T> {
         SoundProcessorWithId::new_from_args(args)

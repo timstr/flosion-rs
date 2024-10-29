@@ -1,6 +1,6 @@
 use eframe::egui;
 
-use crate::core::{expression::expressiongraph::ExpressionGraph, sound::soundgraph::SoundGraph};
+use crate::core::expression::expressiongraph::ExpressionGraph;
 
 use super::{
     expressiongraphuicontext::{ExpressionGraphUiContext, OuterExpressionGraphUiContext},

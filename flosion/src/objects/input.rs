@@ -6,12 +6,11 @@ use cpal::{
 };
 use eframe::egui::mutex::Mutex;
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use spmcq::ReadResult;
 
 use crate::{
     core::{
-        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
@@ -21,7 +20,7 @@ use crate::{
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -85,14 +84,6 @@ impl SoundProcessor for Input {
         };
         *dst = chunk;
         StreamStatus::Playing
-    }
-
-    fn unstash_inplace(
-        &mut self,
-        _unstasher: &mut InplaceUnstasher,
-        _factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        Ok(())
     }
 }
 
@@ -181,11 +172,18 @@ impl WithObjectType for Input {
     const TYPE: ObjectType = ObjectType::new("input");
 }
 
-impl Stashable for Input {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for Input {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         // TODO: once different options are supported (e.g. which device?),
         // stash those
+    }
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for Input {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        Ok(())
     }
 }

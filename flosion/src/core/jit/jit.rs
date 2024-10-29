@@ -315,6 +315,11 @@ impl<'ctx> Jit<'ctx> {
     }
 
     pub(super) fn finish(self) -> CompiledExpressionArtefact<'ctx> {
+        // let s = self.module().print_to_string();
+        // println!("===================== start of module =====================");
+        // println!("{}", s.to_str().unwrap());
+        // println!("===================== end of module =====================");
+
         if let Err(s) = self.module().verify() {
             let s = s.to_string();
             println!("LLVM failed to verify IR module");
@@ -356,10 +361,6 @@ impl<'ctx> Jit<'ctx> {
             self.num_state_variables,
             self.atomic_captures,
         )
-    }
-
-    pub(super) fn assign_target(&mut self, target: ExpressionTarget, value: FloatValue<'ctx>) {
-        self.compiled_targets.insert(target, value);
     }
 
     fn visit_target(
@@ -616,6 +617,72 @@ impl<'ctx> Jit<'ctx> {
         curr_time
     }
 
+    pub fn build_print_str(&mut self, s: &'static str) {
+        let str_bytes = s.as_bytes();
+
+        let ptr_char = self
+            .types
+            .usize_type
+            .const_int(str_bytes.as_ptr() as u64, false);
+        let ptr_char = self
+            .builder
+            .build_int_to_ptr(ptr_char, self.types.pointer_type, "ptr_char")
+            .unwrap();
+
+        let len = self
+            .types
+            .usize_type
+            .const_int(str_bytes.len() as u64, false);
+
+        self.builder
+            .build_call(
+                self.wrapper_functions.print_str_wrapper,
+                &[ptr_char.into(), len.into()],
+                "print_str_call",
+            )
+            .unwrap();
+    }
+
+    pub fn build_print_usize_dec(&mut self, value: IntValue<'ctx>) {
+        self.builder
+            .build_call(
+                self.wrapper_functions.print_usize_dec_wrapper,
+                &[value.into()],
+                "print_usize_dec_call",
+            )
+            .unwrap();
+    }
+
+    pub fn build_print_usize_hex(&mut self, value: IntValue<'ctx>) {
+        self.builder
+            .build_call(
+                self.wrapper_functions.print_usize_hex_wrapper,
+                &[value.into()],
+                "print_usize_hex_call",
+            )
+            .unwrap();
+    }
+
+    pub fn build_print_f32(&mut self, value: FloatValue<'ctx>) {
+        self.builder
+            .build_call(
+                self.wrapper_functions.print_f32_wrapper,
+                &[value.into()],
+                "print_f32_call",
+            )
+            .unwrap();
+    }
+
+    pub fn build_print_ptr(&mut self, value: PointerValue<'ctx>) {
+        self.builder
+            .build_call(
+                self.wrapper_functions.print_ptr_wrapper,
+                &[value.into()],
+                "print_ptr_call",
+            )
+            .unwrap();
+    }
+
     pub fn build_unary_intrinsic_call(
         &mut self,
         name: &str,
@@ -722,7 +789,8 @@ impl<'ctx> Jit<'ctx> {
                 .unwrap()
                 .with_processor_argument(arg_location.argument(), |arg| {
                     let value = arg.compile_evaluation(&mut self);
-                    self.assign_target(ExpressionTarget::Parameter(*param_id), value);
+                    self.compiled_targets
+                        .insert(ExpressionTarget::Parameter(*param_id), value);
                 });
         }
 

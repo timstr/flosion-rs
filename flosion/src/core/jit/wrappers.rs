@@ -1,3 +1,5 @@
+use core::str;
+
 use inkwell::values::FunctionValue;
 
 use crate::core::{
@@ -56,10 +58,37 @@ pub(super) unsafe extern "C" fn input_time_wrapper(
     *ptr_speed = speed;
 }
 
+pub(super) unsafe extern "C" fn print_str_wrapper(ptr_char: *const u8, len: usize) {
+    let u8_slice: &[u8] = unsafe { std::slice::from_raw_parts(ptr_char, len) };
+    let s = str::from_utf8_unchecked(u8_slice);
+    print!("{}", s);
+}
+
+pub(super) unsafe extern "C" fn print_usize_dec_wrapper(value: usize) {
+    print!("{}", value);
+}
+
+pub(super) unsafe extern "C" fn print_usize_hex_wrapper(value: usize) {
+    print!("{:#x}", value);
+}
+
+pub(super) unsafe extern "C" fn print_f32_wrapper(value: f32) {
+    print!("{}", value);
+}
+
+pub(super) unsafe extern "C" fn print_ptr_wrapper(value: *const ()) {
+    print!("{:#x}", value as usize);
+}
+
 pub(super) struct WrapperFunctions<'ctx> {
     pub(super) processor_time_wrapper: FunctionValue<'ctx>,
     pub(super) input_time_wrapper: FunctionValue<'ctx>,
     pub(super) argument_pointer_wrapper: FunctionValue<'ctx>,
+    pub(super) print_str_wrapper: FunctionValue<'ctx>,
+    pub(super) print_usize_dec_wrapper: FunctionValue<'ctx>,
+    pub(super) print_usize_hex_wrapper: FunctionValue<'ctx>,
+    pub(super) print_f32_wrapper: FunctionValue<'ctx>,
+    pub(super) print_ptr_wrapper: FunctionValue<'ctx>,
 }
 
 impl<'ctx> WrapperFunctions<'ctx> {
@@ -98,6 +127,40 @@ impl<'ctx> WrapperFunctions<'ctx> {
             false,
         );
 
+        let fn_print_str_wrapper_type = types.void_type.fn_type(
+            &[
+                // ptr_char
+                types.pointer_type.into(),
+                // len
+                types.usize_type.into(),
+            ],
+            false,
+        );
+
+        let fn_print_usize_wrapper_type = types.void_type.fn_type(
+            &[
+                // value
+                types.usize_type.into(),
+            ],
+            false,
+        );
+
+        let fn_print_f32_wrapper_type = types.void_type.fn_type(
+            &[
+                // value
+                types.f32_type.into(),
+            ],
+            false,
+        );
+
+        let fn_print_ptr_wrapper_type = types.void_type.fn_type(
+            &[
+                // value
+                types.pointer_type.into(),
+            ],
+            false,
+        );
+
         let fn_argument_pointer_wrapper_type = types.pointer_type.fn_type(
             &[
                 // ptr_context
@@ -123,16 +186,47 @@ impl<'ctx> WrapperFunctions<'ctx> {
             None,
         );
 
+        let fn_print_str_wrapper =
+            module.add_function("print_str_wrapper", fn_print_str_wrapper_type, None);
+
+        let fn_print_usize_dec_wrapper =
+            module.add_function("print_usize_dec_wrapper", fn_print_usize_wrapper_type, None);
+
+        let fn_print_usize_hex_wrapper =
+            module.add_function("print_usize_hex_wrapper", fn_print_usize_wrapper_type, None);
+
+        let fn_print_f32_wrapper =
+            module.add_function("print_f32_wrapper", fn_print_f32_wrapper_type, None);
+
+        let fn_print_ptr_wrapper =
+            module.add_function("print_ptr_wrapper", fn_print_ptr_wrapper_type, None);
+
         execution_engine
             .add_global_mapping(&fn_processor_time_wrapper, processor_time_wrapper as usize);
         execution_engine.add_global_mapping(&fn_input_time_wrapper, input_time_wrapper as usize);
         execution_engine
             .add_global_mapping(&fn_argument_pointer, argument_pointer_wrapper as usize);
+        execution_engine.add_global_mapping(&fn_print_str_wrapper, print_str_wrapper as usize);
+        execution_engine.add_global_mapping(
+            &fn_print_usize_dec_wrapper,
+            print_usize_dec_wrapper as usize,
+        );
+        execution_engine.add_global_mapping(
+            &fn_print_usize_hex_wrapper,
+            print_usize_hex_wrapper as usize,
+        );
+        execution_engine.add_global_mapping(&fn_print_f32_wrapper, print_f32_wrapper as usize);
+        execution_engine.add_global_mapping(&fn_print_ptr_wrapper, print_ptr_wrapper as usize);
 
         WrapperFunctions {
             processor_time_wrapper: fn_processor_time_wrapper,
             input_time_wrapper: fn_input_time_wrapper,
             argument_pointer_wrapper: fn_argument_pointer,
+            print_str_wrapper: fn_print_str_wrapper,
+            print_usize_dec_wrapper: fn_print_usize_dec_wrapper,
+            print_usize_hex_wrapper: fn_print_usize_hex_wrapper,
+            print_f32_wrapper: fn_print_f32_wrapper,
+            print_ptr_wrapper: fn_print_ptr_wrapper,
         }
     }
 }

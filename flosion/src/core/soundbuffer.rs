@@ -2,7 +2,7 @@ use hashstash::{Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use super::{
     soundchunk::{SoundChunk, CHUNK_SIZE},
-    stashing::StashingContext,
+    stashing::{StashingContext, UnstashingContext},
 };
 
 pub struct SoundBuffer {
@@ -93,15 +93,14 @@ impl SoundBuffer {
     }
 }
 
-impl Stashable for SoundBuffer {
-    type Context = StashingContext;
+impl Stashable<StashingContext> for SoundBuffer {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_f32_iter(self.samples().flatten());
     }
 }
 
-impl Unstashable for SoundBuffer {
-    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+impl<'a> Unstashable<UnstashingContext<'a>> for SoundBuffer {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<Self, UnstashError> {
         let mut samples = unstasher.array_of_f32_iter()?;
 
         let mut buffer = SoundBuffer::new_empty();

@@ -1,9 +1,9 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
-        expression::{context::ExpressionContext, expressionobject::ExpressionObjectFactory},
+        expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
@@ -17,7 +17,7 @@ use crate::{
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -244,27 +244,6 @@ impl SoundProcessor for ADSR {
 
         status
     }
-
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.input)?;
-        unstasher.object_proxy_inplace(|unstasher| {
-            self.attack_time.unstash_inplace(unstasher, factory)
-        })?;
-        unstasher.object_proxy_inplace(|unstasher| {
-            self.decay_time.unstash_inplace(unstasher, factory)
-        })?;
-        unstasher.object_proxy_inplace(|unstasher| {
-            self.sustain_level.unstash_inplace(unstasher, factory)
-        })?;
-        unstasher.object_proxy_inplace(|unstasher| {
-            self.release_time.unstash_inplace(unstasher, factory)
-        })?;
-        Ok(())
-    }
 }
 
 impl ProcessorState for ADSRState {
@@ -293,14 +272,26 @@ impl WithObjectType for ADSR {
     const TYPE: ObjectType = ObjectType::new("adsr");
 }
 
-impl Stashable for ADSR {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for ADSR {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
         stasher.object(&self.attack_time);
         stasher.object(&self.decay_time);
         stasher.object(&self.sustain_level);
         stasher.object(&self.release_time);
+    }
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for ADSR {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        unstasher.object_inplace(&mut self.attack_time)?;
+        unstasher.object_inplace(&mut self.decay_time)?;
+        unstasher.object_inplace(&mut self.sustain_level)?;
+        unstasher.object_inplace(&mut self.release_time)?;
+        Ok(())
     }
 }

@@ -12,7 +12,7 @@ use crate::{
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -128,17 +128,18 @@ impl ExpressionNode for LinearApproach {
     }
 }
 
-impl Stashable for LinearApproach {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for LinearApproach {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
         stasher.object(&self.speed);
     }
 }
 
-impl UnstashableInplace for LinearApproach {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for LinearApproach {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         unstasher.object_inplace(&mut self.speed)?;
         Ok(())
@@ -248,17 +249,18 @@ impl ExpressionNode for ExponentialApproach {
     }
 }
 
-impl Stashable for ExponentialApproach {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for ExponentialApproach {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
         stasher.object(&self.decay_rate);
     }
 }
 
-impl UnstashableInplace for ExponentialApproach {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExponentialApproach {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         unstasher.object_inplace(&mut self.decay_rate)?;
         Ok(())
@@ -330,16 +332,17 @@ impl ExpressionNode for Integrator {
     }
 }
 
-impl Stashable for Integrator {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for Integrator {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
     }
 }
 
-impl UnstashableInplace for Integrator {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for Integrator {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         Ok(())
     }
@@ -415,16 +418,17 @@ impl ExpressionNode for WrappingIntegrator {
     }
 }
 
-impl Stashable for WrappingIntegrator {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for WrappingIntegrator {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
     }
 }
 
-impl UnstashableInplace for WrappingIntegrator {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for WrappingIntegrator {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         Ok(())
     }

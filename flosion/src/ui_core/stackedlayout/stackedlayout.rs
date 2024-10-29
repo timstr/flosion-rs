@@ -526,9 +526,7 @@ impl StackedLayout {
     }
 }
 
-impl Stashable for StackedLayout {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for StackedLayout {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_objects_slice(&self.groups, hashstash::Order::Unordered);
     }

@@ -6,7 +6,6 @@ use std::sync::{
 
 use crate::{
     core::{
-        expression::expressionobject::ExpressionObjectFactory,
         objecttype::{ObjectType, WithObjectType},
         resample::resample_interleave,
         samplefrequency::SAMPLE_FREQUENCY,
@@ -19,7 +18,7 @@ use crate::{
             },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -29,7 +28,7 @@ use cpal::{
     SampleRate, StreamConfig, StreamError,
 };
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use parking_lot::Mutex;
 
 pub struct OutputData {
@@ -120,14 +119,6 @@ impl SoundProcessor for Output {
             }
         }
         StreamStatus::Playing
-    }
-
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        _factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.input)
     }
 }
 
@@ -242,10 +233,18 @@ impl WithObjectType for Output {
     const TYPE: ObjectType = ObjectType::new("output");
 }
 
-impl Stashable for Output {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for Output {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
+    }
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for Output {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        Ok(())
     }
 }

@@ -1,9 +1,9 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
-        expression::{context::ExpressionContext, expressionobject::ExpressionObjectFactory},
+        expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
@@ -16,7 +16,7 @@ use crate::{
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -61,31 +61,28 @@ impl SoundProcessor for Definitions {
             InputContext::new(context).push(defns.argument, &buffer),
         )
     }
-
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.sound_input)?;
-        unstasher.object_proxy_inplace(|unstasher| {
-            self.expression.unstash_inplace(unstasher, factory)
-        })?;
-        unstasher.object_inplace(&mut self.argument)?;
-        Ok(())
-    }
 }
 
 impl WithObjectType for Definitions {
     const TYPE: ObjectType = ObjectType::new("definitions");
 }
 
-impl Stashable for Definitions {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for Definitions {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.sound_input);
         stasher.object(&self.expression);
         stasher.object(&self.argument);
+    }
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for Definitions {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.sound_input)?;
+        unstasher.object_inplace(&mut self.expression)?;
+        unstasher.object_inplace(&mut self.argument)?;
+        Ok(())
     }
 }

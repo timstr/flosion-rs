@@ -15,6 +15,7 @@ use crate::{
         expressiongraphuicontext::OuterExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
         expressionobjectui::{show_expression_node_ui, ExpressionObjectUiFactory},
+        flosion_ui::Factories,
         lexicallayout::{
             ast::{ASTNodeValue, InternalASTNodeValue},
             edits::remove_unreferenced_parameters,
@@ -626,8 +627,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
         expr_graph: &mut ExpressionGraph,
-        object_factory: &ExpressionObjectFactory,
-        ui_factory: &ExpressionObjectUiFactory,
+        factories: &Factories,
         stash: &Stash,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &mut OuterExpressionGraphUiContext,
@@ -638,8 +638,7 @@ impl LexicalLayout {
             ui,
             focus,
             expr_graph,
-            object_factory,
-            ui_factory,
+            factories,
             stash,
             object_ui_states,
             outer_context,
@@ -678,7 +677,7 @@ impl LexicalLayout {
             });
 
             if pressed_delete {
-                delete_from_graph_at_cursor(self, cursor, expr_graph, stash, object_factory);
+                delete_from_graph_at_cursor(self, cursor, expr_graph, stash, factories);
                 remove_unreferenced_parameters(self, outer_context, expr_graph);
             }
 
@@ -715,8 +714,7 @@ impl LexicalLayout {
         ui: &mut egui::Ui,
         focus: &mut LexicalLayoutFocus,
         expr_graph: &mut ExpressionGraph,
-        object_factory: &ExpressionObjectFactory,
-        ui_factory: &ExpressionObjectUiFactory,
+        factories: &Factories,
         stash: &Stash,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         outer_context: &mut OuterExpressionGraphUiContext,
@@ -768,7 +766,7 @@ impl LexicalLayout {
                         OuterExpressionGraphUiContext::ProcessorExpression(sni_ctx) => {
                             build_summon_widget_for_processor_expression(
                                 node_at_cursor.rect().center_bottom(),
-                                ui_factory,
+                                factories.expression_uis(),
                                 sni_ctx,
                                 focus.cursor().get_variables_in_scope(self),
                             )
@@ -808,8 +806,7 @@ impl LexicalLayout {
                     .create_new_expression_node_from_type(
                         ns_type,
                         arguments,
-                        object_factory,
-                        ui_factory,
+                        factories,
                         object_ui_states,
                         expr_graph,
                     )
@@ -840,8 +837,7 @@ impl LexicalLayout {
                         .create_new_expression_node_from_type(
                             Constant::TYPE,
                             arguments.add_or_replace(&Constant::ARG_VALUE, constant_value as f64),
-                            object_factory,
-                            ui_factory,
+                            factories,
                             object_ui_states,
                             expr_graph,
                         )
@@ -856,7 +852,7 @@ impl LexicalLayout {
                 new_node,
                 expr_graph,
                 stash,
-                object_factory,
+                factories,
             );
             remove_unreferenced_parameters(self, outer_context, expr_graph);
 
@@ -881,14 +877,17 @@ impl LexicalLayout {
         &self,
         ns_type: ObjectType,
         arguments: ParsedArguments,
-        object_factory: &ExpressionObjectFactory,
-        ui_factory: &ExpressionObjectUiFactory,
+        factories: &Factories,
         object_ui_states: &mut ExpressionNodeObjectUiStates,
         expr_graph: &mut ExpressionGraph,
     ) -> Result<(ASTNode, ExpressionNodeLayout), String> {
-        let new_object = object_factory.create(ns_type.name(), &arguments);
+        let new_object = factories
+            .expression_objects()
+            .create(ns_type.name(), &arguments);
 
-        let object_ui = ui_factory.get(new_object.get_dynamic_type());
+        let object_ui = factories
+            .expression_uis()
+            .get(new_object.get_dynamic_type());
 
         let new_ui_state = object_ui
             .make_ui_state(&*new_object, arguments)

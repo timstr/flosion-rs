@@ -35,9 +35,13 @@ impl ArgumentTranslation for PlainF32Array {
                 )
                 .unwrap()
         };
-        jit.builder()
+
+        let value = jit
+            .builder()
             .build_load(jit.types.f32_type, ptr_val, "val")
             .unwrap()
-            .into_float_value()
+            .into_float_value();
+
+        value
     }
 }

@@ -1,9 +1,9 @@
 use flosion_macros::ProcessorComponents;
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError};
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
-        expression::{context::ExpressionContext, expressionobject::ExpressionObjectFactory},
+        expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
@@ -16,7 +16,7 @@ use crate::{
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
-        stashing::StashingContext,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -65,32 +65,30 @@ impl SoundProcessor for ReadWriteWaveform {
 
         StreamStatus::Playing
     }
-
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher,
-        factory: &ExpressionObjectFactory,
-    ) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.sound_input)?;
-        unstasher
-            .object_proxy_inplace(|unstasher| self.waveform.unstash_inplace(unstasher, factory))?;
-        unstasher.object_inplace(&mut self.input_l)?;
-        unstasher.object_inplace(&mut self.input_r)?;
-        Ok(())
-    }
 }
 
 impl WithObjectType for ReadWriteWaveform {
     const TYPE: ObjectType = ObjectType::new("readwritewaveform");
 }
 
-impl Stashable for ReadWriteWaveform {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for ReadWriteWaveform {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.sound_input);
         stasher.object(&self.waveform);
         stasher.object(&self.input_l);
         stasher.object(&self.input_r);
+    }
+}
+
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for ReadWriteWaveform {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.sound_input)?;
+        unstasher.object_inplace(&mut self.waveform)?;
+        unstasher.object_inplace(&mut self.input_l)?;
+        unstasher.object_inplace(&mut self.input_r)?;
+        Ok(())
     }
 }

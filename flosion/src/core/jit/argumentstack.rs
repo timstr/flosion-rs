@@ -41,6 +41,7 @@ impl ArgumentStack {
         ArgumentStackView {
             storage: &self.storage,
             argument_count: 0,
+            data_length: 0,
         }
     }
 }
@@ -49,6 +50,7 @@ impl ArgumentStack {
 pub(crate) struct ArgumentStackView<'a> {
     storage: &'a RefCell<StackStorage>,
     argument_count: usize,
+    data_length: usize,
 }
 
 impl<'a> ArgumentStackView<'a> {
@@ -70,9 +72,10 @@ impl<'a> ArgumentStackView<'a> {
         let ptr_start: *const u8 = &first_word.data[0];
         storage.argument_offsets[..self.argument_count]
             .iter()
-            .find_map(|(id, offset)| {
+            .find_map(|(id, word_offset)| {
                 if *id == argument_id {
-                    Some(ptr_start.add(*offset))
+                    let offset = 8 * word_offset;
+                    Some(ptr_start.add(offset))
                 } else {
                     None
                 }
@@ -89,25 +92,21 @@ impl<'a> ArgumentStackView<'a> {
         // Discard all argument ids higher than the current view
         storage.argument_offsets.truncate(self.argument_count);
 
-        // Find where on the data stack values begin
-        let data_index = storage
-            .argument_offsets
-            .last()
-            .map(|(_, offset)| *offset)
-            .unwrap_or(0);
-
         // discard argument values higher than the current view
-        storage.data.truncate(data_index);
+        storage.data.truncate(self.data_length);
 
         // push the argument id and the index to the top of the
         // data stack. This is the offset at which they will
         // be read from later.
-        storage.argument_offsets.push((argument_id, data_index));
+        storage
+            .argument_offsets
+            .push((argument_id, self.data_length));
 
         // push the individual values
         argument_pack.store(&mut storage.data);
 
         self.argument_count += 1;
+        self.data_length = storage.data.len();
     }
 }
 
@@ -187,9 +186,12 @@ where
         let ptr1 = unsafe {
             jit.builder()
                 .build_gep(
-                    T1::get_type(jit),
+                    // NOTE: using usize as the pointee type to
+                    // perform pointer offsetting so that increments
+                    // happen e.g. 8 bytes at a time for 64-bit
+                    jit.types.usize_type,
                     ptr,
-                    &[jit.types.usize_type.const_int(8, false)],
+                    &[jit.types.usize_type.const_int(1, false)],
                     "ptr1",
                 )
                 .unwrap()

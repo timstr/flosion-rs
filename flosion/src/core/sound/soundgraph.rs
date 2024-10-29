@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use hashstash::{
-    stash_clone_proxy_with_context, Order, Stash, StashHandle, Stashable, Stasher, UnstashError,
+    stash_clone_with_context, Order, Stash, Stashable, Stasher, UnstashError, Unstashable,
     Unstasher,
 };
 
 use crate::{
-    core::{expression::expressionobject::ExpressionObjectFactory, stashing::StashingContext},
-    ui_core::arguments::ParsedArguments,
+    core::stashing::{StashingContext, UnstashingContext},
+    ui_core::{arguments::ParsedArguments, flosion_ui::Factories},
 };
 
 use super::{
@@ -15,7 +15,6 @@ use super::{
     soundgraphid::{SoundGraphComponentLocation, SoundObjectId},
     soundgraphvalidation::find_sound_error,
     soundinput::{BasicProcessorInput, SoundInputLocation},
-    soundobject::SoundObjectFactory,
     soundprocessor::{AnySoundProcessor, SoundProcessorId},
 };
 
@@ -201,8 +200,7 @@ impl SoundGraph {
     pub fn try_make_change<R, F: FnOnce(&mut SoundGraph) -> Result<R, SoundError>>(
         &mut self,
         stash: &Stash,
-        sound_object_factory: &SoundObjectFactory,
-        expr_object_factory: &ExpressionObjectFactory,
+        factories: &Factories,
         f: F,
     ) -> Result<R, SoundError> {
         if let Err(e) = self.validate() {
@@ -212,9 +210,13 @@ impl SoundGraph {
             );
         }
 
-        let (previous_graph, _) = self
-            .stash_clone(stash, sound_object_factory, expr_object_factory)
-            .unwrap();
+        let (previous_graph, _) = stash_clone_with_context(
+            self,
+            stash,
+            &StashingContext::new_stashing_normally(),
+            &UnstashingContext::new(factories),
+        )
+        .unwrap();
         let res = f(self);
         if res.is_err() {
             *self = previous_graph;
@@ -234,9 +236,7 @@ impl SoundGraph {
     }
 }
 
-impl Stashable for SoundGraph {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for SoundGraph {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.array_of_proxy_objects(
             self.sound_processors.values(),
@@ -252,26 +252,23 @@ impl Stashable for SoundGraph {
     }
 }
 
-impl SoundGraph {
-    pub(crate) fn unstash(
-        unstasher: &mut Unstasher,
-        sound_object_factory: &SoundObjectFactory,
-        expr_object_factory: &ExpressionObjectFactory,
-    ) -> Result<SoundGraph, UnstashError> {
+impl<'a> Unstashable<UnstashingContext<'a>> for SoundGraph {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<SoundGraph, UnstashError> {
         let mut graph = SoundGraph::new();
         unstasher.array_of_proxy_objects(|unstasher| {
             // type name
             let type_name = unstasher.string()?;
 
-            let mut processor = sound_object_factory
+            let mut processor = unstasher
+                .context()
+                .factories()
+                .sound_objects()
                 .create(&type_name, &ParsedArguments::new_empty())
                 .into_boxed_sound_processor()
                 .unwrap();
 
             // contents
-            unstasher.object_proxy_inplace(|unstasher| {
-                processor.unstash_inplace(unstasher, expr_object_factory)
-            })?;
+            unstasher.object_proxy_inplace(|unstasher| processor.unstash_inplace(unstasher))?;
 
             graph.add_sound_processor(processor);
 
@@ -279,19 +276,5 @@ impl SoundGraph {
         })?;
 
         Ok(graph)
-    }
-
-    pub(crate) fn stash_clone(
-        &self,
-        stash: &Stash,
-        sound_object_factory: &SoundObjectFactory,
-        expr_object_factory: &ExpressionObjectFactory,
-    ) -> Result<(SoundGraph, StashHandle<SoundGraph>), UnstashError> {
-        stash_clone_proxy_with_context(
-            self,
-            stash,
-            |unstasher| SoundGraph::unstash(unstasher, sound_object_factory, expr_object_factory),
-            &StashingContext::new_stashing_normally(),
-        )
     }
 }

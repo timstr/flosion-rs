@@ -12,7 +12,7 @@ use crate::core::{
         },
     },
     soundchunk::SoundChunk,
-    stashing::StashingContext,
+    stashing::{StashingContext, UnstashingContext},
 };
 
 pub struct SingleInput {
@@ -51,16 +51,17 @@ impl ProcessorComponent for SingleInput {
     }
 }
 
-impl Stashable for SingleInput {
-    type Context = StashingContext;
-
+impl Stashable<StashingContext> for SingleInput {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
     }
 }
 
-impl UnstashableInplace for SingleInput {
-    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+impl<'a> UnstashableInplace<UnstashingContext<'a>> for SingleInput {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)
     }
 }

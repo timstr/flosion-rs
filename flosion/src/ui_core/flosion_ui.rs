@@ -33,8 +33,17 @@ pub(crate) struct Factories {
 }
 
 impl Factories {
+    pub(crate) fn new_empty() -> Factories {
+        Factories {
+            sound_objects: SoundObjectFactory::new_empty(),
+            expression_objects: ExpressionObjectFactory::new_empty(),
+            sound_uis: SoundObjectUiFactory::new_empty(),
+            expression_uis: ExpressionObjectUiFactory::new_empty(),
+        }
+    }
+
     /// Creates a new set of factories pre-filled with all statically registered types
-    pub(crate) fn new() -> Factories {
+    pub(crate) fn new_all_objects() -> Factories {
         let (object_factory, ui_factory) = all_sound_graph_objects();
         let (expression_object_factory, expression_ui_factory) = all_expression_graph_objects();
 
@@ -50,16 +59,32 @@ impl Factories {
         &self.sound_objects
     }
 
+    pub(crate) fn sound_objects_mut(&mut self) -> &mut SoundObjectFactory {
+        &mut self.sound_objects
+    }
+
     pub(crate) fn expression_objects(&self) -> &ExpressionObjectFactory {
         &self.expression_objects
+    }
+
+    pub(crate) fn expression_objects_mut(&mut self) -> &mut ExpressionObjectFactory {
+        &mut self.expression_objects
     }
 
     pub(crate) fn sound_uis(&self) -> &SoundObjectUiFactory {
         &self.sound_uis
     }
 
+    pub(crate) fn sound_uis_mut(&mut self) -> &mut SoundObjectUiFactory {
+        &mut self.sound_uis
+    }
+
     pub(crate) fn expression_uis(&self) -> &ExpressionObjectUiFactory {
         &self.expression_uis
+    }
+
+    pub(crate) fn expression_uis_mut(&mut self) -> &mut ExpressionObjectUiFactory {
+        &mut self.expression_uis
     }
 }
 
@@ -105,7 +130,7 @@ impl<'ctx> FlosionApp<'ctx> {
 
         let mut app = FlosionApp {
             state,
-            factories: Factories::new(),
+            factories: Factories::new_all_objects(),
             audio_thread: Some(audio_thread),
             stop_button,
             engine_interface,
@@ -159,8 +184,7 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
                     self.state.graph(),
                     &self.jit_cache,
                     &self.stash,
-                    self.factories.sound_objects(),
-                    self.factories.expression_objects(),
+                    &self.factories,
                 )
                 .expect("Failed to update engine");
 

@@ -7,7 +7,7 @@ use crate::core::expression::{
 
 use super::{expressiongraph::ExpressionGraph, expressiongrapherror::ExpressionError};
 
-pub(super) fn find_expression_error(graph: &ExpressionGraph) -> Option<ExpressionError> {
+pub(crate) fn find_expression_error(graph: &ExpressionGraph) -> Option<ExpressionError> {
     if find_expression_cycle(graph) {
         return Some(ExpressionError::CircularDependency);
     }

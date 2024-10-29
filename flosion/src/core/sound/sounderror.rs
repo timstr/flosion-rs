@@ -1,20 +1,12 @@
 use super::{
-    expression::ProcessorExpressionLocation,
-    argument::ProcessorArgumentLocation,
-    soundgraph::SoundGraph,
-    soundinput::{SoundInputId, SoundInputLocation},
-    soundprocessor::SoundProcessorId,
+    argument::ProcessorArgumentLocation, expression::ProcessorExpressionLocation,
+    soundgraph::SoundGraph, soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum SoundError {
     ProcessorNotFound(SoundProcessorId),
     SoundInputNotFound(SoundInputLocation),
-    SoundInputOccupied {
-        input_id: SoundInputId,
-        current_target: SoundProcessorId,
-    },
-    SoundInputUnoccupied(SoundInputId),
     CircularDependency,
     StaticNotOneState(SoundProcessorId),
     StaticNotSynchronous(SoundProcessorId),
@@ -35,15 +27,6 @@ impl SoundError {
                     loc.input().value(),
                     loc.processor().value()
                 )
-            }
-            SoundError::SoundInputOccupied {
-                input_id,
-                current_target,
-            } => {
-                todo!()
-            }
-            SoundError::SoundInputUnoccupied(siid) => {
-                todo!()
             }
             SoundError::CircularDependency => "The graph contains a cycle ".to_string(),
             SoundError::StaticNotOneState(spid) => format!(
