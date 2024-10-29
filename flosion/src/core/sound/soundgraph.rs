@@ -7,7 +7,7 @@ use hashstash::{
 
 use crate::{
     core::stashing::{StashingContext, UnstashingContext},
-    ui_core::{arguments::ParsedArguments, flosion_ui::Factories},
+    ui_core::{arguments::ParsedArguments, factories::Factories},
 };
 
 use super::{

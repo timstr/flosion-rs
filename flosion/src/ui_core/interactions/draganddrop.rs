@@ -12,7 +12,7 @@ use crate::{
         stashing::{StashingContext, UnstashingContext},
     },
     ui_core::{
-        flosion_ui::Factories, soundobjectpositions::SoundObjectPositions,
+        factories::Factories, soundobjectpositions::SoundObjectPositions,
         soundobjectuistate::SoundObjectUiStates, stackedlayout::stackedlayout::StackedLayout,
     },
 };

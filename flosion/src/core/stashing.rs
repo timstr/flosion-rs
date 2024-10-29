@@ -1,6 +1,6 @@
 use hashstash::{Stashable, Stasher};
 
-use crate::ui_core::flosion_ui::Factories;
+use crate::ui_core::factories::Factories;
 
 pub struct StashingContext {
     checking_recompilation: bool,

@@ -5,7 +5,7 @@ use crate::{
     core::{
         expression::{
             expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
-            expressionnode::ExpressionNodeId, expressionobject::ExpressionObjectFactory,
+            expressionnode::ExpressionNodeId,
         },
         objecttype::{ObjectType, WithObjectType},
     },
@@ -15,7 +15,7 @@ use crate::{
         expressiongraphuicontext::OuterExpressionGraphUiContext,
         expressiongraphuistate::ExpressionGraphUiState,
         expressionobjectui::{show_expression_node_ui, ExpressionObjectUiFactory},
-        flosion_ui::Factories,
+        factories::Factories,
         lexicallayout::{
             ast::{ASTNodeValue, InternalASTNodeValue},
             edits::remove_unreferenced_parameters,

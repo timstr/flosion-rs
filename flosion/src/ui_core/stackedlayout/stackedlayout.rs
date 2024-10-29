@@ -10,7 +10,7 @@ use crate::{
         stashing::StashingContext,
     },
     ui_core::{
-        flosion_ui::Factories, graph_properties::GraphProperties,
+        factories::Factories, graph_properties::GraphProperties,
         interactions::draganddrop::DragDropSubject, soundgraphuistate::SoundGraphUiState,
         soundobjectpositions::SoundObjectPositions,
     },

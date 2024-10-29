@@ -8,7 +8,7 @@ use crate::{
     },
     ui_core::{
         expressiongraphuicontext::OuterProcessorExpressionContext,
-        expressiongraphuistate::ExpressionUiCollection, flosion_ui::Factories,
+        expressiongraphuistate::ExpressionUiCollection, factories::Factories,
         graph_properties::GraphProperties, lexicallayout::lexicallayout::LexicalLayoutFocus,
         soundgraphuinames::SoundGraphUiNames, soundobjectpositions::SoundObjectPositions,
         stackedlayout::stackedlayout::StackedLayout,

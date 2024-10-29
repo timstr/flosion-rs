@@ -18,7 +18,7 @@ use super::{
     expressiongraphuistate::ExpressionUiCollection,
     expressionplot::PlotConfig,
     expressionui::SoundExpressionUi,
-    flosion_ui::Factories,
+    factories::Factories,
     globalinteractions::GlobalInteractions,
     graph_properties::GraphProperties,
     soundgraphuicontext::SoundGraphUiContext,

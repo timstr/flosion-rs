@@ -9,7 +9,7 @@ use crate::{
     },
     ui_core::{
         expressiongraphuicontext::OuterExpressionGraphUiContext,
-        flosion_ui::Factories,
+        factories::Factories,
         lexicallayout::ast::{ASTPath, InternalASTNodeValue},
     },
 };

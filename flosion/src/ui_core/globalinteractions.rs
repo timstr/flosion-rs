@@ -12,7 +12,7 @@ use crate::core::{
 
 use super::{
     expressiongraphuistate::ExpressionUiCollection,
-    flosion_ui::Factories,
+    factories::Factories,
     graph_properties::GraphProperties,
     interactions::{
         draganddrop::{DragDropSubject, DragInteraction, DropInteraction},

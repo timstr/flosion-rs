@@ -6,6 +6,7 @@ pub mod expressionobjectui;
 pub mod expressionodeui;
 pub mod expressionplot;
 pub mod expressionui;
+pub mod factories;
 pub mod flosion_ui;
 pub mod globalinteractions;
 pub mod graph_properties;

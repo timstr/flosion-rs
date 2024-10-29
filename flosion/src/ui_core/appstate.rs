@@ -6,7 +6,7 @@ use hashstash::{
 use crate::core::{jit::cache::JitCache, sound::soundgraph::SoundGraph, stashing::StashingContext};
 
 use super::{
-    flosion_ui::Factories, graph_properties::GraphProperties, soundgraphuistate::SoundGraphUiState,
+    factories::Factories, graph_properties::GraphProperties, soundgraphuistate::SoundGraphUiState,
     stackedlayout::stackedlayout::StackedLayout,
 };
 

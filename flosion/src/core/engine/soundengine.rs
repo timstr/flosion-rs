@@ -25,7 +25,7 @@ use crate::{
         soundchunk::CHUNK_SIZE,
         stashing::{StashingContext, UnstashingContext},
     },
-    ui_core::flosion_ui::Factories,
+    ui_core::factories::Factories,
 };
 
 /// A thread-safe signaling mechanism used to communicate

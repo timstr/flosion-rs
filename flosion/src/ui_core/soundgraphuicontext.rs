@@ -4,7 +4,7 @@ use hashstash::Stash;
 use crate::core::jit::cache::JitCache;
 
 use super::{
-    flosion_ui::Factories, graph_properties::GraphProperties, stackedlayout::timeaxis::TimeAxis,
+    factories::Factories, graph_properties::GraphProperties, stackedlayout::timeaxis::TimeAxis,
 };
 
 pub struct SoundGraphUiContext<'a, 'ctx> {
