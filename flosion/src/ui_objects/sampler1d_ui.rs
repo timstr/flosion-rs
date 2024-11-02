@@ -10,6 +10,7 @@ use crate::{
         expressionobjectui::ExpressionObjectUi,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
+        object_ui::NoObjectUiState,
     },
 };
 
@@ -18,7 +19,7 @@ pub struct Sampler1dUi {}
 
 impl ExpressionObjectUi for Sampler1dUi {
     type ObjectType = ExpressionNodeWithId<Sampler1d>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui<'a, 'b>(
         &self,
@@ -26,7 +27,7 @@ impl ExpressionObjectUi for Sampler1dUi {
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         // TODO: custom vertical range
 
@@ -94,6 +95,10 @@ impl ExpressionObjectUi for Sampler1dUi {
 
                 sampler1d.value().write(&values);
             }
+
+            if r.drag_stopped() {
+                ctx.request_snapshot();
+            }
         });
     }
 
@@ -105,7 +110,11 @@ impl ExpressionObjectUi for Sampler1dUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _object: &Self::ObjectType,
+        _args: ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

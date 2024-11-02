@@ -2,7 +2,7 @@ use crate::{
     core::sound::soundprocessor::SoundProcessorWithId,
     objects::readwritewaveform::ReadWriteWaveform,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
@@ -13,7 +13,7 @@ pub struct ReadWriteWaveformUi {}
 
 impl SoundObjectUi for ReadWriteWaveformUi {
     type ObjectType = SoundProcessorWithId<ReadWriteWaveform>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
@@ -21,7 +21,7 @@ impl SoundObjectUi for ReadWriteWaveformUi {
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(rww.id(), "ReadWriteWaveform")
             .add_sound_input(rww.sound_input.id(), "input")
@@ -39,7 +39,11 @@ impl SoundObjectUi for ReadWriteWaveformUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

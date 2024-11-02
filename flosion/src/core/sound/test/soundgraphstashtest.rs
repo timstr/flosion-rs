@@ -37,8 +37,8 @@ fn stash_clone_basic_input() {
     let (new_input, _) = stash_clone_with_context(
         &input,
         &stash,
-        &StashingContext::new_stashing_normally(),
-        &UnstashingContext::new(&factories),
+        StashingContext::new_stashing_normally(),
+        UnstashingContext::new(&factories),
     )
     .unwrap();
 
@@ -56,7 +56,7 @@ fn stash_clone_test_static_processor() {
     let stash = Stash::new();
     let factories = test_sound_object_factories();
 
-    let stash_handle = stash.stash_with_context(&proc, &StashingContext::new_stashing_normally());
+    let stash_handle = stash.stash_with_context(&proc, StashingContext::new_stashing_normally());
 
     // ----------------------------------
 
@@ -70,7 +70,7 @@ fn stash_clone_test_static_processor() {
         .unstash_inplace_with_context(
             &stash_handle,
             &mut new_proc,
-            &UnstashingContext::new(&factories),
+            UnstashingContext::new(&factories),
         )
         .unwrap();
 
@@ -87,8 +87,8 @@ fn stash_clone_empty_graph() {
     let (new_graph, _) = stash_clone_with_context(
         &graph,
         &stash,
-        &StashingContext::new_stashing_normally(),
-        &UnstashingContext::new(&factories),
+        StashingContext::new_stashing_normally(),
+        UnstashingContext::new(&factories),
     )
     .unwrap();
 
@@ -120,8 +120,8 @@ fn stash_clone_graph_with_one_static_processor() {
     let (new_graph, _) = stash_clone_with_context(
         &graph,
         &stash,
-        &StashingContext::new_stashing_normally(),
-        &UnstashingContext::new(&factories),
+        StashingContext::new_stashing_normally(),
+        UnstashingContext::new(&factories),
     )
     .unwrap();
 
@@ -162,8 +162,8 @@ fn stash_clone_graph_with_one_dynamic_processor() {
     let (new_graph, _) = stash_clone_with_context(
         &graph,
         &stash,
-        &StashingContext::new_stashing_normally(),
-        &UnstashingContext::new(&factories),
+        StashingContext::new_stashing_normally(),
+        UnstashingContext::new(&factories),
     )
     .unwrap();
 

@@ -22,6 +22,7 @@ pub mod soundobjectui;
 pub mod soundobjectuistate;
 pub mod soundprocessorui;
 pub mod stackedlayout;
+pub mod stashing;
 mod summon_widget;
 
 #[cfg(test)]

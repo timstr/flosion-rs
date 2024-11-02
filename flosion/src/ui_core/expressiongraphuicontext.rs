@@ -16,8 +16,8 @@ use crate::core::{
 };
 
 use super::{
-    expressionobjectui::ExpressionObjectUiFactory, soundgraphuinames::SoundGraphUiNames,
-    stackedlayout::timeaxis::TimeAxis,
+    expressionobjectui::ExpressionObjectUiFactory, history::SnapshotFlag,
+    soundgraphuinames::SoundGraphUiNames, stackedlayout::timeaxis::TimeAxis,
 };
 
 pub(crate) struct OuterProcessorExpressionContext<'a> {
@@ -26,6 +26,7 @@ pub(crate) struct OuterProcessorExpressionContext<'a> {
     sound_graph_names: &'a SoundGraphUiNames,
     time_axis: TimeAxis,
     available_arguments: &'a HashSet<ProcessorArgumentLocation>,
+    snapshot_flag: &'a SnapshotFlag,
 }
 
 impl<'a> OuterProcessorExpressionContext<'a> {
@@ -35,6 +36,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         sound_graph_names: &'a SoundGraphUiNames,
         time_axis: TimeAxis,
         available_arguments: &'a HashSet<ProcessorArgumentLocation>,
+        snapshot_flag: &'a SnapshotFlag,
     ) -> Self {
         Self {
             location,
@@ -42,6 +44,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
             sound_graph_names,
             time_axis,
             available_arguments,
+            snapshot_flag,
         }
     }
 
@@ -139,6 +142,14 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
             }
         }
     }
+
+    pub(crate) fn request_snapshot(&self) {
+        match self {
+            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
+                ctx.snapshot_flag.request_snapshot()
+            }
+        }
+    }
 }
 
 pub struct ExpressionGraphUiContext<'a, 'ctx> {
@@ -146,6 +157,7 @@ pub struct ExpressionGraphUiContext<'a, 'ctx> {
     ui_factory: &'a ExpressionObjectUiFactory,
     jit_cache: &'a JitCache<'ctx>,
     stash: &'a Stash,
+    snapshot_flag: &'a SnapshotFlag,
 }
 
 impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
@@ -154,12 +166,14 @@ impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
         ui_factory: &'a ExpressionObjectUiFactory,
         jit_cache: &'a JitCache<'ctx>,
         stash: &'a Stash,
+        snapshot_flag: &'a SnapshotFlag,
     ) -> ExpressionGraphUiContext<'a, 'ctx> {
         ExpressionGraphUiContext {
             object_factory,
             ui_factory,
             jit_cache,
             stash,
+            snapshot_flag,
         }
     }
 
@@ -177,5 +191,9 @@ impl<'a, 'ctx> ExpressionGraphUiContext<'a, 'ctx> {
 
     pub(super) fn stash(&self) -> &Stash {
         self.stash
+    }
+
+    pub fn request_snapshot(&self) {
+        self.snapshot_flag.request_snapshot();
     }
 }

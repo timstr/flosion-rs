@@ -1,5 +1,5 @@
 use eframe::egui;
-use hashstash::Stash;
+use hashstash::{InplaceUnstasher, Stash, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
@@ -21,11 +21,13 @@ use super::{
     factories::Factories,
     globalinteractions::GlobalInteractions,
     graph_properties::GraphProperties,
+    history::SnapshotFlag,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuinames::SoundGraphUiNames,
     soundobjectpositions::SoundObjectPositions,
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::stackedlayout::StackedLayout,
+    stashing::UiUnstashingContext,
 };
 
 pub struct SoundGraphUiState {
@@ -74,6 +76,7 @@ impl SoundGraphUiState {
         properties: &GraphProperties,
         layout: &mut StackedLayout,
         stash: &Stash,
+        snapshot_flag: &SnapshotFlag,
     ) {
         let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
 
@@ -95,6 +98,7 @@ impl SoundGraphUiState {
                     &self.names,
                     bg_response,
                     stash,
+                    snapshot_flag,
                 );
             },
         );
@@ -123,7 +127,7 @@ impl SoundGraphUiState {
         self.expression_uis
             .cleanup(graph, factories.expression_uis());
 
-        self.names.regenerate(graph);
+        self.names.cleanup(graph);
         self.interactions.cleanup(graph);
     }
 
@@ -160,6 +164,7 @@ impl SoundGraphUiState {
         ctx: &SoundGraphUiContext,
         plot_config: &PlotConfig,
         ui: &mut egui::Ui,
+        snapshot_flag: &SnapshotFlag,
     ) {
         let location = ProcessorExpressionLocation::new(processor_id, expr.id());
 
@@ -174,12 +179,14 @@ impl SoundGraphUiState {
                 .available_arguments()
                 .get(&location)
                 .unwrap(),
+            snapshot_flag,
         );
         let inner_ctx = ExpressionGraphUiContext::new(
             ctx.factories().expression_objects(),
             ctx.factories().expression_uis(),
             ctx.jit_cache(),
             ctx.stash(),
+            snapshot_flag,
         );
 
         let expr_ui = SoundExpressionUi::new();
@@ -195,5 +202,29 @@ impl SoundGraphUiState {
             &outer_ctx.into(),
             plot_config,
         );
+    }
+}
+
+impl Stashable for SoundGraphUiState {
+    fn stash(&self, stasher: &mut Stasher<()>) {
+        stasher.object(&self.expression_uis);
+        stasher.object(&self.object_states);
+        stasher.object(&self.names);
+        stasher.object(&self.interactions);
+        stasher.object(&self.positions);
+    }
+}
+
+impl UnstashableInplace<UiUnstashingContext<'_>> for SoundGraphUiState {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UiUnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_replace(&mut self.expression_uis)?;
+        unstasher.object_replace(&mut self.object_states)?;
+        unstasher.object_replace_with_context(&mut self.names, ())?;
+        unstasher.object_replace_with_context(&mut self.interactions, ())?;
+        unstasher.object_replace_with_context(&mut self.positions, ())?;
+        Ok(())
     }
 }

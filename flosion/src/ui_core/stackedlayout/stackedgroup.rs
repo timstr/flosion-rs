@@ -1,7 +1,7 @@
 use std::ops::BitAnd;
 
 use eframe::egui::{self};
-use hashstash::{Stash, Stashable, Stasher};
+use hashstash::{Stash, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::{
     core::{
@@ -10,10 +10,9 @@ use crate::{
             soundgraph::SoundGraph, soundinput::InputOptions, soundobject::SoundGraphObject,
             soundprocessor::SoundProcessorId,
         },
-        stashing::StashingContext,
     },
     ui_core::{
-        factories::Factories, graph_properties::GraphProperties,
+        factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
         interactions::draganddrop::DragDropSubject, soundgraphuicontext::SoundGraphUiContext,
         soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
         soundobjectui::show_sound_object_ui, stackedlayout::stackedlayout::StackedLayout,
@@ -187,6 +186,7 @@ impl StackedGroup {
         jit_cache: &JitCache,
         stash: &Stash,
         properties: &GraphProperties,
+        snapshot_flag: &SnapshotFlag,
     ) {
         // For a unique id for egui, hash the processor ids in the group
         let area_id = egui::Id::new(&self.processors);
@@ -262,6 +262,7 @@ impl StackedGroup {
                                 properties,
                                 jit_cache,
                                 stash,
+                                snapshot_flag,
                             );
 
                             show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
@@ -735,14 +736,42 @@ impl StackedGroup {
     }
 }
 
-impl Stashable<StashingContext> for StackedGroup {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.u32(self.width_pixels.to_bits());
-        stasher.u32(self.time_axis.time_per_x_pixel.to_bits());
+impl Stashable for StackedGroup {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.f32(self.width_pixels);
+        stasher.f32(self.time_axis.time_per_x_pixel);
         stasher.array_of_u64_iter(self.processors.iter().map(|p| p.value() as u64));
-        stasher.u32(self.rect.left().to_bits());
-        stasher.u32(self.rect.right().to_bits());
-        stasher.u32(self.rect.top().to_bits());
-        stasher.u32(self.rect.bottom().to_bits());
+        stasher.f32(self.rect.left());
+        stasher.f32(self.rect.right());
+        stasher.f32(self.rect.top());
+        stasher.f32(self.rect.bottom());
+    }
+}
+
+impl Unstashable for StackedGroup {
+    fn unstash(unstasher: &mut Unstasher) -> Result<StackedGroup, UnstashError> {
+        let width_pixels = unstasher.f32()?;
+        let time_axis = TimeAxis {
+            time_per_x_pixel: unstasher.f32()?,
+        };
+
+        let processors = unstasher
+            .array_of_u64_iter()?
+            .map(|i| SoundProcessorId::new(i as _))
+            .collect();
+
+        let left = unstasher.f32()?;
+        let right = unstasher.f32()?;
+        let top = unstasher.f32()?;
+        let bottom = unstasher.f32()?;
+
+        let rect = egui::Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, bottom));
+
+        Ok(StackedGroup {
+            width_pixels,
+            time_axis,
+            processors,
+            rect,
+        })
     }
 }

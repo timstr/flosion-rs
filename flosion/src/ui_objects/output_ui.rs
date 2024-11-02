@@ -4,9 +4,9 @@ use crate::{
     core::sound::soundprocessor::SoundProcessorWithId,
     objects::output::Output,
     ui_core::{
-        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
-        soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::NoObjectUiState,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -15,14 +15,14 @@ pub struct OutputUi {}
 
 impl SoundObjectUi for OutputUi {
     type ObjectType = SoundProcessorWithId<Output>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
     fn ui(
         &self,
         output: &mut SoundProcessorWithId<Output>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(output.id(), "Output")
             .add_sound_input(output.input.id(), "input")
@@ -44,7 +44,11 @@ impl SoundObjectUi for OutputUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

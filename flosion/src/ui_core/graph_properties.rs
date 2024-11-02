@@ -17,12 +17,10 @@ pub(crate) struct GraphProperties {
 }
 
 impl GraphProperties {
-    pub(crate) fn new(graph: &SoundGraph) -> GraphProperties {
-        let mut props = GraphProperties {
+    pub(crate) fn new() -> GraphProperties {
+        GraphProperties {
             available_arguments: HashCacheProperty::new(),
-        };
-        props.refresh(graph);
-        props
+        }
     }
 
     pub(crate) fn available_arguments(
@@ -35,7 +33,7 @@ impl GraphProperties {
         self.available_arguments.refresh1_with_context(
             available_sound_expression_arguments,
             graph,
-            &StashingContext::new_checking_recompilation(),
+            StashingContext::new_checking_recompilation(),
         );
     }
 }

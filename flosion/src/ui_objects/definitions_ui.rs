@@ -2,7 +2,7 @@ use crate::{
     core::sound::soundprocessor::SoundProcessorWithId,
     objects::definitions::Definitions,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
@@ -13,7 +13,7 @@ pub struct DefinitionsUi {}
 
 impl SoundObjectUi for DefinitionsUi {
     type ObjectType = SoundProcessorWithId<Definitions>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui<'a, 'b>(
         &self,
@@ -21,7 +21,7 @@ impl SoundObjectUi for DefinitionsUi {
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(definitions.id(), "Definitions")
             .add_expression(&definitions.expression, "a", PlotConfig::new())
@@ -47,7 +47,11 @@ impl SoundObjectUi for DefinitionsUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

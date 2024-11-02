@@ -1,4 +1,6 @@
-use eframe::epaint::ahash::{HashMap, HashMapExt};
+use std::collections::HashMap;
+
+use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::core::sound::{
     argument::{AnyProcessorArgument, ProcessorArgumentLocation},
@@ -25,7 +27,7 @@ impl SoundGraphUiNames {
         }
     }
 
-    pub(crate) fn regenerate(&mut self, graph: &SoundGraph) {
+    pub(crate) fn cleanup(&mut self, graph: &SoundGraph) {
         self.arguments.retain(|k, _v| graph.contains(k));
         self.expressions.retain(|k, _v| graph.contains(k));
         self.sound_inputs.retain(|k, _v| graph.contains(k));
@@ -149,5 +151,84 @@ impl SoundGraphUiNames {
                 assert!(self.arguments.contains_key(&location.into()));
             });
         }
+    }
+}
+
+impl Stashable for SoundGraphUiNames {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_proxy_objects(
+            self.arguments.iter(),
+            |(loc, name), stasher| {
+                loc.stash(stasher);
+                stasher.string(name);
+            },
+            Order::Unordered,
+        );
+        stasher.array_of_proxy_objects(
+            self.expressions.iter(),
+            |(loc, name), stasher| {
+                loc.stash(stasher);
+                stasher.string(name);
+            },
+            Order::Unordered,
+        );
+        stasher.array_of_proxy_objects(
+            self.sound_inputs.iter(),
+            |(loc, name), stasher| {
+                loc.stash(stasher);
+                stasher.string(name);
+            },
+            Order::Unordered,
+        );
+        stasher.array_of_proxy_objects(
+            self.sound_processors.iter(),
+            |(id, name), stasher| {
+                id.stash(stasher);
+                stasher.string(name);
+            },
+            Order::Unordered,
+        );
+    }
+}
+
+impl Unstashable for SoundGraphUiNames {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let mut arguments = HashMap::new();
+        let mut expressions = HashMap::new();
+        let mut sound_inputs = HashMap::new();
+        let mut sound_processors = HashMap::new();
+
+        unstasher.array_of_proxy_objects(|unstasher| {
+            arguments.insert(
+                ProcessorArgumentLocation::unstash(unstasher)?,
+                unstasher.string()?,
+            );
+            Ok(())
+        })?;
+
+        unstasher.array_of_proxy_objects(|unstasher| {
+            expressions.insert(
+                ProcessorExpressionLocation::unstash(unstasher)?,
+                unstasher.string()?,
+            );
+            Ok(())
+        })?;
+
+        unstasher.array_of_proxy_objects(|unstasher| {
+            sound_inputs.insert(SoundInputLocation::unstash(unstasher)?, unstasher.string()?);
+            Ok(())
+        })?;
+
+        unstasher.array_of_proxy_objects(|unstasher| {
+            sound_processors.insert(SoundProcessorId::unstash(unstasher)?, unstasher.string()?);
+            Ok(())
+        })?;
+
+        Ok(SoundGraphUiNames {
+            arguments,
+            expressions,
+            sound_inputs,
+            sound_processors,
+        })
     }
 }

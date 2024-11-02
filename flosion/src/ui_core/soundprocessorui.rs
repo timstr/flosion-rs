@@ -333,7 +333,14 @@ impl ProcessorUi {
 
             let processor_id = processor.id();
             processor.with_expression_mut(expr_id, |expr| {
-                ui_state.show_expression_graph_ui(processor_id, expr, ctx, plot_config, ui);
+                ui_state.show_expression_graph_ui(
+                    processor_id,
+                    expr,
+                    ctx,
+                    plot_config,
+                    ui,
+                    ctx.snapshot_flag(),
+                );
             });
         });
 

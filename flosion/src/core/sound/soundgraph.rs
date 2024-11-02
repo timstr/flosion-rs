@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use hashstash::{
-    stash_clone_with_context, Order, Stash, Stashable, Stasher, UnstashError, Unstashable,
-    Unstasher,
+    stash_clone_with_context, InplaceUnstasher, Order, Stash, Stashable, Stasher, UnstashError,
+    Unstashable, UnstashableInplace, Unstasher,
 };
 
 use crate::{
@@ -213,8 +213,8 @@ impl SoundGraph {
         let (previous_graph, _) = stash_clone_with_context(
             self,
             stash,
-            &StashingContext::new_stashing_normally(),
-            &UnstashingContext::new(factories),
+            StashingContext::new_stashing_normally(),
+            UnstashingContext::new(factories),
         )
         .unwrap();
         let res = f(self);
@@ -241,6 +241,9 @@ impl Stashable<StashingContext> for SoundGraph {
         stasher.array_of_proxy_objects(
             self.sound_processors.values(),
             |processor, stasher| {
+                // id (needed during in-place unstashing to find existing objects)
+                stasher.u64(processor.id().value() as _);
+
                 // type name (needed for factory during unstashing)
                 stasher.string(processor.as_graph_object().get_dynamic_type().name());
 
@@ -252,10 +255,35 @@ impl Stashable<StashingContext> for SoundGraph {
     }
 }
 
-impl<'a> Unstashable<UnstashingContext<'a>> for SoundGraph {
+impl Stashable<()> for SoundGraph {
+    fn stash(&self, stasher: &mut Stasher<()>) {
+        // TODO: don't duplicate this, find a way to delegate
+        // without indirection
+        stasher.array_of_proxy_objects_with_context(
+            self.sound_processors.values(),
+            |processor, stasher| {
+                // id (needed during in-place unstashing to find existing objects)
+                stasher.u64(processor.id().value() as _);
+
+                // type name (needed for factory during unstashing)
+                stasher.string(processor.as_graph_object().get_dynamic_type().name());
+
+                // contents
+                stasher.object_proxy(|stasher| processor.stash(stasher));
+            },
+            Order::Unordered,
+            StashingContext::new_stashing_normally(),
+        );
+    }
+}
+
+impl Unstashable<UnstashingContext<'_>> for SoundGraph {
     fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<SoundGraph, UnstashError> {
         let mut graph = SoundGraph::new();
         unstasher.array_of_proxy_objects(|unstasher| {
+            // id
+            let id = SoundProcessorId::new(unstasher.u64()? as _);
+
             // type name
             let type_name = unstasher.string()?;
 
@@ -270,11 +298,65 @@ impl<'a> Unstashable<UnstashingContext<'a>> for SoundGraph {
             // contents
             unstasher.object_proxy_inplace(|unstasher| processor.unstash_inplace(unstasher))?;
 
+            debug_assert_eq!(processor.id(), id);
+
             graph.add_sound_processor(processor);
 
             Ok(())
         })?;
 
         Ok(graph)
+    }
+}
+
+impl UnstashableInplace<UnstashingContext<'_>> for SoundGraph {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext<'_>>,
+    ) -> Result<(), UnstashError> {
+        let time_to_write = unstasher.time_to_write();
+
+        let mut procs_to_keep: HashSet<SoundProcessorId> = HashSet::new();
+
+        // nodes
+        unstasher.array_of_proxy_objects(|unstasher| {
+            // id
+            let id = SoundProcessorId::new(unstasher.u64()? as _);
+
+            // type name
+            let type_name = unstasher.string()?;
+
+            if let Some(existing_proc) = self.sound_processor_mut(id) {
+                unstasher
+                    .object_proxy_inplace(|unstasher| existing_proc.unstash_inplace(unstasher))?;
+            } else {
+                let mut proc = unstasher
+                    .context()
+                    .factories()
+                    .sound_objects()
+                    .create(&type_name, &ParsedArguments::new_empty())
+                    .into_boxed_sound_processor()
+                    .unwrap();
+
+                // contents
+                unstasher.object_proxy_inplace(|unstasher| proc.unstash_inplace(unstasher))?;
+
+                if time_to_write {
+                    self.add_sound_processor(proc);
+                }
+            }
+
+            procs_to_keep.insert(id);
+
+            Ok(())
+        })?;
+
+        if time_to_write {
+            // remove processors which were not stashed
+            self.sound_processors
+                .retain(|id, _| procs_to_keep.contains(id));
+        }
+
+        Ok(())
     }
 }

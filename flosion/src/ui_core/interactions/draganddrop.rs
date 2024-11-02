@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use eframe::egui;
-use hashstash::{stash_clone_with_context, HashCacheProperty, Order, Stash, Stashable, Stasher};
+use hashstash::{
+    stash_clone_with_context, HashCacheProperty, Order, Stash, Stashable, Stasher, UnstashError,
+    Unstashable, Unstasher,
+};
 
 use crate::{
     core::{
@@ -12,7 +15,7 @@ use crate::{
         stashing::{StashingContext, UnstashingContext},
     },
     ui_core::{
-        factories::Factories, soundobjectpositions::SoundObjectPositions,
+        factories::Factories, history::SnapshotFlag, soundobjectpositions::SoundObjectPositions,
         soundobjectuistate::SoundObjectUiStates, stackedlayout::stackedlayout::StackedLayout,
     },
 };
@@ -60,27 +63,41 @@ impl DragDropSubject {
     }
 }
 
-impl Stashable<StashingContext> for DragDropSubject {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+impl Stashable for DragDropSubject {
+    fn stash(&self, stasher: &mut Stasher) {
         match self {
             DragDropSubject::Processor(spid) => {
                 stasher.u8(0);
-                stasher.u64(spid.value() as _);
+                spid.stash(stasher);
             }
             DragDropSubject::Plug(spid) => {
                 stasher.u8(1);
-                stasher.u64(spid.value() as _);
+                spid.stash(stasher);
             }
-            DragDropSubject::Socket(siid) => {
+            DragDropSubject::Socket(input_loc) => {
                 stasher.u8(2);
-                stasher.u64(siid.processor().value() as _);
-                stasher.u64(siid.input().value() as _);
+                input_loc.stash(stasher);
             }
             DragDropSubject::Group { top_processor } => {
                 stasher.u8(3);
-                stasher.u64(top_processor.value() as _);
+                top_processor.stash(stasher);
             }
         }
+    }
+}
+
+impl Unstashable for DragDropSubject {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let dds = match unstasher.u8()? {
+            0 => DragDropSubject::Processor(SoundProcessorId::unstash(unstasher)?),
+            1 => DragDropSubject::Plug(SoundProcessorId::unstash(unstasher)?),
+            2 => DragDropSubject::Socket(SoundInputLocation::unstash(unstasher)?),
+            3 => DragDropSubject::Group {
+                top_processor: SoundProcessorId::unstash(unstasher)?,
+            },
+            _ => panic!(),
+        };
+        Ok(dds)
     }
 }
 
@@ -338,9 +355,9 @@ fn drag_and_drop_in_layout(
 // wrapper struct to make &[DragDropSubject] Stashable
 struct AvailableDropSites<'a>(&'a [DragDropSubject]);
 
-impl<'a> Stashable<StashingContext> for AvailableDropSites<'a> {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.array_of_objects_slice(self.0, Order::Unordered);
+impl<'a> Stashable for AvailableDropSites<'a> {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_objects_slice_with_context(self.0, Order::Unordered, ());
     }
 }
 
@@ -349,8 +366,8 @@ impl<'a> Stashable<StashingContext> for AvailableDropSites<'a> {
 // on-screen positions wouldn't make a difference
 struct StackedLayoutWrapper<'a>(&'a StackedLayout);
 
-impl<'a> Stashable<StashingContext> for StackedLayoutWrapper<'a> {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+impl<'a> Stashable for StackedLayoutWrapper<'a> {
+    fn stash(&self, stasher: &mut Stasher) {
         stasher.array_of_proxy_objects(
             self.0.groups().iter(),
             |group, stasher| {
@@ -375,8 +392,8 @@ fn compute_legal_drop_sites(
         let (mut graph_clone, _) = stash_clone_with_context(
             graph,
             stash,
-            &StashingContext::new_stashing_normally(),
-            &UnstashingContext::new(factories),
+            StashingContext::new_stashing_normally(),
+            UnstashingContext::new(factories),
         )
         .unwrap();
 
@@ -443,13 +460,12 @@ impl DragInteraction {
         // NOTE: all Stashable implementations in the ui use StashingContext
         // even though it's irrelevant to them, all because this method uses
         // a shared context type
-        self.legal_drop_sites.refresh4_with_context(
+        self.legal_drop_sites.refresh4(
             |a, b, c, d| compute_legal_drop_sites(a, b, c, d, stash, factories),
             graph,
             &StackedLayoutWrapper(layout),
             self.subject,
             AvailableDropSites(positions.drag_drop_subjects().values()),
-            &StashingContext::new_stashing_normally(),
         );
         let site_is_legal = |s: &DragDropSubject| -> bool {
             self.legal_drop_sites.get_cached().unwrap().get(s).cloned()
@@ -542,6 +558,7 @@ impl DropInteraction {
         positions: &mut SoundObjectPositions,
         stash: &Stash,
         factories: &Factories,
+        snapshot_flag: &SnapshotFlag,
     ) {
         let nearest_drop_site = positions.drag_drop_subjects().find_closest_where(
             self.rect,
@@ -583,6 +600,8 @@ impl DropInteraction {
 
             drag_and_drop_in_layout(layout, graph, self.subject, *nearest_drop_site, positions);
 
+            snapshot_flag.request_snapshot();
+
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph));
         } else {
@@ -599,6 +618,8 @@ impl DropInteraction {
 
                     layout.split_processor_into_own_group(spid, positions);
 
+                    snapshot_flag.request_snapshot();
+
                     #[cfg(debug_assertions)]
                     assert!(layout.check_invariants(graph));
                 }
@@ -613,6 +634,7 @@ impl DropInteraction {
                 let rect = group.rect();
                 group
                     .set_rect(rect.translate(self.rect.left_top() - self.original_rect.left_top()));
+                snapshot_flag.request_snapshot();
             }
         }
     }

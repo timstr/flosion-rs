@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::{Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use super::{
     ast::{ASTNode, ASTPath, VariableDefinition},
@@ -216,5 +217,40 @@ impl LexicalLayoutCursor {
 
     pub(super) fn go_to_final_expression(&mut self) {
         *self = LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning());
+    }
+}
+
+impl Stashable for LexicalLayoutCursor {
+    fn stash(&self, stasher: &mut Stasher) {
+        match self {
+            LexicalLayoutCursor::AtVariableName(i) => {
+                stasher.u8(0);
+                stasher.u64(*i as _);
+            }
+            LexicalLayoutCursor::AtVariableValue(i, astpath) => {
+                stasher.u8(1);
+                stasher.u64(*i as _);
+                astpath.stash(stasher);
+            }
+            LexicalLayoutCursor::AtFinalExpression(astpath) => {
+                stasher.u8(2);
+                astpath.stash(stasher);
+            }
+        }
+    }
+}
+
+impl Unstashable for LexicalLayoutCursor {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let cursor = match unstasher.u8()? {
+            0 => LexicalLayoutCursor::AtVariableName(unstasher.u64()? as _),
+            1 => LexicalLayoutCursor::AtVariableValue(
+                unstasher.u64()? as _,
+                ASTPath::unstash(unstasher)?,
+            ),
+            2 => LexicalLayoutCursor::AtFinalExpression(ASTPath::unstash(unstasher)?),
+            _ => panic!(),
+        };
+        Ok(cursor)
     }
 }

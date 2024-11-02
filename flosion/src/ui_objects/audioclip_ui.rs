@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{audiofileio::load_audio_file, sound::soundprocessor::SoundProcessorWithId},
@@ -19,11 +20,16 @@ pub struct AudioClipUiState {
     name: String,
 }
 
-impl Default for AudioClipUiState {
-    fn default() -> Self {
-        Self {
-            name: "".to_string(),
-        }
+impl Stashable for AudioClipUiState {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.string(&self.name);
+    }
+}
+
+impl UnstashableInplace for AudioClipUiState {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.string_inplace(&mut self.name)?;
+        Ok(())
     }
 }
 

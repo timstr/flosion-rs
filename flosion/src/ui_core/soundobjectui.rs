@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
 
 use eframe::egui;
 
@@ -6,13 +6,14 @@ use crate::core::{objecttype::ObjectType, sound::soundobject::SoundGraphObject};
 
 use super::{
     arguments::{ArgumentList, ParsedArguments},
+    object_ui::ObjectUiState,
     soundgraphuicontext::SoundGraphUiContext,
     soundgraphuistate::SoundGraphUiState,
 };
 
 pub trait SoundObjectUi: Default {
     type ObjectType: SoundGraphObject;
-    type StateType;
+    type StateType: ObjectUiState;
 
     fn ui<'a>(
         &self,
@@ -43,7 +44,7 @@ pub trait AnySoundObjectUi {
     fn apply(
         &self,
         object: &mut dyn SoundGraphObject,
-        state: &mut dyn Any,
+        state: &mut dyn ObjectUiState,
         graph_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
@@ -62,14 +63,14 @@ pub trait AnySoundObjectUi {
         &self,
         object: &dyn SoundGraphObject,
         args: &ParsedArguments,
-    ) -> Result<Rc<RefCell<dyn Any>>, ()>;
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()>;
 }
 
 impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
     fn apply(
         &self,
         object: &mut dyn SoundGraphObject,
-        state: &mut dyn Any,
+        state: &mut dyn ObjectUiState,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
@@ -80,7 +81,7 @@ impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
             graph_ui_state,
             ui,
             ctx,
-            state.downcast_mut().unwrap(),
+            state.as_mut_any().downcast_mut().unwrap(),
         );
     }
 
@@ -105,7 +106,7 @@ impl<T: 'static + SoundObjectUi> AnySoundObjectUi for T {
         &self,
         object: &dyn SoundGraphObject,
         args: &ParsedArguments,
-    ) -> Result<Rc<RefCell<dyn Any>>, ()> {
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
         let object = object.as_any().downcast_ref::<T::ObjectType>().unwrap();
         let state = self.make_ui_state(object, args)?;
         Ok(Rc::new(RefCell::new(state)))
@@ -158,6 +159,6 @@ pub(crate) fn show_sound_object_ui(
     let object_ui = factory.get(object_type);
 
     let state = ui_state.object_states().get_object_data(object.id());
-    let state: &mut dyn Any = &mut *state.borrow_mut();
+    let state: &mut dyn ObjectUiState = &mut *state.borrow_mut();
     object_ui.apply(object, state, ui_state, ui, ctx);
 }

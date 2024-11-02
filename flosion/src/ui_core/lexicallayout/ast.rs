@@ -1,6 +1,7 @@
 use std::cell::Cell;
 
 use eframe::egui;
+use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::core::{
     expression::{
@@ -119,6 +120,20 @@ impl ASTPath {
     }
 }
 
+impl Stashable for ASTPath {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_u64_iter(self.steps.iter().map(|i| *i as u64));
+    }
+}
+
+impl Unstashable for ASTPath {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(ASTPath {
+            steps: unstasher.array_of_u64_iter()?.map(|i| i as usize).collect(),
+        })
+    }
+}
+
 pub struct VariableTag;
 
 pub(crate) type VariableId = UniqueId<VariableTag>;
@@ -158,6 +173,30 @@ impl VariableDefinition {
 
     pub(crate) fn value_mut(&mut self) -> &mut ASTNode {
         &mut self.value
+    }
+}
+
+impl Stashable for VariableDefinition {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.u64(self.id.value() as _);
+        stasher.string(&self.name);
+        // skipping name_rect, it will be regenerating when drawn
+        stasher.object(&self.value);
+    }
+}
+
+impl Unstashable for VariableDefinition {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let id = VariableId::new(unstasher.u64()? as _);
+        let name = unstasher.string()?;
+        let name_rect = Cell::new(egui::Rect::NOTHING);
+        let value = unstasher.object()?;
+        Ok(VariableDefinition {
+            id,
+            name,
+            name_rect,
+            value,
+        })
     }
 }
 
@@ -477,5 +516,108 @@ impl InternalASTNode {
             }
         }
         self.value = tmp_value;
+    }
+}
+
+impl Stashable for ASTNode {
+    fn stash(&self, stasher: &mut Stasher) {
+        match &self.value {
+            ASTNodeValue::Empty => {
+                stasher.u8(0);
+            }
+            ASTNodeValue::Internal(internal_astnode) => {
+                stasher.u8(1);
+                stasher.object(&**internal_astnode);
+            }
+            ASTNodeValue::Variable(var_id) => {
+                stasher.u8(2);
+                stasher.u64(var_id.value() as _);
+            }
+            ASTNodeValue::Parameter(param_id) => {
+                stasher.u8(3);
+                stasher.u64(param_id.value() as _);
+            }
+        }
+        // Skipping rect, it will be regenerated when drawn
+    }
+}
+
+impl Unstashable for ASTNode {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let value = match unstasher.u8()? {
+            0 => ASTNodeValue::Empty,
+            1 => ASTNodeValue::Internal(Box::new(unstasher.object()?)),
+            2 => ASTNodeValue::Variable(VariableId::new(unstasher.u64()? as _)),
+            3 => ASTNodeValue::Parameter(ExpressionGraphParameterId::new(unstasher.u64()? as _)),
+            _ => panic!(),
+        };
+
+        Ok(ASTNode {
+            value,
+            rect: Cell::new(egui::Rect::NOTHING),
+        })
+    }
+}
+
+impl Stashable for InternalASTNode {
+    fn stash(&self, stasher: &mut Stasher<()>) {
+        match &self.value {
+            InternalASTNodeValue::Prefix(node_id, astnode) => {
+                stasher.u8(0);
+                stasher.u64(node_id.value() as _);
+                stasher.object(astnode);
+            }
+            InternalASTNodeValue::Infix(leftastnode, node_id, rightastnode) => {
+                stasher.u8(1);
+                stasher.object(leftastnode);
+                stasher.u64(node_id.value() as _);
+                stasher.object(rightastnode);
+            }
+            InternalASTNodeValue::Postfix(astnode, node_id) => {
+                stasher.u8(2);
+                stasher.object(astnode);
+                stasher.u64(node_id.value() as _);
+            }
+            InternalASTNodeValue::Function(node_id, vec) => {
+                stasher.u8(3);
+                stasher.u64(node_id.value() as _);
+                stasher.array_of_objects_slice(&vec, Order::Ordered);
+            }
+        }
+        // skipping self_rect, it will be regenerated when drawn
+    }
+}
+
+impl Unstashable for InternalASTNode {
+    fn unstash(unstasher: &mut Unstasher<()>) -> Result<Self, UnstashError> {
+        let value = match unstasher.u8()? {
+            0 => {
+                let node_id = ExpressionNodeId::new(unstasher.u64()? as _);
+                let astnode = unstasher.object()?;
+                InternalASTNodeValue::Prefix(node_id, astnode)
+            }
+            1 => {
+                let leftastnode = unstasher.object()?;
+                let node_id = ExpressionNodeId::new(unstasher.u64()? as _);
+                let rightastnode = unstasher.object()?;
+                InternalASTNodeValue::Infix(leftastnode, node_id, rightastnode)
+            }
+            2 => {
+                let astnode = unstasher.object()?;
+                let node_id = ExpressionNodeId::new(unstasher.u64()? as _);
+                InternalASTNodeValue::Postfix(astnode, node_id)
+            }
+            3 => {
+                let node_id = ExpressionNodeId::new(unstasher.u64()? as _);
+                let vec = unstasher.array_of_objects_vec()?;
+                InternalASTNodeValue::Function(node_id, vec)
+            }
+            _ => panic!(),
+        };
+
+        Ok(InternalASTNode {
+            value,
+            self_rect: Cell::new(egui::Rect::NOTHING),
+        })
     }
 }

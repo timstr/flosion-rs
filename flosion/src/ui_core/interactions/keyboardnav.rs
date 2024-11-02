@@ -1,5 +1,5 @@
 use eframe::egui;
-use hashstash::Stash;
+use hashstash::{Stash, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::{
     core::sound::{
@@ -9,9 +9,9 @@ use crate::{
     ui_core::{
         expressiongraphuicontext::OuterProcessorExpressionContext,
         expressiongraphuistate::ExpressionUiCollection, factories::Factories,
-        graph_properties::GraphProperties, lexicallayout::lexicallayout::LexicalLayoutFocus,
-        soundgraphuinames::SoundGraphUiNames, soundobjectpositions::SoundObjectPositions,
-        stackedlayout::stackedlayout::StackedLayout,
+        graph_properties::GraphProperties, history::SnapshotFlag,
+        lexicallayout::lexicallayout::LexicalLayoutFocus, soundgraphuinames::SoundGraphUiNames,
+        soundobjectpositions::SoundObjectPositions, stackedlayout::stackedlayout::StackedLayout,
     },
 };
 
@@ -137,6 +137,7 @@ impl KeyboardNavInteraction {
         stash: &Stash,
         names: &SoundGraphUiNames,
         properties: &GraphProperties,
+        snapshot_flag: &SnapshotFlag,
     ) {
         let rect;
         let mut allowed_dirs = DirectionsToGo::nowhere();
@@ -165,15 +166,18 @@ impl KeyboardNavInteraction {
                     // go the processor's last input, if it has any inputs
                     if let Some(last_input) = last_input {
                         *self = KeyboardNavInteraction::AroundInputSocket(last_input);
+                        snapshot_flag.request_snapshot();
                     }
                 } else if requested_dirs.go_down {
                     // go to the processor's plug
                     *self = KeyboardNavInteraction::AroundProcessorPlug(*spid);
+                    snapshot_flag.request_snapshot();
                 } else if requested_dirs.go_in {
                     // go to the processor's first expression
 
                     if let Some(eid) = first_expr {
                         *self = KeyboardNavInteraction::AroundExpression(eid);
+                        snapshot_flag.request_snapshot();
                     }
                 }
             }
@@ -192,6 +196,7 @@ impl KeyboardNavInteraction {
                 if requested_dirs.go_up {
                     // go to the processor
                     *self = KeyboardNavInteraction::AroundSoundProcessor(*spid);
+                    snapshot_flag.request_snapshot();
                 } else if requested_dirs.go_down {
                     // if there's a processor below, go to its first input
                     if let Some(proc_below) = proc_below {
@@ -203,6 +208,7 @@ impl KeyboardNavInteraction {
                             .cloned()
                             .unwrap();
                         *self = KeyboardNavInteraction::AroundInputSocket(first_input);
+                        snapshot_flag.request_snapshot();
                     } else {
                         // TODO: ???
                     }
@@ -227,20 +233,24 @@ impl KeyboardNavInteraction {
                         // go to the target processor if there is one
                         if let Some(proc_above) = layout.processor_above(owner) {
                             *self = KeyboardNavInteraction::AroundProcessorPlug(proc_above);
+                            snapshot_flag.request_snapshot();
                         } else {
                             // TODO: ???
                         }
                     } else {
                         // go the previous input
                         *self = KeyboardNavInteraction::AroundInputSocket(other_inputs[index - 1]);
+                        snapshot_flag.request_snapshot();
                     }
                 } else if requested_dirs.go_down {
                     if index + 1 == other_inputs.len() {
                         // go to the processor
                         *self = KeyboardNavInteraction::AroundSoundProcessor(owner);
+                        snapshot_flag.request_snapshot();
                     } else {
                         // go the the next input
                         *self = KeyboardNavInteraction::AroundInputSocket(other_inputs[index + 1]);
+                        snapshot_flag.request_snapshot();
                     }
                 }
             }
@@ -266,16 +276,20 @@ impl KeyboardNavInteraction {
                 if requested_dirs.go_up {
                     if index > 0 {
                         *self = KeyboardNavInteraction::AroundExpression(other_exprs[index - 1]);
+                        snapshot_flag.request_snapshot();
                     }
                 } else if requested_dirs.go_down {
                     if index + 1 < other_exprs.len() {
-                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index + 1])
+                        *self = KeyboardNavInteraction::AroundExpression(other_exprs[index + 1]);
+                        snapshot_flag.request_snapshot();
                     }
                 } else if requested_dirs.go_in {
                     *self =
-                        KeyboardNavInteraction::InsideExpression(*eid, LexicalLayoutFocus::new())
+                        KeyboardNavInteraction::InsideExpression(*eid, LexicalLayoutFocus::new());
+                    snapshot_flag.request_snapshot();
                 } else if requested_dirs.go_out {
                     *self = KeyboardNavInteraction::AroundSoundProcessor(eid.processor());
+                    snapshot_flag.request_snapshot();
                 }
             }
             KeyboardNavInteraction::InsideExpression(eid, ll_focus) => {
@@ -288,6 +302,7 @@ impl KeyboardNavInteraction {
 
                 if requested_dirs.go_out {
                     *self = KeyboardNavInteraction::AroundExpression(*eid);
+                    snapshot_flag.request_snapshot();
                 } else {
                     let (expr_ui_state, ll) = expression_uis.get_mut(*eid).unwrap();
 
@@ -317,6 +332,7 @@ impl KeyboardNavInteraction {
                                 names,
                                 time_axis,
                                 &available_arguments,
+                                snapshot_flag,
                             );
 
                             ll.handle_keypress(
@@ -350,5 +366,55 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundExpression(eid) => graph.contains(eid.processor()),
             KeyboardNavInteraction::InsideExpression(eid, _) => graph.contains(eid.processor()),
         }
+    }
+}
+
+impl Stashable for KeyboardNavInteraction {
+    fn stash(&self, stasher: &mut Stasher) {
+        match self {
+            KeyboardNavInteraction::AroundSoundProcessor(spid) => {
+                stasher.u8(0);
+                spid.stash(stasher);
+            }
+            KeyboardNavInteraction::AroundProcessorPlug(spid) => {
+                stasher.u8(1);
+                spid.stash(stasher);
+            }
+            KeyboardNavInteraction::AroundInputSocket(input_loc) => {
+                stasher.u8(2);
+                input_loc.stash(stasher);
+            }
+            KeyboardNavInteraction::AroundExpression(expr_loc) => {
+                stasher.u8(3);
+                expr_loc.stash(stasher);
+            }
+            KeyboardNavInteraction::InsideExpression(expr_loc, ll_focus) => {
+                stasher.u8(4);
+                expr_loc.stash(stasher);
+                stasher.object(ll_focus);
+            }
+        }
+    }
+}
+
+impl Unstashable for KeyboardNavInteraction {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let kni = match unstasher.u8()? {
+            0 => {
+                KeyboardNavInteraction::AroundSoundProcessor(SoundProcessorId::unstash(unstasher)?)
+            }
+            1 => KeyboardNavInteraction::AroundProcessorPlug(SoundProcessorId::unstash(unstasher)?),
+            2 => KeyboardNavInteraction::AroundInputSocket(SoundInputLocation::unstash(unstasher)?),
+            3 => KeyboardNavInteraction::AroundExpression(ProcessorExpressionLocation::unstash(
+                unstasher,
+            )?),
+            4 => KeyboardNavInteraction::InsideExpression(
+                ProcessorExpressionLocation::unstash(unstasher)?,
+                LexicalLayoutFocus::unstash(unstasher)?,
+            ),
+            _ => panic!(),
+        };
+
+        Ok(kni)
     }
 }

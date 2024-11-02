@@ -2,7 +2,7 @@ use crate::{
     core::sound::soundprocessor::SoundProcessorWithId,
     objects::adsr::ADSR,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
@@ -13,7 +13,7 @@ pub struct ADSRUi {}
 
 impl SoundObjectUi for ADSRUi {
     type ObjectType = SoundProcessorWithId<ADSR>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
@@ -21,7 +21,7 @@ impl SoundObjectUi for ADSRUi {
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(adsr.id(), "ADSR")
             .add_sound_input(adsr.input.id(), "input")
@@ -40,7 +40,11 @@ impl SoundObjectUi for ADSRUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

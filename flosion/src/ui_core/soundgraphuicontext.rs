@@ -4,7 +4,8 @@ use hashstash::Stash;
 use crate::core::jit::cache::JitCache;
 
 use super::{
-    factories::Factories, graph_properties::GraphProperties, stackedlayout::timeaxis::TimeAxis,
+    factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
+    stackedlayout::timeaxis::TimeAxis,
 };
 
 pub struct SoundGraphUiContext<'a, 'ctx> {
@@ -15,6 +16,7 @@ pub struct SoundGraphUiContext<'a, 'ctx> {
     properties: &'a GraphProperties,
     jit_cache: &'a JitCache<'ctx>,
     stash: &'a Stash,
+    snapshot_flag: &'a SnapshotFlag,
 }
 
 impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
@@ -26,6 +28,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
         properties: &'a GraphProperties,
         jit_cache: &'a JitCache<'ctx>,
         stash: &'a Stash,
+        snapshot_flag: &'a SnapshotFlag,
     ) -> SoundGraphUiContext<'a, 'ctx> {
         SoundGraphUiContext {
             factories,
@@ -35,6 +38,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
             properties,
             jit_cache,
             stash,
+            snapshot_flag,
         }
     }
 
@@ -64,5 +68,13 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
 
     pub fn stash(&self) -> &Stash {
         self.stash
+    }
+
+    pub fn snapshot_flag(&self) -> &SnapshotFlag {
+        self.snapshot_flag
+    }
+
+    pub fn request_snapshot(&self) {
+        self.snapshot_flag.request_snapshot();
     }
 }

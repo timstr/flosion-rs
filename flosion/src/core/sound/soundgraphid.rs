@@ -1,11 +1,27 @@
+use hashstash::{Stashable, Stasher, UnstashError, Unstashable, Unstasher};
+
 use super::{
-    expression::ProcessorExpressionLocation, argument::ProcessorArgumentLocation,
+    argument::ProcessorArgumentLocation, expression::ProcessorExpressionLocation,
     soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
 };
 
 #[derive(Eq, PartialEq, Clone, Copy, Hash, Debug)]
 pub enum SoundObjectId {
     Sound(SoundProcessorId),
+}
+
+impl Stashable for SoundObjectId {
+    fn stash(&self, stasher: &mut Stasher) {
+        match self {
+            SoundObjectId::Sound(spid) => spid.stash(stasher),
+        }
+    }
+}
+
+impl Unstashable for SoundObjectId {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(SoundObjectId::Sound(SoundProcessorId::unstash(unstasher)?))
+    }
 }
 
 impl SoundObjectId {

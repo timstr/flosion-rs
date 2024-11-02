@@ -280,8 +280,8 @@ impl ExpressionGraph {
         let (previous_graph, _) = stash_clone_with_context(
             self,
             stash,
-            &StashingContext::new_stashing_normally(),
-            &UnstashingContext::new(factories),
+            StashingContext::new_stashing_normally(),
+            UnstashingContext::new(factories),
         )
         .unwrap();
         let res = f(self);

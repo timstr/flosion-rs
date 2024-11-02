@@ -10,6 +10,7 @@ use crate::{
         expressionobjectui::ExpressionObjectUi,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
+        object_ui::NoObjectUiState,
     },
 };
 
@@ -18,7 +19,7 @@ pub struct LinearApproachUi {}
 
 impl ExpressionObjectUi for LinearApproachUi {
     type ObjectType = ExpressionNodeWithId<LinearApproach>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui<'a, 'b>(
         &self,
@@ -26,7 +27,7 @@ impl ExpressionObjectUi for LinearApproachUi {
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         ExpressionNodeUi::new_named(
             object.id(),
@@ -44,8 +45,12 @@ impl ExpressionObjectUi for LinearApproachUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _object: &Self::ObjectType,
+        _args: ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }
 
@@ -54,7 +59,7 @@ pub struct ExponentialApproachUi {}
 
 impl ExpressionObjectUi for ExponentialApproachUi {
     type ObjectType = ExpressionNodeWithId<ExponentialApproach>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui<'a, 'b>(
         &self,
@@ -62,7 +67,7 @@ impl ExpressionObjectUi for ExponentialApproachUi {
         _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _data: &mut (),
+        _data: &mut NoObjectUiState,
     ) {
         ExpressionNodeUi::new_named(
             object.id(),
@@ -80,8 +85,12 @@ impl ExpressionObjectUi for ExponentialApproachUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _object: &Self::ObjectType,
+        _args: ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }
 
@@ -90,7 +99,7 @@ pub struct IntegratorUi {}
 
 impl ExpressionObjectUi for IntegratorUi {
     type ObjectType = ExpressionNodeWithId<Integrator>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui<'a, 'b>(
         &self,
@@ -98,7 +107,7 @@ impl ExpressionObjectUi for IntegratorUi {
         _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _data: &mut (),
+        _data: &mut NoObjectUiState,
     ) {
         ExpressionNodeUi::new_named(object.id(), "Integrator".to_string(), DisplayStyle::Framed)
             .show(ui, ctx);
@@ -112,8 +121,12 @@ impl ExpressionObjectUi for IntegratorUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _object: &Self::ObjectType,
+        _args: ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }
 
@@ -122,7 +135,7 @@ pub struct WrappingIntegratorUi {}
 
 impl ExpressionObjectUi for WrappingIntegratorUi {
     type ObjectType = ExpressionNodeWithId<WrappingIntegrator>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui<'a, 'b>(
         &self,
@@ -130,7 +143,7 @@ impl ExpressionObjectUi for WrappingIntegratorUi {
         _ui_state: &mut ExpressionGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _data: &mut (),
+        _data: &mut NoObjectUiState,
     ) {
         ExpressionNodeUi::new_named(
             object.id(),
@@ -148,7 +161,11 @@ impl ExpressionObjectUi for WrappingIntegratorUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _object: &Self::ObjectType,
+        _args: ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

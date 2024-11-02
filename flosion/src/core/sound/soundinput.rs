@@ -48,6 +48,22 @@ impl SoundInputLocation {
     }
 }
 
+impl Stashable for SoundInputLocation {
+    fn stash(&self, stasher: &mut Stasher) {
+        self.processor.stash(stasher);
+        self.input.stash(stasher);
+    }
+}
+
+impl Unstashable for SoundInputLocation {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(SoundInputLocation {
+            processor: SoundProcessorId::unstash(unstasher)?,
+            input: ProcessorInputId::unstash(unstasher)?,
+        })
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum InputBranching {
     Single,

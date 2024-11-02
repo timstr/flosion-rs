@@ -9,11 +9,12 @@ use super::{
     expressiongraphuicontext::ExpressionGraphUiContext,
     expressiongraphuistate::ExpressionGraphUiState,
     lexicallayout::lexicallayout::ExpressionNodeLayout,
+    object_ui::ObjectUiState,
 };
 
 pub trait ExpressionObjectUi: Default {
     type ObjectType: ExpressionObject;
-    type StateType;
+    type StateType: ObjectUiState;
 
     fn ui<'a>(
         &self,
@@ -57,6 +58,7 @@ pub trait AnyExpressionObjectUi {
 
     fn make_properties(&self) -> ExpressionNodeLayout;
 
+    // TODO: remove result here
     fn make_ui_state(
         &self,
         object: &dyn ExpressionObject,

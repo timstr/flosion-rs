@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{
+    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
+};
 use inkwell::values::FloatValue;
 
 use crate::core::{
@@ -42,6 +44,22 @@ impl ProcessorArgumentLocation {
 
     pub(crate) fn argument(&self) -> ProcessorArgumentId {
         self.argument
+    }
+}
+
+impl Stashable for ProcessorArgumentLocation {
+    fn stash(&self, stasher: &mut Stasher) {
+        self.processor.stash(stasher);
+        self.argument.stash(stasher);
+    }
+}
+
+impl Unstashable for ProcessorArgumentLocation {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(ProcessorArgumentLocation {
+            processor: SoundProcessorId::unstash(unstasher)?,
+            argument: ProcessorArgumentId::unstash(unstasher)?,
+        })
     }
 }
 

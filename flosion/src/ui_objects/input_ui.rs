@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
@@ -19,6 +20,16 @@ pub struct InputUi {}
 pub struct InputUiState {
     buffer_reader: spmcq::Reader<SoundChunk>,
     amplitude_history: Vec<f32>,
+}
+
+impl Stashable for InputUiState {
+    fn stash(&self, _stasher: &mut Stasher) {}
+}
+
+impl UnstashableInplace for InputUiState {
+    fn unstash_inplace(&mut self, _unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        Ok(())
+    }
 }
 
 impl InputUi {

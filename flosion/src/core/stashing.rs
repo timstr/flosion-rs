@@ -2,6 +2,7 @@ use hashstash::{Stashable, Stasher};
 
 use crate::ui_core::factories::Factories;
 
+#[derive(Copy, Clone)]
 pub struct StashingContext {
     checking_recompilation: bool,
 }
@@ -30,7 +31,9 @@ impl Stashable<()> for StashingContext {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct UnstashingContext<'a> {
+    // TODO: replace with just sound+expr object factories?
     factories: &'a Factories,
 }
 
@@ -39,7 +42,7 @@ impl<'a> UnstashingContext<'a> {
         UnstashingContext { factories }
     }
 
-    pub(crate) fn factories(&self) -> &Factories {
+    pub(crate) fn factories(&self) -> &'a Factories {
         self.factories
     }
 }

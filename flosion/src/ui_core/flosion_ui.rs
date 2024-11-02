@@ -6,23 +6,33 @@ use crate::core::{
         soundengine::{create_sound_engine, SoundEngineInterface, StopButton},
     },
     jit::cache::JitCache,
+    sound::soundgraph::SoundGraph,
 };
 use eframe::{
     self,
-    egui::{self},
+    egui::{self, Key, KeyboardShortcut, Modifiers},
 };
 use hashstash::Stash;
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 
-use super::{appstate::AppState, factories::Factories};
+use super::{
+    appstate::AppState,
+    factories::Factories,
+    history::{History, SnapshotFlag},
+};
 
 /// The very root of the GUI, which manages a SoundGraph instance,
 /// responds to inputs, and draws the up-to-date ui via egui
 pub struct FlosionApp<'ctx> {
+    graph: SoundGraph,
+
     state: AppState,
 
     /// Factories for instantiating sound and expression objects and their uis
     factories: Factories,
+
+    /// Undo/redo history
+    history: History,
 
     audio_thread: Option<ScopedJoinHandle<'ctx, ()>>,
 
@@ -54,11 +64,15 @@ impl<'ctx> FlosionApp<'ctx> {
 
         let jit_cache = JitCache::new(inkwell_context);
 
+        let graph = SoundGraph::new();
+
         let state = AppState::new();
 
         let mut app = FlosionApp {
+            graph,
             state,
             factories: Factories::new_all_objects(),
+            history: History::new(),
             audio_thread: Some(audio_thread),
             stop_button,
             engine_interface,
@@ -73,23 +87,76 @@ impl<'ctx> FlosionApp<'ctx> {
         #[cfg(debug_assertions)]
         app.check_invariants();
 
+        // Add a history snapshot for the initial state
+        app.history
+            .push_snapshot(&app.stash, &app.graph, &app.state);
+
         app
     }
 
     fn interact_and_draw(&mut self, ui: &mut egui::Ui) {
-        self.state
-            .interact_and_draw(ui, &self.factories, &self.jit_cache, &self.stash);
+        let snapshot_flag = SnapshotFlag::new();
+
+        self.state.interact_and_draw(
+            ui,
+            &mut self.graph,
+            &self.factories,
+            &self.jit_cache,
+            &self.stash,
+            &snapshot_flag,
+        );
+
+        self.cleanup();
+
+        #[cfg(debug_assertions)]
+        self.check_invariants();
+
+        if snapshot_flag.snapshot_was_requested() {
+            self.history
+                .push_snapshot(&self.stash, &self.graph, &self.state);
+        }
+
+        let (ctrl_z, ctrl_y) = ui.input_mut(|i| {
+            (
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::CTRL, Key::Z)),
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::CTRL, Key::Y)),
+            )
+        });
+
+        if ctrl_z {
+            self.history.undo(
+                &self.stash,
+                &self.factories,
+                &mut self.graph,
+                &mut self.state,
+            );
+
+            self.cleanup();
+        }
+
+        if ctrl_y {
+            self.history.redo(
+                &self.stash,
+                &self.factories,
+                &mut self.graph,
+                &mut self.state,
+            );
+            self.cleanup();
+        }
+
+        #[cfg(debug_assertions)]
+        self.check_invariants();
     }
 
     fn cleanup(&mut self) {
-        self.state.cleanup(&self.factories);
-
-        self.jit_cache.refresh(self.state.graph());
+        self.state.cleanup(&self.graph, &self.factories);
+        self.jit_cache.refresh(&self.graph);
     }
 
     #[cfg(debug_assertions)]
     pub(crate) fn check_invariants(&self) {
-        self.state.check_invariants();
+        assert_eq!(self.graph.validate(), Ok(()));
+        self.state.check_invariants(&self.graph);
         // TODO: all expressions are compiled in the jit cache?
     }
 }
@@ -102,18 +169,8 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
 
             self.interact_and_draw(ui);
 
-            self.cleanup();
-
-            #[cfg(debug_assertions)]
-            self.check_invariants();
-
             self.engine_interface
-                .update(
-                    self.state.graph(),
-                    &self.jit_cache,
-                    &self.stash,
-                    &self.factories,
-                )
+                .update(&self.graph, &self.jit_cache, &self.stash, &self.factories)
                 .expect("Failed to update engine");
 
             self.garbage_disposer.clear();

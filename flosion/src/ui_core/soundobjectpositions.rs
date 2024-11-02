@@ -1,4 +1,5 @@
 use eframe::egui;
+use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::core::sound::{
     expression::ProcessorExpressionLocation, soundinput::SoundInputLocation,
@@ -92,6 +93,43 @@ impl<T> PositionedItems<T> {
     }
 }
 
+impl<T: Stashable> Stashable for PositionedItems<T> {
+    fn stash(&self, stasher: &mut Stasher<()>) {
+        stasher.array_of_proxy_objects(
+            self.values.iter().zip(&self.positions),
+            |(value, position), stasher| {
+                value.stash(stasher);
+                stasher.f32(position.left());
+                stasher.f32(position.right());
+                stasher.f32(position.top());
+                stasher.f32(position.bottom());
+            },
+            Order::Unordered,
+        );
+    }
+}
+
+impl<T: Unstashable> Unstashable for PositionedItems<T> {
+    fn unstash(unstasher: &mut Unstasher<()>) -> Result<Self, UnstashError> {
+        let mut values = Vec::new();
+        let mut positions = Vec::new();
+        unstasher.array_of_proxy_objects(|unstasher| {
+            values.push(T::unstash(unstasher)?);
+
+            let left = unstasher.f32()?;
+            let right = unstasher.f32()?;
+            let top = unstasher.f32()?;
+            let bottom = unstasher.f32()?;
+
+            positions.push(egui::Rect::from_x_y_ranges(left..=right, top..=bottom));
+
+            Ok(())
+        })?;
+
+        Ok(PositionedItems { values, positions })
+    }
+}
+
 pub(crate) struct ProcessorPosition {
     /// The id of the processor
     pub(crate) processor: SoundProcessorId,
@@ -101,6 +139,39 @@ pub(crate) struct ProcessorPosition {
 
     // The top-left corner of the stacked group currently containing the processor
     pub(crate) group_origin: egui::Pos2,
+}
+
+impl Stashable for ProcessorPosition {
+    fn stash(&self, stasher: &mut Stasher<()>) {
+        self.processor.stash(stasher);
+        stasher.f32(self.rect.left());
+        stasher.f32(self.rect.right());
+        stasher.f32(self.rect.top());
+        stasher.f32(self.rect.bottom());
+        stasher.f32(self.group_origin.x);
+        stasher.f32(self.group_origin.y);
+    }
+}
+
+impl Unstashable for ProcessorPosition {
+    fn unstash(unstasher: &mut Unstasher<()>) -> Result<Self, UnstashError> {
+        let processor = SoundProcessorId::unstash(unstasher)?;
+
+        let left = unstasher.f32()?;
+        let right = unstasher.f32()?;
+        let top = unstasher.f32()?;
+        let bottom = unstasher.f32()?;
+
+        let rect = egui::Rect::from_x_y_ranges(left..=right, top..=bottom);
+
+        let group_origin = egui::pos2(unstasher.f32()?, unstasher.f32()?);
+
+        Ok(ProcessorPosition {
+            processor,
+            rect,
+            group_origin,
+        })
+    }
 }
 
 pub(crate) struct SoundObjectPositions {
@@ -204,5 +275,29 @@ impl SoundObjectPositions {
         self.socket_tabs.clear();
         self.plug_tabs.clear();
         self.expressions.clear();
+    }
+}
+
+impl Stashable for SoundObjectPositions {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.object(&self.socket_jumpers);
+        stasher.array_of_objects_slice(&self.processors, Order::Unordered);
+        stasher.object(&self.drag_drop_subjects);
+        stasher.object(&self.socket_tabs);
+        stasher.object(&self.plug_tabs);
+        stasher.object(&self.expressions);
+    }
+}
+
+impl Unstashable for SoundObjectPositions {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(SoundObjectPositions {
+            socket_jumpers: unstasher.object()?,
+            processors: unstasher.array_of_objects_vec()?,
+            drag_drop_subjects: unstasher.object()?,
+            socket_tabs: unstasher.object()?,
+            plug_tabs: unstasher.object()?,
+            expressions: unstasher.object()?,
+        })
     }
 }

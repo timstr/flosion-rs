@@ -1,5 +1,8 @@
 use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
+use hashstash::{
+    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
+};
 use rand::{thread_rng, Rng};
 
 pub struct UniqueId<T> {
@@ -43,6 +46,18 @@ impl<T> Debug for UniqueId<T> {
         f.debug_struct("UniqueId")
             .field("value", &self.value)
             .finish()
+    }
+}
+
+impl<T> Stashable for UniqueId<T> {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.u64(self.value as _);
+    }
+}
+
+impl<T> Unstashable for UniqueId<T> {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(UniqueId::new(unstasher.u64()? as _))
     }
 }
 

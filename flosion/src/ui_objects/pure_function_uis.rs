@@ -1,7 +1,8 @@
 use eframe::egui;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
-    core::expression::{expressiongraph::ExpressionGraph, expressionnode::ExpressionNodeWithId},
+    core::expression::expressionnode::ExpressionNodeWithId,
     objects::purefunctions::*,
     ui_core::{
         arguments::{ArgumentList, FloatRangeArgument, ParsedArguments, StringIdentifierArgument},
@@ -10,6 +11,7 @@ use crate::{
         expressionobjectui::ExpressionObjectUi,
         expressionodeui::{DisplayStyle, ExpressionNodeUi},
         lexicallayout::lexicallayout::ExpressionNodeLayout,
+        object_ui::NoObjectUiState,
     },
 };
 
@@ -22,7 +24,7 @@ impl ConstantUi {
 
 impl ExpressionObjectUi for ConstantUi {
     type ObjectType = ExpressionNodeWithId<Constant>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
@@ -30,7 +32,7 @@ impl ExpressionObjectUi for ConstantUi {
         _graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
         ctx: &ExpressionGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         ExpressionNodeUi::new_named(
             constant.id(),
@@ -54,8 +56,12 @@ impl ExpressionObjectUi for ConstantUi {
         ExpressionNodeLayout::Function
     }
 
-    fn make_ui_state(&self, _object: &Self::ObjectType, _args: ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _object: &Self::ObjectType,
+        _args: ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }
 
@@ -63,25 +69,29 @@ impl ExpressionObjectUi for ConstantUi {
 pub struct SliderUi {}
 
 impl SliderUi {
-    pub const ARG_NAME: StringIdentifierArgument = StringIdentifierArgument("name");
     pub const ARG_RANGE: FloatRangeArgument = FloatRangeArgument("range");
 }
 
 pub struct SliderUiState {
     min_value: f32,
     max_value: f32,
-    name: String,
     show_settings: bool,
 }
 
-impl Default for SliderUiState {
-    fn default() -> Self {
-        Self {
-            min_value: 0.0,
-            max_value: 1.0,
-            name: "Variable".to_string(),
-            show_settings: false,
-        }
+impl Stashable for SliderUiState {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.f32(self.min_value);
+        stasher.f32(self.max_value);
+        stasher.bool(self.show_settings);
+    }
+}
+
+impl UnstashableInplace for SliderUiState {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.f32_inplace(&mut self.min_value)?;
+        unstasher.f32_inplace(&mut self.max_value)?;
+        unstasher.bool_inplace(&mut self.show_settings)?;
+        Ok(())
     }
 }
 
@@ -96,10 +106,14 @@ impl ExpressionObjectUi for SliderUi {
         ctx: &ExpressionGraphUiContext,
         state: &mut SliderUiState,
     ) {
-        ExpressionNodeUi::new_named(variable.id(), state.name.clone(), DisplayStyle::Framed)
-            .show_with(ui, ctx, |ui| {
+        ExpressionNodeUi::new_unnamed(variable.id(), DisplayStyle::Framed).show_with(
+            ui,
+            ctx,
+            |ui| {
                 let mut v = variable.get_value();
                 let v_old = v;
+                // TODO: how to request a snapshot only when the slider is done being moved?
+                // i.e. how to request snapshots at less than 60 Hz?
                 ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
                 if v != v_old {
                     variable.set_value(v);
@@ -114,7 +128,8 @@ impl ExpressionObjectUi for SliderUi {
                     ui.label("max");
                     ui.add(egui::DragValue::new(&mut state.max_value));
                 }
-            });
+            },
+        );
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -124,7 +139,6 @@ impl ExpressionObjectUi for SliderUi {
     fn summon_arguments(&self) -> ArgumentList {
         ArgumentList::new_empty()
             .add(&Variable::ARG_VALUE)
-            .add(&SliderUi::ARG_NAME)
             .add(&SliderUi::ARG_RANGE)
     }
 
@@ -159,14 +173,10 @@ impl ExpressionObjectUi for SliderUi {
 
         let min_value = *range.start() as f32;
         let max_value = *range.end() as f32;
-        let name = args
-            .get(&SliderUi::ARG_NAME)
-            .unwrap_or_else(|| "".to_string());
 
         Ok(SliderUiState {
             min_value,
             max_value,
-            name,
             show_settings: false,
         })
     }
@@ -179,14 +189,14 @@ macro_rules! unary_expression_node_ui {
 
         impl ExpressionObjectUi for $name {
             type ObjectType = ExpressionNodeWithId<$object>;
-            type StateType = ();
+            type StateType = NoObjectUiState;
             fn ui(
                 &self,
                 object: &mut ExpressionNodeWithId<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
-                _state: &mut (),
+                _state: &mut NoObjectUiState,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx);
@@ -204,8 +214,8 @@ macro_rules! unary_expression_node_ui {
                 &self,
                 _object: &ExpressionNodeWithId<$object>,
                 _args: ParsedArguments,
-            ) -> Result<(), ()> {
-                Ok(())
+            ) -> Result<NoObjectUiState, ()> {
+                Ok(NoObjectUiState)
             }
         }
     };
@@ -218,14 +228,14 @@ macro_rules! binary_expression_node_ui {
 
         impl ExpressionObjectUi for $name {
             type ObjectType = ExpressionNodeWithId<$object>;
-            type StateType = ();
+            type StateType = NoObjectUiState;
             fn ui(
                 &self,
                 object: &mut ExpressionNodeWithId<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
-                _state: &mut (),
+                _state: &mut NoObjectUiState,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx);
@@ -243,8 +253,8 @@ macro_rules! binary_expression_node_ui {
                 &self,
                 _object: &ExpressionNodeWithId<$object>,
                 _args: ParsedArguments,
-            ) -> Result<(), ()> {
-                Ok(())
+            ) -> Result<NoObjectUiState, ()> {
+                Ok(NoObjectUiState)
             }
         }
     };
@@ -257,14 +267,14 @@ macro_rules! ternary_expression_node_ui {
 
         impl ExpressionObjectUi for $name {
             type ObjectType = ExpressionNodeWithId<$object>;
-            type StateType = ();
+            type StateType = NoObjectUiState;
             fn ui(
                 &self,
                 object: &mut ExpressionNodeWithId<$object>,
                 _graph_ui_state: &mut ExpressionGraphUiState,
                 ui: &mut egui::Ui,
                 ctx: &ExpressionGraphUiContext,
-                _state: &mut (),
+                _state: &mut NoObjectUiState,
             ) {
                 ExpressionNodeUi::new_named(object.id(), $display_name.to_string(), $display_style)
                     .show(ui, ctx);
@@ -282,8 +292,8 @@ macro_rules! ternary_expression_node_ui {
                 &self,
                 _object: &ExpressionNodeWithId<$object>,
                 _args: ParsedArguments,
-            ) -> Result<(), ()> {
-                Ok(())
+            ) -> Result<NoObjectUiState, ()> {
+                Ok(NoObjectUiState)
             }
         }
     };

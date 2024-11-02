@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use eframe::egui;
-use hashstash::{Stash, Stashable, Stasher};
+use hashstash::{InplaceUnstasher, Stash, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
     core::{
@@ -10,7 +10,7 @@ use crate::{
         stashing::StashingContext,
     },
     ui_core::{
-        factories::Factories, graph_properties::GraphProperties,
+        factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
         interactions::draganddrop::DragDropSubject, soundgraphuistate::SoundGraphUiState,
         soundobjectpositions::SoundObjectPositions,
     },
@@ -231,10 +231,20 @@ impl StackedLayout {
         properties: &GraphProperties,
         jit_cache: &JitCache,
         stash: &Stash,
+        snapshot_flag: &SnapshotFlag,
     ) {
         // Draw each stacked group
         for group in &mut self.groups {
-            group.draw(ui, factories, ui_state, graph, jit_cache, stash, properties);
+            group.draw(
+                ui,
+                factories,
+                ui_state,
+                graph,
+                jit_cache,
+                stash,
+                properties,
+                snapshot_flag,
+            );
         }
 
         // draw wires between connected groups
@@ -526,8 +536,14 @@ impl StackedLayout {
     }
 }
 
-impl Stashable<StashingContext> for StackedLayout {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+impl Stashable for StackedLayout {
+    fn stash(&self, stasher: &mut Stasher) {
         stasher.array_of_objects_slice(&self.groups, hashstash::Order::Unordered);
+    }
+}
+
+impl UnstashableInplace for StackedLayout {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.array_of_objects_vec_inplace(&mut self.groups)
     }
 }

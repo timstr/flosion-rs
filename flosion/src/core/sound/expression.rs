@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{
+    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
+};
 
 use crate::core::{
     engine::{compiledexpression::CompiledExpression, soundgraphcompiler::SoundGraphCompiler},
@@ -44,6 +46,22 @@ impl ProcessorExpressionLocation {
 
     pub(crate) fn expression(&self) -> ProcessorExpressionId {
         self.expression
+    }
+}
+
+impl Stashable for ProcessorExpressionLocation {
+    fn stash(&self, stasher: &mut Stasher) {
+        self.processor.stash(stasher);
+        self.expression.stash(stasher);
+    }
+}
+
+impl Unstashable for ProcessorExpressionLocation {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(ProcessorExpressionLocation {
+            processor: SoundProcessorId::unstash(unstasher)?,
+            expression: ProcessorExpressionId::unstash(unstasher)?,
+        })
     }
 }
 

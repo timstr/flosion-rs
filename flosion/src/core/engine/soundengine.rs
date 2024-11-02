@@ -93,7 +93,7 @@ pub(crate) fn create_sound_engine<'ctx>(
     let current_graph = SoundGraph::new();
     let current_hash = ObjectHash::from_stashable_and_context(
         &current_graph,
-        &StashingContext::new_checking_recompilation(),
+        StashingContext::new_checking_recompilation(),
     );
     let se_interface = SoundEngineInterface {
         current_graph,
@@ -142,7 +142,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
     ) -> Result<(), ()> {
         let new_revision = ObjectHash::from_stashable_and_context(
             new_graph,
-            &StashingContext::new_checking_recompilation(),
+            StashingContext::new_checking_recompilation(),
         );
 
         if new_revision == self.current_hash {
@@ -168,8 +168,8 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         let (cloned_graph, _) = stash_clone_with_context(
             new_graph,
             stash,
-            &StashingContext::new_stashing_normally(),
-            &UnstashingContext::new(factories),
+            StashingContext::new_stashing_normally(),
+            UnstashingContext::new(factories),
         )
         .unwrap();
 

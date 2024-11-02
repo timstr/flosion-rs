@@ -1,5 +1,5 @@
 use eframe::egui;
-use hashstash::Stash;
+use hashstash::{Order, Stash, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::{
     core::{
@@ -91,6 +91,22 @@ impl LexicalLayoutFocus {
 
     pub(super) fn close_summon_widget(&mut self) {
         self.summon_widget_state = None;
+    }
+}
+
+impl Stashable for LexicalLayoutFocus {
+    fn stash(&self, stasher: &mut Stasher) {
+        self.cursor.stash(stasher);
+        // Not stashing summon widget
+    }
+}
+
+impl Unstashable for LexicalLayoutFocus {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(LexicalLayoutFocus {
+            cursor: LexicalLayoutCursor::unstash(unstasher)?,
+            summon_widget_state: None,
+        })
     }
 }
 
@@ -657,15 +673,19 @@ impl LexicalLayout {
 
             if pressed_left {
                 cursor.go_left(self);
+                outer_context.request_snapshot();
             }
             if pressed_right {
                 cursor.go_right(self);
+                outer_context.request_snapshot();
             }
             if pressed_up {
                 cursor.go_up(self);
+                outer_context.request_snapshot();
             }
             if pressed_down {
                 cursor.go_down(self);
+                outer_context.request_snapshot();
             }
 
             let (pressed_delete, pressed_enter, pressed_shift_enter) = ui.input_mut(|i| {
@@ -679,6 +699,7 @@ impl LexicalLayout {
             if pressed_delete {
                 delete_from_graph_at_cursor(self, cursor, expr_graph, stash, factories);
                 remove_unreferenced_parameters(self, outer_context, expr_graph);
+                outer_context.request_snapshot();
             }
 
             if pressed_enter || pressed_shift_enter {
@@ -703,6 +724,7 @@ impl LexicalLayout {
                     ),
                 );
                 *cursor = LexicalLayoutCursor::AtVariableName(new_var_index);
+                outer_context.request_snapshot();
             }
         }
 
@@ -744,7 +766,7 @@ impl LexicalLayout {
                         physical_key: _,
                     } = e
                     {
-                        if *pressed {
+                        if *pressed && modifiers.is_none() {
                             if let Some(ch) = algebraic_key(*key, *modifiers) {
                                 out_chars.push(ch);
                                 return false;
@@ -870,6 +892,8 @@ impl LexicalLayout {
                 }
             }
             focus.close_summon_widget();
+
+            outer_context.request_snapshot();
         }
     }
 
@@ -1027,5 +1051,23 @@ impl LexicalLayout {
         // visit those to confirm that they match
 
         // TODO: create variable definitions for any unreferenced expression nodes
+    }
+}
+
+impl Stashable for LexicalLayout {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_objects_slice(&self.variable_definitions, Order::Ordered);
+        stasher.object(&self.final_expression);
+    }
+}
+
+impl Unstashable for LexicalLayout {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let variable_definitions = unstasher.array_of_objects_vec()?;
+        let final_expression = unstasher.object()?;
+        Ok(LexicalLayout {
+            variable_definitions,
+            final_expression,
+        })
     }
 }

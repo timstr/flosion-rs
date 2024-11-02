@@ -4,9 +4,9 @@ use crate::{
     core::sound::soundprocessor::SoundProcessorWithId,
     objects::whitenoise::WhiteNoise,
     ui_core::{
-        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
-        soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::NoObjectUiState,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -15,7 +15,7 @@ pub struct WhiteNoiseUi {}
 
 impl SoundObjectUi for WhiteNoiseUi {
     type ObjectType = SoundProcessorWithId<WhiteNoise>;
-    type StateType = ();
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
@@ -23,7 +23,7 @@ impl SoundObjectUi for WhiteNoiseUi {
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
+        _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(whitenoise.id(), "WhiteNoise").show(whitenoise, ui, ctx, graph_ui_state);
     }
@@ -36,7 +36,11 @@ impl SoundObjectUi for WhiteNoiseUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::ObjectType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

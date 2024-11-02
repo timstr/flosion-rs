@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use eframe::egui;
-use hashstash::Stash;
+use hashstash::{Order, Stash, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::core::{
     objecttype::ObjectType,
@@ -14,6 +14,7 @@ use super::{
     expressiongraphuistate::ExpressionUiCollection,
     factories::Factories,
     graph_properties::GraphProperties,
+    history::SnapshotFlag,
     interactions::{
         draganddrop::{DragDropSubject, DragInteraction, DropInteraction},
         keyboardnav::KeyboardNavInteraction,
@@ -34,6 +35,22 @@ struct SelectingArea {
 struct SelectingState {
     objects: HashSet<SoundObjectId>,
     selecting_area: Option<SelectingArea>,
+}
+
+impl Stashable for SelectingState {
+    fn stash(&self, stasher: &mut Stasher) {
+        stasher.array_of_objects_iter(self.objects.iter(), Order::Unordered);
+        // ignore selecting area
+    }
+}
+
+impl Unstashable for SelectingState {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(SelectingState {
+            objects: unstasher.array_of_objects_iter()?.flatten().collect(),
+            selecting_area: None,
+        })
+    }
 }
 
 /// The set of mutually-exclusive top level behaviours that the app allows
@@ -90,6 +107,7 @@ impl GlobalInteractions {
         names: &SoundGraphUiNames,
         bg_response: egui::Response,
         stash: &Stash,
+        snapshot_flag: &SnapshotFlag,
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -126,6 +144,7 @@ impl GlobalInteractions {
                     stash,
                     names,
                     properties,
+                    snapshot_flag,
                 );
             }
             UiMode::Selecting(selection) => {
@@ -138,8 +157,11 @@ impl GlobalInteractions {
 
                 if pressed_esc {
                     self.mode = UiMode::Passive;
+                    snapshot_flag.request_snapshot();
                     return;
-                } else if pressed_delete {
+                }
+
+                if pressed_delete {
                     graph
                         .try_make_change(stash, factories, |graph| {
                             let objects: Vec<SoundObjectId> =
@@ -155,48 +177,54 @@ impl GlobalInteractions {
                         })
                         .expect("Nah you can't delete those, sorry");
                     self.mode = UiMode::Passive;
+                    snapshot_flag.request_snapshot();
                     return;
-                } else {
-                    // If the background was clicked and dragged, start another selection area while
-                    // still holding the currently-selected objects
-                    if bg_response.drag_started() {
-                        let pos = bg_response.interact_pointer_pos().unwrap();
-                        selection.selecting_area = Some(SelectingArea {
-                            start_location: pos,
-                            end_location: pos,
-                        });
-                    }
+                }
 
-                    if let Some(area) = &mut selection.selecting_area {
-                        Self::draw_selecting_area(ui, area);
+                let previous_selection = selection.objects.clone();
 
-                        area.end_location += bg_response.drag_delta();
+                // If the background was clicked and dragged, start another selection area while
+                // still holding the currently-selected objects
+                if bg_response.drag_started() {
+                    let pos = bg_response.interact_pointer_pos().unwrap();
+                    selection.selecting_area = Some(SelectingArea {
+                        start_location: pos,
+                        end_location: pos,
+                    });
+                }
 
-                        let (shift_held, alt_held) =
-                            ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
+                if let Some(area) = &mut selection.selecting_area {
+                    Self::draw_selecting_area(ui, area);
 
-                        if bg_response.drag_stopped() {
-                            let new_objects =
-                                Self::find_objects_touching_selection_area(area, positions);
+                    area.end_location += bg_response.drag_delta();
 
-                            if shift_held {
-                                // If shift is held, add the new objects to the selection
-                                selection.objects =
-                                    selection.objects.union(&new_objects).cloned().collect();
-                            } else if alt_held {
-                                // If alt is held, remove the new objects from the selection
-                                selection.objects = selection
-                                    .objects
-                                    .difference(&new_objects)
-                                    .cloned()
-                                    .collect();
-                            } else {
-                                // Otherwise, select only the new objects
-                                selection.objects = new_objects;
-                            }
-                            selection.selecting_area = None;
+                    let (shift_held, alt_held) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
+
+                    if bg_response.drag_stopped() {
+                        let new_objects =
+                            Self::find_objects_touching_selection_area(area, positions);
+
+                        if shift_held {
+                            // If shift is held, add the new objects to the selection
+                            selection.objects =
+                                selection.objects.union(&new_objects).cloned().collect();
+                        } else if alt_held {
+                            // If alt is held, remove the new objects from the selection
+                            selection.objects = selection
+                                .objects
+                                .difference(&new_objects)
+                                .cloned()
+                                .collect();
+                        } else {
+                            // Otherwise, select only the new objects
+                            selection.objects = new_objects;
                         }
+                        selection.selecting_area = None;
                     }
+                }
+
+                if selection.objects != previous_selection {
+                    snapshot_flag.request_snapshot();
                 }
 
                 // Highlight all selected objects
@@ -233,10 +261,12 @@ impl GlobalInteractions {
                     positions,
                     stash,
                     factories,
+                    // TODO
+                    // snapshot_flag,
                 );
             }
             UiMode::Dropping(dropped_proc) => {
-                dropped_proc.handle_drop(graph, layout, positions, stash, factories);
+                dropped_proc.handle_drop(graph, layout, positions, stash, factories, snapshot_flag);
                 self.mode = UiMode::Passive;
             }
             UiMode::Summoning(summon_widget) => {
@@ -262,6 +292,8 @@ impl GlobalInteractions {
 
                     graph.add_sound_processor(new_obj.into_boxed_sound_processor().unwrap());
 
+                    snapshot_flag.request_snapshot();
+
                     self.mode = UiMode::Passive;
                 } else if summon_widget.was_cancelled() {
                     self.mode = UiMode::Passive;
@@ -281,17 +313,23 @@ impl GlobalInteractions {
             self.mode = UiMode::Selecting(SelectingState {
                 objects: graph.graph_object_ids().collect(),
                 selecting_area: None,
-            })
+            });
+            // TODO: did anything change?
+            snapshot_flag.request_snapshot();
         }
 
         // If escape was pressed, go into passive mode
         if pressed_esc {
             self.mode = UiMode::Passive;
+            // TODO: did anything change?
+            snapshot_flag.request_snapshot();
         }
 
         // If the background was just clicked, go into passive mode
         if bg_response.clicked() {
             self.mode = UiMode::Passive;
+            // TODO: did anything change?
+            snapshot_flag.request_snapshot();
         }
     }
 
@@ -412,5 +450,45 @@ impl GlobalInteractions {
         }
         let widget = builder.build();
         self.mode = UiMode::Summoning(widget);
+    }
+}
+
+impl Stashable for GlobalInteractions {
+    fn stash(&self, stasher: &mut Stasher) {
+        match &self.mode {
+            UiMode::Passive => stasher.u8(0),
+            UiMode::UsingKeyboardNav(state) => {
+                stasher.u8(1);
+                stasher.object(state);
+            }
+            UiMode::Selecting(state) => {
+                stasher.u8(2);
+                stasher.object(state);
+            }
+            UiMode::Dragging(_) => {
+                // same as passive
+                stasher.u8(0);
+            }
+            UiMode::Dropping(_) => {
+                // same as passive
+                stasher.u8(0);
+            }
+            UiMode::Summoning(_) => {
+                // same as passive
+                stasher.u8(0);
+            }
+        }
+    }
+}
+
+impl Unstashable for GlobalInteractions {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        let mode = match unstasher.u8()? {
+            0 => UiMode::Passive,
+            1 => UiMode::UsingKeyboardNav(unstasher.object()?),
+            2 => UiMode::Selecting(unstasher.object()?),
+            _ => panic!(),
+        };
+        Ok(GlobalInteractions { mode })
     }
 }
