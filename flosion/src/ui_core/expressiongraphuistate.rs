@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
@@ -12,8 +12,11 @@ use crate::core::{
 };
 
 use super::{
-    arguments::ParsedArguments, expressionobjectui::ExpressionObjectUiFactory,
-    lexicallayout::lexicallayout::LexicalLayout, stashing::UiUnstashingContext,
+    arguments::ParsedArguments,
+    expressionobjectui::ExpressionObjectUiFactory,
+    lexicallayout::lexicallayout::LexicalLayout,
+    object_ui::ObjectUiState,
+    stashing::{ExpressionUiUnstashingContext, UiUnstashingContext},
 };
 
 /// Container for holding the ui states of all nodes in a single
@@ -22,7 +25,7 @@ pub struct ExpressionNodeObjectUiStates {
     // TODO: store ExpressionNodeLayout per node here too
     // where to get them from though?
     //
-    data: HashMap<ExpressionNodeId, Rc<RefCell<dyn Any>>>,
+    data: HashMap<ExpressionNodeId, Rc<RefCell<dyn ObjectUiState>>>,
 }
 
 impl ExpressionNodeObjectUiStates {
@@ -59,12 +62,16 @@ impl ExpressionNodeObjectUiStates {
     /// type of the ui state must match that expected by the
     /// object's ui, otherwise there will be an error later
     /// when the object's ui attempts to cast the ui state.
-    pub(super) fn set_object_data(&mut self, id: ExpressionNodeId, state: Rc<RefCell<dyn Any>>) {
+    pub(super) fn set_object_data(
+        &mut self,
+        id: ExpressionNodeId,
+        state: Rc<RefCell<dyn ObjectUiState>>,
+    ) {
         self.data.insert(id, state);
     }
 
     /// Retrieve the ui state for a single object.
-    pub(super) fn get_object_data(&self, id: ExpressionNodeId) -> Rc<RefCell<dyn Any>> {
+    pub(super) fn get_object_data(&self, id: ExpressionNodeId) -> Rc<RefCell<dyn ObjectUiState>> {
         Rc::clone(self.data.get(&id).unwrap())
     }
 
@@ -77,20 +84,49 @@ impl ExpressionNodeObjectUiStates {
 
 impl Stashable for ExpressionNodeObjectUiStates {
     fn stash(&self, stasher: &mut Stasher) {
-        // TODO: stash those UI states
-        // this will probably be best done by making a
-        // specific trait of ui state that supports
-        // serialization through a trait object.
-        // Also, the type name of the object the ui
-        // state is for will need to be stashed
-        // in order to recreate it using the factory
+        stasher.array_of_proxy_objects(
+            self.data.iter(),
+            |(expr_node_id, ui_data), stasher| {
+                stasher.u64(expr_node_id.value() as _);
+                stasher.object_proxy(|stasher| ui_data.borrow().stash(stasher));
+            },
+            Order::Unordered,
+        );
     }
 }
 
-impl Unstashable<UiUnstashingContext<'_>> for ExpressionNodeObjectUiStates {
-    fn unstash(unstasher: &mut Unstasher<UiUnstashingContext<'_>>) -> Result<Self, UnstashError> {
-        // TODO
-        Ok(ExpressionNodeObjectUiStates::new())
+impl Unstashable<ExpressionUiUnstashingContext<'_>> for ExpressionNodeObjectUiStates {
+    fn unstash(
+        unstasher: &mut Unstasher<ExpressionUiUnstashingContext<'_>>,
+    ) -> Result<Self, UnstashError> {
+        let mut data = HashMap::new();
+        unstasher.array_of_proxy_objects(|unstasher| {
+            let expr_node_id = ExpressionNodeId::new(unstasher.u64()? as _);
+
+            let node = unstasher
+                .context()
+                .expression_graph()
+                .node(expr_node_id)
+                .unwrap()
+                .as_graph_object();
+
+            let node_ui = unstasher.context().factory().get(node.get_dynamic_type());
+
+            let ui_state = node_ui
+                .make_ui_state(node, ParsedArguments::new_empty())
+                .unwrap();
+
+            unstasher.object_proxy_inplace_with_context(
+                |unstasher| ui_state.borrow_mut().unstash_inplace(unstasher),
+                (),
+            )?;
+
+            data.insert(expr_node_id, ui_state);
+
+            Ok(())
+        })?;
+
+        Ok(ExpressionNodeObjectUiStates { data })
     }
 }
 
@@ -135,8 +171,10 @@ impl Stashable for ExpressionGraphUiState {
     }
 }
 
-impl Unstashable<UiUnstashingContext<'_>> for ExpressionGraphUiState {
-    fn unstash(unstasher: &mut Unstasher<UiUnstashingContext>) -> Result<Self, UnstashError> {
+impl Unstashable<ExpressionUiUnstashingContext<'_>> for ExpressionGraphUiState {
+    fn unstash(
+        unstasher: &mut Unstasher<ExpressionUiUnstashingContext>,
+    ) -> Result<Self, UnstashError> {
         Ok(ExpressionGraphUiState {
             object_states: ExpressionNodeObjectUiStates::unstash(unstasher)?,
         })
@@ -232,7 +270,20 @@ impl Unstashable<UiUnstashingContext<'_>> for ExpressionUiCollection {
                 ProcessorExpressionId::new(unstasher.u64()? as _),
             );
 
-            let new_ui_state: ExpressionGraphUiState = unstasher.object()?;
+            let new_ui_state: ExpressionGraphUiState = unstasher
+                .context()
+                .sound_graph()
+                .sound_processor(location.processor())
+                .unwrap()
+                .with_expression(location.expression(), |expr| {
+                    let ctx = ExpressionUiUnstashingContext::new(
+                        unstasher.context().factories().expression_uis(),
+                        expr.graph(),
+                    );
+                    unstasher.object_with_context(ctx)
+                })
+                .unwrap()?;
+
             let new_layout: LexicalLayout = unstasher.object_with_context(())?;
 
             data.insert(location, (new_ui_state, new_layout));

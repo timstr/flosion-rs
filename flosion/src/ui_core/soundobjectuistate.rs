@@ -89,9 +89,7 @@ impl Stashable for SoundObjectUiStates {
         stasher.array_of_proxy_objects(
             self.data.iter(),
             |(object_id, ui_data), stasher| {
-                match object_id {
-                    SoundObjectId::Sound(spid) => stasher.u64(spid.value() as _),
-                }
+                object_id.stash(stasher);
                 stasher.object_proxy(|stasher| ui_data.state.borrow().stash(stasher));
                 stasher.u8(ui_data.color.r());
                 stasher.u8(ui_data.color.g());

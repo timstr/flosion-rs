@@ -27,7 +27,7 @@ pub fn random_object_color() -> egui::Color32 {
     color.into()
 }
 
-pub(crate) trait ObjectUiState {
+pub trait ObjectUiState {
     fn as_any(&self) -> &dyn Any;
     fn as_mut_any(&mut self) -> &mut dyn Any;
 

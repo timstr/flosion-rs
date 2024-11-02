@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
 
 use eframe::egui;
 
@@ -44,7 +44,7 @@ pub trait AnyExpressionObjectUi {
     fn apply(
         &self,
         object: &mut dyn ExpressionObject,
-        state: &mut dyn Any,
+        state: &mut dyn ObjectUiState,
         graph_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
         ctx: &ExpressionGraphUiContext,
@@ -63,14 +63,14 @@ pub trait AnyExpressionObjectUi {
         &self,
         object: &dyn ExpressionObject,
         args: ParsedArguments,
-    ) -> Result<Rc<RefCell<dyn Any>>, ()>;
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()>;
 }
 
 impl<T: 'static + ExpressionObjectUi> AnyExpressionObjectUi for T {
     fn apply(
         &self,
         object: &mut dyn ExpressionObject,
-        state: &mut dyn Any,
+        state: &mut dyn ObjectUiState,
         graph_ui_state: &mut ExpressionGraphUiState,
         ui: &mut egui::Ui,
         ctx: &ExpressionGraphUiContext,
@@ -81,7 +81,7 @@ impl<T: 'static + ExpressionObjectUi> AnyExpressionObjectUi for T {
             graph_ui_state,
             ui,
             ctx,
-            state.downcast_mut().unwrap(),
+            state.as_mut_any().downcast_mut().unwrap(),
         );
     }
 
@@ -105,7 +105,7 @@ impl<T: 'static + ExpressionObjectUi> AnyExpressionObjectUi for T {
         &self,
         object: &dyn ExpressionObject,
         args: ParsedArguments,
-    ) -> Result<Rc<RefCell<dyn Any>>, ()> {
+    ) -> Result<Rc<RefCell<dyn ObjectUiState>>, ()> {
         let object = object.as_any().downcast_ref::<T::ObjectType>().unwrap();
         let state = self.make_ui_state(&object, args)?;
         Ok(Rc::new(RefCell::new(state)))
@@ -158,6 +158,6 @@ pub(crate) fn show_expression_node_ui(
     let object_ui = factory.get(object_type);
 
     let state = ui_state.object_states().get_object_data(object.id());
-    let state: &mut dyn Any = &mut *state.borrow_mut();
+    let state: &mut dyn ObjectUiState = &mut *state.borrow_mut();
     object_ui.apply(object, state, ui_state, ui, ctx);
 }

@@ -126,7 +126,7 @@ impl History {
         debug_assert_eq!(
             ObjectHash::from_stashable(app_state),
             snapshot.app_state.object_hash()
-        );
+        )
     }
 }
 

@@ -391,7 +391,7 @@ impl Stashable for KeyboardNavInteraction {
             KeyboardNavInteraction::InsideExpression(expr_loc, ll_focus) => {
                 stasher.u8(4);
                 expr_loc.stash(stasher);
-                stasher.object(ll_focus);
+                ll_focus.stash(stasher);
             }
         }
     }

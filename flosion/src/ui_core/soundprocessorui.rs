@@ -284,6 +284,7 @@ impl ProcessorUi {
                     ui_state
                         .interactions_mut()
                         .focus_on_processor(self.processor_id);
+                    ctx.request_snapshot();
                 }
             });
         });
