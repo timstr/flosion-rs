@@ -112,11 +112,12 @@ impl ExpressionObjectUi for SliderUi {
             |ui| {
                 let mut v = variable.get_value();
                 let v_old = v;
-                // TODO: how to request a snapshot only when the slider is done being moved?
-                // i.e. how to request snapshots at less than 60 Hz?
-                ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
+                let response = ui.add(egui::Slider::new(&mut v, state.min_value..=state.max_value));
                 if v != v_old {
                     variable.set_value(v);
+                }
+                if response.drag_stopped() {
+                    ctx.request_snapshot();
                 }
                 if ui.add(egui::Button::new("...")).clicked() {
                     state.show_settings = !state.show_settings;
