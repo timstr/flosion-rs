@@ -148,35 +148,38 @@ impl ExpressionObjectUi for SliderUi {
 
     fn make_ui_state(
         &self,
-        object: &ExpressionNodeWithId<Variable>,
+        variable: &ExpressionNodeWithId<Variable>,
         args: ParsedArguments,
     ) -> Result<SliderUiState, ()> {
-        let value = args.get(&Variable::ARG_VALUE);
+        // NOTE: the value argument is already used
+        // in Variable's own initialization.
+        // Only if it is missing and the range is
+        // given do we assign the value here.
+        // Importantly, this does not change the
+        // value when no arguments are given, which
+        // is the case during unstashing and undo/redo.
         let range = args.get(&SliderUi::ARG_RANGE);
-        let (value, range) = match (value, range) {
-            (Some(v), Some(r)) => (v, r),
-            (None, Some(r)) => (0.5 * (r.start() + r.end()), r),
-            (Some(v), None) => (
-                v,
-                if v == 0.0 {
-                    0.0..=1.0
-                } else if v < 0.0 {
-                    (2.0 * v)..=(-2.0 * v)
-                } else {
-                    0.0..=(2.0 * v)
-                },
-            ),
-            (None, None) => (1.0, 0.0..=2.0),
-        };
 
-        object.set_value(value as f32);
+        if args.get(&Variable::ARG_VALUE).is_none() {
+            if let Some(range) = &range {
+                variable.set_value(0.5 * (range.start() + range.end()) as f32);
+            }
+        }
 
-        let min_value = *range.start() as f32;
-        let max_value = *range.end() as f32;
+        let range = range.unwrap_or_else(|| {
+            let v = variable.get_value() as f64;
+            if v == 0.0 {
+                0.0..=1.0
+            } else if v < 0.0 {
+                (2.0 * v)..=(-2.0 * v)
+            } else {
+                0.0..=(2.0 * v)
+            }
+        });
 
         Ok(SliderUiState {
-            min_value,
-            max_value,
+            min_value: *range.start() as f32,
+            max_value: *range.end() as f32,
             show_settings: false,
         })
     }
