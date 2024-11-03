@@ -307,6 +307,7 @@ impl StackedGroup {
 
                     if sidebar_response.drag_stopped() {
                         ui_state.interactions_mut().drop_dragging();
+                        snapshot_flag.request_snapshot();
                     }
 
                     ui.painter().rect_filled(
@@ -348,6 +349,10 @@ impl StackedGroup {
                         // UI things have no room?
                         self.width_pixels =
                             (self.width_pixels + resize_response.drag_delta().x).max(50.0);
+                    }
+
+                    if resize_response.drag_stopped() {
+                        snapshot_flag.request_snapshot();
                     }
 
                     ui.painter().rect_filled(
