@@ -23,7 +23,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::{ProcessorArgument, ProcessorArgumentLocation},
-            argumenttypes::plainf32array::PlainF32Array,
+            argumenttypes::plainf32array::PlainF32ArrayArgument,
             context::{Context, Stack},
             expression::{ProcessorExpression, SoundExpressionScope},
             soundgraph::SoundGraph,
@@ -47,9 +47,9 @@ const MAX_NUM_INPUTS: usize = 3;
 #[derive(ProcessorComponents)]
 struct TestSoundProcessor {
     expression: ProcessorExpression,
-    argument_0: ProcessorArgument<PlainF32Array>,
-    argument_1: ProcessorArgument<PlainF32Array>,
-    argument_2: ProcessorArgument<PlainF32Array>,
+    argument_0: ProcessorArgument<PlainF32ArrayArgument>,
+    argument_1: ProcessorArgument<PlainF32ArrayArgument>,
+    argument_2: ProcessorArgument<PlainF32ArrayArgument>,
 }
 
 impl SoundProcessor for TestSoundProcessor {

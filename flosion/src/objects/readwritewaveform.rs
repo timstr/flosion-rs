@@ -8,7 +8,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::ProcessorArgument,
-            argumenttypes::plainf32array::PlainF32Array,
+            argumenttypes::plainf32array::PlainF32ArrayArgument,
             context::Context,
             expression::{ProcessorExpression, SoundExpressionScope},
             inputtypes::singleinput::SingleInput,
@@ -26,8 +26,8 @@ pub struct ReadWriteWaveform {
     pub sound_input: SingleInput,
     // TODO: multiple outputs to enable stereo
     pub waveform: ProcessorExpression,
-    pub input_l: ProcessorArgument<PlainF32Array>,
-    pub input_r: ProcessorArgument<PlainF32Array>,
+    pub input_l: ProcessorArgument<PlainF32ArrayArgument>,
+    pub input_r: ProcessorArgument<PlainF32ArrayArgument>,
 }
 
 impl SoundProcessor for ReadWriteWaveform {

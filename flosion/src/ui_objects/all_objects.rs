@@ -13,7 +13,7 @@ use super::{
     adsr_ui::ADSRUi,
     audioclip_ui::AudioClipUi,
     definitions_ui::DefinitionsUi,
-    // ensemble_ui::EnsembleUi,
+    ensemble_ui::EnsembleUi,
     input_ui::InputUi,
     // keyboard_ui::KeyboardUi,
     // mixer_ui::MixerUi,
@@ -98,7 +98,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     helper.register::<ADSRUi>();
     helper.register::<AudioClipUi>();
     helper.register::<DefinitionsUi>();
-    // helper.register::<EnsembleUi>();
+    helper.register::<EnsembleUi>();
     // helper.register::<MelodyUi>();
     // helper.register::<MixerUi>();
     helper.register::<ReadWriteWaveformUi>();

@@ -1,15 +1,20 @@
 use std::marker::PhantomData;
 
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     sound::{
-        soundinput::{BasicProcessorInput, InputContext, InputOptions, InputTiming},
+        soundinput::{
+            BasicProcessorInput, InputContext, InputOptions, InputTiming, ProcessorInputId,
+        },
         soundprocessor::{
             ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
             SoundProcessorId, StartOver, StreamStatus,
         },
     },
     soundchunk::SoundChunk,
+    stashing::{StashingContext, UnstashingContext},
 };
 
 pub struct KeyedInput<S> {
@@ -23,6 +28,18 @@ impl<S: StartOver> KeyedInput<S> {
             input: BasicProcessorInput::new(options, num_keys),
             phantom_data: PhantomData,
         }
+    }
+
+    pub fn id(&self) -> ProcessorInputId {
+        self.input.id()
+    }
+
+    pub fn num_keys(&self) -> usize {
+        self.input.branches()
+    }
+
+    pub fn set_num_keys(&mut self, num_keys: usize) {
+        self.input.set_branches(num_keys);
     }
 }
 
@@ -50,6 +67,21 @@ impl<S: Send> ProcessorComponent for KeyedInput<S> {
             });
         }
         CompiledKeyedInput { items }
+    }
+}
+
+impl<S> Stashable<StashingContext> for KeyedInput<S> {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        self.input.stash(stasher);
+    }
+}
+
+impl<S> UnstashableInplace<UnstashingContext<'_>> for KeyedInput<S> {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext<'_>>,
+    ) -> Result<(), UnstashError> {
+        self.input.unstash_inplace(unstasher)
     }
 }
 

@@ -896,14 +896,11 @@ impl<'ctx> Jit<'ctx> {
                             // work, since the discretization
                             // already handles this.
 
-                            // Return the default value, since
+                            // Return a zero value, since
                             // we have presumably have no access
                             // to the argument values on the
                             // audio thread.
-                            proc.with_processor_argument(arg_location.argument(), |arg| {
-                                self.types.f32_type.const_float(arg.default_value() as _)
-                            })
-                            .unwrap()
+                            self.types.f32_type.const_zero()
                         }
                         ExpressionTestDomain::WithRespectTo(wrt_arg, interval) => {
                             // If testing against a specific parameter,
@@ -917,10 +914,7 @@ impl<'ctx> Jit<'ctx> {
                             if *arg_location == wrt_arg {
                                 self.compile_interval(interval)
                             } else {
-                                proc.with_processor_argument(arg_location.argument(), |arg| {
-                                    self.types.f32_type.const_float(arg.default_value() as _)
-                                })
-                                .unwrap()
+                                self.types.f32_type.const_zero()
                             }
                         }
                     }

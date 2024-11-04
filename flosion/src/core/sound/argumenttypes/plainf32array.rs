@@ -9,9 +9,9 @@ use crate::core::{jit::jit::Jit, sound::argument::ArgumentTranslation};
 /// and its discretization is assumed to be samplewise temporal
 /// such that adjacent array indices exactly correspond to
 /// adjacent samples.
-pub struct PlainF32Array;
+pub struct PlainF32ArrayArgument;
 
-impl ArgumentTranslation for PlainF32Array {
+impl ArgumentTranslation for PlainF32ArrayArgument {
     type PushedType<'a> = &'a [f32];
 
     type InternalType = (*const f32, usize);

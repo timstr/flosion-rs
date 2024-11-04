@@ -8,7 +8,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::ProcessorArgument,
-            argumenttypes::plainf32array::PlainF32Array,
+            argumenttypes::plainf32array::PlainF32ArrayArgument,
             context::Context,
             expression::{ProcessorExpression, SoundExpressionScope},
             inputtypes::singleinput::SingleInput,
@@ -27,7 +27,7 @@ pub struct Definitions {
 
     // TODO: store these in a vector
     pub expression: ProcessorExpression,
-    pub argument: ProcessorArgument<PlainF32Array>,
+    pub argument: ProcessorArgument<PlainF32ArrayArgument>,
 }
 
 impl SoundProcessor for Definitions {

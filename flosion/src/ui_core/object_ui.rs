@@ -57,6 +57,7 @@ where
     }
 }
 
+// TODO: just make the unit type () stashable in hashstash?
 pub struct NoObjectUiState;
 
 impl Stashable for NoObjectUiState {

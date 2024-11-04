@@ -1,10 +1,10 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::ensemble::Ensemble,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
@@ -14,56 +14,43 @@ use crate::{
 pub struct EnsembleUi {}
 
 impl SoundObjectUi for EnsembleUi {
-    type HandleType = DynamicSoundProcessorHandle<Ensemble>;
-    type StateType = ();
+    type ObjectType = SoundProcessorWithId<Ensemble>;
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
-        ensemble: DynamicSoundProcessorHandle<Ensemble>,
+        ensemble: &mut SoundProcessorWithId<Ensemble>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
-        sound_graph: &mut SoundGraph,
+        _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(&ensemble, "Ensemble")
-            .add_sound_input(ensemble.get().input.id(), "input", sound_graph)
+        ProcessorUi::new(ensemble.id(), "Ensemble")
+            .add_sound_input(ensemble.input.id(), "input")
+            .add_expression(&ensemble.frequency_in, "frequency_in", PlotConfig::new())
             .add_expression(
-                ensemble.get().frequency_in.id(),
-                "frequency_in",
-                PlotConfig::new(),
-            )
-            .add_expression(
-                ensemble.get().frequency_spread.id(),
+                &ensemble.frequency_spread,
                 "frequency_spread",
                 PlotConfig::new(),
             )
-            .add_argument(ensemble.get().voice_frequency.id(), "voice_frequency")
+            .add_argument(ensemble.voice_frequency.id(), "voice_frequency")
             .show_with(
+                ensemble,
                 ui,
                 ctx,
                 graph_ui_state,
-                sound_graph,
-                |ui, _ui_state, sound_graph| {
+                |ensemble, ui, _ui_state| {
                     ui.horizontal(|ui| {
                         ui.add(egui::Label::new(
                             egui::RichText::new("Voices")
                                 .color(egui::Color32::from_black_alpha(192))
                                 .italics(),
                         ));
-                        // TODO: this currently triggers a full graph validation
-                        // during every single UI redraw, even if nothing changed.
-                        // Make this more efficient.
-                        let res = sound_graph.with_processor_tools(ensemble.id(), |mut tools| {
-                            let mut num_voices = ensemble.get().num_voices(&tools);
-                            let r = ui.add(egui::Slider::new(&mut num_voices, 0..=16));
-                            if r.changed() {
-                                ensemble.get_mut().set_num_voices(num_voices, &mut tools);
-                            }
-                            Ok(())
-                        });
-                        if let Err(e) = res {
-                            println!("Can't do that: {}", e.explain(sound_graph));
+
+                        let mut num_voices = ensemble.num_voices();
+                        let r = ui.add(egui::Slider::new(&mut num_voices, 0..=16));
+                        if r.changed() {
+                            ensemble.set_num_voices(num_voices);
                         }
                     });
                 },
@@ -78,7 +65,11 @@ impl SoundObjectUi for EnsembleUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }
