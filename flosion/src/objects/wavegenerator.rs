@@ -1,124 +1,94 @@
+use flosion_macros::ProcessorComponents;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+
 use crate::{
     core::{
-        anydata::AnyData,
-        engine::{
-            compiledexpression::{
-                CompiledExpression, CompiledExpressionCollection, CompiledExpressionVisitor,
-                CompiledExpressionVisitorMut,
-            },
-            soundgraphcompiler::SoundGraphCompiler,
-        },
+        expression::context::ExpressionContext,
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
-            context::{Context, LocalArrayList},
-            expression::SoundExpressionHandle,
-            expressionargument::SoundExpressionArgumentHandle,
-            soundgraphdata::SoundExpressionScope,
-            soundprocessor::{DynamicSoundProcessor, StateAndTiming, StreamStatus},
-            soundprocessortools::SoundProcessorTools,
-            state::State,
+            argument::ProcessorArgument,
+            argumenttypes::plainf32array::PlainF32ArrayArgument,
+            context::Context,
+            expression::{ProcessorExpression, SoundExpressionScope},
+            soundprocessor::{
+                ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
+            },
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
-
-pub struct WaveGenerator {
-    pub phase: SoundExpressionArgumentHandle,
-    pub amplitude: SoundExpressionHandle,
-    pub frequency: SoundExpressionHandle,
-}
-
-pub struct WaveGeneratorExpressions<'ctx> {
-    frequency: CompiledExpression<'ctx>,
-    amplitude: CompiledExpression<'ctx>,
-}
-
-impl<'ctx> CompiledExpressionCollection<'ctx> for WaveGeneratorExpressions<'ctx> {
-    fn visit(&self, visitor: &mut dyn CompiledExpressionVisitor<'ctx>) {
-        visitor.visit(&self.frequency);
-        visitor.visit(&self.amplitude);
-    }
-
-    fn visit_mut(&mut self, visitor: &mut dyn CompiledExpressionVisitorMut<'ctx>) {
-        visitor.visit(&mut self.frequency);
-        visitor.visit(&mut self.amplitude);
-    }
-}
 
 pub struct WaveGeneratorState {
     phase: [f32; CHUNK_SIZE],
 }
 
-impl State for WaveGeneratorState {
+impl ProcessorState for WaveGeneratorState {
+    type Processor = WaveGenerator;
+
+    fn new(_processor: &Self::Processor) -> Self {
+        WaveGeneratorState {
+            phase: [0.0; CHUNK_SIZE],
+        }
+    }
+}
+
+impl StartOver for WaveGeneratorState {
     fn start_over(&mut self) {
         slicemath::fill(&mut self.phase, 0.0);
     }
 }
 
-impl DynamicSoundProcessor for WaveGenerator {
-    type StateType = WaveGeneratorState;
-    type SoundInputType = ();
-    type Expressions<'ctx> = WaveGeneratorExpressions<'ctx>;
+#[derive(ProcessorComponents)]
+pub struct WaveGenerator {
+    pub phase: ProcessorArgument<PlainF32ArrayArgument>,
+    pub amplitude: ProcessorExpression,
+    pub frequency: ProcessorExpression,
 
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
-        Ok(WaveGenerator {
-            // TODO: bypass this array entirely?
-            phase: tools.add_processor_array_argument(|state: &AnyData| -> &[f32] {
-                &state.downcast_if::<WaveGeneratorState>().unwrap().phase
-            }),
-            amplitude: tools.add_expression(0.0, SoundExpressionScope::with_processor_state()),
-            frequency: tools.add_expression(250.0, SoundExpressionScope::with_processor_state()),
-        })
-    }
+    #[state]
+    state: StateMarker<WaveGeneratorState>,
+}
 
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &()
-    }
-
-    fn make_state(&self) -> Self::StateType {
-        WaveGeneratorState {
-            phase: [0.0; CHUNK_SIZE],
+impl SoundProcessor for WaveGenerator {
+    fn new(_args: &ParsedArguments) -> WaveGenerator {
+        let phase = ProcessorArgument::new();
+        let phase_id = phase.id();
+        WaveGenerator {
+            phase,
+            amplitude: ProcessorExpression::new(0.0, SoundExpressionScope::new(vec![phase_id])),
+            frequency: ProcessorExpression::new(250.0, SoundExpressionScope::new_empty()),
+            state: StateMarker::new(),
         }
     }
 
-    fn compile_expressions<'a, 'ctx>(
-        &self,
-        compile: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        WaveGeneratorExpressions {
-            frequency: self.frequency.compile(compile),
-            amplitude: self.amplitude.compile(compile),
-        }
+    fn is_static(&self) -> bool {
+        false
     }
 
     fn process_audio(
-        state: &mut StateAndTiming<WaveGeneratorState>,
-        _sound_inputs: &mut (),
-        expressions: &mut WaveGeneratorExpressions,
+        wavegen: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: Context,
+        context: &mut Context,
     ) -> StreamStatus {
-        let prev_phase = *state.phase.last().unwrap();
-        {
-            let mut tmp = context.get_scratch_space(state.phase.len());
-            expressions.frequency.eval(
-                &mut tmp,
-                Discretization::samplewise_temporal(),
-                &context.push_processor_state(state, LocalArrayList::new()),
-            );
-            slicemath::copy(&tmp, &mut state.phase);
-        }
-        slicemath::div_scalar_inplace(&mut state.phase, SAMPLE_FREQUENCY as f32);
-        slicemath::exclusive_scan_inplace(&mut state.phase, prev_phase, |p1, p2| p1 + p2);
-        slicemath::apply_unary_inplace(&mut state.phase, |x| x - x.floor());
+        // NOTE: this is made redundant by WriteWaveform and WrappingIntegrator
 
-        expressions.amplitude.eval(
+        let prev_phase: f32 = wavegen.state.phase.last().unwrap().clone();
+        wavegen.frequency.eval(
+            &mut wavegen.state.phase,
+            Discretization::samplewise_temporal(),
+            ExpressionContext::new(context),
+        );
+        slicemath::div_scalar_inplace(&mut wavegen.state.phase, SAMPLE_FREQUENCY as f32);
+        slicemath::exclusive_scan_inplace(&mut wavegen.state.phase, prev_phase, |p1, p2| p1 + p2);
+        slicemath::apply_unary_inplace(&mut wavegen.state.phase, |x| x - x.floor());
+
+        wavegen.amplitude.eval(
             &mut dst.l,
             Discretization::samplewise_temporal(),
-            &context.push_processor_state(state, LocalArrayList::new()),
+            ExpressionContext::new(context).push(wavegen.phase, &wavegen.state.phase),
         );
         slicemath::copy(&dst.l, &mut dst.r);
 
@@ -128,4 +98,24 @@ impl DynamicSoundProcessor for WaveGenerator {
 
 impl WithObjectType for WaveGenerator {
     const TYPE: ObjectType = ObjectType::new("wavegenerator");
+}
+
+impl Stashable<StashingContext> for WaveGenerator {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        stasher.object(&self.phase);
+        stasher.object(&self.amplitude);
+        stasher.object(&self.frequency);
+    }
+}
+
+impl UnstashableInplace<UnstashingContext<'_>> for WaveGenerator {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.phase)?;
+        unstasher.object_inplace(&mut self.amplitude)?;
+        unstasher.object_inplace(&mut self.frequency)?;
+        Ok(())
+    }
 }

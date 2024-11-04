@@ -1,8 +1,8 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::{argument::ProcessorArgumentLocation, soundprocessor::SoundProcessorWithId},
     objects::wavegenerator::WaveGenerator,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
@@ -12,30 +12,32 @@ use crate::{
 pub struct WaveGeneratorUi {}
 
 impl SoundObjectUi for WaveGeneratorUi {
-    type HandleType = DynamicSoundProcessorHandle<WaveGenerator>;
-    type StateType = ();
+    type ObjectType = SoundProcessorWithId<WaveGenerator>;
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
-        wavgen: DynamicSoundProcessorHandle<WaveGenerator>,
+        wavgen: &mut SoundProcessorWithId<WaveGenerator>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
-        sound_graph: &mut SoundGraph,
+        _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(&wavgen, "WaveGenerator")
+        ProcessorUi::new(wavgen.id(), "WaveGenerator")
             .add_expression(
-                wavgen.get().amplitude.id(),
+                &wavgen.amplitude,
                 "amplitude",
                 PlotConfig::new()
                     .linear_vertical_range(-1.0..=1.0)
-                    // TODO: why is this not working?
-                    .with_respect_to(wavgen.get().phase.id(), 0.0..=1.0),
+                    .with_respect_to(
+                        // TODO: ew, why not just `wavgen.phase`?
+                        ProcessorArgumentLocation::new(wavgen.id(), wavgen.phase.id()),
+                        0.0..=1.0,
+                    ),
             )
-            .add_expression(wavgen.get().frequency.id(), "frequency", PlotConfig::new())
-            .add_argument(wavgen.get().phase.id(), "phase")
-            .show(ui, ctx, graph_ui_state, sound_graph);
+            .add_expression(&wavgen.frequency, "frequency", PlotConfig::new())
+            .add_argument(wavgen.phase.id(), "phase")
+            .show(wavgen, ui, ctx, graph_ui_state);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -46,7 +48,11 @@ impl SoundObjectUi for WaveGeneratorUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

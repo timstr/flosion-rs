@@ -878,6 +878,9 @@ impl<'ctx> Jit<'ctx> {
         for (param_id, arg_location) in parameter_mapping.items() {
             let proc = graph.sound_processor(arg_location.processor()).unwrap();
 
+            self.builder()
+                .position_before(&self.instruction_locations.end_of_loop);
+
             let param_value = match mode {
                 JitMode::Normal => {
                     // If compiling in normal mode, compile the argument

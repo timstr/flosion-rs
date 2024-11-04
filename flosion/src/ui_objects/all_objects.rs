@@ -33,7 +33,7 @@ use super::{
     stateful_function_uis::{
         ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
     },
-    // wavegenerator_ui::WaveGeneratorUi,
+    wavegenerator_ui::WaveGeneratorUi,
     whitenoise_ui::WhiteNoiseUi,
     writewaveform_ui::WriteWaveformUi,
 };
@@ -104,7 +104,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     helper.register::<ReadWriteWaveformUi>();
     // helper.register::<ResamplerUi>();
     // helper.register::<ScatterUi>();
-    // helper.register::<WaveGeneratorUi>();
+    helper.register::<WaveGeneratorUi>();
     helper.register::<WhiteNoiseUi>();
     helper.register::<WriteWaveformUi>();
 

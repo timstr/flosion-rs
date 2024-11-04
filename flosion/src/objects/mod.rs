@@ -15,7 +15,7 @@ pub mod readwritewaveform;
 pub mod sampler1d;
 // pub mod scatter;
 pub mod statefulfunctions;
-// pub mod wavegenerator;
+pub mod wavegenerator;
 pub mod whitenoise;
 pub mod writewaveform;
 
