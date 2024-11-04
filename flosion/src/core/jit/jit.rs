@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use atomic_float::AtomicF32;
 use inkwell::{
@@ -19,8 +23,11 @@ use crate::core::{
         expressionnode::ExpressionNodeId,
     },
     sound::{
-        argument::ProcessorArgumentId, expression::ExpressionParameterMapping,
-        soundgraph::SoundGraph, soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
+        argument::{ProcessorArgumentId, ProcessorArgumentLocation},
+        expression::ExpressionParameterMapping,
+        soundgraph::SoundGraph,
+        soundinput::SoundInputLocation,
+        soundprocessor::SoundProcessorId,
     },
 };
 
@@ -62,6 +69,39 @@ pub struct Jit<'ctx> {
     pub(super) compiled_targets: HashMap<ExpressionTarget, FloatValue<'ctx>>,
     num_state_variables: usize,
     state_array_offsets: Vec<(ExpressionNodeId, usize)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Interval {
+    Linear { from: f32, to: f32 },
+}
+
+// Darn f32's don't want to implement Eq
+impl Eq for Interval {}
+
+// Darn f32's don't want to implement Hash
+impl Hash for Interval {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Interval::Linear { from, to } => {
+                state.write_u32(from.to_bits());
+                state.write_u32(to.to_bits());
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
+pub enum ExpressionTestDomain {
+    Temporal,
+    WithRespectTo(ProcessorArgumentLocation, Interval),
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
+pub enum JitMode {
+    Normal,
+    Test(ExpressionTestDomain),
 }
 
 impl<'ctx> Jit<'ctx> {
@@ -776,23 +816,131 @@ impl<'ctx> Jit<'ctx> {
         self.local_variables.time_step
     }
 
+    fn compile_interval(&mut self, interval: Interval) -> FloatValue<'ctx> {
+        match interval {
+            Interval::Linear {
+                from: interval_begin,
+                to: interval_end,
+            } => {
+                let arr_size_f32 = self
+                    .builder()
+                    .build_signed_int_to_float(
+                        self.local_variables.dst_len,
+                        self.types.f32_type,
+                        "dst_len_f32",
+                    )
+                    .unwrap();
+                let interval_len_over_arr_size = self
+                    .builder()
+                    .build_float_div(
+                        self.types
+                            .f32_type
+                            .const_float((interval_end - interval_begin) as _),
+                        arr_size_f32,
+                        "internal_len_over_arr_size",
+                    )
+                    .unwrap();
+                let loop_counter_f32 = self
+                    .builder()
+                    .build_signed_int_to_float(
+                        self.local_variables.loop_counter,
+                        self.types.f32_type,
+                        "loop_counter_f32",
+                    )
+                    .unwrap();
+                let interval_val_from_zero = self
+                    .builder()
+                    .build_float_mul(
+                        loop_counter_f32,
+                        interval_len_over_arr_size,
+                        "interval_val_from_zero",
+                    )
+                    .unwrap();
+                let interval_val = self
+                    .builder()
+                    .build_float_add(
+                        interval_val_from_zero,
+                        self.types.f32_type.const_float(interval_begin as _),
+                        "interval_val",
+                    )
+                    .unwrap();
+                interval_val
+            }
+        }
+    }
+
+    fn compile_all_arguments(
+        &mut self,
+        graph: &SoundGraph,
+        parameter_mapping: &ExpressionParameterMapping,
+        mode: JitMode,
+    ) {
+        for (param_id, arg_location) in parameter_mapping.items() {
+            let proc = graph.sound_processor(arg_location.processor()).unwrap();
+
+            let param_value = match mode {
+                JitMode::Normal => {
+                    // If compiling in normal mode, compile the argument
+                    // lookup from the argument stack and its evaluation
+                    proc.with_processor_argument(arg_location.argument(), |arg| {
+                        arg.compile_evaluation(self)
+                    })
+                    .unwrap()
+                }
+                JitMode::Test(test_domain) => {
+                    match test_domain {
+                        ExpressionTestDomain::Temporal => {
+                            // If testing against the time domain,
+                            // don't evaluate arguments (they won't
+                            // have been pushed) but do no other
+                            // work, since the discretization
+                            // already handles this.
+
+                            // Return the default value, since
+                            // we have presumably have no access
+                            // to the argument values on the
+                            // audio thread.
+                            proc.with_processor_argument(arg_location.argument(), |arg| {
+                                self.types.f32_type.const_float(arg.default_value() as _)
+                            })
+                            .unwrap()
+                        }
+                        ExpressionTestDomain::WithRespectTo(wrt_arg, interval) => {
+                            // If testing against a specific parameter,
+                            // generate code to produce instrumented values
+                            // within the requested range. For the time being,
+                            // this assumes that the expression is being
+                            // evaluated once over a single array containing
+                            // the entire extent being tested over i.e., the
+                            // output array for one invocation exactly lines
+                            // up with the requested interval.
+                            if *arg_location == wrt_arg {
+                                self.compile_interval(interval)
+                            } else {
+                                proc.with_processor_argument(arg_location.argument(), |arg| {
+                                    self.types.f32_type.const_float(arg.default_value() as _)
+                                })
+                                .unwrap()
+                            }
+                        }
+                    }
+                }
+            };
+
+            self.compiled_targets
+                .insert(ExpressionTarget::Parameter(*param_id), param_value);
+        }
+    }
+
     pub(crate) fn compile_expression(
         mut self,
         expression_graph: &ExpressionGraph,
         parameter_mapping: &ExpressionParameterMapping,
         graph: &SoundGraph,
+        mode: JitMode,
     ) -> CompiledExpressionArtefact<'ctx> {
         // pre-compile all expression graph arguments
-        for (param_id, arg_location) in parameter_mapping.items() {
-            graph
-                .sound_processor(arg_location.processor())
-                .unwrap()
-                .with_processor_argument(arg_location.argument(), |arg| {
-                    let value = arg.compile_evaluation(&mut self);
-                    self.compiled_targets
-                        .insert(ExpressionTarget::Parameter(*param_id), value);
-                });
-        }
+        self.compile_all_arguments(graph, parameter_mapping, mode);
 
         // TODO: add support for multiple results
         assert_eq!(expression_graph.results().len(), 1);

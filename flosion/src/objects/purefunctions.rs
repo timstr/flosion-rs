@@ -99,10 +99,16 @@ impl PureExpressionNode for Variable {
 
 impl Stashable<StashingContext> for Variable {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        // If only checking for changes that require recompilation,
-        // ignore the value of the atomic because it will update
-        // itself on the audio thread.
-        if !stasher.context().checking_recompilation() {
+        if stasher.context().checking_recompilation() {
+            // If only checking for changes that require recompilation,
+            // ignore the value of the atomicslice because it will update
+            // itself on the audio thread. However, the if address of the
+            // shared atomic changed (i.e. because the entire Variable
+            // was destroyed and recreated during undo/redo) then we
+            // need to recompile.
+            let ptr: *const AtomicF32 = &*self.value;
+            stasher.u64((ptr as usize) as _);
+        } else {
             stasher.f32(self.value.load(Ordering::SeqCst));
         }
     }

@@ -175,6 +175,8 @@ pub trait AnyProcessorArgument {
     fn id(&self) -> ProcessorArgumentId;
 
     fn compile_evaluation<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx>;
+
+    fn default_value(&self) -> f32;
 }
 
 impl<T: ArgumentTranslation> AnyProcessorArgument for ProcessorArgument<T> {
@@ -184,5 +186,9 @@ impl<T: ArgumentTranslation> AnyProcessorArgument for ProcessorArgument<T> {
 
     fn compile_evaluation<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
         ProcessorArgument::compile_evaluation(self, jit)
+    }
+
+    fn default_value(&self) -> f32 {
+        ProcessorArgument::default_value(self)
     }
 }

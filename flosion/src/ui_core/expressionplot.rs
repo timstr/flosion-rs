@@ -1,14 +1,15 @@
 use eframe::egui;
 
 use crate::core::{
-    expression::expressiongraph::ExpressionGraph,
+    expression::{context::ExpressionContext, expressiongraph::ExpressionGraph},
     jit::{
         cache::JitCache,
         compiledexpression::{CompiledExpressionFunction, Discretization},
+        jit::{ExpressionTestDomain, Interval, JitMode},
     },
     sound::{
-        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
         argument::ProcessorArgumentLocation,
+        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
     },
 };
 
@@ -20,22 +21,17 @@ enum VerticalRange {
     Linear(std::ops::RangeInclusive<f32>),
 }
 
-enum HorizontalDomain {
-    Temporal,
-    WithRespectTo(ProcessorArgumentLocation, std::ops::RangeInclusive<f32>),
-}
-
 pub struct PlotConfig {
     // TODO: whether to always plot temporally or w.r.t. an input, e.g. wave generator amplitude vs phase
     vertical_range: VerticalRange,
-    horizontal_domain: HorizontalDomain,
+    horizontal_domain: ExpressionTestDomain,
 }
 
 impl PlotConfig {
     pub fn new() -> Self {
         PlotConfig {
             vertical_range: VerticalRange::Automatic,
-            horizontal_domain: HorizontalDomain::Temporal,
+            horizontal_domain: ExpressionTestDomain::Temporal,
         }
     }
 
@@ -46,10 +42,16 @@ impl PlotConfig {
 
     pub fn with_respect_to(
         mut self,
-        source: ProcessorArgumentLocation,
+        arg: ProcessorArgumentLocation,
         domain: std::ops::RangeInclusive<f32>,
     ) -> Self {
-        self.horizontal_domain = HorizontalDomain::WithRespectTo(source, domain);
+        self.horizontal_domain = ExpressionTestDomain::WithRespectTo(
+            arg,
+            Interval::Linear {
+                from: *domain.start(),
+                to: *domain.end(),
+            },
+        );
         self
     }
 }
@@ -78,27 +80,38 @@ impl ExpressionPlot {
             vertical_range,
             horizontal_domain,
         } = config;
-        let compiled_fn = jit_cache.get_compiled_expression(location).unwrap();
+        let compiled_fn = jit_cache.request_compiled_expression(
+            location,
+            expr_graph,
+            mapping,
+            JitMode::Test(config.horizontal_domain),
+        );
         // TODO: make this configurable / draggable. Where to store such ui state?
         let desired_height = 30.0;
         let desired_width = match horizontal_domain {
-            HorizontalDomain::Temporal => ui.available_width(),
-            HorizontalDomain::WithRespectTo(_, _) => 100.0,
+            ExpressionTestDomain::Temporal => ui.available_width(),
+            ExpressionTestDomain::WithRespectTo(_, _) => 100.0,
         };
         let (_, rect) = ui.allocate_space(egui::vec2(desired_width, desired_height));
         ui.painter()
             .rect_filled(rect, egui::Rounding::ZERO, egui::Color32::BLACK);
 
-        // TODO: re-enable
-        // self.plot_compiled_function(
-        //     ui,
-        //     compiled_fn,
-        //     rect,
-        //     horizontal_domain,
-        //     vertical_range,
-        //     time_axis,
-        //     names,
-        // );
+        match compiled_fn {
+            Some(compiled_fn) => {
+                self.plot_compiled_function(
+                    ui,
+                    compiled_fn,
+                    rect,
+                    horizontal_domain,
+                    vertical_range,
+                    time_axis,
+                    names,
+                );
+            }
+            None => {
+                self.plot_missing_function(ui, rect);
+            }
+        }
 
         ui.painter().rect_stroke(
             rect,
@@ -112,7 +125,7 @@ impl ExpressionPlot {
         ui: &mut egui::Ui,
         mut compiled_fn: CompiledExpressionFunction,
         rect: egui::Rect,
-        horizontal_domain: &HorizontalDomain,
+        horizontal_domain: &ExpressionTestDomain,
         vertical_range: &VerticalRange,
         time_axis: TimeAxis,
         names: &SoundGraphUiNames,
@@ -124,14 +137,13 @@ impl ExpressionPlot {
         // - make this work without mock context
         // - consider recompiling the input with the domain swapped out
         //   for something controlled? That would scale nicely to e.g. 2D plots
-        let expr_context = todo!(); // MockExpressionContext::new(len);
 
         let discretization = match horizontal_domain {
-            HorizontalDomain::Temporal => Discretization::Temporal(time_axis.time_per_x_pixel),
-            HorizontalDomain::WithRespectTo(_, _) => Discretization::None,
+            ExpressionTestDomain::Temporal => Discretization::Temporal(time_axis.time_per_x_pixel),
+            ExpressionTestDomain::WithRespectTo(_, _) => Discretization::None,
         };
 
-        compiled_fn.eval(&mut dst, expr_context, discretization);
+        compiled_fn.eval_in_test_mode(&mut dst, discretization);
 
         let (vmin, vmax) = match vertical_range {
             VerticalRange::Automatic => {
@@ -207,11 +219,11 @@ impl ExpressionPlot {
         );
 
         match horizontal_domain {
-            HorizontalDomain::Temporal => {
+            ExpressionTestDomain::Temporal => {
                 // Plotting against time is implicit. The plot will already extend to the full
                 // width of and line up with other temporal queues in the layout.
             }
-            HorizontalDomain::WithRespectTo(arg_id, domain) => {
+            ExpressionTestDomain::WithRespectTo(arg_id, domain) => {
                 // If not plotting against time, write the extent and domain at the bottom.
                 let domain_rect = egui::Rect::from_x_y_ranges(
                     rect.left()..=rect.right(),
@@ -219,11 +231,15 @@ impl ExpressionPlot {
                 );
                 ui.allocate_rect(domain_rect, egui::Sense::hover());
 
+                let (domain_start, domain_end) = match domain {
+                    Interval::Linear { from, to } => (from, to),
+                };
+
                 // write domain min at left
                 ui.painter().text(
                     egui::pos2(domain_rect.left() + 5.0, domain_rect.center().y),
                     egui::Align2::LEFT_CENTER,
-                    format!("{}", domain.start()),
+                    format!("{}", domain_start),
                     font_id.clone(),
                     egui::Color32::from_white_alpha(128),
                 );
@@ -232,7 +248,7 @@ impl ExpressionPlot {
                 ui.painter().text(
                     egui::pos2(domain_rect.right() - 5.0, domain_rect.center().y),
                     egui::Align2::RIGHT_CENTER,
-                    format!("{}", domain.end()),
+                    format!("{}", domain_end),
                     font_id.clone(),
                     egui::Color32::from_white_alpha(128),
                 );
@@ -263,5 +279,25 @@ impl ExpressionPlot {
                 );
             }
         }
+    }
+
+    fn plot_missing_function(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+        let dot_length: f32 = 10.0;
+        let dot_frequency = 4.0;
+        let t = dot_frequency * ui.input(|i| i.time);
+        let offset = t.fract() as f32 * dot_length;
+        let num_dots = (rect.width() / dot_length).ceil() as usize + 1;
+        let y = rect.top() + 0.5 * rect.height();
+        for i in 0..num_dots {
+            let x0 = rect.left() + offset + ((i as f32 - 1.0) * dot_length);
+            let x1 = x0 + 0.5 * dot_length;
+            let x0 = x0.clamp(rect.left(), rect.right());
+            let x1 = x1.clamp(rect.left(), rect.right());
+            ui.painter().line_segment(
+                [egui::pos2(x0, y), egui::pos2(x1, y)],
+                egui::Stroke::new(2.0, egui::Color32::GRAY),
+            );
+        }
+        ui.ctx().request_repaint();
     }
 }

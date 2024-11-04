@@ -18,6 +18,10 @@ pub(super) unsafe extern "C" fn argument_pointer_wrapper(
     argument_id: usize,
 ) -> *const () {
     let ctx: *const ExpressionContext = ptr_context as _;
+    assert!(
+        !ctx.is_null(),
+        "Attempted to get argument pointer with null context"
+    );
     let ctx: &ExpressionContext = unsafe { &*ctx };
     let argid = ProcessorArgumentId::new(argument_id);
     let arg_value = ctx
@@ -34,6 +38,10 @@ pub(super) unsafe extern "C" fn processor_time_wrapper(
     ptr_speed: *mut f32,
 ) {
     let ctx: *const ExpressionContext = ptr_context as _;
+    assert!(
+        !ctx.is_null(),
+        "Attempted to get processor time with null context"
+    );
     let ctx: &ExpressionContext = unsafe { &*ctx };
     let spid = SoundProcessorId::new(sound_processor_id);
     let (time, speed) = ctx.get_time_and_speed_at_sound_processor(spid);
@@ -49,6 +57,10 @@ pub(super) unsafe extern "C" fn input_time_wrapper(
     ptr_speed: *mut f32,
 ) {
     let ctx: *const ExpressionContext = ptr_context as _;
+    assert!(
+        !ctx.is_null(),
+        "Attempted to get input time with null context"
+    );
     let ctx: &ExpressionContext = unsafe { &*ctx };
     let processor_id = SoundProcessorId::new(processor_id);
     let input_id = ProcessorInputId::new(input_id);

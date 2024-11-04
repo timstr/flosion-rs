@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ptr::null, sync::Arc};
 
 use send_wrapper::SendWrapper;
 
@@ -128,21 +128,34 @@ impl<'ctx> CompiledExpressionFunction<'ctx> {
         context: ExpressionContext,
         discretization: Discretization,
     ) {
+        self.eval_impl(dst, Some(context), discretization);
+    }
+
+    pub(crate) fn eval_in_test_mode(&mut self, dst: &mut [f32], discretization: Discretization) {
+        self.eval_impl(dst, None, discretization);
+    }
+
+    fn eval_impl(
+        &mut self,
+        dst: &mut [f32],
+        context: Option<ExpressionContext>,
+        discretization: Discretization,
+    ) {
         debug_assert!(self.init_flag == FLAG_INITIALIZED || self.init_flag == FLAG_NOT_INITIALIZED);
-        let context: &ExpressionContext = &context;
+        let ptr_context: *const ExpressionContext = match context.as_ref() {
+            Some(c) => c,
+            None => null(),
+        };
+        let time_step = discretization.time_step();
+        let CompiledExpressionFunction {
+            data: _,
+            function,
+            init_flag,
+            state_variables,
+        } = self;
+        let ptr_init_flag: *mut u8 = init_flag;
+        let ptr_state_variables: *mut f32 = state_variables.as_mut_ptr();
         unsafe {
-            let ptr_context: *const ExpressionContext = context;
-            let time_step = discretization.time_step();
-
-            let CompiledExpressionFunction {
-                data: _,
-                function,
-                init_flag,
-                state_variables,
-            } = self;
-            let ptr_init_flag: *mut u8 = init_flag;
-            let ptr_state_variables: *mut f32 = state_variables.as_mut_ptr();
-
             function(
                 dst.as_mut_ptr(),
                 dst.len(),

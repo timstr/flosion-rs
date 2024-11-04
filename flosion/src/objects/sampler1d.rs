@@ -310,10 +310,16 @@ impl Stashable<StashingContext> for Sampler1d {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.object(&self.input);
 
-        // If only checking for changes that require recompilation,
-        // ignore the value of the atomicslice because it will update
-        // itself on the audio thread.
-        if !stasher.context().checking_recompilation() {
+        if stasher.context().checking_recompilation() {
+            // If only checking for changes that require recompilation,
+            // ignore the value of the atomicslice because it will update
+            // itself on the audio thread. However, the if address of the
+            // shared atomic slice changed (i.e. because the entire Sampler1d
+            // was destroyed and recreated during undo/redo) then we
+            // need to recompile.
+            let ptr_raw_data: *const f32 = unsafe { self.value.raw_data() };
+            stasher.u64((ptr_raw_data as usize) as _);
+        } else {
             let reader = self.value.read();
             stasher.array_of_f32_slice(&reader);
         }

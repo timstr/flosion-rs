@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::core::{
-    jit::{cache::JitCache, compiledexpression::CompiledExpressionFunction},
+    jit::{cache::JitCache, compiledexpression::CompiledExpressionFunction, jit::JitMode},
     sound::{
         expression::ProcessorExpressionLocation, soundgraph::SoundGraph,
         soundprocessor::SoundProcessorId,
@@ -73,6 +73,17 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         &self,
         location: ProcessorExpressionLocation,
     ) -> Option<CompiledExpressionFunction<'ctx>> {
-        self.jit_cache.get_compiled_expression(location)
+        self.graph
+            .sound_processor(location.processor())
+            .unwrap()
+            .with_expression(location.expression(), |expr| {
+                self.jit_cache.request_compiled_expression(
+                    location,
+                    expr.graph(),
+                    expr.mapping(),
+                    JitMode::Normal,
+                )
+            })
+            .unwrap()
     }
 }
