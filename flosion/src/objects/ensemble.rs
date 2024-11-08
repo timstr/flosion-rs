@@ -27,13 +27,6 @@ pub struct VoiceState {
     frequency: f32,
 }
 
-impl StartOver for VoiceState {
-    fn start_over(&mut self) {
-        self.spread_ratio = 0.0;
-        self.frequency = 0.0;
-    }
-}
-
 impl Default for VoiceState {
     fn default() -> Self {
         Self {

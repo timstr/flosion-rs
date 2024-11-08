@@ -3,7 +3,7 @@ pub mod audioclip;
 pub mod definitions;
 pub mod ensemble;
 pub mod input;
-// pub mod keyboard;
+pub mod keyboard;
 // pub mod melody;
 // pub mod mixer;
 // pub mod oscilloscope;

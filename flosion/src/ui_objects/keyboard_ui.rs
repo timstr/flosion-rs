@@ -1,12 +1,12 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::keyboard::{KeyId, Keyboard},
     ui_core::{
-        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
-        soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::NoObjectUiState,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -14,27 +14,26 @@ use crate::{
 pub struct KeyboardUi {}
 
 impl SoundObjectUi for KeyboardUi {
-    type HandleType = StaticSoundProcessorHandle<Keyboard>;
-    type StateType = ();
+    type ObjectType = SoundProcessorWithId<Keyboard>;
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
-        keyboard: StaticSoundProcessorHandle<Keyboard>,
+        keyboard: &mut SoundProcessorWithId<Keyboard>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
-        sound_graph: &mut SoundGraph,
+        _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(&keyboard, "Keyboard")
-            .add_sound_input(keyboard.get().input.id(), "input", sound_graph)
-            .add_argument(keyboard.get().key_frequency.id(), "keyfrequency")
+        ProcessorUi::new(keyboard.id(), "Keyboard")
+            .add_sound_input(keyboard.input.id(), "input")
+            .add_argument(keyboard.key_frequency.id(), "keyfrequency")
             .show_with(
+                keyboard,
                 ui,
                 ctx,
                 graph_ui_state,
-                sound_graph,
-                |ui, _ui_state, _sound_graph| {
+                |keyboard, ui, _ui_state| {
                     let has_focus_id = egui::Id::new("keyboard_has_focus").with(keyboard.id());
 
                     let had_focus =
@@ -54,7 +53,7 @@ impl SoundObjectUi for KeyboardUi {
 
                     if !has_focus {
                         if had_focus {
-                            keyboard.get_mut().release_all_keys();
+                            keyboard.release_all_keys();
                         }
                         return;
                     }
@@ -96,9 +95,9 @@ impl SoundObjectUi for KeyboardUi {
                             if pressed {
                                 let f = 256.0_f32 * (2.0_f32).powf((i as f32) / 12.0_f32);
                                 // let f = 128.0_f32 * ((i + 1) as f32); // heh
-                                keyboard.get_mut().start_key(KeyId(i), f);
+                                keyboard.start_key(KeyId(i), f);
                             } else {
-                                keyboard.get_mut().release_key(KeyId(i));
+                                keyboard.release_key(KeyId(i));
                             }
                         }
                     }
@@ -114,7 +113,11 @@ impl SoundObjectUi for KeyboardUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

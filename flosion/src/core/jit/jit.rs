@@ -384,7 +384,7 @@ impl<'ctx> Jit<'ctx> {
 
             let pass_manager = PassManager::create(());
 
-            pass_manager_builder.populate_lto_pass_manager(&pass_manager, false, false);
+            pass_manager_builder.populate_module_pass_manager(&pass_manager);
             pass_manager.run_on(&self.module);
         }
 

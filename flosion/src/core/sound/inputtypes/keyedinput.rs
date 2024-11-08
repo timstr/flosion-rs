@@ -22,7 +22,7 @@ pub struct KeyedInput<S> {
     phantom_data: PhantomData<S>,
 }
 
-impl<S: StartOver> KeyedInput<S> {
+impl<S> KeyedInput<S> {
     pub fn new(options: InputOptions, num_keys: usize) -> KeyedInput<S> {
         KeyedInput {
             input: BasicProcessorInput::new(options, num_keys),

@@ -25,18 +25,17 @@ pub struct CompiledExpression<'ctx> {
 }
 
 impl<'ctx> CompiledExpression<'ctx> {
-    #[cfg(not(debug_assertions))]
     /// Creates a new compiled expression
+    #[cfg(not(debug_assertions))]
     pub(crate) fn new<'a>(
-        id: SoundExpressionId,
-        compiler: &SoundGraphCompiler<'a, 'ctx>,
+        id: ProcessorExpressionId,
+        function: CompiledExpressionFunction<'ctx>,
     ) -> CompiledExpression<'ctx> {
-        let function = compiler.get_compiled_expression(id);
         CompiledExpression { id, function }
     }
 
-    #[cfg(debug_assertions)]
     /// Creates a new compiled expression
+    #[cfg(debug_assertions)]
     pub(crate) fn new<'a>(
         id: ProcessorExpressionId,
         function: CompiledExpressionFunction<'ctx>,

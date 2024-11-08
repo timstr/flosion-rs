@@ -15,7 +15,7 @@ use super::{
     definitions_ui::DefinitionsUi,
     ensemble_ui::EnsembleUi,
     input_ui::InputUi,
-    // keyboard_ui::KeyboardUi,
+    keyboard_ui::KeyboardUi,
     // mixer_ui::MixerUi,
     // oscilloscope_ui::OscilloscopeUi,
     output_ui::OutputUi,
@@ -90,7 +90,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     // Static sound processors
     helper.register::<OutputUi>();
     helper.register::<InputUi>();
-    // helper.register::<KeyboardUi>();
+    helper.register::<KeyboardUi>();
     // helper.register::<RecorderUi>();
     // helper.register::<OscilloscopeUi>();
 

@@ -1,18 +1,23 @@
 use std::cell::RefCell;
 
+use flosion_macros::ProcessorComponents;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+
 use crate::{
     core::{
-        engine::soundgraphcompiler::SoundGraphCompiler,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::{Context, LocalArrayList},
-            expressionargument::SoundExpressionArgumentHandle,
-            soundinputtypes::{KeyReuse, KeyedInputQueue, KeyedInputQueueNode},
-            soundprocessor::{StateAndTiming, StaticSoundProcessor},
-            soundprocessortools::SoundProcessorTools,
-            state::State,
+            argument::ProcessorArgument,
+            argumenttypes::f32argument::F32Argument,
+            context::Context,
+            inputtypes::keyedinputqueue::{KeyReuse, KeyedInputQueue},
+            soundinput::InputOptions,
+            soundprocessor::{
+                ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
+            },
         },
         soundchunk::SoundChunk,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -24,7 +29,7 @@ pub struct KeyboardKeyState {
     frequency: f32,
 }
 
-impl State for KeyboardKeyState {
+impl StartOver for KeyboardKeyState {
     fn start_over(&mut self) {
         self.frequency = 0.0;
     }
@@ -44,12 +49,39 @@ impl Default for KeyboardCommand {
     }
 }
 
+pub struct KeyboardState {
+    command_reader: spmcq::Reader<KeyboardCommand>,
+}
+
+impl ProcessorState for KeyboardState {
+    type Processor = Keyboard;
+
+    fn new(processor: &Keyboard) -> Self {
+        KeyboardState {
+            command_reader: processor.command_reader.clone(),
+        }
+    }
+}
+
+impl StartOver for KeyboardState {
+    fn start_over(&mut self) {
+        // ???
+    }
+}
+
+#[derive(ProcessorComponents)]
 pub struct Keyboard {
     pub input: KeyedInputQueue<KeyboardKeyState>,
-    pub key_frequency: SoundExpressionArgumentHandle,
+    pub key_frequency: ProcessorArgument<F32Argument>,
 
+    #[not_a_component]
     command_reader: spmcq::Reader<KeyboardCommand>,
+
+    #[not_a_component]
     command_writer: RefCell<spmcq::Writer<KeyboardCommand>>,
+
+    #[state]
+    state: StateMarker<KeyboardState>,
 }
 
 impl Keyboard {
@@ -72,82 +104,74 @@ impl Keyboard {
     }
 }
 
-pub struct KeyboardState {
-    command_reader: spmcq::Reader<KeyboardCommand>,
-}
-
-impl State for KeyboardState {
-    fn start_over(&mut self) {
-        // ???
-    }
-}
-
-impl StaticSoundProcessor for Keyboard {
-    type SoundInputType = KeyedInputQueue<KeyboardKeyState>;
-
-    type Expressions<'ctx> = ();
-
-    type StateType = KeyboardState;
-
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
+impl SoundProcessor for Keyboard {
+    fn new(_args: &ParsedArguments) -> Keyboard {
         let message_queue_size = 16; // idk
         let input_queue_size = 8; // idk
         let (command_reader, command_writer) = spmcq::ring_buffer(message_queue_size);
-        let input = KeyedInputQueue::new(input_queue_size, &mut tools);
-        let key_frequency = tools.add_input_scalar_argument(input.id(), |state| {
-            state.downcast_if::<KeyboardKeyState>().unwrap().frequency
-        });
-        Ok(Keyboard {
+        let input = KeyedInputQueue::new(InputOptions::Synchronous, input_queue_size);
+        let key_frequency = ProcessorArgument::new();
+        Keyboard {
             input,
             key_frequency,
             command_writer: RefCell::new(command_writer),
             command_reader: command_reader,
-        })
-    }
-
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &self.input
-    }
-
-    fn compile_expressions<'a, 'ctx>(
-        &self,
-        _compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        ()
-    }
-
-    fn make_state(&self) -> Self::StateType {
-        KeyboardState {
-            command_reader: self.command_reader.clone(),
+            state: StateMarker::new(),
         }
     }
 
-    fn process_audio<'ctx>(
-        state: &mut StateAndTiming<Self::StateType>,
-        sound_input_node: &mut KeyedInputQueueNode<KeyboardKeyState>,
-        _expressions: &mut (),
+    fn is_static(&self) -> bool {
+        true
+    }
+
+    fn process_audio(
+        keyboard: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: Context,
-    ) {
+        context: &mut Context,
+    ) -> StreamStatus {
         let reuse = KeyReuse::StopOldStartNew;
-        while let Some(msg) = state.command_reader.read().value() {
+        while let Some(msg) = keyboard.state.command_reader.read().value() {
             match msg {
                 KeyboardCommand::StartKey { id, frequency } => {
-                    sound_input_node.start_key(None, id.0, KeyboardKeyState { frequency }, reuse);
+                    keyboard
+                        .input
+                        .start_key(None, id.0, KeyboardKeyState { frequency }, reuse);
                 }
                 KeyboardCommand::ReleaseKey { id } => {
-                    sound_input_node.release_key(id.0);
+                    keyboard.input.release_key(id.0);
                 }
                 KeyboardCommand::ReleaseAllKeys => {
-                    sound_input_node.release_all_keys();
+                    keyboard.input.release_all_keys();
                 }
             }
         }
 
-        sound_input_node.step(state, dst, &context, LocalArrayList::new());
+        keyboard.input.step_active_keys(dst, context, |s, ctx| {
+            ctx.push(keyboard.key_frequency, s.frequency)
+        });
+
+        StreamStatus::Playing
     }
 }
 
 impl WithObjectType for Keyboard {
     const TYPE: ObjectType = ObjectType::new("keyboard");
+}
+
+impl Stashable<StashingContext> for Keyboard {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        stasher.object(&self.input);
+        stasher.object(&self.key_frequency);
+    }
+}
+
+impl UnstashableInplace<UnstashingContext<'_>> for Keyboard {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext<'_>>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        unstasher.object_inplace(&mut self.key_frequency)?;
+        Ok(())
+    }
 }

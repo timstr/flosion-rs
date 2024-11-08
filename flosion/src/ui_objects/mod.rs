@@ -6,7 +6,7 @@ pub mod audioclip_ui;
 pub mod definitions_ui;
 pub mod ensemble_ui;
 pub mod input_ui;
-// pub mod keyboard_ui;
+pub mod keyboard_ui;
 // pub mod mixer_ui;
 // pub mod oscilloscope_ui;
 pub mod output_ui;
