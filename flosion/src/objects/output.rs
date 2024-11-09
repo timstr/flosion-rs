@@ -239,7 +239,7 @@ impl Stashable<StashingContext> for Output {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for Output {
+impl UnstashableInplace<UnstashingContext<'_>> for Output {
     fn unstash_inplace(
         &mut self,
         unstasher: &mut InplaceUnstasher<UnstashingContext>,

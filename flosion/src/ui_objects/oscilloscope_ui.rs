@@ -1,10 +1,8 @@
 use eframe::egui::{self, Color32, ColorImage, TextureHandle, TextureOptions};
+use hashstash::{InplaceUnstasher, Stashable, UnstashError, UnstashableInplace};
 
 use crate::{
-    core::{
-        sound::{soundgraph::SoundGraph, soundprocessor::StaticSoundProcessorHandle},
-        soundchunk::SoundChunk,
-    },
+    core::{sound::soundprocessor::SoundProcessorWithId, soundchunk::SoundChunk},
     objects::oscilloscope::Oscilloscope,
     ui_core::{
         arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
@@ -27,6 +25,29 @@ pub struct OscilloscopeUiState {
     prev_sample: (f32, f32),
     image: ColorImage,
     texture: Option<TextureHandle>,
+}
+
+impl Stashable for OscilloscopeUiState {
+    fn stash(&self, stasher: &mut hashstash::Stasher) {
+        stasher.f32(self.exposure);
+        stasher.f32(self.size);
+        stasher.f32(self.gain);
+        stasher.f32(self.decay);
+        stasher.u8(self.rotation);
+        stasher.bool(self.flip);
+    }
+}
+
+impl UnstashableInplace for OscilloscopeUiState {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
+        unstasher.f32_inplace(&mut self.exposure)?;
+        unstasher.f32_inplace(&mut self.size)?;
+        unstasher.f32_inplace(&mut self.gain)?;
+        unstasher.f32_inplace(&mut self.decay)?;
+        unstasher.u8_inplace(&mut self.rotation)?;
+        unstasher.bool_inplace(&mut self.flip)?;
+        Ok(())
+    }
 }
 
 impl OscilloscopeUi {
@@ -163,26 +184,25 @@ impl OscilloscopeUi {
 }
 
 impl SoundObjectUi for OscilloscopeUi {
-    type HandleType = StaticSoundProcessorHandle<Oscilloscope>;
+    type ObjectType = SoundProcessorWithId<Oscilloscope>;
     type StateType = OscilloscopeUiState;
 
     fn ui<'a, 'b>(
         &self,
-        oscilloscope: StaticSoundProcessorHandle<Oscilloscope>,
+        oscilloscope: &mut SoundProcessorWithId<Oscilloscope>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         state: &mut OscilloscopeUiState,
-        sound_graph: &mut SoundGraph,
     ) {
-        ProcessorUi::new(&oscilloscope, "Oscilloscope")
-            .add_sound_input(oscilloscope.get().input.id(), "Input", sound_graph)
+        ProcessorUi::new(oscilloscope.id(), "Oscilloscope")
+            .add_sound_input(oscilloscope.input.id(), "Input")
             .show_with(
+                oscilloscope,
                 ui,
                 ctx,
                 graph_ui_state,
-                sound_graph,
-                |ui, _ui_state, _sound_graph| {
+                |_oscilloscope, ui, _ui_state| {
                     ui.vertical(|ui| {
                         Self::update_image(state);
 
@@ -204,10 +224,13 @@ impl SoundObjectUi for OscilloscopeUi {
                         };
 
                         ui.horizontal(|ui| {
-                            ui.add(
+                            let response = ui.add(
                                 egui::Slider::new(&mut state.exposure, 0.0..=100.0)
                                     .logarithmic(true),
                             );
+                            if response.drag_stopped() {
+                                ctx.request_snapshot();
+                            }
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Beam Strength")
@@ -217,9 +240,12 @@ impl SoundObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(
+                            let response = ui.add(
                                 egui::Slider::new(&mut state.gain, 0.0..=100.0).logarithmic(true),
                             );
+                            if response.drag_stopped() {
+                                ctx.request_snapshot();
+                            }
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Gain")
@@ -229,9 +255,12 @@ impl SoundObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(
+                            let response = ui.add(
                                 egui::Slider::new(&mut state.decay, 0.0..=1.0).logarithmic(true),
                             );
+                            if response.drag_stopped() {
+                                ctx.request_snapshot();
+                            }
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Decay")
@@ -241,7 +270,10 @@ impl SoundObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(egui::Slider::new(&mut state.rotation, 0..=8));
+                            let response = ui.add(egui::Slider::new(&mut state.rotation, 0..=8));
+                            if response.drag_stopped() {
+                                ctx.request_snapshot();
+                            }
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Rotation")
@@ -251,7 +283,10 @@ impl SoundObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(egui::Checkbox::new(&mut state.flip, ""));
+                            let response = ui.add(egui::Checkbox::new(&mut state.flip, ""));
+                            if response.changed() {
+                                ctx.request_snapshot();
+                            }
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Flip")
@@ -261,7 +296,11 @@ impl SoundObjectUi for OscilloscopeUi {
                         });
 
                         ui.horizontal(|ui| {
-                            ui.add(egui::Slider::new(&mut state.size, 32.0..=1024.0));
+                            let response =
+                                ui.add(egui::Slider::new(&mut state.size, 32.0..=1024.0));
+                            if response.drag_stopped() {
+                                ctx.request_snapshot();
+                            }
                             ui.separator();
                             ui.add(egui::Label::new(
                                 egui::RichText::new("Size")
@@ -297,11 +336,11 @@ impl SoundObjectUi for OscilloscopeUi {
 
     fn make_ui_state(
         &self,
-        handle: &Self::HandleType,
+        handle: &Self::ObjectType,
         _args: &ParsedArguments,
     ) -> Result<OscilloscopeUiState, ()> {
         Ok(OscilloscopeUiState {
-            buffer_reader: handle.get().get_buffer_reader(),
+            buffer_reader: handle.get_buffer_reader(),
             exposure: 5.0,
             gain: 0.7,
             decay: 0.3,

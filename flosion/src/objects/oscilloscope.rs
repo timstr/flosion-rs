@@ -1,32 +1,41 @@
 use std::sync::Arc;
 
+use flosion_macros::ProcessorComponents;
+use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use parking_lot::Mutex;
 
 use crate::{
     core::{
-        engine::soundgraphcompiler::SoundGraphCompiler,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::{Context, LocalArrayList},
-            soundinput::InputOptions,
-            soundinputtypes::{SingleInput, SingleInputNode},
-            soundprocessor::{StateAndTiming, StaticSoundProcessor},
-            soundprocessortools::SoundProcessorTools,
-            state::State,
+            context::Context,
+            inputtypes::singleinput::SingleInput,
+            soundinput::{InputContext, InputOptions},
+            soundprocessor::{
+                ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
+            },
         },
         soundchunk::SoundChunk,
+        stashing::{StashingContext, UnstashingContext},
     },
     ui_core::arguments::ParsedArguments,
 };
 
+#[derive(ProcessorComponents)]
 pub struct Oscilloscope {
     pub input: SingleInput,
+
+    #[not_a_component]
     chunk_reader: spmcq::Reader<SoundChunk>,
     // NOTE: using Arc<Mutex<...>> because spmcq::Writer can't be cloned.
     // It might be worth using a different queue or somehow guaranteeing
     // at the type system level that only once instance of a static processor's
     // state exists at one time
+    #[not_a_component]
     chunk_writer: Arc<Mutex<spmcq::Writer<SoundChunk>>>,
+
+    #[state]
+    state: StateMarker<OscilloscopeState>,
 }
 
 impl Oscilloscope {
@@ -39,57 +48,64 @@ pub struct OscilloscopeState {
     chunk_writer: Arc<Mutex<spmcq::Writer<SoundChunk>>>,
 }
 
-impl State for OscilloscopeState {
+impl ProcessorState for OscilloscopeState {
+    type Processor = Oscilloscope;
+
+    fn new(processor: &Self::Processor) -> Self {
+        OscilloscopeState {
+            chunk_writer: Arc::clone(&processor.chunk_writer),
+        }
+    }
+}
+
+impl StartOver for OscilloscopeState {
     fn start_over(&mut self) {
         // ???
     }
 }
 
-impl StaticSoundProcessor for Oscilloscope {
-    type SoundInputType = SingleInput;
-
-    type Expressions<'ctx> = ();
-
-    type StateType = OscilloscopeState;
-
-    fn new(mut tools: SoundProcessorTools, _args: &ParsedArguments) -> Result<Self, ()> {
+impl SoundProcessor for Oscilloscope {
+    fn new(_args: &ParsedArguments) -> Oscilloscope {
         let (reader, writer) = spmcq::ring_buffer(64);
-        Ok(Oscilloscope {
-            input: SingleInput::new(InputOptions::Synchronous, &mut tools),
+        Oscilloscope {
+            input: SingleInput::new(InputOptions::Synchronous),
             chunk_reader: reader,
             chunk_writer: Arc::new(Mutex::new(writer)),
-        })
-    }
-
-    fn get_sound_input(&self) -> &Self::SoundInputType {
-        &self.input
-    }
-
-    fn compile_expressions<'a, 'ctx>(
-        &self,
-        _compiler: &SoundGraphCompiler<'a, 'ctx>,
-    ) -> Self::Expressions<'ctx> {
-        ()
-    }
-
-    fn make_state(&self) -> Self::StateType {
-        OscilloscopeState {
-            chunk_writer: Arc::clone(&self.chunk_writer),
+            state: StateMarker::new(),
         }
     }
 
-    fn process_audio<'ctx>(
-        state: &mut StateAndTiming<Self::StateType>,
-        sound_input: &mut SingleInputNode<'ctx>,
-        _expressions: &mut (),
+    fn is_static(&self) -> bool {
+        true
+    }
+
+    fn process_audio(
+        oscilloscope: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: Context,
-    ) {
-        sound_input.step(state, dst, &context, LocalArrayList::new());
-        state.chunk_writer.lock().write(*dst);
+        context: &mut Context,
+    ) -> StreamStatus {
+        oscilloscope.input.step(dst, InputContext::new(context));
+        oscilloscope.state.chunk_writer.lock().write(*dst);
+        StreamStatus::Playing
     }
 }
 
 impl WithObjectType for Oscilloscope {
     const TYPE: ObjectType = ObjectType::new("oscilloscope");
+}
+
+impl Stashable<StashingContext> for Oscilloscope {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        stasher.object(&self.input);
+    }
+}
+
+impl UnstashableInplace<UnstashingContext<'_>> for Oscilloscope {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        unstasher.object_inplace(&mut self.input)?;
+        Ok(())
+    }
 }
