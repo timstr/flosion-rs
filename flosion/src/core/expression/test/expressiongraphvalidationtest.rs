@@ -93,6 +93,26 @@ fn test_expression_error_one_node() {
 }
 
 #[test]
+fn test_expression_error_two_nodes_doubly_connected() {
+    let mut graph = ExpressionGraph::new();
+
+    let node1 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+
+    let mut node2 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+    node2
+        .input1
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+    node2
+        .input2
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+
+    graph.add_expression_node(Box::new(node1));
+    graph.add_expression_node(Box::new(node2));
+
+    assert_eq!(find_expression_error(&graph), None);
+}
+
+#[test]
 fn test_expression_error_one_parameter() {
     let mut graph = ExpressionGraph::new();
 
@@ -127,6 +147,105 @@ fn test_expression_error_one_node_one_parameter_connected() {
     graph.results_mut()[0].set_target(Some(ExpressionTarget::Node(node.id())));
 
     graph.add_expression_node(Box::new(node));
+
+    assert_eq!(find_expression_error(&graph), None);
+}
+
+#[test]
+fn test_expression_error_one_node_one_parameter_doubly_connected() {
+    let mut graph = ExpressionGraph::new();
+
+    let param_id = graph.add_parameter();
+
+    let mut node = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+    node.input1
+        .set_target(Some(ExpressionTarget::Parameter(param_id)));
+    node.input2
+        .set_target(Some(ExpressionTarget::Parameter(param_id)));
+
+    graph.add_result(0.0);
+    graph.results_mut()[0].set_target(Some(ExpressionTarget::Node(node.id())));
+
+    graph.add_expression_node(Box::new(node));
+
+    assert_eq!(find_expression_error(&graph), None);
+}
+
+#[test]
+fn test_expression_error_two_nodes_one_parameter_disconnected() {
+    let mut graph = ExpressionGraph::new();
+
+    graph.add_parameter();
+
+    let node1 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+
+    let mut node2 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+    node2
+        .input1
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+    node2
+        .input2
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+
+    graph.add_result(0.0);
+    graph.results_mut()[0].set_target(Some(ExpressionTarget::Node(node2.id())));
+
+    graph.add_expression_node(Box::new(node1));
+    graph.add_expression_node(Box::new(node2));
+
+    assert_eq!(find_expression_error(&graph), None);
+}
+
+#[test]
+fn test_expression_error_two_nodes_one_parameter_connected() {
+    let mut graph = ExpressionGraph::new();
+
+    let param_id = graph.add_parameter();
+
+    let mut node1 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+    node1
+        .input1
+        .set_target(Some(ExpressionTarget::Parameter(param_id)));
+
+    let mut node2 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+    node2
+        .input1
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+    node2
+        .input2
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+
+    graph.add_result(0.0);
+
+    graph.add_expression_node(Box::new(node1));
+    graph.add_expression_node(Box::new(node2));
+
+    assert_eq!(find_expression_error(&graph), None);
+}
+#[test]
+fn test_expression_error_two_nodes_one_parameter_connected_with_result() {
+    let mut graph = ExpressionGraph::new();
+
+    let param_id = graph.add_parameter();
+
+    let mut node1 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+    node1
+        .input1
+        .set_target(Some(ExpressionTarget::Parameter(param_id)));
+
+    let mut node2 = ExpressionNodeWithId::<TestExpressionNode>::new_default();
+    node2
+        .input1
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+    node2
+        .input2
+        .set_target(Some(ExpressionTarget::Node(node1.id())));
+
+    graph.add_result(0.0);
+    graph.results_mut()[0].set_target(Some(ExpressionTarget::Node(node2.id())));
+
+    graph.add_expression_node(Box::new(node1));
+    graph.add_expression_node(Box::new(node2));
 
     assert_eq!(find_expression_error(&graph), None);
 }

@@ -269,7 +269,7 @@ fn connect_each_variable_use(
             match path.parent_node() {
                 ASTNodeParent::VariableDefinition(var_id) => {
                     debug_assert_ne!(var_id, id);
-                    // The variable is aliased as another variable, disconnect that one too
+                    // The variable is aliased as another variable, connect that one too
                     variables_to_connect.push(var_id);
                 }
                 ASTNodeParent::FinalExpression => {

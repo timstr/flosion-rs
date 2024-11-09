@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
 use crate::core::expression::{
-    expressiongraphdata::ExpressionTarget, expressioninput::ExpressionInputLocation,
-    expressionnode::ExpressionNodeId,
+    expressiongraphdata::ExpressionTarget, expressionnode::ExpressionNodeId,
 };
 
 use super::{expressiongraph::ExpressionGraph, expressiongrapherror::ExpressionError};
@@ -18,30 +17,32 @@ pub(crate) fn find_expression_error(graph: &ExpressionGraph) -> Option<Expressio
 fn find_expression_cycle(graph: &ExpressionGraph) -> bool {
     fn find_cycle(
         node_id: ExpressionNodeId,
-        visited_inputs: &mut HashSet<ExpressionInputLocation>,
+        current_path: &mut Vec<ExpressionNodeId>,
+        all_visited_nodes: &mut HashSet<ExpressionNodeId>,
+        found_a_cyle: &mut bool,
         graph: &ExpressionGraph,
-    ) -> bool {
-        let mut any_cycles = false;
-
-        let mut queue = vec![node_id];
-
-        while !queue.is_empty() && !any_cycles {
-            let node_id = queue.remove(0);
-            graph
-                .node(node_id)
-                .unwrap()
-                .foreach_input(|input, location| {
-                    if visited_inputs.contains(&location) {
-                        any_cycles = true;
-                        return;
-                    }
-                    visited_inputs.insert(location);
-                    if let Some(ExpressionTarget::Node(target_id)) = input.target() {
-                        queue.push(target_id);
-                    }
-                });
+    ) {
+        if current_path.contains(&node_id) {
+            *found_a_cyle = true;
+            return;
         }
-        any_cycles
+        if all_visited_nodes.contains(&node_id) {
+            return;
+        }
+        all_visited_nodes.insert(node_id);
+        graph.node(node_id).unwrap().foreach_input(|input, _| {
+            if let Some(ExpressionTarget::Node(target_id)) = input.target() {
+                current_path.push(node_id);
+                find_cycle(
+                    target_id,
+                    current_path,
+                    all_visited_nodes,
+                    found_a_cyle,
+                    graph,
+                );
+                current_path.pop();
+            }
+        });
     }
 
     let mut visited_nodes: HashSet<ExpressionNodeId> = HashSet::new();
@@ -55,15 +56,18 @@ fn find_expression_cycle(graph: &ExpressionGraph) -> bool {
         else {
             return false;
         };
-        let mut visited_inputs = HashSet::new();
-        if find_cycle(node_to_visit, &mut visited_inputs, graph) {
+        let mut path = Vec::new();
+        let mut found_a_cycle = false;
+        find_cycle(
+            node_to_visit,
+            &mut path,
+            &mut visited_nodes,
+            &mut found_a_cycle,
+            graph,
+        );
+        if found_a_cycle {
             return true;
         }
         visited_nodes.insert(node_to_visit);
-        for input_location in visited_inputs {
-            if let ExpressionInputLocation::NodeInput(node_id, _) = input_location {
-                visited_nodes.insert(node_id);
-            }
-        }
     }
 }
