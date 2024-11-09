@@ -55,6 +55,48 @@ fn find_error_static_to_self_cycle() {
     );
 }
 
+#[test]
+fn find_error_two_static_procs_singly_connected() {
+    let proc1 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
+
+    let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
+
+    proc2
+        .inputs
+        .push(BasicProcessorInput::new(InputOptions::Synchronous, 1));
+
+    proc2.inputs[0].set_target(Some(proc1.id()));
+
+    let mut graph = SoundGraph::new();
+    graph.add_sound_processor(Box::new(proc1));
+    graph.add_sound_processor(Box::new(proc2));
+
+    assert_eq!(find_sound_error(&graph), None,);
+}
+
+#[test]
+fn find_error_two_static_procs_doubly_connected() {
+    let proc1 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
+
+    let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
+
+    proc2
+        .inputs
+        .push(BasicProcessorInput::new(InputOptions::Synchronous, 1));
+    proc2
+        .inputs
+        .push(BasicProcessorInput::new(InputOptions::Synchronous, 1));
+
+    proc2.inputs[0].set_target(Some(proc1.id()));
+    proc2.inputs[1].set_target(Some(proc1.id()));
+
+    let mut graph = SoundGraph::new();
+    graph.add_sound_processor(Box::new(proc1));
+    graph.add_sound_processor(Box::new(proc2));
+
+    assert_eq!(find_sound_error(&graph), None,);
+}
+
 // #[test]
 // fn find_error_static_to_dynamic_no_branches() {
 //     let mut graph = SoundGraph::new();

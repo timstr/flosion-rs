@@ -25,52 +25,62 @@ pub(super) fn find_sound_error(graph: &SoundGraph) -> Option<SoundError> {
 
 pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
     fn find_cycle(
-        processor_id: SoundProcessorId,
-        visited_inputs: &mut HashSet<SoundInputLocation>,
+        proc_id: SoundProcessorId,
+        current_path: &mut Vec<SoundProcessorId>,
+        all_visited_procs: &mut HashSet<SoundProcessorId>,
+        found_a_cyle: &mut bool,
         graph: &SoundGraph,
-    ) -> bool {
-        let mut any_cycles = false;
-
-        let mut queue = vec![processor_id];
-
-        while !queue.is_empty() && !any_cycles {
-            let processor_id = queue.remove(0);
-            graph
-                .sound_processor(processor_id)
-                .unwrap()
-                .foreach_input(|input, location| {
-                    if visited_inputs.contains(&location) {
-                        any_cycles = true;
-                        return;
-                    }
-                    visited_inputs.insert(location);
-                    if let Some(target_id) = input.target() {
-                        queue.push(target_id);
-                    }
-                });
+    ) {
+        if current_path.contains(&proc_id) {
+            *found_a_cyle = true;
+            return;
         }
-        any_cycles
+        if all_visited_procs.contains(&proc_id) {
+            return;
+        }
+        all_visited_procs.insert(proc_id);
+        graph
+            .sound_processor(proc_id)
+            .unwrap()
+            .foreach_input(|input, _| {
+                if let Some(target_id) = input.target() {
+                    current_path.push(proc_id);
+                    find_cycle(
+                        target_id,
+                        current_path,
+                        all_visited_procs,
+                        found_a_cyle,
+                        graph,
+                    );
+                    current_path.pop();
+                }
+            });
     }
 
-    let mut visited_processors: HashSet<SoundProcessorId> = HashSet::new();
+    let mut visited_procs: HashSet<SoundProcessorId> = HashSet::new();
 
     loop {
         let Some(proc_to_visit) = graph
             .sound_processors()
             .keys()
-            .find(|pid| !visited_processors.contains(&pid))
+            .find(|pid| !visited_procs.contains(&pid))
             .cloned()
         else {
             return false;
         };
-        let mut visited_inputs = HashSet::new();
-        if find_cycle(proc_to_visit, &mut visited_inputs, graph) {
+        let mut path = Vec::new();
+        let mut found_a_cycle = false;
+        find_cycle(
+            proc_to_visit,
+            &mut path,
+            &mut visited_procs,
+            &mut found_a_cycle,
+            graph,
+        );
+        if found_a_cycle {
             return true;
         }
-        visited_processors.insert(proc_to_visit);
-        for input_location in visited_inputs {
-            visited_processors.insert(input_location.processor());
-        }
+        visited_procs.insert(proc_to_visit);
     }
 }
 
