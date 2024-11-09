@@ -1,6 +1,4 @@
 pub mod adsr_ui;
-// pub mod melody_ui;
-// pub mod sequencer_ui;
 pub mod all_objects;
 pub mod audioclip_ui;
 pub mod definitions_ui;
