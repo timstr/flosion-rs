@@ -50,6 +50,14 @@ impl StartOver for () {
     fn start_over(&mut self) {}
 }
 
+impl<T: StartOver> StartOver for Vec<T> {
+    fn start_over(&mut self) {
+        for item in self {
+            item.start_over();
+        }
+    }
+}
+
 pub trait ProcessorComponent {
     type CompiledType<'ctx>: Send + StartOver;
 
@@ -67,6 +75,32 @@ pub trait ProcessorComponent {
     // add a mechanism for partial recompilation and updating.
     // For now, just recompile and replace everything when something
     // changes.
+}
+
+impl<T: ProcessorComponent> ProcessorComponent for Vec<T> {
+    type CompiledType<'ctx> = Vec<T::CompiledType<'ctx>>;
+
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        for item in self {
+            item.visit(visitor);
+        }
+    }
+
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        for item in self {
+            item.visit_mut(visitor);
+        }
+    }
+
+    fn compile<'ctx>(
+        &self,
+        processor_id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::CompiledType<'ctx> {
+        self.iter()
+            .map(|item| item.compile(processor_id, compiler))
+            .collect()
+    }
 }
 
 pub trait ProcessorComponentVisitor {

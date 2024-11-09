@@ -1,12 +1,12 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::mixer::Mixer,
     ui_core::{
-        arguments::ParsedArguments, soundgraphuicontext::SoundGraphUiContext,
-        soundgraphuistate::SoundGraphUiState, soundobjectui::SoundObjectUi,
-        soundprocessorui::ProcessorUi,
+        arguments::ParsedArguments, object_ui::NoObjectUiState,
+        soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
+        soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
 };
 
@@ -14,58 +14,38 @@ use crate::{
 pub struct MixerUi {}
 
 impl SoundObjectUi for MixerUi {
-    type HandleType = DynamicSoundProcessorHandle<Mixer>;
-    type StateType = ();
+    type ObjectType = SoundProcessorWithId<Mixer>;
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
-        mixer: DynamicSoundProcessorHandle<Mixer>,
+        mixer: &mut SoundProcessorWithId<Mixer>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
-        sound_graph: &mut SoundGraph,
+        _state: &mut NoObjectUiState,
     ) {
-        let mut objwin = ProcessorUi::new(&mixer, "Mixer");
+        let mut objwin = ProcessorUi::new(mixer.id(), "Mixer");
 
-        for (i, siid) in mixer.get().get_input_ids().into_iter().enumerate() {
-            objwin = objwin.add_sound_input(siid, &format!("input{}", i + 1), sound_graph);
+        for (i, input) in mixer.inputs().iter().enumerate() {
+            objwin = objwin.add_sound_input(input.id(), &format!("input{}", i + 1));
         }
 
-        objwin.show_with(
-            ui,
-            ctx,
-            graph_ui_state,
-            sound_graph,
-            |ui, _ui_state, sound_graph| {
-                ui.horizontal(|ui| {
-                    let last_input = mixer.get().get_input_ids().into_iter().last();
+        objwin.show_with(mixer, ui, ctx, graph_ui_state, |mixer, ui, _ui_state| {
+            ui.horizontal(|ui| {
+                let last_input = mixer.inputs().last().map(|i| i.id());
 
-                    if ui.button("+").clicked() {
-                        let w = mixer.clone();
+                if ui.button("+").clicked() {
+                    mixer.add_input();
+                }
 
-                        sound_graph
-                            .with_processor_tools(w.id(), |mut tools| {
-                                w.get_mut().add_input(&mut tools);
-                                Ok(())
-                            })
-                            .unwrap();
+                if let Some(siid) = last_input {
+                    if ui.button("-").clicked() {
+                        mixer.remove_input(siid);
                     }
-
-                    if let Some(siid) = last_input {
-                        if ui.button("-").clicked() {
-                            let w = mixer.clone();
-                            sound_graph
-                                .with_processor_tools(w.id(), |mut tools| {
-                                    w.get_mut().remove_input(siid, &mut tools);
-                                    Ok(())
-                                })
-                                .unwrap();
-                        }
-                    }
-                });
-            },
-        );
+                }
+            });
+        });
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -76,7 +56,11 @@ impl SoundObjectUi for MixerUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

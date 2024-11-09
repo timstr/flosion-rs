@@ -1,4 +1,6 @@
-use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{
+    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
+};
 
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
@@ -57,7 +59,15 @@ impl Stashable<StashingContext> for SingleInput {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for SingleInput {
+impl Unstashable<UnstashingContext<'_>> for SingleInput {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<SingleInput, UnstashError> {
+        Ok(SingleInput {
+            input: unstasher.object()?,
+        })
+    }
+}
+
+impl UnstashableInplace<UnstashingContext<'_>> for SingleInput {
     fn unstash_inplace(
         &mut self,
         unstasher: &mut InplaceUnstasher<UnstashingContext>,

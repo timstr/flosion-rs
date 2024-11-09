@@ -16,7 +16,7 @@ use super::{
     ensemble_ui::EnsembleUi,
     input_ui::InputUi,
     keyboard_ui::KeyboardUi,
-    // mixer_ui::MixerUi,
+    mixer_ui::MixerUi,
     // oscilloscope_ui::OscilloscopeUi,
     output_ui::OutputUi,
     pure_function_uis::{
@@ -100,7 +100,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     helper.register::<DefinitionsUi>();
     helper.register::<EnsembleUi>();
     // helper.register::<MelodyUi>();
-    // helper.register::<MixerUi>();
+    helper.register::<MixerUi>();
     helper.register::<ReadWriteWaveformUi>();
     // helper.register::<ResamplerUi>();
     // helper.register::<ScatterUi>();
