@@ -1,8 +1,8 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::{soundgraph::SoundGraph, soundprocessor::SoundProcessorWithId},
     objects::scatter::Scatter,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
@@ -12,27 +12,26 @@ use crate::{
 pub struct ScatterUi {}
 
 impl SoundObjectUi for ScatterUi {
-    type HandleType = DynamicSoundProcessorHandle<Scatter>;
-    type StateType = ();
+    type ObjectType = SoundProcessorWithId<Scatter>;
+    type StateType = NoObjectUiState;
 
     fn ui(
         &self,
-        scatter: DynamicSoundProcessorHandle<Scatter>,
+        scatter: &mut SoundProcessorWithId<Scatter>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
-        sound_graph: &mut SoundGraph,
+        _state: &mut NoObjectUiState,
     ) {
         // TODO: controls to change number of voices
         // TODO: controls to change variables and type of
         // distribution and parameter per variable
 
-        ProcessorUi::new(&scatter, "Scatter")
-            .add_sound_input(scatter.get().sound_input.id(), "input", sound_graph)
-            .add_expression(scatter.get().parameter.id(), "parameter", PlotConfig::new())
-            .add_argument(scatter.get().value.id(), "value")
-            .show(ui, ctx, graph_ui_state, sound_graph);
+        ProcessorUi::new(scatter.id(), "Scatter")
+            .add_sound_input(scatter.sound_input.id(), "input")
+            .add_expression(&scatter.parameter, "parameter", PlotConfig::new())
+            .add_argument(scatter.value.id(), "value")
+            .show(scatter, ui, ctx, graph_ui_state);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -43,7 +42,11 @@ impl SoundObjectUi for ScatterUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

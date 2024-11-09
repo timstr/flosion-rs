@@ -15,7 +15,7 @@ pub mod readwritewaveform_ui;
 // pub mod recorder_ui;
 pub mod resampler_ui;
 pub mod sampler1d_ui;
-// pub mod scatter_ui;
+pub mod scatter_ui;
 pub mod stateful_function_uis;
 pub mod wavegenerator_ui;
 pub mod whitenoise_ui;

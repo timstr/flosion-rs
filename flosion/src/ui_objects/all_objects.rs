@@ -29,7 +29,7 @@ use super::{
     // recorder_ui::RecorderUi,
     resampler_ui::ResamplerUi,
     sampler1d_ui::Sampler1dUi,
-    // scatter_ui::ScatterUi,
+    scatter_ui::ScatterUi,
     stateful_function_uis::{
         ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
     },
@@ -103,7 +103,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     helper.register::<MixerUi>();
     helper.register::<ReadWriteWaveformUi>();
     helper.register::<ResamplerUi>();
-    // helper.register::<ScatterUi>();
+    helper.register::<ScatterUi>();
     helper.register::<WaveGeneratorUi>();
     helper.register::<WhiteNoiseUi>();
     helper.register::<WriteWaveformUi>();

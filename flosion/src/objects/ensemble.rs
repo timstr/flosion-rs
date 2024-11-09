@@ -14,7 +14,7 @@ use crate::{
             expression::{ProcessorExpression, SoundExpressionScope},
             inputtypes::keyedinput::KeyedInput,
             soundinput::{InputContext, InputOptions},
-            soundprocessor::{SoundProcessor, StartOver, StreamStatus},
+            soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
         stashing::{StashingContext, UnstashingContext},
