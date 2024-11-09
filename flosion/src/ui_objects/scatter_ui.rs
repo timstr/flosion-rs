@@ -1,5 +1,5 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::SoundProcessorWithId},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::scatter::Scatter,
     ui_core::{
         arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,

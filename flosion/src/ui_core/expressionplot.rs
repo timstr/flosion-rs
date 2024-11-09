@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::core::{
-    expression::{context::ExpressionContext, expressiongraph::ExpressionGraph},
+    expression::expressiongraph::ExpressionGraph,
     jit::{
         cache::JitCache,
         compiledexpression::{CompiledExpressionFunction, Discretization},

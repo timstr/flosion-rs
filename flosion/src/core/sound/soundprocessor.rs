@@ -187,7 +187,7 @@ impl<T: SoundProcessor + WithObjectType> WithObjectType for SoundProcessorWithId
     const TYPE: ObjectType = T::TYPE;
 }
 
-pub(crate) trait AnySoundProcessor {
+pub trait AnySoundProcessor {
     fn id(&self) -> SoundProcessorId;
 
     fn is_static(&self) -> bool;

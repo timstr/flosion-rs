@@ -9,7 +9,7 @@ use crate::{
 use super::{expressionobjectui::ExpressionObjectUiFactory, soundobjectui::SoundObjectUiFactory};
 
 /// Convenience struct for passing all the different factories together
-pub(crate) struct Factories {
+pub struct Factories {
     sound_objects: SoundObjectFactory,
     expression_objects: ExpressionObjectFactory,
     sound_uis: SoundObjectUiFactory,

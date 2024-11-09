@@ -1,8 +1,6 @@
 use std::{fmt::Debug, hash::Hash, marker::PhantomData};
 
-use hashstash::{
-    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
-};
+use hashstash::{Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 use rand::{thread_rng, Rng};
 
 pub struct UniqueId<T> {

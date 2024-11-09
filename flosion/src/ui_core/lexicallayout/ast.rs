@@ -239,7 +239,7 @@ pub(crate) enum ASTNodeParent<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum ASTPathBuilder<'a> {
     Root(ASTRoot),
-    ChildOf(&'a ASTPathBuilder<'a>, &'a InternalASTNode, usize),
+    ChildOf(&'a InternalASTNode, usize),
 }
 
 impl<'a> ASTPathBuilder<'a> {
@@ -249,7 +249,7 @@ impl<'a> ASTPathBuilder<'a> {
                 ASTNodeParent::VariableDefinition(*id)
             }
             ASTPathBuilder::Root(ASTRoot::FinalExpression) => ASTNodeParent::FinalExpression,
-            ASTPathBuilder::ChildOf(_, n, i) => ASTNodeParent::InternalNode(n, *i),
+            ASTPathBuilder::ChildOf(n, i) => ASTNodeParent::InternalNode(n, *i),
         }
     }
 
@@ -258,7 +258,7 @@ impl<'a> ASTPathBuilder<'a> {
         parent: &'a InternalASTNode,
         child_index: usize,
     ) -> ASTPathBuilder<'a> {
-        ASTPathBuilder::ChildOf(self, parent, child_index)
+        ASTPathBuilder::ChildOf(parent, child_index)
     }
 }
 

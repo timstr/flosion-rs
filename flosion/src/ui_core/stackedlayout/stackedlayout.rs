@@ -7,7 +7,6 @@ use crate::{
     core::{
         jit::cache::JitCache,
         sound::{soundgraph::SoundGraph, soundprocessor::SoundProcessorId},
-        stashing::StashingContext,
     },
     ui_core::{
         factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
