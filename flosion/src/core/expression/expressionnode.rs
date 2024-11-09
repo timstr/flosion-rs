@@ -1,6 +1,6 @@
 use std::{
     any::{type_name, Any},
-    ops::Deref,
+    ops::{Deref, DerefMut},
 };
 
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
@@ -178,7 +178,7 @@ impl<T: PureExpressionNode> ExpressionNode for T {
     }
 }
 
-pub struct ExpressionNodeWithId<T: ExpressionNode> {
+pub struct ExpressionNodeWithId<T> {
     id: ExpressionNodeId,
     instance: T,
 }
@@ -200,11 +200,17 @@ impl<T: ExpressionNode> ExpressionNodeWithId<T> {
     }
 }
 
-impl<T: ExpressionNode> Deref for ExpressionNodeWithId<T> {
+impl<T> Deref for ExpressionNodeWithId<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
         &self.instance
+    }
+}
+
+impl<T> DerefMut for ExpressionNodeWithId<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.instance
     }
 }
 

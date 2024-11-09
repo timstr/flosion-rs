@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use hashstash::{
-    stash_clone_with_context, InplaceUnstasher, Order, Stash, Stashable, Stasher, UnstashError,
-    Unstashable, UnstashableInplace, Unstasher,
+    stash_clone_with_context, InplaceUnstasher, ObjectHash, Order, Stash, Stashable, Stasher,
+    UnstashError, Unstashable, UnstashableInplace, Unstasher,
 };
 
 use crate::{
@@ -210,13 +210,20 @@ impl SoundGraph {
             );
         }
 
-        let (previous_graph, _) = stash_clone_with_context(
+        let (previous_graph, stash_handle) = stash_clone_with_context(
             self,
             stash,
             StashingContext::new_stashing_normally(),
             UnstashingContext::new(factories),
         )
         .unwrap();
+
+        debug_assert_eq!(
+            stash_handle.object_hash(),
+            ObjectHash::from_stashable_and_context(self, StashingContext::new_stashing_normally()),
+            "SoundGraph hash differs after stash-cloning"
+        );
+
         let res = f(self);
         if res.is_err() {
             *self = previous_graph;

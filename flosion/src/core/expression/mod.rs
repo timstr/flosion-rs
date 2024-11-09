@@ -6,3 +6,6 @@ pub mod expressiongraphvalidation;
 pub mod expressioninput;
 pub mod expressionnode;
 pub mod expressionobject;
+
+#[cfg(test)]
+mod test;

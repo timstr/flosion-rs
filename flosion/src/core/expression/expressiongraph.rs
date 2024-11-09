@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use hashstash::{
-    stash_clone_with_context, InplaceUnstasher, Order, Stash, Stashable, Stasher, UnstashError,
-    Unstashable, UnstashableInplace, Unstasher,
+    stash_clone_with_context, InplaceUnstasher, ObjectHash, Order, Stash, Stashable, Stasher,
+    UnstashError, Unstashable, UnstashableInplace, Unstasher,
 };
 
 use crate::{
@@ -75,6 +75,10 @@ impl ExpressionGraph {
 
     pub(crate) fn results(&self) -> &[ExpressionInput] {
         &self.results
+    }
+
+    pub(crate) fn results_mut(&mut self) -> &mut [ExpressionInput] {
+        &mut self.results
     }
 
     // TODO: rename to e.g. inputs_connected_to
@@ -277,13 +281,20 @@ impl ExpressionGraph {
                 e
             );
         }
-        let (previous_graph, _) = stash_clone_with_context(
+        let (previous_graph, stash_handle) = stash_clone_with_context(
             self,
             stash,
             StashingContext::new_stashing_normally(),
             UnstashingContext::new(factories),
         )
         .unwrap();
+
+        debug_assert_eq!(
+            stash_handle.object_hash(),
+            ObjectHash::from_stashable_and_context(self, StashingContext::new_stashing_normally()),
+            "ExpressionGraph hash differs after stash-cloning"
+        );
+
         let res = f(self);
         if res.is_err() {
             *self = previous_graph;
@@ -300,6 +311,10 @@ impl ExpressionGraph {
             Some(e) => Err(e),
             None => Ok(()),
         }
+    }
+
+    pub fn pretty_print(&self) -> String {
+        "I am an expression graph".to_string()
     }
 }
 
