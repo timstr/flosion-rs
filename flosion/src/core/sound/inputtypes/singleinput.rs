@@ -76,7 +76,6 @@ impl UnstashableInplace<UnstashingContext<'_>> for SingleInput {
     }
 }
 
-// TODO: rename to CompiledSingleInput
 pub struct CompiledSingleInput<'ctx> {
     target: CompiledSoundInputBranch<'ctx>,
 }
