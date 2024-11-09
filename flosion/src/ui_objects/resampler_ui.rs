@@ -1,8 +1,8 @@
 use crate::{
-    core::sound::{soundgraph::SoundGraph, soundprocessor::DynamicSoundProcessorHandle},
+    core::sound::soundprocessor::SoundProcessorWithId,
     objects::resampler::Resampler,
     ui_core::{
-        arguments::ParsedArguments, expressionplot::PlotConfig,
+        arguments::ParsedArguments, expressionplot::PlotConfig, object_ui::NoObjectUiState,
         soundgraphuicontext::SoundGraphUiContext, soundgraphuistate::SoundGraphUiState,
         soundobjectui::SoundObjectUi, soundprocessorui::ProcessorUi,
     },
@@ -12,21 +12,20 @@ use crate::{
 pub struct ResamplerUi {}
 
 impl SoundObjectUi for ResamplerUi {
-    type HandleType = DynamicSoundProcessorHandle<Resampler>;
-    type StateType = ();
+    type ObjectType = SoundProcessorWithId<Resampler>;
+    type StateType = NoObjectUiState;
     fn ui(
         &self,
-        resampler: DynamicSoundProcessorHandle<Resampler>,
+        resampler: &mut SoundProcessorWithId<Resampler>,
         graph_ui_state: &mut SoundGraphUiState,
         ui: &mut eframe::egui::Ui,
         ctx: &SoundGraphUiContext,
-        _state: &mut (),
-        sound_graph: &mut SoundGraph,
+        _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(&resampler, "Resampler")
-            .add_sound_input(resampler.get().input.id(), "input", sound_graph)
-            .add_expression(resampler.get().speed_ratio.id(), "speed", PlotConfig::new())
-            .show(ui, ctx, graph_ui_state, sound_graph);
+        ProcessorUi::new(resampler.id(), "Resampler")
+            .add_sound_input(resampler.input.id(), "input")
+            .add_expression(&resampler.speed_ratio, "speed", PlotConfig::new())
+            .show(resampler, ui, ctx, graph_ui_state);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {
@@ -37,7 +36,11 @@ impl SoundObjectUi for ResamplerUi {
         ()
     }
 
-    fn make_ui_state(&self, _handle: &Self::HandleType, _args: &ParsedArguments) -> Result<(), ()> {
-        Ok(())
+    fn make_ui_state(
+        &self,
+        _handle: &Self::ObjectType,
+        _args: &ParsedArguments,
+    ) -> Result<NoObjectUiState, ()> {
+        Ok(NoObjectUiState)
     }
 }

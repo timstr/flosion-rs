@@ -27,7 +27,7 @@ use super::{
     },
     readwritewaveform_ui::ReadWriteWaveformUi,
     // recorder_ui::RecorderUi,
-    // resampler_ui::ResamplerUi,
+    resampler_ui::ResamplerUi,
     sampler1d_ui::Sampler1dUi,
     // scatter_ui::ScatterUi,
     stateful_function_uis::{
@@ -102,7 +102,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     // helper.register::<MelodyUi>();
     helper.register::<MixerUi>();
     helper.register::<ReadWriteWaveformUi>();
-    // helper.register::<ResamplerUi>();
+    helper.register::<ResamplerUi>();
     // helper.register::<ScatterUi>();
     helper.register::<WaveGeneratorUi>();
     helper.register::<WhiteNoiseUi>();
