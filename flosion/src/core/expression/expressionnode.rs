@@ -256,7 +256,7 @@ where
         // ===========================================================
         // assign initial values to stack variables
         jit.builder()
-            .position_before(&jit.instruction_locations.end_of_startover);
+            .position_at_end(jit.instruction_locations.startover);
         let init_variable_values = self.compile_start_over(jit);
         debug_assert_eq!(init_variable_values.len(), self.num_variables());
         for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
@@ -268,7 +268,7 @@ where
         // ===========================================================
         // copy state array values into stack variables
         jit.builder()
-            .position_before(&jit.instruction_locations.end_of_resume);
+            .position_at_end(jit.instruction_locations.resume);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *ptr_state
             let tmp = jit
@@ -284,7 +284,7 @@ where
         // ===========================================================
         // any custom pre-loop work
         jit.builder()
-            .position_before(&jit.instruction_locations.end_of_pre_loop);
+            .position_at_end(jit.instruction_locations.pre_loop);
         let compile_state = self.instance.compile_pre_loop(jit);
 
         // ===========================================================

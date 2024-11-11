@@ -12,7 +12,7 @@ use inkwell::{
     execution_engine::ExecutionEngine,
     intrinsics::Intrinsic,
     module::Module,
-    values::{BasicValue, FloatValue, InstructionValue, IntValue, PointerValue},
+    values::{BasicValue, FloatValue, IntValue, PointerValue},
     AtomicOrdering,
 };
 
@@ -41,9 +41,9 @@ pub(super) const FLAG_INITIALIZED: u8 = 1;
 pub(crate) struct InstructionLocations<'ctx> {
     pub(crate) entry: BasicBlock<'ctx>,
     pub(crate) check_startover: BasicBlock<'ctx>,
-    pub(crate) end_of_startover: InstructionValue<'ctx>,
-    pub(crate) end_of_resume: InstructionValue<'ctx>,
-    pub(crate) end_of_pre_loop: InstructionValue<'ctx>,
+    pub(crate) startover: BasicBlock<'ctx>,
+    pub(crate) resume: BasicBlock<'ctx>,
+    pub(crate) pre_loop: BasicBlock<'ctx>,
     pub(crate) loop_body: BasicBlock<'ctx>,
     pub(crate) post_loop: BasicBlock<'ctx>,
     pub(crate) exit: BasicBlock<'ctx>,
@@ -193,18 +193,7 @@ impl<'ctx> Jit<'ctx> {
         arg_time_step.set_name("time_step");
         arg_ctx_ptr.set_name("context_ptr");
 
-        let inst_end_of_startover;
-        let inst_end_of_resume;
-        let inst_end_of_pre_loop;
-
         let v_loop_counter;
-
-        // entry
-        builder.position_at_end(bb_entry);
-        {
-
-            // array read functions and state pointer offsets will be inserted here later
-        }
 
         // check_startover
         builder.position_at_end(bb_check_startover);
@@ -236,27 +225,6 @@ impl<'ctx> Jit<'ctx> {
             )?;
 
             // stateful expression node init code will be inserted here
-
-            // goto pre_loop
-            inst_end_of_startover = builder.build_unconditional_branch(bb_pre_loop)?;
-        }
-
-        // resume
-        builder.position_at_end(bb_resume);
-        {
-            // stateful expression node load code will be inserted here
-
-            // goto pre_loop
-            inst_end_of_resume = builder.build_unconditional_branch(bb_pre_loop)?;
-        }
-
-        // pre_loop
-        builder.position_at_end(bb_pre_loop);
-        {
-            // stateful expression node pre-loop code will be inserted here
-
-            // goto loop
-            inst_end_of_pre_loop = builder.build_unconditional_branch(bb_loop)?;
         }
 
         // loop
@@ -279,12 +247,6 @@ impl<'ctx> Jit<'ctx> {
             // loop body will be inserted here
         }
 
-        // post_loop
-        builder.position_at_end(bb_post_loop);
-        {
-            // stateful expression node store and post-loop code will be inserted here
-        }
-
         // exit
         builder.position_at_end(bb_exit);
         {
@@ -294,9 +256,9 @@ impl<'ctx> Jit<'ctx> {
         let instruction_locations = InstructionLocations {
             entry: bb_entry,
             check_startover: bb_check_startover,
-            end_of_startover: inst_end_of_startover,
-            end_of_resume: inst_end_of_resume,
-            end_of_pre_loop: inst_end_of_pre_loop,
+            startover: bb_startover,
+            resume: bb_resume,
+            pre_loop: bb_pre_loop,
             loop_body: bb_loop,
             post_loop: bb_post_loop,
             exit: bb_exit,
@@ -948,6 +910,33 @@ impl<'ctx> Jit<'ctx> {
                     self.instruction_locations.exit,
                     self.instruction_locations.check_startover,
                 )
+                .unwrap();
+        }
+
+        // startover -> pre_loop
+        self.builder
+            .position_at_end(self.instruction_locations.startover);
+        {
+            self.builder
+                .build_unconditional_branch(self.instruction_locations.pre_loop)
+                .unwrap();
+        }
+
+        // resume -> pre_loop
+        self.builder
+            .position_at_end(self.instruction_locations.resume);
+        {
+            self.builder
+                .build_unconditional_branch(self.instruction_locations.pre_loop)
+                .unwrap();
+        }
+
+        // pre_loop -> loop
+        self.builder
+            .position_at_end(self.instruction_locations.pre_loop);
+        {
+            self.builder
+                .build_unconditional_branch(self.instruction_locations.loop_body)
                 .unwrap();
         }
 
