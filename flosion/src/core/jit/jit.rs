@@ -11,7 +11,6 @@ use inkwell::{
     execution_engine::ExecutionEngine,
     intrinsics::Intrinsic,
     module::Module,
-    types::FloatType,
     values::{BasicValue, FloatValue, InstructionValue, IntValue, PointerValue},
     AtomicOrdering,
 };
@@ -490,11 +489,6 @@ impl<'ctx> Jit<'ctx> {
         self.module.get_context()
     }
 
-    // TODO: remove
-    pub fn float_type(&self) -> FloatType<'ctx> {
-        self.types.f32_type
-    }
-
     pub(crate) fn build_argument_pointer(
         &mut self,
         argument_id: ProcessorArgumentId,
@@ -731,7 +725,7 @@ impl<'ctx> Jit<'ctx> {
         // TODO: error handling
         let intrinsic = Intrinsic::find(name).unwrap();
 
-        let decl = intrinsic.get_declaration(&self.module, &[self.float_type().into()]);
+        let decl = intrinsic.get_declaration(&self.module, &[self.types.f32_type.into()]);
 
         // TODO: error handling
         let decl = decl.unwrap();
@@ -758,7 +752,7 @@ impl<'ctx> Jit<'ctx> {
         // TODO: error handling
         let intrinsic = Intrinsic::find(name).unwrap();
 
-        let decl = intrinsic.get_declaration(&self.module, &[self.float_type().into()]);
+        let decl = intrinsic.get_declaration(&self.module, &[self.types.f32_type.into()]);
 
         // TODO: error handling
         let decl = decl.unwrap();

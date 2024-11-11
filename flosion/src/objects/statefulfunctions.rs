@@ -42,7 +42,7 @@ impl ExpressionNode for LinearApproach {
     type CompileState<'ctx> = ();
 
     fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![jit.float_type().const_float(0.0)]
+        vec![jit.types.f32_type.const_float(0.0)]
     }
 
     fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {
@@ -166,7 +166,7 @@ impl ExpressionNode for ExponentialApproach {
     type CompileState<'ctx> = ();
 
     fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![jit.float_type().const_float(0.0)]
+        vec![jit.types.f32_type.const_float(0.0)]
     }
 
     fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {
@@ -208,7 +208,7 @@ impl ExpressionNode for ExponentialApproach {
         let one_minus_decay_amount = jit
             .builder()
             .build_float_sub(
-                jit.float_type().const_float(1.0),
+                jit.types.f32_type.const_float(1.0),
                 decay_amount,
                 "one_minus_decay_amt",
             )
@@ -281,7 +281,7 @@ impl ExpressionNode for Integrator {
     type CompileState<'ctx> = ();
 
     fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![jit.float_type().const_float(0.0)]
+        vec![jit.types.f32_type.const_float(0.0)]
     }
 
     fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {
@@ -359,7 +359,7 @@ impl ExpressionNode for WrappingIntegrator {
     type CompileState<'ctx> = ();
 
     fn compile_start_over<'ctx>(&self, jit: &mut Jit<'ctx>) -> Vec<FloatValue<'ctx>> {
-        vec![jit.float_type().const_float(0.0)]
+        vec![jit.types.f32_type.const_float(0.0)]
     }
 
     fn compile_pre_loop<'ctx>(&self, _jit: &mut Jit<'ctx>) -> () {

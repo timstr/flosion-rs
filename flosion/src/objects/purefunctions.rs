@@ -35,7 +35,7 @@ impl PureExpressionNode for Constant {
 
     fn compile<'ctx>(&self, jit: &mut Jit<'ctx>, inputs: &[FloatValue<'ctx>]) -> FloatValue<'ctx> {
         debug_assert!(inputs.is_empty());
-        jit.float_type().const_float(self.value as f64)
+        jit.types.f32_type.const_float(self.value as f64)
     }
 
     fn visit(&self, _visitor: &mut dyn ExpressionNodeVisitor) {}
@@ -418,7 +418,7 @@ unary_expression_node!(
     0.0,
     |x| x.signum(),
     LlvmImplementation::ExpressionUnary(|jit, x| {
-        let one = jit.float_type().const_float(1.0);
+        let one = jit.types.f32_type.const_float(1.0);
         jit.build_binary_intrinsic_call("llvm.copysign", one, x)
     })
 );
@@ -442,7 +442,10 @@ unary_expression_node!(
     0.0,
     |x| (x * std::f32::consts::LN_10).exp(),
     LlvmImplementation::ExpressionUnary(|jit, x| {
-        let ln_10 = jit.float_type().const_float(std::f32::consts::LN_10 as f64);
+        let ln_10 = jit
+            .types
+            .f32_type
+            .const_float(std::f32::consts::LN_10 as f64);
         let x_times_ln_10 = jit
             .builder()
             .build_float_mul(x, ln_10, "x_times_ln_10")
@@ -512,7 +515,7 @@ unary_expression_node!(
     0.0,
     |x| (x * std::f32::consts::TAU).sin(),
     LlvmImplementation::ExpressionUnary(|jit, x| {
-        let tau = jit.float_type().const_float(std::f64::consts::TAU);
+        let tau = jit.types.f32_type.const_float(std::f64::consts::TAU);
         let tau_x = jit.builder().build_float_mul(tau, x, "tau_x").unwrap();
         let sin_tau_x = jit.build_unary_intrinsic_call("llvm.sin", tau_x);
         sin_tau_x
@@ -524,7 +527,7 @@ unary_expression_node!(
     0.0,
     |x| (x * std::f32::consts::TAU).cos(),
     LlvmImplementation::ExpressionUnary(|jit, x| {
-        let tau = jit.float_type().const_float(std::f64::consts::TAU);
+        let tau = jit.types.f32_type.const_float(std::f64::consts::TAU);
         let tau_x = jit.builder().build_float_mul(tau, x, "tau_x").unwrap();
         let sin_tau_x = jit.build_unary_intrinsic_call("llvm.cos", tau_x);
         sin_tau_x
@@ -542,9 +545,9 @@ unary_expression_node!(
         }
     },
     LlvmImplementation::ExpressionUnary(|jit, x| {
-        let plus_one = jit.float_type().const_float(1.0);
-        let minus_one = jit.float_type().const_float(-1.0);
-        let a_half = jit.float_type().const_float(0.5);
+        let plus_one = jit.types.f32_type.const_float(1.0);
+        let minus_one = jit.types.f32_type.const_float(-1.0);
+        let a_half = jit.types.f32_type.const_float(0.5);
         let x_floor = jit.build_unary_intrinsic_call("llvm.floor", x);
         let x_fract = jit
             .builder()
@@ -566,8 +569,8 @@ unary_expression_node!(
     0.0,
     |x| 2.0 * (x - x.floor()) - 1.0,
     LlvmImplementation::ExpressionUnary(|jit, x| {
-        let one = jit.float_type().const_float(1.0);
-        let two = jit.float_type().const_float(2.0);
+        let one = jit.types.f32_type.const_float(1.0);
+        let two = jit.types.f32_type.const_float(2.0);
         let x_floor = jit.build_unary_intrinsic_call("llvm.floor", x);
         let x_fract = jit
             .builder()
@@ -588,9 +591,9 @@ unary_expression_node!(
     0.0,
     |x| 4.0 * (x - (x + 0.5).floor()).abs() - 1.0,
     LlvmImplementation::ExpressionUnary(|jit, x| {
-        let one = jit.float_type().const_float(1.0);
-        let four = jit.float_type().const_float(4.0);
-        let a_half = jit.float_type().const_float(0.5);
+        let one = jit.types.f32_type.const_float(1.0);
+        let four = jit.types.f32_type.const_float(4.0);
+        let a_half = jit.types.f32_type.const_float(0.5);
 
         let x_plus_half = jit
             .builder()
