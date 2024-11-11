@@ -27,6 +27,22 @@ impl SoundGraphUiNames {
         }
     }
 
+    fn parse_next_highest_number<'a, I: Iterator<Item = &'a String>>(
+        iter: I,
+        prefix: &str,
+    ) -> usize {
+        let mut next_highest_number = 1;
+        for name in iter {
+            let Some(rest_of_name) = name.strip_prefix(prefix) else {
+                continue;
+            };
+            if let Ok(i) = rest_of_name.parse::<usize>() {
+                next_highest_number = next_highest_number.max(i + 1);
+            }
+        }
+        next_highest_number
+    }
+
     pub(crate) fn cleanup(&mut self, graph: &SoundGraph) {
         self.arguments.retain(|k, _v| graph.contains(k));
         self.expressions.retain(|k, _v| graph.contains(k));
@@ -36,23 +52,32 @@ impl SoundGraphUiNames {
         struct DefaultNameVisitor<'a> {
             names: &'a mut SoundGraphUiNames,
             processor_id: SoundProcessorId,
+            next_argument_number: usize,
+            next_expression_number: usize,
+            next_sound_input_number: usize,
         }
+
+        const PREFIX_ARGUMENT: &str = "argument";
+        const PREFIX_EXPRESSION: &str = "expression";
+        const PREFIX_INPUT: &str = "input";
 
         impl<'a> ProcessorComponentVisitor for DefaultNameVisitor<'a> {
             fn input(&mut self, input: &BasicProcessorInput) {
                 let location = SoundInputLocation::new(self.processor_id, input.id());
-                self.names
-                    .sound_inputs
-                    .entry(location)
-                    .or_insert_with(|| format!("input_{}", location.input().value()));
+                self.names.sound_inputs.entry(location).or_insert_with(|| {
+                    let i = self.next_sound_input_number;
+                    self.next_sound_input_number += 1;
+                    format!("{}{}", PREFIX_INPUT, i)
+                });
             }
 
             fn expression(&mut self, expression: &ProcessorExpression) {
                 let location = ProcessorExpressionLocation::new(self.processor_id, expression.id());
-                self.names
-                    .expressions
-                    .entry(location)
-                    .or_insert_with(|| format!("expression_{}", location.expression().value()));
+                self.names.expressions.entry(location).or_insert_with(|| {
+                    let i = self.next_expression_number;
+                    self.next_expression_number += 1;
+                    format!("{}{}", PREFIX_EXPRESSION, i)
+                });
             }
 
             fn argument(&mut self, argument: &dyn AnyProcessorArgument) {
@@ -60,17 +85,39 @@ impl SoundGraphUiNames {
                 self.names
                     .arguments
                     .entry(location.into())
-                    .or_insert_with(|| format!("argument_{}", location.argument().value()));
+                    .or_insert_with(|| {
+                        let i = self.next_argument_number;
+                        self.next_argument_number += 1;
+                        format!("{}{}", PREFIX_ARGUMENT, i)
+                    });
             }
         }
 
         for proc_data in graph.sound_processors().values() {
+            let type_name = proc_data.as_graph_object().get_dynamic_type().name();
+            let mut next_processor_number =
+                Self::parse_next_highest_number(self.sound_processors.values(), type_name);
             self.sound_processors
                 .entry(proc_data.id())
-                .or_insert_with(|| proc_data.as_graph_object().friendly_name());
+                .or_insert_with(|| {
+                    let i = next_processor_number;
+                    next_processor_number += 1;
+                    format!("{}{}", type_name, i)
+                });
+
+            let next_argument_number =
+                Self::parse_next_highest_number(self.arguments.values(), PREFIX_ARGUMENT);
+            let next_expression_number =
+                Self::parse_next_highest_number(self.expressions.values(), PREFIX_EXPRESSION);
+            let next_sound_input_number =
+                Self::parse_next_highest_number(self.sound_inputs.values(), PREFIX_INPUT);
+
             let mut visitor = DefaultNameVisitor {
                 names: self,
                 processor_id: proc_data.id(),
+                next_argument_number,
+                next_expression_number,
+                next_sound_input_number,
             };
             proc_data.visit(&mut visitor);
         }
