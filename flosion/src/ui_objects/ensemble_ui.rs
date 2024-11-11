@@ -33,7 +33,7 @@ impl SoundObjectUi for EnsembleUi {
                 "frequency_spread",
                 PlotConfig::new(),
             )
-            .add_argument(ensemble.voice_frequency.id(), "voice_frequency")
+            .add_argument(&ensemble.voice_frequency, "voice_frequency")
             .show_with(
                 ensemble,
                 ui,

@@ -22,7 +22,7 @@ pub struct ProcessorUi {
     processor_id: SoundProcessorId,
     label: &'static str,
     expressions: Vec<(ProcessorExpressionId, String, PlotConfig)>,
-    arguments: Vec<(ProcessorArgumentLocation, String)>,
+    arguments: Vec<(ProcessorArgumentId, String)>,
     sound_inputs: Vec<(ProcessorInputId, String)>,
 }
 
@@ -61,13 +61,12 @@ impl ProcessorUi {
         self
     }
 
-    pub fn add_argument(
+    pub fn add_argument<A: AnyProcessorArgument>(
         mut self,
-        argument_id: ProcessorArgumentId,
+        argument: &A,
         label: impl Into<String>,
     ) -> Self {
-        let location = ProcessorArgumentLocation::new(self.processor_id, argument_id);
-        self.arguments.push((location.into(), label.into()));
+        self.arguments.push((argument.id(), label.into()));
         self
     }
 
@@ -98,10 +97,11 @@ impl ProcessorUi {
         ui_state: &mut SoundGraphUiState,
         add_contents: F,
     ) {
-        for (nsid, name) in &self.arguments {
-            ui_state
-                .names_mut()
-                .record_argument_name(*nsid, name.to_string());
+        for (arg_id, name) in &self.arguments {
+            ui_state.names_mut().record_argument_name(
+                ProcessorArgumentLocation::new(processor.id(), *arg_id),
+                name.to_string(),
+            );
         }
 
         // detect missing names

@@ -36,7 +36,7 @@ impl SoundObjectUi for WaveGeneratorUi {
                     ),
             )
             .add_expression(&wavgen.frequency, "frequency", PlotConfig::new())
-            .add_argument(wavgen.phase.id(), "phase")
+            .add_argument(&wavgen.phase, "phase")
             .show(wavgen, ui, ctx, graph_ui_state);
     }
 
