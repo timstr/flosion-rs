@@ -7,7 +7,8 @@ use crate::core::{
     sound::{
         argument::ArgumentScope,
         soundinput::{
-            BasicProcessorInput, InputContext, InputOptions, InputTiming, ProcessorInputId,
+            AnyProcessorInput, BasicProcessorInput, InputContext, InputOptions, InputTiming,
+            ProcessorInputId,
         },
         soundprocessor::{
             ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
@@ -137,5 +138,11 @@ impl<'ctx, S> StartOver for CompiledKeyedInput<'ctx, S> {
             item.input.start_over_at(0);
             item.state = None;
         }
+    }
+}
+
+impl<S> AnyProcessorInput for KeyedInput<S> {
+    fn id(&self) -> ProcessorInputId {
+        self.input.id()
     }
 }

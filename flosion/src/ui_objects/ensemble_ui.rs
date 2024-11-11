@@ -26,7 +26,7 @@ impl SoundObjectUi for EnsembleUi {
         _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(ensemble.id(), "Ensemble")
-            .add_sound_input(ensemble.input.id(), "input")
+            .add_sound_input(&ensemble.input, "input")
             .add_expression(&ensemble.frequency_in, "frequency_in", PlotConfig::new())
             .add_expression(
                 &ensemble.frequency_spread,

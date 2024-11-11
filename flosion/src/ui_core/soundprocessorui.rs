@@ -4,7 +4,9 @@ use crate::{
     core::sound::{
         argument::{AnyProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation},
         expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
-        soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
+        soundinput::{
+            AnyProcessorInput, BasicProcessorInput, ProcessorInputId, SoundInputLocation,
+        },
         soundprocessor::{AnySoundProcessor, ProcessorComponentVisitor, SoundProcessorId},
     },
     ui_core::soundgraphuinames::SoundGraphUiNames,
@@ -21,7 +23,7 @@ pub struct ProcessorUi {
     label: &'static str,
     expressions: Vec<(ProcessorExpressionId, String, PlotConfig)>,
     arguments: Vec<(ProcessorArgumentLocation, String)>,
-    sound_inputs: Vec<(SoundInputLocation, String)>,
+    sound_inputs: Vec<(ProcessorInputId, String)>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,11 +42,12 @@ impl ProcessorUi {
         }
     }
 
-    pub fn add_sound_input(mut self, input_id: ProcessorInputId, label: impl Into<String>) -> Self {
-        self.sound_inputs.push((
-            SoundInputLocation::new(self.processor_id, input_id),
-            label.into(),
-        ));
+    pub fn add_sound_input<I: AnyProcessorInput>(
+        mut self,
+        input: &I,
+        label: impl Into<String>,
+    ) -> Self {
+        self.sound_inputs.push((input.id(), label.into()));
         self
     }
 
@@ -202,9 +205,10 @@ impl ProcessorUi {
         let desired_width = ctx.width();
 
         for (siid, label) in &self.sound_inputs {
-            ui_state
-                .names_mut()
-                .record_sound_input_name(*siid, label.to_string());
+            ui_state.names_mut().record_sound_input_name(
+                SoundInputLocation::new(processor.id(), *siid),
+                label.to_string(),
+            );
         }
 
         ui.set_width(desired_width);

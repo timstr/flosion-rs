@@ -7,7 +7,8 @@ use crate::core::{
     sound::{
         argument::ArgumentScope,
         soundinput::{
-            BasicProcessorInput, InputContext, InputOptions, InputTiming, ProcessorInputId,
+            AnyProcessorInput, BasicProcessorInput, InputContext, InputOptions, InputTiming,
+            ProcessorInputId,
         },
         soundprocessor::{
             ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
@@ -104,5 +105,11 @@ impl<'ctx> CompiledSingleInput<'ctx> {
 impl<'ctx> StartOver for CompiledSingleInput<'ctx> {
     fn start_over(&mut self) {
         CompiledSingleInput::start_over_at(self, 0);
+    }
+}
+
+impl AnyProcessorInput for SingleInput {
+    fn id(&self) -> ProcessorInputId {
+        self.input.id()
     }
 }

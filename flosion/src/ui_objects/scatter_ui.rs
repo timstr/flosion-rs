@@ -28,7 +28,7 @@ impl SoundObjectUi for ScatterUi {
         // distribution and parameter per variable
 
         ProcessorUi::new(scatter.id(), "Scatter")
-            .add_sound_input(scatter.sound_input.id(), "input")
+            .add_sound_input(&scatter.sound_input, "input")
             .add_expression(&scatter.parameter, "parameter", PlotConfig::new())
             .add_argument(scatter.value.id(), "value")
             .show(scatter, ui, ctx, graph_ui_state);

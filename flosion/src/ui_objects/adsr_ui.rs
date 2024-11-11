@@ -24,7 +24,7 @@ impl SoundObjectUi for ADSRUi {
         _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(adsr.id(), "ADSR")
-            .add_sound_input(adsr.input.id(), "input")
+            .add_sound_input(&adsr.input, "input")
             .add_expression(&adsr.attack_time, "attack_time", PlotConfig::new())
             .add_expression(&adsr.decay_time, "decay_time", PlotConfig::new())
             .add_expression(&adsr.sustain_level, "sustain_level", PlotConfig::new())

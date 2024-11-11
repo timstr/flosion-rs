@@ -25,7 +25,7 @@ impl SoundObjectUi for OutputUi {
         _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(output.id(), "Output")
-            .add_sound_input(output.input.id(), "input")
+            .add_sound_input(&output.input, "input")
             .show_with(output, ui, ctx, graph_ui_state, |output, ui, _ui_state| {
                 if ui
                     .add(egui::Button::new("Start over").wrap_mode(egui::TextWrapMode::Extend))

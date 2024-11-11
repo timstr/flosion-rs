@@ -23,7 +23,7 @@ impl SoundObjectUi for ResamplerUi {
         _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(resampler.id(), "Resampler")
-            .add_sound_input(resampler.input.id(), "input")
+            .add_sound_input(&resampler.input, "input")
             .add_expression(&resampler.speed_ratio, "speed", PlotConfig::new())
             .show(resampler, ui, ctx, graph_ui_state);
     }

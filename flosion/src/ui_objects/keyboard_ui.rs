@@ -26,7 +26,7 @@ impl SoundObjectUi for KeyboardUi {
         _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new(keyboard.id(), "Keyboard")
-            .add_sound_input(keyboard.input.id(), "input")
+            .add_sound_input(&keyboard.input, "input")
             .add_argument(keyboard.key_frequency.id(), "keyfrequency")
             .show_with(
                 keyboard,

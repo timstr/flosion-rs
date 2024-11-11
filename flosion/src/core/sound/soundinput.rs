@@ -359,3 +359,7 @@ impl<'a> InputContext<'a> {
         self.argument_stack
     }
 }
+
+pub trait AnyProcessorInput {
+    fn id(&self) -> ProcessorInputId;
+}
