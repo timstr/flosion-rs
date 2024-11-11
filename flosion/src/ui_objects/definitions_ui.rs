@@ -23,7 +23,7 @@ impl SoundObjectUi for DefinitionsUi {
         ctx: &SoundGraphUiContext,
         _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(definitions.id(), "Definitions")
+        ProcessorUi::new("Definitions")
             .add_expression(&definitions.expression, "a", PlotConfig::new())
             .add_argument(&definitions.argument, "a")
             .add_sound_input(&definitions.sound_input, "input")

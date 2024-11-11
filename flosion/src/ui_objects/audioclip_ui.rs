@@ -44,7 +44,7 @@ impl SoundObjectUi for AudioClipUi {
         ctx: &SoundGraphUiContext,
         state: &mut AudioClipUiState,
     ) {
-        ProcessorUi::new(audioclip.id(), "AudioClip").show_with(
+        ProcessorUi::new("AudioClip").show_with(
             audioclip,
             ui,
             ctx,

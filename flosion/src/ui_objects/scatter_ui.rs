@@ -27,7 +27,7 @@ impl SoundObjectUi for ScatterUi {
         // TODO: controls to change variables and type of
         // distribution and parameter per variable
 
-        ProcessorUi::new(scatter.id(), "Scatter")
+        ProcessorUi::new("Scatter")
             .add_sound_input(&scatter.sound_input, "input")
             .add_expression(&scatter.parameter, "parameter", PlotConfig::new())
             .add_argument(&scatter.value, "value")

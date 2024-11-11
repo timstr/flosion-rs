@@ -23,7 +23,7 @@ impl SoundObjectUi for ReadWriteWaveformUi {
         ctx: &SoundGraphUiContext,
         _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(rww.id(), "ReadWriteWaveform")
+        ProcessorUi::new("ReadWriteWaveform")
             .add_sound_input(&rww.sound_input, "input")
             .add_argument(&rww.input_l, "l")
             .add_argument(&rww.input_r, "r")

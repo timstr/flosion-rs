@@ -18,8 +18,6 @@ use super::{
 };
 
 pub struct ProcessorUi {
-    // TODO: remove?
-    processor_id: SoundProcessorId,
     label: &'static str,
     expressions: Vec<(ProcessorExpressionId, String, PlotConfig)>,
     arguments: Vec<(ProcessorArgumentId, String)>,
@@ -32,9 +30,8 @@ struct ProcessorUiProps {
 }
 
 impl ProcessorUi {
-    pub fn new(processor_id: SoundProcessorId, label: &'static str) -> ProcessorUi {
+    pub fn new(label: &'static str) -> ProcessorUi {
         ProcessorUi {
-            processor_id,
             label,
             expressions: Vec::new(),
             arguments: Vec::new(),
@@ -158,12 +155,12 @@ impl ProcessorUi {
             processor.visit(&mut visitor);
         }
 
-        let r = ui.push_id(self.processor_id, |ui| {
+        let r = ui.push_id(processor.id(), |ui| {
             self.show_with_impl(processor, ui, ctx, ui_state, add_contents);
         });
 
         ui_state.positions_mut().record_processor(
-            self.processor_id,
+            processor.id(),
             r.response.rect,
             ctx.group_origin(),
         );
@@ -189,7 +186,7 @@ impl ProcessorUi {
 
         let color = ui_state
             .object_states()
-            .get_object_color(self.processor_id.into());
+            .get_object_color(processor.id().into());
 
         let frame = egui::Frame::default()
             .fill(color)
@@ -234,7 +231,7 @@ impl ProcessorUi {
                 // Show the processor name and also type name if it differs
                 ui.horizontal(|ui| {
                     ui.spacing();
-                    let name = ui_state.names().sound_processor(self.processor_id).unwrap();
+                    let name = ui_state.names().sound_processor(processor.id()).unwrap();
                     ui.add(
                         egui::Label::new(
                             egui::RichText::new(name)
@@ -267,7 +264,7 @@ impl ProcessorUi {
                 {
                     if bg_response.drag_started() {
                         ui_state.interactions_mut().start_dragging(
-                            DragDropSubject::Processor(self.processor_id),
+                            DragDropSubject::Processor(processor.id()),
                             bg_response.rect,
                         );
                     }
@@ -287,7 +284,7 @@ impl ProcessorUi {
                 if bg_response.clicked() {
                     ui_state
                         .interactions_mut()
-                        .focus_on_processor(self.processor_id);
+                        .focus_on_processor(processor.id());
                     ctx.request_snapshot();
                 }
             });

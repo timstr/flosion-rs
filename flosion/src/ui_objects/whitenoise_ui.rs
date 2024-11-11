@@ -25,7 +25,7 @@ impl SoundObjectUi for WhiteNoiseUi {
         ctx: &SoundGraphUiContext,
         _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(whitenoise.id(), "WhiteNoise").show(whitenoise, ui, ctx, graph_ui_state);
+        ProcessorUi::new("WhiteNoise").show(whitenoise, ui, ctx, graph_ui_state);
     }
 
     fn summon_names(&self) -> &'static [&'static str] {

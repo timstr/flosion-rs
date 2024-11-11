@@ -66,7 +66,7 @@ impl SoundObjectUi for InputUi {
 
         // TODO: controls for choosing input device?
         // Would require changes to input
-        ProcessorUi::new(input.id(), "Input").show_with(
+        ProcessorUi::new("Input").show_with(
             input,
             ui,
             ctx,

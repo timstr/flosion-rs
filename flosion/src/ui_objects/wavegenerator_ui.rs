@@ -23,7 +23,7 @@ impl SoundObjectUi for WaveGeneratorUi {
         ctx: &SoundGraphUiContext,
         _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(wavgen.id(), "WaveGenerator")
+        ProcessorUi::new("WaveGenerator")
             .add_expression(
                 &wavgen.amplitude,
                 "amplitude",

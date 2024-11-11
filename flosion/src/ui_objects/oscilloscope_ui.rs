@@ -195,7 +195,7 @@ impl SoundObjectUi for OscilloscopeUi {
         ctx: &SoundGraphUiContext,
         state: &mut OscilloscopeUiState,
     ) {
-        ProcessorUi::new(oscilloscope.id(), "Oscilloscope")
+        ProcessorUi::new("Oscilloscope")
             .add_sound_input(&oscilloscope.input, "Input")
             .show_with(
                 oscilloscope,

@@ -23,7 +23,7 @@ impl SoundObjectUi for WriteWaveformUi {
         ctx: &SoundGraphUiContext,
         _state: &mut NoObjectUiState,
     ) {
-        ProcessorUi::new(ww.id(), "WriteWaveform")
+        ProcessorUi::new("WriteWaveform")
             .add_expression(&ww.waveform, "waveform", PlotConfig::new())
             .show(ww, ui, ctx, graph_ui_state);
     }
