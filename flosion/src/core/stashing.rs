@@ -1,6 +1,8 @@
 use hashstash::{Stashable, Stasher};
 
-use crate::ui_core::factories::Factories;
+use super::{
+    expression::expressionobject::ExpressionObjectFactory, sound::soundobject::SoundObjectFactory,
+};
 
 #[derive(Copy, Clone)]
 pub struct StashingContext {
@@ -33,16 +35,45 @@ impl Stashable<()> for StashingContext {
 
 #[derive(Copy, Clone)]
 pub struct UnstashingContext<'a> {
-    // TODO: replace with just sound+expr object factories?
-    factories: &'a Factories,
+    sound_object_factory: &'a SoundObjectFactory,
+    expression_object_factory: &'a ExpressionObjectFactory,
 }
 
 impl<'a> UnstashingContext<'a> {
-    pub(crate) fn new(factories: &'a Factories) -> UnstashingContext<'a> {
-        UnstashingContext { factories }
+    pub(crate) fn new(
+        sound_object_factory: &'a SoundObjectFactory,
+        expression_object_factory: &'a ExpressionObjectFactory,
+    ) -> UnstashingContext<'a> {
+        UnstashingContext {
+            sound_object_factory,
+            expression_object_factory,
+        }
     }
 
-    pub(crate) fn factories(&self) -> &'a Factories {
-        self.factories
+    pub(crate) fn sound_object_factory(&self) -> &'a SoundObjectFactory {
+        self.sound_object_factory
+    }
+
+    pub(crate) fn expression_object_factory(&self) -> &'a ExpressionObjectFactory {
+        self.expression_object_factory
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct ExpressionUnstashingContext<'a> {
+    expression_object_factory: &'a ExpressionObjectFactory,
+}
+
+impl<'a> ExpressionUnstashingContext<'a> {
+    pub(crate) fn new(
+        expression_object_factory: &'a ExpressionObjectFactory,
+    ) -> ExpressionUnstashingContext<'a> {
+        ExpressionUnstashingContext {
+            expression_object_factory,
+        }
+    }
+
+    pub(crate) fn expression_object_factory(&self) -> &'a ExpressionObjectFactory {
+        self.expression_object_factory
     }
 }

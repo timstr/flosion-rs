@@ -1,12 +1,12 @@
 use crate::{
     core::{
-        expression::{
-            expressioninput::ExpressionInput,
-            expressionnode::{ExpressionNodeVisitor, ExpressionNodeVisitorMut, PureExpressionNode},
+        expression::expressioninput::ExpressionInput,
+        expression::expressionnode::{
+            ExpressionNodeVisitor, ExpressionNodeVisitorMut, PureExpressionNode,
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
-        stashing::{StashingContext, UnstashingContext},
+        stashing::StashingContext,
     },
     ui_core::arguments::{FloatArgument, ParsedArguments},
 };
@@ -48,11 +48,8 @@ impl Stashable<StashingContext> for Constant {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for Constant {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for Constant {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         unstasher.f32_inplace(&mut self.value)
     }
 }
@@ -114,11 +111,8 @@ impl Stashable<StashingContext> for Variable {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for Variable {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for Variable {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         let new_value = unstasher.f32_always()?;
         if unstasher.time_to_write() {
             self.value.store(new_value, Ordering::SeqCst);
@@ -221,10 +215,10 @@ macro_rules! unary_expression_node {
             }
         }
 
-        impl<'a> UnstashableInplace<UnstashingContext<'a>> for $name {
+        impl UnstashableInplace for $name {
             fn unstash_inplace(
                 &mut self,
-                unstasher: &mut InplaceUnstasher<UnstashingContext>,
+                unstasher: &mut InplaceUnstasher,
             ) -> Result<(), UnstashError> {
                 unstasher.object_inplace(&mut self.input)?;
                 Ok(())
@@ -279,10 +273,10 @@ macro_rules! binary_expression_node {
             }
         }
 
-        impl<'a> UnstashableInplace<UnstashingContext<'a>> for $name {
+        impl UnstashableInplace for $name {
             fn unstash_inplace(
                 &mut self,
-                unstasher: &mut InplaceUnstasher<UnstashingContext>,
+                unstasher: &mut InplaceUnstasher,
             ) -> Result<(), UnstashError> {
                 unstasher.object_inplace(&mut self.input_1)?;
                 unstasher.object_inplace(&mut self.input_2)?;
@@ -343,10 +337,10 @@ macro_rules! ternary_expression_node {
             }
         }
 
-        impl<'a> UnstashableInplace<UnstashingContext<'a>> for $name {
+        impl UnstashableInplace for $name {
             fn unstash_inplace(
                 &mut self,
-                unstasher: &mut InplaceUnstasher<UnstashingContext>,
+                unstasher: &mut InplaceUnstasher,
             ) -> Result<(), UnstashError> {
                 unstasher.object_inplace(&mut self.input_1)?;
                 unstasher.object_inplace(&mut self.input_2)?;

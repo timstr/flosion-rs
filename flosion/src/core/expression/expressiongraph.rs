@@ -8,10 +8,10 @@ use hashstash::{
 use crate::{
     core::{
         expression::expressiongraphvalidation::find_expression_error,
-        stashing::{StashingContext, UnstashingContext},
+        stashing::{ExpressionUnstashingContext, StashingContext, UnstashingContext},
         uniqueid::UniqueId,
     },
-    ui_core::{arguments::ParsedArguments, factories::Factories},
+    ui_core::arguments::ParsedArguments,
 };
 
 use super::{
@@ -19,6 +19,7 @@ use super::{
     expressiongrapherror::ExpressionError,
     expressioninput::{ExpressionInput, ExpressionInputId, ExpressionInputLocation},
     expressionnode::{AnyExpressionNode, ExpressionNodeId},
+    expressionobject::ExpressionObjectFactory,
 };
 
 pub struct ExpressionGraphParameterTag;
@@ -272,7 +273,7 @@ impl ExpressionGraph {
     pub fn try_make_change<R, F: FnOnce(&mut ExpressionGraph) -> Result<R, ExpressionError>>(
         &mut self,
         stash: &Stash,
-        factories: &Factories,
+        expression_object_factory: &ExpressionObjectFactory,
         f: F,
     ) -> Result<R, ExpressionError> {
         if let Err(e) = self.validate() {
@@ -285,7 +286,7 @@ impl ExpressionGraph {
             self,
             stash,
             StashingContext::new_stashing_normally(),
-            UnstashingContext::new(factories),
+            ExpressionUnstashingContext::new(expression_object_factory),
         )
         .unwrap();
 
@@ -344,9 +345,9 @@ impl Stashable<StashingContext> for ExpressionGraph {
     }
 }
 
-impl<'a> Unstashable<UnstashingContext<'a>> for ExpressionGraph {
+impl<'a> Unstashable<ExpressionUnstashingContext<'a>> for ExpressionGraph {
     fn unstash(
-        unstasher: &mut Unstasher<UnstashingContext>,
+        unstasher: &mut Unstasher<ExpressionUnstashingContext>,
     ) -> Result<ExpressionGraph, UnstashError> {
         let mut graph = ExpressionGraph::new();
 
@@ -360,14 +361,16 @@ impl<'a> Unstashable<UnstashingContext<'a>> for ExpressionGraph {
 
             let mut node = unstasher
                 .context()
-                .factories()
-                .expression_objects()
+                .expression_object_factory()
                 .create(&type_name, &ParsedArguments::new_empty())
                 .into_boxed_expression_node()
                 .unwrap();
 
             // contents
-            unstasher.object_proxy_inplace(|unstasher| node.unstash_inplace(unstasher))?;
+            unstasher.object_proxy_inplace_with_context(
+                |unstasher| node.unstash_inplace(unstasher),
+                (),
+            )?;
 
             debug_assert_eq!(node.id(), id);
 
@@ -383,7 +386,7 @@ impl<'a> Unstashable<UnstashingContext<'a>> for ExpressionGraph {
             .collect();
 
         // results
-        graph.results = unstasher.array_of_objects_vec()?;
+        graph.results = unstasher.array_of_objects_vec_with_context(())?;
 
         Ok(graph)
     }
@@ -407,19 +410,23 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExpressionGraph {
             let type_name = unstasher.string()?;
 
             if let Some(existing_node) = self.node_mut(id) {
-                unstasher
-                    .object_proxy_inplace(|unstasher| existing_node.unstash_inplace(unstasher))?;
+                unstasher.object_proxy_inplace_with_context(
+                    |unstasher| existing_node.unstash_inplace(unstasher),
+                    (),
+                )?;
             } else {
                 let mut node = unstasher
                     .context()
-                    .factories()
-                    .expression_objects()
+                    .expression_object_factory()
                     .create(&type_name, &ParsedArguments::new_empty())
                     .into_boxed_expression_node()
                     .unwrap();
 
                 // contents
-                unstasher.object_proxy_inplace(|unstasher| node.unstash_inplace(unstasher))?;
+                unstasher.object_proxy_inplace_with_context(
+                    |unstasher| node.unstash_inplace(unstasher),
+                    (),
+                )?;
 
                 if time_to_write {
                     self.add_expression_node(node);
@@ -446,7 +453,7 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExpressionGraph {
         }
 
         // results
-        unstasher.array_of_objects_vec_inplace(&mut self.results)?;
+        unstasher.array_of_objects_vec_inplace_with_context(&mut self.results, ())?;
 
         Ok(())
     }

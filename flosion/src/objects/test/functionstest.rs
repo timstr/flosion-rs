@@ -135,11 +135,8 @@ impl Stashable<StashingContext> for Identity {
     }
 }
 
-impl UnstashableInplace<UnstashingContext<'_>> for Identity {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for Identity {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)
     }
 }
@@ -167,10 +164,7 @@ macro_rules! assert_near {
 
 fn do_expression_test<T, F>(input_ranges: &[(f32, f32)], test_function: F)
 where
-    T: 'static
-        + PureExpressionNode
-        + Stashable<StashingContext>
-        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
+    T: 'static + PureExpressionNode + Stashable<StashingContext> + UnstashableInplace,
     F: Fn(&[f32]) -> f32,
 {
     let mut proc = SoundProcessorWithId::<TestSoundProcessor>::new_default();
@@ -308,10 +302,7 @@ where
 
 fn do_expression_test_unary<T>(input_range: (f32, f32), test_function: fn(f32) -> f32)
 where
-    T: 'static
-        + PureExpressionNode
-        + Stashable<StashingContext>
-        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
+    T: 'static + PureExpressionNode + Stashable<StashingContext> + UnstashableInplace,
 {
     do_expression_test::<T, _>(&[input_range], |inputs| test_function(inputs[0]))
 }
@@ -321,10 +312,7 @@ fn do_expression_test_binary<T>(
     input1_range: (f32, f32),
     test_function: fn(f32, f32) -> f32,
 ) where
-    T: 'static
-        + PureExpressionNode
-        + Stashable<StashingContext>
-        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
+    T: 'static + PureExpressionNode + Stashable<StashingContext> + UnstashableInplace,
 {
     do_expression_test::<T, _>(&[input0_range, input1_range], |inputs| {
         test_function(inputs[0], inputs[1])
@@ -337,10 +325,7 @@ fn do_expression_test_ternary<T>(
     input2_range: (f32, f32),
     test_function: fn(f32, f32, f32) -> f32,
 ) where
-    T: 'static
-        + PureExpressionNode
-        + Stashable<StashingContext>
-        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
+    T: 'static + PureExpressionNode + Stashable<StashingContext> + UnstashableInplace,
 {
     do_expression_test::<T, _>(&[input0_range, input1_range, input2_range], |inputs| {
         test_function(inputs[0], inputs[1], inputs[2])

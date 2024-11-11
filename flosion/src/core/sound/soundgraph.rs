@@ -6,8 +6,11 @@ use hashstash::{
 };
 
 use crate::{
-    core::stashing::{StashingContext, UnstashingContext},
-    ui_core::{arguments::ParsedArguments, factories::Factories},
+    core::{
+        expression::expressionobject::ExpressionObjectFactory,
+        stashing::{StashingContext, UnstashingContext},
+    },
+    ui_core::arguments::ParsedArguments,
 };
 
 use super::{
@@ -15,6 +18,7 @@ use super::{
     soundgraphid::{SoundGraphComponentLocation, SoundObjectId},
     soundgraphvalidation::find_sound_error,
     soundinput::{BasicProcessorInput, SoundInputLocation},
+    soundobject::SoundObjectFactory,
     soundprocessor::{AnySoundProcessor, SoundProcessorId},
 };
 
@@ -200,7 +204,8 @@ impl SoundGraph {
     pub fn try_make_change<R, F: FnOnce(&mut SoundGraph) -> Result<R, SoundError>>(
         &mut self,
         stash: &Stash,
-        factories: &Factories,
+        sound_object_factory: &SoundObjectFactory,
+        expression_object_factory: &ExpressionObjectFactory,
         f: F,
     ) -> Result<R, SoundError> {
         if let Err(e) = self.validate() {
@@ -214,7 +219,7 @@ impl SoundGraph {
             self,
             stash,
             StashingContext::new_stashing_normally(),
-            UnstashingContext::new(factories),
+            UnstashingContext::new(sound_object_factory, expression_object_factory),
         )
         .unwrap();
 
@@ -296,8 +301,7 @@ impl Unstashable<UnstashingContext<'_>> for SoundGraph {
 
             let mut processor = unstasher
                 .context()
-                .factories()
-                .sound_objects()
+                .sound_object_factory()
                 .create(&type_name, &ParsedArguments::new_empty())
                 .into_boxed_sound_processor()
                 .unwrap();
@@ -339,8 +343,7 @@ impl UnstashableInplace<UnstashingContext<'_>> for SoundGraph {
             } else {
                 let mut proc = unstasher
                     .context()
-                    .factories()
-                    .sound_objects()
+                    .sound_object_factory()
                     .create(&type_name, &ParsedArguments::new_empty())
                     .into_boxed_sound_processor()
                     .unwrap();

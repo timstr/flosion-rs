@@ -393,7 +393,7 @@ fn compute_legal_drop_sites(
             graph,
             stash,
             StashingContext::new_stashing_normally(),
-            UnstashingContext::new(factories),
+            UnstashingContext::new(factories.sound_objects(), factories.expression_objects()),
         )
         .unwrap();
 
@@ -572,14 +572,19 @@ impl DropInteraction {
             #[cfg(debug_assertions)]
             assert!(layout.check_invariants(graph));
 
-            let drag_and_drop_result = graph.try_make_change(stash, factories, |graph| {
-                Ok(drag_and_drop_in_graph(
-                    graph,
-                    layout,
-                    self.subject,
-                    *nearest_drop_site,
-                ))
-            });
+            let drag_and_drop_result = graph.try_make_change(
+                stash,
+                factories.sound_objects(),
+                factories.expression_objects(),
+                |graph| {
+                    Ok(drag_and_drop_in_graph(
+                        graph,
+                        layout,
+                        self.subject,
+                        *nearest_drop_site,
+                    ))
+                },
+            );
 
             match drag_and_drop_result {
                 Ok(DragDropLegality::Legal) => { /* nice */ }
@@ -610,10 +615,15 @@ impl DropInteraction {
             if let DragDropSubject::Processor(spid) = self.subject {
                 if !layout.is_processor_alone(spid) {
                     graph
-                        .try_make_change(stash, factories, |graph| {
-                            disconnect_processor_in_graph(spid, graph);
-                            Ok(())
-                        })
+                        .try_make_change(
+                            stash,
+                            factories.sound_objects(),
+                            factories.expression_objects(),
+                            |graph| {
+                                disconnect_processor_in_graph(spid, graph);
+                                Ok(())
+                            },
+                        )
                         .unwrap();
 
                     layout.split_processor_into_own_group(spid, positions);

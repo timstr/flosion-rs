@@ -135,11 +135,8 @@ impl Stashable<StashingContext> for LinearApproach {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for LinearApproach {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for LinearApproach {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         unstasher.object_inplace(&mut self.speed)?;
         Ok(())
@@ -256,11 +253,8 @@ impl Stashable<StashingContext> for ExponentialApproach {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExponentialApproach {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for ExponentialApproach {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         unstasher.object_inplace(&mut self.decay_rate)?;
         Ok(())
@@ -338,11 +332,8 @@ impl Stashable<StashingContext> for Integrator {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for Integrator {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for Integrator {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         Ok(())
     }
@@ -424,11 +415,8 @@ impl Stashable<StashingContext> for WrappingIntegrator {
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for WrappingIntegrator {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for WrappingIntegrator {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input)?;
         Ok(())
     }

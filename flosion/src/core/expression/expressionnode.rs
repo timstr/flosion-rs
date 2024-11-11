@@ -10,7 +10,7 @@ use crate::{
     core::{
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
-        stashing::{StashingContext, UnstashingContext},
+        stashing::StashingContext,
         uniqueid::UniqueId,
     },
     ui_core::arguments::ParsedArguments,
@@ -73,10 +73,7 @@ pub trait AnyExpressionNode {
     fn visit_mut(&mut self, visitor: &mut dyn ExpressionNodeVisitorMut);
 
     fn stash(&self, stasher: &mut Stasher<StashingContext>);
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError>;
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError>;
 }
 
 /// An Expression which might have hidden state and/or might require
@@ -216,11 +213,7 @@ impl<T> DerefMut for ExpressionNodeWithId<T> {
 
 impl<T> AnyExpressionNode for ExpressionNodeWithId<T>
 where
-    T: 'static
-        + ExpressionNode
-        + WithObjectType
-        + Stashable<StashingContext>
-        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
+    T: 'static + ExpressionNode + WithObjectType + Stashable<StashingContext> + UnstashableInplace,
 {
     fn id(&self) -> ExpressionNodeId {
         self.id
@@ -343,10 +336,7 @@ where
         // contents
         stasher.object_proxy(|stasher| self.instance.stash(stasher));
     }
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         // id
         let id = ExpressionNodeId::new(unstasher.u64_always()? as _);
         if unstasher.time_to_write() {
@@ -482,11 +472,7 @@ impl<'a> dyn AnyExpressionNode + 'a {
 
 impl<T> ExpressionObject for ExpressionNodeWithId<T>
 where
-    T: 'static
-        + ExpressionNode
-        + WithObjectType
-        + Stashable<StashingContext>
-        + for<'a> UnstashableInplace<UnstashingContext<'a>>,
+    T: 'static + ExpressionNode + WithObjectType + Stashable<StashingContext> + UnstashableInplace,
 {
     fn create(args: &ParsedArguments) -> ExpressionNodeWithId<T> {
         ExpressionNodeWithId::new_from_args(args)

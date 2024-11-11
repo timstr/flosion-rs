@@ -17,15 +17,13 @@ use super::{
     stategraphedit::StateGraphEdit,
 };
 
-use crate::{
-    core::{
-        jit::{argumentstack::ArgumentStack, cache::JitCache},
-        samplefrequency::SAMPLE_FREQUENCY,
-        sound::soundgraph::SoundGraph,
-        soundchunk::CHUNK_SIZE,
-        stashing::{StashingContext, UnstashingContext},
-    },
-    ui_core::factories::Factories,
+use crate::core::{
+    expression::expressionobject::ExpressionObjectFactory,
+    jit::{argumentstack::ArgumentStack, cache::JitCache},
+    samplefrequency::SAMPLE_FREQUENCY,
+    sound::{soundgraph::SoundGraph, soundobject::SoundObjectFactory},
+    soundchunk::CHUNK_SIZE,
+    stashing::{StashingContext, UnstashingContext},
 };
 
 /// A thread-safe signaling mechanism used to communicate
@@ -138,7 +136,8 @@ impl<'ctx> SoundEngineInterface<'ctx> {
         new_graph: &SoundGraph,
         jit_cache: &JitCache<'ctx>,
         stash: &Stash,
-        factories: &Factories,
+        sound_object_factory: &SoundObjectFactory,
+        expression_object_factory: &ExpressionObjectFactory,
     ) -> Result<(), ()> {
         let new_revision = ObjectHash::from_stashable_and_context(
             new_graph,
@@ -169,7 +168,7 @@ impl<'ctx> SoundEngineInterface<'ctx> {
             new_graph,
             stash,
             StashingContext::new_stashing_normally(),
-            UnstashingContext::new(factories),
+            UnstashingContext::new(sound_object_factory, expression_object_factory),
         )
         .unwrap();
 

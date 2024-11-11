@@ -16,7 +16,7 @@ use crate::{
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
-        stashing::{StashingContext, UnstashingContext},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };
@@ -63,11 +63,8 @@ impl Stashable<StashingContext> for TestExpressionNode {
     }
 }
 
-impl UnstashableInplace<UnstashingContext<'_>> for TestExpressionNode {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext<'_>>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for TestExpressionNode {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         unstasher.object_inplace(&mut self.input1)?;
         unstasher.object_inplace(&mut self.input2)?;
         Ok(())

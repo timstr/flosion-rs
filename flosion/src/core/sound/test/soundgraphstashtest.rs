@@ -39,7 +39,7 @@ fn stash_clone_basic_input() {
         &input,
         &stash,
         StashingContext::new_stashing_normally(),
-        UnstashingContext::new(&factories),
+        UnstashingContext::new(factories.sound_objects(), factories.expression_objects()),
     )
     .unwrap();
 
@@ -74,7 +74,7 @@ fn stash_clone_test_static_processor() {
         .unstash_inplace_with_context(
             &stash_handle,
             &mut new_proc,
-            UnstashingContext::new(&factories),
+            UnstashingContext::new(factories.sound_objects(), factories.expression_objects()),
         )
         .unwrap();
 
@@ -92,7 +92,7 @@ fn stash_clone_empty_graph() {
         &graph,
         &stash,
         StashingContext::new_stashing_normally(),
-        UnstashingContext::new(&factories),
+        UnstashingContext::new(factories.sound_objects(), factories.expression_objects()),
     )
     .unwrap();
 
@@ -128,7 +128,7 @@ fn stash_clone_graph_with_one_static_processor() {
         &graph,
         &stash,
         StashingContext::new_stashing_normally(),
-        UnstashingContext::new(&factories),
+        UnstashingContext::new(factories.sound_objects(), factories.expression_objects()),
     )
     .unwrap();
 
@@ -173,7 +173,7 @@ fn stash_clone_graph_with_one_dynamic_processor() {
         &graph,
         &stash,
         StashingContext::new_stashing_normally(),
-        UnstashingContext::new(&factories),
+        UnstashingContext::new(factories.sound_objects(), factories.expression_objects()),
     )
     .unwrap();
 

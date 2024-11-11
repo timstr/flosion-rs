@@ -170,7 +170,13 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
             self.interact_and_draw(ui);
 
             self.engine_interface
-                .update(&self.graph, &self.jit_cache, &self.stash, &self.factories)
+                .update(
+                    &self.graph,
+                    &self.jit_cache,
+                    &self.stash,
+                    self.factories.sound_objects(),
+                    self.factories.expression_objects(),
+                )
                 .expect("Failed to update engine");
 
             self.garbage_disposer.clear();

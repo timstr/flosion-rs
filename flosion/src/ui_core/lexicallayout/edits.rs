@@ -153,7 +153,9 @@ fn delete_nodes_from_graph_at_cursor(
 
         // Delete the expression node itself
         graph
-            .try_make_change(stash, factories, |graph| graph.remove_node(nsid))
+            .try_make_change(stash, factories.expression_objects(), |graph| {
+                graph.remove_node(nsid)
+            })
             .unwrap();
     }
 
@@ -230,7 +232,9 @@ fn disconnect_each_variable_use(
                 debug_assert_eq!(outputs.len(), 1);
                 let goid = outputs[0].id();
                 graph
-                    .try_make_change(stash, factories, |graph| graph.disconnect_result(goid))
+                    .try_make_change(stash, factories.expression_objects(), |graph| {
+                        graph.disconnect_result(goid)
+                    })
                     .unwrap();
             }
             ASTNodeParent::InternalNode(internal_node, child_index) => {
@@ -239,7 +243,9 @@ fn disconnect_each_variable_use(
                 debug_assert_eq!(inputs.len(), internal_node.num_children());
                 let niid = inputs[child_index];
                 graph
-                    .try_make_change(stash, factories, |graph| graph.connect_input(niid, None))
+                    .try_make_change(stash, factories.expression_objects(), |graph| {
+                        graph.connect_input(niid, None)
+                    })
                     .unwrap();
             }
         }
@@ -277,7 +283,7 @@ fn connect_each_variable_use(
                     debug_assert_eq!(outputs.len(), 1);
                     let goid = outputs[0].id();
                     expr_graph
-                        .try_make_change(stash, factories, |graph| {
+                        .try_make_change(stash, factories.expression_objects(), |graph| {
                             graph.connect_result(goid, target)
                         })
                         .unwrap();
@@ -288,7 +294,7 @@ fn connect_each_variable_use(
                     debug_assert_eq!(inputs.len(), internal_node.num_children());
                     let niid = inputs[child_index];
                     expr_graph
-                        .try_make_change(stash, factories, |graph| {
+                        .try_make_change(stash, factories.expression_objects(), |graph| {
                             graph.connect_input(niid, Some(target))
                         })
                         .unwrap();
@@ -363,7 +369,9 @@ fn disconnect_result(
         return;
     }
     graph
-        .try_make_change(stash, factories, |graph| graph.disconnect_result(result_id))
+        .try_make_change(stash, factories.expression_objects(), |graph| {
+            graph.disconnect_result(result_id)
+        })
         .unwrap();
 }
 
@@ -380,7 +388,9 @@ fn disconnect_internal_node(
     let input = parent_ns_inputs[child_index];
     if graph.input_target(input).unwrap().is_some() {
         graph
-            .try_make_change(stash, factories, |graph| graph.connect_input(input, None))
+            .try_make_change(stash, factories.expression_objects(), |graph| {
+                graph.connect_input(input, None)
+            })
             .unwrap();
     }
 }

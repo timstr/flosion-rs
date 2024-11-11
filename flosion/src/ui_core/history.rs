@@ -102,7 +102,11 @@ impl History {
         app_state: &mut AppState,
     ) {
         stash
-            .unstash_inplace_with_context(&snapshot.graph, graph, UnstashingContext::new(factories))
+            .unstash_inplace_with_context(
+                &snapshot.graph,
+                graph,
+                UnstashingContext::new(factories.sound_objects(), factories.expression_objects()),
+            )
             .unwrap();
 
         debug_assert_eq!(
