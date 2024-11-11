@@ -38,7 +38,7 @@ use super::{
 pub(super) const FLAG_NOT_INITIALIZED: u8 = 0;
 pub(super) const FLAG_INITIALIZED: u8 = 1;
 
-pub(crate) struct InstructionLocations<'ctx> {
+pub(crate) struct Blocks<'ctx> {
     pub(crate) entry: BasicBlock<'ctx>,
     pub(crate) check_startover: BasicBlock<'ctx>,
     pub(crate) startover: BasicBlock<'ctx>,
@@ -59,7 +59,7 @@ pub struct LocalVariables<'ctx> {
 }
 
 pub struct Jit<'ctx> {
-    pub(crate) instruction_locations: InstructionLocations<'ctx>,
+    pub(crate) blocks: Blocks<'ctx>,
     pub(super) local_variables: LocalVariables<'ctx>,
     pub(crate) types: JitTypes<'ctx>,
     pub(super) wrapper_functions: WrapperFunctions<'ctx>,
@@ -253,7 +253,7 @@ impl<'ctx> Jit<'ctx> {
             builder.build_return(None)?;
         }
 
-        let instruction_locations = InstructionLocations {
+        let instruction_locations = Blocks {
             entry: bb_entry,
             check_startover: bb_check_startover,
             startover: bb_startover,
@@ -274,7 +274,7 @@ impl<'ctx> Jit<'ctx> {
         };
 
         Ok(Jit {
-            instruction_locations,
+            blocks: instruction_locations,
             local_variables,
             types,
             function_name,
@@ -371,8 +371,7 @@ impl<'ctx> Jit<'ctx> {
                 self.num_state_variables += num_variables;
 
                 // Get pointers to state variables in shared state array
-                self.builder
-                    .position_at_end(self.instruction_locations.entry);
+                self.builder.position_at_end(self.blocks.entry);
                 let state_ptrs: Vec<PointerValue<'ctx>> = (0..num_variables)
                     .map(|i| {
                         let ptr_all_states = self.local_variables.state;
@@ -429,8 +428,7 @@ impl<'ctx> Jit<'ctx> {
         &mut self,
         argument_id: ProcessorArgumentId,
     ) -> PointerValue<'ctx> {
-        self.builder
-            .position_at_end(self.instruction_locations.entry);
+        self.builder.position_at_end(self.blocks.entry);
         let arg_id = self
             .types
             .usize_type
@@ -451,8 +449,7 @@ impl<'ctx> Jit<'ctx> {
     }
 
     fn build_processor_time(&mut self, processor_id: SoundProcessorId) -> FloatValue<'ctx> {
-        self.builder
-            .position_at_end(self.instruction_locations.entry);
+        self.builder.position_at_end(self.blocks.entry);
         let spid = self
             .types
             .usize_type
@@ -492,8 +489,7 @@ impl<'ctx> Jit<'ctx> {
             .build_float_mul(speed, self.local_variables.time_step, "adjusted_time_step")
             .unwrap();
 
-        self.builder
-            .position_at_end(self.instruction_locations.loop_body);
+        self.builder.position_at_end(self.blocks.loop_body);
 
         let index_float = self
             .builder
@@ -517,8 +513,7 @@ impl<'ctx> Jit<'ctx> {
     }
 
     fn build_input_time(&mut self, input_location: SoundInputLocation) -> FloatValue<'ctx> {
-        self.builder
-            .position_at_end(self.instruction_locations.entry);
+        self.builder.position_at_end(self.blocks.entry);
         let proc_id = self
             .types
             .usize_type
@@ -563,8 +558,7 @@ impl<'ctx> Jit<'ctx> {
             .build_float_mul(speed, self.local_variables.time_step, "adjusted_time_step")
             .unwrap();
 
-        self.builder
-            .position_at_end(self.instruction_locations.loop_body);
+        self.builder.position_at_end(self.blocks.loop_body);
 
         let index_float = self
             .builder
@@ -717,8 +711,7 @@ impl<'ctx> Jit<'ctx> {
         // Read the atomic only once before the loop, since it's not
         // expected to change during the loop execution and repeated
         // atomic reads would be wasteful
-        self.builder
-            .position_at_end(self.instruction_locations.entry);
+        self.builder.position_at_end(self.blocks.entry);
 
         let ptr_val = self
             .builder
@@ -736,8 +729,7 @@ impl<'ctx> Jit<'ctx> {
         // Store an Arc to the value to ensure it stays alive
         self.atomic_captures.push(value);
 
-        self.builder
-            .position_at_end(self.instruction_locations.loop_body);
+        self.builder.position_at_end(self.blocks.loop_body);
 
         load.into_float_value()
     }
@@ -806,8 +798,7 @@ impl<'ctx> Jit<'ctx> {
         mode: JitMode,
     ) {
         for (param_id, target) in parameter_mapping.items() {
-            self.builder()
-                .position_at_end(self.instruction_locations.loop_body);
+            self.builder().position_at_end(self.blocks.loop_body);
 
             let param_value = match mode {
                 JitMode::Normal => match target {
@@ -889,8 +880,7 @@ impl<'ctx> Jit<'ctx> {
         };
 
         // entry -> if len == 0 then exit else check_startover
-        self.builder
-            .position_at_end(self.instruction_locations.entry);
+        self.builder.position_at_end(self.blocks.entry);
         {
             // len_is_zero = dst_len == 0
             let len_is_zero = self
@@ -907,42 +897,38 @@ impl<'ctx> Jit<'ctx> {
             self.builder
                 .build_conditional_branch(
                     len_is_zero,
-                    self.instruction_locations.exit,
-                    self.instruction_locations.check_startover,
+                    self.blocks.exit,
+                    self.blocks.check_startover,
                 )
                 .unwrap();
         }
 
         // startover -> pre_loop
-        self.builder
-            .position_at_end(self.instruction_locations.startover);
+        self.builder.position_at_end(self.blocks.startover);
         {
             self.builder
-                .build_unconditional_branch(self.instruction_locations.pre_loop)
+                .build_unconditional_branch(self.blocks.pre_loop)
                 .unwrap();
         }
 
         // resume -> pre_loop
-        self.builder
-            .position_at_end(self.instruction_locations.resume);
+        self.builder.position_at_end(self.blocks.resume);
         {
             self.builder
-                .build_unconditional_branch(self.instruction_locations.pre_loop)
+                .build_unconditional_branch(self.blocks.pre_loop)
                 .unwrap();
         }
 
         // pre_loop -> loop
-        self.builder
-            .position_at_end(self.instruction_locations.pre_loop);
+        self.builder.position_at_end(self.blocks.pre_loop);
         {
             self.builder
-                .build_unconditional_branch(self.instruction_locations.loop_body)
+                .build_unconditional_branch(self.blocks.loop_body)
                 .unwrap();
         }
 
         // loop_body -> if loop_counter + 1 == len then post_loop else loop_body
-        self.builder
-            .position_at_end(self.instruction_locations.loop_body);
+        self.builder.position_at_end(self.blocks.loop_body);
         {
             let dst_elem_ptr = unsafe {
                 self.builder.build_gep(
@@ -981,18 +967,17 @@ impl<'ctx> Jit<'ctx> {
             self.builder
                 .build_conditional_branch(
                     v_loop_counter_ge_len,
-                    self.instruction_locations.post_loop,
-                    self.instruction_locations.loop_body,
+                    self.blocks.post_loop,
+                    self.blocks.loop_body,
                 )
                 .unwrap();
         }
 
         // post_loop -> exit
-        self.builder
-            .position_at_end(self.instruction_locations.post_loop);
+        self.builder.position_at_end(self.blocks.post_loop);
         {
             self.builder
-                .build_unconditional_branch(self.instruction_locations.exit)
+                .build_unconditional_branch(self.blocks.exit)
                 .unwrap();
         }
 

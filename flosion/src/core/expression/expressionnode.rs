@@ -238,8 +238,7 @@ where
         state_ptrs: &[PointerValue<'ctx>],
     ) -> FloatValue<'ctx> {
         // Allocate stack variables for state variables
-        jit.builder()
-            .position_at_end(jit.instruction_locations.entry);
+        jit.builder().position_at_end(jit.blocks.entry);
         let stack_variables: Vec<PointerValue<'ctx>> = (0..self.num_variables())
             .map(|i| {
                 jit.builder()
@@ -255,8 +254,7 @@ where
         // =       First-time initialization and starting over       =
         // ===========================================================
         // assign initial values to stack variables
-        jit.builder()
-            .position_at_end(jit.instruction_locations.startover);
+        jit.builder().position_at_end(jit.blocks.startover);
         let init_variable_values = self.compile_start_over(jit);
         debug_assert_eq!(init_variable_values.len(), self.num_variables());
         for (stack_var, init_value) in stack_variables.iter().zip(init_variable_values) {
@@ -267,8 +265,7 @@ where
         // =                Non-first-time resumption                =
         // ===========================================================
         // copy state array values into stack variables
-        jit.builder()
-            .position_at_end(jit.instruction_locations.resume);
+        jit.builder().position_at_end(jit.blocks.resume);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *ptr_state
             let tmp = jit
@@ -283,16 +280,14 @@ where
         // =           Pre-loop resumption and preparation           =
         // ===========================================================
         // any custom pre-loop work
-        jit.builder()
-            .position_at_end(jit.instruction_locations.pre_loop);
+        jit.builder().position_at_end(jit.blocks.pre_loop);
         let compile_state = self.instance.compile_pre_loop(jit);
 
         // ===========================================================
         // =            Post-loop persisting and tear-down           =
         // ===========================================================
         // at end of loop, copy stack variables into state array
-        jit.builder()
-            .position_at_end(jit.instruction_locations.post_loop);
+        jit.builder().position_at_end(jit.blocks.post_loop);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *stack_var
             let tmp = jit
@@ -308,8 +303,7 @@ where
         // ===========================================================
         // =                        The loop                         =
         // ===========================================================
-        jit.builder()
-            .position_at_end(jit.instruction_locations.loop_body);
+        jit.builder().position_at_end(jit.blocks.loop_body);
         let loop_value = self.compile_loop(jit, inputs, &stack_variables, &compile_state);
 
         loop_value

@@ -95,8 +95,7 @@ impl<T: ArgumentTranslation> ProcessorArgument<T> {
     pub(crate) fn compile_evaluation<'ctx>(&self, jit: &mut Jit<'ctx>) -> FloatValue<'ctx> {
         let ptr = jit.build_argument_pointer(self.id);
         let loaded_values = T::InternalType::generate_load_calls(ptr, jit);
-        jit.builder()
-            .position_at_end(jit.instruction_locations.loop_body);
+        jit.builder().position_at_end(jit.blocks.loop_body);
         T::compile(loaded_values, jit)
     }
 }
