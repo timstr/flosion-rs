@@ -35,7 +35,7 @@ use super::{
 };
 
 pub(super) const FLAG_NOT_INITIALIZED: u8 = 0;
-pub(super) const FLAG_INITIALIZED: u8 = 0;
+pub(super) const FLAG_INITIALIZED: u8 = 1;
 
 pub(crate) struct InstructionLocations<'ctx> {
     pub(crate) end_of_entry: InstructionValue<'ctx>,
