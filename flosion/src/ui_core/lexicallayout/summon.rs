@@ -43,6 +43,18 @@ pub(super) fn build_summon_widget_for_processor_expression(
         )),
     );
 
+    builder.add_basic_name(
+        format!(
+            "{}.time",
+            ctx.sound_graph_names()
+                .sound_processor(ctx.location().processor())
+                .unwrap()
+        ),
+        ExpressionSummonValue::ParameterTarget(ExpressionParameterTarget::ProcessorTime(
+            ctx.location().processor(),
+        )),
+    );
+
     for input_loc in ctx.available_sound_inputs() {
         builder.add_basic_name(
             format!(
