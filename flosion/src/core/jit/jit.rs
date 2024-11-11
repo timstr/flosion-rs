@@ -39,7 +39,8 @@ pub(super) const FLAG_NOT_INITIALIZED: u8 = 0;
 pub(super) const FLAG_INITIALIZED: u8 = 1;
 
 pub(crate) struct InstructionLocations<'ctx> {
-    pub(crate) end_of_entry: InstructionValue<'ctx>,
+    pub(crate) entry: BasicBlock<'ctx>,
+    pub(crate) check_startover: BasicBlock<'ctx>,
     pub(crate) end_of_startover: InstructionValue<'ctx>,
     pub(crate) end_of_resume: InstructionValue<'ctx>,
     pub(crate) end_of_pre_loop: InstructionValue<'ctx>,
@@ -192,7 +193,6 @@ impl<'ctx> Jit<'ctx> {
         arg_time_step.set_name("time_step");
         arg_ctx_ptr.set_name("context_ptr");
 
-        let inst_end_of_entry;
         let inst_end_of_startover;
         let inst_end_of_resume;
         let inst_end_of_pre_loop;
@@ -202,19 +202,8 @@ impl<'ctx> Jit<'ctx> {
         // entry
         builder.position_at_end(bb_entry);
         {
-            // len_is_zero = dst_len == 0
-            let len_is_zero = builder.build_int_compare(
-                inkwell::IntPredicate::EQ,
-                arg_dst_len,
-                types.usize_type.const_zero(),
-                "len_is_zero",
-            )?;
 
             // array read functions and state pointer offsets will be inserted here later
-
-            // if len == 0 { goto exit } else { goto check_startover }
-            inst_end_of_entry =
-                builder.build_conditional_branch(len_is_zero, bb_exit, bb_check_startover)?;
         }
 
         // check_startover
@@ -303,7 +292,8 @@ impl<'ctx> Jit<'ctx> {
         }
 
         let instruction_locations = InstructionLocations {
-            end_of_entry: inst_end_of_entry,
+            entry: bb_entry,
+            check_startover: bb_check_startover,
             end_of_startover: inst_end_of_startover,
             end_of_resume: inst_end_of_resume,
             end_of_pre_loop: inst_end_of_pre_loop,
@@ -420,7 +410,7 @@ impl<'ctx> Jit<'ctx> {
 
                 // Get pointers to state variables in shared state array
                 self.builder
-                    .position_before(&self.instruction_locations.end_of_entry);
+                    .position_at_end(self.instruction_locations.entry);
                 let state_ptrs: Vec<PointerValue<'ctx>> = (0..num_variables)
                     .map(|i| {
                         let ptr_all_states = self.local_variables.state;
@@ -478,7 +468,7 @@ impl<'ctx> Jit<'ctx> {
         argument_id: ProcessorArgumentId,
     ) -> PointerValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
+            .position_at_end(self.instruction_locations.entry);
         let arg_id = self
             .types
             .usize_type
@@ -500,7 +490,7 @@ impl<'ctx> Jit<'ctx> {
 
     fn build_processor_time(&mut self, processor_id: SoundProcessorId) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
+            .position_at_end(self.instruction_locations.entry);
         let spid = self
             .types
             .usize_type
@@ -566,7 +556,7 @@ impl<'ctx> Jit<'ctx> {
 
     fn build_input_time(&mut self, input_location: SoundInputLocation) -> FloatValue<'ctx> {
         self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
+            .position_at_end(self.instruction_locations.entry);
         let proc_id = self
             .types
             .usize_type
@@ -766,7 +756,7 @@ impl<'ctx> Jit<'ctx> {
         // expected to change during the loop execution and repeated
         // atomic reads would be wasteful
         self.builder
-            .position_before(&self.instruction_locations.end_of_entry);
+            .position_at_end(self.instruction_locations.entry);
 
         let ptr_val = self
             .builder
@@ -936,56 +926,86 @@ impl<'ctx> Jit<'ctx> {
                 .into(),
         };
 
+        // entry -> if len == 0 then exit else check_startover
+        self.builder
+            .position_at_end(self.instruction_locations.entry);
+        {
+            // len_is_zero = dst_len == 0
+            let len_is_zero = self
+                .builder
+                .build_int_compare(
+                    inkwell::IntPredicate::EQ,
+                    self.local_variables.dst_len,
+                    self.types.usize_type.const_zero(),
+                    "len_is_zero",
+                )
+                .unwrap();
+
+            // if len == 0 { goto exit } else { goto check_startover }
+            self.builder
+                .build_conditional_branch(
+                    len_is_zero,
+                    self.instruction_locations.exit,
+                    self.instruction_locations.check_startover,
+                )
+                .unwrap();
+        }
+
+        // loop_body -> if loop_counter + 1 == len then post_loop else loop_body
         self.builder
             .position_at_end(self.instruction_locations.loop_body);
+        {
+            let dst_elem_ptr = unsafe {
+                self.builder.build_gep(
+                    self.types.f32_type,
+                    self.local_variables.dst_ptr,
+                    &[self.local_variables.loop_counter],
+                    "dst_elem_ptr",
+                )
+            }
+            .unwrap();
+            self.builder.build_store(dst_elem_ptr, final_value).unwrap();
 
-        let dst_elem_ptr = unsafe {
-            self.builder.build_gep(
-                self.types.f32_type,
-                self.local_variables.dst_ptr,
-                &[self.local_variables.loop_counter],
-                "dst_elem_ptr",
-            )
+            let loop_counter_plus_one = self
+                .builder
+                .build_int_add(
+                    self.local_variables.loop_counter,
+                    self.types.usize_type.const_int(1, false),
+                    "loop_counter_plus_one",
+                )
+                .unwrap();
+
+            // check that _next_ loop iteration is in bounds, since
+            // loop body is about to be executed any way, and size
+            // zero has already been prevented
+            let v_loop_counter_ge_len = self
+                .builder
+                .build_int_compare(
+                    inkwell::IntPredicate::EQ,
+                    loop_counter_plus_one,
+                    self.local_variables.dst_len,
+                    "loop_counter_ge_len",
+                )
+                .unwrap();
+
+            // if loop_counter >= dst_len { goto post_loop } else { goto loop_body }
+            self.builder
+                .build_conditional_branch(
+                    v_loop_counter_ge_len,
+                    self.instruction_locations.post_loop,
+                    self.instruction_locations.loop_body,
+                )
+                .unwrap();
         }
-        .unwrap();
-        self.builder.build_store(dst_elem_ptr, final_value).unwrap();
 
-        let loop_counter_plus_one = self
-            .builder
-            .build_int_add(
-                self.local_variables.loop_counter,
-                self.types.usize_type.const_int(1, false),
-                "loop_counter_plus_one",
-            )
-            .unwrap();
-
-        // check that _next_ loop iteration is in bounds, since
-        // loop body is about to be executed any way, and size
-        // zero has already been prevented
-        let v_loop_counter_ge_len = self
-            .builder
-            .build_int_compare(
-                inkwell::IntPredicate::EQ,
-                loop_counter_plus_one,
-                self.local_variables.dst_len,
-                "loop_counter_ge_len",
-            )
-            .unwrap();
-
-        // if loop_counter >= dst_len { goto post_loop } else { goto loop_body }
-        self.builder
-            .build_conditional_branch(
-                v_loop_counter_ge_len,
-                self.instruction_locations.post_loop,
-                self.instruction_locations.loop_body,
-            )
-            .unwrap();
-
+        // post_loop -> exit
         self.builder
             .position_at_end(self.instruction_locations.post_loop);
-        self.builder
-            .build_unconditional_branch(self.instruction_locations.exit)
-            .unwrap();
+        {
+            self.builder
+                .build_unconditional_branch(self.instruction_locations.exit)
+                .unwrap();
+        }
 
         self.finish()
     }

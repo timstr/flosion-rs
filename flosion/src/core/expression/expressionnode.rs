@@ -239,7 +239,7 @@ where
     ) -> FloatValue<'ctx> {
         // Allocate stack variables for state variables
         jit.builder()
-            .position_before(&jit.instruction_locations.end_of_entry);
+            .position_at_end(jit.instruction_locations.entry);
         let stack_variables: Vec<PointerValue<'ctx>> = (0..self.num_variables())
             .map(|i| {
                 jit.builder()
