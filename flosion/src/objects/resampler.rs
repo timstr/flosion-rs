@@ -8,7 +8,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::ArgumentScope,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
@@ -75,7 +75,7 @@ impl SoundProcessor for Resampler {
     fn process_audio(
         resampler: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         // TODO: tell context about time speed
         if !resampler.state.init {

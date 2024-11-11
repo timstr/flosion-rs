@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use crate::core::{
     jit::argumentstack::{ArgumentStack, ArgumentStackView},
     sound::{
-        context::{AudioStack, Context},
+        context::{AudioContext, AudioStack},
         soundinput::{InputContext, InputTiming, SoundInputLocation},
         soundprocessor::{
             ProcessorTiming, SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
@@ -54,7 +54,8 @@ impl<'ctx, T: SoundProcessor> CompiledProcessorData<'ctx, T> {
         scratch_arena: &ScratchArena,
         argument_stack: ArgumentStackView,
     ) -> StreamStatus {
-        let mut context = Context::new(self.id, &self.timing, scratch_arena, argument_stack, stack);
+        let mut context =
+            AudioContext::new(self.id, &self.timing, scratch_arena, argument_stack, stack);
         let status = T::process_audio(&mut self.processor, dst, &mut context);
         self.timing.advance_one_chunk();
         status

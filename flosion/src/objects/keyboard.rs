@@ -9,7 +9,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::f32argument::F32Argument,
-            context::Context,
+            context::AudioContext,
             inputtypes::keyedinputqueue::{KeyReuse, KeyedInputQueue},
             soundinput::InputOptions,
             soundprocessor::{
@@ -131,7 +131,7 @@ impl SoundProcessor for Keyboard {
     fn process_audio(
         keyboard: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         let reuse = KeyReuse::StopOldStartNew;
         while let Some(msg) = keyboard.state.command_reader.read().value() {

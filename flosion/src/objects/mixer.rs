@@ -6,7 +6,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::ArgumentScope,
-            context::Context,
+            context::AudioContext,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions, ProcessorInputId},
             soundprocessor::{SoundProcessor, StreamStatus},
@@ -60,7 +60,7 @@ impl SoundProcessor for Mixer {
     fn process_audio(
         mixer: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         let mut inputs = mixer.inputs.iter_mut();
         let first_input = inputs.next();

@@ -10,7 +10,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::f32argument::F32Argument,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::keyedinput::KeyedInput,
             soundinput::{InputContext, InputOptions},
@@ -78,7 +78,7 @@ impl SoundProcessor for Ensemble {
     fn process_audio(
         ensemble: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         // TODO: add a way (generally) to make random initial values in
         // expressions (which would supercede this)

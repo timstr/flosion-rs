@@ -14,7 +14,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
-            context::Context,
+            context::AudioContext,
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -72,7 +72,7 @@ impl SoundProcessor for Input {
     fn process_audio(
         input: &mut CompiledInput,
         dst: &mut SoundChunk,
-        _context: &mut Context,
+        _context: &mut AudioContext,
     ) -> StreamStatus {
         let chunk = match input.state.chunk_receiver.read() {
             ReadResult::Ok(ch) => ch,

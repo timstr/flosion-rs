@@ -9,7 +9,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
@@ -50,7 +50,7 @@ impl SoundProcessor for ReadWriteWaveform {
     fn process_audio(
         rwwf: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         let mut tmp = SoundChunk::new();
         rwwf.sound_input.step(&mut tmp, InputContext::new(context));

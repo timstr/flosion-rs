@@ -9,7 +9,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
@@ -50,7 +50,7 @@ impl SoundProcessor for Definitions {
     fn process_audio(
         defns: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         let mut buffer = context.get_scratch_space(CHUNK_SIZE);
 

@@ -6,7 +6,7 @@ use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     sound::{
         argument::ArgumentScope,
-        context::Context,
+        context::AudioContext,
         soundinput::{
             AnyProcessorInput, BasicProcessorInput, InputContext, InputOptions, ProcessorInputId,
         },
@@ -201,7 +201,7 @@ impl<'ctx, S> CompiledKeyedInputQueue<'ctx, S> {
     pub fn step_active_keys<'a, F: FnMut(&mut S, InputContext<'a>) -> InputContext<'a>>(
         &mut self,
         dst: &mut SoundChunk,
-        context: &'a Context<'a>,
+        context: &'a AudioContext<'a>,
         mut f: F,
     ) {
         // TODO: allow per-key chunk sample offsets, store remaining chunk in state

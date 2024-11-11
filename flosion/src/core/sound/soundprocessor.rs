@@ -25,7 +25,7 @@ use crate::{
 
 use super::{
     argument::{AnyProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation},
-    context::Context,
+    context::AudioContext,
     expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
     soundgraphid::SoundObjectId,
     soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
@@ -143,7 +143,7 @@ pub trait SoundProcessor: ProcessorComponent {
     fn process_audio(
         processor: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus;
 }
 

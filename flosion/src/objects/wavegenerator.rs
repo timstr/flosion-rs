@@ -10,7 +10,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
@@ -71,7 +71,7 @@ impl SoundProcessor for WaveGenerator {
     fn process_audio(
         wavegen: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         // NOTE: this is made redundant by WriteWaveform and WrappingIntegrator
 

@@ -10,7 +10,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::f32argument::F32Argument,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::keyedinput::KeyedInput,
             soundinput::{InputContext, InputOptions},
@@ -69,7 +69,7 @@ impl SoundProcessor for Scatter {
     fn process_audio(
         scatter: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         if context.current_processor_timing().just_started() {
             let param = scatter.parameter.eval_scalar(

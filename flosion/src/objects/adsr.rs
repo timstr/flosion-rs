@@ -9,7 +9,7 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             argument::ArgumentScope,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
@@ -116,7 +116,7 @@ impl SoundProcessor for ADSR {
     fn process_audio(
         adsr: &mut CompiledADSR,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         let pending_release = context.take_pending_release();
 

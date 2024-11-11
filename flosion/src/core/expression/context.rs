@@ -1,7 +1,7 @@
 use crate::core::{
     jit::argumentstack::ArgumentStackView,
     sound::{
-        context::Context,
+        context::AudioContext,
         argument::{ArgumentTranslation, CompiledProcessorArgument},
         soundinput::SoundInputLocation,
         soundprocessor::SoundProcessorId,
@@ -9,12 +9,12 @@ use crate::core::{
 };
 
 pub struct ExpressionContext<'a> {
-    audio_context: &'a Context<'a>,
+    audio_context: &'a AudioContext<'a>,
     argument_stack: ArgumentStackView<'a>,
 }
 
 impl<'a> ExpressionContext<'a> {
-    pub fn new(audio_context: &'a Context<'a>) -> ExpressionContext<'a> {
+    pub fn new(audio_context: &'a AudioContext<'a>) -> ExpressionContext<'a> {
         ExpressionContext {
             audio_context,
             argument_stack: audio_context.argument_stack().clone(),
@@ -31,7 +31,7 @@ impl<'a> ExpressionContext<'a> {
         self
     }
 
-    pub(crate) fn audio_context(&self) -> &Context<'a> {
+    pub(crate) fn audio_context(&self) -> &AudioContext<'a> {
         self.audio_context
     }
 

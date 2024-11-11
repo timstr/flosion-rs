@@ -5,7 +5,7 @@ use crate::{
         engine::soundgraphcompiler::SoundGraphCompiler,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::Context,
+            context::AudioContext,
             soundinput::BasicProcessorInput,
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
@@ -36,7 +36,7 @@ impl SoundProcessor for TestStaticSoundProcessor {
     fn process_audio(
         _processor: &mut Self::CompiledType<'_>,
         _dst: &mut SoundChunk,
-        _context: &mut Context,
+        _context: &mut AudioContext,
     ) -> StreamStatus {
         StreamStatus::Done
     }
@@ -107,7 +107,7 @@ impl SoundProcessor for TestDynamicSoundProcessor {
     fn process_audio(
         _processor: &mut Self::CompiledType<'_>,
         _dst: &mut SoundChunk,
-        _context: &mut Context,
+        _context: &mut AudioContext,
     ) -> StreamStatus {
         StreamStatus::Done
     }

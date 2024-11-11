@@ -11,7 +11,7 @@ use crate::{
         audiofileio::load_audio_file,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::Context,
+            context::AudioContext,
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -94,7 +94,7 @@ impl SoundProcessor for AudioClip {
     fn process_audio(
         audioclip: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        _context: &mut Context,
+        _context: &mut AudioContext,
     ) -> StreamStatus {
         // TODO: avoid locking here? Maybe use ArcSwap
         let data = audioclip.state.data.lock();

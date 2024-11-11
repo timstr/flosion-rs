@@ -24,7 +24,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument, ProcessorArgumentLocation},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
-            context::{AudioStack, Context},
+            context::{AudioStack, AudioContext},
             expression::{ExpressionParameterTarget, ProcessorExpression},
             soundgraph::SoundGraph,
             soundprocessor::{
@@ -75,7 +75,7 @@ impl SoundProcessor for TestSoundProcessor {
     fn process_audio(
         _processor: &mut Self::CompiledType<'_>,
         _dst: &mut SoundChunk,
-        _context: &mut Context,
+        _context: &mut AudioContext,
     ) -> StreamStatus {
         panic!("unused")
     }
@@ -247,7 +247,7 @@ where
     let argument_stack = ArgumentStack::new();
     let stack = AudioStack::Root;
     let processor_timing = ProcessorTiming::new();
-    let mut context = Context::new(
+    let mut context = AudioContext::new(
         proc_id,
         &processor_timing,
         &scratch_arena,

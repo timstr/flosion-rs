@@ -15,7 +15,7 @@ use crate::core::{
 
 use super::{
     argument::{ArgumentScope, ArgumentTranslation, CompiledProcessorArgument},
-    context::Context,
+    context::AudioContext,
     soundprocessor::SoundProcessorId,
 };
 
@@ -329,12 +329,12 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for BasicProcessorInput {
 }
 
 pub struct InputContext<'a> {
-    audio_context: &'a Context<'a>,
+    audio_context: &'a AudioContext<'a>,
     argument_stack: ArgumentStackView<'a>,
 }
 
 impl<'a> InputContext<'a> {
-    pub fn new(audio_context: &'a Context<'a>) -> InputContext<'a> {
+    pub fn new(audio_context: &'a AudioContext<'a>) -> InputContext<'a> {
         InputContext {
             audio_context,
             argument_stack: audio_context.argument_stack().clone(),
@@ -351,7 +351,7 @@ impl<'a> InputContext<'a> {
         self
     }
 
-    pub(crate) fn audio_context(&self) -> &Context<'a> {
+    pub(crate) fn audio_context(&self) -> &AudioContext<'a> {
         self.audio_context
     }
 

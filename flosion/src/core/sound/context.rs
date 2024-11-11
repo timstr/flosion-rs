@@ -110,7 +110,7 @@ impl<'a> AudioStack<'a> {
     }
 }
 
-pub struct Context<'a> {
+pub struct AudioContext<'a> {
     current_processor_id: SoundProcessorId,
     current_processor_timing: &'a ProcessorTiming,
     scratch_arena: &'a ScratchArena,
@@ -118,15 +118,15 @@ pub struct Context<'a> {
     stack: AudioStack<'a>,
 }
 
-impl<'a> Context<'a> {
+impl<'a> AudioContext<'a> {
     pub(crate) fn new(
         current_processor_id: SoundProcessorId,
         current_processor_timing: &'a ProcessorTiming,
         scratch_arena: &'a ScratchArena,
         arguments: ArgumentStackView<'a>,
         stack: AudioStack<'a>,
-    ) -> Context<'a> {
-        Context {
+    ) -> AudioContext<'a> {
+        AudioContext {
             current_processor_id,
             current_processor_timing,
             scratch_arena,

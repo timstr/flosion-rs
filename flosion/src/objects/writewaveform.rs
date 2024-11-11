@@ -8,7 +8,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::ArgumentScope,
-            context::Context,
+            context::AudioContext,
             expression::ProcessorExpression,
             soundprocessor::{SoundProcessor, StreamStatus},
         },
@@ -37,7 +37,7 @@ impl SoundProcessor for WriteWaveform {
     fn process_audio(
         wwf: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         wwf.waveform.eval(
             &mut dst.l,

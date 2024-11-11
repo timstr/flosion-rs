@@ -6,7 +6,7 @@ use crate::{
     core::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            context::Context,
+            context::AudioContext,
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
@@ -30,7 +30,7 @@ impl SoundProcessor for WhiteNoise {
     fn process_audio(
         _whitenoise: &mut CompiledWhiteNoise,
         dst: &mut SoundChunk,
-        _context: &mut Context,
+        _context: &mut AudioContext,
     ) -> StreamStatus {
         for s in dst.l.iter_mut() {
             let r: f32 = thread_rng().gen();

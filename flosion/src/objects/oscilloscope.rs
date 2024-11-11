@@ -9,7 +9,7 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
             argument::ArgumentScope,
-            context::Context,
+            context::AudioContext,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{
@@ -83,7 +83,7 @@ impl SoundProcessor for Oscilloscope {
     fn process_audio(
         oscilloscope: &mut Self::CompiledType<'_>,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         oscilloscope.input.step(dst, InputContext::new(context));
         oscilloscope.state.chunk_writer.lock().write(*dst);

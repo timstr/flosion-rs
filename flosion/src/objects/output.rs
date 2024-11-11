@@ -11,7 +11,7 @@ use crate::{
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
             argument::ArgumentScope,
-            context::Context,
+            context::AudioContext,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{
@@ -101,7 +101,7 @@ impl SoundProcessor for Output {
     fn process_audio(
         output: &mut CompiledOutput,
         dst: &mut SoundChunk,
-        context: &mut Context,
+        context: &mut AudioContext,
     ) -> StreamStatus {
         if output
             .state
