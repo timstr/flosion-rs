@@ -176,9 +176,9 @@ impl SoundGraphUiState {
             &self.names,
             *ctx.time_axis(),
             ctx.properties()
-                .available_arguments()
-                .get(&location)
+                .available_inputs(location.processor())
                 .unwrap(),
+            ctx.properties().available_arguments(location).unwrap(),
             snapshot_flag,
         );
         let inner_ctx = ExpressionGraphUiContext::new(

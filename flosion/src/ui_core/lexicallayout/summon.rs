@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::{objecttype::ObjectType, sound::argument::ProcessorArgumentLocation},
+    core::{objecttype::ObjectType, sound::expression::ExpressionParameterTarget},
     ui_core::{
         expressiongraphuicontext::OuterProcessorExpressionContext,
         expressionobjectui::ExpressionObjectUiFactory,
@@ -15,10 +15,7 @@ use super::ast::{VariableDefinition, VariableId};
 pub(super) enum ExpressionSummonValue {
     ExpressionNodeType(ObjectType),
     Constant(f32),
-    Argument(ProcessorArgumentLocation),
-    // TODO:
-    // ProcessorTime(SoundProcessorId),
-    // InputTime(SoundInputId),
+    ParameterTarget(ExpressionParameterTarget),
     Variable(VariableId),
 }
 
@@ -39,10 +36,41 @@ pub(super) fn build_summon_widget_for_processor_expression(
         }
     }
 
+    builder.add_basic_name(
+        "time".to_string(),
+        ExpressionSummonValue::ParameterTarget(ExpressionParameterTarget::ProcessorTime(
+            ctx.location().processor(),
+        )),
+    );
+
+    for input_loc in ctx.available_sound_inputs() {
+        builder.add_basic_name(
+            format!(
+                "{}.time",
+                ctx.sound_graph_names()
+                    .sound_processor(input_loc.processor())
+                    .unwrap()
+            ),
+            ExpressionSummonValue::ParameterTarget(ExpressionParameterTarget::ProcessorTime(
+                input_loc.processor(),
+            )),
+        );
+
+        builder.add_basic_name(
+            format!(
+                "{}.time",
+                ctx.sound_graph_names().combined_input_name(*input_loc)
+            ),
+            ExpressionSummonValue::ParameterTarget(ExpressionParameterTarget::InputTime(
+                *input_loc,
+            )),
+        );
+    }
+
     for snsid in ctx.available_arguments() {
         builder.add_basic_name(
-            ctx.sound_graph_names().combined_parameter_name(*snsid),
-            ExpressionSummonValue::Argument(*snsid),
+            ctx.sound_graph_names().combined_argument_name(*snsid),
+            ExpressionSummonValue::ParameterTarget(ExpressionParameterTarget::Argument(*snsid)),
         );
     }
 

@@ -24,7 +24,7 @@ use crate::core::{
     },
     sound::{
         argument::{ProcessorArgumentId, ProcessorArgumentLocation},
-        expression::ExpressionParameterMapping,
+        expression::{ExpressionParameterMapping, ExpressionParameterTarget},
         soundgraph::SoundGraph,
         soundinput::SoundInputLocation,
         soundprocessor::SoundProcessorId,
@@ -520,7 +520,7 @@ impl<'ctx> Jit<'ctx> {
             .into_pointer_value()
     }
 
-    pub fn build_processor_time(&mut self, processor_id: SoundProcessorId) -> FloatValue<'ctx> {
+    fn build_processor_time(&mut self, processor_id: SoundProcessorId) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
         let spid = self
@@ -586,7 +586,7 @@ impl<'ctx> Jit<'ctx> {
         curr_time
     }
 
-    pub fn build_input_time(&mut self, input_location: SoundInputLocation) -> FloatValue<'ctx> {
+    fn build_input_time(&mut self, input_location: SoundInputLocation) -> FloatValue<'ctx> {
         self.builder
             .position_before(&self.instruction_locations.end_of_entry);
         let proc_id = self
@@ -869,27 +869,32 @@ impl<'ctx> Jit<'ctx> {
         }
     }
 
-    fn compile_all_arguments(
+    fn compile_all_parameters(
         &mut self,
         graph: &SoundGraph,
         parameter_mapping: &ExpressionParameterMapping,
         mode: JitMode,
     ) {
-        for (param_id, arg_location) in parameter_mapping.items() {
-            let proc = graph.sound_processor(arg_location.processor()).unwrap();
-
+        for (param_id, target) in parameter_mapping.items() {
             self.builder()
                 .position_before(&self.instruction_locations.end_of_loop);
 
             let param_value = match mode {
-                JitMode::Normal => {
-                    // If compiling in normal mode, compile the argument
-                    // lookup from the argument stack and its evaluation
-                    proc.with_processor_argument(arg_location.argument(), |arg| {
-                        arg.compile_evaluation(self)
-                    })
-                    .unwrap()
-                }
+                JitMode::Normal => match target {
+                    ExpressionParameterTarget::Argument(arg_location) => {
+                        let proc = graph.sound_processor(arg_location.processor()).unwrap();
+                        proc.with_processor_argument(arg_location.argument(), |arg| {
+                            arg.compile_evaluation(self)
+                        })
+                        .unwrap()
+                    }
+                    ExpressionParameterTarget::ProcessorTime(spid) => {
+                        self.build_processor_time(*spid)
+                    }
+                    ExpressionParameterTarget::InputTime(input_loc) => {
+                        self.build_input_time(*input_loc)
+                    }
+                },
                 JitMode::Test(test_domain) => {
                     match test_domain {
                         ExpressionTestDomain::Temporal => {
@@ -914,7 +919,7 @@ impl<'ctx> Jit<'ctx> {
                             // the entire extent being tested over i.e., the
                             // output array for one invocation exactly lines
                             // up with the requested interval.
-                            if *arg_location == wrt_arg {
+                            if *target == ExpressionParameterTarget::Argument(wrt_arg) {
                                 self.compile_interval(interval)
                             } else {
                                 self.types.f32_type.const_zero()
@@ -937,7 +942,7 @@ impl<'ctx> Jit<'ctx> {
         mode: JitMode,
     ) -> CompiledExpressionArtefact<'ctx> {
         // pre-compile all expression graph arguments
-        self.compile_all_arguments(graph, parameter_mapping, mode);
+        self.compile_all_parameters(graph, parameter_mapping, mode);
 
         // TODO: add support for multiple results
         assert_eq!(expression_graph.results().len(), 1);

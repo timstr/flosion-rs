@@ -5,6 +5,7 @@ use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableI
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     sound::{
+        argument::ArgumentScope,
         context::Context,
         soundinput::{BasicProcessorInput, InputContext, InputOptions, ProcessorInputId},
         soundprocessor::{
@@ -45,9 +46,9 @@ pub struct KeyedInputQueue<S> {
 }
 
 impl<S> KeyedInputQueue<S> {
-    pub fn new(options: InputOptions, num_keys: usize) -> KeyedInputQueue<S> {
+    pub fn new(options: InputOptions, num_keys: usize, scope: ArgumentScope) -> KeyedInputQueue<S> {
         KeyedInputQueue {
-            input: BasicProcessorInput::new(options, num_keys),
+            input: BasicProcessorInput::new(options, num_keys, scope),
             phantom_data: PhantomData,
         }
     }

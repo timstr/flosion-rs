@@ -248,38 +248,9 @@ fn processor_depends_on_processor(
     false
 }
 
-// TODO: why does this exist? Why not use available_sound_expression_arguments
-// and check for pairings not listed?
 pub(super) fn find_invalid_expression_arguments(
     graph: &SoundGraph,
 ) -> Vec<(ProcessorArgumentLocation, ProcessorExpressionLocation)> {
     // HACK: everything is valid
     Vec::new()
-}
-
-// TODO: move to soundgraphproperties?
-pub(crate) fn available_sound_expression_arguments(
-    graph: &SoundGraph,
-) -> HashMap<ProcessorExpressionLocation, HashSet<ProcessorArgumentLocation>> {
-    // TODO:
-    // - (elswhere) add expression scopes to sound inputs
-    // - write a neat lil algorithm here
-
-    // HACK: free for all
-    let mut literally_all_arguments_everywhere = HashSet::<ProcessorArgumentLocation>::new();
-    for proc in graph.sound_processors().values() {
-        proc.foreach_argument(|_, location| {
-            literally_all_arguments_everywhere.insert(location);
-        });
-    }
-
-    let mut expression_arguments = HashMap::new();
-
-    for proc in graph.sound_processors().values() {
-        proc.foreach_expression(|_, location| {
-            expression_arguments.insert(location, literally_all_arguments_everywhere.clone());
-        });
-    }
-
-    expression_arguments
 }

@@ -5,6 +5,7 @@ use crate::{
     core::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
+            argument::ArgumentScope,
             context::Context,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions, ProcessorInputId},
@@ -25,7 +26,10 @@ const MIXER_INPUT_OPTIONS: InputOptions = InputOptions::Synchronous;
 
 impl Mixer {
     pub fn add_input(&mut self) {
-        self.inputs.push(SingleInput::new(MIXER_INPUT_OPTIONS));
+        self.inputs.push(SingleInput::new(
+            MIXER_INPUT_OPTIONS,
+            ArgumentScope::new_empty(),
+        ));
     }
 
     pub fn remove_input(&mut self, id: ProcessorInputId) {
@@ -44,7 +48,7 @@ impl SoundProcessor for Mixer {
         let num_inputs = args.get(&Mixer::ARG_NUM_INPUTS).unwrap_or(2);
         Mixer {
             inputs: (0..num_inputs)
-                .map(|_| SingleInput::new(MIXER_INPUT_OPTIONS))
+                .map(|_| SingleInput::new(MIXER_INPUT_OPTIONS, ArgumentScope::new_empty()))
                 .collect(),
         }
     }

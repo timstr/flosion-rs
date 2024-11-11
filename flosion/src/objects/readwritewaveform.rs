@@ -7,10 +7,10 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            argument::ProcessorArgument,
+            argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{SoundProcessor, StreamStatus},
@@ -34,9 +34,9 @@ impl SoundProcessor for ReadWriteWaveform {
     fn new(_args: &ParsedArguments) -> Self {
         let input_l = ProcessorArgument::new();
         let input_r = ProcessorArgument::new();
-        let waveform_scope = SoundExpressionScope::new(vec![input_l.id(), input_r.id()]);
+        let waveform_scope = ArgumentScope::new(vec![input_l.id(), input_r.id()]);
         ReadWriteWaveform {
-            sound_input: SingleInput::new(InputOptions::Synchronous),
+            sound_input: SingleInput::new(InputOptions::Synchronous, ArgumentScope::new_empty()),
             waveform: ProcessorExpression::new(0.0, waveform_scope),
             input_l,
             input_r,

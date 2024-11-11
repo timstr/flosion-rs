@@ -22,10 +22,10 @@ use crate::{
         },
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            argument::{ProcessorArgument, ProcessorArgumentLocation},
+            argument::{ArgumentScope, ProcessorArgument, ProcessorArgumentLocation},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
             context::{Context, Stack},
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::{ExpressionParameterTarget, ProcessorExpression},
             soundgraph::SoundGraph,
             soundprocessor::{
                 ProcessorComponent, ProcessorTiming, SoundProcessor, SoundProcessorWithId,
@@ -60,7 +60,7 @@ impl SoundProcessor for TestSoundProcessor {
         TestSoundProcessor {
             expression: ProcessorExpression::new(
                 0.0,
-                SoundExpressionScope::new(vec![argument_0.id(), argument_1.id(), argument_2.id()]),
+                ArgumentScope::new(vec![argument_0.id(), argument_1.id(), argument_2.id()]),
             ),
             argument_0,
             argument_1,
@@ -183,13 +183,19 @@ where
 
     let param0_id = proc
         .expression
-        .add_argument(ProcessorArgumentLocation::new(proc_id, arg0_id));
+        .add_target(ExpressionParameterTarget::Argument(
+            ProcessorArgumentLocation::new(proc_id, arg0_id),
+        ));
     let param1_id = proc
         .expression
-        .add_argument(ProcessorArgumentLocation::new(proc_id, arg1_id));
+        .add_target(ExpressionParameterTarget::Argument(
+            ProcessorArgumentLocation::new(proc_id, arg1_id),
+        ));
     let param2_id = proc
         .expression
-        .add_argument(ProcessorArgumentLocation::new(proc_id, arg2_id));
+        .add_target(ExpressionParameterTarget::Argument(
+            ProcessorArgumentLocation::new(proc_id, arg2_id),
+        ));
 
     let expr_graph = proc.expression.graph_mut();
 

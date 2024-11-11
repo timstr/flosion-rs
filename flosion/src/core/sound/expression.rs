@@ -12,7 +12,8 @@ use crate::core::{
 };
 
 use super::{
-    argument::{ProcessorArgumentId, ProcessorArgumentLocation},
+    argument::{ArgumentScope, ProcessorArgumentLocation},
+    soundinput::SoundInputLocation,
     soundprocessor::{
         ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
         SoundProcessorId,
@@ -65,9 +66,48 @@ impl Unstashable for ProcessorExpressionLocation {
     }
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub(crate) enum ExpressionParameterTarget {
+    Argument(ProcessorArgumentLocation),
+    ProcessorTime(SoundProcessorId),
+    InputTime(SoundInputLocation),
+}
+
+impl Stashable for ExpressionParameterTarget {
+    fn stash(&self, stasher: &mut Stasher) {
+        match self {
+            ExpressionParameterTarget::Argument(arg_loc) => {
+                stasher.u8(0);
+                arg_loc.stash(stasher);
+            }
+            ExpressionParameterTarget::ProcessorTime(spid) => {
+                stasher.u8(1);
+                spid.stash(stasher);
+            }
+            ExpressionParameterTarget::InputTime(input_loc) => {
+                stasher.u8(2);
+                input_loc.stash(stasher);
+            }
+        }
+    }
+}
+
+impl Unstashable for ExpressionParameterTarget {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(match unstasher.u8()? {
+            0 => {
+                ExpressionParameterTarget::Argument(ProcessorArgumentLocation::unstash(unstasher)?)
+            }
+            1 => ExpressionParameterTarget::ProcessorTime(SoundProcessorId::unstash(unstasher)?),
+            2 => ExpressionParameterTarget::InputTime(SoundInputLocation::unstash(unstasher)?),
+            _ => panic!(),
+        })
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ExpressionParameterMapping {
-    mapping: HashMap<ExpressionGraphParameterId, ProcessorArgumentLocation>,
+    mapping: HashMap<ExpressionGraphParameterId, ExpressionParameterTarget>,
 }
 
 impl ExpressionParameterMapping {
@@ -77,19 +117,19 @@ impl ExpressionParameterMapping {
         }
     }
 
-    pub(crate) fn argument_from_parameter(
+    pub(crate) fn target_from_parameter(
         &self,
         id: ExpressionGraphParameterId,
-    ) -> Option<ProcessorArgumentLocation> {
+    ) -> Option<ExpressionParameterTarget> {
         self.mapping.get(&id).cloned()
     }
 
-    pub(crate) fn parameter_from_argument(
+    pub(crate) fn parameter_from_target(
         &self,
-        id: ProcessorArgumentLocation,
+        target: ExpressionParameterTarget,
     ) -> Option<ExpressionGraphParameterId> {
-        for (giid, nsid) in &self.mapping {
-            if *nsid == id {
+        for (giid, t) in &self.mapping {
+            if *t == target {
                 return Some(*giid);
             }
         }
@@ -99,29 +139,29 @@ impl ExpressionParameterMapping {
     // NOTE: passing ExpressionGraph separately here might seem a bit awkward from the perspective of the
     // SoundExpressionData that owns this and the expression graph, but it makes the two separable.
     // This is useful for making LexicalLayout more reusable accross different types of expressions
-    pub(crate) fn add_argument(
+    pub(crate) fn add_target(
         &mut self,
-        argument_id: ProcessorArgumentLocation,
+        target: ExpressionParameterTarget,
         expr_graph: &mut ExpressionGraph,
     ) -> ExpressionGraphParameterId {
         debug_assert!(self.check_invariants(expr_graph));
-        if let Some(giid) = self.parameter_from_argument(argument_id) {
+        if let Some(giid) = self.parameter_from_target(target) {
             return giid;
         }
         let giid = expr_graph.add_parameter();
-        let prev = self.mapping.insert(giid, argument_id);
+        let prev = self.mapping.insert(giid, target);
         debug_assert_eq!(prev, None);
         debug_assert!(self.check_invariants(expr_graph));
         giid
     }
 
-    pub(crate) fn remove_argument(
+    pub(crate) fn remove_target(
         &mut self,
-        argument_id: ProcessorArgumentLocation,
+        target: ExpressionParameterTarget,
         expr_graph: &mut ExpressionGraph,
     ) {
         debug_assert!(self.check_invariants(expr_graph));
-        let giid = self.parameter_from_argument(argument_id).unwrap();
+        let giid = self.parameter_from_target(target).unwrap();
         expr_graph.remove_parameter(giid).unwrap();
         let prev = self.mapping.remove(&giid);
         debug_assert!(prev.is_some());
@@ -141,30 +181,26 @@ impl ExpressionParameterMapping {
         }
     }
 
-    pub(crate) fn items(&self) -> &HashMap<ExpressionGraphParameterId, ProcessorArgumentLocation> {
+    pub(crate) fn items(&self) -> &HashMap<ExpressionGraphParameterId, ExpressionParameterTarget> {
         &self.mapping
     }
 }
 
-impl Stashable<StashingContext> for ExpressionParameterMapping {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+impl Stashable for ExpressionParameterMapping {
+    fn stash(&self, stasher: &mut Stasher) {
         stasher.array_of_proxy_objects(
             self.mapping.iter(),
-            |(param_id, arg_loc), stasher| {
+            |(param_id, target), stasher| {
                 stasher.u64(param_id.value() as _);
-                stasher.u64(arg_loc.processor().value() as _);
-                stasher.u64(arg_loc.argument().value() as _);
+                target.stash(stasher);
             },
             hashstash::Order::Unordered,
         );
     }
 }
 
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExpressionParameterMapping {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
+impl UnstashableInplace for ExpressionParameterMapping {
+    fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
         let time_to_write = unstasher.time_to_write();
 
         if time_to_write {
@@ -173,10 +209,7 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExpressionParameterMappin
 
         unstasher.array_of_proxy_objects(|unstasher| {
             let param_id = ExpressionGraphParameterId::new(unstasher.u64()? as _);
-            let arg_loc = ProcessorArgumentLocation::new(
-                SoundProcessorId::new(unstasher.u64()? as _),
-                ProcessorArgumentId::new(unstasher.u64()? as _),
-            );
+            let arg_loc = ExpressionParameterTarget::unstash(unstasher)?;
 
             if time_to_write {
                 self.mapping.insert(param_id, arg_loc);
@@ -189,60 +222,15 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for ExpressionParameterMappin
     }
 }
 
-// TODO: make this shared by sound inputs too, and more ergonomic / self-enforcing
-#[derive(Clone)]
-pub struct SoundExpressionScope {
-    available_arguments: Vec<ProcessorArgumentId>,
-}
-
-impl SoundExpressionScope {
-    pub fn new_empty() -> SoundExpressionScope {
-        SoundExpressionScope {
-            available_arguments: Vec::new(),
-        }
-    }
-
-    pub fn new(arguments: Vec<ProcessorArgumentId>) -> SoundExpressionScope {
-        SoundExpressionScope {
-            available_arguments: arguments,
-        }
-    }
-
-    pub(crate) fn available_local_arguments(&self) -> &[ProcessorArgumentId] {
-        &self.available_arguments
-    }
-}
-
-impl Stashable<StashingContext> for SoundExpressionScope {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.array_of_u64_iter(self.available_arguments.iter().map(|i| i.value() as u64));
-    }
-}
-
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for SoundExpressionScope {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
-        let ids = unstasher.array_of_u64_iter()?;
-
-        if unstasher.time_to_write() {
-            self.available_arguments = ids.map(|i| ProcessorArgumentId::new(i as _)).collect();
-        }
-
-        Ok(())
-    }
-}
-
 pub struct ProcessorExpression {
     id: ProcessorExpressionId,
     param_mapping: ExpressionParameterMapping,
     expression_graph: ExpressionGraph,
-    scope: SoundExpressionScope,
+    scope: ArgumentScope,
 }
 
 impl ProcessorExpression {
-    pub(crate) fn new(default_value: f32, scope: SoundExpressionScope) -> ProcessorExpression {
+    pub(crate) fn new(default_value: f32, scope: ArgumentScope) -> ProcessorExpression {
         let mut expression_graph = ExpressionGraph::new();
 
         // HACK assuming 1 output for now
@@ -260,7 +248,7 @@ impl ProcessorExpression {
         self.id
     }
 
-    pub(crate) fn scope(&self) -> &SoundExpressionScope {
+    pub(crate) fn scope(&self) -> &ArgumentScope {
         &self.scope
     }
 
@@ -280,17 +268,17 @@ impl ProcessorExpression {
         (&mut self.param_mapping, &mut self.expression_graph)
     }
 
-    pub(crate) fn add_argument(
+    pub(crate) fn add_target(
         &mut self,
-        argument_id: ProcessorArgumentLocation,
+        target: ExpressionParameterTarget,
     ) -> ExpressionGraphParameterId {
         self.param_mapping
-            .add_argument(argument_id, &mut self.expression_graph)
+            .add_target(target, &mut self.expression_graph)
     }
 
-    pub(crate) fn remove_argument(&mut self, argument_id: ProcessorArgumentLocation) {
+    pub(crate) fn remove_target(&mut self, target: ExpressionParameterTarget) {
         self.param_mapping
-            .remove_argument(argument_id, &mut self.expression_graph);
+            .remove_target(target, &mut self.expression_graph);
     }
 }
 
@@ -334,7 +322,7 @@ impl ProcessorComponent for ProcessorExpression {
 impl Stashable<StashingContext> for ProcessorExpression {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
-        stasher.object(&self.param_mapping);
+        stasher.object_with_context(&self.param_mapping, ());
         stasher.object(&self.expression_graph);
         stasher.object(&self.scope);
     }
@@ -349,7 +337,7 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for ProcessorExpression {
         if unstasher.time_to_write() {
             self.id = id;
         }
-        unstasher.object_inplace(&mut self.param_mapping)?;
+        unstasher.object_inplace_with_context(&mut self.param_mapping, ())?;
         unstasher.object_inplace(&mut self.expression_graph)?;
         unstasher.object_inplace(&mut self.scope)?;
         Ok(())

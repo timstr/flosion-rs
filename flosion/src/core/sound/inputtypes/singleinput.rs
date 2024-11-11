@@ -5,6 +5,7 @@ use hashstash::{
 use crate::core::{
     engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
     sound::{
+        argument::ArgumentScope,
         soundinput::{
             BasicProcessorInput, InputContext, InputOptions, InputTiming, ProcessorInputId,
         },
@@ -22,9 +23,9 @@ pub struct SingleInput {
 }
 
 impl SingleInput {
-    pub fn new(options: InputOptions) -> SingleInput {
+    pub fn new(options: InputOptions, scope: ArgumentScope) -> SingleInput {
         SingleInput {
-            input: BasicProcessorInput::new(options, 1),
+            input: BasicProcessorInput::new(options, 1, scope),
         }
     }
 

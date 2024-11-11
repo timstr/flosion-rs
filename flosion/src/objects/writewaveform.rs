@@ -7,8 +7,9 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
+            argument::ArgumentScope,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
@@ -25,7 +26,7 @@ pub struct WriteWaveform {
 impl SoundProcessor for WriteWaveform {
     fn new(_args: &ParsedArguments) -> WriteWaveform {
         WriteWaveform {
-            waveform: ProcessorExpression::new(0.0, SoundExpressionScope::new_empty()),
+            waveform: ProcessorExpression::new(0.0, ArgumentScope::new_empty()),
         }
     }
 

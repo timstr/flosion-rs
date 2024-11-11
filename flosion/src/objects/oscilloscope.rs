@@ -8,6 +8,7 @@ use crate::{
     core::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
+            argument::ArgumentScope,
             context::Context,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
@@ -68,7 +69,7 @@ impl SoundProcessor for Oscilloscope {
     fn new(_args: &ParsedArguments) -> Oscilloscope {
         let (reader, writer) = spmcq::ring_buffer(64);
         Oscilloscope {
-            input: SingleInput::new(InputOptions::Synchronous),
+            input: SingleInput::new(InputOptions::Synchronous, ArgumentScope::new_empty()),
             chunk_reader: reader,
             chunk_writer: Arc::new(Mutex::new(writer)),
             state: StateMarker::new(),

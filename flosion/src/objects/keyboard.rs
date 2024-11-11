@@ -7,7 +7,7 @@ use crate::{
     core::{
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            argument::ProcessorArgument,
+            argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::f32argument::F32Argument,
             context::Context,
             inputtypes::keyedinputqueue::{KeyReuse, KeyedInputQueue},
@@ -108,9 +108,13 @@ impl SoundProcessor for Keyboard {
     fn new(_args: &ParsedArguments) -> Keyboard {
         let message_queue_size = 16; // idk
         let input_queue_size = 8; // idk
-        let (command_reader, command_writer) = spmcq::ring_buffer(message_queue_size);
-        let input = KeyedInputQueue::new(InputOptions::Synchronous, input_queue_size);
         let key_frequency = ProcessorArgument::new();
+        let (command_reader, command_writer) = spmcq::ring_buffer(message_queue_size);
+        let input = KeyedInputQueue::new(
+            InputOptions::Synchronous,
+            input_queue_size,
+            ArgumentScope::new(vec![key_frequency.id()]),
+        );
         Keyboard {
             input,
             key_frequency,

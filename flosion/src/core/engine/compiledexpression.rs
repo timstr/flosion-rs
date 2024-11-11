@@ -8,7 +8,7 @@ use crate::core::{
 };
 
 #[cfg(debug_assertions)]
-use crate::core::sound::expression::SoundExpressionScope;
+use crate::core::sound::argument::ArgumentScope;
 
 /// A compiled expression and all the data needed to directly
 /// execute it within a StateGraph instance on the audio thread.
@@ -21,7 +21,7 @@ pub struct CompiledExpression<'ctx> {
 
     #[cfg(debug_assertions)]
     /// The expression's scope, for debug validation only
-    scope: SoundExpressionScope,
+    scope: ArgumentScope,
 }
 
 impl<'ctx> CompiledExpression<'ctx> {
@@ -39,7 +39,7 @@ impl<'ctx> CompiledExpression<'ctx> {
     pub(crate) fn new<'a>(
         id: ProcessorExpressionId,
         function: CompiledExpressionFunction<'ctx>,
-        scope: SoundExpressionScope,
+        scope: ArgumentScope,
     ) -> CompiledExpression<'ctx> {
         CompiledExpression {
             id,
@@ -111,7 +111,7 @@ impl<'ctx> CompiledExpression<'ctx> {
 
         let mut all_good = true;
         for arg in &newly_pushed_args {
-            if !self.scope.available_local_arguments().contains(&arg) {
+            if !self.scope.arguments().contains(&arg) {
                 println!(
                     "A value was pushed for argument {} which is not marked as being \
                     in scope.",
@@ -120,7 +120,7 @@ impl<'ctx> CompiledExpression<'ctx> {
                 all_good = false;
             }
         }
-        for arg in self.scope.available_local_arguments() {
+        for arg in self.scope.arguments() {
             if newly_pushed_args.iter().find(|a| **a == *arg).is_none() {
                 println!(
                     "No value was pushed for argument {}, which is marked as being in scope.",

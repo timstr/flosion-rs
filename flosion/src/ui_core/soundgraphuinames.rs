@@ -112,7 +112,15 @@ impl SoundGraphUiNames {
         *self.expressions.get_mut(&id).unwrap() = name;
     }
 
-    pub(crate) fn combined_parameter_name(&self, location: ProcessorArgumentLocation) -> String {
+    pub(crate) fn combined_input_name(&self, location: SoundInputLocation) -> String {
+        format!(
+            "{}.{}",
+            self.sound_processor(location.processor()).unwrap(),
+            self.sound_input(location).unwrap()
+        )
+    }
+
+    pub(crate) fn combined_argument_name(&self, location: ProcessorArgumentLocation) -> String {
         format!(
             "{}.{}",
             self.sound_processor(location.processor()).unwrap(),

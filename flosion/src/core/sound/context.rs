@@ -1,35 +1,14 @@
 use crate::core::{
     engine::scratcharena::{BorrowedSlice, ScratchArena},
     jit::argumentstack::ArgumentStackView,
+    samplefrequency::SAMPLE_FREQUENCY,
+    soundchunk::CHUNK_SIZE,
 };
 
 use super::{
     soundinput::{InputTiming, ProcessorInputId, SoundInputLocation},
     soundprocessor::{ProcessorTiming, SoundProcessorId},
 };
-
-/// Things that a sound input pushes onto the call
-/// stack when it is invoked
-pub(crate) struct InputFrameData<'a> {
-    /// The input's id
-    input_id: ProcessorInputId,
-
-    /// The input's timing
-    timing: &'a mut InputTiming,
-}
-
-impl<'a> InputFrameData<'a> {
-    pub(crate) fn new(
-        input_id: ProcessorInputId,
-        timing: &'a mut InputTiming,
-    ) -> InputFrameData<'a> {
-        InputFrameData { input_id, timing }
-    }
-
-    pub(crate) fn input_id(&self) -> ProcessorInputId {
-        self.input_id
-    }
-}
 
 pub(crate) struct StackFrame<'a> {
     /// The parent stack frame
@@ -41,41 +20,26 @@ pub(crate) struct StackFrame<'a> {
     /// The previous processor's timing
     processor_timing: &'a ProcessorTiming,
 
-    /// Data pushed by the invoking sound input
-    input_data: InputFrameData<'a>,
+    /// The input's id
+    input_id: ProcessorInputId,
+
+    /// The input's timing
+    input_timing: &'a mut InputTiming,
 }
 
 impl<'a> StackFrame<'a> {
-    pub(crate) fn processor_id(&self) -> SoundProcessorId {
-        self.processor_id
-    }
-
-    pub(crate) fn input_data(&self) -> &InputFrameData<'a> {
-        &self.input_data
+    pub(crate) fn input_location(&self) -> SoundInputLocation {
+        SoundInputLocation::new(self.processor_id, self.input_id)
     }
 }
 
+// TODO: rename
 pub(crate) enum Stack<'a> {
     Frame(StackFrame<'a>),
     Root,
 }
 
 impl<'a> Stack<'a> {
-    fn find_frame(&self, processor_id: SoundProcessorId) -> &StackFrame<'a> {
-        match self {
-            Stack::Frame(frame) => {
-                if frame.processor_id == processor_id {
-                    frame
-                } else {
-                    frame.parent.find_frame(processor_id)
-                }
-            }
-            Stack::Root => {
-                panic!("Attempted to find a processor frame which is not in the context call stack")
-            }
-        }
-    }
-
     pub(crate) fn top_frame(&self) -> Option<&StackFrame<'a>> {
         match self {
             Stack::Frame(stack_frame) => Some(stack_frame),
@@ -87,6 +51,61 @@ impl<'a> Stack<'a> {
         match self {
             Stack::Frame(stack_frame) => Some(stack_frame),
             Stack::Root => None,
+        }
+    }
+
+    fn elapsed_samples_and_speed_from_processor(
+        &self,
+        processor_id: SoundProcessorId,
+    ) -> (usize, f32) {
+        match self {
+            Stack::Frame(stack_frame) => {
+                if stack_frame.processor_id == processor_id {
+                    let elapsed_samples = stack_frame.processor_timing.elapsed_chunks()
+                        * CHUNK_SIZE
+                        + stack_frame.input_timing.sample_offset();
+                    let speed = stack_frame.input_timing.time_speed();
+                    (elapsed_samples, speed)
+                } else {
+                    let (other_elapsed_samples, other_speed) = stack_frame
+                        .parent
+                        .elapsed_samples_and_speed_from_processor(processor_id);
+                    (
+                        other_elapsed_samples + stack_frame.input_timing.sample_offset(),
+                        other_speed * stack_frame.input_timing.time_speed(),
+                    )
+                }
+            }
+            Stack::Root => {
+                panic!("Attempted to get timing of a processor which is not on the stack")
+            }
+        }
+    }
+
+    fn elapsed_samples_and_speed_from_input(
+        &self,
+        input_location: SoundInputLocation,
+        child_samples: usize,
+    ) -> (usize, f32) {
+        match self {
+            Stack::Frame(stack_frame) => {
+                if input_location == stack_frame.input_location() {
+                    (child_samples, 1.0)
+                } else {
+                    let (other_elapsed_samples, other_speed) =
+                        stack_frame.parent.elapsed_samples_and_speed_from_input(
+                            input_location,
+                            stack_frame.processor_timing.elapsed_chunks() * CHUNK_SIZE,
+                        );
+                    (
+                        other_elapsed_samples + stack_frame.input_timing.sample_offset(),
+                        other_speed * stack_frame.input_timing.time_speed(),
+                    )
+                }
+            }
+            Stack::Root => {
+                panic!("Attempted to get timing of a processor which is not on the stack")
+            }
         }
     }
 }
@@ -116,33 +135,26 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub(crate) fn current_processor_id(&self) -> SoundProcessorId {
-        self.current_processor_id
-    }
-
     pub(crate) fn current_processor_timing(&self) -> &ProcessorTiming {
         self.current_processor_timing
     }
 
-    pub(crate) fn stack(&self) -> &Stack<'a> {
-        &self.stack
-    }
-
-    pub(crate) fn push_frame(&'a self, input_data: InputFrameData<'a>) -> Stack<'a> {
+    pub(crate) fn push_frame(
+        &'a self,
+        input_id: ProcessorInputId,
+        input_timing: &'a mut InputTiming,
+    ) -> Stack<'a> {
         Stack::Frame(StackFrame {
             parent: &self.stack,
             processor_id: self.current_processor_id,
             processor_timing: self.current_processor_timing,
-            input_data,
+            input_id,
+            input_timing,
         })
     }
 
     pub(crate) fn scratch_arena(&self) -> &'a ScratchArena {
         self.scratch_arena
-    }
-
-    pub(crate) fn find_frame(&self, processor_id: SoundProcessorId) -> &StackFrame<'a> {
-        self.stack.find_frame(processor_id)
     }
 
     pub fn get_scratch_space(&self, size: usize) -> BorrowedSlice {
@@ -157,25 +169,45 @@ impl<'a> Context<'a> {
         &self,
         processor_id: SoundProcessorId,
     ) -> (f32, f32) {
-        todo!()
+        let (elapsed_samples, speed) = if processor_id == self.current_processor_id {
+            (
+                self.current_processor_timing.elapsed_chunks() * CHUNK_SIZE,
+                1.0,
+            )
+        } else {
+            self.stack
+                .elapsed_samples_and_speed_from_processor(processor_id)
+        };
+
+        (
+            elapsed_samples as f32 / SAMPLE_FREQUENCY as f32,
+            1.0 / speed,
+        )
     }
 
     pub(crate) fn time_offset_and_speed_at_input(
         &self,
         location: SoundInputLocation,
     ) -> (f32, f32) {
-        todo!()
+        let (elapsed_samples, speed) = self.stack.elapsed_samples_and_speed_from_input(
+            location,
+            self.current_processor_timing.elapsed_chunks() * CHUNK_SIZE,
+        );
+        (
+            elapsed_samples as f32 / SAMPLE_FREQUENCY as f32,
+            1.0 / speed,
+        )
     }
 
     pub fn pending_release(&self) -> Option<usize> {
         self.stack
             .top_frame()
-            .and_then(|f| f.input_data.timing.pending_release())
+            .and_then(|f| f.input_timing.pending_release())
     }
 
     pub fn take_pending_release(&mut self) -> Option<usize> {
         self.stack
             .top_frame_mut()
-            .and_then(|f| f.input_data.timing.take_pending_release())
+            .and_then(|f| f.input_timing.take_pending_release())
     }
 }

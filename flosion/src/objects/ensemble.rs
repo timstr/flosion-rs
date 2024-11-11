@@ -8,10 +8,10 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            argument::ProcessorArgument,
+            argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::f32argument::F32Argument,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             inputtypes::keyedinput::KeyedInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{SoundProcessor, StreamStatus},
@@ -57,12 +57,16 @@ impl Ensemble {
 impl SoundProcessor for Ensemble {
     fn new(_args: &ParsedArguments) -> Ensemble {
         let num_keys = 4; // idk
-        let input = KeyedInput::new(InputOptions::Synchronous, num_keys);
         let voice_frequency = ProcessorArgument::new();
+        let input = KeyedInput::new(
+            InputOptions::Synchronous,
+            num_keys,
+            ArgumentScope::new(vec![voice_frequency.id()]),
+        );
         Ensemble {
             input,
-            frequency_in: ProcessorExpression::new(250.0, SoundExpressionScope::new_empty()),
-            frequency_spread: ProcessorExpression::new(0.01, SoundExpressionScope::new_empty()),
+            frequency_in: ProcessorExpression::new(250.0, ArgumentScope::new_empty()),
+            frequency_spread: ProcessorExpression::new(0.01, ArgumentScope::new_empty()),
             voice_frequency,
         }
     }

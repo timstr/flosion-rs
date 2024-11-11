@@ -8,10 +8,10 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            argument::ProcessorArgument,
+            argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::f32argument::F32Argument,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             inputtypes::keyedinput::KeyedInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{SoundProcessor, StartOver, StreamStatus},
@@ -49,11 +49,16 @@ pub struct Scatter {
 impl SoundProcessor for Scatter {
     fn new(_args: &ParsedArguments) -> Scatter {
         let num_keys = 8; // idk
-        let input = KeyedInput::new(InputOptions::Synchronous, num_keys);
+        let value = ProcessorArgument::new();
+        let input = KeyedInput::new(
+            InputOptions::Synchronous,
+            num_keys,
+            ArgumentScope::new(vec![value.id()]),
+        );
         Scatter {
             sound_input: input,
-            parameter: ProcessorExpression::new(1.0, SoundExpressionScope::new_empty()),
-            value: ProcessorArgument::new(),
+            parameter: ProcessorExpression::new(1.0, ArgumentScope::new_empty()),
+            value,
         }
     }
 

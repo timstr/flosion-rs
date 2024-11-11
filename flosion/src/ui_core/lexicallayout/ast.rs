@@ -290,10 +290,9 @@ impl ASTNode {
     // Variables are not looked up and do not correspond directly to a part of the graph.
     pub(super) fn direct_target(&self) -> Option<ExpressionTarget> {
         match &self.value {
-            ASTNodeValue::Empty => None,
             ASTNodeValue::Internal(node) => Some(node.expression_node_id().into()),
-            ASTNodeValue::Variable(_) => None,
             ASTNodeValue::Parameter(giid) => Some((*giid).into()),
+            _ => None,
         }
     }
 
@@ -304,7 +303,6 @@ impl ASTNode {
         definitions: &[VariableDefinition],
     ) -> Option<ExpressionTarget> {
         match &self.value {
-            ASTNodeValue::Empty => None,
             ASTNodeValue::Internal(node) => Some(node.expression_node_id().into()),
             ASTNodeValue::Variable(id) => {
                 let (defn, previous_defns) =
@@ -312,6 +310,7 @@ impl ASTNode {
                 defn.value().indirect_target(previous_defns)
             }
             ASTNodeValue::Parameter(giid) => Some((*giid).into()),
+            _ => None,
         }
     }
 
@@ -531,11 +530,11 @@ impl Stashable for ASTNode {
             }
             ASTNodeValue::Variable(var_id) => {
                 stasher.u8(2);
-                stasher.u64(var_id.value() as _);
+                var_id.stash(stasher);
             }
             ASTNodeValue::Parameter(param_id) => {
                 stasher.u8(3);
-                stasher.u64(param_id.value() as _);
+                param_id.stash(stasher);
             }
         }
         // Skipping rect, it will be regenerated when drawn
@@ -547,8 +546,8 @@ impl Unstashable for ASTNode {
         let value = match unstasher.u8()? {
             0 => ASTNodeValue::Empty,
             1 => ASTNodeValue::Internal(Box::new(unstasher.object()?)),
-            2 => ASTNodeValue::Variable(VariableId::new(unstasher.u64()? as _)),
-            3 => ASTNodeValue::Parameter(ExpressionGraphParameterId::new(unstasher.u64()? as _)),
+            2 => ASTNodeValue::Variable(VariableId::unstash(unstasher)?),
+            3 => ASTNodeValue::Parameter(ExpressionGraphParameterId::unstash(unstasher)?),
             _ => panic!(),
         };
 

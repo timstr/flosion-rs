@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use crate::core::{
     jit::argumentstack::{ArgumentStack, ArgumentStackView},
     sound::{
-        context::{Context, InputFrameData, Stack},
+        context::{Context, Stack},
         soundinput::{InputContext, InputTiming, SoundInputLocation},
         soundprocessor::{
             ProcessorTiming, SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
@@ -341,8 +341,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         argument_stack: ArgumentStackView,
     ) -> StreamStatus {
         let top_frame = stack.top_frame().unwrap();
-        let input_location =
-            SoundInputLocation::new(top_frame.processor_id(), top_frame.input_data().input_id());
+        let input_location = top_frame.input_location();
 
         let mut data = self.cache.lock();
         debug_assert_eq!(
@@ -531,9 +530,9 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         }
         let release_pending = self.timing.pending_release().is_some();
 
-        let input_frame = InputFrameData::new(self.location.input(), &mut self.timing);
-
-        let stack = ctx.audio_context().push_frame(input_frame);
+        let stack = ctx
+            .audio_context()
+            .push_frame(self.location.input(), &mut self.timing);
 
         let status = match &mut self.target {
             StateGraphNodeValue::Unique(proc) => proc.process_audio(

@@ -7,10 +7,10 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
-            argument::ProcessorArgument,
+            argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{SoundProcessor, StreamStatus},
@@ -32,10 +32,14 @@ pub struct Definitions {
 
 impl SoundProcessor for Definitions {
     fn new(_args: &ParsedArguments) -> Definitions {
+        let argument = ProcessorArgument::new();
         Definitions {
-            sound_input: SingleInput::new(InputOptions::Synchronous),
-            expression: ProcessorExpression::new(0.0, SoundExpressionScope::new_empty()),
-            argument: ProcessorArgument::new(),
+            sound_input: SingleInput::new(
+                InputOptions::Synchronous,
+                ArgumentScope::new(vec![argument.id()]),
+            ),
+            expression: ProcessorExpression::new(0.0, ArgumentScope::new_empty()),
+            argument,
         }
     }
 

@@ -11,7 +11,10 @@ use crate::core::{
     jit::cache::JitCache,
     sound::{
         argument::ProcessorArgumentLocation,
-        expression::{ExpressionParameterMapping, ProcessorExpressionLocation},
+        expression::{
+            ExpressionParameterMapping, ExpressionParameterTarget, ProcessorExpressionLocation,
+        },
+        soundinput::SoundInputLocation,
     },
 };
 
@@ -25,6 +28,7 @@ pub(crate) struct OuterProcessorExpressionContext<'a> {
     parameter_mapping: &'a mut ExpressionParameterMapping,
     sound_graph_names: &'a SoundGraphUiNames,
     time_axis: TimeAxis,
+    available_sound_inputs: &'a HashSet<SoundInputLocation>,
     available_arguments: &'a HashSet<ProcessorArgumentLocation>,
     snapshot_flag: &'a SnapshotFlag,
 }
@@ -35,6 +39,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         parameter_mapping: &'a mut ExpressionParameterMapping,
         sound_graph_names: &'a SoundGraphUiNames,
         time_axis: TimeAxis,
+        available_sound_inputs: &'a HashSet<SoundInputLocation>,
         available_arguments: &'a HashSet<ProcessorArgumentLocation>,
         snapshot_flag: &'a SnapshotFlag,
     ) -> Self {
@@ -43,6 +48,7 @@ impl<'a> OuterProcessorExpressionContext<'a> {
             parameter_mapping,
             sound_graph_names,
             time_axis,
+            available_sound_inputs,
             available_arguments,
             snapshot_flag,
         }
@@ -54,6 +60,10 @@ impl<'a> OuterProcessorExpressionContext<'a> {
 
     pub(super) fn mapping(&self) -> &ExpressionParameterMapping {
         self.parameter_mapping
+    }
+
+    pub(super) fn available_sound_inputs(&self) -> &HashSet<SoundInputLocation> {
+        self.available_sound_inputs
     }
 
     pub(super) fn available_arguments(&self) -> &HashSet<ProcessorArgumentLocation> {
@@ -68,29 +78,28 @@ impl<'a> OuterProcessorExpressionContext<'a> {
         &self.time_axis
     }
 
-    pub(crate) fn find_graph_id_for_argument(
+    pub(crate) fn find_graph_id_for_target(
         &self,
-        argument_id: ProcessorArgumentLocation,
+        target: ExpressionParameterTarget,
     ) -> Option<ExpressionGraphParameterId> {
-        self.parameter_mapping.parameter_from_argument(argument_id)
+        self.parameter_mapping.parameter_from_target(target)
     }
 
-    pub(crate) fn connect_to_argument(
+    pub(crate) fn connect_to_target(
         &mut self,
         expression_graph: &mut ExpressionGraph,
-        argument_id: ProcessorArgumentLocation,
+        target: ExpressionParameterTarget,
     ) -> ExpressionGraphParameterId {
-        self.parameter_mapping
-            .add_argument(argument_id, expression_graph)
+        self.parameter_mapping.add_target(target, expression_graph)
     }
 
-    pub(crate) fn disconnect_from_argument(
+    pub(crate) fn disconnect_from_target(
         &mut self,
         expression_graph: &mut ExpressionGraph,
-        argument_id: ProcessorArgumentLocation,
+        target: ExpressionParameterTarget,
     ) {
         self.parameter_mapping
-            .remove_argument(argument_id, expression_graph);
+            .remove_target(target, expression_graph);
     }
 }
 
@@ -109,11 +118,26 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
     pub(crate) fn parameter_name(&self, parameter_id: ExpressionGraphParameterId) -> String {
         match self {
             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
-                let nsid = ctx
+                let target = ctx
                     .parameter_mapping
-                    .argument_from_parameter(parameter_id)
+                    .target_from_parameter(parameter_id)
                     .unwrap();
-                ctx.sound_graph_names().combined_parameter_name(nsid)
+                let names = ctx.sound_graph_names();
+                match target {
+                    ExpressionParameterTarget::Argument(arg_loc) => {
+                        names.combined_argument_name(arg_loc)
+                    }
+                    ExpressionParameterTarget::ProcessorTime(spid) => {
+                        if spid == ctx.location.processor() {
+                            "time".to_string()
+                        } else {
+                            format!("{}.time", names.sound_processor(spid).unwrap())
+                        }
+                    }
+                    ExpressionParameterTarget::InputTime(input_loc) => {
+                        format!("{}.time", names.combined_input_name(input_loc))
+                    }
+                }
             }
         }
     }
@@ -135,10 +159,10 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
                 let arg_id = ctx
                     .parameter_mapping
-                    .argument_from_parameter(parameter_id)
+                    .target_from_parameter(parameter_id)
                     .unwrap();
                 ctx.parameter_mapping
-                    .remove_argument(arg_id, expression_graph);
+                    .remove_target(arg_id, expression_graph);
             }
         }
     }

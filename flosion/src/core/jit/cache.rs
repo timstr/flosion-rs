@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use hashstash::{ObjectHash, Stashable};
+use hashstash::ObjectHash;
 
 use crate::core::{
     expression::expressiongraph::ExpressionGraph,
@@ -123,12 +123,9 @@ impl<'ctx> JitCache<'ctx> {
     }
 
     fn hash_expr(expr_graph: &ExpressionGraph, mapping: &ExpressionParameterMapping) -> ObjectHash {
-        ObjectHash::with_stasher_and_context(
-            |stasher| {
-                expr_graph.stash(stasher);
-                mapping.stash(stasher);
-            },
-            StashingContext::new_checking_recompilation(),
-        )
+        ObjectHash::with_stasher(|stasher| {
+            stasher.object_with_context(expr_graph, StashingContext::new_checking_recompilation());
+            stasher.object(mapping);
+        })
     }
 }

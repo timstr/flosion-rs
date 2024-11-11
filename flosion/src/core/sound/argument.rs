@@ -186,3 +186,58 @@ impl<T: ArgumentTranslation> AnyProcessorArgument for ProcessorArgument<T> {
         ProcessorArgument::compile_evaluation(self, jit)
     }
 }
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ArgumentScope {
+    available_arguments: Vec<ProcessorArgumentId>,
+}
+
+impl ArgumentScope {
+    pub fn new_empty() -> ArgumentScope {
+        ArgumentScope {
+            available_arguments: Vec::new(),
+        }
+    }
+
+    pub fn new(arguments: Vec<ProcessorArgumentId>) -> ArgumentScope {
+        ArgumentScope {
+            available_arguments: arguments,
+        }
+    }
+
+    pub(crate) fn arguments(&self) -> &[ProcessorArgumentId] {
+        &self.available_arguments
+    }
+}
+
+impl Stashable<StashingContext> for ArgumentScope {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        stasher.array_of_u64_iter(self.available_arguments.iter().map(|i| i.value() as u64));
+    }
+}
+
+impl Unstashable<UnstashingContext<'_>> for ArgumentScope {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext<'_>>) -> Result<Self, UnstashError> {
+        Ok(ArgumentScope {
+            available_arguments: unstasher
+                .array_of_u64_iter()?
+                .map(|i| ProcessorArgumentId::new(i as _))
+                .collect(),
+        })
+    }
+}
+
+impl UnstashableInplace<UnstashingContext<'_>> for ArgumentScope {
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+    ) -> Result<(), UnstashError> {
+        let ids = unstasher.array_of_u64_iter()?;
+
+        if unstasher.time_to_write() {
+            self.available_arguments = ids.map(|i| ProcessorArgumentId::new(i as _)).collect();
+        }
+
+        Ok(())
+    }
+}

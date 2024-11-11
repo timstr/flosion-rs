@@ -846,17 +846,17 @@ impl LexicalLayout {
                         expr_graph,
                     )
                     .unwrap(),
-                ExpressionSummonValue::Argument(snsid) => {
+                ExpressionSummonValue::ParameterTarget(target) => {
                     let node;
                     {
                         let outer_context = match outer_context {
                             OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx,
                         };
                         let giid =
-                            if let Some(giid) = outer_context.find_graph_id_for_argument(snsid) {
+                            if let Some(giid) = outer_context.find_graph_id_for_target(target) {
                                 giid
                             } else {
-                                let giid = outer_context.connect_to_argument(expr_graph, snsid);
+                                let giid = outer_context.connect_to_target(expr_graph, target);
                                 giid
                             };
                         node = ASTNode::new(ASTNodeValue::Parameter(giid));

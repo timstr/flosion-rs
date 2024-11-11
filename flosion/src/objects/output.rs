@@ -10,6 +10,7 @@ use crate::{
         resample::resample_interleave,
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
+            argument::ArgumentScope,
             context::Context,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
@@ -87,7 +88,7 @@ impl SoundProcessor for Output {
         });
 
         Output {
-            input: SingleInput::new(InputOptions::Synchronous),
+            input: SingleInput::new(InputOptions::Synchronous, ArgumentScope::new_empty()),
             shared_data,
             state: StateMarker::new(),
         }

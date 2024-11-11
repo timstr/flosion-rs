@@ -7,8 +7,9 @@ use crate::{
         jit::compiledexpression::Discretization,
         objecttype::{ObjectType, WithObjectType},
         sound::{
+            argument::ArgumentScope,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{
@@ -61,8 +62,8 @@ impl StartOver for ResamplerState {
 impl SoundProcessor for Resampler {
     fn new(_args: &ParsedArguments) -> Resampler {
         Resampler {
-            input: SingleInput::new(InputOptions::NonSynchronous),
-            speed_ratio: ProcessorExpression::new(1.0, SoundExpressionScope::new_empty()),
+            input: SingleInput::new(InputOptions::NonSynchronous, ArgumentScope::new_empty()),
+            speed_ratio: ProcessorExpression::new(1.0, ArgumentScope::new_empty()),
             state: StateMarker::new(),
         }
     }

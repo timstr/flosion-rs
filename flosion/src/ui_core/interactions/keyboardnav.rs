@@ -318,7 +318,8 @@ impl KeyboardNavInteraction {
 
                     let time_axis = layout.find_group(eid.processor()).unwrap().time_axis();
 
-                    let available_arguments = properties.available_arguments().get(eid).unwrap();
+                    let available_inputs = properties.available_inputs(eid.processor()).unwrap();
+                    let available_arguments = properties.available_arguments(*eid).unwrap();
 
                     graph
                         .sound_processor_mut(eid.processor())
@@ -331,7 +332,8 @@ impl KeyboardNavInteraction {
                                 mapping,
                                 names,
                                 time_axis,
-                                &available_arguments,
+                                available_inputs,
+                                available_arguments,
                                 snapshot_flag,
                             );
 

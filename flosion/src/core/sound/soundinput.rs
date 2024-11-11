@@ -14,15 +14,10 @@ use crate::core::{
 };
 
 use super::{
-    argument::{ArgumentTranslation, CompiledProcessorArgument},
+    argument::{ArgumentScope, ArgumentTranslation, CompiledProcessorArgument},
     context::Context,
     soundprocessor::SoundProcessorId,
 };
-
-pub struct SoundInputTag;
-
-// TODO: remove
-pub type SoundInputId = UniqueId<SoundInputTag>;
 
 pub struct ProcessorInputTag;
 
@@ -84,7 +79,6 @@ enum ReleaseStatus {
     Released,
 }
 
-// TODO: move, make not specific to inputs
 #[derive(Clone, Copy)]
 pub struct InputTiming {
     sample_offset: usize,
@@ -184,15 +178,21 @@ pub struct BasicProcessorInput {
     options: InputOptions,
     branches: usize,
     target: Option<SoundProcessorId>,
+    argument_scope: ArgumentScope,
 }
 
 impl BasicProcessorInput {
-    pub fn new(options: InputOptions, branches: usize) -> BasicProcessorInput {
+    pub fn new(
+        options: InputOptions,
+        branches: usize,
+        argument_scope: ArgumentScope,
+    ) -> BasicProcessorInput {
         BasicProcessorInput {
             id: ProcessorInputId::new_unique(),
             options,
             branches,
             target: None,
+            argument_scope,
         }
     }
 
@@ -218,6 +218,10 @@ impl BasicProcessorInput {
 
     pub(crate) fn set_target(&mut self, target: Option<SoundProcessorId>) {
         self.target = target;
+    }
+
+    pub(crate) fn argument_scope(&self) -> &ArgumentScope {
+        &self.argument_scope
     }
 
     pub fn compile_branch<'ctx>(
@@ -249,6 +253,7 @@ impl Stashable<StashingContext> for BasicProcessorInput {
             }
             None => stasher.u8(0),
         }
+        stasher.object(&self.argument_scope);
     }
 }
 
@@ -270,11 +275,14 @@ impl<'a> Unstashable<UnstashingContext<'a>> for BasicProcessorInput {
             _ => panic!(),
         };
 
+        let argument_scope = unstasher.object()?;
+
         Ok(BasicProcessorInput {
-            id: id,
-            options: options,
+            id,
+            options,
             branches,
-            target: target,
+            target,
+            argument_scope,
         })
     }
 }
@@ -304,12 +312,15 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for BasicProcessorInput {
             _ => panic!(),
         };
 
+        let argument_scope = unstasher.object_always()?;
+
         if unstasher.time_to_write() {
             *self = BasicProcessorInput {
-                id: id,
-                options: options,
+                id,
+                options,
                 branches,
-                target: target,
+                target,
+                argument_scope,
             };
         }
 

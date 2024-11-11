@@ -8,10 +8,10 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
-            argument::ProcessorArgument,
+            argument::{ArgumentScope, ProcessorArgument},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -58,8 +58,8 @@ impl SoundProcessor for WaveGenerator {
         let phase_id = phase.id();
         WaveGenerator {
             phase,
-            amplitude: ProcessorExpression::new(0.0, SoundExpressionScope::new(vec![phase_id])),
-            frequency: ProcessorExpression::new(250.0, SoundExpressionScope::new_empty()),
+            amplitude: ProcessorExpression::new(0.0, ArgumentScope::new(vec![phase_id])),
+            frequency: ProcessorExpression::new(250.0, ArgumentScope::new_empty()),
             state: StateMarker::new(),
         }
     }

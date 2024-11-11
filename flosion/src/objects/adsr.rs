@@ -8,8 +8,9 @@ use crate::{
         objecttype::{ObjectType, WithObjectType},
         samplefrequency::SAMPLE_FREQUENCY,
         sound::{
+            argument::ArgumentScope,
             context::Context,
-            expression::{ProcessorExpression, SoundExpressionScope},
+            expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
             soundinput::{InputContext, InputOptions},
             soundprocessor::{
@@ -97,11 +98,11 @@ fn chunked_interp(
 impl SoundProcessor for ADSR {
     fn new(_args: &ParsedArguments) -> ADSR {
         let adsr = ADSR {
-            input: SingleInput::new(InputOptions::Synchronous),
-            attack_time: ProcessorExpression::new(0.01, SoundExpressionScope::new_empty()),
-            decay_time: ProcessorExpression::new(0.2, SoundExpressionScope::new_empty()),
-            sustain_level: ProcessorExpression::new(0.5, SoundExpressionScope::new_empty()),
-            release_time: ProcessorExpression::new(0.25, SoundExpressionScope::new_empty()),
+            input: SingleInput::new(InputOptions::Synchronous, ArgumentScope::new_empty()),
+            attack_time: ProcessorExpression::new(0.01, ArgumentScope::new_empty()),
+            decay_time: ProcessorExpression::new(0.2, ArgumentScope::new_empty()),
+            sustain_level: ProcessorExpression::new(0.5, ArgumentScope::new_empty()),
+            release_time: ProcessorExpression::new(0.25, ArgumentScope::new_empty()),
             state: StateMarker::new(),
         };
 
