@@ -8,7 +8,7 @@ use crate::{
         engine::{scratcharena::ScratchArena, soundgraphcompiler::SoundGraphCompiler},
         expression::{
             context::ExpressionContext,
-            expressiongraphdata::ExpressionTarget,
+            expressiongraph::ExpressionTarget,
             expressiongraphvalidation::find_expression_error,
             expressioninput::ExpressionInput,
             expressionnode::{

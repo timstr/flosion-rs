@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::{
     core::expression::{
         expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
-        expressiongraphdata::ExpressionTarget,
+        expressiongraph::ExpressionTarget,
         expressionnode::ExpressionNodeId,
     },
     ui_core::lexicallayout::ast::{

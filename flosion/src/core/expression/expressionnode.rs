@@ -497,10 +497,6 @@ where
         self
     }
 
-    fn get_language_type_name(&self) -> &'static str {
-        type_name::<Self>()
-    }
-
     fn as_expression_node(&self) -> Option<&dyn AnyExpressionNode> {
         Some(self)
     }

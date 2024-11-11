@@ -15,12 +15,33 @@ use crate::{
 };
 
 use super::{
-    expressiongraphdata::ExpressionTarget,
     expressiongrapherror::ExpressionError,
     expressioninput::{ExpressionInput, ExpressionInputId, ExpressionInputLocation},
     expressionnode::{AnyExpressionNode, ExpressionNodeId},
     expressionobject::ExpressionObjectFactory,
 };
+
+/// The set of things that an expression node input or graph output
+/// can draw from, i.e. which produce a numeric value when evaluated.
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
+pub enum ExpressionTarget {
+    /// The result of an expression node in the graph
+    Node(ExpressionNodeId),
+    /// One of the supplied parameters to the graph
+    Parameter(ExpressionGraphParameterId),
+}
+
+impl From<ExpressionNodeId> for ExpressionTarget {
+    fn from(value: ExpressionNodeId) -> Self {
+        ExpressionTarget::Node(value)
+    }
+}
+
+impl From<ExpressionGraphParameterId> for ExpressionTarget {
+    fn from(value: ExpressionGraphParameterId) -> Self {
+        ExpressionTarget::Parameter(value)
+    }
+}
 
 pub struct ExpressionGraphParameterTag;
 
@@ -82,8 +103,7 @@ impl ExpressionGraph {
         &mut self.results
     }
 
-    // TODO: rename to e.g. inputs_connected_to
-    pub(crate) fn destinations<'a>(
+    pub(crate) fn inputs_connected_to<'a>(
         &'a self,
         target: ExpressionTarget,
     ) -> Vec<ExpressionInputLocation> {

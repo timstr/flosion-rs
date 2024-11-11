@@ -1,11 +1,8 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use super::{
-    argument::ProcessorArgumentLocation,
-    expression::ProcessorExpressionLocation,
-    sounderror::SoundError,
-    soundgraph::SoundGraph,
-    soundinput::{InputOptions, SoundInputLocation},
+    argument::ProcessorArgumentLocation, expression::ProcessorExpressionLocation,
+    sounderror::SoundError, soundgraph::SoundGraph, soundinput::InputOptions,
     soundprocessor::SoundProcessorId,
 };
 
@@ -196,7 +193,7 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
             // Static processors must be allocated one state per input
             // We don't check the processor's own implied number of states
             // because that would overcount if there are multiple inputs.
-            for input_id in graph.sound_processor_targets(*proc_id) {
+            for input_id in graph.inputs_connected_to(*proc_id) {
                 let num_input_branches = graph
                     .with_sound_input(input_id, |input| input.branches())
                     .unwrap();
@@ -212,40 +209,6 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
     }
 
     None
-}
-
-fn input_depends_on_processor(
-    input_location: SoundInputLocation,
-    processor_id: SoundProcessorId,
-    graph: &SoundGraph,
-) -> bool {
-    let input_target = graph
-        .with_sound_input(input_location, |input| input.target())
-        .unwrap();
-    match input_target {
-        Some(spid) => processor_depends_on_processor(spid, processor_id, graph),
-        None => false,
-    }
-}
-
-fn processor_depends_on_processor(
-    processor_id: SoundProcessorId,
-    other_processor_id: SoundProcessorId,
-    graph: &SoundGraph,
-) -> bool {
-    if processor_id == other_processor_id {
-        return true;
-    }
-    let mut any_inputs_depend = false;
-    graph
-        .sound_processor(processor_id)
-        .unwrap()
-        .foreach_input(|_, location| {
-            if input_depends_on_processor(location, other_processor_id, graph) {
-                any_inputs_depend = true;
-            }
-        });
-    false
 }
 
 pub(super) fn find_invalid_expression_arguments(

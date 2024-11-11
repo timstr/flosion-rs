@@ -5,7 +5,7 @@ use crate::{
     core::{
         expression::{
             expressiongraph::ExpressionGraph,
-            expressiongraphdata::ExpressionTarget,
+            expressiongraph::ExpressionTarget,
             expressiongrapherror::ExpressionError,
             expressiongraphvalidation::find_expression_error,
             expressioninput::ExpressionInput,

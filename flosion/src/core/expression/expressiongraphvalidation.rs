@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::core::expression::{
-    expressiongraphdata::ExpressionTarget, expressionnode::ExpressionNodeId,
+    expressiongraph::ExpressionTarget, expressionnode::ExpressionNodeId,
 };
 
 use super::{expressiongraph::ExpressionGraph, expressiongrapherror::ExpressionError};

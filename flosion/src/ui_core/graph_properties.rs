@@ -85,7 +85,7 @@ pub(super) fn available_sound_inputs(
             }
             // all targets are cached
             if !graph
-                .sound_processor_targets(proc.id())
+                .inputs_connected_to(proc.id())
                 .into_iter()
                 .all(|target| cached_inputs.contains_key(&target.processor()))
             {
@@ -98,7 +98,7 @@ pub(super) fn available_sound_inputs(
 
         // The set of available inputs is the intersection of inputs available
         // through each target
-        let targets = graph.sound_processor_targets(next_proc.id());
+        let targets = graph.inputs_connected_to(next_proc.id());
 
         let available_inputs;
 

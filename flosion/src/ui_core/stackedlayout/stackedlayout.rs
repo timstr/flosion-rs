@@ -526,7 +526,7 @@ impl StackedLayout {
         }
 
         // check that no other inputs are connected to the top processor
-        let all_connected_inputs = graph.sound_processor_targets(top_processor);
+        let all_connected_inputs = graph.inputs_connected_to(top_processor);
         if all_connected_inputs != [input_id] {
             return false;
         }

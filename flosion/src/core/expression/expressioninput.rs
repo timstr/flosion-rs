@@ -7,7 +7,7 @@ use crate::core::{
     uniqueid::UniqueId,
 };
 
-use super::{expressiongraphdata::ExpressionTarget, expressionnode::ExpressionNodeId};
+use super::{expressiongraph::ExpressionTarget, expressionnode::ExpressionNodeId};
 
 pub struct ExpressionInputTag;
 

@@ -22,9 +22,6 @@ pub trait ExpressionObject {
 
     fn as_any(&self) -> &dyn Any;
     fn as_mut_any(&mut self) -> &mut dyn Any;
-
-    // TODO: remove
-    fn get_language_type_name(&self) -> &'static str;
 }
 
 struct ExpressionObjectCreator {

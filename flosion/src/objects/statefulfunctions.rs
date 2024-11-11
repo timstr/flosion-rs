@@ -12,7 +12,7 @@ use crate::{
         },
         jit::jit::Jit,
         objecttype::{ObjectType, WithObjectType},
-        stashing::{StashingContext, UnstashingContext},
+        stashing::StashingContext,
     },
     ui_core::arguments::ParsedArguments,
 };

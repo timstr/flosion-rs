@@ -250,7 +250,7 @@ fn drag_and_drop_in_graph(
         disconnect_processor_from_all_inputs(drag_bottom_proc, graph);
 
         // Note the inputs the plug is connected to, and disconnect them
-        let plug_targets = graph.sound_processor_targets(onto_plug);
+        let plug_targets = graph.inputs_connected_to(onto_plug);
         for target in &plug_targets {
             graph.disconnect_sound_input(*target).unwrap();
         }
@@ -664,7 +664,7 @@ fn disconnect_all_inputs_of_processor(processor_id: SoundProcessorId, graph: &mu
 }
 
 fn disconnect_processor_from_all_inputs(processor_id: SoundProcessorId, graph: &mut SoundGraph) {
-    for i in graph.sound_processor_targets(processor_id) {
+    for i in graph.inputs_connected_to(processor_id) {
         graph.disconnect_sound_input(i).unwrap();
     }
 }

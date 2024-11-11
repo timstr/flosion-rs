@@ -58,8 +58,7 @@ impl SoundGraph {
         }
     }
 
-    // TODO: rename to e.g. inputs_connected_to
-    pub(crate) fn sound_processor_targets<'a>(
+    pub(crate) fn inputs_connected_to<'a>(
         &'a self,
         id: SoundProcessorId,
     ) -> Vec<SoundInputLocation> {

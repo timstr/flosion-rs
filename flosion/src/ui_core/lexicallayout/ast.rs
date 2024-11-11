@@ -5,7 +5,7 @@ use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher}
 
 use crate::core::{
     expression::{
-        expressiongraph::ExpressionGraphParameterId, expressiongraphdata::ExpressionTarget,
+        expressiongraph::ExpressionGraphParameterId, expressiongraph::ExpressionTarget,
         expressionnode::ExpressionNodeId,
     },
     uniqueid::UniqueId,

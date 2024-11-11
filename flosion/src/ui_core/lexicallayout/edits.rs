@@ -4,8 +4,8 @@ use hashstash::Stash;
 
 use crate::{
     core::expression::{
+        expressiongraph::ExpressionTarget,
         expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
-        expressiongraphdata::ExpressionTarget,
     },
     ui_core::{
         expressiongraphuicontext::OuterExpressionGraphUiContext,

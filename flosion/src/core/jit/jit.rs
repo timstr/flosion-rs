@@ -19,7 +19,7 @@ use inkwell::{
 use crate::core::{
     engine::garbage::Droppable,
     expression::{
-        expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
+        expressiongraph::ExpressionGraph, expressiongraph::ExpressionTarget,
         expressionnode::ExpressionNodeId,
     },
     sound::{

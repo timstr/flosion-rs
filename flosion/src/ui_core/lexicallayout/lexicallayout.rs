@@ -4,7 +4,7 @@ use hashstash::{Order, Stash, Stashable, Stasher, UnstashError, Unstashable, Uns
 use crate::{
     core::{
         expression::{
-            expressiongraph::ExpressionGraph, expressiongraphdata::ExpressionTarget,
+            expressiongraph::ExpressionGraph, expressiongraph::ExpressionTarget,
             expressionnode::ExpressionNodeId,
         },
         objecttype::{ObjectType, WithObjectType},
@@ -236,7 +236,7 @@ impl LexicalLayout {
                 return ASTNode::new(ASTNodeValue::Variable(existing_variable.id()));
             }
 
-            let create_new_variable = graph.destinations(target).len() >= 2;
+            let create_new_variable = graph.inputs_connected_to(target).len() >= 2;
 
             let node = graph.node(nsid).unwrap();
 
