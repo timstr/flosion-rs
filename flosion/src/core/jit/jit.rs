@@ -6,6 +6,7 @@ use std::{
 
 use atomic_float::AtomicF32;
 use inkwell::{
+    basic_block::BasicBlock,
     builder::Builder,
     context::ContextRef,
     execution_engine::ExecutionEngine,
@@ -42,8 +43,9 @@ pub(crate) struct InstructionLocations<'ctx> {
     pub(crate) end_of_startover: InstructionValue<'ctx>,
     pub(crate) end_of_resume: InstructionValue<'ctx>,
     pub(crate) end_of_pre_loop: InstructionValue<'ctx>,
-    pub(crate) end_of_post_loop: InstructionValue<'ctx>,
-    pub(crate) end_of_loop: InstructionValue<'ctx>,
+    pub(crate) loop_body: BasicBlock<'ctx>,
+    pub(crate) post_loop: BasicBlock<'ctx>,
+    pub(crate) exit: BasicBlock<'ctx>,
 }
 
 pub struct LocalVariables<'ctx> {
@@ -194,8 +196,6 @@ impl<'ctx> Jit<'ctx> {
         let inst_end_of_startover;
         let inst_end_of_resume;
         let inst_end_of_pre_loop;
-        let inst_end_of_loop;
-        let inst_end_of_post_loop;
 
         let v_loop_counter;
 
@@ -287,30 +287,13 @@ impl<'ctx> Jit<'ctx> {
                 (&v_loop_counter_inc, bb_loop),
             ]);
 
-            // check that _next_ loop iteration is in bounds, since
-            // loop body is about to be executed any way, and size
-            // zero has already been prevented
-            let v_loop_counter_ge_len = builder.build_int_compare(
-                inkwell::IntPredicate::EQ,
-                v_loop_counter_inc,
-                arg_dst_len,
-                "loop_counter_ge_len",
-            )?;
-
             // loop body will be inserted here
-
-            // if loop_counter >= dst_len { goto post_loop } else { goto loop_body }
-            inst_end_of_loop =
-                builder.build_conditional_branch(v_loop_counter_ge_len, bb_post_loop, bb_loop)?;
         }
 
         // post_loop
         builder.position_at_end(bb_post_loop);
         {
             // stateful expression node store and post-loop code will be inserted here
-
-            // goto exit
-            inst_end_of_post_loop = builder.build_unconditional_branch(bb_exit)?;
         }
 
         // exit
@@ -324,8 +307,9 @@ impl<'ctx> Jit<'ctx> {
             end_of_startover: inst_end_of_startover,
             end_of_resume: inst_end_of_resume,
             end_of_pre_loop: inst_end_of_pre_loop,
-            end_of_post_loop: inst_end_of_post_loop,
-            end_of_loop: inst_end_of_loop,
+            loop_body: bb_loop,
+            post_loop: bb_post_loop,
+            exit: bb_exit,
         };
 
         let local_variables = LocalVariables {
@@ -557,7 +541,7 @@ impl<'ctx> Jit<'ctx> {
             .unwrap();
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
+            .position_at_end(self.instruction_locations.loop_body);
 
         let index_float = self
             .builder
@@ -628,7 +612,7 @@ impl<'ctx> Jit<'ctx> {
             .unwrap();
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
+            .position_at_end(self.instruction_locations.loop_body);
 
         let index_float = self
             .builder
@@ -801,7 +785,7 @@ impl<'ctx> Jit<'ctx> {
         self.atomic_captures.push(value);
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
+            .position_at_end(self.instruction_locations.loop_body);
 
         load.into_float_value()
     }
@@ -871,7 +855,7 @@ impl<'ctx> Jit<'ctx> {
     ) {
         for (param_id, target) in parameter_mapping.items() {
             self.builder()
-                .position_before(&self.instruction_locations.end_of_loop);
+                .position_at_end(self.instruction_locations.loop_body);
 
             let param_value = match mode {
                 JitMode::Normal => match target {
@@ -953,7 +937,7 @@ impl<'ctx> Jit<'ctx> {
         };
 
         self.builder
-            .position_before(&self.instruction_locations.end_of_loop);
+            .position_at_end(self.instruction_locations.loop_body);
 
         let dst_elem_ptr = unsafe {
             self.builder.build_gep(
@@ -965,6 +949,43 @@ impl<'ctx> Jit<'ctx> {
         }
         .unwrap();
         self.builder.build_store(dst_elem_ptr, final_value).unwrap();
+
+        let loop_counter_plus_one = self
+            .builder
+            .build_int_add(
+                self.local_variables.loop_counter,
+                self.types.usize_type.const_int(1, false),
+                "loop_counter_plus_one",
+            )
+            .unwrap();
+
+        // check that _next_ loop iteration is in bounds, since
+        // loop body is about to be executed any way, and size
+        // zero has already been prevented
+        let v_loop_counter_ge_len = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                loop_counter_plus_one,
+                self.local_variables.dst_len,
+                "loop_counter_ge_len",
+            )
+            .unwrap();
+
+        // if loop_counter >= dst_len { goto post_loop } else { goto loop_body }
+        self.builder
+            .build_conditional_branch(
+                v_loop_counter_ge_len,
+                self.instruction_locations.post_loop,
+                self.instruction_locations.loop_body,
+            )
+            .unwrap();
+
+        self.builder
+            .position_at_end(self.instruction_locations.post_loop);
+        self.builder
+            .build_unconditional_branch(self.instruction_locations.exit)
+            .unwrap();
 
         self.finish()
     }

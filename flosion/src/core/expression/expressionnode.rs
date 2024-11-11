@@ -1,5 +1,5 @@
 use std::{
-    any::{type_name, Any},
+    any::Any,
     ops::{Deref, DerefMut},
 };
 
@@ -292,7 +292,7 @@ where
         // ===========================================================
         // at end of loop, copy stack variables into state array
         jit.builder()
-            .position_before(&jit.instruction_locations.end_of_post_loop);
+            .position_at_end(jit.instruction_locations.post_loop);
         for (stack_var, ptr_state) in stack_variables.iter().zip(state_ptrs) {
             // tmp = *stack_var
             let tmp = jit
@@ -309,7 +309,7 @@ where
         // =                        The loop                         =
         // ===========================================================
         jit.builder()
-            .position_before(&jit.instruction_locations.end_of_loop);
+            .position_at_end(jit.instruction_locations.loop_body);
         let loop_value = self.compile_loop(jit, inputs, &stack_variables, &compile_state);
 
         loop_value

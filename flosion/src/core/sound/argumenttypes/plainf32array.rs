@@ -25,6 +25,10 @@ impl ArgumentTranslation for PlainF32ArrayArgument {
         jit: &mut Jit<'ctx>,
     ) -> FloatValue<'ctx> {
         // TODO: check length
+        // This will be complicated and will require additional basic blocks spliced
+        // into the middle of the loop, and effectively replacing the jit's instruction
+        // location pointing to the end of the loop. This will need support from within
+        // the jit module itself.
         let ptr_val = unsafe {
             jit.builder()
                 .build_gep(
