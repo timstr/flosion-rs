@@ -24,7 +24,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument, ProcessorArgumentLocation},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
-            context::{Context, Stack},
+            context::{AudioStack, Context},
             expression::{ExpressionParameterTarget, ProcessorExpression},
             soundgraph::SoundGraph,
             soundprocessor::{
@@ -245,7 +245,7 @@ where
 
     let scratch_arena = ScratchArena::new();
     let argument_stack = ArgumentStack::new();
-    let stack = Stack::Root;
+    let stack = AudioStack::Root;
     let processor_timing = ProcessorTiming::new();
     let mut context = Context::new(
         proc_id,

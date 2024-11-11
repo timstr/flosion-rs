@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 use crate::core::{
     jit::argumentstack::{ArgumentStack, ArgumentStackView},
     sound::{
-        context::{Context, Stack},
+        context::{AudioStack, Context},
         soundinput::{InputContext, InputTiming, SoundInputLocation},
         soundprocessor::{
             ProcessorTiming, SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
@@ -50,7 +50,7 @@ impl<'ctx, T: SoundProcessor> CompiledProcessorData<'ctx, T> {
     fn process_audio(
         &mut self,
         dst: &mut SoundChunk,
-        stack: Stack,
+        stack: AudioStack,
         scratch_arena: &ScratchArena,
         argument_stack: ArgumentStackView,
     ) -> StreamStatus {
@@ -84,7 +84,7 @@ pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
     fn process_audio(
         &mut self,
         dst: &mut SoundChunk,
-        stack: Stack,
+        stack: AudioStack,
         scratch_arena: &ScratchArena,
         argument_stack: ArgumentStackView,
     ) -> StreamStatus;
@@ -112,7 +112,7 @@ impl<'ctx, T: 'static + SoundProcessor> AnyCompiledProcessorData<'ctx>
     fn process_audio(
         &mut self,
         dst: &mut SoundChunk,
-        stack: Stack,
+        stack: AudioStack,
         scratch_arena: &ScratchArena,
         argument_stack: ArgumentStackView,
     ) -> StreamStatus {
@@ -168,7 +168,7 @@ impl<'ctx> UniqueCompiledProcessor<'ctx> {
     fn process_audio(
         &mut self,
         dst: &mut SoundChunk,
-        stack: Stack<'_>,
+        stack: AudioStack<'_>,
         scratch_arena: &ScratchArena,
         argument_stack: ArgumentStackView,
     ) -> StreamStatus {
@@ -307,7 +307,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         debug_assert!(target_inputs.len() == 0);
         processor.process_audio(
             cached_output,
-            Stack::Root,
+            AudioStack::Root,
             scratch_arena,
             argument_stack.view_at_bottom(),
         );
@@ -336,7 +336,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     fn process_audio(
         &mut self,
         dst: &mut SoundChunk,
-        stack: Stack,
+        stack: AudioStack,
         scratch_arena: &ScratchArena,
         argument_stack: ArgumentStackView,
     ) -> StreamStatus {

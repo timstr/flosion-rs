@@ -10,9 +10,9 @@ use super::{
     soundprocessor::{ProcessorTiming, SoundProcessorId},
 };
 
-pub(crate) struct StackFrame<'a> {
+pub(crate) struct AudioStackFrame<'a> {
     /// The parent stack frame
-    parent: &'a Stack<'a>,
+    parent: &'a AudioStack<'a>,
 
     /// The previous processor's id
     processor_id: SoundProcessorId,
@@ -27,30 +27,30 @@ pub(crate) struct StackFrame<'a> {
     input_timing: &'a mut InputTiming,
 }
 
-impl<'a> StackFrame<'a> {
+impl<'a> AudioStackFrame<'a> {
     pub(crate) fn input_location(&self) -> SoundInputLocation {
         SoundInputLocation::new(self.processor_id, self.input_id)
     }
 }
 
 // TODO: rename
-pub(crate) enum Stack<'a> {
-    Frame(StackFrame<'a>),
+pub(crate) enum AudioStack<'a> {
+    Frame(AudioStackFrame<'a>),
     Root,
 }
 
-impl<'a> Stack<'a> {
-    pub(crate) fn top_frame(&self) -> Option<&StackFrame<'a>> {
+impl<'a> AudioStack<'a> {
+    pub(crate) fn top_frame(&self) -> Option<&AudioStackFrame<'a>> {
         match self {
-            Stack::Frame(stack_frame) => Some(stack_frame),
-            Stack::Root => None,
+            AudioStack::Frame(stack_frame) => Some(stack_frame),
+            AudioStack::Root => None,
         }
     }
 
-    pub(crate) fn top_frame_mut(&mut self) -> Option<&mut StackFrame<'a>> {
+    pub(crate) fn top_frame_mut(&mut self) -> Option<&mut AudioStackFrame<'a>> {
         match self {
-            Stack::Frame(stack_frame) => Some(stack_frame),
-            Stack::Root => None,
+            AudioStack::Frame(stack_frame) => Some(stack_frame),
+            AudioStack::Root => None,
         }
     }
 
@@ -59,7 +59,7 @@ impl<'a> Stack<'a> {
         processor_id: SoundProcessorId,
     ) -> (usize, f32) {
         match self {
-            Stack::Frame(stack_frame) => {
+            AudioStack::Frame(stack_frame) => {
                 if stack_frame.processor_id == processor_id {
                     let elapsed_samples = stack_frame.processor_timing.elapsed_chunks()
                         * CHUNK_SIZE
@@ -76,7 +76,7 @@ impl<'a> Stack<'a> {
                     )
                 }
             }
-            Stack::Root => {
+            AudioStack::Root => {
                 panic!("Attempted to get timing of a processor which is not on the stack")
             }
         }
@@ -88,7 +88,7 @@ impl<'a> Stack<'a> {
         child_samples: usize,
     ) -> (usize, f32) {
         match self {
-            Stack::Frame(stack_frame) => {
+            AudioStack::Frame(stack_frame) => {
                 if input_location == stack_frame.input_location() {
                     (child_samples, 1.0)
                 } else {
@@ -103,7 +103,7 @@ impl<'a> Stack<'a> {
                     )
                 }
             }
-            Stack::Root => {
+            AudioStack::Root => {
                 panic!("Attempted to get timing of a processor which is not on the stack")
             }
         }
@@ -115,7 +115,7 @@ pub struct Context<'a> {
     current_processor_timing: &'a ProcessorTiming,
     scratch_arena: &'a ScratchArena,
     arguments: ArgumentStackView<'a>,
-    stack: Stack<'a>,
+    stack: AudioStack<'a>,
 }
 
 impl<'a> Context<'a> {
@@ -124,7 +124,7 @@ impl<'a> Context<'a> {
         current_processor_timing: &'a ProcessorTiming,
         scratch_arena: &'a ScratchArena,
         arguments: ArgumentStackView<'a>,
-        stack: Stack<'a>,
+        stack: AudioStack<'a>,
     ) -> Context<'a> {
         Context {
             current_processor_id,
@@ -143,8 +143,8 @@ impl<'a> Context<'a> {
         &'a self,
         input_id: ProcessorInputId,
         input_timing: &'a mut InputTiming,
-    ) -> Stack<'a> {
-        Stack::Frame(StackFrame {
+    ) -> AudioStack<'a> {
+        AudioStack::Frame(AudioStackFrame {
             parent: &self.stack,
             processor_id: self.current_processor_id,
             processor_timing: self.current_processor_timing,
