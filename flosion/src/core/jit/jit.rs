@@ -12,7 +12,7 @@ use inkwell::{
     execution_engine::ExecutionEngine,
     intrinsics::Intrinsic,
     module::Module,
-    values::{BasicValue, FloatValue, IntValue, PointerValue},
+    values::{BasicValue, FloatValue, FunctionValue, IntValue, PointerValue},
     AtomicOrdering,
 };
 
@@ -44,7 +44,9 @@ pub(crate) struct Blocks<'ctx> {
     pub(crate) startover: BasicBlock<'ctx>,
     pub(crate) resume: BasicBlock<'ctx>,
     pub(crate) pre_loop: BasicBlock<'ctx>,
+    pub(crate) loop_begin: BasicBlock<'ctx>,
     pub(crate) loop_body: BasicBlock<'ctx>,
+    pub(crate) loop_end: BasicBlock<'ctx>,
     pub(crate) post_loop: BasicBlock<'ctx>,
     pub(crate) exit: BasicBlock<'ctx>,
 }
@@ -59,6 +61,7 @@ pub struct LocalVariables<'ctx> {
 }
 
 pub struct Jit<'ctx> {
+    pub(crate) function: FunctionValue<'ctx>,
     pub(crate) blocks: Blocks<'ctx>,
     pub(super) local_variables: LocalVariables<'ctx>,
     pub(crate) types: JitTypes<'ctx>,
@@ -158,7 +161,8 @@ impl<'ctx> Jit<'ctx> {
         let bb_startover = inkwell_context.append_basic_block(fn_eval_expression, "startover");
         let bb_resume = inkwell_context.append_basic_block(fn_eval_expression, "resume");
         let bb_pre_loop = inkwell_context.append_basic_block(fn_eval_expression, "pre_loop");
-        let bb_loop = inkwell_context.append_basic_block(fn_eval_expression, "loop");
+        let bb_loop_begin = inkwell_context.append_basic_block(fn_eval_expression, "loop_begin");
+        let bb_loop_end = inkwell_context.append_basic_block(fn_eval_expression, "loop_end");
         let bb_post_loop = inkwell_context.append_basic_block(fn_eval_expression, "post_loop");
         let bb_exit = inkwell_context.append_basic_block(fn_eval_expression, "exit");
 
@@ -192,6 +196,8 @@ impl<'ctx> Jit<'ctx> {
         arg_dst_len.set_name("dst_len");
         arg_time_step.set_name("time_step");
         arg_ctx_ptr.set_name("context_ptr");
+        arg_ptr_init_flag.set_name("ptr_init_flag");
+        arg_ptr_state.set_name("ptr_state");
 
         let v_loop_counter;
 
@@ -227,8 +233,8 @@ impl<'ctx> Jit<'ctx> {
             // stateful expression node init code will be inserted here
         }
 
-        // loop
-        builder.position_at_end(bb_loop);
+        // loop_begin
+        builder.position_at_end(bb_loop_begin);
         {
             let phi = builder.build_phi(types.usize_type, "loop_counter")?;
             v_loop_counter = phi.as_basic_value().into_int_value();
@@ -241,7 +247,7 @@ impl<'ctx> Jit<'ctx> {
 
             phi.add_incoming(&[
                 (&types.usize_type.const_zero(), bb_pre_loop),
-                (&v_loop_counter_inc, bb_loop),
+                (&v_loop_counter_inc, bb_loop_end),
             ]);
 
             // loop body will be inserted here
@@ -253,13 +259,21 @@ impl<'ctx> Jit<'ctx> {
             builder.build_return(None)?;
         }
 
-        let instruction_locations = Blocks {
+        let blocks = Blocks {
             entry: bb_entry,
             check_startover: bb_check_startover,
             startover: bb_startover,
             resume: bb_resume,
             pre_loop: bb_pre_loop,
-            loop_body: bb_loop,
+
+            // NOTE: begin and body of loop start out as the same basic
+            // block. This distinction exists only to support compiling
+            // things which introduces branches, thus jumps between
+            // additional basic blocks, in the middle of the loop body.
+            loop_begin: bb_loop_begin,
+            loop_body: bb_loop_begin,
+            loop_end: bb_loop_end,
+
             post_loop: bb_post_loop,
             exit: bb_exit,
         };
@@ -274,7 +288,8 @@ impl<'ctx> Jit<'ctx> {
         };
 
         Ok(Jit {
-            blocks: instruction_locations,
+            function: fn_eval_expression,
+            blocks,
             local_variables,
             types,
             function_name,
@@ -290,15 +305,15 @@ impl<'ctx> Jit<'ctx> {
     }
 
     pub(super) fn finish(self) -> CompiledExpressionArtefact<'ctx> {
-        // let s = self.module().print_to_string();
-        // println!("===================== start of module =====================");
-        // println!("{}", s.to_str().unwrap());
-        // println!("===================== end of module =====================");
+        if let Err(err_msg) = self.module().verify() {
+            let module_str = self.module().print_to_string();
+            println!("===================== start of module =====================");
+            println!("{}", module_str.to_str().unwrap());
+            println!("===================== end of module =====================");
 
-        if let Err(s) = self.module().verify() {
-            let s = s.to_string();
-            println!("LLVM failed to verify IR module");
-            for line in s.lines() {
+            let err_msg = err_msg.to_string();
+            println!("LLVM failed to verify the above IR module:");
+            for line in err_msg.lines() {
                 println!("    {}", line);
             }
             panic!();
@@ -412,12 +427,20 @@ impl<'ctx> Jit<'ctx> {
         &self.module
     }
 
+    pub fn function(&self) -> FunctionValue<'ctx> {
+        self.function
+    }
+
     pub fn builder(&self) -> &Builder<'ctx> {
         &self.builder
     }
 
     pub fn local_variables(&self) -> &LocalVariables<'ctx> {
         &self.local_variables
+    }
+
+    pub fn replace_loop_body(&mut self, block: BasicBlock<'ctx>) {
+        self.blocks.loop_body = block;
     }
 
     pub fn context(&self) -> ContextRef<'ctx> {
@@ -798,7 +821,7 @@ impl<'ctx> Jit<'ctx> {
         mode: JitMode,
     ) {
         for (param_id, target) in parameter_mapping.items() {
-            self.builder().position_at_end(self.blocks.loop_body);
+            self.builder().position_at_end(self.blocks.loop_end);
 
             let param_value = match mode {
                 JitMode::Normal => match target {
@@ -919,16 +942,24 @@ impl<'ctx> Jit<'ctx> {
                 .unwrap();
         }
 
-        // pre_loop -> loop
+        // pre_loop -> loop_begin
         self.builder.position_at_end(self.blocks.pre_loop);
         {
             self.builder
-                .build_unconditional_branch(self.blocks.loop_body)
+                .build_unconditional_branch(self.blocks.loop_begin)
                 .unwrap();
         }
 
-        // loop_body -> if loop_counter + 1 == len then post_loop else loop_body
+        // loop_body -> loop_end
         self.builder.position_at_end(self.blocks.loop_body);
+        {
+            self.builder
+                .build_unconditional_branch(self.blocks.loop_end)
+                .unwrap();
+        }
+
+        // loop_end -> if loop_counter + 1 == len then post_loop else loop_body
+        self.builder.position_at_end(self.blocks.loop_end);
         {
             let dst_elem_ptr = unsafe {
                 self.builder.build_gep(
@@ -963,12 +994,12 @@ impl<'ctx> Jit<'ctx> {
                 )
                 .unwrap();
 
-            // if loop_counter >= dst_len { goto post_loop } else { goto loop_body }
+            // if loop_counter >= dst_len { goto post_loop } else { goto loop_begin }
             self.builder
                 .build_conditional_branch(
                     v_loop_counter_ge_len,
                     self.blocks.post_loop,
-                    self.blocks.loop_body,
+                    self.blocks.loop_begin,
                 )
                 .unwrap();
         }
