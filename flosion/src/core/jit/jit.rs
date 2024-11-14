@@ -53,7 +53,7 @@ pub(crate) struct Blocks<'ctx> {
 
 pub struct LocalVariables<'ctx> {
     pub loop_counter: IntValue<'ctx>,
-    pub(super) dst_ptr: PointerValue<'ctx>,
+    pub(super) ptr_ptr_dst: PointerValue<'ctx>,
     pub(super) dst_len: IntValue<'ctx>,
     pub(super) context_ptr: PointerValue<'ctx>,
     pub time_step: FloatValue<'ctx>,
@@ -137,9 +137,9 @@ impl<'ctx> Jit<'ctx> {
 
         let fn_eval_expression_type = types.void_type.fn_type(
             &[
-                // *mut f32 : pointer to destination array
+                // *const *mut f32 : pointer to pointers to destination arrays
                 types.pointer_type.into(),
-                // usize : length of destination array
+                // usize : length of each destination array
                 types.usize_type.into(),
                 // f32 : time step
                 types.f32_type.into(),
@@ -167,7 +167,7 @@ impl<'ctx> Jit<'ctx> {
         let bb_exit = inkwell_context.append_basic_block(fn_eval_expression, "exit");
 
         // read arguments
-        let arg_f32_dst_ptr = fn_eval_expression
+        let arg_ptr_ptr_dst = fn_eval_expression
             .get_nth_param(0)
             .unwrap()
             .into_pointer_value();
@@ -192,7 +192,7 @@ impl<'ctx> Jit<'ctx> {
             .unwrap()
             .into_pointer_value();
 
-        arg_f32_dst_ptr.set_name("dst_ptr");
+        arg_ptr_ptr_dst.set_name("ptr_ptr_dst");
         arg_dst_len.set_name("dst_len");
         arg_time_step.set_name("time_step");
         arg_ctx_ptr.set_name("context_ptr");
@@ -253,12 +253,6 @@ impl<'ctx> Jit<'ctx> {
             // loop body will be inserted here
         }
 
-        // exit
-        builder.position_at_end(bb_exit);
-        {
-            builder.build_return(None)?;
-        }
-
         let blocks = Blocks {
             entry: bb_entry,
             check_startover: bb_check_startover,
@@ -280,7 +274,7 @@ impl<'ctx> Jit<'ctx> {
 
         let local_variables = LocalVariables {
             loop_counter: v_loop_counter,
-            dst_ptr: arg_f32_dst_ptr,
+            ptr_ptr_dst: arg_ptr_ptr_dst,
             dst_len: arg_dst_len,
             context_ptr: arg_ctx_ptr,
             time_step: arg_time_step,
@@ -304,7 +298,7 @@ impl<'ctx> Jit<'ctx> {
         })
     }
 
-    pub(super) fn finish(self) -> CompiledExpressionArtefact<'ctx> {
+    pub(super) fn finish(self, num_dsts: usize) -> CompiledExpressionArtefact<'ctx> {
         if let Err(err_msg) = self.module().verify() {
             let module_str = self.module().print_to_string();
             println!("===================== start of module =====================");
@@ -349,6 +343,7 @@ impl<'ctx> Jit<'ctx> {
             self.execution_engine,
             compiled_fn,
             self.num_state_variables,
+            num_dsts,
             self.atomic_captures,
         )
     }
@@ -888,19 +883,38 @@ impl<'ctx> Jit<'ctx> {
         // pre-compile all expression graph arguments
         self.compile_all_parameters(graph, parameter_mapping, mode);
 
-        // TODO: add support for multiple results
-        assert_eq!(expression_graph.results().len(), 1);
-        let output_id = expression_graph.results()[0].id();
+        let final_values: Vec<FloatValue<'ctx>> = expression_graph
+            .results()
+            .iter()
+            .map(|result| match result.target() {
+                Some(target) => self.visit_target(target, expression_graph),
+                None => self
+                    .types
+                    .f32_type
+                    .const_float(result.default_value() as f64)
+                    .into(),
+            })
+            .collect();
 
-        let output_data = expression_graph.result(output_id).unwrap();
-        let final_value = match output_data.target() {
-            Some(target) => self.visit_target(target, expression_graph),
-            None => self
-                .types
-                .f32_type
-                .const_float(output_data.default_value() as f64)
-                .into(),
-        };
+        let dst_ptrs: Vec<PointerValue<'ctx>> = (0..final_values.len())
+            .map(|i| {
+                let dst_ptr_ptr_i = unsafe {
+                    self.builder
+                        .build_gep(
+                            self.types.pointer_type,
+                            self.local_variables.ptr_ptr_dst,
+                            &[self.types.usize_type.const_int(i as _, false)],
+                            "dst_ptr_ptr_i",
+                        )
+                        .unwrap()
+                };
+
+                self.builder
+                    .build_load(self.types.pointer_type, dst_ptr_ptr_i, "dst_ptr_i")
+                    .unwrap()
+                    .into_pointer_value()
+            })
+            .collect();
 
         // entry -> if len == 0 then exit else check_startover
         self.builder.position_at_end(self.blocks.entry);
@@ -961,16 +975,18 @@ impl<'ctx> Jit<'ctx> {
         // loop_end -> if loop_counter + 1 == len then post_loop else loop_body
         self.builder.position_at_end(self.blocks.loop_end);
         {
-            let dst_elem_ptr = unsafe {
-                self.builder.build_gep(
-                    self.types.f32_type,
-                    self.local_variables.dst_ptr,
-                    &[self.local_variables.loop_counter],
-                    "dst_elem_ptr",
-                )
+            for (final_value, dst_ptr) in final_values.into_iter().zip(dst_ptrs) {
+                let dst_elem_ptr = unsafe {
+                    self.builder.build_gep(
+                        self.types.f32_type,
+                        dst_ptr,
+                        &[self.local_variables.loop_counter],
+                        "dst_elem_ptr",
+                    )
+                }
+                .unwrap();
+                self.builder.build_store(dst_elem_ptr, final_value).unwrap();
             }
-            .unwrap();
-            self.builder.build_store(dst_elem_ptr, final_value).unwrap();
 
             let loop_counter_plus_one = self
                 .builder
@@ -1012,6 +1028,12 @@ impl<'ctx> Jit<'ctx> {
                 .unwrap();
         }
 
-        self.finish()
+        // exit -> (return)
+        self.builder.position_at_end(self.blocks.exit);
+        {
+            self.builder.build_return(None).unwrap();
+        }
+
+        self.finish(expression_graph.results().len())
     }
 }

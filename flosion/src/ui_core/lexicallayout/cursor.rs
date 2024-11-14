@@ -2,27 +2,27 @@ use eframe::egui;
 use hashstash::{Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use super::{
-    ast::{ASTNode, ASTPath, VariableDefinition},
+    ast::{ASTNode, ASTPath, FinalExpression, VariableDefinition},
     lexicallayout::LexicalLayout,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(super) enum LineLocation {
     VariableDefinition(usize),
-    FinalExpression,
+    FinalExpression(usize),
 }
 
 pub(super) enum LexicalLayoutCursorValue<'a> {
     AtVariableName(&'a VariableDefinition),
     AtVariableValue(&'a VariableDefinition, ASTPath),
-    AtFinalExpression(&'a ASTNode, ASTPath),
+    AtFinalExpression(&'a FinalExpression, ASTPath),
 }
 
 #[derive(Clone)]
 pub(crate) enum LexicalLayoutCursor {
     AtVariableName(usize),
     AtVariableValue(usize, ASTPath),
-    AtFinalExpression(ASTPath),
+    AtFinalExpression(usize, ASTPath),
 }
 
 impl LexicalLayoutCursor {
@@ -30,7 +30,7 @@ impl LexicalLayoutCursor {
         match self {
             LexicalLayoutCursor::AtVariableName(l) => LineLocation::VariableDefinition(*l),
             LexicalLayoutCursor::AtVariableValue(l, _) => LineLocation::VariableDefinition(*l),
-            LexicalLayoutCursor::AtFinalExpression(_) => LineLocation::FinalExpression,
+            LexicalLayoutCursor::AtFinalExpression(l, _) => LineLocation::FinalExpression(*l),
         }
     }
 
@@ -38,7 +38,7 @@ impl LexicalLayoutCursor {
         match self {
             LexicalLayoutCursor::AtVariableName(_) => None,
             LexicalLayoutCursor::AtVariableValue(_, p) => Some(p),
-            LexicalLayoutCursor::AtFinalExpression(p) => Some(p),
+            LexicalLayoutCursor::AtFinalExpression(_, p) => Some(p),
         }
     }
 
@@ -61,8 +61,15 @@ impl LexicalLayoutCursor {
                     p.go_left(defns[*i].value());
                 }
             }
-            LexicalLayoutCursor::AtFinalExpression(p) => {
+            LexicalLayoutCursor::AtFinalExpression(i_expr, p) => {
                 if p.is_at_beginning() {
+                    if *i_expr > 0 {
+                        let new_i_expr = *i_expr - 1;
+                        *self = LexicalLayoutCursor::AtFinalExpression(
+                            new_i_expr,
+                            ASTPath::new_at_end_of(layout.final_expressions()[new_i_expr].value()),
+                        )
+                    }
                     let Some(i) = defns.len().checked_sub(1) else {
                         return;
                     };
@@ -71,7 +78,7 @@ impl LexicalLayoutCursor {
                         ASTPath::new_at_end_of(defns[i].value()),
                     );
                 } else {
-                    p.go_left(layout.final_expression());
+                    p.go_left(layout.final_expressions()[*i_expr].value());
                 }
             }
         }
@@ -87,7 +94,8 @@ impl LexicalLayoutCursor {
                 if p.is_at_end_of(defns[*i].value()) {
                     let i_next = *i + 1;
                     if i_next == defns.len() {
-                        *self = LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning());
+                        *self =
+                            LexicalLayoutCursor::AtFinalExpression(0, ASTPath::new_at_beginning());
                     } else {
                         *self = LexicalLayoutCursor::AtVariableName(i_next);
                     }
@@ -95,8 +103,18 @@ impl LexicalLayoutCursor {
                     p.go_right(defns[*i].value());
                 }
             }
-            LexicalLayoutCursor::AtFinalExpression(p) => {
-                p.go_right(layout.final_expression());
+            LexicalLayoutCursor::AtFinalExpression(i_expr, p) => {
+                if p.is_at_end_of(layout.final_expressions()[*i_expr].value()) {
+                    let next_i_expr = *i_expr + 1;
+                    if next_i_expr < layout.final_expressions().len() {
+                        *self = LexicalLayoutCursor::AtFinalExpression(
+                            next_i_expr,
+                            ASTPath::new_at_beginning(),
+                        );
+                    }
+                } else {
+                    p.go_right(layout.final_expressions()[*i_expr].value());
+                }
             }
         }
     }
@@ -112,9 +130,16 @@ impl LexicalLayoutCursor {
                     ASTPath::new_at_beginning(),
                 );
             }
-            LexicalLayoutCursor::AtFinalExpression(_) => {
+            LexicalLayoutCursor::AtFinalExpression(i_expr, _) => {
+                if *i_expr > 0 {
+                    *self = LexicalLayoutCursor::AtFinalExpression(
+                        *i_expr - 1,
+                        ASTPath::new_at_beginning(),
+                    );
+                    return;
+                }
                 let Some(i) = layout.variable_definitions().len().checked_sub(1) else {
-                    *self = LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning());
+                    *self = LexicalLayoutCursor::AtFinalExpression(0, ASTPath::new_at_beginning());
                     return;
                 };
                 *self = LexicalLayoutCursor::AtVariableValue(i, ASTPath::new_at_beginning());
@@ -127,7 +152,7 @@ impl LexicalLayoutCursor {
             LexicalLayoutCursor::AtVariableName(i) => {
                 let i_next = *i + 1;
                 if i_next == layout.variable_definitions().len() {
-                    *self = LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning());
+                    *self = LexicalLayoutCursor::AtFinalExpression(0, ASTPath::new_at_beginning());
                 } else {
                     *self = LexicalLayoutCursor::AtVariableName(i_next);
                 }
@@ -135,16 +160,23 @@ impl LexicalLayoutCursor {
             LexicalLayoutCursor::AtVariableValue(i, _) => {
                 let i_next = *i + 1;
                 if i_next == layout.variable_definitions().len() {
-                    *self = LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning());
+                    *self = LexicalLayoutCursor::AtFinalExpression(0, ASTPath::new_at_beginning());
                 } else {
                     *self =
                         LexicalLayoutCursor::AtVariableValue(i_next, ASTPath::new_at_beginning());
                 }
             }
-            LexicalLayoutCursor::AtFinalExpression(_) => {
-                *self = LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_end_of(
-                    layout.final_expression(),
-                ));
+            LexicalLayoutCursor::AtFinalExpression(i, _) => {
+                let i_next = *i + 1;
+                if i_next < layout.final_expressions().len() {
+                    *self =
+                        LexicalLayoutCursor::AtFinalExpression(i_next, ASTPath::new_at_beginning());
+                } else {
+                    *self = LexicalLayoutCursor::AtFinalExpression(
+                        *i,
+                        ASTPath::new_at_end_of(layout.final_expressions()[*i].value()),
+                    );
+                }
             }
         }
     }
@@ -160,8 +192,11 @@ impl LexicalLayoutCursor {
                     p.clone(),
                 )
             }
-            LexicalLayoutCursor::AtFinalExpression(p) => {
-                LexicalLayoutCursorValue::AtFinalExpression(&layout.final_expression(), p.clone())
+            LexicalLayoutCursor::AtFinalExpression(i, p) => {
+                LexicalLayoutCursorValue::AtFinalExpression(
+                    &layout.final_expressions()[*i],
+                    p.clone(),
+                )
             }
         }
     }
@@ -184,9 +219,11 @@ impl LexicalLayoutCursor {
                     .value()
                     .get_along_path(p.steps()),
             ),
-            LexicalLayoutCursor::AtFinalExpression(p) => {
-                Some(layout.final_expression().get_along_path(p.steps()))
-            }
+            LexicalLayoutCursor::AtFinalExpression(i, p) => Some(
+                layout.final_expressions()[*i]
+                    .value()
+                    .get_along_path(p.steps()),
+            ),
         }
     }
 
@@ -197,7 +234,7 @@ impl LexicalLayoutCursor {
         match self {
             LexicalLayoutCursor::AtVariableName(i) => &layout.variable_definitions()[..(*i)],
             LexicalLayoutCursor::AtVariableValue(i, _) => &layout.variable_definitions()[..(*i)],
-            LexicalLayoutCursor::AtFinalExpression(_) => layout.variable_definitions(),
+            LexicalLayoutCursor::AtFinalExpression(_, _) => layout.variable_definitions(),
         }
     }
 
@@ -209,14 +246,12 @@ impl LexicalLayoutCursor {
             LexicalLayoutCursor::AtVariableValue(i, p) => {
                 (layout.variable_definitions_mut()[*i].value_mut(), p)
             }
-            LexicalLayoutCursor::AtFinalExpression(p) => (layout.final_expression_mut(), p),
+            LexicalLayoutCursor::AtFinalExpression(i, p) => {
+                (layout.final_expressions_mut()[*i].value_mut(), p)
+            }
         };
 
         node.set_along_path(path.steps(), value);
-    }
-
-    pub(super) fn go_to_final_expression(&mut self) {
-        *self = LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning());
     }
 }
 
@@ -232,8 +267,9 @@ impl Stashable for LexicalLayoutCursor {
                 stasher.u64(*i as _);
                 astpath.stash(stasher);
             }
-            LexicalLayoutCursor::AtFinalExpression(astpath) => {
+            LexicalLayoutCursor::AtFinalExpression(i, astpath) => {
                 stasher.u8(2);
+                stasher.u64(*i as _);
                 astpath.stash(stasher);
             }
         }
@@ -248,7 +284,10 @@ impl Unstashable for LexicalLayoutCursor {
                 unstasher.u64()? as _,
                 ASTPath::unstash(unstasher)?,
             ),
-            2 => LexicalLayoutCursor::AtFinalExpression(ASTPath::unstash(unstasher)?),
+            2 => LexicalLayoutCursor::AtFinalExpression(
+                unstasher.u64()? as _,
+                ASTPath::unstash(unstasher)?,
+            ),
             _ => panic!(),
         };
         Ok(cursor)

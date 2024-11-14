@@ -5,7 +5,8 @@ use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher}
 
 use crate::core::{
     expression::{
-        expressiongraph::ExpressionGraphParameterId, expressiongraph::ExpressionTarget,
+        expressiongraph::{ExpressionGraphParameterId, ExpressionTarget},
+        expressioninput::ExpressionInputId,
         expressionnode::ExpressionNodeId,
     },
     uniqueid::UniqueId,
@@ -200,6 +201,45 @@ impl Unstashable for VariableDefinition {
     }
 }
 
+pub(crate) struct FinalExpression {
+    pub(super) result_id: ExpressionInputId,
+    pub(super) value: ASTNode,
+}
+
+impl FinalExpression {
+    pub(crate) fn new(result_id: ExpressionInputId, value: ASTNode) -> FinalExpression {
+        FinalExpression { result_id, value }
+    }
+
+    pub(crate) fn value(&self) -> &ASTNode {
+        &self.value
+    }
+
+    pub(crate) fn value_mut(&mut self) -> &mut ASTNode {
+        &mut self.value
+    }
+
+    pub(crate) fn result_id(&self) -> ExpressionInputId {
+        self.result_id
+    }
+}
+
+impl Stashable for FinalExpression {
+    fn stash(&self, stasher: &mut Stasher) {
+        self.result_id.stash(stasher);
+        self.value.stash(stasher);
+    }
+}
+
+impl Unstashable for FinalExpression {
+    fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
+        Ok(FinalExpression {
+            result_id: ExpressionInputId::unstash(unstasher)?,
+            value: ASTNode::unstash(unstasher)?,
+        })
+    }
+}
+
 pub(super) fn find_variable_definition(
     id: VariableId,
     definitions: &[VariableDefinition],
@@ -224,13 +264,13 @@ pub(super) fn find_variable_definition_and_scope(
 #[derive(Copy, Clone)]
 pub(crate) enum ASTRoot {
     VariableDefinition(VariableId),
-    FinalExpression,
+    FinalExpression(ExpressionInputId),
 }
 
 #[derive(Copy, Clone)]
 pub(crate) enum ASTNodeParent<'a> {
     VariableDefinition(VariableId),
-    FinalExpression,
+    FinalExpression(ExpressionInputId),
     InternalNode(&'a InternalASTNode, usize),
 }
 
@@ -248,7 +288,7 @@ impl<'a> ASTPathBuilder<'a> {
             ASTPathBuilder::Root(ASTRoot::VariableDefinition(id)) => {
                 ASTNodeParent::VariableDefinition(*id)
             }
-            ASTPathBuilder::Root(ASTRoot::FinalExpression) => ASTNodeParent::FinalExpression,
+            ASTPathBuilder::Root(ASTRoot::FinalExpression(i)) => ASTNodeParent::FinalExpression(*i),
             ASTPathBuilder::ChildOf(n, i) => ASTNodeParent::InternalNode(n, *i),
         }
     }

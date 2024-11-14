@@ -99,10 +99,10 @@ impl SoundProcessor for ADSR {
     fn new(_args: &ParsedArguments) -> ADSR {
         let adsr = ADSR {
             input: SingleInput::new(InputOptions::Synchronous, ArgumentScope::new_empty()),
-            attack_time: ProcessorExpression::new(0.01, ArgumentScope::new_empty()),
-            decay_time: ProcessorExpression::new(0.2, ArgumentScope::new_empty()),
-            sustain_level: ProcessorExpression::new(0.5, ArgumentScope::new_empty()),
-            release_time: ProcessorExpression::new(0.25, ArgumentScope::new_empty()),
+            attack_time: ProcessorExpression::new(&[0.01], ArgumentScope::new_empty()),
+            decay_time: ProcessorExpression::new(&[0.2], ArgumentScope::new_empty()),
+            sustain_level: ProcessorExpression::new(&[0.5], ArgumentScope::new_empty()),
+            release_time: ProcessorExpression::new(&[0.25], ArgumentScope::new_empty()),
             state: StateMarker::new(),
         };
 

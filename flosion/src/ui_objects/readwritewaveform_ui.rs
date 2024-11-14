@@ -27,7 +27,7 @@ impl SoundObjectUi for ReadWriteWaveformUi {
             .add_sound_input(&rww.sound_input, "input")
             .add_argument(&rww.input_l, "l")
             .add_argument(&rww.input_r, "r")
-            .add_expression(&rww.waveform, "waveform", PlotConfig::new())
+            .add_expression(&rww.waveform, &["l", "r"], PlotConfig::new())
             .show(rww, ui, ctx, graph_ui_state);
     }
 

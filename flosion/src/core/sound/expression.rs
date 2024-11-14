@@ -230,11 +230,12 @@ pub struct ProcessorExpression {
 }
 
 impl ProcessorExpression {
-    pub(crate) fn new(default_value: f32, scope: ArgumentScope) -> ProcessorExpression {
+    pub(crate) fn new(default_values: &[f32], scope: ArgumentScope) -> ProcessorExpression {
         let mut expression_graph = ExpressionGraph::new();
 
-        // HACK assuming 1 output for now
-        expression_graph.add_result(default_value);
+        for val in default_values {
+            expression_graph.add_result(*val);
+        }
 
         ProcessorExpression {
             id: ProcessorExpressionId::new_unique(),

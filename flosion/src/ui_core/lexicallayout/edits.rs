@@ -4,8 +4,8 @@ use hashstash::Stash;
 
 use crate::{
     core::expression::{
-        expressiongraph::ExpressionTarget,
-        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId, ExpressionTarget},
+        expressioninput::ExpressionInputId,
     },
     ui_core::{
         expressiongraphuicontext::OuterExpressionGraphUiContext,
@@ -36,7 +36,7 @@ pub(super) fn delete_from_graph_at_cursor(
         LexicalLayoutCursor::AtVariableName(i) => {
             layout.variable_definitions_mut().remove(*i);
             if *i == layout.variable_definitions().len() {
-                cursor.go_to_final_expression();
+                *cursor = LexicalLayoutCursor::AtFinalExpression(0, ASTPath::new_at_beginning());
             }
         }
         LexicalLayoutCursor::AtVariableValue(i, p) => {
@@ -45,9 +45,9 @@ pub(super) fn delete_from_graph_at_cursor(
                 .set_along_path(p.steps(), ASTNode::new(ASTNodeValue::Empty));
             cursor.set_node(layout, ASTNode::new(ASTNodeValue::Empty));
         }
-        LexicalLayoutCursor::AtFinalExpression(p) => {
-            layout
-                .final_expression_mut()
+        LexicalLayoutCursor::AtFinalExpression(i, p) => {
+            layout.final_expressions_mut()[*i]
+                .value_mut()
                 .set_along_path(p.steps(), ASTNode::new(ASTNodeValue::Empty));
         }
     }
@@ -76,18 +76,16 @@ pub(super) fn insert_to_graph_at_cursor(
                 }
                 (v.value(), p)
             }
-            LexicalLayoutCursorValue::AtFinalExpression(n, p) => {
+            LexicalLayoutCursorValue::AtFinalExpression(fe, p) => {
                 if p.is_at_beginning() {
-                    // if the cursor points to the final expression, reconnect
+                    // if the cursor points to a final expression, reconnect
                     // the graph output
 
-                    let results = expr_graph.results();
-                    debug_assert_eq!(results.len(), 1);
-                    let result = results.first().unwrap();
-                    debug_assert_eq!(n.direct_target(), None);
+                    let result = expr_graph.result(fe.result_id).unwrap();
+                    debug_assert_eq!(fe.value().direct_target(), None);
                     expr_graph.connect_result(result.id(), target).unwrap();
                 }
-                (n, p)
+                (fe.value(), p)
             }
         };
 
@@ -170,11 +168,11 @@ fn delete_nodes_from_graph_at_cursor(
             }
             (v.value(), p)
         }
-        LexicalLayoutCursorValue::AtFinalExpression(n, p) => {
+        LexicalLayoutCursorValue::AtFinalExpression(fe, p) => {
             if p.is_at_beginning() {
-                disconnect_result(layout, expr_graph, stash, factories);
+                disconnect_result(layout, fe.result_id(), expr_graph, stash, factories);
             }
-            (n, p)
+            (fe.value(), p)
         }
     };
 
@@ -227,13 +225,10 @@ fn disconnect_each_variable_use(
                 // The variable is aliased as another variable, disconnect its uses as well
                 disconnect_each_variable_use(layout, cursor, var_id, graph, stash, factories);
             }
-            ASTNodeParent::FinalExpression => {
-                let outputs = graph.results();
-                debug_assert_eq!(outputs.len(), 1);
-                let goid = outputs[0].id();
+            ASTNodeParent::FinalExpression(result_id) => {
                 graph
                     .try_make_change(stash, factories.expression_objects(), |graph| {
-                        graph.disconnect_result(goid)
+                        graph.disconnect_result(result_id)
                     })
                     .unwrap();
             }
@@ -278,13 +273,10 @@ fn connect_each_variable_use(
                     // The variable is aliased as another variable, connect that one too
                     variables_to_connect.push(var_id);
                 }
-                ASTNodeParent::FinalExpression => {
-                    let outputs = expr_graph.results();
-                    debug_assert_eq!(outputs.len(), 1);
-                    let goid = outputs[0].id();
+                ASTNodeParent::FinalExpression(result_id) => {
                     expr_graph
                         .try_make_change(stash, factories.expression_objects(), |graph| {
-                            graph.connect_result(goid, target)
+                            graph.connect_result(result_id, target)
                         })
                         .unwrap();
                 }
@@ -350,16 +342,19 @@ pub(super) fn remove_unreferenced_parameters(
 
 fn disconnect_result(
     layout: &LexicalLayout,
+    result_id: ExpressionInputId,
     graph: &mut ExpressionGraph,
     stash: &Stash,
     factories: &Factories,
 ) {
-    let results = graph.results();
-    debug_assert_eq!(results.len(), 1);
-    let result = results.first().unwrap();
+    let result = graph.result(result_id).unwrap();
     debug_assert_eq!(
         layout
-            .final_expression()
+            .final_expressions()
+            .iter()
+            .find(|fe| fe.result_id == result_id)
+            .unwrap()
+            .value()
             .indirect_target(layout.variable_definitions()),
         result.target()
     );

@@ -26,7 +26,7 @@ impl SoundObjectUi for WaveGeneratorUi {
         ProcessorUi::new("WaveGenerator")
             .add_expression(
                 &wavgen.amplitude,
-                "amplitude",
+                &["amplitude"],
                 PlotConfig::new()
                     .linear_vertical_range(-1.0..=1.0)
                     .with_respect_to(
@@ -35,7 +35,7 @@ impl SoundObjectUi for WaveGeneratorUi {
                         0.0..=1.0,
                     ),
             )
-            .add_expression(&wavgen.frequency, "frequency", PlotConfig::new())
+            .add_expression(&wavgen.frequency, &["frequency"], PlotConfig::new())
             .add_argument(&wavgen.phase, "phase")
             .show(wavgen, ui, ctx, graph_ui_state);
     }

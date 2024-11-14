@@ -32,8 +32,8 @@ use crate::ui_core::{
 
 use super::{
     ast::{
-        find_variable_definition, ASTNode, ASTPath, ASTPathBuilder, ASTRoot, InternalASTNode,
-        VariableDefinition, VariableId,
+        find_variable_definition, ASTNode, ASTPath, ASTPathBuilder, ASTRoot, FinalExpression,
+        InternalASTNode, VariableDefinition, VariableId,
     },
     cursor::{LexicalLayoutCursor, LineLocation},
     edits::{delete_from_graph_at_cursor, insert_to_graph_at_cursor},
@@ -62,7 +62,7 @@ pub(crate) struct LexicalLayoutFocus {
 impl LexicalLayoutFocus {
     pub(crate) fn new() -> LexicalLayoutFocus {
         LexicalLayoutFocus {
-            cursor: LexicalLayoutCursor::AtFinalExpression(ASTPath::new_at_beginning()),
+            cursor: LexicalLayoutCursor::AtFinalExpression(0, ASTPath::new_at_beginning()),
             summon_widget_state: None,
         }
     }
@@ -200,7 +200,7 @@ fn algebraic_key(key: egui::Key, modifiers: egui::Modifiers) -> Option<char> {
 
 pub(crate) struct LexicalLayout {
     variable_definitions: Vec<VariableDefinition>,
-    final_expression: ASTNode,
+    final_expressions: Vec<FinalExpression>,
 }
 
 impl LexicalLayout {
@@ -209,11 +209,7 @@ impl LexicalLayout {
         object_ui_states: &ExpressionNodeObjectUiStates,
         ui_factory: &ExpressionObjectUiFactory,
     ) -> LexicalLayout {
-        let outputs = graph.results();
-        assert_eq!(outputs.len(), 1);
-        let output = &graph.results()[0];
-
-        let mut variable_assignments: Vec<VariableDefinition> = Vec::new();
+        let mut variable_definitions: Vec<VariableDefinition> = Vec::new();
 
         fn visit_target(
             target: ExpressionTarget,
@@ -276,20 +272,28 @@ impl LexicalLayout {
             }
         }
 
-        let final_expression = match output.target() {
-            Some(target) => visit_target(
-                target,
-                &mut variable_assignments,
-                graph,
-                object_ui_states,
-                ui_factory,
-            ),
-            None => ASTNode::new(ASTNodeValue::Empty),
-        };
+        let final_expressions = graph
+            .results()
+            .iter()
+            .map(|output| {
+                let value = match output.target() {
+                    Some(target) => visit_target(
+                        target,
+                        &mut variable_definitions,
+                        graph,
+                        object_ui_states,
+                        ui_factory,
+                    ),
+                    None => ASTNode::new(ASTNodeValue::Empty),
+                };
+
+                FinalExpression::new(output.id(), value)
+            })
+            .collect();
 
         let layout = LexicalLayout {
-            variable_definitions: variable_assignments,
-            final_expression,
+            variable_definitions,
+            final_expressions,
         };
 
         debug_assert!(lexical_layout_matches_expression_graph(&layout, graph));
@@ -305,12 +309,12 @@ impl LexicalLayout {
         &mut self.variable_definitions
     }
 
-    pub(super) fn final_expression(&self) -> &ASTNode {
-        &self.final_expression
+    pub(super) fn final_expressions(&self) -> &[FinalExpression] {
+        &self.final_expressions
     }
 
-    pub(super) fn final_expression_mut(&mut self) -> &mut ASTNode {
-        &mut self.final_expression
+    pub(super) fn final_expressions_mut(&mut self) -> &mut [FinalExpression] {
+        &mut self.final_expressions
     }
 
     pub(crate) fn show(
@@ -324,6 +328,7 @@ impl LexicalLayout {
         debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
 
         let num_variable_definitions = self.variable_definitions.len();
+        let num_final_expressions = self.final_expressions.len();
 
         ui.vertical(|ui| {
             for i in 0..num_variable_definitions {
@@ -339,14 +344,16 @@ impl LexicalLayout {
             if num_variable_definitions > 0 {
                 ui.separator();
             }
-            self.show_line(
-                ui,
-                LineLocation::FinalExpression,
-                ui_state,
-                expr_graph,
-                ctx,
-                outer_context,
-            );
+            for i in 0..num_final_expressions {
+                self.show_line(
+                    ui,
+                    LineLocation::FinalExpression(i),
+                    ui_state,
+                    expr_graph,
+                    ctx,
+                    outer_context,
+                );
+            }
         });
 
         debug_assert!(lexical_layout_matches_expression_graph(self, expr_graph));
@@ -383,13 +390,11 @@ impl LexicalLayout {
 
                     defn.name_rect.set(name_response.rect);
                 }
-                LineLocation::FinalExpression => {
-                    let outputs = expr_graph.results();
-                    assert_eq!(outputs.len(), 1);
-                    let output_id = outputs[0].id();
+                LineLocation::FinalExpression(i) => {
+                    let result_id = self.final_expressions[i].result_id;
 
                     ui.add(egui::Label::new(
-                        egui::RichText::new(outer_context.result_name(output_id))
+                        egui::RichText::new(outer_context.result_name(result_id))
                             .text_style(egui::TextStyle::Monospace)
                             .background_color(egui::Color32::TRANSPARENT),
                     ));
@@ -406,7 +411,10 @@ impl LexicalLayout {
                     let defn = &self.variable_definitions[i];
                     (defn.value(), ASTRoot::VariableDefinition(defn.id()))
                 }
-                LineLocation::FinalExpression => (&self.final_expression, ASTRoot::FinalExpression),
+                LineLocation::FinalExpression(i) => {
+                    let fe = &self.final_expressions()[i];
+                    (fe.value(), ASTRoot::FinalExpression(fe.result_id()))
+                }
             };
 
             Self::show_child_ast_node(
@@ -422,7 +430,7 @@ impl LexicalLayout {
 
             match line {
                 LineLocation::VariableDefinition(_) => ui.label(","),
-                LineLocation::FinalExpression => ui.label("."),
+                LineLocation::FinalExpression(_) => ui.label("."),
             };
         });
     }
@@ -711,7 +719,7 @@ impl LexicalLayout {
                             i + 1
                         }
                     }
-                    LineLocation::FinalExpression => self.variable_definitions().len(),
+                    LineLocation::FinalExpression(_) => self.variable_definitions().len(),
                 };
                 let new_var_id = VariableId::new_unique();
 
@@ -958,8 +966,12 @@ impl LexicalLayout {
                 &mut f,
             );
         }
-        self.final_expression
-            .visit(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
+        for final_expr in &self.final_expressions {
+            final_expr.value().visit(
+                ASTPathBuilder::Root(ASTRoot::FinalExpression(final_expr.result_id())),
+                &mut f,
+            );
+        }
     }
 
     pub(super) fn visit_mut<F: FnMut(&mut ASTNode, ASTPathBuilder)>(&mut self, mut f: F) {
@@ -975,8 +987,13 @@ impl LexicalLayout {
                 &mut f,
             );
         }
-        self.final_expression
-            .visit_mut(ASTPathBuilder::Root(ASTRoot::FinalExpression), &mut f);
+        for final_expr in &mut self.final_expressions {
+            let result_id = final_expr.result_id();
+            final_expr.value_mut().visit_mut(
+                ASTPathBuilder::Root(ASTRoot::FinalExpression(result_id)),
+                &mut f,
+            );
+        }
     }
 
     pub(crate) fn cleanup(&mut self, graph: &ExpressionGraph) {
@@ -1049,16 +1066,15 @@ impl LexicalLayout {
             }
         }
 
-        let graph_outputs = graph.results();
-        assert_eq!(graph_outputs.len(), 1);
-        let graph_output = &graph_outputs[0];
-
-        visitor(
-            &mut self.final_expression,
-            graph_output.target(),
-            &self.variable_definitions,
-            graph,
-        );
+        for final_expr in &mut self.final_expressions {
+            let result_id = final_expr.result_id();
+            visitor(
+                final_expr.value_mut(),
+                graph.result(result_id).unwrap().target(),
+                &self.variable_definitions,
+                graph,
+            );
+        }
 
         // TODO: after having gathered expected targets for variable definitions,
         // visit those to confirm that they match
@@ -1070,17 +1086,17 @@ impl LexicalLayout {
 impl Stashable for LexicalLayout {
     fn stash(&self, stasher: &mut Stasher) {
         stasher.array_of_objects_slice(&self.variable_definitions, Order::Ordered);
-        stasher.object(&self.final_expression);
+        stasher.array_of_objects_slice(&self.final_expressions, Order::Ordered);
     }
 }
 
 impl Unstashable for LexicalLayout {
     fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
         let variable_definitions = unstasher.array_of_objects_vec()?;
-        let final_expression = unstasher.object()?;
+        let final_expressions = unstasher.array_of_objects_vec()?;
         Ok(LexicalLayout {
             variable_definitions,
-            final_expression,
+            final_expressions,
         })
     }
 }

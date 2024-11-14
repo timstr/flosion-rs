@@ -19,7 +19,7 @@ use super::{
 
 pub struct ProcessorUi {
     label: &'static str,
-    expressions: Vec<(ProcessorExpressionId, String, PlotConfig)>,
+    expressions: Vec<(ProcessorExpressionId, Vec<String>, PlotConfig)>,
     arguments: Vec<(ProcessorArgumentId, String)>,
     sound_inputs: Vec<(ProcessorInputId, String)>,
 }
@@ -51,10 +51,14 @@ impl ProcessorUi {
     pub fn add_expression(
         mut self,
         expr: &ProcessorExpression,
-        label: impl Into<String>,
+        labels: &[&str],
         config: PlotConfig,
     ) -> Self {
-        self.expressions.push((expr.id(), label.into(), config));
+        self.expressions.push((
+            expr.id(),
+            labels.iter().map(|l| l.to_string()).collect(),
+            config,
+        ));
         self
     }
 
@@ -125,12 +129,18 @@ impl ProcessorUi {
                 fn expression(&mut self, expression: &ProcessorExpression) {
                     let location =
                         ProcessorExpressionLocation::new(self.processor_id, expression.id());
-                    if self.names.expression(location.into()).is_none() {
-                        println!(
-                            "Warning: expression {} on processor {} is missing a name",
-                            location.expression().value(),
-                            self.friendly_processor_name
-                        );
+                    for result in expression.graph().results() {
+                        if self
+                            .names
+                            .expression_result(location, result.id())
+                            .is_none()
+                        {
+                            println!(
+                                "Warning: result expression {} on processor {} is missing a result name",
+                                location.expression().value(),
+                                self.friendly_processor_name
+                            );
+                        }
                     }
                 }
 
@@ -216,13 +226,13 @@ impl ProcessorUi {
                 ui.set_width(desired_width);
 
                 // Show all expressions in order
-                for (expr_id, input_label, config) in &mut self.expressions {
+                for (expr_id, result_labels, config) in &mut self.expressions {
                     Self::show_expression(
                         processor,
                         ui,
                         ctx,
                         *expr_id,
-                        input_label,
+                        result_labels,
                         ui_state,
                         config,
                     );
@@ -315,7 +325,7 @@ impl ProcessorUi {
         ui: &mut egui::Ui,
         ctx: &SoundGraphUiContext,
         expr_id: ProcessorExpressionId,
-        expr_label: &str,
+        result_labels: &[String],
         ui_state: &mut SoundGraphUiState,
         plot_config: &PlotConfig,
     ) {
@@ -329,12 +339,22 @@ impl ProcessorUi {
         let location = ProcessorExpressionLocation::new(processor.id(), expr_id);
 
         let r = expr_frame.show(ui, |ui| {
-            ui_state
-                .names_mut()
-                .record_expression_name(location, expr_label.to_string());
-
             let processor_id = processor.id();
             processor.with_expression_mut(expr_id, |expr| {
+                assert_eq!(
+                    result_labels.len(),
+                    expr.graph().results().len(),
+                    "Passed {} result name(s) for an expression graph which has {} result(s)",
+                    result_labels.len(),
+                    expr.graph().results().len()
+                );
+                for (result, name) in expr.graph().results().iter().zip(result_labels) {
+                    ui_state.names_mut().record_expression_result_name(
+                        location,
+                        result.id(),
+                        name.to_string(),
+                    );
+                }
                 ui_state.show_expression_graph_ui(
                     processor_id,
                     expr,

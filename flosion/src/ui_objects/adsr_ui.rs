@@ -25,10 +25,10 @@ impl SoundObjectUi for ADSRUi {
     ) {
         ProcessorUi::new("ADSR")
             .add_sound_input(&adsr.input, "input")
-            .add_expression(&adsr.attack_time, "attack_time", PlotConfig::new())
-            .add_expression(&adsr.decay_time, "decay_time", PlotConfig::new())
-            .add_expression(&adsr.sustain_level, "sustain_level", PlotConfig::new())
-            .add_expression(&adsr.release_time, "release_time", PlotConfig::new())
+            .add_expression(&adsr.attack_time, &["attack_time"], PlotConfig::new())
+            .add_expression(&adsr.decay_time, &["decay_time"], PlotConfig::new())
+            .add_expression(&adsr.sustain_level, &["sustain_level"], PlotConfig::new())
+            .add_expression(&adsr.release_time, &["release_time"], PlotConfig::new())
             .show(adsr, ui, ctx, graph_ui_state);
     }
 

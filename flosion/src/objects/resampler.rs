@@ -63,7 +63,7 @@ impl SoundProcessor for Resampler {
     fn new(_args: &ParsedArguments) -> Resampler {
         Resampler {
             input: SingleInput::new(InputOptions::NonSynchronous, ArgumentScope::new_empty()),
-            speed_ratio: ProcessorExpression::new(1.0, ArgumentScope::new_empty()),
+            speed_ratio: ProcessorExpression::new(&[1.0], ArgumentScope::new_empty()),
             state: StateMarker::new(),
         }
     }
@@ -102,7 +102,7 @@ impl SoundProcessor for Resampler {
         // consider storing previous sample in state
         let mut speedratio = context.get_scratch_space(CHUNK_SIZE);
         resampler.speed_ratio.eval(
-            &mut speedratio,
+            &mut [&mut speedratio],
             Discretization::samplewise_temporal(),
             ExpressionContext::new(context),
         );

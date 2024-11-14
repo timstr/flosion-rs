@@ -27,10 +27,10 @@ impl SoundObjectUi for EnsembleUi {
     ) {
         ProcessorUi::new("Ensemble")
             .add_sound_input(&ensemble.input, "input")
-            .add_expression(&ensemble.frequency_in, "frequency_in", PlotConfig::new())
+            .add_expression(&ensemble.frequency_in, &["frequency_in"], PlotConfig::new())
             .add_expression(
                 &ensemble.frequency_spread,
-                "frequency_spread",
+                &["frequency_spread"],
                 PlotConfig::new(),
             )
             .add_argument(&ensemble.voice_frequency, "voice_frequency")

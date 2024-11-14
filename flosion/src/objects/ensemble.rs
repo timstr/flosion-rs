@@ -65,8 +65,8 @@ impl SoundProcessor for Ensemble {
         );
         Ensemble {
             input,
-            frequency_in: ProcessorExpression::new(250.0, ArgumentScope::new_empty()),
-            frequency_spread: ProcessorExpression::new(0.01, ArgumentScope::new_empty()),
+            frequency_in: ProcessorExpression::new(&[250.0], ArgumentScope::new_empty()),
+            frequency_spread: ProcessorExpression::new(&[0.01], ArgumentScope::new_empty()),
             voice_frequency,
         }
     }

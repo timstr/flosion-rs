@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use crate::{
     core::expression::{
-        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
         expressiongraph::ExpressionTarget,
+        expressiongraph::{ExpressionGraph, ExpressionGraphParameterId},
         expressionnode::ExpressionNodeId,
     },
     ui_core::lexicallayout::ast::{
@@ -138,6 +138,27 @@ pub(super) fn lexical_layout_matches_expression_graph(
 
     let mut all_good = true;
 
+    if !graph.results().iter().all(|r| {
+        layout
+            .final_expressions()
+            .iter()
+            .filter(|fe| fe.result_id == r.id())
+            .count()
+            == 1
+    }) {
+        println!("Every result in the expression graph must have a matching final expression");
+        all_good = false;
+    }
+
+    if !layout
+        .final_expressions()
+        .iter()
+        .all(|fe| graph.result(fe.result_id).is_some())
+    {
+        println!("Every final expression must have a matching result in the expression graph");
+        all_good = false;
+    }
+
     for (i, var_defn) in layout.variable_definitions().iter().enumerate() {
         let variables_in_scope = &layout.variable_definitions()[..i];
         if !ast_node_matches_graph(
@@ -157,20 +178,18 @@ pub(super) fn lexical_layout_matches_expression_graph(
         }
     }
 
-    let graph_outputs = graph.results();
-    assert_eq!(graph_outputs.len(), 1);
-    let graph_output = &graph_outputs[0];
-
-    if !ast_node_matches_graph(
-        layout.final_expression(),
-        &layout.variable_definitions(),
-        graph_output.target(),
-        &mut visited_sources,
-        &mut visited_graph_inputs,
-        graph,
-    ) {
-        println!("The final expression doesn't match the expression graph");
-        all_good = false;
+    for (i, final_expr) in layout.final_expressions().iter().enumerate() {
+        if !ast_node_matches_graph(
+            final_expr.value(),
+            &layout.variable_definitions(),
+            graph.result(final_expr.result_id()).unwrap().target(),
+            &mut visited_sources,
+            &mut visited_graph_inputs,
+            graph,
+        ) {
+            println!("Final expression {} doesn't match the expression graph", i);
+            all_good = false;
+        }
     }
 
     for nsid in graph.nodes().keys() {

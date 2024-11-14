@@ -24,7 +24,6 @@ use crate::{
 #[derive(ProcessorComponents)]
 pub struct ReadWriteWaveform {
     pub sound_input: SingleInput,
-    // TODO: multiple outputs to enable stereo
     pub waveform: ProcessorExpression,
     pub input_l: ProcessorArgument<PlainF32ArrayArgument>,
     pub input_r: ProcessorArgument<PlainF32ArrayArgument>,
@@ -37,7 +36,7 @@ impl SoundProcessor for ReadWriteWaveform {
         let waveform_scope = ArgumentScope::new(vec![input_l.id(), input_r.id()]);
         ReadWriteWaveform {
             sound_input: SingleInput::new(InputOptions::Synchronous, ArgumentScope::new_empty()),
-            waveform: ProcessorExpression::new(0.0, waveform_scope),
+            waveform: ProcessorExpression::new(&[0.0, 0.0], waveform_scope),
             input_l,
             input_r,
         }
@@ -55,13 +54,12 @@ impl SoundProcessor for ReadWriteWaveform {
         let mut tmp = SoundChunk::new();
         rwwf.sound_input.step(&mut tmp, InputContext::new(context));
         rwwf.waveform.eval(
-            &mut dst.l,
+            &mut [&mut dst.l, &mut dst.r],
             Discretization::samplewise_temporal(),
             ExpressionContext::new(context)
                 .push(rwwf.input_l, &tmp.l)
                 .push(rwwf.input_r, &tmp.r),
         );
-        slicemath::copy(&dst.l, &mut dst.r);
 
         StreamStatus::Playing
     }

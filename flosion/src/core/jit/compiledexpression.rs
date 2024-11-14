@@ -1,4 +1,7 @@
-use std::{ptr::null, sync::Arc};
+use std::{
+    ptr::{null, null_mut},
+    sync::Arc,
+};
 
 use send_wrapper::SendWrapper;
 
@@ -13,12 +16,12 @@ use crate::core::{
 use super::jit::FLAG_NOT_INITIALIZED;
 
 type EvalExpressionFunc = unsafe extern "C" fn(
-    *mut f32,  // pointer to destination array
-    usize,     // length of destination array
-    f32,       // time step
-    *const (), // context
-    *mut u8,   // init flag
-    *mut f32,  // state variables
+    *const *mut f32, // pointer to destination arrays
+    usize,           // length of each destination array
+    f32,             // time step
+    *const (),       // context
+    *mut u8,         // init flag
+    *mut f32,        // state variables
 );
 
 struct CompiledExpressionData<'ctx> {
@@ -26,6 +29,7 @@ struct CompiledExpressionData<'ctx> {
     _function: SendWrapper<inkwell::execution_engine::JitFunction<'ctx, EvalExpressionFunc>>,
     _atomic_captures: Vec<Arc<dyn Sync + Droppable>>,
     num_state_variables: usize,
+    num_dsts: usize,
     raw_function: EvalExpressionFunc,
 }
 
@@ -34,6 +38,7 @@ impl<'inkwell_ctx> CompiledExpressionData<'inkwell_ctx> {
         execution_engine: inkwell::execution_engine::ExecutionEngine<'inkwell_ctx>,
         function: inkwell::execution_engine::JitFunction<'inkwell_ctx, EvalExpressionFunc>,
         num_state_variables: usize,
+        num_dsts: usize,
         atomic_captures: Vec<Arc<dyn Sync + Droppable>>,
     ) -> CompiledExpressionData<'inkwell_ctx> {
         // SAFETY: the ExecutionEngine and JitFunction must outlive the
@@ -47,6 +52,7 @@ impl<'inkwell_ctx> CompiledExpressionData<'inkwell_ctx> {
             _function: SendWrapper::new(function),
             _atomic_captures: atomic_captures,
             num_state_variables,
+            num_dsts,
             raw_function,
         }
     }
@@ -64,6 +70,7 @@ impl<'ctx> CompiledExpressionArtefact<'ctx> {
         execution_engine: inkwell::execution_engine::ExecutionEngine<'ctx>,
         function: inkwell::execution_engine::JitFunction<'ctx, EvalExpressionFunc>,
         num_state_variables: usize,
+        num_dsts: usize,
         atomic_captures: Vec<Arc<dyn Sync + Droppable>>,
     ) -> CompiledExpressionArtefact<'ctx> {
         CompiledExpressionArtefact {
@@ -71,6 +78,7 @@ impl<'ctx> CompiledExpressionArtefact<'ctx> {
                 execution_engine,
                 function,
                 num_state_variables,
+                num_dsts,
                 atomic_captures,
             )),
         }
@@ -122,26 +130,39 @@ impl<'ctx> CompiledExpressionFunction<'ctx> {
         self.init_flag = FLAG_NOT_INITIALIZED;
     }
 
+    pub(crate) fn num_destination_arrays(&self) -> usize {
+        self.data.num_dsts
+    }
+
     pub(crate) fn eval(
         &mut self,
-        dst: &mut [f32],
+        dst: &mut [&mut [f32]],
         context: ExpressionContext,
         discretization: Discretization,
     ) {
         self.eval_impl(dst, Some(context), discretization);
     }
 
-    pub(crate) fn eval_in_test_mode(&mut self, dst: &mut [f32], discretization: Discretization) {
+    pub(crate) fn eval_in_test_mode(
+        &mut self,
+        dst: &mut [&mut [f32]],
+        discretization: Discretization,
+    ) {
         self.eval_impl(dst, None, discretization);
     }
 
     fn eval_impl(
         &mut self,
-        dst: &mut [f32],
+        dsts: &mut [&mut [f32]],
         context: Option<ExpressionContext>,
         discretization: Discretization,
     ) {
         debug_assert!(self.init_flag == FLAG_INITIALIZED || self.init_flag == FLAG_NOT_INITIALIZED);
+
+        if dsts.is_empty() {
+            return;
+        }
+
         let ptr_context: *const ExpressionContext = match context.as_ref() {
             Some(c) => c,
             None => null(),
@@ -155,10 +176,44 @@ impl<'ctx> CompiledExpressionFunction<'ctx> {
         } = self;
         let ptr_init_flag: *mut u8 = init_flag;
         let ptr_state_variables: *mut f32 = state_variables.as_mut_ptr();
+
+        const MAX_RESULTS: usize = 8;
+
+        if dsts.len() > MAX_RESULTS {
+            panic!(
+                "Attempted to pass more destination arrays to a \
+                compiled expression than is currently supported"
+            );
+        }
+
+        if dsts.len() != self.data.num_dsts {
+            panic!(
+                "Attempted to pass {} destination arrays to a \
+                compiled function that expects {}",
+                dsts.len(),
+                self.data.num_dsts
+            );
+        }
+
+        let dst_len = dsts[0].len();
+
+        if !dsts.iter().all(|dst| dst.len() == dst_len) {
+            panic!(
+                "Attempted to pass multiple destination arrays of \
+                unequal length to a compiled expression"
+            )
+        }
+
+        let mut dst_ptrs: [*mut f32; MAX_RESULTS] = [null_mut(); MAX_RESULTS];
+
+        for (dst_ptr, dst_slice) in dst_ptrs.iter_mut().zip(dsts) {
+            *dst_ptr = dst_slice.as_mut_ptr();
+        }
+
         unsafe {
             function(
-                dst.as_mut_ptr(),
-                dst.len(),
+                dst_ptrs.as_mut_ptr(),
+                dst_len,
                 time_step,
                 ptr_context as _,
                 ptr_init_flag,

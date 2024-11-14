@@ -75,14 +75,14 @@ impl<'ctx> CompiledExpression<'ctx> {
     /// to correctly model how far apart adjacent array entries are in time
     pub fn eval(
         &mut self,
-        dst: &mut [f32],
+        dsts: &mut [&mut [f32]],
         discretization: Discretization,
         context: ExpressionContext,
     ) {
         #[cfg(debug_assertions)]
         self.validate_context(&context);
 
-        self.function.eval(dst, context, discretization)
+        self.function.eval(dsts, context, discretization)
     }
 
     pub fn eval_scalar(
@@ -92,7 +92,7 @@ impl<'ctx> CompiledExpression<'ctx> {
     ) -> f32 {
         let mut dst: f32 = 0.0;
         let s = slice::from_mut(&mut dst);
-        self.eval(s, discretization, context);
+        self.eval(&mut [s], discretization, context);
         s[0]
     }
 

@@ -144,9 +144,10 @@ impl<'a> OuterExpressionGraphUiContext<'a> {
 
     pub(crate) fn result_name(&self, result_id: ExpressionInputId) -> &str {
         match self {
-            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => {
-                ctx.sound_graph_names().expression(ctx.location()).unwrap()
-            }
+            OuterExpressionGraphUiContext::ProcessorExpression(ctx) => ctx
+                .sound_graph_names()
+                .expression_result(ctx.location(), result_id)
+                .unwrap(),
         }
     }
 

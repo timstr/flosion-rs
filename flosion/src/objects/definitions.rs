@@ -38,7 +38,7 @@ impl SoundProcessor for Definitions {
                 InputOptions::Synchronous,
                 ArgumentScope::new(vec![argument.id()]),
             ),
-            expression: ProcessorExpression::new(0.0, ArgumentScope::new_empty()),
+            expression: ProcessorExpression::new(&[0.0], ArgumentScope::new_empty()),
             argument,
         }
     }
@@ -55,7 +55,7 @@ impl SoundProcessor for Definitions {
         let mut buffer = context.get_scratch_space(CHUNK_SIZE);
 
         defns.expression.eval(
-            &mut buffer,
+            &mut [&mut buffer],
             Discretization::samplewise_temporal(),
             ExpressionContext::new(context),
         );

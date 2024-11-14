@@ -131,36 +131,38 @@ impl ExpressionPlot {
         names: &SoundGraphUiNames,
     ) {
         let len = rect.width().floor() as usize;
-        let mut dst = Vec::new();
-        dst.resize(len, 0.0);
-        // TODO
-        // - make this work without mock context
-        // - consider recompiling the input with the domain swapped out
-        //   for something controlled? That would scale nicely to e.g. 2D plots
+        let mut dsts: Vec<Vec<f32>> = Vec::new();
+        dsts.resize_with(compiled_fn.num_destination_arrays(), || {
+            let mut v = Vec::new();
+            v.resize(len, 0.0);
+            v
+        });
+
+        let mut dst_slices: Vec<&mut [f32]> = dsts.iter_mut().map(|v| &mut v[..]).collect();
 
         let discretization = match horizontal_domain {
             ExpressionTestDomain::Temporal => Discretization::Temporal(time_axis.time_per_x_pixel),
             ExpressionTestDomain::WithRespectTo(_, _) => Discretization::None,
         };
 
-        compiled_fn.eval_in_test_mode(&mut dst, discretization);
+        compiled_fn.eval_in_test_mode(&mut dst_slices, discretization);
 
         let (vmin, vmax) = match vertical_range {
             VerticalRange::Automatic => {
-                let first_val = *dst.first().unwrap();
-                let mut vmin = if first_val.is_finite() {
-                    first_val
-                } else {
-                    0.0
-                };
-                let mut vmax = vmin;
-                for v in dst.iter().cloned() {
-                    if v.is_finite() {
-                        vmin = v.min(vmin);
-                        vmax = v.max(vmax);
+                let mut vmin = f32::INFINITY;
+                let mut vmax = f32::NEG_INFINITY;
+                for dst in &dsts {
+                    for &v in dst {
+                        if v.is_finite() {
+                            vmin = vmin.min(v);
+                            vmax = vmax.max(v);
+                        }
                     }
                 }
-                (vmin, vmax)
+                (
+                    if vmin.is_finite() { vmin } else { 0.0 },
+                    if vmax.is_finite() { vmax } else { 0.0 },
+                )
             }
             VerticalRange::Linear(range) => (*range.start(), *range.end()),
         };
@@ -170,31 +172,35 @@ impl ExpressionPlot {
         let plot_vmin = v_middle - 0.5 * plot_v_range;
         let dx = rect.width() / (len - 1) as f32;
 
-        for (i, (v0, v1)) in dst.iter().zip(&dst[1..]).enumerate() {
-            let x0 = rect.left() + i as f32 * dx;
-            let x1 = rect.left() + (i + 1) as f32 * dx;
-            if v0.is_finite() && v1.is_finite() {
-                let t0 = ((v0 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
-                let t1 = ((v1 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
-                let y0 = rect.bottom() - t0 * rect.height();
-                let y1 = rect.bottom() - t1 * rect.height();
-                ui.painter().line_segment(
-                    [egui::pos2(x0, y0), egui::pos2(x1, y1)],
-                    egui::Stroke::new(2.0, egui::Color32::WHITE),
-                );
-            } else {
-                ui.painter().line_segment(
-                    [egui::pos2(x1, rect.top()), egui::pos2(x1, rect.bottom())],
-                    egui::Stroke::new(
-                        2.0,
-                        egui::Color32::from_rgba_unmultiplied(
-                            255,
-                            0,
-                            0,
-                            if i % 4 == 0 { 255 } else { 64 },
+        // TODO: different colours for different arrays?
+        // And match those colours to colours in the expression ui?
+        for dst in dsts {
+            for (i, (v0, v1)) in dst.iter().zip(&dst[1..]).enumerate() {
+                let x0 = rect.left() + i as f32 * dx;
+                let x1 = rect.left() + (i + 1) as f32 * dx;
+                if v0.is_finite() && v1.is_finite() {
+                    let t0 = ((v0 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
+                    let t1 = ((v1 - plot_vmin) / plot_v_range).clamp(0.0, 1.0);
+                    let y0 = rect.bottom() - t0 * rect.height();
+                    let y1 = rect.bottom() - t1 * rect.height();
+                    ui.painter().line_segment(
+                        [egui::pos2(x0, y0), egui::pos2(x1, y1)],
+                        egui::Stroke::new(2.0, egui::Color32::from_white_alpha(128)),
+                    );
+                } else {
+                    ui.painter().line_segment(
+                        [egui::pos2(x1, rect.top()), egui::pos2(x1, rect.bottom())],
+                        egui::Stroke::new(
+                            2.0,
+                            egui::Color32::from_rgba_unmultiplied(
+                                255,
+                                0,
+                                0,
+                                if i % 4 == 0 { 255 } else { 64 },
+                            ),
                         ),
-                    ),
-                );
+                    );
+                }
             }
         }
 

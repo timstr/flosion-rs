@@ -24,7 +24,7 @@ impl SoundObjectUi for DefinitionsUi {
         _state: &mut NoObjectUiState,
     ) {
         ProcessorUi::new("Definitions")
-            .add_expression(&definitions.expression, "a", PlotConfig::new())
+            .add_expression(&definitions.expression, &["a"], PlotConfig::new())
             .add_argument(&definitions.argument, "a")
             .add_sound_input(&definitions.sound_input, "input")
             .show_with(

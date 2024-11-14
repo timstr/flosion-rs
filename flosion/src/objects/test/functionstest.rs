@@ -24,7 +24,7 @@ use crate::{
         sound::{
             argument::{ArgumentScope, ProcessorArgument, ProcessorArgumentLocation},
             argumenttypes::plainf32array::PlainF32ArrayArgument,
-            context::{AudioStack, AudioContext},
+            context::{AudioContext, AudioStack},
             expression::{ExpressionParameterTarget, ProcessorExpression},
             soundgraph::SoundGraph,
             soundprocessor::{
@@ -59,7 +59,7 @@ impl SoundProcessor for TestSoundProcessor {
         let argument_2 = ProcessorArgument::new();
         TestSoundProcessor {
             expression: ProcessorExpression::new(
-                0.0,
+                &[0.0],
                 ArgumentScope::new(vec![argument_0.id(), argument_1.id(), argument_2.id()]),
             ),
             argument_0,
@@ -284,7 +284,7 @@ where
     let mut actual_values_compiled = [0.0_f32; TEST_ARRAY_SIZE];
 
     compiled_proc.expression.eval(
-        &mut actual_values_compiled,
+        &mut [&mut actual_values_compiled],
         Discretization::None,
         ExpressionContext::new(&mut context)
             .push(compiled_proc.argument_0, &input_values[0])

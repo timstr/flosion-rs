@@ -2,17 +2,20 @@ use std::collections::HashMap;
 
 use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
-use crate::core::sound::{
-    argument::{AnyProcessorArgument, ProcessorArgumentLocation},
-    expression::{ProcessorExpression, ProcessorExpressionLocation},
-    soundgraph::SoundGraph,
-    soundinput::{BasicProcessorInput, SoundInputLocation},
-    soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
+use crate::core::{
+    expression::expressioninput::ExpressionInputId,
+    sound::{
+        argument::{AnyProcessorArgument, ProcessorArgumentLocation},
+        expression::{ProcessorExpression, ProcessorExpressionLocation},
+        soundgraph::SoundGraph,
+        soundinput::{BasicProcessorInput, SoundInputLocation},
+        soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
+    },
 };
 
 pub(crate) struct SoundGraphUiNames {
     arguments: HashMap<ProcessorArgumentLocation, String>,
-    expressions: HashMap<ProcessorExpressionLocation, String>,
+    expression_results: HashMap<(ProcessorExpressionLocation, ExpressionInputId), String>,
     sound_inputs: HashMap<SoundInputLocation, String>,
     sound_processors: HashMap<SoundProcessorId, String>,
 }
@@ -21,7 +24,7 @@ impl SoundGraphUiNames {
     pub(crate) fn new() -> SoundGraphUiNames {
         SoundGraphUiNames {
             arguments: HashMap::new(),
-            expressions: HashMap::new(),
+            expression_results: HashMap::new(),
             sound_inputs: HashMap::new(),
             sound_processors: HashMap::new(),
         }
@@ -45,7 +48,7 @@ impl SoundGraphUiNames {
 
     pub(crate) fn cleanup(&mut self, graph: &SoundGraph) {
         self.arguments.retain(|k, _v| graph.contains(k));
-        self.expressions.retain(|k, _v| graph.contains(k));
+        self.expression_results.retain(|k, _v| graph.contains(k.0));
         self.sound_inputs.retain(|k, _v| graph.contains(k));
         self.sound_processors.retain(|k, _v| graph.contains(k));
 
@@ -53,12 +56,10 @@ impl SoundGraphUiNames {
             names: &'a mut SoundGraphUiNames,
             processor_id: SoundProcessorId,
             next_argument_number: usize,
-            next_expression_number: usize,
             next_sound_input_number: usize,
         }
 
         const PREFIX_ARGUMENT: &str = "argument";
-        const PREFIX_EXPRESSION: &str = "expression";
         const PREFIX_INPUT: &str = "input";
 
         impl<'a> ProcessorComponentVisitor for DefaultNameVisitor<'a> {
@@ -73,11 +74,12 @@ impl SoundGraphUiNames {
 
             fn expression(&mut self, expression: &ProcessorExpression) {
                 let location = ProcessorExpressionLocation::new(self.processor_id, expression.id());
-                self.names.expressions.entry(location).or_insert_with(|| {
-                    let i = self.next_expression_number;
-                    self.next_expression_number += 1;
-                    format!("{}{}", PREFIX_EXPRESSION, i)
-                });
+                for (i, result) in expression.graph().results().iter().enumerate() {
+                    self.names
+                        .expression_results
+                        .entry((location, result.id()))
+                        .or_insert_with(|| format!("result{}", i + 1));
+                }
             }
 
             fn argument(&mut self, argument: &dyn AnyProcessorArgument) {
@@ -107,8 +109,6 @@ impl SoundGraphUiNames {
 
             let next_argument_number =
                 Self::parse_next_highest_number(self.arguments.values(), PREFIX_ARGUMENT);
-            let next_expression_number =
-                Self::parse_next_highest_number(self.expressions.values(), PREFIX_EXPRESSION);
             let next_sound_input_number =
                 Self::parse_next_highest_number(self.sound_inputs.values(), PREFIX_INPUT);
 
@@ -116,7 +116,6 @@ impl SoundGraphUiNames {
                 names: self,
                 processor_id: proc_data.id(),
                 next_argument_number,
-                next_expression_number,
                 next_sound_input_number,
             };
             proc_data.visit(&mut visitor);
@@ -127,8 +126,14 @@ impl SoundGraphUiNames {
         self.arguments.get(&location).map(|s| s.as_str())
     }
 
-    pub(crate) fn expression(&self, location: ProcessorExpressionLocation) -> Option<&str> {
-        self.expressions.get(&location).map(|s| s.as_str())
+    pub(crate) fn expression_result(
+        &self,
+        location: ProcessorExpressionLocation,
+        result_id: ExpressionInputId,
+    ) -> Option<&str> {
+        self.expression_results
+            .get(&(location, result_id))
+            .map(|s| s.as_str())
     }
 
     pub(crate) fn sound_input(&self, location: SoundInputLocation) -> Option<&str> {
@@ -155,8 +160,16 @@ impl SoundGraphUiNames {
         *self.sound_processors.get_mut(&id).unwrap() = name;
     }
 
-    pub(crate) fn record_expression_name(&mut self, id: ProcessorExpressionLocation, name: String) {
-        *self.expressions.get_mut(&id).unwrap() = name;
+    pub(crate) fn record_expression_result_name(
+        &mut self,
+        location: ProcessorExpressionLocation,
+        result_id: ExpressionInputId,
+        name: String,
+    ) {
+        *self
+            .expression_results
+            .get_mut(&(location, result_id))
+            .unwrap() = name;
     }
 
     pub(crate) fn combined_input_name(&self, location: SoundInputLocation) -> String {
@@ -180,8 +193,8 @@ impl SoundGraphUiNames {
         for location in self.arguments.keys() {
             assert!(graph.contains(location));
         }
-        for location in self.expressions.keys() {
-            assert!(graph.contains(location));
+        for location in self.expression_results.keys() {
+            assert!(graph.contains(location.0));
         }
         for location in self.sound_inputs.keys() {
             assert!(graph.contains(location));
@@ -198,8 +211,12 @@ impl SoundGraphUiNames {
                 assert!(self.sound_inputs.contains_key(&location));
             });
 
-            proc.foreach_expression(|_, location| {
-                assert!(self.expressions.contains_key(&location));
+            proc.foreach_expression(|expr, location| {
+                for result in expr.graph().results() {
+                    assert!(self
+                        .expression_results
+                        .contains_key(&(location, result.id())));
+                }
             });
 
             proc.foreach_argument(|_, location| {
@@ -220,9 +237,10 @@ impl Stashable for SoundGraphUiNames {
             Order::Unordered,
         );
         stasher.array_of_proxy_objects(
-            self.expressions.iter(),
+            self.expression_results.iter(),
             |(loc, name), stasher| {
-                loc.stash(stasher);
+                loc.0.stash(stasher);
+                loc.1.stash(stasher);
                 stasher.string(name);
             },
             Order::Unordered,
@@ -263,7 +281,10 @@ impl Unstashable for SoundGraphUiNames {
 
         unstasher.array_of_proxy_objects(|unstasher| {
             expressions.insert(
-                ProcessorExpressionLocation::unstash(unstasher)?,
+                (
+                    ProcessorExpressionLocation::unstash(unstasher)?,
+                    ExpressionInputId::unstash(unstasher)?,
+                ),
                 unstasher.string()?,
             );
             Ok(())
@@ -281,7 +302,7 @@ impl Unstashable for SoundGraphUiNames {
 
         Ok(SoundGraphUiNames {
             arguments,
-            expressions,
+            expression_results: expressions,
             sound_inputs,
             sound_processors,
         })

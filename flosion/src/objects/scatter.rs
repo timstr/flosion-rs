@@ -57,7 +57,7 @@ impl SoundProcessor for Scatter {
         );
         Scatter {
             sound_input: input,
-            parameter: ProcessorExpression::new(1.0, ArgumentScope::new_empty()),
+            parameter: ProcessorExpression::new(&[1.0], ArgumentScope::new_empty()),
             value,
         }
     }

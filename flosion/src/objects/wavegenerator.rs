@@ -58,8 +58,8 @@ impl SoundProcessor for WaveGenerator {
         let phase_id = phase.id();
         WaveGenerator {
             phase,
-            amplitude: ProcessorExpression::new(0.0, ArgumentScope::new(vec![phase_id])),
-            frequency: ProcessorExpression::new(250.0, ArgumentScope::new_empty()),
+            amplitude: ProcessorExpression::new(&[0.0], ArgumentScope::new(vec![phase_id])),
+            frequency: ProcessorExpression::new(&[250.0], ArgumentScope::new_empty()),
             state: StateMarker::new(),
         }
     }
@@ -77,7 +77,7 @@ impl SoundProcessor for WaveGenerator {
 
         let prev_phase: f32 = wavegen.state.phase.last().unwrap().clone();
         wavegen.frequency.eval(
-            &mut wavegen.state.phase,
+            &mut [&mut wavegen.state.phase],
             Discretization::samplewise_temporal(),
             ExpressionContext::new(context),
         );
@@ -86,7 +86,7 @@ impl SoundProcessor for WaveGenerator {
         slicemath::apply_unary_inplace(&mut wavegen.state.phase, |x| x - x.floor());
 
         wavegen.amplitude.eval(
-            &mut dst.l,
+            &mut [&mut dst.l],
             Discretization::samplewise_temporal(),
             ExpressionContext::new(context).push(wavegen.phase, &wavegen.state.phase),
         );
