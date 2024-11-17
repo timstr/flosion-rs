@@ -272,20 +272,20 @@ impl ProcessorUi {
 
                 // Handle drag & drop
                 {
-                    if bg_response.drag_started() {
+                    if bg_response.drag_started_by(egui::PointerButton::Primary) {
                         ui_state.interactions_mut().start_dragging(
                             DragDropSubject::Processor(processor.id()),
                             bg_response.rect,
                         );
                     }
 
-                    if bg_response.dragged() {
+                    if bg_response.dragged_by(egui::PointerButton::Primary) {
                         ui_state
                             .interactions_mut()
                             .continue_drag_move_by(bg_response.drag_delta());
                     }
 
-                    if bg_response.drag_stopped() {
+                    if bg_response.drag_stopped_by(egui::PointerButton::Primary) {
                         ui_state.interactions_mut().drop_dragging();
                     }
                 }

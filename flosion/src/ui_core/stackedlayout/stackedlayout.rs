@@ -11,7 +11,7 @@ use crate::{
     ui_core::{
         factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
         interactions::draganddrop::DragDropSubject, soundgraphuistate::SoundGraphUiState,
-        soundobjectpositions::SoundObjectPositions,
+        soundobjectpositions::SoundObjectPositions, view::View,
     },
 };
 
@@ -231,6 +231,7 @@ impl StackedLayout {
         jit_cache: &JitCache,
         stash: &Stash,
         snapshot_flag: &SnapshotFlag,
+        view: &View,
     ) {
         // Draw each stacked group
         for group in &mut self.groups {
@@ -243,6 +244,7 @@ impl StackedLayout {
                 stash,
                 properties,
                 snapshot_flag,
+                view,
             );
         }
 

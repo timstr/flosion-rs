@@ -8,7 +8,7 @@ use crate::core::{jit::cache::JitCache, sound::soundgraph::SoundGraph, stashing:
 use super::{
     factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
     soundgraphuistate::SoundGraphUiState, stackedlayout::stackedlayout::StackedLayout,
-    stashing::UiUnstashingContext,
+    stashing::UiUnstashingContext, view::View,
 };
 
 pub(crate) struct AppState {
@@ -41,6 +41,7 @@ impl AppState {
         jit_cache: &JitCache,
         stash: &Stash,
         snapshot_flag: &SnapshotFlag,
+        view: &View,
     ) {
         self.graph_layout.draw(
             ui,
@@ -51,6 +52,7 @@ impl AppState {
             jit_cache,
             stash,
             &snapshot_flag,
+            view,
         );
 
         self.ui_state.interact_and_draw(
@@ -61,6 +63,7 @@ impl AppState {
             &mut self.graph_layout,
             stash,
             &snapshot_flag,
+            view,
         );
     }
 

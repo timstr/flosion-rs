@@ -24,6 +24,7 @@ pub mod soundprocessorui;
 pub mod stackedlayout;
 pub mod stashing;
 mod summon_widget;
+pub mod view;
 
 #[cfg(test)]
 mod test;

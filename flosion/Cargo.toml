@@ -14,7 +14,10 @@ atomic_float = "0.1.0"
 atomicslice = "0.1.0"
 base64 = "0.13.0"
 cpal = "0.13.3"
-eframe = "0.29.1"
+# NOTE: using own fork of egui to fix pointer position zoom bug,
+# see https://github.com/emilk/egui/issues/5379
+# eframe = "0.29.1"
+eframe = { git = "https://github.com/timstr/egui", rev = "4e4c5d63" }
 flosion-macros = { path = "../flosion-macros" }
 hashstash = "0.2.0"
 inkwell = { version = "0.5.0", features = ["llvm15-0"] }

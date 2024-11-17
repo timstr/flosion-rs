@@ -61,7 +61,7 @@ impl ExpressionObjectUi for Sampler1dUi {
 
             let r = ui.interact(rect, id, egui::Sense::drag());
 
-            if r.dragged() {
+            if r.dragged_by(egui::PointerButton::Primary) {
                 let p_curr = r.interact_pointer_pos().unwrap();
                 let p_prev = p_curr - r.drag_delta();
                 let x_curr = ((p_curr.x - rect.left()) / rect.width()).clamp(0.0, 1.0);

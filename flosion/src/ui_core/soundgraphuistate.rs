@@ -28,6 +28,7 @@ use super::{
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::stackedlayout::StackedLayout,
     stashing::UiUnstashingContext,
+    view::View,
 };
 
 pub struct SoundGraphUiState {
@@ -77,6 +78,7 @@ impl SoundGraphUiState {
         layout: &mut StackedLayout,
         stash: &Stash,
         snapshot_flag: &SnapshotFlag,
+        view: &View,
     ) {
         let bg_response = ui.interact_bg(egui::Sense::click_and_drag());
 
@@ -99,6 +101,7 @@ impl SoundGraphUiState {
                     bg_response,
                     stash,
                     snapshot_flag,
+                    view,
                 );
             },
         );

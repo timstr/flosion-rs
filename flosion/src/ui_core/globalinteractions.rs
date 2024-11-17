@@ -25,6 +25,7 @@ use super::{
     soundobjectuistate::SoundObjectUiStates,
     stackedlayout::stackedlayout::StackedLayout,
     summon_widget::{SummonWidget, SummonWidgetState, SummonWidgetStateBuilder},
+    view::View,
 };
 
 struct SelectingArea {
@@ -108,6 +109,7 @@ impl GlobalInteractions {
         bg_response: egui::Response,
         stash: &Stash,
         snapshot_flag: &SnapshotFlag,
+        view: &View,
     ) {
         match &mut self.mode {
             UiMode::Passive => {
@@ -121,7 +123,7 @@ impl GlobalInteractions {
                         .pointer_latest_pos()
                         .unwrap_or(egui::pos2(50.0, 50.0));
                     self.start_summoning(position, factories.sound_uis())
-                } else if bg_response.drag_started() {
+                } else if bg_response.drag_started_by(egui::PointerButton::Primary) {
                     // If the background was just clicked and dragged, start making a selection
                     let pointer_pos = bg_response.interact_pointer_pos().unwrap();
                     self.mode = UiMode::Selecting(SelectingState {
@@ -190,7 +192,7 @@ impl GlobalInteractions {
 
                 // If the background was clicked and dragged, start another selection area while
                 // still holding the currently-selected objects
-                if bg_response.drag_started() {
+                if bg_response.drag_started_by(egui::PointerButton::Primary) {
                     let pos = bg_response.interact_pointer_pos().unwrap();
                     selection.selecting_area = Some(SelectingArea {
                         start_location: pos,
@@ -286,7 +288,7 @@ impl GlobalInteractions {
                     object_states.set_object_data(new_obj.id(), state);
 
                     // Move the processor to the cursor location
-                    let pos = summon_widget.position();
+                    let pos = summon_widget.position() - view.offset(ui);
                     match new_obj.id() {
                         SoundObjectId::Sound(id) => positions.record_processor(
                             id,

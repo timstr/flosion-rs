@@ -16,6 +16,7 @@ use crate::{
         interactions::draganddrop::DragDropSubject, soundgraphuicontext::SoundGraphUiContext,
         soundgraphuistate::SoundGraphUiState, soundobjectpositions::SoundObjectPositions,
         soundobjectui::show_sound_object_ui, stackedlayout::stackedlayout::StackedLayout,
+        view::View,
     },
 };
 
@@ -187,6 +188,7 @@ impl StackedGroup {
         stash: &Stash,
         properties: &GraphProperties,
         snapshot_flag: &SnapshotFlag,
+        view: &View,
     ) {
         // For a unique id for egui, hash the processor ids in the group
         let area_id = egui::Id::new(&self.processors);
@@ -194,7 +196,7 @@ impl StackedGroup {
         let area = egui::Area::new(area_id)
             .constrain(false)
             .movable(false)
-            .fixed_pos(self.rect.left_top());
+            .fixed_pos(self.rect.left_top() + view.offset(ui));
 
         let r = area.show(ui.ctx(), |ui| {
             let group_origin = ui.cursor().left_top();
@@ -291,7 +293,7 @@ impl StackedGroup {
                         )
                         .on_hover_and_drag_cursor(egui::CursorIcon::Grab);
 
-                    if sidebar_response.drag_started() {
+                    if sidebar_response.drag_started_by(egui::PointerButton::Primary) {
                         ui_state.interactions_mut().start_dragging(
                             DragDropSubject::Group {
                                 top_processor: self.processors.first().unwrap().clone(),
@@ -300,7 +302,7 @@ impl StackedGroup {
                         );
                     }
 
-                    if sidebar_response.dragged() {
+                    if sidebar_response.dragged_by(egui::PointerButton::Primary) {
                         self.rect = self.rect.translate(sidebar_response.drag_delta());
                         ui_state.interactions_mut().continue_drag_move_to(self.rect);
                     }
@@ -344,7 +346,7 @@ impl StackedGroup {
                     let resize_response =
                         resize_response.on_hover_and_drag_cursor(egui::CursorIcon::ResizeColumn);
 
-                    if resize_response.dragged() {
+                    if resize_response.dragged_by(egui::PointerButton::Primary) {
                         // TODO: what should the minimum width be? What should happen when
                         // UI things have no room?
                         self.width_pixels =
@@ -436,13 +438,13 @@ impl StackedGroup {
 
         let response = bar_response.union(tab_response);
 
-        if response.drag_started() {
+        if response.drag_started_by(egui::PointerButton::Primary) {
             ui_state
                 .interactions_mut()
                 .start_dragging(DragDropSubject::Socket(socket.location), bar_rect);
         }
 
-        if response.dragged() {
+        if response.dragged_by(egui::PointerButton::Primary) {
             ui_state
                 .interactions_mut()
                 .continue_drag_move_by(response.drag_delta());
@@ -514,13 +516,13 @@ impl StackedGroup {
 
         let response = bar_response.union(tab_response);
 
-        if response.drag_started() {
+        if response.drag_started_by(egui::PointerButton::Primary) {
             ui_state
                 .interactions_mut()
                 .start_dragging(DragDropSubject::Plug(plug.processor), bar_rect);
         }
 
-        if response.dragged() {
+        if response.dragged_by(egui::PointerButton::Primary) {
             ui_state
                 .interactions_mut()
                 .continue_drag_move_by(response.drag_delta());
