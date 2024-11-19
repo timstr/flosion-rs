@@ -62,8 +62,10 @@ impl SoundObjectUi for AudioClipUi {
                     // - button to save to a file
 
                     if ui.button("Load").clicked() {
-                        let dialog = rfd::FileDialog::new()
-                            .add_filter("Audio files", &["wav", "flac", "m4a"]);
+                        let dialog = rfd::FileDialog::new().add_filter(
+                            "Audio files",
+                            &["aiff", "ogg", "wav", "flac", "mp3", "m4a"],
+                        );
                         if let Some(path) = dialog.pick_file() {
                             println!("Loading audioclip from {}", path.display());
                             match load_audio_file(&path) {
