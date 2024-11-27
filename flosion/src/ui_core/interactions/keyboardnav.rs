@@ -55,7 +55,7 @@ impl DirectionsToGo {
 
         if self.go_up {
             // Draw a fading white trapezoid above the top edge
-            let w = 15.0;
+            let w = 10.0;
             let mut mesh = egui::Mesh::default();
             mesh.colored_vertex(rect.left_top(), color_hi);
             mesh.colored_vertex(rect.left_top() + egui::vec2(w, -w), color_lo);
@@ -68,7 +68,7 @@ impl DirectionsToGo {
 
         if self.go_down {
             // Draw a fading white trapezoid below the top edge
-            let w = 15.0;
+            let w = 10.0;
             let mut mesh = egui::Mesh::default();
             mesh.colored_vertex(rect.left_bottom(), color_hi);
             mesh.colored_vertex(rect.left_bottom() + egui::vec2(w, w), color_lo);

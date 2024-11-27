@@ -19,7 +19,6 @@ use super::{
     appstate::AppState,
     factories::Factories,
     history::{History, SnapshotFlag},
-    view::View,
 };
 
 /// The very root of the GUI, which manages a SoundGraph instance,
@@ -46,8 +45,6 @@ pub struct FlosionApp<'ctx> {
     jit_cache: JitCache<'ctx>,
 
     stash: Stash,
-
-    view: View,
 }
 
 impl<'ctx> FlosionApp<'ctx> {
@@ -82,7 +79,6 @@ impl<'ctx> FlosionApp<'ctx> {
             garbage_disposer,
             jit_cache,
             stash: Stash::new(),
-            view: View::new(),
         };
 
         // Initialize all necessary ui state
@@ -108,7 +104,6 @@ impl<'ctx> FlosionApp<'ctx> {
             &self.jit_cache,
             &self.stash,
             &snapshot_flag,
-            &self.view,
         );
 
         self.cleanup();
@@ -148,8 +143,6 @@ impl<'ctx> FlosionApp<'ctx> {
             );
             self.cleanup();
         }
-
-        self.view.handle_pan_and_zoom(ui);
 
         #[cfg(debug_assertions)]
         self.check_invariants();
