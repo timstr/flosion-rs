@@ -178,8 +178,6 @@ pub(crate) struct SoundObjectPositions {
     socket_jumpers: PositionedItems<SoundInputLocation>,
     processors: Vec<ProcessorPosition>,
     drag_drop_subjects: PositionedItems<DragDropSubject>,
-    socket_tabs: PositionedItems<SoundInputLocation>,
-    plug_tabs: PositionedItems<SoundProcessorId>,
     expressions: PositionedItems<ProcessorExpressionLocation>,
 }
 
@@ -189,8 +187,6 @@ impl SoundObjectPositions {
             socket_jumpers: PositionedItems::new(),
             processors: Vec::new(),
             drag_drop_subjects: PositionedItems::new(),
-            socket_tabs: PositionedItems::new(),
-            plug_tabs: PositionedItems::new(),
             expressions: PositionedItems::new(),
         }
     }
@@ -211,26 +207,14 @@ impl SoundObjectPositions {
         &self.expressions
     }
 
-    pub(crate) fn record_plug(
-        &mut self,
-        plug: ProcessorPlug,
-        rect: egui::Rect,
-        tab_rect: egui::Rect,
-    ) {
+    pub(crate) fn record_plug(&mut self, plug: ProcessorPlug, rect: egui::Rect) {
         self.drag_drop_subjects
             .push(DragDropSubject::Plug(plug.processor), rect);
-        self.plug_tabs.push(plug.processor, tab_rect);
     }
 
-    pub(crate) fn record_socket(
-        &mut self,
-        socket: InputSocket,
-        rect: egui::Rect,
-        tab_rect: egui::Rect,
-    ) {
+    pub(crate) fn record_socket(&mut self, socket: InputSocket, rect: egui::Rect) {
         self.drag_drop_subjects
             .push(DragDropSubject::Socket(socket.location), rect);
-        self.socket_tabs.push(socket.location, tab_rect);
     }
 
     pub(crate) fn record_socket_jumper(
@@ -272,8 +256,6 @@ impl SoundObjectPositions {
         self.socket_jumpers.clear();
         self.processors.clear();
         self.drag_drop_subjects.clear();
-        self.socket_tabs.clear();
-        self.plug_tabs.clear();
         self.expressions.clear();
     }
 }
@@ -283,8 +265,6 @@ impl Stashable for SoundObjectPositions {
         stasher.object(&self.socket_jumpers);
         stasher.array_of_objects_slice(&self.processors, Order::Unordered);
         stasher.object(&self.drag_drop_subjects);
-        stasher.object(&self.socket_tabs);
-        stasher.object(&self.plug_tabs);
         stasher.object(&self.expressions);
     }
 }
@@ -295,8 +275,6 @@ impl Unstashable for SoundObjectPositions {
             socket_jumpers: unstasher.object()?,
             processors: unstasher.array_of_objects_vec()?,
             drag_drop_subjects: unstasher.object()?,
-            socket_tabs: unstasher.object()?,
-            plug_tabs: unstasher.object()?,
             expressions: unstasher.object()?,
         })
     }

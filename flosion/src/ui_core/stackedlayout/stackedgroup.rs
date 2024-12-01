@@ -45,8 +45,6 @@ pub struct StackedGroup {
 impl StackedGroup {
     const SOCKET_HEIGHT: f32 = 10.0;
     const PLUG_HEIGHT: f32 = 10.0;
-    const TAB_HEIGHT: f32 = 20.0;
-    const TAB_WIDTH: f32 = 50.0;
     const STRIPE_WIDTH: f32 = 3.0;
     const STRIPE_SPACING: f32 = 10.0;
 
@@ -403,38 +401,7 @@ impl StackedGroup {
             egui::Sense::click_and_drag(),
         );
 
-        // Add a tab sticking up, biased to the left
-        let screen_rect = ui.input(|i| i.screen_rect());
-        let tab_left = (bar_rect.center().x - Self::TAB_WIDTH)
-            .clamp(screen_rect.left(), screen_rect.right() - Self::TAB_WIDTH)
-            .clamp(bar_rect.left(), bar_rect.right() - Self::TAB_WIDTH);
-
-        let tab_rect = egui::Rect::from_x_y_ranges(
-            tab_left..=(tab_left + Self::TAB_WIDTH),
-            (bar_rect.bottom() - Self::TAB_HEIGHT)..=bar_rect.bottom(),
-        );
-
-        let bevel = 5.0;
-        ui.painter().add(egui::Shape::convex_polygon(
-            vec![
-                tab_rect.left_bottom(),
-                tab_rect.left_top() + egui::vec2(0.0, bevel),
-                tab_rect.left_top() + egui::vec2(bevel, 0.0),
-                tab_rect.right_top() + egui::vec2(-bevel, 0.0),
-                tab_rect.right_top() + egui::vec2(0.0, bevel),
-                tab_rect.right_bottom(),
-            ],
-            color,
-            egui::Stroke::NONE,
-        ));
-
-        let tab_response = ui.interact(
-            tab_rect,
-            ui.id().with("socket").with(socket.location),
-            egui::Sense::click_and_drag(),
-        );
-
-        let response = bar_response.union(tab_response);
+        let response = bar_response;
 
         if response.drag_started() {
             ui_state
@@ -452,9 +419,7 @@ impl StackedGroup {
             ui_state.interactions_mut().drop_dragging();
         }
 
-        ui_state
-            .positions_mut()
-            .record_socket(socket, bar_rect, tab_rect);
+        ui_state.positions_mut().record_socket(socket, bar_rect);
 
         ui.painter()
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
@@ -477,42 +442,7 @@ impl StackedGroup {
             egui::Sense::click_and_drag(),
         );
 
-        // Add a tab sticking down, biased to the right
-        // TODO: this gets drawn over top of by any input sockets below.
-        // Consider drawing tabs in a separate order or removing them entirely.
-        let screen_rect = ui.input(|i| i.screen_rect());
-        let tab_left = bar_rect
-            .center()
-            .x
-            .clamp(screen_rect.left() + Self::TAB_WIDTH, screen_rect.right())
-            .clamp(bar_rect.left() + Self::TAB_WIDTH, bar_rect.right());
-
-        let tab_rect = egui::Rect::from_x_y_ranges(
-            tab_left..=(tab_left + Self::TAB_WIDTH),
-            bar_rect.top()..=(bar_rect.top() + Self::TAB_HEIGHT),
-        );
-
-        let bevel = 5.0;
-        ui.painter().add(egui::Shape::convex_polygon(
-            vec![
-                tab_rect.left_top(),
-                tab_rect.right_top(),
-                tab_rect.right_bottom() + egui::vec2(0.0, -bevel),
-                tab_rect.right_bottom() + egui::vec2(-bevel, 0.0),
-                tab_rect.left_bottom() + egui::vec2(bevel, 0.0),
-                tab_rect.left_bottom() + egui::vec2(0.0, -bevel),
-            ],
-            color,
-            egui::Stroke::NONE,
-        ));
-
-        let tab_response = ui.interact(
-            tab_rect,
-            ui.id().with("plug").with(plug.processor),
-            egui::Sense::click_and_drag(),
-        );
-
-        let response = bar_response.union(tab_response);
+        let response = bar_response;
 
         if response.drag_started() {
             ui_state
@@ -530,9 +460,7 @@ impl StackedGroup {
             ui_state.interactions_mut().drop_dragging();
         }
 
-        ui_state
-            .positions_mut()
-            .record_plug(plug, bar_rect, tab_rect);
+        ui_state.positions_mut().record_plug(plug, bar_rect);
 
         ui.painter()
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
