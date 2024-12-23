@@ -262,7 +262,7 @@ impl<'ctx> Jit<'ctx> {
 
             // NOTE: begin and body of loop start out as the same basic
             // block. This distinction exists only to support compiling
-            // things which introduces branches, thus jumps between
+            // things which introduce branches, thus jumps between
             // additional basic blocks, in the middle of the loop body.
             loop_begin: bb_loop_begin,
             loop_body: bb_loop_begin,
@@ -816,7 +816,7 @@ impl<'ctx> Jit<'ctx> {
         mode: JitMode,
     ) {
         for (param_id, target) in parameter_mapping.items() {
-            self.builder().position_at_end(self.blocks.loop_end);
+            self.builder().position_at_end(self.blocks.loop_body);
 
             let param_value = match mode {
                 JitMode::Normal => match target {
