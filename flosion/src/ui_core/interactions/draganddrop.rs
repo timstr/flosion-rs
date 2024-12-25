@@ -324,8 +324,7 @@ fn drag_and_drop_in_layout(
                     let proc_pos = positions.find_processor(proc).unwrap();
                     let magic_offset = -5.0;
                     let delta = proc_pos.rect.bottom() - proc_pos.group_origin.y + magic_offset;
-                    let rect = group.rect().translate(egui::vec2(0.0, -delta));
-                    group.set_rect(rect);
+                    // TODO: move the group?
                 }
             } else {
                 for proc in processors {
@@ -641,9 +640,7 @@ impl DropInteraction {
         if let DragDropSubject::Processor(spid) = self.subject {
             let group = layout.find_group_mut(spid).unwrap();
             if group.processors() == &[spid] {
-                let rect = group.rect();
-                group
-                    .set_rect(rect.translate(self.rect.left_top() - self.original_rect.left_top()));
+                // TODO: move the group?
                 snapshot_flag.request_snapshot();
             }
         }

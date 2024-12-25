@@ -249,18 +249,18 @@ impl StackedLayout {
         // draw wires between connected groups
         // TODO: make this prettier
         for (jumper_input, jumper_pos) in ui_state.positions().socket_jumpers().items() {
-            let Some(target_spid) = graph
-                .with_sound_input(*jumper_input, |i| i.target())
-                .unwrap()
+            let Some(Some(target_spid)) = graph.with_sound_input(*jumper_input, |i| i.target())
             else {
                 continue;
             };
 
-            let plug_pos = ui_state
+            let Some(plug_pos) = ui_state
                 .positions()
                 .drag_drop_subjects()
                 .position(&DragDropSubject::Plug(target_spid))
-                .unwrap();
+            else {
+                continue;
+            };
 
             let color = ui_state
                 .object_states()
@@ -408,7 +408,7 @@ impl StackedLayout {
 
         let rest = group.split_off_processor_and_everything_below(processor_id);
 
-        group.set_rect(group.rect().translate(egui::vec2(0.0, -50.0)));
+        // TODO: move group?
 
         debug_assert!(!group.processors().is_empty());
 
@@ -430,8 +430,8 @@ impl StackedLayout {
         let group = self.find_group_mut(processor_id).unwrap();
         let rest_exclusive = group.split_off_everything_below_processor(processor_id);
         if !rest_exclusive.is_empty() {
-            let mut new_group = StackedGroup::new_at_top_processor(rest_exclusive, positions);
-            new_group.set_rect(new_group.rect().translate(egui::vec2(0.0, 50.0)));
+            let new_group = StackedGroup::new_at_top_processor(rest_exclusive, positions);
+            // TODO: move new_group?
             self.groups.push(new_group);
         }
     }
@@ -461,7 +461,7 @@ impl StackedLayout {
         if !rest_exclusive.is_empty() {
             let mut rest_group = StackedGroup::new_at_top_processor(rest_exclusive, positions);
             let magic_offset = -10.0;
-            rest_group.set_rect(rest_group.rect().translate(egui::vec2(0.0, magic_offset)));
+            // TODO: move rest_group?
             self.groups.push(rest_group);
         }
     }

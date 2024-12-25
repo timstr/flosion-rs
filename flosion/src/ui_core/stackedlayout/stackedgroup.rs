@@ -1,6 +1,9 @@
 use std::ops::BitAnd;
 
-use eframe::egui::{self};
+use eframe::{
+    egui::{self},
+    emath::TSTransform,
+};
 use hashstash::{Stash, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::{
@@ -37,9 +40,8 @@ pub struct StackedGroup {
     /// thus the last in the vec.
     processors: Vec<SoundProcessorId>,
 
-    /// The on-screen location of the stack, or None if it has
-    /// not been drawn yet.
-    rect: egui::Rect,
+    /// The top-left corner of the bottom sound processor
+    origin: egui::Pos2,
 }
 
 impl StackedGroup {
@@ -58,27 +60,11 @@ impl StackedGroup {
     ) -> StackedGroup {
         assert!(processors.len() > 0);
 
-        // Find the position of the first processor in the group.
+        // Find the position of the bottom processor in the group.
         // if not found, just put rect at 0,0
-        let first_processor_top_left = positions
-            .find_processor(*processors.first().unwrap())
+        let bottom_proc_top_left = positions
+            .find_processor(*processors.last().unwrap())
             .map_or(egui::Pos2::ZERO, |pp| pp.rect.left_top());
-
-        // Experimentally determine the offset between the top-left
-        // of the highest processor and the top-left of the stacked
-        // group by finding the minimum among the positions
-        let group_to_first_processor_offset = positions
-            .processors()
-            .iter()
-            .map(|p| p.rect.left_top() - p.group_origin)
-            // NOTE: using reduce() because min() and friends do not support f32 >:(
-            .reduce(|smallest, v| if v.y < smallest.y { v } else { smallest })
-            .unwrap_or(egui::Vec2::ZERO);
-
-        // Move the rect to the position of the first processor
-        // minus that offset.
-        let group_origin = first_processor_top_left - group_to_first_processor_offset;
-        let rect = egui::Rect::from_min_size(group_origin, egui::Vec2::ZERO);
 
         StackedGroup {
             width_pixels: StackedLayout::DEFAULT_WIDTH,
@@ -87,7 +73,7 @@ impl StackedGroup {
                     / (StackedLayout::DEFAULT_WIDTH as f32),
             },
             processors,
-            rect,
+            origin: bottom_proc_top_left,
         }
     }
 
@@ -95,12 +81,12 @@ impl StackedGroup {
         self.time_axis
     }
 
-    pub(crate) fn rect(&self) -> egui::Rect {
-        self.rect
+    pub(crate) fn origin(&self) -> egui::Pos2 {
+        self.origin
     }
 
-    pub(crate) fn set_rect(&mut self, rect: egui::Rect) {
-        self.rect = rect;
+    pub(crate) fn set_origin(&mut self, origin: egui::Pos2) {
+        self.origin = origin
     }
 
     pub(crate) fn processors(&self) -> &[SoundProcessorId] {
@@ -186,186 +172,93 @@ impl StackedGroup {
         properties: &GraphProperties,
         snapshot_flag: &SnapshotFlag,
     ) {
-        // For a unique id for egui, hash the processor ids in the group
-        let area_id = egui::Id::new(&self.processors);
+        let mut bottom_left_of_next_proc = self.origin;
 
-        let area = egui::Area::new(area_id)
-            .constrain(false)
-            .movable(false)
-            .fixed_pos(self.rect.left_top());
+        for spid in self.processors.iter().rev().cloned() {
+            // TODO:
+            // - transform_layer_shapes does NOT transparently redirect inputs,
+            //   and so this currently makes it impossible to click on processor
+            //   UI's directly.
+            // - Instead, try:
+            //    - moving the processor ui to where we think it will go based on its
+            //      previous size
+            //    - after drawing it, translating it by the difference between its
+            //      previous and current size (which will be zero most of the time)
 
-        let r = area.show(ui.ctx(), |ui| {
-            let group_origin = ui.cursor().left_top();
+            // Start a new ui in a new layer from the top-left corner at (0, 0)
+            let layer_id = egui::LayerId::new(egui::Order::Middle, ui.id().with(spid));
+            let ui_builder =
+                egui::UiBuilder::new().max_rect(egui::Rect::from_x_y_ranges(0.0.., 0.0..));
+            let res = ui.allocate_new_ui(ui_builder, |ui| {
+                ui.with_layer_id(layer_id, |ui| {
+                    // Tighten the spacing
+                    ui.spacing_mut().item_spacing.y = 0.0;
 
-            let frame = egui::Frame::default()
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(128)))
-                .rounding(10.0)
-                .inner_margin(5.0);
-            frame.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    // Allocate some width for the sidebar (full height is not known until
-                    // the after the processors are laid out)
-                    let (initial_sidebar_rect, _) =
-                        ui.allocate_exact_size(egui::vec2(15.0, 15.0), egui::Sense::hover());
+                    let processor_data = graph.sound_processor_mut(spid).unwrap();
 
-                    let processors_response = ui.vertical(|ui| {
-                        // Tighten the spacing
-                        ui.spacing_mut().item_spacing.y = 0.0;
+                    let processor_color = ui_state.object_states().get_object_color(spid.into());
 
-                        let mut top_of_stack = true;
-
-                        for spid in &self.processors {
-                            let processor_data = graph.sound_processor_mut(*spid).unwrap();
-
-                            let inputs = processor_data.input_locations();
-
-                            let processor_color =
-                                ui_state.object_states().get_object_color(spid.into());
-
-                            if inputs.is_empty() {
-                                self.draw_barrier(ui);
-                            } else {
-                                for input_loc in inputs {
-                                    let (input_socket, target) = processor_data
-                                        .with_input(input_loc.input(), |input| {
-                                            (
-                                                InputSocket::from_input_data(
-                                                    input_loc.processor(),
-                                                    input,
-                                                ),
-                                                input.target(),
-                                            )
-                                        })
-                                        .unwrap();
-                                    self.draw_input_socket(
-                                        ui,
-                                        ui_state,
-                                        target,
-                                        input_socket,
-                                        processor_color,
-                                        top_of_stack,
-                                    );
-                                }
-                            }
-
-                            top_of_stack = false;
-
-                            let object: &mut dyn SoundGraphObject =
-                                processor_data.as_graph_object_mut();
-                            let ctx = SoundGraphUiContext::new(
-                                factories,
-                                self.time_axis,
-                                self.width_pixels as f32,
-                                group_origin,
-                                properties,
-                                jit_cache,
-                                stash,
-                                snapshot_flag,
-                            );
-
-                            show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
-
-                            let processor_data = graph.sound_processor(*spid).unwrap();
-                            self.draw_processor_plug(
+                    // Draw input sockets
+                    let inputs = processor_data.input_locations();
+                    if inputs.is_empty() {
+                        self.draw_barrier(ui);
+                    } else {
+                        for input_loc in inputs {
+                            let (input_socket, target) = processor_data
+                                .with_input(input_loc.input(), |input| {
+                                    (
+                                        InputSocket::from_input_data(input_loc.processor(), input),
+                                        input.target(),
+                                    )
+                                })
+                                .unwrap();
+                            let top_of_stack = spid == *self.processors.first().unwrap();
+                            self.draw_input_socket(
                                 ui,
                                 ui_state,
-                                ProcessorPlug::from_processor_data(processor_data),
+                                target,
+                                input_socket,
                                 processor_color,
+                                top_of_stack,
                             );
                         }
-                    });
-
-                    let combined_height = processors_response.response.rect.height();
-
-                    // Left sidebar, for dragging the entire group
-                    let sidebar_rect = initial_sidebar_rect
-                        .with_max_y(initial_sidebar_rect.min.y + combined_height);
-
-                    let sidebar_response = ui
-                        .interact(
-                            sidebar_rect,
-                            ui.id().with("sidebar"),
-                            egui::Sense::click_and_drag(),
-                        )
-                        .on_hover_and_drag_cursor(egui::CursorIcon::Grab);
-
-                    if sidebar_response.drag_started() {
-                        ui_state.interactions_mut().start_dragging(
-                            DragDropSubject::Group {
-                                top_processor: self.processors.first().unwrap().clone(),
-                            },
-                            self.rect,
-                        );
                     }
 
-                    if sidebar_response.dragged() {
-                        self.rect = self.rect.translate(sidebar_response.drag_delta());
-                        ui_state.interactions_mut().continue_drag_move_to(self.rect);
-                    }
-
-                    if sidebar_response.drag_stopped() {
-                        ui_state.interactions_mut().drop_dragging();
-                        snapshot_flag.request_snapshot();
-                    }
-
-                    ui.painter().rect_filled(
-                        sidebar_rect,
-                        egui::Rounding::same(5.0),
-                        egui::Color32::from_white_alpha(32),
+                    // Draw the sound processor ui
+                    let object: &mut dyn SoundGraphObject = processor_data.as_graph_object_mut();
+                    let ctx = SoundGraphUiContext::new(
+                        factories,
+                        self.time_axis,
+                        self.width_pixels as f32,
+                        egui::Pos2::ZERO, // TODO: remove group_origin,
+                        properties,
+                        jit_cache,
+                        stash,
+                        snapshot_flag,
                     );
+                    show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
 
-                    let dot_spacing = 15.0;
-                    let dot_radius = 4.0;
-
-                    let dot_x = sidebar_rect.center().x;
-                    let top_dot_y = sidebar_rect.top() + 0.5 * sidebar_rect.width();
-                    let bottom_dot_y = sidebar_rect.bottom() - 0.5 * sidebar_rect.width();
-
-                    let num_dots = ((bottom_dot_y - top_dot_y) / dot_spacing).floor() as usize;
-
-                    for i in 0..=num_dots {
-                        let dot_y = top_dot_y + (i as f32) * dot_spacing;
-
-                        ui.painter().circle_filled(
-                            egui::pos2(dot_x, dot_y),
-                            dot_radius,
-                            egui::Color32::from_black_alpha(64),
-                        );
-                    }
-
-                    // Right sidebar, for widening and slimming the group
-                    let (resize_rect, resize_response) = ui.allocate_exact_size(
-                        egui::vec2(5.0, combined_height),
-                        egui::Sense::click_and_drag(),
-                    );
-
-                    let resize_response =
-                        resize_response.on_hover_and_drag_cursor(egui::CursorIcon::ResizeColumn);
-
-                    if resize_response.dragged() {
-                        // TODO: what should the minimum width be? What should happen when
-                        // UI things have no room?
-                        self.width_pixels =
-                            (self.width_pixels + resize_response.drag_delta().x).max(50.0);
-                    }
-
-                    if resize_response.drag_stopped() {
-                        snapshot_flag.request_snapshot();
-                    }
-
-                    ui.painter().rect_filled(
-                        resize_rect,
-                        egui::Rounding::same(5.0),
-                        egui::Color32::from_white_alpha(32),
+                    // Draw the output plug
+                    self.draw_processor_plug(
+                        ui,
+                        ui_state,
+                        ProcessorPlug::from_processor_data(processor_data),
+                        processor_color,
                     );
                 });
             });
-        });
+            let proc_size = res.response.rect.right_bottom();
 
-        self.rect
-            .set_right(self.rect.left() + r.response.rect.width());
-        self.rect
-            .set_bottom(self.rect.top() + r.response.rect.height());
+            // Translate the processor ui to be above the previous processor
+            let translation = egui::vec2(
+                bottom_left_of_next_proc.x,
+                bottom_left_of_next_proc.y - proc_size.y,
+            );
+            ui.ctx()
+                .transform_layer_shapes(layer_id, TSTransform::from_translation(translation));
+
+            bottom_left_of_next_proc.y -= proc_size.y;
+        }
     }
 
     fn draw_input_socket(
@@ -674,10 +567,8 @@ impl Stashable for StackedGroup {
         stasher.f32(self.width_pixels);
         stasher.f32(self.time_axis.time_per_x_pixel);
         stasher.array_of_u64_iter(self.processors.iter().map(|p| p.value() as u64));
-        stasher.f32(self.rect.left());
-        stasher.f32(self.rect.right());
-        stasher.f32(self.rect.top());
-        stasher.f32(self.rect.bottom());
+        stasher.f32(self.origin.x);
+        stasher.f32(self.origin.y);
     }
 }
 
@@ -693,18 +584,13 @@ impl Unstashable for StackedGroup {
             .map(|i| SoundProcessorId::new(i as _))
             .collect();
 
-        let left = unstasher.f32()?;
-        let right = unstasher.f32()?;
-        let top = unstasher.f32()?;
-        let bottom = unstasher.f32()?;
-
-        let rect = egui::Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, bottom));
+        let origin = egui::pos2(unstasher.f32()?, unstasher.f32()?);
 
         Ok(StackedGroup {
             width_pixels,
             time_axis,
             processors,
-            rect,
+            origin,
         })
     }
 }
