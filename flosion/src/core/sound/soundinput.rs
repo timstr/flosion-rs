@@ -65,11 +65,10 @@ pub enum InputBranching {
     Multiple(usize),
 }
 
-// TODO: rename to (an)isochronous
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum InputOptions {
-    Synchronous,
-    NonSynchronous,
+pub enum Chronicity {
+    Iso,
+    Aniso,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -175,7 +174,7 @@ impl Default for InputTiming {
 #[derive(Eq, PartialEq, Debug)]
 pub struct BasicProcessorInput {
     id: ProcessorInputId,
-    options: InputOptions,
+    chronicity: Chronicity,
     branches: usize,
     target: Option<SoundProcessorId>,
     argument_scope: ArgumentScope,
@@ -183,13 +182,13 @@ pub struct BasicProcessorInput {
 
 impl BasicProcessorInput {
     pub fn new(
-        options: InputOptions,
+        chronicity: Chronicity,
         branches: usize,
         argument_scope: ArgumentScope,
     ) -> BasicProcessorInput {
         BasicProcessorInput {
             id: ProcessorInputId::new_unique(),
-            options,
+            chronicity,
             branches,
             target: None,
             argument_scope,
@@ -200,8 +199,8 @@ impl BasicProcessorInput {
         self.id
     }
 
-    pub(crate) fn options(&self) -> InputOptions {
-        self.options
+    pub(crate) fn chronicity(&self) -> Chronicity {
+        self.chronicity
     }
 
     pub(crate) fn branches(&self) -> usize {
@@ -241,9 +240,9 @@ impl BasicProcessorInput {
 impl Stashable<StashingContext> for BasicProcessorInput {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.id.value() as _);
-        stasher.u8(match self.options {
-            InputOptions::Synchronous => 0,
-            InputOptions::NonSynchronous => 1,
+        stasher.u8(match self.chronicity {
+            Chronicity::Iso => 0,
+            Chronicity::Aniso => 1,
         });
         stasher.u64(self.branches as _);
         match self.target {
@@ -262,8 +261,8 @@ impl<'a> Unstashable<UnstashingContext<'a>> for BasicProcessorInput {
         let id = ProcessorInputId::new(unstasher.u64()? as _);
 
         let options = match unstasher.u8()? {
-            0 => InputOptions::Synchronous,
-            1 => InputOptions::NonSynchronous,
+            0 => Chronicity::Iso,
+            1 => Chronicity::Aniso,
             _ => panic!(),
         };
 
@@ -279,7 +278,7 @@ impl<'a> Unstashable<UnstashingContext<'a>> for BasicProcessorInput {
 
         Ok(BasicProcessorInput {
             id,
-            options,
+            chronicity: options,
             branches,
             target,
             argument_scope,
@@ -299,8 +298,8 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for BasicProcessorInput {
         let id = ProcessorInputId::new(unstasher.u64_always()? as _);
 
         let options = match unstasher.u8_always()? {
-            0 => InputOptions::Synchronous,
-            1 => InputOptions::NonSynchronous,
+            0 => Chronicity::Iso,
+            1 => Chronicity::Aniso,
             _ => panic!(),
         };
 
@@ -317,7 +316,7 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for BasicProcessorInput {
         if unstasher.time_to_write() {
             *self = BasicProcessorInput {
                 id,
-                options,
+                chronicity: options,
                 branches,
                 target,
                 argument_scope,

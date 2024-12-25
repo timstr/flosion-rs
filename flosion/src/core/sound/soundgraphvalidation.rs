@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use super::{
     argument::ProcessorArgumentLocation, expression::ProcessorExpressionLocation,
-    sounderror::SoundError, soundgraph::SoundGraph, soundinput::InputOptions,
+    sounderror::SoundError, soundgraph::SoundGraph, soundinput::Chronicity,
     soundprocessor::SoundProcessorId,
 };
 
@@ -135,9 +135,9 @@ fn compute_implied_processor_allocations(
 
             let states = processor_states * input.branches();
 
-            let input_is_sync = match input.options() {
-                InputOptions::Synchronous => processor_is_sync,
-                InputOptions::NonSynchronous => false,
+            let input_is_sync = match input.chronicity() {
+                Chronicity::Iso => processor_is_sync,
+                Chronicity::Aniso => false,
             };
             let sync = is_sync && input_is_sync;
 

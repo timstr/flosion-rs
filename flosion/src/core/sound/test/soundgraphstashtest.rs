@@ -5,7 +5,7 @@ use crate::{
         sound::{
             argument::ArgumentScope,
             soundgraph::SoundGraph,
-            soundinput::{BasicProcessorInput, InputOptions},
+            soundinput::{BasicProcessorInput, Chronicity},
             soundprocessor::{SoundProcessor, SoundProcessorWithId},
         },
         stashing::{StashingContext, UnstashingContext},
@@ -30,7 +30,7 @@ fn test_sound_object_factories() -> Factories {
 
 #[test]
 fn stash_clone_basic_input() {
-    let input = BasicProcessorInput::new(InputOptions::Synchronous, 2, ArgumentScope::new_empty());
+    let input = BasicProcessorInput::new(Chronicity::Iso, 2, ArgumentScope::new_empty());
 
     let stash = Stash::new();
     let factories = test_sound_object_factories();
@@ -50,7 +50,7 @@ fn stash_clone_basic_input() {
 fn stash_clone_test_static_processor() {
     let mut proc = TestStaticSoundProcessor::new(&ParsedArguments::new_empty());
     proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         2,
         ArgumentScope::new_empty(),
     ));
@@ -105,7 +105,7 @@ fn stash_clone_graph_with_one_static_processor() {
 
     let mut proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
     proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         2,
         ArgumentScope::new_empty(),
     ));
@@ -150,7 +150,7 @@ fn stash_clone_graph_with_one_dynamic_processor() {
 
     let mut proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         2,
         ArgumentScope::new_empty(),
     ));

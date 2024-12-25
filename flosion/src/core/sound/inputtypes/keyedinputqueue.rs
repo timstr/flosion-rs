@@ -8,7 +8,7 @@ use crate::core::{
         argument::ArgumentScope,
         context::AudioContext,
         soundinput::{
-            AnyProcessorInput, BasicProcessorInput, InputContext, InputOptions, ProcessorInputId,
+            AnyProcessorInput, BasicProcessorInput, Chronicity, InputContext, ProcessorInputId,
         },
         soundprocessor::{
             ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
@@ -48,9 +48,13 @@ pub struct KeyedInputQueue<S> {
 }
 
 impl<S> KeyedInputQueue<S> {
-    pub fn new(options: InputOptions, num_keys: usize, scope: ArgumentScope) -> KeyedInputQueue<S> {
+    pub fn new(
+        chronicity: Chronicity,
+        num_keys: usize,
+        scope: ArgumentScope,
+    ) -> KeyedInputQueue<S> {
         KeyedInputQueue {
-            input: BasicProcessorInput::new(options, num_keys, scope),
+            input: BasicProcessorInput::new(chronicity, num_keys, scope),
             phantom_data: PhantomData,
         }
     }

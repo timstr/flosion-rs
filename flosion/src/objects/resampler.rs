@@ -11,7 +11,7 @@ use crate::{
             context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
-            soundinput::{InputContext, InputOptions},
+            soundinput::{Chronicity, InputContext},
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -62,7 +62,7 @@ impl StartOver for ResamplerState {
 impl SoundProcessor for Resampler {
     fn new(_args: &ParsedArguments) -> Resampler {
         Resampler {
-            input: SingleInput::new(InputOptions::NonSynchronous, ArgumentScope::new_empty()),
+            input: SingleInput::new(Chronicity::Aniso, ArgumentScope::new_empty()),
             speed_ratio: ProcessorExpression::new(&[1.0], ArgumentScope::new_empty()),
             state: StateMarker::new(),
         }

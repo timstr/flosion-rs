@@ -12,7 +12,7 @@ use crate::{
             context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
-            soundinput::{InputContext, InputOptions},
+            soundinput::{InputContext, Chronicity},
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
@@ -35,7 +35,7 @@ impl SoundProcessor for ReadWriteWaveform {
         let input_r = ProcessorArgument::new();
         let waveform_scope = ArgumentScope::new(vec![input_l.id(), input_r.id()]);
         ReadWriteWaveform {
-            sound_input: SingleInput::new(InputOptions::Synchronous, ArgumentScope::new_empty()),
+            sound_input: SingleInput::new(Chronicity::Iso, ArgumentScope::new_empty()),
             waveform: ProcessorExpression::new(&[0.0, 0.0], waveform_scope),
             input_l,
             input_r,

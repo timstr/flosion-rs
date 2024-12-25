@@ -10,7 +10,7 @@ use crate::{
     core::{
         jit::cache::JitCache,
         sound::{
-            soundgraph::SoundGraph, soundinput::InputOptions, soundobject::SoundGraphObject,
+            soundgraph::SoundGraph, soundinput::Chronicity, soundobject::SoundGraphObject,
             soundprocessor::SoundProcessorId,
         },
     },
@@ -317,9 +317,9 @@ impl StackedGroup {
         ui.painter()
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
-        match socket.options {
-            InputOptions::Synchronous => self.draw_even_stripes(ui, bar_rect, socket.branches),
-            InputOptions::NonSynchronous => self.draw_uneven_stripes(ui, bar_rect, socket.branches),
+        match socket.chronicity {
+            Chronicity::Iso => self.draw_even_stripes(ui, bar_rect, socket.branches),
+            Chronicity::Aniso => self.draw_uneven_stripes(ui, bar_rect, socket.branches),
         }
     }
 

@@ -7,7 +7,7 @@ use crate::core::{
     sound::{
         argument::ArgumentScope,
         soundinput::{
-            AnyProcessorInput, BasicProcessorInput, InputContext, InputOptions, InputTiming,
+            AnyProcessorInput, BasicProcessorInput, Chronicity, InputContext, InputTiming,
             ProcessorInputId,
         },
         soundprocessor::{
@@ -24,9 +24,9 @@ pub struct SingleInput {
 }
 
 impl SingleInput {
-    pub fn new(options: InputOptions, scope: ArgumentScope) -> SingleInput {
+    pub fn new(chronicity: Chronicity, scope: ArgumentScope) -> SingleInput {
         SingleInput {
-            input: BasicProcessorInput::new(options, 1, scope),
+            input: BasicProcessorInput::new(chronicity, 1, scope),
         }
     }
 
