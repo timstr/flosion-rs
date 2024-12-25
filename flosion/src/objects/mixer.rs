@@ -8,7 +8,7 @@ use crate::{
             argument::ArgumentScope,
             context::AudioContext,
             inputtypes::singleinput::SingleInput,
-            soundinput::{InputContext, InputOptions, ProcessorInputId},
+            soundinput::{Chronicity, InputContext, ProcessorInputId},
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
@@ -22,12 +22,12 @@ pub struct Mixer {
     inputs: Vec<SingleInput>,
 }
 
-const MIXER_INPUT_OPTIONS: InputOptions = InputOptions::Synchronous;
+const MIXER_INPUT_CHRONICITY: Chronicity = Chronicity::Iso;
 
 impl Mixer {
     pub fn add_input(&mut self) {
         self.inputs.push(SingleInput::new(
-            MIXER_INPUT_OPTIONS,
+            MIXER_INPUT_CHRONICITY,
             ArgumentScope::new_empty(),
         ));
     }
@@ -48,7 +48,7 @@ impl SoundProcessor for Mixer {
         let num_inputs = args.get(&Mixer::ARG_NUM_INPUTS).unwrap_or(2);
         Mixer {
             inputs: (0..num_inputs)
-                .map(|_| SingleInput::new(MIXER_INPUT_OPTIONS, ArgumentScope::new_empty()))
+                .map(|_| SingleInput::new(MIXER_INPUT_CHRONICITY, ArgumentScope::new_empty()))
                 .collect(),
         }
     }

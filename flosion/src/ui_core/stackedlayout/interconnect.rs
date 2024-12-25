@@ -2,7 +2,7 @@ use hashstash::{Stashable, Stasher};
 
 use crate::core::{
     sound::{
-        soundinput::{BasicProcessorInput, InputOptions, SoundInputLocation},
+        soundinput::{BasicProcessorInput, Chronicity, SoundInputLocation},
         soundprocessor::{AnySoundProcessor, SoundProcessorId},
     },
     stashing::StashingContext,
@@ -33,7 +33,7 @@ impl Stashable<StashingContext> for ProcessorPlug {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct InputSocket {
     pub(crate) location: SoundInputLocation,
-    pub(crate) options: InputOptions,
+    pub(crate) chronicity: Chronicity,
     pub(crate) branches: usize,
 }
 
@@ -44,7 +44,7 @@ impl InputSocket {
     ) -> InputSocket {
         InputSocket {
             location: SoundInputLocation::new(processor_id, data.id()),
-            options: data.options(),
+            chronicity: data.chronicity(),
             branches: data.branches(),
         }
     }
@@ -54,9 +54,9 @@ impl Stashable<StashingContext> for InputSocket {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.location.processor().value() as _);
         stasher.u64(self.location.input().value() as _);
-        stasher.u8(match self.options {
-            InputOptions::Synchronous => 0,
-            InputOptions::NonSynchronous => 1,
+        stasher.u8(match self.chronicity {
+            Chronicity::Iso => 0,
+            Chronicity::Aniso => 1,
         });
         stasher.u64(self.branches as _);
     }

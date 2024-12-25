@@ -11,7 +11,7 @@ use crate::{
             argumenttypes::f32argument::F32Argument,
             context::AudioContext,
             inputtypes::keyedinputqueue::{KeyReuse, KeyedInputQueue},
-            soundinput::InputOptions,
+            soundinput::Chronicity,
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -111,7 +111,7 @@ impl SoundProcessor for Keyboard {
         let key_frequency = ProcessorArgument::new();
         let (command_reader, command_writer) = spmcq::ring_buffer(message_queue_size);
         let input = KeyedInputQueue::new(
-            InputOptions::Synchronous,
+            Chronicity::Iso,
             input_queue_size,
             ArgumentScope::new(vec![key_frequency.id()]),
         );

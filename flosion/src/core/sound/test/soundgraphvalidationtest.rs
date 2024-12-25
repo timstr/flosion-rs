@@ -3,7 +3,7 @@ use crate::core::sound::{
     sounderror::SoundError,
     soundgraph::SoundGraph,
     soundgraphvalidation::find_sound_error,
-    soundinput::{BasicProcessorInput, InputOptions},
+    soundinput::{BasicProcessorInput, Chronicity},
     soundprocessor::SoundProcessorWithId,
     test::testobjects::{TestDynamicSoundProcessor, TestStaticSoundProcessor},
 };
@@ -41,7 +41,7 @@ fn find_error_static_to_self_cycle() {
     let mut proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -66,7 +66,7 @@ fn find_error_two_static_procs_singly_connected() {
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -87,12 +87,12 @@ fn find_error_two_static_procs_doubly_connected() {
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -114,7 +114,7 @@ fn find_error_static_to_dynamic_no_branches() {
     let dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     static_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         0,
         ArgumentScope::new_empty(),
     ));
@@ -134,7 +134,7 @@ fn find_error_static_to_dynamic_one_branch() {
     let dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     static_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -154,7 +154,7 @@ fn find_error_static_to_dynamic_two_branches() {
     let dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     static_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         2,
         ArgumentScope::new_empty(),
     ));
@@ -175,7 +175,7 @@ fn find_error_static_to_static_no_branches() {
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         0,
         ArgumentScope::new_empty(),
     ));
@@ -198,7 +198,7 @@ fn find_error_static_to_static_one_branch() {
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -219,7 +219,7 @@ fn find_error_static_to_static_two_branches() {
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         2,
         ArgumentScope::new_empty(),
     ));
@@ -241,7 +241,7 @@ fn find_error_static_to_dynamic_one_branch_nonsync() {
     let dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     static_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::NonSynchronous,
+        Chronicity::Aniso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -261,7 +261,7 @@ fn find_error_static_to_static_one_branch_nonsync() {
     let other_proc_id = other_static_proc.id();
 
     static_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::NonSynchronous,
+        Chronicity::Aniso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -284,7 +284,7 @@ fn find_error_dynamic_to_static_no_branches() {
     let mut dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         0,
         ArgumentScope::new_empty(),
     ));
@@ -306,7 +306,7 @@ fn find_error_dynamic_to_static_one_branch() {
     let mut dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -326,7 +326,7 @@ fn find_error_dynamic_to_static_two_branches() {
     let mut dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         2,
         ArgumentScope::new_empty(),
     ));
@@ -349,7 +349,7 @@ fn find_error_dynamic_to_static_nonsync() {
     let mut dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::NonSynchronous,
+        Chronicity::Aniso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -373,14 +373,14 @@ fn find_error_dynamic_to_dynamic_to_static_no_branches() {
     let proc3_id = proc3.id();
 
     proc1.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         0,
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -404,14 +404,14 @@ fn find_error_dynamic_to_dynamic_to_static_one_branch() {
     let proc3 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc1.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -432,21 +432,21 @@ fn find_error_dynamic_to_dynamic_to_static_cycle() {
     let mut proc3 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc1.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         0,
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     proc2.inputs[0].set_target(Some(proc3.id()));
 
     proc3.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -471,14 +471,14 @@ fn find_error_dynamic_to_dynamic_to_static_two_branches() {
     let proc3_id = proc3.id();
 
     proc1.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         2,
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -503,14 +503,14 @@ fn find_error_dynamic_to_dynamic_to_static_nonsync() {
     let proc3_id = proc3.id();
 
     proc1.inputs.push(BasicProcessorInput::new(
-        InputOptions::NonSynchronous,
+        Chronicity::Aniso,
         1,
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
 
     proc2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -536,21 +536,21 @@ fn find_error_dynamic_indirect_fork_to_static() {
     let proc_leaf_id = proc_leaf.id();
 
     proc_root1.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     proc_root1.inputs[0].set_target(Some(proc_middle.id()));
 
     proc_root2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     proc_root2.inputs[0].set_target(Some(proc_middle.id()));
 
     proc_middle.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -575,14 +575,14 @@ fn find_error_dynamic_direct_fork_to_static_nonsync() {
     let proc_leaf = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc_root1.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     proc_root1.inputs[0].set_target(Some(proc_leaf.id()));
 
     proc_root2.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -602,12 +602,12 @@ fn find_error_dynamic_to_static_two_inputs() {
     let static_proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -628,12 +628,12 @@ fn find_error_dynamic_to_static_two_inputs_with_side_proc() {
     let static_proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
     dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));
@@ -641,7 +641,7 @@ fn find_error_dynamic_to_static_two_inputs_with_side_proc() {
     dynamic_proc.inputs[1].set_target(Some(static_proc.id()));
 
     side_dynamic_proc.inputs.push(BasicProcessorInput::new(
-        InputOptions::Synchronous,
+        Chronicity::Iso,
         1,
         ArgumentScope::new_empty(),
     ));

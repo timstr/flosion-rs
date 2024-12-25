@@ -12,7 +12,7 @@ use crate::{
             context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
-            soundinput::{InputContext, InputOptions},
+            soundinput::{Chronicity, InputContext},
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::{SoundChunk, CHUNK_SIZE},
@@ -34,10 +34,7 @@ impl SoundProcessor for Definitions {
     fn new(_args: &ParsedArguments) -> Definitions {
         let argument = ProcessorArgument::new();
         Definitions {
-            sound_input: SingleInput::new(
-                InputOptions::Synchronous,
-                ArgumentScope::new(vec![argument.id()]),
-            ),
+            sound_input: SingleInput::new(Chronicity::Iso, ArgumentScope::new(vec![argument.id()])),
             expression: ProcessorExpression::new(&[0.0], ArgumentScope::new_empty()),
             argument,
         }
