@@ -174,18 +174,8 @@ impl StackedGroup {
     ) {
         let mut bottom_left_of_next_proc: Option<egui::Pos2> = None;
 
-        for spid in self.processors.iter().rev().cloned() {
-            // TODO:
-            // - transform_layer_shapes does NOT transparently redirect inputs,
-            //   and so this currently makes it impossible to click on processor
-            //   UI's directly.
-            // - Instead, try:
-            //    - moving the processor ui to where we think it will go based on its
-            //      previous size
-            //    - after drawing it, translating it by the difference between its
-            //      previous and current size (which will be zero most of the time)
-
-            // Start a new ui in a new layer from the top-left corner at (0, 0)
+        for (i, spid) in self.processors.iter().cloned().rev().enumerate() {
+            // Start a new ui in a new layer from the top-left corner at the estimated origin
             let layer_id = egui::LayerId::new(egui::Order::Middle, ui.id().with(spid));
             let estimated_top_left = ui_state
                 .positions()
@@ -250,13 +240,13 @@ impl StackedGroup {
                     });
                     body_rect = Some(body_res.response.rect);
 
-                    // Draw the output plug
-                    self.draw_processor_plug(
-                        ui,
-                        ui_state,
-                        ProcessorPlug::from_processor_data(processor_data),
-                        processor_color,
-                    );
+                    // Draw the final processor's output plug
+                    let plug = ProcessorPlug::from_processor_data(processor_data);
+                    if i == 0 {
+                        self.draw_processor_plug(ui, ui_state, plug, processor_color);
+                    } else {
+                        ui_state.positions_mut().clear_plug(plug);
+                    }
                 });
             });
             let proc_size = outer_res.response.rect.size();
@@ -275,7 +265,7 @@ impl StackedGroup {
             bottom_left_of_next_proc = Some(exact_top_left);
 
             let body_rect = body_rect.unwrap();
-            let outer_rect = outer_res.response.rect;
+            let outer_rect = outer_res.response.rect.translate(translation);
 
             ui_state
                 .positions_mut()

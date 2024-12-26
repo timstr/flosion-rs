@@ -122,6 +122,11 @@ impl SoundObjectPositions {
             .insert(DragDropSubject::Plug(plug.processor), rect);
     }
 
+    pub(crate) fn clear_plug(&mut self, plug: ProcessorPlug) {
+        self.drag_drop_subjects
+            .remove(&DragDropSubject::Plug(plug.processor));
+    }
+
     pub(crate) fn record_socket(&mut self, socket: InputSocket, rect: egui::Rect) {
         self.drag_drop_subjects
             .insert(DragDropSubject::Socket(socket.location), rect);
