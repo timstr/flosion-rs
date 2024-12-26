@@ -81,12 +81,8 @@ impl StackedGroup {
         self.time_axis
     }
 
-    pub(crate) fn origin(&self) -> egui::Pos2 {
-        self.origin
-    }
-
-    pub(crate) fn set_origin(&mut self, origin: egui::Pos2) {
-        self.origin = origin
+    pub(crate) fn translate(&mut self, delta: egui::Vec2) {
+        self.origin = self.origin + delta;
     }
 
     pub(crate) fn processors(&self) -> &[SoundProcessorId] {

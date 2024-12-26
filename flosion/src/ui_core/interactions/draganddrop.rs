@@ -590,12 +590,6 @@ impl DropInteraction {
         factories: &Factories,
         snapshot_flag: &SnapshotFlag,
     ) {
-        // let nearest_drop_site = positions.drag_drop_subjects().find_closest_where(
-        //     self.rect,
-        //     MIN_DROP_OVERLAP,
-        //     |site| self.legal_sites.get(site).cloned() == Some(DragDropLegality::Legal),
-        // );
-
         let nearest_drop_site =
             find_closest_legal_drop_site(self.rect, positions, MIN_DROP_OVERLAP, &self.legal_sites);
 
@@ -674,7 +668,7 @@ impl DropInteraction {
         if let DragDropSubject::Processor(spid) = self.subject {
             let group = layout.find_group_mut(spid).unwrap();
             if group.processors() == &[spid] {
-                // TODO: move the group?
+                group.translate(self.rect.left_top() - self.original_rect.left_top());
                 snapshot_flag.request_snapshot();
             }
         }
