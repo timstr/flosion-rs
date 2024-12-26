@@ -235,7 +235,9 @@ impl GlobalInteractions {
                 // Highlight all selected objects
                 for oid in &selection.objects {
                     let rect = match oid {
-                        SoundObjectId::Sound(spid) => positions.find_processor(*spid).unwrap().rect,
+                        SoundObjectId::Sound(spid) => {
+                            positions.find_processor(*spid).unwrap().body_rect
+                        }
                     };
 
                     ui.painter().rect_filled(
@@ -291,7 +293,7 @@ impl GlobalInteractions {
                         SoundObjectId::Sound(id) => positions.record_processor(
                             id,
                             egui::Rect::from_min_size(pos, egui::Vec2::ZERO),
-                            pos,
+                            egui::Rect::from_min_size(pos, egui::Vec2::ZERO),
                         ),
                     }
 
@@ -407,9 +409,9 @@ impl GlobalInteractions {
         let rect = egui::Rect::from_two_pos(area.start_location, area.end_location);
         positions
             .processors()
-            .iter()
+            .values()
             .filter_map(|pp| -> Option<SoundObjectId> {
-                if pp.rect.intersects(rect) {
+                if pp.outer_rect.intersects(rect) {
                     Some(pp.processor.into())
                 } else {
                     None

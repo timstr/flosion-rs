@@ -64,7 +64,7 @@ impl StackedGroup {
         // if not found, just put rect at 0,0
         let bottom_proc_top_left = positions
             .find_processor(*processors.last().unwrap())
-            .map_or(egui::Pos2::ZERO, |pp| pp.rect.left_top());
+            .map_or(egui::Pos2::ZERO, |pp| pp.body_rect.left_top());
 
         StackedGroup {
             width_pixels: StackedLayout::DEFAULT_WIDTH,
@@ -172,7 +172,7 @@ impl StackedGroup {
         properties: &GraphProperties,
         snapshot_flag: &SnapshotFlag,
     ) {
-        let mut bottom_left_of_next_proc = self.origin;
+        let mut bottom_left_of_next_proc: Option<egui::Pos2> = None;
 
         for spid in self.processors.iter().rev().cloned() {
             // TODO:
@@ -187,9 +187,19 @@ impl StackedGroup {
 
             // Start a new ui in a new layer from the top-left corner at (0, 0)
             let layer_id = egui::LayerId::new(egui::Order::Middle, ui.id().with(spid));
-            let ui_builder =
-                egui::UiBuilder::new().max_rect(egui::Rect::from_x_y_ranges(0.0.., 0.0..));
-            let res = ui.allocate_new_ui(ui_builder, |ui| {
+            let estimated_top_left = ui_state
+                .positions()
+                .find_processor(spid)
+                .map(|pp| pp.outer_rect.left_top())
+                .unwrap_or(egui::pos2(0.0, 0.0));
+            let ui_builder = egui::UiBuilder::new().max_rect(egui::Rect::from_x_y_ranges(
+                estimated_top_left.x..,
+                estimated_top_left.y..,
+            ));
+
+            let mut body_rect = None;
+
+            let outer_res = ui.allocate_new_ui(ui_builder, |ui| {
                 ui.with_layer_id(layer_id, |ui| {
                     // Tighten the spacing
                     ui.spacing_mut().item_spacing.y = 0.0;
@@ -230,13 +240,15 @@ impl StackedGroup {
                         factories,
                         self.time_axis,
                         self.width_pixels as f32,
-                        egui::Pos2::ZERO, // TODO: remove group_origin,
                         properties,
                         jit_cache,
                         stash,
                         snapshot_flag,
                     );
-                    show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
+                    let body_res = ui.vertical(|ui| {
+                        show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
+                    });
+                    body_rect = Some(body_res.response.rect);
 
                     // Draw the output plug
                     self.draw_processor_plug(
@@ -247,17 +259,27 @@ impl StackedGroup {
                     );
                 });
             });
-            let proc_size = res.response.rect.right_bottom();
+            let proc_size = outer_res.response.rect.size();
+
+            let exact_top_left = if let Some(pos) = bottom_left_of_next_proc {
+                egui::pos2(pos.x, pos.y - proc_size.y)
+            } else {
+                self.origin
+            };
 
             // Translate the processor ui to be above the previous processor
-            let translation = egui::vec2(
-                bottom_left_of_next_proc.x,
-                bottom_left_of_next_proc.y - proc_size.y,
-            );
+            let translation = exact_top_left - estimated_top_left;
             ui.ctx()
                 .transform_layer_shapes(layer_id, TSTransform::from_translation(translation));
 
-            bottom_left_of_next_proc.y -= proc_size.y;
+            bottom_left_of_next_proc = Some(exact_top_left);
+
+            let body_rect = body_rect.unwrap();
+            let outer_rect = outer_res.response.rect;
+
+            ui_state
+                .positions_mut()
+                .record_processor(spid, body_rect, outer_rect);
         }
     }
 

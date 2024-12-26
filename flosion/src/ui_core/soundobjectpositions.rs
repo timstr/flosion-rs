@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use eframe::egui;
 use hashstash::{Order, Stashable, Stasher, UnstashError, Unstashable, Unstasher};
 
 use crate::core::sound::{
-    expression::ProcessorExpressionLocation, soundinput::SoundInputLocation,
-    soundprocessor::SoundProcessorId,
+    expression::ProcessorExpressionLocation, soundgraph::SoundGraph,
+    soundinput::SoundInputLocation, soundprocessor::SoundProcessorId,
 };
 
 use super::{
@@ -11,145 +13,38 @@ use super::{
     stackedlayout::interconnect::{InputSocket, ProcessorPlug},
 };
 
-pub(crate) struct PositionedItems<T> {
-    values: Vec<T>,
-    positions: Vec<egui::Rect>,
-}
-
-impl<T> PositionedItems<T> {
-    pub(crate) fn new() -> PositionedItems<T> {
-        PositionedItems {
-            values: Vec::new(),
-            positions: Vec::new(),
-        }
-    }
-
-    pub(crate) fn push(&mut self, item: T, rect: egui::Rect) {
-        self.values.push(item);
-        self.positions.push(rect);
-    }
-
-    pub(crate) fn clear(&mut self) {
-        self.values.clear();
-        self.positions.clear();
-    }
-
-    pub(crate) fn items(&self) -> impl Iterator<Item = (&T, egui::Rect)> {
-        self.values.iter().zip(self.positions.iter().cloned())
-    }
-
-    pub(crate) fn values(&self) -> &[T] {
-        &self.values
-    }
-
-    pub(crate) fn position(&self, item: &T) -> Option<egui::Rect>
-    where
-        T: PartialEq,
-    {
-        debug_assert_eq!(self.values.len(), self.positions.len());
-        self.values
-            .iter()
-            .position(|i| i == item)
-            .map(|idx| self.positions[idx])
-    }
-
-    pub(crate) fn find_position<P>(&self, predicate: P) -> Option<egui::Rect>
-    where
-        P: FnMut(&T) -> bool,
-    {
-        debug_assert_eq!(self.values.len(), self.positions.len());
-        self.values
-            .iter()
-            .position(predicate)
-            .map(|idx| self.positions[idx])
-    }
-
-    pub(crate) fn find_closest_where<F>(
-        &self,
-        query: egui::Rect,
-        minimum_overlap_area: f32,
-        mut f: F,
-    ) -> Option<&T>
-    where
-        F: FnMut(&T) -> bool,
-    {
-        let mut best_overlap = minimum_overlap_area;
-        let mut best_index = None;
-        for (index, rect) in self.positions.iter().enumerate() {
-            if !f(&self.values[index]) {
-                continue;
-            }
-            let intersection = rect.intersect(query);
-            if !intersection.is_positive() {
-                continue;
-            }
-            let area = intersection.area();
-            if area > best_overlap {
-                best_overlap = area;
-                best_index = Some(index);
-            }
-        }
-        best_index.map(|idx| &self.values[idx])
-    }
-}
-
-impl<T: Stashable> Stashable for PositionedItems<T> {
-    fn stash(&self, stasher: &mut Stasher<()>) {
-        stasher.array_of_proxy_objects(
-            self.values.iter().zip(&self.positions),
-            |(value, position), stasher| {
-                value.stash(stasher);
-                stasher.f32(position.left());
-                stasher.f32(position.right());
-                stasher.f32(position.top());
-                stasher.f32(position.bottom());
-            },
-            Order::Unordered,
-        );
-    }
-}
-
-impl<T: Unstashable> Unstashable for PositionedItems<T> {
-    fn unstash(unstasher: &mut Unstasher<()>) -> Result<Self, UnstashError> {
-        let mut values = Vec::new();
-        let mut positions = Vec::new();
-        unstasher.array_of_proxy_objects(|unstasher| {
-            values.push(T::unstash(unstasher)?);
-
-            let left = unstasher.f32()?;
-            let right = unstasher.f32()?;
-            let top = unstasher.f32()?;
-            let bottom = unstasher.f32()?;
-
-            positions.push(egui::Rect::from_x_y_ranges(left..=right, top..=bottom));
-
-            Ok(())
-        })?;
-
-        Ok(PositionedItems { values, positions })
-    }
-}
-
 pub(crate) struct ProcessorPosition {
     /// The id of the processor
     pub(crate) processor: SoundProcessorId,
 
-    // The on-screen area occupied by the processor's UI
-    pub(crate) rect: egui::Rect,
+    // The on-screen area occupied by the processor's body
+    pub(crate) body_rect: egui::Rect,
 
-    // The top-left corner of the stacked group currently containing the processor
-    pub(crate) group_origin: egui::Pos2,
+    // The on-screen area occupied by the processor and all of its inputs and sockets
+    pub(crate) outer_rect: egui::Rect,
+}
+
+fn stash_rect(rect: egui::Rect, stasher: &mut Stasher) {
+    stasher.f32(rect.left());
+    stasher.f32(rect.right());
+    stasher.f32(rect.top());
+    stasher.f32(rect.bottom());
+}
+
+fn unstash_rect(unstasher: &mut Unstasher) -> Result<egui::Rect, UnstashError> {
+    let left = unstasher.f32()?;
+    let right = unstasher.f32()?;
+    let top = unstasher.f32()?;
+    let bottom = unstasher.f32()?;
+
+    Ok(egui::Rect::from_x_y_ranges(left..=right, top..=bottom))
 }
 
 impl Stashable for ProcessorPosition {
     fn stash(&self, stasher: &mut Stasher<()>) {
         self.processor.stash(stasher);
-        stasher.f32(self.rect.left());
-        stasher.f32(self.rect.right());
-        stasher.f32(self.rect.top());
-        stasher.f32(self.rect.bottom());
-        stasher.f32(self.group_origin.x);
-        stasher.f32(self.group_origin.y);
+        stash_rect(self.body_rect, stasher);
+        stash_rect(self.outer_rect, stasher);
     }
 }
 
@@ -157,64 +52,79 @@ impl Unstashable for ProcessorPosition {
     fn unstash(unstasher: &mut Unstasher<()>) -> Result<Self, UnstashError> {
         let processor = SoundProcessorId::unstash(unstasher)?;
 
-        let left = unstasher.f32()?;
-        let right = unstasher.f32()?;
-        let top = unstasher.f32()?;
-        let bottom = unstasher.f32()?;
-
-        let rect = egui::Rect::from_x_y_ranges(left..=right, top..=bottom);
-
-        let group_origin = egui::pos2(unstasher.f32()?, unstasher.f32()?);
+        let body_rect = unstash_rect(unstasher)?;
+        let outer_rect = unstash_rect(unstasher)?;
 
         Ok(ProcessorPosition {
             processor,
-            rect,
-            group_origin,
+            body_rect,
+            outer_rect,
         })
     }
 }
 
 pub(crate) struct SoundObjectPositions {
-    socket_jumpers: PositionedItems<SoundInputLocation>,
-    processors: Vec<ProcessorPosition>,
-    drag_drop_subjects: PositionedItems<DragDropSubject>,
-    expressions: PositionedItems<ProcessorExpressionLocation>,
+    socket_jumpers: HashMap<SoundInputLocation, egui::Rect>,
+    processors: HashMap<SoundProcessorId, ProcessorPosition>,
+    drag_drop_subjects: HashMap<DragDropSubject, egui::Rect>,
+    expressions: HashMap<ProcessorExpressionLocation, egui::Rect>,
 }
 
 impl SoundObjectPositions {
     pub(crate) fn new() -> SoundObjectPositions {
         SoundObjectPositions {
-            socket_jumpers: PositionedItems::new(),
-            processors: Vec::new(),
-            drag_drop_subjects: PositionedItems::new(),
-            expressions: PositionedItems::new(),
+            socket_jumpers: HashMap::new(),
+            processors: HashMap::new(),
+            drag_drop_subjects: HashMap::new(),
+            expressions: HashMap::new(),
         }
     }
 
-    pub(crate) fn socket_jumpers(&self) -> &PositionedItems<SoundInputLocation> {
+    pub(crate) fn socket_jumpers(&self) -> &HashMap<SoundInputLocation, egui::Rect> {
         &self.socket_jumpers
     }
 
-    pub(crate) fn processors(&self) -> &[ProcessorPosition] {
+    pub(crate) fn processors(&self) -> &HashMap<SoundProcessorId, ProcessorPosition> {
         &self.processors
     }
 
-    pub(crate) fn drag_drop_subjects(&self) -> &PositionedItems<DragDropSubject> {
+    pub(crate) fn drag_drop_subjects(&self) -> &HashMap<DragDropSubject, egui::Rect> {
         &self.drag_drop_subjects
     }
 
-    pub(crate) fn expressions(&self) -> &PositionedItems<ProcessorExpressionLocation> {
+    pub(crate) fn expressions(&self) -> &HashMap<ProcessorExpressionLocation, egui::Rect> {
         &self.expressions
+    }
+
+    pub(crate) fn processor_expressions_top_down(
+        &self,
+        processor: SoundProcessorId,
+    ) -> Vec<ProcessorExpressionLocation> {
+        let mut v: Vec<(ProcessorExpressionLocation, i32)> = self
+            .expressions
+            .iter()
+            .filter_map(|(k, v)| {
+                if k.processor() == processor {
+                    Some((*k, v.top().round() as i32))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        v.sort_by(|a, b| a.1.cmp(&b.1));
+
+        v.into_iter().map(|x| x.0).collect()
     }
 
     pub(crate) fn record_plug(&mut self, plug: ProcessorPlug, rect: egui::Rect) {
         self.drag_drop_subjects
-            .push(DragDropSubject::Plug(plug.processor), rect);
+            .insert(DragDropSubject::Plug(plug.processor), rect);
     }
 
     pub(crate) fn record_socket(&mut self, socket: InputSocket, rect: egui::Rect) {
         self.drag_drop_subjects
-            .push(DragDropSubject::Socket(socket.location), rect);
+            .insert(DragDropSubject::Socket(socket.location), rect);
     }
 
     pub(crate) fn record_socket_jumper(
@@ -222,7 +132,7 @@ impl SoundObjectPositions {
         input_location: SoundInputLocation,
         rect: egui::Rect,
     ) {
-        self.socket_jumpers.push(input_location, rect);
+        self.socket_jumpers.insert(input_location, rect);
     }
 
     pub(crate) fn record_expression(
@@ -230,52 +140,110 @@ impl SoundObjectPositions {
         expr_id: ProcessorExpressionLocation,
         rect: egui::Rect,
     ) {
-        self.expressions.push(expr_id, rect);
+        self.expressions.insert(expr_id, rect);
     }
 
     pub(crate) fn record_processor(
         &mut self,
         processor: SoundProcessorId,
-        rect: egui::Rect,
-        group_origin: egui::Pos2,
+        body_rect: egui::Rect,
+        outer_rect: egui::Rect,
     ) {
-        self.processors.push(ProcessorPosition {
+        self.processors.insert(
             processor,
-            rect,
-            group_origin,
-        });
+            ProcessorPosition {
+                processor,
+                body_rect,
+                outer_rect,
+            },
+        );
         self.drag_drop_subjects
-            .push(DragDropSubject::Processor(processor), rect);
+            .insert(DragDropSubject::Processor(processor), body_rect);
     }
 
     pub(crate) fn find_processor(&self, processor: SoundProcessorId) -> Option<&ProcessorPosition> {
-        self.processors.iter().find(|pp| pp.processor == processor)
+        self.processors.get(&processor)
     }
 
-    pub(crate) fn clear(&mut self) {
-        self.socket_jumpers.clear();
-        self.processors.clear();
-        self.drag_drop_subjects.clear();
-        self.expressions.clear();
+    pub(crate) fn cleanup(&mut self, graph: &SoundGraph) {
+        self.socket_jumpers.retain(|l, _| graph.contains(l));
+        self.processors.retain(|x, _| graph.contains(x));
+        self.drag_drop_subjects.retain(|x, _| x.is_valid(graph));
+        self.expressions.retain(|x, _| graph.contains(x));
     }
 }
 
 impl Stashable for SoundObjectPositions {
     fn stash(&self, stasher: &mut Stasher) {
-        stasher.object(&self.socket_jumpers);
-        stasher.array_of_objects_slice(&self.processors, Order::Unordered);
-        stasher.object(&self.drag_drop_subjects);
-        stasher.object(&self.expressions);
+        stasher.array_of_proxy_objects(
+            self.socket_jumpers.iter(),
+            |(k, v), stasher| {
+                stasher.object(k);
+                stash_rect(**v, stasher);
+            },
+            Order::Unordered,
+        );
+        stasher.array_of_proxy_objects(
+            self.processors.iter(),
+            |(k, v), stasher| {
+                stasher.object(k);
+                stasher.object(v);
+            },
+            Order::Unordered,
+        );
+        stasher.array_of_proxy_objects(
+            self.drag_drop_subjects.iter(),
+            |(k, v), stasher| {
+                stasher.object(k);
+                stash_rect(**v, stasher);
+            },
+            Order::Unordered,
+        );
+        stasher.array_of_proxy_objects(
+            self.expressions.iter(),
+            |(k, v), stasher| {
+                stasher.object(k);
+                stash_rect(**v, stasher);
+            },
+            Order::Unordered,
+        );
     }
 }
 
 impl Unstashable for SoundObjectPositions {
     fn unstash(unstasher: &mut Unstasher) -> Result<Self, UnstashError> {
-        Ok(SoundObjectPositions {
-            socket_jumpers: unstasher.object()?,
-            processors: unstasher.array_of_objects_vec()?,
-            drag_drop_subjects: unstasher.object()?,
-            expressions: unstasher.object()?,
-        })
+        let mut positions = SoundObjectPositions {
+            socket_jumpers: HashMap::new(),
+            processors: HashMap::new(),
+            drag_drop_subjects: HashMap::new(),
+            expressions: HashMap::new(),
+        };
+
+        unstasher.array_of_proxy_objects(|unstasher| {
+            positions
+                .socket_jumpers
+                .insert(unstasher.object()?, unstash_rect(unstasher)?);
+            Ok(())
+        })?;
+        unstasher.array_of_proxy_objects(|unstasher| {
+            positions
+                .processors
+                .insert(unstasher.object()?, unstasher.object()?);
+            Ok(())
+        })?;
+        unstasher.array_of_proxy_objects(|unstasher| {
+            positions
+                .drag_drop_subjects
+                .insert(unstasher.object()?, unstash_rect(unstasher)?);
+            Ok(())
+        })?;
+        unstasher.array_of_proxy_objects(|unstasher| {
+            positions
+                .expressions
+                .insert(unstasher.object()?, unstash_rect(unstasher)?);
+            Ok(())
+        })?;
+
+        Ok(positions)
     }
 }

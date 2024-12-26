@@ -129,10 +129,8 @@ impl SoundGraphUiState {
 
         self.names.cleanup(graph);
         self.interactions.cleanup(graph);
-    }
 
-    pub(super) fn cleanup_frame_data(&mut self) {
-        self.positions.clear();
+        self.positions.cleanup(graph);
     }
 
     #[cfg(debug_assertions)]

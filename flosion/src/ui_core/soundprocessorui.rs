@@ -26,7 +26,7 @@ pub struct ProcessorUi {
 
 #[derive(Clone, Copy)]
 struct ProcessorUiProps {
-    origin: egui::Pos2,
+    // Huh?
 }
 
 impl ProcessorUi {
@@ -165,15 +165,9 @@ impl ProcessorUi {
             processor.visit(&mut visitor);
         }
 
-        let r = ui.push_id(processor.id(), |ui| {
+        ui.push_id(processor.id(), |ui| {
             self.show_with_impl(processor, ui, ctx, ui_state, add_contents);
         });
-
-        ui_state.positions_mut().record_processor(
-            processor.id(),
-            r.response.rect,
-            ctx.group_origin(),
-        );
     }
 
     fn show_with_impl<
@@ -203,12 +197,6 @@ impl ProcessorUi {
             .inner_margin(egui::vec2(0.0, 5.0))
             .stroke(darkish_stroke);
 
-        let props = ProcessorUiProps {
-            origin: ui.cursor().left_top(),
-        };
-
-        let left_of_body = props.origin.x;
-
         let desired_width = ctx.width();
 
         for (siid, label) in &self.sound_inputs {
@@ -220,7 +208,7 @@ impl ProcessorUi {
 
         ui.set_width(desired_width);
 
-        Self::show_inner_processor_contents(ui, left_of_body, desired_width, frame, |ui| {
+        frame.show(ui, |ui| {
             ui.vertical(|ui| {
                 // Make sure to use up the intended width consistently
                 ui.set_width(desired_width);
@@ -299,25 +287,6 @@ impl ProcessorUi {
                 }
             });
         });
-    }
-
-    fn show_inner_processor_contents<F: FnOnce(&mut egui::Ui)>(
-        ui: &mut egui::Ui,
-        left_of_body: f32,
-        desired_width: f32,
-        inner_frame: egui::Frame,
-        f: F,
-    ) -> egui::Response {
-        let body_rect = egui::Rect::from_x_y_ranges(
-            left_of_body..=(left_of_body + desired_width),
-            ui.cursor().top()..=f32::INFINITY,
-        );
-
-        ui.allocate_ui_at_rect(body_rect, |ui| {
-            ui.set_width(desired_width);
-            inner_frame.show(ui, f).response
-        })
-        .response
     }
 
     fn show_expression(

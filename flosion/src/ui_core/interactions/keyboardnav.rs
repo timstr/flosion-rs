@@ -145,16 +145,14 @@ impl KeyboardNavInteraction {
 
         match self {
             KeyboardNavInteraction::AroundSoundProcessor(spid) => {
-                rect = positions.find_processor(*spid).unwrap().rect;
+                rect = positions.find_processor(*spid).unwrap().body_rect;
                 let proc_data = graph.sound_processor(*spid).unwrap();
                 let last_input = proc_data.input_locations().last().cloned();
 
                 let first_expr: Option<ProcessorExpressionLocation> = positions
-                    .expressions()
-                    .values()
-                    .iter()
-                    .cloned()
-                    .find(|expr_loc| expr_loc.processor() == proc_data.id());
+                    .processor_expressions_top_down(*spid)
+                    .first()
+                    .cloned();
 
                 allowed_dirs.go_up = last_input.is_some();
                 allowed_dirs.go_down = true;
@@ -184,8 +182,9 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundProcessorPlug(spid) => {
                 rect = positions
                     .drag_drop_subjects()
-                    .position(&DragDropSubject::Plug(*spid))
-                    .unwrap();
+                    .get(&DragDropSubject::Plug(*spid))
+                    .unwrap()
+                    .clone();
                 let proc_below = layout.processor_below(*spid);
 
                 allowed_dirs.go_up = true;
@@ -217,8 +216,9 @@ impl KeyboardNavInteraction {
             KeyboardNavInteraction::AroundInputSocket(siid) => {
                 rect = positions
                     .drag_drop_subjects()
-                    .position(&DragDropSubject::Socket(*siid))
-                    .unwrap();
+                    .get(&DragDropSubject::Socket(*siid))
+                    .unwrap()
+                    .clone();
                 let owner = siid.processor();
                 let other_inputs = graph.sound_processor(owner).unwrap().input_locations();
                 let index = other_inputs.iter().position(|id| *id == *siid).unwrap();
@@ -255,15 +255,10 @@ impl KeyboardNavInteraction {
                 }
             }
             KeyboardNavInteraction::AroundExpression(eid) => {
-                rect = positions.expressions().position(eid).unwrap();
+                rect = positions.expressions().get(eid).unwrap().clone();
 
-                let other_exprs: Vec<ProcessorExpressionLocation> = positions
-                    .expressions()
-                    .values()
-                    .iter()
-                    .cloned()
-                    .filter(|other_eid| other_eid.processor() == eid.processor())
-                    .collect();
+                let other_exprs: Vec<ProcessorExpressionLocation> =
+                    positions.processor_expressions_top_down(eid.processor());
                 let index = other_exprs.iter().position(|id| *id == *eid).unwrap();
 
                 allowed_dirs.go_up = index > 0;
@@ -293,7 +288,7 @@ impl KeyboardNavInteraction {
                 }
             }
             KeyboardNavInteraction::InsideExpression(eid, ll_focus) => {
-                rect = positions.expressions().position(eid).unwrap();
+                rect = positions.expressions().get(eid).unwrap().clone();
                 faint_highlight = true;
 
                 allowed_dirs.go_out = true;

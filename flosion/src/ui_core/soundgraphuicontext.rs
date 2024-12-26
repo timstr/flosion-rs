@@ -12,7 +12,6 @@ pub struct SoundGraphUiContext<'a, 'ctx> {
     factories: &'a Factories,
     time_axis: TimeAxis,
     width: f32,
-    group_origin: egui::Pos2,
     properties: &'a GraphProperties,
     jit_cache: &'a JitCache<'ctx>,
     stash: &'a Stash,
@@ -24,7 +23,6 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
         factories: &'a Factories,
         time_axis: TimeAxis,
         width: f32,
-        group_origin: egui::Pos2,
         properties: &'a GraphProperties,
         jit_cache: &'a JitCache<'ctx>,
         stash: &'a Stash,
@@ -34,7 +32,6 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
             factories,
             time_axis,
             width,
-            group_origin,
             properties,
             jit_cache,
             stash,
@@ -52,10 +49,6 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
 
     pub fn width(&self) -> f32 {
         self.width
-    }
-
-    pub fn group_origin(&self) -> egui::Pos2 {
-        self.group_origin
     }
 
     pub fn properties(&self) -> &GraphProperties {

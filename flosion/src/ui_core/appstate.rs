@@ -80,8 +80,6 @@ impl AppState {
 
             self.previous_clean_revision = Some(current_revision);
         }
-
-        self.ui_state.cleanup_frame_data();
     }
 
     #[cfg(debug_assertions)]

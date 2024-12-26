@@ -248,7 +248,7 @@ impl StackedLayout {
 
         // draw wires between connected groups
         // TODO: make this prettier
-        for (jumper_input, jumper_pos) in ui_state.positions().socket_jumpers().items() {
+        for (jumper_input, jumper_pos) in ui_state.positions().socket_jumpers() {
             let Some(Some(target_spid)) = graph.with_sound_input(*jumper_input, |i| i.target())
             else {
                 continue;
@@ -257,7 +257,7 @@ impl StackedLayout {
             let Some(plug_pos) = ui_state
                 .positions()
                 .drag_drop_subjects()
-                .position(&DragDropSubject::Plug(target_spid))
+                .get(&DragDropSubject::Plug(target_spid))
             else {
                 continue;
             };

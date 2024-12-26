@@ -53,7 +53,7 @@ impl DragDropSubject {
         }
     }
 
-    fn is_valid(&self, graph: &SoundGraph) -> bool {
+    pub(crate) fn is_valid(&self, graph: &SoundGraph) -> bool {
         match self {
             DragDropSubject::Processor(spid) => graph.contains(spid),
             DragDropSubject::Plug(spid) => graph.contains(spid),
@@ -320,10 +320,6 @@ fn drag_and_drop_in_layout(
             if layout.is_top_of_group(proc_below) {
                 for proc in processors {
                     layout.insert_processor_above(proc, proc_below);
-                    let group = layout.find_group_mut(proc).unwrap();
-                    let proc_pos = positions.find_processor(proc).unwrap();
-                    let magic_offset = -5.0;
-                    let delta = proc_pos.rect.bottom() - proc_pos.group_origin.y + magic_offset;
                     // TODO: move the group?
                 }
             } else {
@@ -351,12 +347,16 @@ fn drag_and_drop_in_layout(
     layout.regenerate(graph, positions);
 }
 
-// wrapper struct to make &[DragDropSubject] Stashable
-struct AvailableDropSites<'a>(&'a [DragDropSubject]);
+// wrapper struct to make keys Stashable
+struct AvailableDropSites<'a>(&'a HashMap<DragDropSubject, egui::Rect>);
 
 impl<'a> Stashable for AvailableDropSites<'a> {
     fn stash(&self, stasher: &mut Stasher) {
-        stasher.array_of_objects_slice_with_context(self.0, Order::Unordered, ());
+        stasher.array_of_proxy_objects(
+            self.0.keys(),
+            |v, stasher| stasher.object(v),
+            Order::Unordered,
+        );
     }
 }
 
@@ -387,7 +387,7 @@ fn compute_legal_drop_sites(
 ) -> HashMap<DragDropSubject, DragDropLegality> {
     debug_assert_eq!(graph.validate(), Ok(()));
     let mut site_statuses = HashMap::new();
-    for drop_site in drop_sites.0 {
+    for drop_site in drop_sites.0.keys() {
         let (mut graph_clone, _) = stash_clone_with_context(
             graph,
             stash,
@@ -421,6 +421,34 @@ fn compute_legal_drop_sites(
         site_statuses.insert(*drop_site, status);
     }
     site_statuses
+}
+
+fn find_closest_legal_drop_site(
+    rect: egui::Rect,
+    positions: &SoundObjectPositions,
+    min_overlap: f32,
+    legal_sites: &HashMap<DragDropSubject, DragDropLegality>,
+) -> Option<DragDropSubject> {
+    let mut best_overlap = min_overlap;
+    let mut best_subject = None;
+
+    for (subject, subject_rect) in positions.drag_drop_subjects() {
+        if legal_sites.get(subject).unwrap().clone() != DragDropLegality::Legal {
+            continue;
+        }
+
+        let intersection = subject_rect.intersect(rect);
+        if !intersection.is_positive() {
+            continue;
+        }
+        let area = intersection.area();
+        if area > best_overlap {
+            best_overlap = area;
+            best_subject = Some(*subject);
+        }
+    }
+
+    best_subject
 }
 
 const MIN_DROP_OVERLAP: f32 = 1000.0;
@@ -464,16 +492,15 @@ impl DragInteraction {
             graph,
             &StackedLayoutWrapper(layout),
             self.subject,
-            AvailableDropSites(positions.drag_drop_subjects().values()),
+            AvailableDropSites(positions.drag_drop_subjects()),
         );
-        let site_is_legal = |s: &DragDropSubject| -> bool {
-            self.legal_drop_sites.get_cached().unwrap().get(s).cloned()
-                == Some(DragDropLegality::Legal)
-        };
-        self.closest_legal_site = positions
-            .drag_drop_subjects()
-            .find_closest_where(self.rect, MIN_DROP_OVERLAP, site_is_legal)
-            .cloned();
+
+        self.closest_legal_site = find_closest_legal_drop_site(
+            self.rect,
+            positions,
+            MIN_DROP_OVERLAP,
+            self.legal_drop_sites.get_cached().unwrap(),
+        );
 
         // Highlight the legal and illegal drop sites
         for (drop_site, legality) in self.legal_drop_sites.get_cached().unwrap() {
@@ -494,7 +521,11 @@ impl DragInteraction {
                 egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha);
 
             ui.painter().rect_filled(
-                positions.drag_drop_subjects().position(drop_site).unwrap(),
+                positions
+                    .drag_drop_subjects()
+                    .get(drop_site)
+                    .unwrap()
+                    .clone(),
                 egui::Rounding::same(2.0),
                 color,
             );
@@ -559,11 +590,14 @@ impl DropInteraction {
         factories: &Factories,
         snapshot_flag: &SnapshotFlag,
     ) {
-        let nearest_drop_site = positions.drag_drop_subjects().find_closest_where(
-            self.rect,
-            MIN_DROP_OVERLAP,
-            |site| self.legal_sites.get(site).cloned() == Some(DragDropLegality::Legal),
-        );
+        // let nearest_drop_site = positions.drag_drop_subjects().find_closest_where(
+        //     self.rect,
+        //     MIN_DROP_OVERLAP,
+        //     |site| self.legal_sites.get(site).cloned() == Some(DragDropLegality::Legal),
+        // );
+
+        let nearest_drop_site =
+            find_closest_legal_drop_site(self.rect, positions, MIN_DROP_OVERLAP, &self.legal_sites);
 
         if let Some(nearest_drop_site) = nearest_drop_site {
             // No point in checking invariants later if they aren't
@@ -580,7 +614,7 @@ impl DropInteraction {
                         graph,
                         layout,
                         self.subject,
-                        *nearest_drop_site,
+                        nearest_drop_site,
                     ))
                 },
             );
@@ -602,7 +636,7 @@ impl DropInteraction {
                 }
             }
 
-            drag_and_drop_in_layout(layout, graph, self.subject, *nearest_drop_site, positions);
+            drag_and_drop_in_layout(layout, graph, self.subject, nearest_drop_site, positions);
 
             snapshot_flag.request_snapshot();
 
