@@ -60,12 +60,6 @@ impl Unstashable for SoundInputLocation {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum InputBranching {
-    Single,
-    Multiple(usize),
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Chronicity {
     Iso,
     Aniso,
