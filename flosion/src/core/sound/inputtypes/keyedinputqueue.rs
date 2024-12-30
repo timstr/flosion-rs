@@ -76,11 +76,11 @@ impl<S: Send> ProcessorComponent for KeyedInputQueue<S> {
     type CompiledType<'ctx> = CompiledKeyedInputQueue<'ctx, S>;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        visitor.input(&self.input);
+        visitor.input(self);
     }
 
     fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        visitor.input(&mut self.input);
+        visitor.input(self);
     }
 
     fn compile<'ctx>(

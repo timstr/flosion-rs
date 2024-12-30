@@ -355,4 +355,10 @@ impl<'a> InputContext<'a> {
 
 pub trait AnyProcessorInput {
     fn id(&self) -> ProcessorInputId;
+
+    // target
+    // set_target
+    // branches
+    // chronicity
+    // argument_scope
 }

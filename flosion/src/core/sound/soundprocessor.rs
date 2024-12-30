@@ -28,7 +28,7 @@ use super::{
     context::AudioContext,
     expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
     soundgraphid::SoundObjectId,
-    soundinput::{BasicProcessorInput, ProcessorInputId, SoundInputLocation},
+    soundinput::{AnyProcessorInput, ProcessorInputId, SoundInputLocation},
     soundobject::SoundGraphObject,
 };
 
@@ -104,13 +104,13 @@ impl<T: ProcessorComponent> ProcessorComponent for Vec<T> {
 }
 
 pub trait ProcessorComponentVisitor {
-    fn input(&mut self, _input: &BasicProcessorInput) {}
+    fn input(&mut self, _input: &dyn AnyProcessorInput) {}
     fn expression(&mut self, _expression: &ProcessorExpression) {}
     fn argument(&mut self, _argument: &dyn AnyProcessorArgument) {}
 }
 
 pub trait ProcessorComponentVisitorMut {
-    fn input(&mut self, _input: &mut BasicProcessorInput) {}
+    fn input(&mut self, _input: &mut dyn AnyProcessorInput) {}
     fn expression(&mut self, _expression: &mut ProcessorExpression) {}
     fn argument(&mut self, _argument: &mut dyn AnyProcessorArgument) {}
 }
@@ -308,7 +308,7 @@ impl<'a> dyn AnySoundProcessor + 'a {
         self.as_mut_any().downcast_mut()
     }
 
-    pub(crate) fn with_input<R, F: FnMut(&BasicProcessorInput) -> R>(
+    pub(crate) fn with_input<R, F: FnMut(&dyn AnyProcessorInput) -> R>(
         &self,
         input_id: ProcessorInputId,
         f: F,
@@ -318,8 +318,8 @@ impl<'a> dyn AnySoundProcessor + 'a {
             result: Option<R2>,
             f: F2,
         }
-        impl<R2, F2: FnMut(&BasicProcessorInput) -> R2> ProcessorComponentVisitor for Visitor<R2, F2> {
-            fn input(&mut self, input: &BasicProcessorInput) {
+        impl<R2, F2: FnMut(&dyn AnyProcessorInput) -> R2> ProcessorComponentVisitor for Visitor<R2, F2> {
+            fn input(&mut self, input: &dyn AnyProcessorInput) {
                 if input.id() == self.input_id {
                     debug_assert!(self.result.is_none());
                     self.result = Some((self.f)(input));
@@ -335,7 +335,7 @@ impl<'a> dyn AnySoundProcessor + 'a {
         visitor.result
     }
 
-    pub(crate) fn with_input_mut<R, F: FnMut(&mut BasicProcessorInput) -> R>(
+    pub(crate) fn with_input_mut<R, F: FnMut(&mut dyn AnyProcessorInput) -> R>(
         &mut self,
         input_id: ProcessorInputId,
         f: F,
@@ -345,10 +345,10 @@ impl<'a> dyn AnySoundProcessor + 'a {
             result: Option<R2>,
             f: F2,
         }
-        impl<R2, F2: FnMut(&mut BasicProcessorInput) -> R2> ProcessorComponentVisitorMut
+        impl<R2, F2: FnMut(&mut dyn AnyProcessorInput) -> R2> ProcessorComponentVisitorMut
             for Visitor<R2, F2>
         {
-            fn input(&mut self, input: &mut BasicProcessorInput) {
+            fn input(&mut self, input: &mut dyn AnyProcessorInput) {
                 if input.id() == self.input_id {
                     debug_assert!(self.result.is_none());
                     self.result = Some((self.f)(input));
@@ -454,16 +454,16 @@ impl<'a> dyn AnySoundProcessor + 'a {
         visitor.result
     }
 
-    pub(crate) fn foreach_input<F: FnMut(&BasicProcessorInput, SoundInputLocation)>(&self, f: F) {
+    pub(crate) fn foreach_input<F: FnMut(&dyn AnyProcessorInput, SoundInputLocation)>(&self, f: F) {
         struct Visitor<F2> {
             processor_id: SoundProcessorId,
             f: F2,
         }
 
-        impl<F2: FnMut(&BasicProcessorInput, SoundInputLocation)> ProcessorComponentVisitor
+        impl<F2: FnMut(&dyn AnyProcessorInput, SoundInputLocation)> ProcessorComponentVisitor
             for Visitor<F2>
         {
-            fn input(&mut self, input: &BasicProcessorInput) {
+            fn input(&mut self, input: &dyn AnyProcessorInput) {
                 (self.f)(
                     input,
                     SoundInputLocation::new(self.processor_id, input.id()),
@@ -477,7 +477,7 @@ impl<'a> dyn AnySoundProcessor + 'a {
         });
     }
 
-    pub(crate) fn foreach_input_mut<F: FnMut(&mut BasicProcessorInput, SoundInputLocation)>(
+    pub(crate) fn foreach_input_mut<F: FnMut(&mut dyn AnyProcessorInput, SoundInputLocation)>(
         &mut self,
         f: F,
     ) {
@@ -486,14 +486,12 @@ impl<'a> dyn AnySoundProcessor + 'a {
             f: F2,
         }
 
-        impl<F2: FnMut(&mut BasicProcessorInput, SoundInputLocation)> ProcessorComponentVisitorMut
+        impl<F2: FnMut(&mut dyn AnyProcessorInput, SoundInputLocation)> ProcessorComponentVisitorMut
             for Visitor<F2>
         {
-            fn input(&mut self, input: &mut BasicProcessorInput) {
-                (self.f)(
-                    input,
-                    SoundInputLocation::new(self.processor_id, input.id()),
-                )
+            fn input(&mut self, input: &mut dyn AnyProcessorInput) {
+                let location = SoundInputLocation::new(self.processor_id, input.id());
+                (self.f)(input, location)
             }
         }
 

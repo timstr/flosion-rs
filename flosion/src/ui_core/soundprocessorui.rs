@@ -4,9 +4,7 @@ use crate::{
     core::sound::{
         argument::{AnyProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation},
         expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
-        soundinput::{
-            AnyProcessorInput, BasicProcessorInput, ProcessorInputId, SoundInputLocation,
-        },
+        soundinput::{AnyProcessorInput, ProcessorInputId, SoundInputLocation},
         soundprocessor::{AnySoundProcessor, ProcessorComponentVisitor, SoundProcessorId},
     },
     ui_core::soundgraphuinames::SoundGraphUiNames,
@@ -115,7 +113,7 @@ impl ProcessorUi {
             }
 
             impl<'a> ProcessorComponentVisitor for MissingNameVisitor<'a> {
-                fn input(&mut self, input: &BasicProcessorInput) {
+                fn input(&mut self, input: &dyn AnyProcessorInput) {
                     let location = SoundInputLocation::new(self.processor_id, input.id());
                     if self.names.sound_input(location.into()).is_none() {
                         println!(

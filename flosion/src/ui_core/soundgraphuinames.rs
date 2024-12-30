@@ -8,7 +8,7 @@ use crate::core::{
         argument::{AnyProcessorArgument, ProcessorArgumentLocation},
         expression::{ProcessorExpression, ProcessorExpressionLocation},
         soundgraph::SoundGraph,
-        soundinput::{BasicProcessorInput, SoundInputLocation},
+        soundinput::{AnyProcessorInput, SoundInputLocation},
         soundprocessor::{ProcessorComponentVisitor, SoundProcessorId},
     },
 };
@@ -63,7 +63,7 @@ impl SoundGraphUiNames {
         const PREFIX_INPUT: &str = "input";
 
         impl<'a> ProcessorComponentVisitor for DefaultNameVisitor<'a> {
-            fn input(&mut self, input: &BasicProcessorInput) {
+            fn input(&mut self, input: &dyn AnyProcessorInput) {
                 let location = SoundInputLocation::new(self.processor_id, input.id());
                 self.names.sound_inputs.entry(location).or_insert_with(|| {
                     let i = self.next_sound_input_number;
