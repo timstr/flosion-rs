@@ -59,12 +59,36 @@ impl Unstashable for SoundInputLocation {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum Chronicity {
-    Iso,
-    Aniso,
+struct InputSchedule {
+    // TODO
 }
 
+// TODO: these lend themselves to different concrete types of compiled
+// input. Consequently there shouldn't be just a single BasicProcessorInput
+// type that tries to serve all needs. Either BasicProcessorInput should
+// be adapted to be generic or it should be possible to define different
+// types of inputs for different use cases and have them all implement
+// a common SoundInput trait (my preference). See ProcessorArgument for
+// inspiration.
+pub enum Schedule {
+    /// The input is invoked exactly once each time the calling
+    /// processor is invoked, and only starts over when the calling
+    /// processor starts over. Timing is identical to the calling
+    /// processor.
+    AlwaysOn,
+
+    /// The input follows a schedule of starts, restarts, and stops
+    /// that can be interacted with externally. Timing is variable
+    /// but comes in predictable isochronous segments.
+    Scheduled(InputSchedule),
+
+    /// The input is under the full control of its sound processor
+    /// and its timing is unknown. The input may be called upon
+    /// any number of times when the calling processor is invoked.
+    Raw,
+}
+
+// TODO: generalize to any number and quantity of event
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum ReleaseStatus {
     NotYet,
@@ -76,7 +100,7 @@ enum ReleaseStatus {
 pub struct InputTiming {
     sample_offset: usize,
     time_speed: f32,
-    // TODO: add pending sample offset for starting over
+    // TODO: add pending sample offset for starting over?
     need_to_start_over: bool,
     is_done: bool,
     release: ReleaseStatus,

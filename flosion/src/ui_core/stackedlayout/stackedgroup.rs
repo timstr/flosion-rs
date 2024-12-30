@@ -267,6 +267,8 @@ impl StackedGroup {
                 .positions_mut()
                 .record_processor(spid, body_rect, outer_rect);
         }
+
+        // TODO: draw labeled time increments below the bottom sound processor?
     }
 
     fn draw_input_socket(
