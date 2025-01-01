@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::soundprocessor::SoundProcessorWithId,
+    core::sound::{soundinput::AnyProcessorInput, soundprocessor::SoundProcessorWithId},
     objects::mixer::Mixer,
     ui_core::{
         arguments::ParsedArguments, object_ui::NoObjectUiState,

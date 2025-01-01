@@ -17,7 +17,7 @@ use super::{
     sounderror::SoundError,
     soundgraphid::{SoundGraphComponentLocation, SoundObjectId},
     soundgraphvalidation::find_sound_error,
-    soundinput::{BasicProcessorInput, SoundInputLocation},
+    soundinput::{AnyProcessorInput, SoundInputLocation},
     soundobject::SoundObjectFactory,
     soundprocessor::{AnySoundProcessor, SoundProcessorId},
 };
@@ -175,7 +175,7 @@ impl SoundGraph {
         exists
     }
 
-    pub fn with_sound_input<R, F: FnMut(&BasicProcessorInput) -> R>(
+    pub fn with_sound_input<R, F: FnMut(&dyn AnyProcessorInput) -> R>(
         &self,
         location: SoundInputLocation,
         f: F,
@@ -186,7 +186,7 @@ impl SoundGraph {
         proc_data.with_input(location.input(), f)
     }
 
-    pub fn with_sound_input_mut<R, F: FnMut(&mut BasicProcessorInput) -> R>(
+    pub fn with_sound_input_mut<R, F: FnMut(&mut dyn AnyProcessorInput) -> R>(
         &mut self,
         location: SoundInputLocation,
         f: F,

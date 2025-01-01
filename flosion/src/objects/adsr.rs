@@ -12,7 +12,7 @@ use crate::{
             context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::singleinput::SingleInput,
-            soundinput::{InputContext, Chronicity},
+            soundinput::{Chronicity, InputContext},
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },

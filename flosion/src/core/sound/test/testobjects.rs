@@ -1,12 +1,19 @@
-use hashstash::{InplaceUnstasher, Order, Stashable, Stasher, UnstashError, UnstashableInplace};
+use hashstash::{
+    InplaceUnstasher, Order, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace,
+    Unstasher,
+};
 
 use crate::{
     core::{
         engine::soundgraphcompiler::SoundGraphCompiler,
         objecttype::{ObjectType, WithObjectType},
         sound::{
+            argument::ArgumentScope,
             context::AudioContext,
-            soundinput::BasicProcessorInput,
+            soundinput::{
+                Chronicity, ProcessorInput, SoundInputBackend, SoundInputBranching,
+                SoundInputLocation,
+            },
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
                 SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
@@ -19,7 +26,7 @@ use crate::{
 };
 
 pub(super) struct TestStaticSoundProcessor {
-    pub(super) inputs: Vec<BasicProcessorInput>,
+    pub(super) inputs: Vec<TestSoundInput>,
 }
 
 pub(super) struct CompiledTestStaticSoundProcessor {}
@@ -90,7 +97,7 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for TestStaticSoundProcessor 
 }
 
 pub(super) struct TestDynamicSoundProcessor {
-    pub(super) inputs: Vec<BasicProcessorInput>,
+    pub(super) inputs: Vec<TestSoundInput>,
 }
 
 pub(super) struct CompiledTestDynamicSoundProcessor {}
@@ -157,5 +164,66 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for TestDynamicSoundProcessor
         unstasher: &mut InplaceUnstasher<UnstashingContext>,
     ) -> Result<(), UnstashError> {
         unstasher.array_of_objects_vec_inplace(&mut self.inputs)
+    }
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub(super) struct TestSoundInputBackend {
+    chronicity: Chronicity,
+    branching: SoundInputBranching,
+}
+
+impl SoundInputBackend for TestSoundInputBackend {
+    type CompiledType<'ctx> = ();
+
+    fn branching(&self) -> SoundInputBranching {
+        self.branching
+    }
+
+    fn chronicity(&self) -> Chronicity {
+        self.chronicity
+    }
+
+    fn compile<'ctx>(
+        &self,
+        _location: SoundInputLocation,
+        _target: Option<SoundProcessorId>,
+        _compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::CompiledType<'ctx> {
+        ()
+    }
+}
+
+impl Stashable<StashingContext> for TestSoundInputBackend {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        self.chronicity.stash(stasher);
+        self.branching.stash(stasher);
+    }
+}
+
+impl<'a> Unstashable<UnstashingContext<'a>> for TestSoundInputBackend {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<Self, UnstashError> {
+        Ok(TestSoundInputBackend {
+            chronicity: Unstashable::unstash(unstasher)?,
+            branching: Unstashable::unstash(unstasher)?,
+        })
+    }
+}
+
+pub(super) type TestSoundInput = ProcessorInput<TestSoundInputBackend>;
+
+impl TestSoundInput {
+    pub(super) fn new(
+        chronicity: Chronicity,
+        branching: SoundInputBranching,
+        argument_scope: ArgumentScope,
+    ) -> TestSoundInput {
+        ProcessorInput::new_from_parts(
+            argument_scope,
+            TestSoundInputBackend {
+                chronicity,
+                branching,
+            },
+        )
     }
 }

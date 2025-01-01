@@ -7,83 +7,88 @@ use crate::core::{
     sound::{
         argument::ArgumentScope,
         soundinput::{
-            AnyProcessorInput, BasicProcessorInput, Chronicity, InputContext, InputTiming,
-            ProcessorInputId,
+            Chronicity, InputContext, InputTiming, ProcessorInput, SoundInputBackend,
+            SoundInputBranching, SoundInputLocation,
         },
-        soundprocessor::{
-            ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-            SoundProcessorId, StartOver, StreamStatus,
-        },
+        soundprocessor::{SoundProcessorId, StartOver, StreamStatus},
     },
     soundchunk::SoundChunk,
     stashing::{StashingContext, UnstashingContext},
 };
 
-pub struct KeyedInput<S> {
-    input: BasicProcessorInput,
+pub struct KeyedInputBackend<S> {
+    chronicity: Chronicity,
+    num_keys: usize,
     phantom_data: PhantomData<S>,
 }
 
-impl<S> KeyedInput<S> {
-    pub fn new(chronicity: Chronicity, num_keys: usize, scope: ArgumentScope) -> KeyedInput<S> {
-        KeyedInput {
-            input: BasicProcessorInput::new(chronicity, num_keys, scope),
+impl<S> KeyedInputBackend<S> {
+    pub fn new(chronicity: Chronicity, num_keys: usize) -> KeyedInputBackend<S> {
+        KeyedInputBackend {
+            chronicity,
+            num_keys,
             phantom_data: PhantomData,
         }
     }
 
-    pub fn id(&self) -> ProcessorInputId {
-        self.input.id()
-    }
-
     pub fn num_keys(&self) -> usize {
-        self.input.branches()
+        self.num_keys
     }
 
     pub fn set_num_keys(&mut self, num_keys: usize) {
-        self.input.set_branches(num_keys);
+        self.num_keys = num_keys;
     }
 }
 
-impl<S: Send> ProcessorComponent for KeyedInput<S> {
+impl<S: Send> SoundInputBackend for KeyedInputBackend<S> {
     type CompiledType<'ctx> = CompiledKeyedInput<'ctx, S>;
 
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        visitor.input(self);
+    fn branching(&self) -> SoundInputBranching {
+        SoundInputBranching::Branched(self.num_keys)
     }
 
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        visitor.input(self);
+    fn chronicity(&self) -> Chronicity {
+        self.chronicity
     }
 
     fn compile<'ctx>(
         &self,
-        processor_id: SoundProcessorId,
+        location: SoundInputLocation,
+        target: Option<SoundProcessorId>,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
-        let mut items = Vec::new();
-        for _ in 0..self.input.branches() {
-            items.push(CompiledKeyedInputItem {
-                input: self.input.compile_branch(processor_id, compiler),
-                state: None,
-            });
+        CompiledKeyedInput {
+            items: (0..self.num_keys)
+                .map(|_| CompiledKeyedInputItem {
+                    input: CompiledSoundInputBranch::new(
+                        location,
+                        compiler.compile_sound_processor(target),
+                    ),
+                    state: None,
+                })
+                .collect(),
         }
-        CompiledKeyedInput { items }
     }
 }
 
-impl<S> Stashable<StashingContext> for KeyedInput<S> {
+impl<S> Stashable<StashingContext> for KeyedInputBackend<S> {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        self.input.stash(stasher);
+        stasher.object(&self.chronicity);
+        stasher.u64(self.num_keys as _);
     }
 }
 
-impl<S> UnstashableInplace<UnstashingContext<'_>> for KeyedInput<S> {
+impl<S> UnstashableInplace<UnstashingContext<'_>> for KeyedInputBackend<S> {
     fn unstash_inplace(
         &mut self,
         unstasher: &mut InplaceUnstasher<UnstashingContext<'_>>,
     ) -> Result<(), UnstashError> {
-        self.input.unstash_inplace(unstasher)
+        unstasher.object_replace(&mut self.chronicity)?;
+        let n = unstasher.u64_always()?;
+        if unstasher.time_to_write() {
+            self.num_keys = n as _;
+        }
+        Ok(())
     }
 }
 
@@ -141,8 +146,21 @@ impl<'ctx, S> StartOver for CompiledKeyedInput<'ctx, S> {
     }
 }
 
-impl<S> AnyProcessorInput for KeyedInput<S> {
-    fn id(&self) -> ProcessorInputId {
-        self.input.id()
+pub type KeyedInput<S> = ProcessorInput<KeyedInputBackend<S>>;
+
+impl<S> KeyedInput<S> {
+    pub fn new(
+        chronicity: Chronicity,
+        num_keys: usize,
+        argument_scope: ArgumentScope,
+    ) -> KeyedInput<S> {
+        ProcessorInput::new_from_parts(
+            argument_scope,
+            KeyedInputBackend {
+                chronicity,
+                num_keys,
+                phantom_data: PhantomData,
+            },
+        )
     }
 }

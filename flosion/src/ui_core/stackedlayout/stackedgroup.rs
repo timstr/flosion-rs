@@ -326,8 +326,8 @@ impl StackedGroup {
             .rect_filled(bar_rect, egui::Rounding::ZERO, color.gamma_multiply(0.5));
 
         match socket.chronicity {
-            Chronicity::Iso => self.draw_even_stripes(ui, bar_rect, socket.branches),
-            Chronicity::Aniso => self.draw_uneven_stripes(ui, bar_rect, socket.branches),
+            Chronicity::Iso => self.draw_even_stripes(ui, bar_rect, socket.branching.count()),
+            Chronicity::Aniso => self.draw_uneven_stripes(ui, bar_rect, socket.branching.count()),
         }
     }
 

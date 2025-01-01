@@ -50,8 +50,11 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
     /// requests for the same static node receive the same (single) shared node.
     pub(crate) fn compile_sound_processor(
         &mut self,
-        processor_id: SoundProcessorId,
+        target: Option<SoundProcessorId>,
     ) -> StateGraphNodeValue<'ctx> {
+        let Some(processor_id) = target else {
+            return StateGraphNodeValue::Empty;
+        };
         let proc = self.graph.sound_processor(processor_id).unwrap();
         if proc.is_static() {
             if let Some(node) = self.static_processor_nodes.get(&processor_id) {

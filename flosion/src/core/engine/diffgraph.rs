@@ -58,7 +58,8 @@ pub(crate) fn diff_sound_graph<'ctx>(
     let mut compiler = SoundGraphCompiler::new(&graph_after, jit_cache);
     for proc in graph_after.sound_processors().values() {
         if proc.is_static() {
-            let StateGraphNodeValue::Shared(node) = compiler.compile_sound_processor(proc.id())
+            let StateGraphNodeValue::Shared(node) =
+                compiler.compile_sound_processor(Some(proc.id()))
             else {
                 panic!("Static sound processors must compile to shared state graph nodes");
             };

@@ -8,7 +8,7 @@ use crate::{
             argument::ArgumentScope,
             context::AudioContext,
             inputtypes::singleinput::SingleInput,
-            soundinput::{Chronicity, InputContext, ProcessorInputId},
+            soundinput::{AnyProcessorInput, Chronicity, InputContext, ProcessorInputId},
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,

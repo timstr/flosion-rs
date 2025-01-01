@@ -1,12 +1,11 @@
+use std::ops::{Deref, DerefMut};
+
 use hashstash::{
     InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
 };
 
 use crate::core::{
-    engine::{
-        soundgraphcompiler::SoundGraphCompiler,
-        stategraphnode::{CompiledSoundInputBranch, StateGraphNodeValue},
-    },
+    engine::soundgraphcompiler::SoundGraphCompiler,
     jit::argumentstack::ArgumentStackView,
     soundchunk::CHUNK_SIZE,
     stashing::{StashingContext, UnstashingContext},
@@ -16,7 +15,10 @@ use crate::core::{
 use super::{
     argument::{ArgumentScope, ArgumentTranslation, CompiledProcessorArgument},
     context::AudioContext,
-    soundprocessor::SoundProcessorId,
+    soundprocessor::{
+        ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
+        SoundProcessorId, StartOver,
+    },
 };
 
 pub struct ProcessorInputTag;
@@ -59,10 +61,31 @@ impl Unstashable for SoundInputLocation {
     }
 }
 
+// TODO: store references to schedules for temporary reading? How does/should this get used?
+// TODO: is it wrong for an input to be branched AND isochronic? Seems fishy
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Chronicity {
     Iso,
     Aniso,
+}
+
+impl Stashable<StashingContext> for Chronicity {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        stasher.u8(match self {
+            Chronicity::Iso => 0,
+            Chronicity::Aniso => 1,
+        });
+    }
+}
+
+impl<'a> Unstashable<UnstashingContext<'a>> for Chronicity {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext<'a>>) -> Result<Self, UnstashError> {
+        Ok(match unstasher.u8()? {
+            0 => Chronicity::Iso,
+            1 => Chronicity::Aniso,
+            _ => panic!(),
+        })
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -72,6 +95,7 @@ enum ReleaseStatus {
     Released,
 }
 
+// TODO: break up
 #[derive(Clone, Copy)]
 pub struct InputTiming {
     sample_offset: usize,
@@ -165,162 +189,6 @@ impl Default for InputTiming {
     }
 }
 
-#[derive(Eq, PartialEq, Debug)]
-pub struct BasicProcessorInput {
-    id: ProcessorInputId,
-    chronicity: Chronicity,
-    branches: usize,
-    target: Option<SoundProcessorId>,
-    argument_scope: ArgumentScope,
-}
-
-impl BasicProcessorInput {
-    pub fn new(
-        chronicity: Chronicity,
-        branches: usize,
-        argument_scope: ArgumentScope,
-    ) -> BasicProcessorInput {
-        BasicProcessorInput {
-            id: ProcessorInputId::new_unique(),
-            chronicity,
-            branches,
-            target: None,
-            argument_scope,
-        }
-    }
-
-    pub(crate) fn id(&self) -> ProcessorInputId {
-        self.id
-    }
-
-    pub(crate) fn chronicity(&self) -> Chronicity {
-        self.chronicity
-    }
-
-    pub(crate) fn branches(&self) -> usize {
-        self.branches
-    }
-
-    pub(crate) fn set_branches(&mut self, branches: usize) {
-        self.branches = branches;
-    }
-
-    pub(crate) fn target(&self) -> Option<SoundProcessorId> {
-        self.target
-    }
-
-    pub(crate) fn set_target(&mut self, target: Option<SoundProcessorId>) {
-        self.target = target;
-    }
-
-    pub(crate) fn argument_scope(&self) -> &ArgumentScope {
-        &self.argument_scope
-    }
-
-    pub fn compile_branch<'ctx>(
-        &self,
-        processor_id: SoundProcessorId,
-        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
-    ) -> CompiledSoundInputBranch<'ctx> {
-        let target = match self.target {
-            Some(target_spid) => compiler.compile_sound_processor(target_spid),
-            None => StateGraphNodeValue::Empty,
-        };
-        let location = SoundInputLocation::new(processor_id, self.id);
-        CompiledSoundInputBranch::new(location, target)
-    }
-}
-
-impl Stashable<StashingContext> for BasicProcessorInput {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.u64(self.id.value() as _);
-        stasher.u8(match self.chronicity {
-            Chronicity::Iso => 0,
-            Chronicity::Aniso => 1,
-        });
-        stasher.u64(self.branches as _);
-        match self.target {
-            Some(spid) => {
-                stasher.u8(1);
-                stasher.u64(spid.value() as _);
-            }
-            None => stasher.u8(0),
-        }
-        stasher.object(&self.argument_scope);
-    }
-}
-
-impl<'a> Unstashable<UnstashingContext<'a>> for BasicProcessorInput {
-    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<Self, UnstashError> {
-        let id = ProcessorInputId::new(unstasher.u64()? as _);
-
-        let options = match unstasher.u8()? {
-            0 => Chronicity::Iso,
-            1 => Chronicity::Aniso,
-            _ => panic!(),
-        };
-
-        let branches = unstasher.u64()? as usize;
-
-        let target = match unstasher.u8()? {
-            1 => Some(SoundProcessorId::new(unstasher.u64()? as _)),
-            0 => None,
-            _ => panic!(),
-        };
-
-        let argument_scope = unstasher.object()?;
-
-        Ok(BasicProcessorInput {
-            id,
-            chronicity: options,
-            branches,
-            target,
-            argument_scope,
-        })
-    }
-}
-
-impl<'a> UnstashableInplace<UnstashingContext<'a>> for BasicProcessorInput {
-    fn unstash_inplace(
-        &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
-    ) -> Result<(), UnstashError> {
-        // TODO: this code duplication could be avoided with an InplaceUnstasher
-        // method that reuses a Unstashable implementation *without* inserting
-        // an object value type
-
-        let id = ProcessorInputId::new(unstasher.u64_always()? as _);
-
-        let options = match unstasher.u8_always()? {
-            0 => Chronicity::Iso,
-            1 => Chronicity::Aniso,
-            _ => panic!(),
-        };
-
-        let branches = unstasher.u64_always()? as usize;
-
-        let target = match unstasher.u8_always()? {
-            1 => Some(SoundProcessorId::new(unstasher.u64_always()? as _)),
-            0 => None,
-            _ => panic!(),
-        };
-
-        let argument_scope = unstasher.object_always()?;
-
-        if unstasher.time_to_write() {
-            *self = BasicProcessorInput {
-                id,
-                chronicity: options,
-                branches,
-                target,
-                argument_scope,
-            };
-        }
-
-        Ok(())
-    }
-}
-
 pub struct InputContext<'a> {
     audio_context: &'a AudioContext<'a>,
     argument_stack: ArgumentStackView<'a>,
@@ -353,12 +221,212 @@ impl<'a> InputContext<'a> {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SoundInputBranching {
+    Unbranched,
+    Branched(usize),
+}
+
+impl SoundInputBranching {
+    pub(crate) fn count(&self) -> usize {
+        match self {
+            SoundInputBranching::Unbranched => 1,
+            SoundInputBranching::Branched(n) => *n,
+        }
+    }
+}
+
+impl Stashable<StashingContext> for SoundInputBranching {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        match self {
+            SoundInputBranching::Unbranched => stasher.u8(0),
+            SoundInputBranching::Branched(n) => {
+                stasher.u8(1);
+                stasher.u64(*n as _);
+            }
+        }
+    }
+}
+
+impl<'a> Unstashable<UnstashingContext<'a>> for SoundInputBranching {
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext<'a>>) -> Result<Self, UnstashError> {
+        Ok(match unstasher.u8()? {
+            0 => SoundInputBranching::Unbranched,
+            1 => SoundInputBranching::Branched(unstasher.u64()? as _),
+            _ => panic!(),
+        })
+    }
+}
+
+pub trait SoundInputBackend {
+    type CompiledType<'ctx>: Send + StartOver;
+
+    fn branching(&self) -> SoundInputBranching;
+
+    fn chronicity(&self) -> Chronicity;
+
+    fn compile<'ctx>(
+        &self,
+        location: SoundInputLocation,
+        target: Option<SoundProcessorId>,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::CompiledType<'ctx>;
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct ProcessorInput<T> {
+    id: ProcessorInputId,
+    target: Option<SoundProcessorId>,
+    argument_scope: ArgumentScope,
+    backend: T,
+}
+
+impl<T> ProcessorInput<T> {
+    pub fn new_from_parts(argument_scope: ArgumentScope, backend: T) -> ProcessorInput<T> {
+        ProcessorInput {
+            id: ProcessorInputId::new_unique(),
+            target: None,
+            argument_scope,
+            backend,
+        }
+    }
+}
+
 pub trait AnyProcessorInput {
     fn id(&self) -> ProcessorInputId;
 
-    // target
-    // set_target
-    // branches
-    // chronicity
-    // argument_scope
+    fn target(&self) -> Option<SoundProcessorId>;
+    fn set_target(&mut self, target: Option<SoundProcessorId>);
+
+    fn argument_scope(&self) -> &ArgumentScope;
+
+    fn branching(&self) -> SoundInputBranching;
+
+    fn chronicity(&self) -> Chronicity;
+}
+
+impl<T: SoundInputBackend> AnyProcessorInput for ProcessorInput<T> {
+    fn id(&self) -> ProcessorInputId {
+        self.id
+    }
+
+    fn target(&self) -> Option<SoundProcessorId> {
+        self.target
+    }
+
+    fn set_target(&mut self, target: Option<SoundProcessorId>) {
+        self.target = target;
+    }
+
+    fn argument_scope(&self) -> &ArgumentScope {
+        &self.argument_scope
+    }
+
+    fn branching(&self) -> SoundInputBranching {
+        self.backend.branching()
+    }
+
+    fn chronicity(&self) -> Chronicity {
+        self.backend.chronicity()
+    }
+}
+
+impl<T: SoundInputBackend> ProcessorComponent for ProcessorInput<T> {
+    type CompiledType<'ctx> = T::CompiledType<'ctx>;
+
+    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
+        visitor.input(self);
+    }
+
+    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
+        visitor.input(self);
+    }
+
+    fn compile<'ctx>(
+        &self,
+        processor_id: SoundProcessorId,
+        compiler: &mut SoundGraphCompiler<'_, 'ctx>,
+    ) -> Self::CompiledType<'ctx> {
+        self.backend.compile(
+            SoundInputLocation::new(processor_id, self.id),
+            self.target,
+            compiler,
+        )
+    }
+}
+
+impl<T> Deref for ProcessorInput<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.backend
+    }
+}
+
+impl<T> DerefMut for ProcessorInput<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.backend
+    }
+}
+
+impl<T: Stashable<StashingContext>> Stashable<StashingContext> for ProcessorInput<T> {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        stasher.u64(self.id.value() as _);
+        match self.target {
+            None => stasher.u8(0),
+            Some(spid) => {
+                stasher.u8(1);
+                stasher.u64(spid.value() as _);
+            }
+        }
+        stasher.object(&self.argument_scope);
+        stasher.object(&self.backend);
+    }
+}
+
+impl<'a, T: 'static + Unstashable<UnstashingContext<'a>>> Unstashable<UnstashingContext<'a>>
+    for ProcessorInput<T>
+{
+    fn unstash(unstasher: &mut Unstasher<UnstashingContext<'a>>) -> Result<Self, UnstashError> {
+        let id = ProcessorInputId::new(unstasher.u64()? as _);
+        let target = match unstasher.u8()? {
+            0 => None,
+            1 => Some(SoundProcessorId::new(unstasher.u64()? as _)),
+            _ => panic!(),
+        };
+        let argument_scope = unstasher.object()?;
+        let backend = unstasher.object()?;
+        Ok(ProcessorInput {
+            id,
+            target,
+            argument_scope,
+            backend,
+        })
+    }
+}
+
+impl<'a, T: 'static + UnstashableInplace<UnstashingContext<'a>>>
+    UnstashableInplace<UnstashingContext<'a>> for ProcessorInput<T>
+{
+    fn unstash_inplace(
+        &mut self,
+        unstasher: &mut InplaceUnstasher<UnstashingContext<'a>>,
+    ) -> Result<(), UnstashError> {
+        let id = ProcessorInputId::new(unstasher.u64_always()? as _);
+        let target = match unstasher.u8_always()? {
+            0 => None,
+            1 => Some(SoundProcessorId::new(unstasher.u64_always()? as _)),
+            _ => panic!(),
+        };
+
+        if unstasher.time_to_write() {
+            self.id = id;
+            self.target = target;
+        }
+
+        unstasher.object_inplace(&mut self.argument_scope)?;
+        unstasher.object_inplace(&mut self.backend)?;
+
+        Ok(())
+    }
 }

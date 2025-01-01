@@ -111,7 +111,6 @@ impl SoundProcessor for Keyboard {
         let key_frequency = ProcessorArgument::new();
         let (command_reader, command_writer) = spmcq::ring_buffer(message_queue_size);
         let input = KeyedInputQueue::new(
-            Chronicity::Iso,
             input_queue_size,
             ArgumentScope::new(vec![key_frequency.id()]),
         );

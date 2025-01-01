@@ -7,74 +7,72 @@ use crate::core::{
     sound::{
         argument::ArgumentScope,
         soundinput::{
-            AnyProcessorInput, BasicProcessorInput, Chronicity, InputContext, InputTiming,
-            ProcessorInputId,
+            Chronicity, InputContext, InputTiming, ProcessorInput, SoundInputBackend,
+            SoundInputBranching, SoundInputLocation,
         },
-        soundprocessor::{
-            ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-            SoundProcessorId, StartOver, StreamStatus,
-        },
+        soundprocessor::{SoundProcessorId, StartOver, StreamStatus},
     },
     soundchunk::SoundChunk,
     stashing::{StashingContext, UnstashingContext},
 };
 
-pub struct SingleInput {
-    input: BasicProcessorInput,
+pub struct SingleInputBackend {
+    chronicity: Chronicity,
 }
 
-impl SingleInput {
-    pub fn new(chronicity: Chronicity, scope: ArgumentScope) -> SingleInput {
-        SingleInput {
-            input: BasicProcessorInput::new(chronicity, 1, scope),
-        }
-    }
-
-    pub fn id(&self) -> ProcessorInputId {
-        self.input.id()
+impl SingleInputBackend {
+    pub fn new(chronicity: Chronicity) -> SingleInputBackend {
+        SingleInputBackend { chronicity }
     }
 }
 
-impl ProcessorComponent for SingleInput {
+impl SoundInputBackend for SingleInputBackend {
     type CompiledType<'ctx> = CompiledSingleInput<'ctx>;
 
-    fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor) {
-        visitor.input(self);
+    fn branching(&self) -> SoundInputBranching {
+        SoundInputBranching::Unbranched
     }
 
-    fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut) {
-        visitor.input(self);
+    fn chronicity(&self) -> Chronicity {
+        self.chronicity
     }
 
     fn compile<'ctx>(
         &self,
-        processor_id: SoundProcessorId,
+        location: SoundInputLocation,
+        target: Option<SoundProcessorId>,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
-        CompiledSingleInput::new(self.input.compile_branch(processor_id, compiler))
+        CompiledSingleInput::new(CompiledSoundInputBranch::new(
+            location,
+            compiler.compile_sound_processor(target),
+        ))
     }
 }
 
-impl Stashable<StashingContext> for SingleInput {
+impl Stashable<StashingContext> for SingleInputBackend {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.object(&self.input);
+        stasher.object(&self.chronicity);
     }
 }
 
-impl Unstashable<UnstashingContext<'_>> for SingleInput {
-    fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<SingleInput, UnstashError> {
-        Ok(SingleInput {
-            input: unstasher.object()?,
+impl Unstashable<UnstashingContext<'_>> for SingleInputBackend {
+    fn unstash(
+        unstasher: &mut Unstasher<UnstashingContext>,
+    ) -> Result<SingleInputBackend, UnstashError> {
+        Ok(SingleInputBackend {
+            chronicity: unstasher.object()?,
         })
     }
 }
 
-impl UnstashableInplace<UnstashingContext<'_>> for SingleInput {
+impl UnstashableInplace<UnstashingContext<'_>> for SingleInputBackend {
     fn unstash_inplace(
         &mut self,
         unstasher: &mut InplaceUnstasher<UnstashingContext>,
     ) -> Result<(), UnstashError> {
-        unstasher.object_inplace(&mut self.input)
+        unstasher.object_replace(&mut self.chronicity)?;
+        Ok(())
     }
 }
 
@@ -108,8 +106,10 @@ impl<'ctx> StartOver for CompiledSingleInput<'ctx> {
     }
 }
 
-impl AnyProcessorInput for SingleInput {
-    fn id(&self) -> ProcessorInputId {
-        self.input.id()
+pub type SingleInput = ProcessorInput<SingleInputBackend>;
+
+impl SingleInput {
+    pub fn new(chronicity: Chronicity, argument_scope: ArgumentScope) -> SingleInput {
+        ProcessorInput::new_from_parts(argument_scope, SingleInputBackend { chronicity })
     }
 }

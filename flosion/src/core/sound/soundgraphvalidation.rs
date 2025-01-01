@@ -1,5 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
+use crate::core::sound::soundinput::SoundInputBranching;
+
 use super::{
     argument::ProcessorArgumentLocation, expression::ProcessorExpressionLocation,
     sounderror::SoundError, soundgraph::SoundGraph, soundinput::Chronicity,
@@ -133,7 +135,9 @@ fn compute_implied_processor_allocations(
                 return;
             };
 
-            let states = processor_states * input.branches();
+            // TODO: disallow branching inputs with 1 branch to be connected
+            // to a static processor
+            let states = processor_states * input.branching().count();
 
             let input_is_sync = match input.chronicity() {
                 Chronicity::Iso => processor_is_sync,
@@ -195,7 +199,11 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
             // because that would overcount if there are multiple inputs.
             for input_id in graph.inputs_connected_to(*proc_id) {
                 let num_input_branches = graph
-                    .with_sound_input(input_id, |input| input.branches())
+                    .with_sound_input(input_id, |input| {
+                        // TODO: disallow Branched(1) to be connected to static
+                        // processors
+                        input.branching().count()
+                    })
                     .unwrap();
                 let num_implied_states = allocations
                     .get(&input_id.processor())
