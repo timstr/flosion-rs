@@ -13,7 +13,7 @@ use crate::{
             context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::keyedinput::KeyedInput,
-            soundinput::{Chronicity, InputContext},
+            soundinput::InputContext,
             soundprocessor::{SoundProcessor, StreamStatus},
         },
         soundchunk::SoundChunk,
@@ -58,11 +58,7 @@ impl SoundProcessor for Ensemble {
     fn new(_args: &ParsedArguments) -> Ensemble {
         let num_keys = 4; // idk
         let voice_frequency = ProcessorArgument::new();
-        let input = KeyedInput::new(
-            Chronicity::Iso,
-            num_keys,
-            ArgumentScope::new(vec![voice_frequency.id()]),
-        );
+        let input = KeyedInput::new(num_keys, ArgumentScope::new(vec![voice_frequency.id()]));
         Ensemble {
             input,
             frequency_in: ProcessorExpression::new(&[250.0], ArgumentScope::new_empty()),

@@ -1,11 +1,8 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
-use crate::core::sound::soundinput::SoundInputBranching;
-
 use super::{
     argument::ProcessorArgumentLocation, expression::ProcessorExpressionLocation,
-    sounderror::SoundError, soundgraph::SoundGraph, soundinput::Chronicity,
-    soundprocessor::SoundProcessorId,
+    sounderror::SoundError, soundgraph::SoundGraph, soundprocessor::SoundProcessorId,
 };
 
 pub(super) fn find_sound_error(graph: &SoundGraph) -> Option<SoundError> {
@@ -135,15 +132,11 @@ fn compute_implied_processor_allocations(
                 return;
             };
 
-            // TODO: disallow branching inputs with 1 branch to be connected
+            // TODO: disallow anything but isochronic inputs to be connected
             // to a static processor
-            let states = processor_states * input.branching().count();
+            let states = processor_states * input.category().count_branches();
 
-            let input_is_sync = match input.chronicity() {
-                Chronicity::Iso => processor_is_sync,
-                Chronicity::Aniso => false,
-            };
-            let sync = is_sync && input_is_sync;
+            let sync = is_sync && processor_is_sync && input.category().is_isochronic();
 
             visit(target_proc_id, states, sync, graph, allocations);
         });
@@ -200,9 +193,9 @@ pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundErro
             for input_id in graph.inputs_connected_to(*proc_id) {
                 let num_input_branches = graph
                     .with_sound_input(input_id, |input| {
-                        // TODO: disallow Branched(1) to be connected to static
+                        // TODO: disallow anything but isochronic to be connected to static
                         // processors
-                        input.branching().count()
+                        input.category().count_branches()
                     })
                     .unwrap();
                 let num_implied_states = allocations

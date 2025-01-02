@@ -2,7 +2,7 @@ use hashstash::{Stashable, Stasher};
 
 use crate::core::{
     sound::{
-        soundinput::{AnyProcessorInput, Chronicity, SoundInputBranching, SoundInputLocation},
+        soundinput::{AnyProcessorInput, SoundInputCategory, SoundInputLocation},
         soundprocessor::{AnySoundProcessor, SoundProcessorId},
     },
     stashing::StashingContext,
@@ -33,8 +33,7 @@ impl Stashable<StashingContext> for ProcessorPlug {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct InputSocket {
     pub(crate) location: SoundInputLocation,
-    pub(crate) chronicity: Chronicity,
-    pub(crate) branching: SoundInputBranching,
+    pub(crate) category: SoundInputCategory,
 }
 
 impl InputSocket {
@@ -44,8 +43,7 @@ impl InputSocket {
     ) -> InputSocket {
         InputSocket {
             location: SoundInputLocation::new(processor_id, data.id()),
-            chronicity: data.chronicity(),
-            branching: data.branching(),
+            category: data.category(),
         }
     }
 }
@@ -54,18 +52,6 @@ impl Stashable<StashingContext> for InputSocket {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
         stasher.u64(self.location.processor().value() as _);
         stasher.u64(self.location.input().value() as _);
-        stasher.u8(match self.chronicity {
-            Chronicity::Iso => 0,
-            Chronicity::Aniso => 1,
-        });
-        match self.branching {
-            SoundInputBranching::Unbranched => {
-                stasher.u8(0);
-            }
-            SoundInputBranching::Branched(n) => {
-                stasher.u8(1);
-                stasher.u64(n as _);
-            }
-        }
+        stasher.object(&self.category);
     }
 }

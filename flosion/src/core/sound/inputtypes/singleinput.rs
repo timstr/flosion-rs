@@ -7,8 +7,8 @@ use crate::core::{
     sound::{
         argument::ArgumentScope,
         soundinput::{
-            Chronicity, InputContext, InputTiming, ProcessorInput, SoundInputBackend,
-            SoundInputBranching, SoundInputLocation,
+            InputContext, InputTiming, ProcessorInput, SoundInputBackend, SoundInputCategory,
+            SoundInputLocation,
         },
         soundprocessor::{SoundProcessorId, StartOver, StreamStatus},
     },
@@ -17,24 +17,14 @@ use crate::core::{
 };
 
 pub struct SingleInputBackend {
-    chronicity: Chronicity,
-}
-
-impl SingleInputBackend {
-    pub fn new(chronicity: Chronicity) -> SingleInputBackend {
-        SingleInputBackend { chronicity }
-    }
+    isochronic: bool,
 }
 
 impl SoundInputBackend for SingleInputBackend {
     type CompiledType<'ctx> = CompiledSingleInput<'ctx>;
 
-    fn branching(&self) -> SoundInputBranching {
-        SoundInputBranching::Unbranched
-    }
-
-    fn chronicity(&self) -> Chronicity {
-        self.chronicity
+    fn category(&self) -> SoundInputCategory {
+        SoundInputCategory::Anisochronic
     }
 
     fn compile<'ctx>(
@@ -52,7 +42,7 @@ impl SoundInputBackend for SingleInputBackend {
 
 impl Stashable<StashingContext> for SingleInputBackend {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.object(&self.chronicity);
+        stasher.bool(self.isochronic);
     }
 }
 
@@ -61,7 +51,7 @@ impl Unstashable<UnstashingContext<'_>> for SingleInputBackend {
         unstasher: &mut Unstasher<UnstashingContext>,
     ) -> Result<SingleInputBackend, UnstashError> {
         Ok(SingleInputBackend {
-            chronicity: unstasher.object()?,
+            isochronic: unstasher.bool()?,
         })
     }
 }
@@ -69,9 +59,8 @@ impl Unstashable<UnstashingContext<'_>> for SingleInputBackend {
 impl UnstashableInplace<UnstashingContext<'_>> for SingleInputBackend {
     fn unstash_inplace(
         &mut self,
-        unstasher: &mut InplaceUnstasher<UnstashingContext>,
+        _unstasher: &mut InplaceUnstasher<UnstashingContext>,
     ) -> Result<(), UnstashError> {
-        unstasher.object_replace(&mut self.chronicity)?;
         Ok(())
     }
 }
@@ -106,10 +95,17 @@ impl<'ctx> StartOver for CompiledSingleInput<'ctx> {
     }
 }
 
+// TODO: consider splitting into two separate types by chronicity.
+// Runtime debug checks can be added to ensure that an isochronic
+// single input is always being invoked
 pub type SingleInput = ProcessorInput<SingleInputBackend>;
 
 impl SingleInput {
-    pub fn new(chronicity: Chronicity, argument_scope: ArgumentScope) -> SingleInput {
-        ProcessorInput::new_from_parts(argument_scope, SingleInputBackend { chronicity })
+    pub fn new_isochronic(argument_scope: ArgumentScope) -> SingleInput {
+        ProcessorInput::new_from_parts(argument_scope, SingleInputBackend { isochronic: true })
+    }
+
+    pub fn new_anisochronic(argument_scope: ArgumentScope) -> SingleInput {
+        ProcessorInput::new_from_parts(argument_scope, SingleInputBackend { isochronic: false })
     }
 }

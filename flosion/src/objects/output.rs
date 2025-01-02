@@ -13,7 +13,7 @@ use crate::{
             argument::ArgumentScope,
             context::AudioContext,
             inputtypes::singleinput::SingleInput,
-            soundinput::{InputContext, Chronicity},
+            soundinput::InputContext,
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },
@@ -88,7 +88,7 @@ impl SoundProcessor for Output {
         });
 
         Output {
-            input: SingleInput::new(Chronicity::Iso, ArgumentScope::new_empty()),
+            input: SingleInput::new_isochronic(ArgumentScope::new_empty()),
             shared_data,
             state: StateMarker::new(),
         }

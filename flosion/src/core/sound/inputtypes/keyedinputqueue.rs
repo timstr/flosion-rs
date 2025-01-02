@@ -8,8 +8,7 @@ use crate::core::{
         argument::ArgumentScope,
         context::AudioContext,
         soundinput::{
-            Chronicity, InputContext, ProcessorInput, SoundInputBackend, SoundInputBranching,
-            SoundInputLocation,
+            InputContext, ProcessorInput, SoundInputBackend, SoundInputCategory, SoundInputLocation,
         },
         soundprocessor::{SoundProcessorId, StartOver},
     },
@@ -65,12 +64,8 @@ impl<S> KeyedInputQueueBackend<S> {
 impl<S: Send> SoundInputBackend for KeyedInputQueueBackend<S> {
     type CompiledType<'ctx> = CompiledKeyedInputQueue<'ctx, S>;
 
-    fn branching(&self) -> SoundInputBranching {
-        SoundInputBranching::Branched(self.num_keys)
-    }
-
-    fn chronicity(&self) -> Chronicity {
-        Chronicity::Aniso
+    fn category(&self) -> SoundInputCategory {
+        SoundInputCategory::Branched(self.num_keys)
     }
 
     fn compile<'ctx>(

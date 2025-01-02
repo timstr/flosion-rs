@@ -61,33 +61,76 @@ impl Unstashable for SoundInputLocation {
     }
 }
 
-// TODO: store references to schedules for temporary reading? How does/should this get used?
-// TODO: is it wrong for an input to be branched AND isochronic? Seems fishy
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum Chronicity {
-    Iso,
-    Aniso,
+pub enum SoundInputCategory {
+    /// The input compiles to one node, which may be called upon
+    /// any number of times per chunk and started over at will
+    Anisochronic,
+
+    /// The input compiles to one node which is called exactly once
+    /// per chunk at all times and is only started over when the
+    /// calling processor starts over. This is a requirement for
+    /// calling on static processor nodes and for sharing cached
+    /// audio chunks between nodes (which has not yet been implemented)
+    Isochronic,
+
+    /// The input compiles to a variable number of nodes. How those
+    /// nodes are called and started over is of secondary imporance.
+    Branched(usize),
+
+    /// The input compiles to one node which follows a defined and
+    /// inspectable schedule
+    Scheduled,
 }
 
-impl Stashable<StashingContext> for Chronicity {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.u8(match self {
-            Chronicity::Iso => 0,
-            Chronicity::Aniso => 1,
-        });
+impl SoundInputCategory {
+    pub(crate) fn is_isochronic(&self) -> bool {
+        match self {
+            SoundInputCategory::Isochronic => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn count_branches(&self) -> usize {
+        match self {
+            SoundInputCategory::Anisochronic => 1,
+            SoundInputCategory::Isochronic => 1,
+            SoundInputCategory::Branched(n) => *n,
+            SoundInputCategory::Scheduled => 1,
+        }
     }
 }
 
-impl<'a> Unstashable<UnstashingContext<'a>> for Chronicity {
+impl Stashable<StashingContext> for SoundInputCategory {
+    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
+        match self {
+            SoundInputCategory::Anisochronic => stasher.u8(0),
+            SoundInputCategory::Isochronic => stasher.u8(1),
+            SoundInputCategory::Branched(n) => {
+                stasher.u8(2);
+                stasher.u64(*n as _);
+            }
+            SoundInputCategory::Scheduled => stasher.u8(3),
+        }
+    }
+}
+
+impl<'a> Unstashable<UnstashingContext<'a>> for SoundInputCategory {
     fn unstash(unstasher: &mut Unstasher<UnstashingContext<'a>>) -> Result<Self, UnstashError> {
         Ok(match unstasher.u8()? {
-            0 => Chronicity::Iso,
-            1 => Chronicity::Aniso,
+            0 => SoundInputCategory::Anisochronic,
+            1 => SoundInputCategory::Isochronic,
+            2 => SoundInputCategory::Branched(unstasher.u64()? as _),
+            3 => SoundInputCategory::Scheduled,
             _ => panic!(),
         })
     }
 }
 
+// TODO: this state should probably only be stored for those inputs
+// that actually care about releases. The audio stack should allow
+// such events to be passed through multiple processors without individual
+// processors needing to be aware if they don't need to care.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum ReleaseStatus {
     NotYet,
@@ -221,49 +264,10 @@ impl<'a> InputContext<'a> {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum SoundInputBranching {
-    Unbranched,
-    Branched(usize),
-}
-
-impl SoundInputBranching {
-    pub(crate) fn count(&self) -> usize {
-        match self {
-            SoundInputBranching::Unbranched => 1,
-            SoundInputBranching::Branched(n) => *n,
-        }
-    }
-}
-
-impl Stashable<StashingContext> for SoundInputBranching {
-    fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        match self {
-            SoundInputBranching::Unbranched => stasher.u8(0),
-            SoundInputBranching::Branched(n) => {
-                stasher.u8(1);
-                stasher.u64(*n as _);
-            }
-        }
-    }
-}
-
-impl<'a> Unstashable<UnstashingContext<'a>> for SoundInputBranching {
-    fn unstash(unstasher: &mut Unstasher<UnstashingContext<'a>>) -> Result<Self, UnstashError> {
-        Ok(match unstasher.u8()? {
-            0 => SoundInputBranching::Unbranched,
-            1 => SoundInputBranching::Branched(unstasher.u64()? as _),
-            _ => panic!(),
-        })
-    }
-}
-
 pub trait SoundInputBackend {
     type CompiledType<'ctx>: Send + StartOver;
 
-    fn branching(&self) -> SoundInputBranching;
-
-    fn chronicity(&self) -> Chronicity;
+    fn category(&self) -> SoundInputCategory;
 
     fn compile<'ctx>(
         &self,
@@ -300,9 +304,7 @@ pub trait AnyProcessorInput {
 
     fn argument_scope(&self) -> &ArgumentScope;
 
-    fn branching(&self) -> SoundInputBranching;
-
-    fn chronicity(&self) -> Chronicity;
+    fn category(&self) -> SoundInputCategory;
 }
 
 impl<T: SoundInputBackend> AnyProcessorInput for ProcessorInput<T> {
@@ -322,12 +324,8 @@ impl<T: SoundInputBackend> AnyProcessorInput for ProcessorInput<T> {
         &self.argument_scope
     }
 
-    fn branching(&self) -> SoundInputBranching {
-        self.backend.branching()
-    }
-
-    fn chronicity(&self) -> Chronicity {
-        self.backend.chronicity()
+    fn category(&self) -> SoundInputCategory {
+        self.backend.category()
     }
 }
 

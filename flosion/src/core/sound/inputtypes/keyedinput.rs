@@ -7,8 +7,8 @@ use crate::core::{
     sound::{
         argument::ArgumentScope,
         soundinput::{
-            Chronicity, InputContext, InputTiming, ProcessorInput, SoundInputBackend,
-            SoundInputBranching, SoundInputLocation,
+            InputContext, InputTiming, ProcessorInput, SoundInputBackend, SoundInputCategory,
+            SoundInputLocation,
         },
         soundprocessor::{SoundProcessorId, StartOver, StreamStatus},
     },
@@ -17,15 +17,13 @@ use crate::core::{
 };
 
 pub struct KeyedInputBackend<S> {
-    chronicity: Chronicity,
     num_keys: usize,
     phantom_data: PhantomData<S>,
 }
 
 impl<S> KeyedInputBackend<S> {
-    pub fn new(chronicity: Chronicity, num_keys: usize) -> KeyedInputBackend<S> {
+    pub fn new(num_keys: usize) -> KeyedInputBackend<S> {
         KeyedInputBackend {
-            chronicity,
             num_keys,
             phantom_data: PhantomData,
         }
@@ -43,12 +41,8 @@ impl<S> KeyedInputBackend<S> {
 impl<S: Send> SoundInputBackend for KeyedInputBackend<S> {
     type CompiledType<'ctx> = CompiledKeyedInput<'ctx, S>;
 
-    fn branching(&self) -> SoundInputBranching {
-        SoundInputBranching::Branched(self.num_keys)
-    }
-
-    fn chronicity(&self) -> Chronicity {
-        self.chronicity
+    fn category(&self) -> SoundInputCategory {
+        SoundInputCategory::Branched(self.num_keys)
     }
 
     fn compile<'ctx>(
@@ -73,7 +67,6 @@ impl<S: Send> SoundInputBackend for KeyedInputBackend<S> {
 
 impl<S> Stashable<StashingContext> for KeyedInputBackend<S> {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        stasher.object(&self.chronicity);
         stasher.u64(self.num_keys as _);
     }
 }
@@ -83,7 +76,6 @@ impl<S> UnstashableInplace<UnstashingContext<'_>> for KeyedInputBackend<S> {
         &mut self,
         unstasher: &mut InplaceUnstasher<UnstashingContext<'_>>,
     ) -> Result<(), UnstashError> {
-        unstasher.object_replace(&mut self.chronicity)?;
         let n = unstasher.u64_always()?;
         if unstasher.time_to_write() {
             self.num_keys = n as _;
@@ -149,15 +141,10 @@ impl<'ctx, S> StartOver for CompiledKeyedInput<'ctx, S> {
 pub type KeyedInput<S> = ProcessorInput<KeyedInputBackend<S>>;
 
 impl<S> KeyedInput<S> {
-    pub fn new(
-        chronicity: Chronicity,
-        num_keys: usize,
-        argument_scope: ArgumentScope,
-    ) -> KeyedInput<S> {
+    pub fn new(num_keys: usize, argument_scope: ArgumentScope) -> KeyedInput<S> {
         ProcessorInput::new_from_parts(
             argument_scope,
             KeyedInputBackend {
-                chronicity,
                 num_keys,
                 phantom_data: PhantomData,
             },

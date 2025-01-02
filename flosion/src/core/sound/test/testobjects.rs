@@ -11,8 +11,7 @@ use crate::{
             argument::ArgumentScope,
             context::AudioContext,
             soundinput::{
-                Chronicity, ProcessorInput, SoundInputBackend, SoundInputBranching,
-                SoundInputLocation,
+                ProcessorInput, SoundInputBackend, SoundInputCategory, SoundInputLocation,
             },
             soundprocessor::{
                 ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
@@ -169,19 +168,14 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for TestDynamicSoundProcessor
 
 #[derive(Eq, PartialEq, Debug)]
 pub(super) struct TestSoundInputBackend {
-    chronicity: Chronicity,
-    branching: SoundInputBranching,
+    category: SoundInputCategory,
 }
 
 impl SoundInputBackend for TestSoundInputBackend {
     type CompiledType<'ctx> = ();
 
-    fn branching(&self) -> SoundInputBranching {
-        self.branching
-    }
-
-    fn chronicity(&self) -> Chronicity {
-        self.chronicity
+    fn category(&self) -> SoundInputCategory {
+        self.category
     }
 
     fn compile<'ctx>(
@@ -196,16 +190,14 @@ impl SoundInputBackend for TestSoundInputBackend {
 
 impl Stashable<StashingContext> for TestSoundInputBackend {
     fn stash(&self, stasher: &mut Stasher<StashingContext>) {
-        self.chronicity.stash(stasher);
-        self.branching.stash(stasher);
+        stasher.object(&self.category);
     }
 }
 
 impl<'a> Unstashable<UnstashingContext<'a>> for TestSoundInputBackend {
     fn unstash(unstasher: &mut Unstasher<UnstashingContext>) -> Result<Self, UnstashError> {
         Ok(TestSoundInputBackend {
-            chronicity: Unstashable::unstash(unstasher)?,
-            branching: Unstashable::unstash(unstasher)?,
+            category: unstasher.object()?,
         })
     }
 }
@@ -214,16 +206,9 @@ pub(super) type TestSoundInput = ProcessorInput<TestSoundInputBackend>;
 
 impl TestSoundInput {
     pub(super) fn new(
-        chronicity: Chronicity,
-        branching: SoundInputBranching,
+        category: SoundInputCategory,
         argument_scope: ArgumentScope,
     ) -> TestSoundInput {
-        ProcessorInput::new_from_parts(
-            argument_scope,
-            TestSoundInputBackend {
-                chronicity,
-                branching,
-            },
-        )
+        ProcessorInput::new_from_parts(argument_scope, TestSoundInputBackend { category })
     }
 }

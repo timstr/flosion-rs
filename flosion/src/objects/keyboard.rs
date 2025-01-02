@@ -11,7 +11,6 @@ use crate::{
             argumenttypes::f32argument::F32Argument,
             context::AudioContext,
             inputtypes::keyedinputqueue::{KeyReuse, KeyedInputQueue},
-            soundinput::Chronicity,
             soundprocessor::{
                 ProcessorState, SoundProcessor, StartOver, StateMarker, StreamStatus,
             },

@@ -13,7 +13,7 @@ use crate::{
             context::AudioContext,
             expression::ProcessorExpression,
             inputtypes::keyedinput::KeyedInput,
-            soundinput::{Chronicity, InputContext},
+            soundinput::InputContext,
             soundprocessor::{SoundProcessor, StartOver, StreamStatus},
         },
         soundchunk::SoundChunk,
@@ -50,11 +50,7 @@ impl SoundProcessor for Scatter {
     fn new(_args: &ParsedArguments) -> Scatter {
         let num_keys = 8; // idk
         let value = ProcessorArgument::new();
-        let input = KeyedInput::new(
-            Chronicity::Iso,
-            num_keys,
-            ArgumentScope::new(vec![value.id()]),
-        );
+        let input = KeyedInput::new(num_keys, ArgumentScope::new(vec![value.id()]));
         Scatter {
             sound_input: input,
             parameter: ProcessorExpression::new(&[1.0], ArgumentScope::new_empty()),
