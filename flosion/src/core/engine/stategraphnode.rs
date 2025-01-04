@@ -457,11 +457,6 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         compiled_input
     }
 
-    /// The sound input's location
-    pub(crate) fn location(&self) -> SoundInputLocation {
-        self.location
-    }
-
     /// Access the input timing
     // TODO: consider hiding inputtiming and publicly re-exposing only those functions which make sense
     pub(crate) fn timing(&self) -> &InputTiming {
@@ -470,21 +465,6 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     /// Mutably access the input timing
     pub(crate) fn timing_mut(&mut self) -> &mut InputTiming {
         &mut self.timing
-    }
-
-    /// Get the id of the sound processor which the compiled input
-    /// is effectively connected to, if any.
-    pub(crate) fn target_id(&self) -> Option<SoundProcessorId> {
-        match &self.target {
-            StateGraphNodeValue::Unique(proc) => Some(proc.id()),
-            StateGraphNodeValue::Shared(proc) => Some(proc.id()),
-            StateGraphNodeValue::Empty => None,
-        }
-    }
-
-    /// Access the inner compiled state graph node
-    pub(crate) fn target(&self) -> &StateGraphNodeValue<'ctx> {
-        &self.target
     }
 
     /// Replace the inner compiled state graph node with
