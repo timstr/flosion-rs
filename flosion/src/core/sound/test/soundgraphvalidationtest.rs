@@ -3,7 +3,7 @@ use crate::core::sound::{
     sounderror::SoundError,
     soundgraph::SoundGraph,
     soundgraphvalidation::find_sound_error,
-    soundinput::{AnyProcessorInput, SoundInputCategory},
+    soundinput::{AnyProcessorInput, SoundInputCategory, SoundInputLocation},
     soundprocessor::SoundProcessorWithId,
     test::testobjects::{TestDynamicSoundProcessor, TestSoundInput, TestStaticSoundProcessor},
 };
@@ -163,8 +163,6 @@ fn find_error_static_to_dynamic_two_branches() {
 #[test]
 fn find_error_static_to_static_no_branches() {
     let proc1 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let proc1_id = proc1.id();
-
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc2.inputs.push(TestSoundInput::new(
@@ -173,18 +171,20 @@ fn find_error_static_to_static_no_branches() {
     ));
     proc2.inputs[0].set_target(Some(proc1.id()));
 
+    let input_loc = SoundInputLocation::new(proc2.id(), proc2.inputs[0].id());
+
     let mut graph = SoundGraph::new();
     graph.add_sound_processor(Box::new(proc1));
     graph.add_sound_processor(Box::new(proc2));
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotOneState(proc1_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
 #[test]
-fn find_error_static_to_static_one_branch() {
+fn find_error_static_to_static_isochronic() {
     let proc1 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
@@ -203,17 +203,16 @@ fn find_error_static_to_static_one_branch() {
 }
 
 #[test]
-fn find_error_static_to_static_two_branches() {
+fn find_error_static_to_static_one_branch() {
     let proc1 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let proc1_id = proc1.id();
-
     let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
 
     proc2.inputs.push(TestSoundInput::new(
-        SoundInputCategory::Branched(2),
+        SoundInputCategory::Branched(1),
         ArgumentScope::new_empty(),
     ));
     proc2.inputs[0].set_target(Some(proc1.id()));
+    let input_loc = SoundInputLocation::new(proc2.id(), proc2.inputs[0].id());
 
     let mut graph = SoundGraph::new();
     graph.add_sound_processor(Box::new(proc1));
@@ -221,7 +220,29 @@ fn find_error_static_to_static_two_branches() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotOneState(proc1_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
+    );
+}
+
+#[test]
+fn find_error_static_to_static_two_branches() {
+    let proc1 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
+    let mut proc2 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
+
+    proc2.inputs.push(TestSoundInput::new(
+        SoundInputCategory::Branched(2),
+        ArgumentScope::new_empty(),
+    ));
+    proc2.inputs[0].set_target(Some(proc1.id()));
+    let input_loc = SoundInputLocation::new(proc2.id(), proc2.inputs[0].id());
+
+    let mut graph = SoundGraph::new();
+    graph.add_sound_processor(Box::new(proc1));
+    graph.add_sound_processor(Box::new(proc2));
+
+    assert_eq!(
+        find_sound_error(&graph),
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
@@ -247,13 +268,13 @@ fn find_error_static_to_dynamic_one_branch_nonsync() {
 fn find_error_static_to_static_one_branch_nonsync() {
     let mut static_proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
     let other_static_proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let other_proc_id = other_static_proc.id();
 
     static_proc.inputs.push(TestSoundInput::new(
         SoundInputCategory::Anisochronic,
         ArgumentScope::new_empty(),
     ));
     static_proc.inputs[0].set_target(Some(other_static_proc.id()));
+    let input_loc = SoundInputLocation::new(static_proc.id(), static_proc.inputs[0].id());
 
     let mut graph = SoundGraph::new();
     graph.add_sound_processor(Box::new(static_proc));
@@ -261,14 +282,13 @@ fn find_error_static_to_static_one_branch_nonsync() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotSynchronous(other_proc_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
 #[test]
 fn find_error_dynamic_to_static_no_branches() {
     let static_proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let static_proc_id = static_proc.id();
     let mut dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(TestSoundInput::new(
@@ -276,6 +296,7 @@ fn find_error_dynamic_to_static_no_branches() {
         ArgumentScope::new_empty(),
     ));
     dynamic_proc.inputs[0].set_target(Some(static_proc.id()));
+    let input_loc = SoundInputLocation::new(dynamic_proc.id(), dynamic_proc.inputs[0].id());
 
     let mut graph = SoundGraph::new();
     graph.add_sound_processor(Box::new(static_proc));
@@ -283,7 +304,7 @@ fn find_error_dynamic_to_static_no_branches() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotOneState(static_proc_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
@@ -308,7 +329,6 @@ fn find_error_dynamic_to_static_one_branch() {
 #[test]
 fn find_error_dynamic_to_static_two_branches() {
     let static_proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let static_proc_id = static_proc.id();
     let mut dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(TestSoundInput::new(
@@ -316,6 +336,7 @@ fn find_error_dynamic_to_static_two_branches() {
         ArgumentScope::new_empty(),
     ));
     dynamic_proc.inputs[0].set_target(Some(static_proc.id()));
+    let input_loc = SoundInputLocation::new(dynamic_proc.id(), dynamic_proc.inputs[0].id());
 
     let mut graph = SoundGraph::new();
     graph.add_sound_processor(Box::new(static_proc));
@@ -323,14 +344,13 @@ fn find_error_dynamic_to_static_two_branches() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotOneState(static_proc_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
 #[test]
 fn find_error_dynamic_to_static_nonsync() {
     let static_proc = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let static_proc_id = static_proc.id();
     let mut dynamic_proc = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
 
     dynamic_proc.inputs.push(TestSoundInput::new(
@@ -338,6 +358,7 @@ fn find_error_dynamic_to_static_nonsync() {
         ArgumentScope::new_empty(),
     ));
     dynamic_proc.inputs[0].set_target(Some(static_proc.id()));
+    let input_loc = SoundInputLocation::new(dynamic_proc.id(), dynamic_proc.inputs[0].id());
 
     let mut graph = SoundGraph::new();
     graph.add_sound_processor(Box::new(static_proc));
@@ -345,7 +366,7 @@ fn find_error_dynamic_to_static_nonsync() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotSynchronous(static_proc_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
@@ -354,13 +375,13 @@ fn find_error_dynamic_to_dynamic_to_static_no_branches() {
     let mut proc1 = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let mut proc2 = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let proc3 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let proc3_id = proc3.id();
 
     proc1.inputs.push(TestSoundInput::new(
         SoundInputCategory::Branched(0),
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
+    let input_loc = SoundInputLocation::new(proc1.id(), proc1.inputs[0].id());
 
     proc2.inputs.push(TestSoundInput::new(
         SoundInputCategory::Isochronic,
@@ -375,7 +396,7 @@ fn find_error_dynamic_to_dynamic_to_static_no_branches() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotOneState(proc3_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
@@ -445,13 +466,14 @@ fn find_error_dynamic_to_dynamic_to_static_two_branches() {
     let mut proc1 = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let mut proc2 = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let proc3 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let proc3_id = proc3.id();
 
     proc1.inputs.push(TestSoundInput::new(
         SoundInputCategory::Branched(2),
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
+
+    let input_loc = SoundInputLocation::new(proc1.id(), proc1.inputs[0].id());
 
     proc2.inputs.push(TestSoundInput::new(
         SoundInputCategory::Isochronic,
@@ -466,7 +488,7 @@ fn find_error_dynamic_to_dynamic_to_static_two_branches() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotOneState(proc3_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
@@ -475,13 +497,14 @@ fn find_error_dynamic_to_dynamic_to_static_nonsync() {
     let mut proc1 = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let mut proc2 = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let proc3 = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let proc3_id = proc3.id();
 
     proc1.inputs.push(TestSoundInput::new(
         SoundInputCategory::Anisochronic,
         ArgumentScope::new_empty(),
     ));
     proc1.inputs[0].set_target(Some(proc2.id()));
+
+    let input_loc = SoundInputLocation::new(proc1.id(), proc1.inputs[0].id());
 
     proc2.inputs.push(TestSoundInput::new(
         SoundInputCategory::Isochronic,
@@ -496,7 +519,7 @@ fn find_error_dynamic_to_dynamic_to_static_nonsync() {
 
     assert_eq!(
         find_sound_error(&graph),
-        Some(SoundError::StaticNotSynchronous(proc3_id))
+        Some(SoundError::ConnectionNotIsochronic(input_loc))
     );
 }
 
@@ -506,7 +529,6 @@ fn find_error_dynamic_indirect_fork_to_static() {
     let mut proc_root2 = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let mut proc_middle = SoundProcessorWithId::<TestDynamicSoundProcessor>::new_default();
     let proc_leaf = SoundProcessorWithId::<TestStaticSoundProcessor>::new_default();
-    let proc_leaf_id = proc_leaf.id();
 
     proc_root1.inputs.push(TestSoundInput::new(
         SoundInputCategory::Isochronic,
@@ -532,10 +554,7 @@ fn find_error_dynamic_indirect_fork_to_static() {
     graph.add_sound_processor(Box::new(proc_middle));
     graph.add_sound_processor(Box::new(proc_leaf));
 
-    assert_eq!(
-        find_sound_error(&graph),
-        Some(SoundError::StaticNotOneState(proc_leaf_id))
-    );
+    assert_eq!(find_sound_error(&graph), None,);
 }
 
 #[test]

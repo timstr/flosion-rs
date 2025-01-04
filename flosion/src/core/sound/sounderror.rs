@@ -8,8 +8,7 @@ pub enum SoundError {
     ProcessorNotFound(SoundProcessorId),
     SoundInputNotFound(SoundInputLocation),
     CircularDependency,
-    StaticNotOneState(SoundProcessorId),
-    StaticNotSynchronous(SoundProcessorId),
+    ConnectionNotIsochronic(SoundInputLocation),
     StateNotInScope {
         bad_dependencies: Vec<(ProcessorArgumentLocation, ProcessorExpressionLocation)>,
     },
@@ -29,24 +28,16 @@ impl SoundError {
                 )
             }
             SoundError::CircularDependency => "The graph contains a cycle ".to_string(),
-            SoundError::StaticNotOneState(spid) => format!(
-                "The static processor {} needs to have exactly one state, but it \
-                is connected to a branched sound input",
+            SoundError::ConnectionNotIsochronic(loc) => format!(
+                "Sound input #{} of processor {} is connected to a processor which is logically
+                static, but the input is not isochronic",
+                loc.input().value(),
                 graph
-                    .sound_processor(*spid)
+                    .sound_processor(loc.processor())
                     .unwrap()
                     .as_graph_object()
                     .friendly_name()
             ),
-            SoundError::StaticNotSynchronous(spid) => format!(
-                "The static processor {} is connected to a non-synchronous input",
-                graph
-                    .sound_processor(*spid)
-                    .unwrap()
-                    .as_graph_object()
-                    .friendly_name()
-            ),
-
             SoundError::StateNotInScope {
                 bad_dependencies: _,
             } => {

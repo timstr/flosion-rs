@@ -81,96 +81,120 @@ pub(super) fn find_sound_cycle(graph: &SoundGraph) -> bool {
 }
 
 struct ProcessorAllocation {
-    implied_num_states: usize,
-    always_sync: bool,
+    /// How many times will the compiled processor be instantiated?
+    num_states: usize,
+
+    /// Is the processor static or isochronically connected to a static
+    /// processor, making it basically static?
+    logically_static: bool,
 }
 
 fn compute_implied_processor_allocations(
     graph: &SoundGraph,
 ) -> HashMap<SoundProcessorId, ProcessorAllocation> {
-    fn visit(
-        processor_id: SoundProcessorId,
-        states_to_add: usize,
-        is_sync: bool,
-        graph: &SoundGraph,
-        allocations: &mut HashMap<SoundProcessorId, ProcessorAllocation>,
-    ) {
-        let proc_data = graph.sound_processor(processor_id).unwrap();
-        let is_static = proc_data.is_static();
-
-        match allocations.entry(processor_id) {
-            Entry::Occupied(mut entry) => {
-                // The processor has been visited already.
-
-                let proc_sum = entry.get_mut();
-
-                proc_sum.always_sync &= is_sync;
-
-                if is_static {
-                    // If it is static, it always implies a single
-                    // state being added via its inputs, so it
-                    // only needs to be visited once.
-                    // return;
-                } else {
-                    proc_sum.implied_num_states += states_to_add;
-                }
-            }
-            Entry::Vacant(entry) => {
-                // The processor is being visited for the first time.
-                entry.insert(ProcessorAllocation {
-                    implied_num_states: states_to_add,
-                    always_sync: is_sync,
-                });
-            }
-        }
-
-        let processor_is_sync = is_sync || is_static;
-        let processor_states = if is_static { 1 } else { states_to_add };
-
-        proc_data.foreach_input(|input, _| {
-            let Some(target_proc_id) = input.target() else {
-                return;
-            };
-
-            // TODO: disallow anything but isochronic inputs to be connected
-            // to a static processor
-            let states = processor_states * input.category().count_branches();
-
-            let sync = is_sync && processor_is_sync && input.category().is_isochronic();
-
-            visit(target_proc_id, states, sync, graph, allocations);
-        });
-    }
-
-    // find all processors with no dependents
-    let roots: Vec<SoundProcessorId>;
-    {
-        let mut processors_with_dependents = HashSet::<SoundProcessorId>::new();
-        for proc in graph.sound_processors().values() {
-            proc.foreach_input(|input, _| {
-                if let Some(target) = input.target() {
-                    processors_with_dependents.insert(target);
-                }
-            });
-        }
-
-        let mut processors_without_dependents = Vec::<SoundProcessorId>::new();
-
-        for proc_id in graph.sound_processors().keys() {
-            if !processors_with_dependents.contains(proc_id) {
-                processors_without_dependents.push(*proc_id);
-            }
-        }
-
-        roots = processors_without_dependents;
-    }
-
     let mut allocations = HashMap::new();
 
-    // Visit all root processors and populate them and their dependencies
-    for spid in roots {
-        visit(spid, 1, true, graph, &mut allocations);
+    // Make all static processors static
+    for proc in graph.sound_processors().values() {
+        if proc.is_static() {
+            allocations.insert(
+                proc.id(),
+                ProcessorAllocation {
+                    num_states: 1,
+                    logically_static: true,
+                },
+            );
+        }
     }
+
+    // Everything connected isochronically connected to a static
+    // processor is also static
+    loop {
+        let mut anything_changed = false;
+        for proc in graph.sound_processors().values() {
+            if allocations.contains_key(&proc.id()) {
+                continue;
+            }
+
+            let mut any_static_isochronic_inputs = false;
+
+            proc.foreach_input(|i, _| {
+                if i.category().is_isochronic()
+                    && match i.target() {
+                        Some(spid) => allocations.contains_key(&spid),
+                        None => false,
+                    }
+                {
+                    any_static_isochronic_inputs = true;
+                }
+            });
+
+            if any_static_isochronic_inputs {
+                allocations.insert(
+                    proc.id(),
+                    ProcessorAllocation {
+                        num_states: 1,
+                        logically_static: true,
+                    },
+                );
+                anything_changed = true;
+            }
+        }
+
+        if !anything_changed {
+            break;
+        }
+    }
+
+    // Remaining processors are allocated according to sum of the inputs
+    // connected to them
+    loop {
+        let mut anything_changed = false;
+
+        'searching: for proc in graph.sound_processors().values() {
+            let mut sum_of_inbound_allocations: usize = 0;
+
+            if allocations.contains_key(&proc.id()) {
+                continue;
+            }
+
+            for input_loc in graph.inputs_connected_to(proc.id()) {
+                let Some(inbound_proc_allocation) = allocations.get(&input_loc.processor()) else {
+                    continue 'searching;
+                };
+                let inbound_proc_states = inbound_proc_allocation.num_states;
+                let branches = graph
+                    .sound_processor(input_loc.processor())
+                    .unwrap()
+                    .with_input(input_loc.input(), |i| i.category().count_branches())
+                    .unwrap();
+
+                sum_of_inbound_allocations += inbound_proc_states * branches;
+            }
+
+            allocations.insert(
+                proc.id(),
+                ProcessorAllocation {
+                    num_states: sum_of_inbound_allocations,
+                    logically_static: false,
+                },
+            );
+
+            anything_changed = true;
+        }
+
+        if !anything_changed {
+            break;
+        }
+    }
+
+    debug_assert!(graph
+        .sound_processors()
+        .keys()
+        .all(|i| allocations.contains_key(i)));
+    debug_assert!(allocations
+        .keys()
+        .all(|i| graph.sound_processor(*i).is_some()));
 
     allocations
 }
@@ -178,32 +202,44 @@ fn compute_implied_processor_allocations(
 pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundError> {
     let allocations = compute_implied_processor_allocations(graph);
 
+    println!("*** Allocations ***");
+    for (proc_id, allocation) in &allocations {
+        println!(
+            "    {} : logically_static={} num_states={}",
+            graph
+                .sound_processor(*proc_id)
+                .unwrap()
+                .as_graph_object()
+                .friendly_name(),
+            allocation.logically_static,
+            allocation.num_states
+        );
+    }
+    println!("*** *** *** *** ***");
+
     for (proc_id, allocation) in &allocations {
         let proc_data = graph.sound_processor(*proc_id).unwrap();
 
-        if proc_data.is_static() {
-            // Static processors must always be sync
-            if !allocation.always_sync {
-                return Some(SoundError::StaticNotSynchronous(*proc_id));
-            }
+        // Static processors must always be static
+        assert!(
+            !proc_data.is_static() || (allocation.logically_static && allocation.num_states == 1)
+        );
 
-            // Static processors must be allocated one state per input
-            // We don't check the processor's own implied number of states
-            // because that would overcount if there are multiple inputs.
-            for input_id in graph.inputs_connected_to(*proc_id) {
-                let num_input_branches = graph
-                    .with_sound_input(input_id, |input| {
-                        // TODO: disallow anything but isochronic to be connected to static
-                        // processors
-                        input.category().count_branches()
-                    })
-                    .unwrap();
-                let num_implied_states = allocations
-                    .get(&input_id.processor())
+        // logically static processors must have all inputs
+        // with a state count of 1 and be isochronic
+        if allocation.logically_static {
+            for input_loc in graph.inputs_connected_to(proc_data.id()) {
+                if graph
+                    .sound_processor(input_loc.processor())
                     .unwrap()
-                    .implied_num_states;
-                if num_input_branches != 1 || num_implied_states != 1 {
-                    return Some(SoundError::StaticNotOneState(*proc_id));
+                    .with_input(input_loc.input(), |i| !i.category().is_isochronic())
+                    .unwrap()
+                {
+                    return Some(SoundError::ConnectionNotIsochronic(input_loc));
+                }
+                let connected_allocation = allocations.get(&input_loc.processor()).unwrap();
+                if !connected_allocation.logically_static || connected_allocation.num_states != 1 {
+                    return Some(SoundError::ConnectionNotIsochronic(input_loc));
                 }
             }
         }
