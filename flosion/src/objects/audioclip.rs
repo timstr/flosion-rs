@@ -147,3 +147,41 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for AudioClip {
         unstasher.object_replace(buffer)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use hashstash::test_stash_roundtrip_inplace;
+
+    use crate::{
+        core::{
+            expression::expressionobject::ExpressionObjectFactory,
+            sound::{soundobject::SoundObjectFactory, soundprocessor::SoundProcessor},
+            soundbuffer::SoundBuffer,
+            stashing::{StashingContext, UnstashingContext},
+        },
+        ui_core::arguments::ParsedArguments,
+    };
+
+    use super::AudioClip;
+
+    #[test]
+    fn test_stash() {
+        let obj_fac = SoundObjectFactory::new_empty();
+        let expr_fac = ExpressionObjectFactory::new_empty();
+
+        test_stash_roundtrip_inplace(
+            || AudioClip::new(&ParsedArguments::new_empty()),
+            |audioclip| {
+                let mut sb = SoundBuffer::new_empty();
+                sb.push_sample(0.0, 0.0);
+                sb.push_sample(1.0, 1.0);
+                sb.push_sample(0.0, 0.0);
+                sb.push_sample(-1.0, -1.0);
+                audioclip.set_data(sb);
+            },
+            StashingContext::new_stashing_normally(),
+            UnstashingContext::new(&obj_fac, &expr_fac),
+        )
+        .unwrap();
+    }
+}

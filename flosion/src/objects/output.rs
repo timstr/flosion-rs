@@ -249,3 +249,37 @@ impl UnstashableInplace<UnstashingContext<'_>> for Output {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use hashstash::test_stash_roundtrip_inplace;
+
+    use crate::{
+        core::{
+            expression::expressionobject::ExpressionObjectFactory,
+            sound::{
+                soundinput::AnyProcessorInput,
+                soundobject::SoundObjectFactory,
+                soundprocessor::{SoundProcessor, SoundProcessorId},
+            },
+            stashing::{StashingContext, UnstashingContext},
+        },
+        ui_core::arguments::ParsedArguments,
+    };
+
+    use super::Output;
+
+    #[test]
+    fn test_stash() {
+        let obj_fac = SoundObjectFactory::new_empty();
+        let expr_fac = ExpressionObjectFactory::new_empty();
+
+        test_stash_roundtrip_inplace(
+            || Output::new(&ParsedArguments::new_empty()),
+            |output| output.input.set_target(Some(SoundProcessorId::new(0123))),
+            StashingContext::new_stashing_normally(),
+            UnstashingContext::new(&obj_fac, &expr_fac),
+        )
+        .unwrap();
+    }
+}

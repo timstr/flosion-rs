@@ -59,8 +59,9 @@ impl Unstashable<UnstashingContext<'_>> for SingleInputBackend {
 impl UnstashableInplace<UnstashingContext<'_>> for SingleInputBackend {
     fn unstash_inplace(
         &mut self,
-        _unstasher: &mut InplaceUnstasher<UnstashingContext>,
+        unstasher: &mut InplaceUnstasher<UnstashingContext>,
     ) -> Result<(), UnstashError> {
+        unstasher.bool_inplace(&mut self.isochronic)?;
         Ok(())
     }
 }
