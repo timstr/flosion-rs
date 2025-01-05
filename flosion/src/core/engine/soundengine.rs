@@ -1,4 +1,6 @@
 use std::{
+    borrow::Borrow,
+    ops::Deref,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{sync_channel, Receiver, SyncSender, TrySendError},
@@ -8,6 +10,7 @@ use std::{
 };
 
 use hashstash::{stash_clone_with_context, ObjectHash, Stash};
+use parking_lot::RwLock;
 
 use super::{
     compiledsoundgraph::CompiledSoundGraph,
@@ -15,6 +18,7 @@ use super::{
     diffgraph::diff_sound_graph,
     garbage::{new_garbage_disposer, Garbage, GarbageChute, GarbageDisposer},
     scratcharena::ScratchArena,
+    soundenginereport::SoundEngineReport,
 };
 
 use crate::core::{
@@ -89,6 +93,8 @@ pub(crate) fn create_sound_engine<'ctx>(
         sync_channel::<CompiledSoundGraphEdit<'ctx>>(edit_queue_size);
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
+    let report = Arc::new(RwLock::new(SoundEngineReport::new()));
+
     let current_graph = SoundGraph::new();
     let current_hash = ObjectHash::from_stashable_and_context(
         &current_graph,
@@ -99,6 +105,7 @@ pub(crate) fn create_sound_engine<'ctx>(
         current_hash,
         stop_button: stop_button.clone(),
         edit_queue: edit_sender,
+        report: Arc::clone(&report),
     };
 
     let se = SoundEngine {
@@ -107,6 +114,7 @@ pub(crate) fn create_sound_engine<'ctx>(
         edit_queue: edit_receiver,
         deadline_warning_issued: false,
         garbage_chute,
+        report,
     };
 
     (se_interface, se, garbage_disposer)
@@ -127,6 +135,7 @@ pub(crate) struct SoundEngineInterface<'ctx> {
     current_hash: ObjectHash,
     stop_button: StopButton,
     edit_queue: SyncSender<CompiledSoundGraphEdit<'ctx>>,
+    report: Arc<RwLock<SoundEngineReport>>,
 }
 
 impl<'ctx> SoundEngineInterface<'ctx> {
@@ -179,6 +188,10 @@ impl<'ctx> SoundEngineInterface<'ctx> {
 
         Ok(())
     }
+
+    pub(crate) fn report<'a>(&'a self) -> impl 'a + Deref<Target = SoundEngineReport> {
+        self.report.read()
+    }
 }
 
 impl<'ctx> Drop for SoundEngineInterface<'ctx> {
@@ -214,6 +227,9 @@ pub(crate) struct SoundEngine<'ctx> {
     /// is being replaced, to avoid heap deallocation happening on
     /// the audio  thread.
     garbage_chute: GarbageChute<'ctx>,
+
+    /// Shared report for inspecting how the graph is performing
+    report: Arc<RwLock<SoundEngineReport>>,
 }
 
 impl<'ctx> SoundEngine<'ctx> {
@@ -252,6 +268,11 @@ impl<'ctx> SoundEngine<'ctx> {
                     self.deadline_warning_issued = true;
                 }
             } else {
+                // Try updating the report
+                if let Some(mut report) = self.report.try_write() {
+                    report.regenerate(&self.compiled_graph);
+                }
+
                 // If we're on schedule, sleep for precisely the
                 // amount of time remaining until the next chunk
                 // needs to start.

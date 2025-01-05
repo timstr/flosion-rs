@@ -1,11 +1,14 @@
 use eframe::egui;
 
 use crate::{
-    core::sound::{
-        argument::{AnyProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation},
-        expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
-        soundinput::{AnyProcessorInput, ProcessorInputId, SoundInputLocation},
-        soundprocessor::{AnySoundProcessor, ProcessorComponentVisitor, SoundProcessorId},
+    core::{
+        samplefrequency::SAMPLE_FREQUENCY,
+        sound::{
+            argument::{AnyProcessorArgument, ProcessorArgumentId, ProcessorArgumentLocation},
+            expression::{ProcessorExpression, ProcessorExpressionId, ProcessorExpressionLocation},
+            soundinput::{AnyProcessorInput, ProcessorInputId, SoundInputLocation},
+            soundprocessor::{AnySoundProcessor, ProcessorComponentVisitor, SoundProcessorId},
+        },
     },
     ui_core::soundgraphuinames::SoundGraphUiNames,
 };
@@ -206,7 +209,7 @@ impl ProcessorUi {
 
         ui.set_width(desired_width);
 
-        frame.show(ui, |ui| {
+        let frame_response = frame.show(ui, |ui| {
             ui.vertical(|ui| {
                 // Make sure to use up the intended width consistently
                 ui.set_width(desired_width);
@@ -285,6 +288,30 @@ impl ProcessorUi {
                 }
             });
         });
+
+        let frame_rect = frame_response.response.rect;
+
+        if let Some(report) = ctx.compiled_processor_report(processor.id()) {
+            for time_samples in report.times_samples() {
+                let time = *time_samples as f32 / SAMPLE_FREQUENCY as f32;
+                let x = frame_rect.left() + (time / ctx.time_axis().time_per_x_pixel);
+
+                if x > frame_rect.right() {
+                    continue;
+                }
+
+                let painter = ui.painter();
+                painter.line_segment(
+                    [
+                        egui::pos2(x, frame_rect.top()),
+                        egui::pos2(x, frame_rect.bottom()),
+                    ],
+                    egui::Stroke::new(2.0, egui::Color32::from_white_alpha(64)),
+                );
+            }
+
+            ui.ctx().request_repaint();
+        }
     }
 
     fn show_expression(

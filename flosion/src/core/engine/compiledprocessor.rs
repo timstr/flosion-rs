@@ -68,6 +68,9 @@ pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
     /// The sound processor's id
     fn id(&self) -> SoundProcessorId;
 
+    /// The processor's timing
+    fn timing(&self) -> &ProcessorTiming;
+
     /// Start over audio processing, that is to reset all timing and reinitialize
     /// all time-varying state. This has no effect for static sound processors,
     /// which represent external stateful resources and thus can't simply be reset
@@ -104,6 +107,10 @@ impl<'ctx, T: 'static + SoundProcessor> AnyCompiledProcessorData<'ctx>
 {
     fn id(&self) -> SoundProcessorId {
         self.id
+    }
+
+    fn timing(&self) -> &ProcessorTiming {
+        &self.timing
     }
 
     fn start_over(&mut self) {

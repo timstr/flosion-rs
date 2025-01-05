@@ -1,7 +1,10 @@
-use eframe::egui;
 use hashstash::Stash;
 
-use crate::core::jit::cache::JitCache;
+use crate::core::{
+    engine::soundenginereport::{CompiledProcessorReport, SoundEngineReport},
+    jit::cache::JitCache,
+    sound::soundprocessor::SoundProcessorId,
+};
 
 use super::{
     factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
@@ -16,6 +19,7 @@ pub struct SoundGraphUiContext<'a, 'ctx> {
     jit_cache: &'a JitCache<'ctx>,
     stash: &'a Stash,
     snapshot_flag: &'a SnapshotFlag,
+    sound_engine_report: &'a SoundEngineReport,
 }
 
 impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
@@ -27,6 +31,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
         jit_cache: &'a JitCache<'ctx>,
         stash: &'a Stash,
         snapshot_flag: &'a SnapshotFlag,
+        sound_engine_report: &'a SoundEngineReport,
     ) -> SoundGraphUiContext<'a, 'ctx> {
         SoundGraphUiContext {
             factories,
@@ -36,6 +41,7 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
             jit_cache,
             stash,
             snapshot_flag,
+            sound_engine_report,
         }
     }
 
@@ -69,5 +75,12 @@ impl<'a, 'ctx> SoundGraphUiContext<'a, 'ctx> {
 
     pub fn request_snapshot(&self) {
         self.snapshot_flag.request_snapshot();
+    }
+
+    pub fn compiled_processor_report(
+        &self,
+        processor_id: SoundProcessorId,
+    ) -> Option<&CompiledProcessorReport> {
+        self.sound_engine_report.processor_report(processor_id)
     }
 }

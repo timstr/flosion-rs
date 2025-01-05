@@ -3,7 +3,10 @@ use hashstash::{
     InplaceUnstasher, ObjectHash, Stash, Stashable, Stasher, UnstashError, UnstashableInplace,
 };
 
-use crate::core::{jit::cache::JitCache, sound::soundgraph::SoundGraph, stashing::StashingContext};
+use crate::core::{
+    engine::soundenginereport::SoundEngineReport, jit::cache::JitCache,
+    sound::soundgraph::SoundGraph, stashing::StashingContext,
+};
 
 use super::{
     factories::Factories, graph_properties::GraphProperties, history::SnapshotFlag,
@@ -41,6 +44,7 @@ impl AppState {
         jit_cache: &JitCache,
         stash: &Stash,
         snapshot_flag: &SnapshotFlag,
+        sound_engine_report: &SoundEngineReport,
     ) {
         self.graph_layout.draw(
             ui,
@@ -51,6 +55,7 @@ impl AppState {
             jit_cache,
             stash,
             &snapshot_flag,
+            sound_engine_report,
         );
 
         self.ui_state.interact_and_draw(

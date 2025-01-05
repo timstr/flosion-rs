@@ -584,7 +584,7 @@ impl ProcessorTiming {
         self.elapsed_chunks += 1;
     }
 
-    pub(super) fn elapsed_chunks(&self) -> usize {
+    pub(crate) fn elapsed_chunks(&self) -> usize {
         self.elapsed_chunks
     }
 

@@ -5,6 +5,7 @@ use hashstash::{InplaceUnstasher, Stash, Stashable, Stasher, UnstashError, Unsta
 
 use crate::{
     core::{
+        engine::soundenginereport::SoundEngineReport,
         jit::cache::JitCache,
         sound::{soundgraph::SoundGraph, soundprocessor::SoundProcessorId},
     },
@@ -231,6 +232,7 @@ impl StackedLayout {
         jit_cache: &JitCache,
         stash: &Stash,
         snapshot_flag: &SnapshotFlag,
+        sound_engine_report: &SoundEngineReport,
     ) {
         // Draw each stacked group
         for group in &mut self.groups {
@@ -243,6 +245,7 @@ impl StackedLayout {
                 stash,
                 properties,
                 snapshot_flag,
+                sound_engine_report,
             );
         }
 

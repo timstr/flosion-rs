@@ -104,6 +104,7 @@ impl<'ctx> FlosionApp<'ctx> {
             &self.jit_cache,
             &self.stash,
             &snapshot_flag,
+            &self.engine_interface.report(),
         );
 
         self.cleanup();

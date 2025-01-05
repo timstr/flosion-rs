@@ -8,6 +8,7 @@ use hashstash::{Stash, Stashable, Stasher, UnstashError, Unstashable, Unstasher}
 
 use crate::{
     core::{
+        engine::soundenginereport::SoundEngineReport,
         jit::cache::JitCache,
         sound::{
             soundgraph::SoundGraph, soundinput::SoundInputCategory, soundobject::SoundGraphObject,
@@ -167,6 +168,7 @@ impl StackedGroup {
         stash: &Stash,
         properties: &GraphProperties,
         snapshot_flag: &SnapshotFlag,
+        sound_engine_report: &SoundEngineReport,
     ) {
         let mut bottom_left_of_next_proc: Option<egui::Pos2> = None;
 
@@ -230,6 +232,7 @@ impl StackedGroup {
                         jit_cache,
                         stash,
                         snapshot_flag,
+                        sound_engine_report,
                     );
                     let body_res = ui.vertical(|ui| {
                         show_sound_object_ui(factories.sound_uis(), object, ui_state, ui, &ctx);
