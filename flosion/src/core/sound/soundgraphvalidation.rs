@@ -202,21 +202,6 @@ fn compute_implied_processor_allocations(
 pub(super) fn validate_sound_connections(graph: &SoundGraph) -> Option<SoundError> {
     let allocations = compute_implied_processor_allocations(graph);
 
-    println!("*** Allocations ***");
-    for (proc_id, allocation) in &allocations {
-        println!(
-            "    {} : logically_static={} num_states={}",
-            graph
-                .sound_processor(*proc_id)
-                .unwrap()
-                .as_graph_object()
-                .friendly_name(),
-            allocation.logically_static,
-            allocation.num_states
-        );
-    }
-    println!("*** *** *** *** ***");
-
     for (proc_id, allocation) in &allocations {
         let proc_data = graph.sound_processor(*proc_id).unwrap();
 
