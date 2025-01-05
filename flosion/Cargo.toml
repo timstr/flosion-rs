@@ -16,7 +16,7 @@ base64 = "0.13.0"
 cpal = "0.13.3"
 eframe = "0.29.1"
 flosion-macros = { path = "../flosion-macros" }
-hashstash = "0.2.0"
+hashstash = "0.3.0"
 inkwell = { version = "0.5.0", features = ["llvm15-0"] }
 parking_lot = "0.11.2"
 rand = "0.8.3"

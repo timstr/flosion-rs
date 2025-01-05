@@ -142,6 +142,8 @@ impl<'a> UnstashableInplace<UnstashingContext<'a>> for AudioClip {
     ) -> Result<(), UnstashError> {
         let mut buffer = self.data.lock();
         let buffer: &mut HashCache<SoundBuffer> = &mut buffer;
+        // TODO: make this better
+        println!("TODO: stop deserializing the entire audio buffer");
         unstasher.object_replace(buffer)
     }
 }

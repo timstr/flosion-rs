@@ -149,7 +149,10 @@ pub trait SoundProcessor: ProcessorComponent {
 
 pub struct SoundProcessorWithId<T: SoundProcessor> {
     id: SoundProcessorId,
-    processor: HashCache<T>,
+
+    // NOTE: storing 2 hashes due to two different stashing
+    // contexts, see StashingContext
+    processor: HashCache<T, 2>,
 }
 
 impl<T: SoundProcessor> SoundProcessorWithId<T> {
