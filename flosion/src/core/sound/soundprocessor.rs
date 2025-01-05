@@ -12,8 +12,8 @@ use hashstash::{
 use crate::{
     core::{
         engine::{
+            compiledprocessor::{AnyCompiledProcessorData, CompiledProcessorData},
             soundgraphcompiler::SoundGraphCompiler,
-            stategraphnode::{AnyCompiledProcessorData, CompiledProcessorData},
         },
         objecttype::{ObjectType, WithObjectType},
         soundchunk::SoundChunk,

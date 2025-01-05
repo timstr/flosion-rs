@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::core::{
-    engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
+    engine::{soundgraphcompiler::SoundGraphCompiler, compiledprocessor::CompiledSoundInputNode},
     sound::{
         argument::ArgumentScope,
         soundinput::{
@@ -54,7 +54,7 @@ impl<S: Send> SoundInputBackend for KeyedInputBackend<S> {
         CompiledKeyedInput {
             items: (0..self.num_keys)
                 .map(|_| CompiledKeyedInputItem {
-                    input: CompiledSoundInputBranch::new(
+                    input: CompiledSoundInputNode::new(
                         location,
                         compiler.compile_sound_processor(target),
                     ),
@@ -85,7 +85,7 @@ impl<S> UnstashableInplace<UnstashingContext<'_>> for KeyedInputBackend<S> {
 }
 
 pub struct CompiledKeyedInputItem<'ctx, S> {
-    input: CompiledSoundInputBranch<'ctx>,
+    input: CompiledSoundInputNode<'ctx>,
     state: Option<S>,
 }
 

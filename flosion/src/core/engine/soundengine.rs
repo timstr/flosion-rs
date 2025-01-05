@@ -10,11 +10,11 @@ use std::{
 use hashstash::{stash_clone_with_context, ObjectHash, Stash};
 
 use super::{
+    compiledsoundgraph::CompiledSoundGraph,
+    compiledsoundgraphedit::CompiledSoundGraphEdit,
     diffgraph::diff_sound_graph,
     garbage::{new_garbage_disposer, Garbage, GarbageChute, GarbageDisposer},
     scratcharena::ScratchArena,
-    stategraph::StateGraph,
-    stategraphedit::StateGraphEdit,
 };
 
 use crate::core::{
@@ -85,7 +85,8 @@ pub(crate) fn create_sound_engine<'ctx>(
     GarbageDisposer<'ctx>,
 ) {
     let edit_queue_size = 1024;
-    let (edit_sender, edit_receiver) = sync_channel::<StateGraphEdit<'ctx>>(edit_queue_size);
+    let (edit_sender, edit_receiver) =
+        sync_channel::<CompiledSoundGraphEdit<'ctx>>(edit_queue_size);
     let (garbage_chute, garbage_disposer) = new_garbage_disposer();
 
     let current_graph = SoundGraph::new();
@@ -101,7 +102,7 @@ pub(crate) fn create_sound_engine<'ctx>(
     };
 
     let se = SoundEngine {
-        state_graph: StateGraph::new(),
+        compiled_graph: CompiledSoundGraph::new(),
         stop_button: stop_button.clone(),
         edit_queue: edit_receiver,
         deadline_warning_issued: false,
@@ -125,7 +126,7 @@ pub(crate) struct SoundEngineInterface<'ctx> {
     current_graph: SoundGraph,
     current_hash: ObjectHash,
     stop_button: StopButton,
-    edit_queue: SyncSender<StateGraphEdit<'ctx>>,
+    edit_queue: SyncSender<CompiledSoundGraphEdit<'ctx>>,
 }
 
 impl<'ctx> SoundEngineInterface<'ctx> {
@@ -153,10 +154,10 @@ impl<'ctx> SoundEngineInterface<'ctx> {
 
         for edit in edits {
             match self.edit_queue.try_send(edit) {
-                Err(TrySendError::Full(_)) => panic!("State graph edit queue overflow!"),
+                Err(TrySendError::Full(_)) => panic!("Edit queue overflow!"),
                 Err(TrySendError::Disconnected(_)) => {
                     println!(
-                        "State graph thread is no longer running, \
+                        "Sound engine thread is no longer running, \
                             sound engine update thread is exiting"
                     );
                     return Err(());
@@ -193,17 +194,17 @@ impl<'ctx> Drop for SoundEngineInterface<'ctx> {
 /// (for example, if the SoundEngineInterface it was created with is
 /// dropped).
 pub(crate) struct SoundEngine<'ctx> {
-    /// The state graph, containing all compiled sound processors,
+    /// The compiled sound graph, containing all compiled sound processors,
     /// their compiled components, and their states
-    state_graph: StateGraph<'ctx>,
+    compiled_graph: CompiledSoundGraph<'ctx>,
 
     /// The stop button describing when to exit the audio loop due
     /// to things happening on other threads
     stop_button: StopButton,
 
-    /// Inbound edits to the state graph, received from diffing and
+    /// Inbound edits to the compiled graph, received from diffing and
     /// compiling graphs in the associated SoundEngineInterface.
-    edit_queue: Receiver<StateGraphEdit<'ctx>>,
+    edit_queue: Receiver<CompiledSoundGraphEdit<'ctx>>,
 
     /// Has a warning been issued that recent audio updates are
     /// behind schedule? Used to prevent spam
@@ -222,9 +223,9 @@ impl<'ctx> SoundEngine<'ctx> {
         static SCRATCH_SPACE: ScratchArena = ScratchArena::new();
     }
 
-    /// Process audio in realtime. Internally, this builds a StateGraph,
-    /// receives edits to that StateGraph from the SoundEngineInterface,
-    /// and invokes the nodes in the state graph regularly according to
+    /// Process audio in realtime. Internally, this maintains a compiled
+    /// sound graph, receives edits to it from the SoundEngineInterface,
+    /// and invokes the nodes in the graph regularly according to
     /// a high-precision timer.
     pub(crate) fn run(mut self) {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
@@ -233,7 +234,7 @@ impl<'ctx> SoundEngine<'ctx> {
         let mut deadline = Instant::now() + chunk_duration;
 
         loop {
-            // Receive and incorporate any state graph edits from the SoundEngineInterface
+            // Receive and incorporate any edits from the SoundEngineInterface
             self.flush_updates();
 
             // Invoke the sound processors
@@ -261,20 +262,20 @@ impl<'ctx> SoundEngine<'ctx> {
             deadline += chunk_duration;
         }
 
-        // Throw out the state graph to ensure resource cleanup (particularly of
+        // Throw out the graph to ensure resource cleanup (particularly of
         // LLVM resources) happens on the correct thread
-        self.state_graph.toss(&self.garbage_chute);
+        self.compiled_graph.toss(&self.garbage_chute);
     }
 
-    /// Receive and incorporate any edits to the given state graph from
-    /// the given queue. Toss any old data down the given garbage chute.
+    /// Receive and incorporate any edits from
+    /// the edit queue. Toss any old data down the garbage chute.
     fn flush_updates(&mut self) {
         while let Ok(edit) = self.edit_queue.try_recv() {
-            self.state_graph.make_edit(edit, &self.garbage_chute);
+            self.compiled_graph.make_edit(edit, &self.garbage_chute);
         }
     }
 
-    /// Invoke all static sound processors in the state graph.
+    /// Invoke all static sound processors in the compiled sound graph.
     /// This ensures that static processors are always update, and
     /// the dynamic processor nodes in their dependencies will
     /// be invoked recursively from there.
@@ -282,7 +283,7 @@ impl<'ctx> SoundEngine<'ctx> {
         Self::SCRATCH_SPACE.with(|scratch_space| {
             // TODO: preserve this (to save allocation) between calls
             let argument_stack = ArgumentStack::new();
-            for node in self.state_graph.static_processors() {
+            for node in self.compiled_graph.static_processors() {
                 // Invoke any node that is an entry point. An entry point
                 // is a top-level shared node with no inputs connected
                 // to it, so this effectively processes from the roots up.

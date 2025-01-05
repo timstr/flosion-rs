@@ -1,19 +1,19 @@
 use crate::core::{
-    engine::{stategraph::StateGraph, stategraphvalidation::state_graph_matches_sound_graph},
+    engine::{compiledsoundgraph::CompiledSoundGraph, validation::verify_compiled_sound_graph},
     jit::cache::JitCache,
     sound::soundgraph::SoundGraph,
 };
 
 use super::{
-    soundgraphcompiler::SoundGraphCompiler, stategraphedit::StateGraphEdit,
-    stategraphnode::StateGraphNodeValue,
+    compiledprocessor::CompiledProcessorLink, compiledsoundgraphedit::CompiledSoundGraphEdit,
+    soundgraphcompiler::SoundGraphCompiler,
 };
 
 pub(crate) fn diff_sound_graph<'ctx>(
     graph_before: &SoundGraph,
     graph_after: &SoundGraph,
     jit_cache: &JitCache<'ctx>,
-) -> Vec<StateGraphEdit<'ctx>> {
+) -> Vec<CompiledSoundGraphEdit<'ctx>> {
     let mut edits = Vec::new();
 
     // sound graph and state graph should match
@@ -38,14 +38,16 @@ pub(crate) fn diff_sound_graph<'ctx>(
     // HACK deleting everything and then adding it back
     for proc in graph_before.sound_processors().values() {
         if proc.is_static() {
-            edits.push(StateGraphEdit::RemoveStaticSoundProcessor(proc.id()));
+            edits.push(CompiledSoundGraphEdit::RemoveStaticSoundProcessor(
+                proc.id(),
+            ));
         }
     }
     // all should be deleted now
     #[cfg(debug_assertions)]
     {
-        edits.push(StateGraphEdit::DebugInspection(Box::new(
-            |sg: &StateGraph<'ctx>| {
+        edits.push(CompiledSoundGraphEdit::DebugInspection(Box::new(
+            |sg: &CompiledSoundGraph<'ctx>| {
                 debug_assert!(sg.static_processors().is_empty());
             },
         )));
@@ -58,12 +60,12 @@ pub(crate) fn diff_sound_graph<'ctx>(
     let mut compiler = SoundGraphCompiler::new(&graph_after, jit_cache);
     for proc in graph_after.sound_processors().values() {
         if proc.is_static() {
-            let StateGraphNodeValue::Shared(node) =
+            let CompiledProcessorLink::Shared(node) =
                 compiler.compile_sound_processor(Some(proc.id()))
             else {
-                panic!("Static sound processors must compile to shared state graph nodes");
+                panic!("Static sound processors must compile to shared nodes");
             };
-            edits.push(StateGraphEdit::AddStaticSoundProcessor(node));
+            edits.push(CompiledSoundGraphEdit::AddStaticSoundProcessor(node));
         }
     }
 

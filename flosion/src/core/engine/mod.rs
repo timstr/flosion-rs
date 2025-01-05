@@ -1,10 +1,10 @@
 pub mod compiledexpression;
+pub(crate) mod compiledsoundgraph;
+pub(crate) mod compiledsoundgraphedit;
 pub(crate) mod diffgraph;
 pub(crate) mod garbage;
 pub(crate) mod scratcharena;
 pub mod soundengine;
 pub mod soundgraphcompiler;
-pub(crate) mod stategraph;
-pub(crate) mod stategraphedit;
-pub(crate) mod stategraphnode;
-pub(crate) mod stategraphvalidation;
+pub(crate) mod compiledprocessor;
+pub(crate) mod validation;

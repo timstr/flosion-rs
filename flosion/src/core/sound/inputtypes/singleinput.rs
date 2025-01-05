@@ -3,7 +3,7 @@ use hashstash::{
 };
 
 use crate::core::{
-    engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
+    engine::{soundgraphcompiler::SoundGraphCompiler, compiledprocessor::CompiledSoundInputNode},
     sound::{
         argument::ArgumentScope,
         soundinput::{
@@ -33,7 +33,7 @@ impl SoundInputBackend for SingleInputBackend {
         target: Option<SoundProcessorId>,
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
-        CompiledSingleInput::new(CompiledSoundInputBranch::new(
+        CompiledSingleInput::new(CompiledSoundInputNode::new(
             location,
             compiler.compile_sound_processor(target),
         ))
@@ -67,11 +67,11 @@ impl UnstashableInplace<UnstashingContext<'_>> for SingleInputBackend {
 }
 
 pub struct CompiledSingleInput<'ctx> {
-    target: CompiledSoundInputBranch<'ctx>,
+    target: CompiledSoundInputNode<'ctx>,
 }
 
 impl<'ctx> CompiledSingleInput<'ctx> {
-    fn new<'a>(compiled_input: CompiledSoundInputBranch<'ctx>) -> CompiledSingleInput<'ctx> {
+    fn new<'a>(compiled_input: CompiledSoundInputNode<'ctx>) -> CompiledSingleInput<'ctx> {
         CompiledSingleInput {
             target: compiled_input,
         }

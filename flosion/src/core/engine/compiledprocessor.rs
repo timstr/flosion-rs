@@ -22,7 +22,7 @@ use super::{
     scratcharena::ScratchArena,
 };
 
-/// A compiled static processor for use in the state graph.
+/// A compiled static processor
 pub struct CompiledProcessorData<'ctx, T: SoundProcessor> {
     id: SoundProcessorId,
     timing: ProcessorTiming,
@@ -30,7 +30,7 @@ pub struct CompiledProcessorData<'ctx, T: SoundProcessor> {
 }
 
 impl<'ctx, T: SoundProcessor> CompiledProcessorData<'ctx, T> {
-    /// Compile a new static processor for the state graph
+    /// Compile a new static processor
     pub(crate) fn new<'a>(
         processor_id: SoundProcessorId,
         processor: T::CompiledType<'ctx>,
@@ -62,7 +62,7 @@ impl<'ctx, T: SoundProcessor> CompiledProcessorData<'ctx, T> {
     }
 }
 
-/// Trait for a compiled sound processor living in the state graph, intended
+/// Trait for a compiled sound processor, intended
 /// to unify both static and dynamic sound processors.
 pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
     /// The sound processor's id
@@ -184,7 +184,7 @@ impl<'ctx> UniqueCompiledProcessor<'ctx> {
 pub(crate) struct SharedCompiledProcessorCache<'ctx> {
     processor: Box<dyn 'ctx + AnyCompiledProcessorData<'ctx>>,
     cached_output: SoundChunk, // TODO: generalize to >1 output
-    target_inputs: Vec<(SoundInputLocation, bool)>,
+    linked_inputs: Vec<(SoundInputLocation, bool)>,
     stream_status: StreamStatus,
 }
 
@@ -196,7 +196,7 @@ impl<'ctx> SharedCompiledProcessorCache<'ctx> {
         SharedCompiledProcessorCache {
             processor,
             cached_output: SoundChunk::new(),
-            target_inputs: Vec::new(),
+            linked_inputs: Vec::new(),
             stream_status: StreamStatus::Playing,
         }
     }
@@ -209,30 +209,30 @@ impl<'ctx> SharedCompiledProcessorCache<'ctx> {
     /// Register a new sound input that co-owns the cache. This sound input
     /// will be expected to call on the shared node to process audio in step
     /// with the rest of the group of inputs that own it.
-    pub(crate) fn add_target_input(&mut self, location: SoundInputLocation) {
+    pub(crate) fn add_linked_input(&mut self, location: SoundInputLocation) {
         debug_assert!(self
-            .target_inputs
+            .linked_inputs
             .iter()
             .find(|x| x.0 == location)
             .is_none());
-        self.target_inputs.push((location, true));
+        self.linked_inputs.push((location, true));
     }
 
     /// Remove a previously-added sound input as a co-owner of the cache.
-    pub(crate) fn remove_target_input(&mut self, location: SoundInputLocation) {
+    pub(crate) fn remove_linked_input(&mut self, location: SoundInputLocation) {
         debug_assert_eq!(
-            self.target_inputs
+            self.linked_inputs
                 .iter()
                 .filter(|x| x.0 == location)
                 .count(),
             1
         );
-        self.target_inputs.retain(|(siid, _)| *siid != location);
+        self.linked_inputs.retain(|(siid, _)| *siid != location);
     }
 
     /// The number of sound inputs co-owning the cache
-    fn num_target_inputs(&self) -> usize {
-        self.target_inputs.len()
+    fn num_linked_inputs(&self) -> usize {
+        self.linked_inputs.len()
     }
 
     /// Consume the cache and convert it into a unique compiled processor.
@@ -242,7 +242,7 @@ impl<'ctx> SharedCompiledProcessorCache<'ctx> {
 }
 
 /// A compiled sound processor (static or dynamic) that can be shared between
-/// multiple compiled sound inputs and the state graph's top-level nodes as well.
+/// multiple compiled sound inputs and the compiled sound graph's top-level nodes as well.
 /// Each separate co-owner of the shared processor is expected to call on it
 /// to process audio exactly once as a group, in no particular order. The compiled
 /// processor internally processes audio only once and caches the result for the
@@ -302,10 +302,10 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
         let &mut SharedCompiledProcessorCache {
             ref mut processor,
             ref mut cached_output,
-            ref target_inputs,
+            ref linked_inputs,
             stream_status: _,
         } = &mut *data;
-        debug_assert!(target_inputs.len() == 0);
+        debug_assert!(linked_inputs.len() == 0);
         processor.process_audio(
             cached_output,
             AudioStack::Root,
@@ -317,15 +317,15 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     /// The number of sound inputs co-owning this shared processor.
     /// If there are no sound inputs, the shared processor is consired
     /// to be an entry point.
-    fn num_target_inputs(&self) -> usize {
-        self.cache.lock().num_target_inputs()
+    fn num_linked_inputs(&self) -> usize {
+        self.cache.lock().num_linked_inputs()
     }
 
     /// Returns whether the shared processor is not co-owned by any
-    /// sound inputs and thus is a top-level node into the state graph
+    /// sound inputs and thus is a top-level node into the compiled sound graph
     /// through which recursive audio processing can begin.
     pub(crate) fn is_entry_point(&self) -> bool {
-        self.num_target_inputs() == 0
+        self.num_linked_inputs() == 0
     }
 
     /// Access the cache and retreive the next chunk of processed audio,
@@ -346,33 +346,33 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
 
         let mut data = self.cache.lock();
         debug_assert_eq!(
-            data.target_inputs
+            data.linked_inputs
                 .iter()
                 .filter(|(loc, _was_used)| { *loc == input_location })
                 .count(),
             1,
-            "Attempted to step a shared compiled processor for a target sound input which is not listed \
-            properly in the shared processor's targets."
+            "Attempted to step a shared compiled processor for a linked sound input which is not listed \
+            properly in the shared processor node."
         );
         let &mut SharedCompiledProcessorCache {
             ref mut processor,
             ref mut cached_output,
-            ref mut target_inputs,
+            ref mut linked_inputs,
             ref mut stream_status,
         } = &mut *data;
-        let all_used = target_inputs.iter().all(|(_, used)| *used);
+        let all_used = linked_inputs.iter().all(|(_, used)| *used);
         if all_used {
             *stream_status =
                 processor.process_audio(cached_output, stack, scratch_arena, argument_stack);
-            for (_target, used) in target_inputs.iter_mut() {
+            for (_, used) in linked_inputs.iter_mut() {
                 *used = false;
             }
         }
         *dst = *cached_output;
-        let input_used = target_inputs
+        let input_used = linked_inputs
             .iter_mut()
-            .find_map(|(target_loc, used)| {
-                if *target_loc == input_location {
+            .find_map(|(loc, used)| {
+                if *loc == input_location {
                     Some(used)
                 } else {
                     None
@@ -388,7 +388,7 @@ impl<'ctx> SharedCompiledProcessor<'ctx> {
     fn start_over(&mut self) {
         let mut data = self.cache.lock();
         data.processor.start_over();
-        for (_target_id, used) in &mut data.target_inputs {
+        for (_, used) in &mut data.linked_inputs {
             *used = true;
         }
     }
@@ -415,7 +415,7 @@ impl<'ctx> Clone for SharedCompiledProcessor<'ctx> {
 }
 
 /// The contents of a compiled sound input branch.
-pub enum StateGraphNodeValue<'ctx> {
+pub enum CompiledProcessorLink<'ctx> {
     /// A uniquely owned and directly invocable compiled sound processor
     Unique(UniqueCompiledProcessor<'ctx>),
 
@@ -430,29 +430,29 @@ pub enum StateGraphNodeValue<'ctx> {
 /// CompiledSoundInputBranch combines the possible compiled nodes,
 /// timing information, and sound input and branch tracking needed
 /// for both invoking a sound input to produce audio within the
-/// state graph as well as communicate changes to a concrete sound
+/// compiled sound graph as well as communicate changes to a concrete sound
 /// input type, in terms of adding and removing compiled inputs and branches.
-pub struct CompiledSoundInputBranch<'ctx> {
+pub struct CompiledSoundInputNode<'ctx> {
     location: SoundInputLocation,
     timing: InputTiming,
-    target: StateGraphNodeValue<'ctx>,
+    link: CompiledProcessorLink<'ctx>,
 }
 
-impl<'ctx> CompiledSoundInputBranch<'ctx> {
+impl<'ctx> CompiledSoundInputNode<'ctx> {
     /// Compile a new CompiledSoundInputBranch.
     pub(crate) fn new<'a>(
         location: SoundInputLocation,
-        target: StateGraphNodeValue<'ctx>,
-    ) -> CompiledSoundInputBranch<'ctx> {
-        // Create empty target first and then swap in the given
-        // target, in order to reuse shared caching logic
-        let mut compiled_input = CompiledSoundInputBranch {
+        link: CompiledProcessorLink<'ctx>,
+    ) -> CompiledSoundInputNode<'ctx> {
+        // Create empty link first and then swap in the given
+        // link, in order to reuse shared caching logic
+        let mut compiled_input = CompiledSoundInputNode {
             location,
             timing: InputTiming::default(),
-            target: StateGraphNodeValue::Empty,
+            link: CompiledProcessorLink::Empty,
         };
 
-        compiled_input.swap_target(target);
+        compiled_input.swap_link(link);
 
         compiled_input
     }
@@ -467,24 +467,24 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
         &mut self.timing
     }
 
-    /// Replace the inner compiled state graph node with
+    /// Replace the inner compiled node with
     /// the given one, and return the old the one. If the
     /// new node is a shared compiled processor, this input
     /// will be added as a co-owner. Symmetrically, if the
     /// node being removed is shared, this input will also
     /// be removed from it.
-    pub(crate) fn swap_target(
+    pub(crate) fn swap_link(
         &mut self,
-        mut target: StateGraphNodeValue<'ctx>,
-    ) -> StateGraphNodeValue<'ctx> {
-        if let StateGraphNodeValue::Shared(proc) = &mut self.target {
-            proc.borrow_cache_mut().remove_target_input(self.location);
+        mut link: CompiledProcessorLink<'ctx>,
+    ) -> CompiledProcessorLink<'ctx> {
+        if let CompiledProcessorLink::Shared(proc) = &mut self.link {
+            proc.borrow_cache_mut().remove_linked_input(self.location);
         }
-        std::mem::swap(&mut self.target, &mut target);
-        if let StateGraphNodeValue::Shared(proc) = &mut self.target {
-            proc.borrow_cache_mut().add_target_input(self.location);
+        std::mem::swap(&mut self.link, &mut link);
+        if let CompiledProcessorLink::Shared(proc) = &mut self.link {
+            proc.borrow_cache_mut().add_linked_input(self.location);
         }
-        target
+        link
     }
 
     /// Make audio processing start over. Resets the timing and
@@ -492,10 +492,10 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     /// processor.
     pub(crate) fn start_over_at(&mut self, sample_offset: usize) {
         self.timing.start_over(sample_offset);
-        match &mut self.target {
-            StateGraphNodeValue::Unique(proc) => proc.start_over(),
-            StateGraphNodeValue::Shared(proc) => proc.start_over(),
-            StateGraphNodeValue::Empty => (),
+        match &mut self.link {
+            CompiledProcessorLink::Unique(proc) => proc.start_over(),
+            CompiledProcessorLink::Shared(proc) => proc.start_over(),
+            CompiledProcessorLink::Empty => (),
         }
     }
 
@@ -515,20 +515,20 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
             .audio_context()
             .push_frame(self.location.input(), &mut self.timing);
 
-        let status = match &mut self.target {
-            StateGraphNodeValue::Unique(proc) => proc.process_audio(
+        let status = match &mut self.link {
+            CompiledProcessorLink::Unique(proc) => proc.process_audio(
                 dst,
                 stack,
                 ctx.audio_context().scratch_arena(),
                 ctx.argument_stack(),
             ),
-            StateGraphNodeValue::Shared(proc) => proc.process_audio(
+            CompiledProcessorLink::Shared(proc) => proc.process_audio(
                 dst,
                 stack,
                 ctx.audio_context().scratch_arena(),
                 ctx.argument_stack(),
             ),
-            StateGraphNodeValue::Empty => {
+            CompiledProcessorLink::Empty => {
                 dst.silence();
                 self.timing.mark_as_done();
                 StreamStatus::Done
@@ -543,21 +543,21 @@ impl<'ctx> CompiledSoundInputBranch<'ctx> {
     }
 }
 
-impl<'ctx> Drop for CompiledSoundInputBranch<'ctx> {
+impl<'ctx> Drop for CompiledSoundInputNode<'ctx> {
     fn drop(&mut self) {
         // Remove input id from shared node target if needed
         // uhhhhhhhhh how to orchestrate this correctly with
-        // state graph edits?
-        self.swap_target(StateGraphNodeValue::Empty);
+        // edits?
+        self.swap_link(CompiledProcessorLink::Empty);
     }
 }
 
-impl<'ctx> Garbage<'ctx> for StateGraphNodeValue<'ctx> {
+impl<'ctx> Garbage<'ctx> for CompiledProcessorLink<'ctx> {
     fn toss(self, chute: &GarbageChute<'ctx>) {
         match self {
-            StateGraphNodeValue::Unique(proc) => chute.send_box(proc.into_box().into_droppable()),
-            StateGraphNodeValue::Shared(proc) => chute.send_arc(proc.into_arc()),
-            StateGraphNodeValue::Empty => (),
+            CompiledProcessorLink::Unique(proc) => chute.send_box(proc.into_box().into_droppable()),
+            CompiledProcessorLink::Shared(proc) => chute.send_arc(proc.into_arc()),
+            CompiledProcessorLink::Empty => (),
         }
     }
 }

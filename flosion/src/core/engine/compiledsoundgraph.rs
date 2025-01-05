@@ -1,9 +1,9 @@
 use crate::core::sound::soundprocessor::SoundProcessorId;
 
 use super::{
+    compiledprocessor::SharedCompiledProcessor,
+    compiledsoundgraphedit::CompiledSoundGraphEdit,
     garbage::{Garbage, GarbageChute},
-    stategraphedit::StateGraphEdit,
-    stategraphnode::SharedCompiledProcessor,
 };
 
 /// A directed acyclic graph of nodes representing invidual sound processors,
@@ -12,14 +12,14 @@ use super::{
 /// other parts of the sub-graph. Dynamic processor nodes which are not
 /// shared (cached for re-use) are stored in a Box for unique ownership, while
 /// shared/cached nodes are stored in an Arc (for now).
-pub struct StateGraph<'ctx> {
+pub struct CompiledSoundGraph<'ctx> {
     static_processors: Vec<SharedCompiledProcessor<'ctx>>,
 }
 
-impl<'ctx> StateGraph<'ctx> {
-    /// Create a new, empty StateGraph instance
-    pub(super) fn new() -> StateGraph<'ctx> {
-        StateGraph {
+impl<'ctx> CompiledSoundGraph<'ctx> {
+    /// Create a new, empty instance
+    pub(super) fn new() -> CompiledSoundGraph<'ctx> {
+        CompiledSoundGraph {
             static_processors: Vec::new(),
         }
     }
@@ -29,20 +29,22 @@ impl<'ctx> StateGraph<'ctx> {
         &self.static_processors
     }
 
-    /// Apply an edit to the StateGraph, tossing any stale and unwanted
+    /// Apply an edit, tossing any stale and unwanted
     /// data down the given garbage chute if it could involve heap
     /// deallocation to drop directly.
     pub(super) fn make_edit(
         &mut self,
-        edit: StateGraphEdit<'ctx>,
+        edit: CompiledSoundGraphEdit<'ctx>,
         garbage_chute: &GarbageChute<'ctx>,
     ) {
         match edit {
-            StateGraphEdit::AddStaticSoundProcessor(node) => self.add_static_processor(node),
-            StateGraphEdit::RemoveStaticSoundProcessor(spid) => {
+            CompiledSoundGraphEdit::AddStaticSoundProcessor(node) => {
+                self.add_static_processor(node)
+            }
+            CompiledSoundGraphEdit::RemoveStaticSoundProcessor(spid) => {
                 self.remove_static_processor(spid, garbage_chute)
             }
-            StateGraphEdit::DebugInspection(f) => f(self),
+            CompiledSoundGraphEdit::DebugInspection(f) => f(self),
         }
     }
 
@@ -75,7 +77,7 @@ impl<'ctx> StateGraph<'ctx> {
     }
 }
 
-impl<'ctx> Garbage<'ctx> for StateGraph<'ctx> {
+impl<'ctx> Garbage<'ctx> for CompiledSoundGraph<'ctx> {
     fn toss(self, chute: &GarbageChute<'ctx>) {
         for proc in self.static_processors {
             proc.toss(chute);

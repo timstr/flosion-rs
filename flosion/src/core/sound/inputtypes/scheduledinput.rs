@@ -1,5 +1,5 @@
 use crate::core::{
-    engine::{soundgraphcompiler::SoundGraphCompiler, stategraphnode::CompiledSoundInputBranch},
+    engine::{soundgraphcompiler::SoundGraphCompiler, compiledprocessor::CompiledSoundInputNode},
     sound::{
         argument::ArgumentScope,
         soundinput::{ProcessorInput, SoundInputBackend, SoundInputCategory, SoundInputLocation},
@@ -7,7 +7,24 @@ use crate::core::{
     },
 };
 
-pub struct ScheduledInputBackend {}
+pub struct InputTimeSpan {
+    start_sample: usize,
+    length_samples: usize,
+}
+
+pub struct SoundInputSchedule {
+    spans: Vec<InputTimeSpan>,
+}
+
+impl SoundInputSchedule {
+    fn new() -> SoundInputSchedule {
+        SoundInputSchedule { spans: Vec::new() }
+    }
+}
+
+pub struct ScheduledInputBackend {
+    schedule: SoundInputSchedule,
+}
 
 impl SoundInputBackend for ScheduledInputBackend {
     type CompiledType<'ctx> = CompiledScheduledInput<'ctx>;
@@ -23,16 +40,13 @@ impl SoundInputBackend for ScheduledInputBackend {
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
         CompiledScheduledInput {
-            target: CompiledSoundInputBranch::new(
-                location,
-                compiler.compile_sound_processor(target),
-            ),
+            target: CompiledSoundInputNode::new(location, compiler.compile_sound_processor(target)),
         }
     }
 }
 
 pub struct CompiledScheduledInput<'ctx> {
-    target: CompiledSoundInputBranch<'ctx>,
+    target: CompiledSoundInputNode<'ctx>,
 }
 
 impl<'ctx> StartOver for CompiledScheduledInput<'ctx> {
@@ -45,6 +59,11 @@ pub type ScheduledInput = ProcessorInput<ScheduledInputBackend>;
 
 impl ScheduledInput {
     pub fn new(argument_scope: ArgumentScope) -> ScheduledInput {
-        ProcessorInput::new_from_parts(argument_scope, ScheduledInputBackend {})
+        ProcessorInput::new_from_parts(
+            argument_scope,
+            ScheduledInputBackend {
+                schedule: SoundInputSchedule::new(),
+            },
+        )
     }
 }

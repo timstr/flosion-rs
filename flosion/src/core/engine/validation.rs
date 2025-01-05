@@ -6,14 +6,14 @@ use crate::core::sound::{
 };
 
 use super::{
-    stategraph::StateGraph,
-    stategraphnode::{
+    compiledprocessor::{
         AnyCompiledProcessorData, SharedCompiledProcessor, SharedCompiledProcessorCache,
         UniqueCompiledProcessor,
     },
+    compiledsoundgraph::CompiledSoundGraph,
 };
 
-/// Helper struct for comparing a StateGraph to a SoundGraph instance
+/// Helper struct for comparing a CompiledSoundGraph to a SoundGraph instance
 struct Visitor<'a, 'ctx> {
     /// The sound graph being compared against
     sound_graph: &'a SoundGraph,
@@ -38,7 +38,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if let Some(spid) = self.visited_shared_processors.get(&data_ptr) {
             if *spid != proc.id() {
                 println!(
-                    "state_graph_matches_sound_graph: a single shared compiled processor exists with \
+                    "verify_compiled_sound_graph: a single shared compiled processor exists with \
                     multiple processor ids"
                 );
                 return false;
@@ -72,7 +72,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     ) -> bool {
         let Some(proc_data) = self.sound_graph.sound_processor(proc.id()) else {
             println!(
-                "state_graph_matches_sound_graph: a sound processor was found which shouldn't exist"
+                "verify_compiled_sound_graph: a sound processor was found which shouldn't exist"
             );
             return false;
         };
@@ -80,7 +80,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         if proc_data.is_static() {
             let Some(shared_data_ptr) = shared_data else {
                 println!(
-                    "state_graph_matches_sound_graph: found a unique node for a static processor \
+                    "verify_compiled_sound_graph: found a unique node for a static processor \
                     instead of a shared node"
                 );
                 return false;
@@ -88,7 +88,7 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
             if let Some(other_ptr) = self.visited_static_processors.get(&proc.id()) {
                 if *other_ptr != shared_data_ptr {
                     println!(
-                        "state_graph_matches_sound_graph: multiple different shared nodes exist for \
+                        "verify_compiled_sound_graph: multiple different shared nodes exist for \
                         the same static processor"
                     );
                     return false;
@@ -104,8 +104,8 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
         }
 
         // NOTE: expression arguments have nothing to be checked here -
-        // they are implemented in the state graph via compiled expressions
-        // elsewhere, which read from the context's states
+        // they are implemented in the compiled graph via compiled expressions
+        // elsewhere, which read from the context's argument stack
 
         if !self.check_processor_expressions(proc, proc_data) {
             return false;
@@ -139,24 +139,24 @@ impl<'a, 'ctx> Visitor<'a, 'ctx> {
     }
 }
 
-/// Checks whether the given state graph accurately models the given sound graph.
-pub(crate) fn state_graph_matches_sound_graph(
-    state_graph: &StateGraph,
-    sound_graph: &SoundGraph,
+/// Checks whether the given compiled sound graph accurately models the given graph.
+pub(crate) fn verify_compiled_sound_graph(
+    compiled_graph: &CompiledSoundGraph,
+    graph: &SoundGraph,
 ) -> bool {
     let mut visitor = Visitor {
-        sound_graph,
+        sound_graph: graph,
         visited_shared_processors: HashMap::new(),
         visited_static_processors: HashMap::new(),
     };
 
-    for proc in state_graph.static_processors() {
+    for proc in compiled_graph.static_processors() {
         if !visitor.visit_shared_processor(proc) {
             return false;
         }
     }
 
-    for static_proc_id in sound_graph.sound_processors().values().filter_map(|pd| {
+    for static_proc_id in graph.sound_processors().values().filter_map(|pd| {
         if pd.is_static() {
             Some(pd.id())
         } else {
@@ -168,14 +168,14 @@ pub(crate) fn state_graph_matches_sound_graph(
             .remove(&static_proc_id)
             .is_none()
         {
-            println!("state_graph_matches_sound_graph: a static compiled processor is missing");
+            println!("verify_compiled_sound_graph: a static compiled processor is missing");
             return false;
         }
     }
 
     if !visitor.visited_static_processors.is_empty() {
         println!(
-            "state_graph_matches_sound_graph: one or more static compiled processors were found \
+            "verify_compiled_sound_graph: one or more static compiled processors were found \
             which shouldn't exist"
         );
         return false;

@@ -11,7 +11,7 @@ use crate::core::{
 use crate::core::sound::argument::ArgumentScope;
 
 /// A compiled expression and all the data needed to directly
-/// execute it within a StateGraph instance on the audio thread.
+/// execute on the audio thread.
 pub struct CompiledExpression<'ctx> {
     /// The expression which the node corresponds to
     id: ProcessorExpressionId,

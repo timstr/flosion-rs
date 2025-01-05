@@ -8,8 +8,8 @@ use crate::core::{
     },
 };
 
-use super::stategraphnode::{
-    SharedCompiledProcessor, StateGraphNodeValue, UniqueCompiledProcessor,
+use super::compiledprocessor::{
+    CompiledProcessorLink, SharedCompiledProcessor, UniqueCompiledProcessor,
 };
 
 /// Struct through which compilation of sound graph components for direct
@@ -24,8 +24,8 @@ pub struct SoundGraphCompiler<'a, 'ctx> {
     jit_cache: &'a JitCache<'ctx>,
 
     /// Cache of all nodes for processors which are static and thus should
-    /// only have one single, shared state graph node.
-    // TODO: when implementing partial state graph edits, make sure this is
+    /// only have one single, shared node.
+    // TODO: when implementing partial edits, make sure this is
     // maintained between graph updates.
     static_processor_nodes: HashMap<SoundProcessorId, SharedCompiledProcessor<'ctx>>,
 }
@@ -45,30 +45,30 @@ impl<'a, 'ctx> SoundGraphCompiler<'a, 'ctx> {
         }
     }
 
-    /// Compile a sound processor, creating an executable state graph node.
+    /// Compile a sound processor, creating an executable compiled node.
     /// If the processor is static, its node will be cached to ensure that multiple
     /// requests for the same static node receive the same (single) shared node.
     pub(crate) fn compile_sound_processor(
         &mut self,
         target: Option<SoundProcessorId>,
-    ) -> StateGraphNodeValue<'ctx> {
+    ) -> CompiledProcessorLink<'ctx> {
         let Some(processor_id) = target else {
-            return StateGraphNodeValue::Empty;
+            return CompiledProcessorLink::Empty;
         };
         let proc = self.graph.sound_processor(processor_id).unwrap();
         if proc.is_static() {
             if let Some(node) = self.static_processor_nodes.get(&processor_id) {
-                StateGraphNodeValue::Shared(node.clone())
+                CompiledProcessorLink::Shared(node.clone())
             } else {
                 let node = SharedCompiledProcessor::new(proc.compile(self));
                 self.static_processor_nodes
                     .insert(processor_id, node.clone());
-                StateGraphNodeValue::Shared(node)
+                CompiledProcessorLink::Shared(node)
             }
         } else {
             // TODO: for shared dynamic processors, some kind of clever
             // book-keeping will be needed here
-            StateGraphNodeValue::Unique(UniqueCompiledProcessor::new(proc.compile(self)))
+            CompiledProcessorLink::Unique(UniqueCompiledProcessor::new(proc.compile(self)))
         }
     }
 
