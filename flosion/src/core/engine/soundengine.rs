@@ -101,6 +101,7 @@ pub(crate) fn create_sound_engine<'ctx>(
     };
 
     let se = SoundEngine {
+        state_graph: StateGraph::new(),
         stop_button: stop_button.clone(),
         edit_queue: edit_receiver,
         deadline_warning_issued: false,
@@ -192,6 +193,10 @@ impl<'ctx> Drop for SoundEngineInterface<'ctx> {
 /// (for example, if the SoundEngineInterface it was created with is
 /// dropped).
 pub(crate) struct SoundEngine<'ctx> {
+    /// The state graph, containing all compiled sound processors,
+    /// their compiled components, and their states
+    state_graph: StateGraph<'ctx>,
+
     /// The stop button describing when to exit the audio loop due
     /// to things happening on other threads
     stop_button: StopButton,
@@ -225,16 +230,14 @@ impl<'ctx> SoundEngine<'ctx> {
         let chunks_per_sec = (SAMPLE_FREQUENCY as f64) / (CHUNK_SIZE as f64);
         let chunk_duration = Duration::from_micros((1_000_000.0 / chunks_per_sec) as u64);
 
-        let mut state_graph = StateGraph::new();
-
         let mut deadline = Instant::now() + chunk_duration;
 
         loop {
             // Receive and incorporate any state graph edits from the SoundEngineInterface
-            Self::flush_updates(&self.edit_queue, &mut state_graph, &self.garbage_chute);
+            self.flush_updates();
 
             // Invoke the sound processors
-            self.process_audio(&state_graph);
+            self.process_audio();
             if self.stop_button.was_stopped() {
                 break;
             }
@@ -260,18 +263,14 @@ impl<'ctx> SoundEngine<'ctx> {
 
         // Throw out the state graph to ensure resource cleanup (particularly of
         // LLVM resources) happens on the correct thread
-        state_graph.toss(&self.garbage_chute);
+        self.state_graph.toss(&self.garbage_chute);
     }
 
     /// Receive and incorporate any edits to the given state graph from
     /// the given queue. Toss any old data down the given garbage chute.
-    fn flush_updates(
-        edit_queue: &Receiver<StateGraphEdit<'ctx>>,
-        state_graph: &mut StateGraph<'ctx>,
-        garbage_chute: &GarbageChute<'ctx>,
-    ) {
-        while let Ok(edit) = edit_queue.try_recv() {
-            state_graph.make_edit(edit, garbage_chute);
+    fn flush_updates(&mut self) {
+        while let Ok(edit) = self.edit_queue.try_recv() {
+            self.state_graph.make_edit(edit, &self.garbage_chute);
         }
     }
 
@@ -279,14 +278,14 @@ impl<'ctx> SoundEngine<'ctx> {
     /// This ensures that static processors are always update, and
     /// the dynamic processor nodes in their dependencies will
     /// be invoked recursively from there.
-    fn process_audio(&mut self, state_graph: &StateGraph) {
+    fn process_audio(&mut self) {
         Self::SCRATCH_SPACE.with(|scratch_space| {
             // TODO: preserve this (to save allocation) between calls
             let argument_stack = ArgumentStack::new();
-            for node in state_graph.static_processors() {
-                // TODO: how does this ensure that:
-                // 1) static processors are evaluated in topological order and cached correctly, and
-                // 2) static processors are re-evaluated correctly in the chunk?
+            for node in self.state_graph.static_processors() {
+                // Invoke any node that is an entry point. An entry point
+                // is a top-level shared node with no inputs connected
+                // to it, so this effectively processes from the roots up.
                 if node.is_entry_point() {
                     node.invoke_externally(scratch_space, &argument_stack);
                 }
