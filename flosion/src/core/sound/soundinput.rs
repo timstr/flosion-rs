@@ -16,8 +16,8 @@ use super::{
     argument::{ArgumentScope, ArgumentTranslation, CompiledProcessorArgument},
     context::AudioContext,
     soundprocessor::{
-        ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-        SoundProcessorId, StartOver,
+        CompiledProcessorComponent, ProcessorComponent, ProcessorComponentVisitor,
+        ProcessorComponentVisitorMut, SoundProcessorId,
     },
 };
 
@@ -265,7 +265,7 @@ impl<'a> InputContext<'a> {
 }
 
 pub trait SoundInputBackend {
-    type CompiledType<'ctx>: Send + StartOver;
+    type CompiledType<'ctx>: Send + CompiledProcessorComponent;
 
     fn category(&self) -> SoundInputCategory;
 

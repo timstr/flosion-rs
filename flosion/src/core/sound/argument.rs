@@ -13,8 +13,8 @@ use crate::core::{
 };
 
 use super::soundprocessor::{
-    ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId,
-    StartOver,
+    CompiledComponentVisitor, CompiledProcessorComponent, ProcessorComponent,
+    ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessorId, StartOver,
 };
 
 pub struct ProcessorArgumentTag;
@@ -164,6 +164,10 @@ impl<T> CompiledProcessorArgument<T> {
     pub(crate) fn id(&self) -> ProcessorArgumentId {
         self.id
     }
+}
+
+impl<T> CompiledProcessorComponent for CompiledProcessorArgument<T> {
+    fn visit(&self, _visitor: &mut dyn CompiledComponentVisitor) {}
 }
 
 impl<T> StartOver for CompiledProcessorArgument<T> {

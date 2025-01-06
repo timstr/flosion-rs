@@ -1,8 +1,12 @@
 use std::collections::HashMap;
 
-use crate::core::{sound::soundprocessor::SoundProcessorId, soundchunk::CHUNK_SIZE};
+use crate::core::{
+    engine::compiledprocessor::{AnyCompiledProcessorData, CompiledProcessorLink},
+    sound::soundprocessor::{CompiledComponentVisitor, SoundProcessorId},
+    soundchunk::CHUNK_SIZE,
+};
 
-use super::compiledsoundgraph::CompiledSoundGraph;
+use super::{compiledprocessor::CompiledSoundInputNode, compiledsoundgraph::CompiledSoundGraph};
 
 pub(crate) struct CompiledProcessorReport {
     times_samples: Vec<usize>,
@@ -32,19 +36,44 @@ impl SoundEngineReport {
             proc_report.times_samples.clear();
         }
 
-        // HACK only visiting static processors because there isn't currently
-        // a way to traverse the compiled graph.
-        // See also todo's in verify_compiled_sound_graph
+        struct Visitor<'a> {
+            report: &'a mut SoundEngineReport,
+        }
+
+        impl<'a> Visitor<'a> {
+            fn processor(&mut self, processor: &dyn AnyCompiledProcessorData) {
+                let elapsed_samples = processor.timing().elapsed_chunks() * CHUNK_SIZE;
+                let proc_report =
+                    self.report
+                        .processors
+                        .entry(processor.id())
+                        .or_insert_with(|| CompiledProcessorReport {
+                            times_samples: Vec::new(),
+                        });
+                proc_report.times_samples.push(elapsed_samples);
+
+                processor.visit(self);
+            }
+        }
+
+        impl<'a> CompiledComponentVisitor for Visitor<'a> {
+            fn input_node(&mut self, input: &CompiledSoundInputNode) {
+                match input.link() {
+                    CompiledProcessorLink::Unique(node) => self.processor(node.processor()),
+                    CompiledProcessorLink::Shared(node) => {
+                        self.processor(node.borrow_cache().processor())
+                    }
+                    CompiledProcessorLink::Empty => (),
+                }
+            }
+        }
+
+        let mut visitor = Visitor { report: self };
+
         for node in compiled_graph.static_processors() {
-            let cache = node.borrow_cache();
-            let elapsed_samples = cache.processor().timing().elapsed_chunks() * CHUNK_SIZE;
-            let proc_report =
-                self.processors
-                    .entry(node.id())
-                    .or_insert_with(|| CompiledProcessorReport {
-                        times_samples: Vec::new(),
-                    });
-            proc_report.times_samples.push(elapsed_samples);
+            if node.is_entry_point() {
+                visitor.processor(node.borrow_cache().processor());
+            }
         }
 
         // Remove any processors without samples. These were not seen during

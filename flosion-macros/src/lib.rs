@@ -151,6 +151,17 @@ fn impl_processor_component_macro(ast: &syn::DeriveInput) -> TokenStream {
             }
         }
 
+        impl<'ctx> ::flosion::core::sound::soundprocessor::CompiledProcessorComponent for #compiled_name <'ctx> {
+            fn visit(&self, visitor: &mut dyn ::flosion::core::sound::soundprocessor::CompiledComponentVisitor) {
+                #(
+                    ::flosion::core::sound::soundprocessor::CompiledProcessorComponent::visit(
+                        &self.#component_field_names,
+                        visitor
+                    );
+                )*
+            }
+        }
+
         impl<'ctx> ::flosion::core::sound::soundprocessor::StartOver for #compiled_name <'ctx> {
             fn start_over(&mut self) {
                 #(::flosion::core::sound::soundprocessor::StartOver::start_over(&mut self.#component_field_names);)*

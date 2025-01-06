@@ -11,7 +11,8 @@ use crate::core::{
         context::{AudioContext, AudioStack},
         soundinput::{InputContext, InputTiming, SoundInputLocation},
         soundprocessor::{
-            ProcessorTiming, SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
+            CompiledComponentVisitor, CompiledProcessorComponent, ProcessorTiming, SoundProcessor,
+            SoundProcessorId, StartOver, StreamStatus,
         },
     },
     soundchunk::SoundChunk,
@@ -93,6 +94,8 @@ pub(crate) trait AnyCompiledProcessorData<'ctx>: Send {
         argument_stack: ArgumentStackView,
     ) -> StreamStatus;
 
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor);
+
     /// Used for book-keeping optimizations, e.g. to avoid visiting shared nodes twice
     /// and because comparing trait objects (fat pointers) for equality is fraught
     fn address(&self) -> *const ();
@@ -125,6 +128,10 @@ impl<'ctx, T: 'static + SoundProcessor> AnyCompiledProcessorData<'ctx>
         argument_stack: ArgumentStackView,
     ) -> StreamStatus {
         CompiledProcessorData::process_audio(self, dst, stack, scratch_arena, argument_stack)
+    }
+
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor) {
+        self.processor.visit(visitor);
     }
 
     fn address(&self) -> *const () {
@@ -472,6 +479,11 @@ impl<'ctx> CompiledSoundInputNode<'ctx> {
     /// Mutably access the input timing
     pub(crate) fn timing_mut(&mut self) -> &mut InputTiming {
         &mut self.timing
+    }
+
+    /// Access the compiled processor data
+    pub(crate) fn link(&self) -> &CompiledProcessorLink<'ctx> {
+        &self.link
     }
 
     /// Replace the inner compiled node with

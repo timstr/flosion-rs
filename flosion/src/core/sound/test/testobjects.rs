@@ -14,8 +14,9 @@ use crate::{
                 ProcessorInput, SoundInputBackend, SoundInputCategory, SoundInputLocation,
             },
             soundprocessor::{
-                ProcessorComponent, ProcessorComponentVisitor, ProcessorComponentVisitorMut,
-                SoundProcessor, SoundProcessorId, StartOver, StreamStatus,
+                CompiledComponentVisitor, CompiledProcessorComponent, ProcessorComponent,
+                ProcessorComponentVisitor, ProcessorComponentVisitorMut, SoundProcessor,
+                SoundProcessorId, StartOver, StreamStatus,
             },
         },
         soundchunk::SoundChunk,
@@ -28,7 +29,9 @@ pub(super) struct TestStaticSoundProcessor {
     pub(super) inputs: Vec<TestSoundInput>,
 }
 
-pub(super) struct CompiledTestStaticSoundProcessor {}
+pub(super) struct CompiledTestStaticSoundProcessor {
+    // HACK not compiling anything
+}
 
 impl SoundProcessor for TestStaticSoundProcessor {
     fn new(_args: &ParsedArguments) -> Self {
@@ -72,6 +75,10 @@ impl ProcessorComponent for TestStaticSoundProcessor {
     }
 }
 
+impl CompiledProcessorComponent for CompiledTestStaticSoundProcessor {
+    fn visit(&self, _visitor: &mut dyn CompiledComponentVisitor) {}
+}
+
 impl<'ctx> StartOver for CompiledTestStaticSoundProcessor {
     fn start_over(&mut self) {}
 }
@@ -99,7 +106,9 @@ pub(super) struct TestDynamicSoundProcessor {
     pub(super) inputs: Vec<TestSoundInput>,
 }
 
-pub(super) struct CompiledTestDynamicSoundProcessor {}
+pub(super) struct CompiledTestDynamicSoundProcessor {
+    // HACK not compiling anything
+}
 
 impl SoundProcessor for TestDynamicSoundProcessor {
     fn new(_args: &ParsedArguments) -> Self {
@@ -141,6 +150,10 @@ impl ProcessorComponent for TestDynamicSoundProcessor {
     ) -> Self::CompiledType<'ctx> {
         CompiledTestDynamicSoundProcessor {}
     }
+}
+
+impl CompiledProcessorComponent for CompiledTestDynamicSoundProcessor {
+    fn visit(&self, _visitor: &mut dyn CompiledComponentVisitor) {}
 }
 
 impl StartOver for CompiledTestDynamicSoundProcessor {

@@ -3,14 +3,17 @@ use hashstash::{
 };
 
 use crate::core::{
-    engine::{soundgraphcompiler::SoundGraphCompiler, compiledprocessor::CompiledSoundInputNode},
+    engine::{compiledprocessor::CompiledSoundInputNode, soundgraphcompiler::SoundGraphCompiler},
     sound::{
         argument::ArgumentScope,
         soundinput::{
             InputContext, InputTiming, ProcessorInput, SoundInputBackend, SoundInputCategory,
             SoundInputLocation,
         },
-        soundprocessor::{SoundProcessorId, StartOver, StreamStatus},
+        soundprocessor::{
+            CompiledComponentVisitor, CompiledProcessorComponent, SoundProcessorId, StartOver,
+            StreamStatus,
+        },
     },
     soundchunk::SoundChunk,
     stashing::{StashingContext, UnstashingContext},
@@ -67,26 +70,32 @@ impl UnstashableInplace<UnstashingContext<'_>> for SingleInputBackend {
 }
 
 pub struct CompiledSingleInput<'ctx> {
-    target: CompiledSoundInputNode<'ctx>,
+    node: CompiledSoundInputNode<'ctx>,
 }
 
 impl<'ctx> CompiledSingleInput<'ctx> {
     fn new<'a>(compiled_input: CompiledSoundInputNode<'ctx>) -> CompiledSingleInput<'ctx> {
         CompiledSingleInput {
-            target: compiled_input,
+            node: compiled_input,
         }
     }
 
     pub fn timing(&self) -> &InputTiming {
-        self.target.timing()
+        self.node.timing()
     }
 
     pub fn step(&mut self, dst: &mut SoundChunk, ctx: InputContext) -> StreamStatus {
-        self.target.step(dst, ctx)
+        self.node.step(dst, ctx)
     }
 
     pub fn start_over_at(&mut self, sample_offset: usize) {
-        self.target.start_over_at(sample_offset);
+        self.node.start_over_at(sample_offset);
+    }
+}
+
+impl<'ctx> CompiledProcessorComponent for CompiledSingleInput<'ctx> {
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor) {
+        visitor.input_node(&self.node);
     }
 }
 

@@ -1,9 +1,11 @@
 use crate::core::{
-    engine::{soundgraphcompiler::SoundGraphCompiler, compiledprocessor::CompiledSoundInputNode},
+    engine::{compiledprocessor::CompiledSoundInputNode, soundgraphcompiler::SoundGraphCompiler},
     sound::{
         argument::ArgumentScope,
         soundinput::{ProcessorInput, SoundInputBackend, SoundInputCategory, SoundInputLocation},
-        soundprocessor::{SoundProcessorId, StartOver},
+        soundprocessor::{
+            CompiledComponentVisitor, CompiledProcessorComponent, SoundProcessorId, StartOver,
+        },
     },
 };
 
@@ -40,13 +42,19 @@ impl SoundInputBackend for ScheduledInputBackend {
         compiler: &mut SoundGraphCompiler<'_, 'ctx>,
     ) -> Self::CompiledType<'ctx> {
         CompiledScheduledInput {
-            target: CompiledSoundInputNode::new(location, compiler.compile_sound_processor(target)),
+            node: CompiledSoundInputNode::new(location, compiler.compile_sound_processor(target)),
         }
     }
 }
 
 pub struct CompiledScheduledInput<'ctx> {
-    target: CompiledSoundInputNode<'ctx>,
+    node: CompiledSoundInputNode<'ctx>,
+}
+
+impl<'ctx> CompiledProcessorComponent for CompiledScheduledInput<'ctx> {
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor) {
+        visitor.input_node(&self.node);
+    }
 }
 
 impl<'ctx> StartOver for CompiledScheduledInput<'ctx> {

@@ -12,7 +12,9 @@ use hashstash::{
 use crate::{
     core::{
         engine::{
-            compiledprocessor::{AnyCompiledProcessorData, CompiledProcessorData},
+            compiledprocessor::{
+                AnyCompiledProcessorData, CompiledProcessorData, CompiledSoundInputNode,
+            },
             soundgraphcompiler::SoundGraphCompiler,
         },
         objecttype::{ObjectType, WithObjectType},
@@ -59,7 +61,7 @@ impl<T: StartOver> StartOver for Vec<T> {
 }
 
 pub trait ProcessorComponent {
-    type CompiledType<'ctx>: Send + StartOver;
+    type CompiledType<'ctx>: Send + CompiledProcessorComponent;
 
     fn visit<'a>(&self, visitor: &'a mut dyn ProcessorComponentVisitor);
     fn visit_mut<'a>(&mut self, visitor: &'a mut dyn ProcessorComponentVisitorMut);
@@ -103,6 +105,14 @@ impl<T: ProcessorComponent> ProcessorComponent for Vec<T> {
     }
 }
 
+impl<T: CompiledProcessorComponent> CompiledProcessorComponent for Vec<T> {
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor) {
+        for item in self.iter() {
+            item.visit(visitor);
+        }
+    }
+}
+
 pub trait ProcessorComponentVisitor {
     fn input(&mut self, _input: &dyn AnyProcessorInput) {}
     fn expression(&mut self, _expression: &ProcessorExpression) {}
@@ -113,6 +123,20 @@ pub trait ProcessorComponentVisitorMut {
     fn input(&mut self, _input: &mut dyn AnyProcessorInput) {}
     fn expression(&mut self, _expression: &mut ProcessorExpression) {}
     fn argument(&mut self, _argument: &mut dyn AnyProcessorArgument) {}
+}
+
+pub trait CompiledProcessorComponent: StartOver {
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor);
+
+    // fn update(&mut self, type_erased_preallocated_data: ()); ???
+}
+
+pub trait CompiledComponentVisitor {
+    fn input_node(&mut self, _input: &CompiledSoundInputNode);
+}
+
+impl CompiledProcessorComponent for () {
+    fn visit(&self, _visitor: &mut dyn CompiledComponentVisitor) {}
 }
 
 pub trait ProcessorState: Send {

@@ -3,14 +3,16 @@ use std::marker::PhantomData;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::core::{
-    engine::{soundgraphcompiler::SoundGraphCompiler, compiledprocessor::CompiledSoundInputNode},
+    engine::{compiledprocessor::CompiledSoundInputNode, soundgraphcompiler::SoundGraphCompiler},
     sound::{
         argument::ArgumentScope,
         context::AudioContext,
         soundinput::{
             InputContext, ProcessorInput, SoundInputBackend, SoundInputCategory, SoundInputLocation,
         },
-        soundprocessor::{SoundProcessorId, StartOver},
+        soundprocessor::{
+            CompiledComponentVisitor, CompiledProcessorComponent, SoundProcessorId, StartOver,
+        },
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},
     stashing::{StashingContext, UnstashingContext},
@@ -77,7 +79,7 @@ impl<S: Send> SoundInputBackend for KeyedInputQueueBackend<S> {
         CompiledKeyedInputQueue {
             items: (0..self.num_keys)
                 .map(|_| CompiledKeyedInputQueueItem {
-                    input: CompiledSoundInputNode::new(
+                    node: CompiledSoundInputNode::new(
                         location,
                         compiler.compile_sound_processor(target),
                     ),
@@ -108,7 +110,7 @@ impl<S> UnstashableInplace<UnstashingContext<'_>> for KeyedInputQueueBackend<S> 
 }
 
 struct CompiledKeyedInputQueueItem<'ctx, S> {
-    input: CompiledSoundInputNode<'ctx>,
+    node: CompiledSoundInputNode<'ctx>,
     state: QueuedKeyState<S>,
 }
 
@@ -164,7 +166,7 @@ impl<'ctx, S> CompiledKeyedInputQueue<'ctx, S> {
 
         let data = &mut self.items[index];
 
-        data.input.start_over_at(0); // TODO: sample offset
+        data.node.start_over_at(0); // TODO: sample offset
         let key_data = KeyPlayingData {
             id,
             state,
@@ -210,20 +212,20 @@ impl<'ctx, S> CompiledKeyedInputQueue<'ctx, S> {
                 // TODO: allow keys to stack (after ignoring key repeats in keyboard_ui)
                 if let KeyDuration::Samples(s) = &mut key_data.duration {
                     if *s < CHUNK_SIZE {
-                        d.input.timing_mut().request_release(*s);
+                        d.node.timing_mut().request_release(*s);
                         *s = 0;
                     } else {
                         *s -= CHUNK_SIZE;
                     }
                 }
 
-                d.input.step(
+                d.node.step(
                     &mut temp_chunk,
                     f(&mut key_data.state, InputContext::new(context)),
                 );
 
                 key_data.age += 1;
-                if d.input.timing().is_done() {
+                if d.node.timing().is_done() {
                     d.state = QueuedKeyState::NotPlaying;
                 }
 
@@ -233,6 +235,14 @@ impl<'ctx, S> CompiledKeyedInputQueue<'ctx, S> {
                 slicemath::add_inplace(&mut dst.l, &temp_chunk.l);
                 slicemath::add_inplace(&mut dst.r, &temp_chunk.r);
             }
+        }
+    }
+}
+
+impl<'ctx, S> CompiledProcessorComponent for CompiledKeyedInputQueue<'ctx, S> {
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor) {
+        for item in &self.items {
+            visitor.input_node(&item.node);
         }
     }
 }

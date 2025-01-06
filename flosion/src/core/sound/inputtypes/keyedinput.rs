@@ -3,14 +3,17 @@ use std::marker::PhantomData;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::core::{
-    engine::{soundgraphcompiler::SoundGraphCompiler, compiledprocessor::CompiledSoundInputNode},
+    engine::{compiledprocessor::CompiledSoundInputNode, soundgraphcompiler::SoundGraphCompiler},
     sound::{
         argument::ArgumentScope,
         soundinput::{
             InputContext, InputTiming, ProcessorInput, SoundInputBackend, SoundInputCategory,
             SoundInputLocation,
         },
-        soundprocessor::{SoundProcessorId, StartOver, StreamStatus},
+        soundprocessor::{
+            CompiledComponentVisitor, CompiledProcessorComponent, SoundProcessorId, StartOver,
+            StreamStatus,
+        },
     },
     soundchunk::SoundChunk,
     stashing::{StashingContext, UnstashingContext},
@@ -54,7 +57,7 @@ impl<S: Send> SoundInputBackend for KeyedInputBackend<S> {
         CompiledKeyedInput {
             items: (0..self.num_keys)
                 .map(|_| CompiledKeyedInputItem {
-                    input: CompiledSoundInputNode::new(
+                    node: CompiledSoundInputNode::new(
                         location,
                         compiler.compile_sound_processor(target),
                     ),
@@ -85,7 +88,7 @@ impl<S> UnstashableInplace<UnstashingContext<'_>> for KeyedInputBackend<S> {
 }
 
 pub struct CompiledKeyedInputItem<'ctx, S> {
-    input: CompiledSoundInputNode<'ctx>,
+    node: CompiledSoundInputNode<'ctx>,
     state: Option<S>,
 }
 
@@ -117,22 +120,30 @@ impl<'ctx, S: 'static> CompiledKeyedInputItem<'ctx, S> {
     }
 
     pub fn timing(&self) -> &InputTiming {
-        self.input.timing()
+        self.node.timing()
     }
 
     pub fn step(&mut self, dst: &mut SoundChunk, ctx: InputContext) -> StreamStatus {
-        self.input.step(dst, ctx)
+        self.node.step(dst, ctx)
     }
 
     pub fn start_over_at(&mut self, sample_offset: usize) {
-        self.input.start_over_at(sample_offset);
+        self.node.start_over_at(sample_offset);
+    }
+}
+
+impl<'ctx, S> CompiledProcessorComponent for CompiledKeyedInput<'ctx, S> {
+    fn visit(&self, visitor: &mut dyn CompiledComponentVisitor) {
+        for item in &self.items {
+            visitor.input_node(&item.node);
+        }
     }
 }
 
 impl<'ctx, S> StartOver for CompiledKeyedInput<'ctx, S> {
     fn start_over(&mut self) {
         for item in &mut self.items {
-            item.input.start_over_at(0);
+            item.node.start_over_at(0);
             item.state = None;
         }
     }

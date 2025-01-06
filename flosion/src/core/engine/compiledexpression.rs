@@ -4,7 +4,10 @@ use crate::core::{
     engine::garbage::{Garbage, GarbageChute},
     expression::context::ExpressionContext,
     jit::compiledexpression::{CompiledExpressionFunction, Discretization},
-    sound::{expression::ProcessorExpressionId, soundprocessor::StartOver},
+    sound::{
+        expression::ProcessorExpressionId,
+        soundprocessor::{CompiledComponentVisitor, CompiledProcessorComponent, StartOver},
+    },
 };
 
 #[cfg(debug_assertions)]
@@ -131,6 +134,10 @@ impl<'ctx> CompiledExpression<'ctx> {
         }
         all_good
     }
+}
+
+impl<'ctx> CompiledProcessorComponent for CompiledExpression<'ctx> {
+    fn visit(&self, _visitor: &mut dyn CompiledComponentVisitor) {}
 }
 
 impl<'ctx> StartOver for CompiledExpression<'ctx> {
