@@ -240,139 +240,151 @@ impl<'a, T> SummonWidget<'a, T> {
 
 impl<'a, T: Copy> egui::Widget for SummonWidget<'a, T> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let r = egui::Window::new("")
-            .id(egui::Id::new("Summon"))
-            .title_bar(false)
-            .frame(
-                egui::Frame::none()
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::new(
+                    egui::Order::Foreground,
+                    ui.id().with("summon widget"),
+                ))
+                .max_rect(egui::Rect::from_x_y_ranges(
+                    self.state.position.x..,
+                    self.state.position.y..,
+                )),
+            |ui| {
+                egui::Frame::default()
                     .fill(egui::Color32::BLACK)
                     .stroke(egui::Stroke::new(2.0, egui::Color32::WHITE))
-                    .inner_margin(egui::Vec2::splat(5.0)),
-            )
-            .resizable(false)
-            .fixed_pos(self.state.position)
-            .show(ui.ctx(), |ui| {
-                let focus_changed;
-                {
-                    let mut new_focus_index = self.state.focus_index;
-                    let num_rules = self.state.rules.len();
-                    if num_rules == 0 {
-                        new_focus_index = None;
-                    } else {
-                        let (pressed_up, pressed_down) = ui.input_mut(|i| {
-                            (
-                                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
-                                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
-                            )
-                        });
-                        if pressed_down {
-                            new_focus_index = match self.state.focus_index {
-                                None => Some(0),
-                                Some(i) => Some((i + 1).min(num_rules - 1)),
-                            };
-                        }
-                        if pressed_up {
-                            new_focus_index = match self.state.focus_index {
-                                None => None,
-                                Some(i) => {
-                                    if i > 0 {
-                                        Some(i - 1)
-                                    } else {
-                                        None
-                                    }
+                    .inner_margin(egui::Vec2::splat(5.0))
+                    // .fixed_pos(self.state.position)
+                    .show(ui, |ui| {
+                        let focus_changed;
+                        {
+                            let mut new_focus_index = self.state.focus_index;
+                            let num_rules = self.state.rules.len();
+                            if num_rules == 0 {
+                                new_focus_index = None;
+                            } else {
+                                let (pressed_up, pressed_down) = ui.input_mut(|i| {
+                                    (
+                                        i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                                        i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                                    )
+                                });
+                                if pressed_down {
+                                    new_focus_index = match self.state.focus_index {
+                                        None => Some(0),
+                                        Some(i) => Some((i + 1).min(num_rules - 1)),
+                                    };
                                 }
-                            };
+                                if pressed_up {
+                                    new_focus_index = match self.state.focus_index {
+                                        None => None,
+                                        Some(i) => {
+                                            if i > 0 {
+                                                Some(i - 1)
+                                            } else {
+                                                None
+                                            }
+                                        }
+                                    };
+                                }
+                            }
+                            focus_changed = new_focus_index != self.state.focus_index;
+                            self.state.focus_index = new_focus_index;
                         }
-                    }
-                    focus_changed = new_focus_index != self.state.focus_index;
-                    self.state.focus_index = new_focus_index;
-                }
 
-                let textedit = egui::TextEdit::singleline(&mut self.state.text).cursor_at_end(true);
-                let t = textedit.ui(ui);
-                if self.state.just_opened {
-                    t.request_focus();
-                    self.state.just_opened = false;
-                }
-                if t.changed() {
-                    self.state.update_matches();
-                }
-                if ui.input_mut(|i| {
-                    i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
-                        || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
-                }) {
-                    self.state.finalized = true;
-                    self.state.current_choice = self
-                        .state
-                        .rules
-                        .get(0)
-                        .map(|x| x.value_and_args.clone())
-                        .flatten();
-                }
-                if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
-                    self.state.finalized = true;
-                    self.state.current_choice = None;
-                }
-                if t.gained_focus() {
-                    self.state.focus_index = None;
-                } else if focus_changed && self.state.focus_index == None {
-                    t.request_focus();
-                }
+                        let textedit =
+                            egui::TextEdit::singleline(&mut self.state.text).cursor_at_end(true);
+                        let t = textedit.ui(ui);
+                        if self.state.just_opened {
+                            t.request_focus();
+                            self.state.just_opened = false;
+                        }
+                        if t.changed() {
+                            self.state.update_matches();
+                        }
+                        if ui.input_mut(|i| {
+                            i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                                || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
+                        }) {
+                            self.state.finalized = true;
+                            self.state.current_choice = self
+                                .state
+                                .rules
+                                .get(0)
+                                .map(|x| x.value_and_args.clone())
+                                .flatten();
+                        }
+                        if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+                        {
+                            self.state.finalized = true;
+                            self.state.current_choice = None;
+                        }
+                        if t.gained_focus() {
+                            self.state.focus_index = None;
+                        } else if focus_changed && self.state.focus_index == None {
+                            t.request_focus();
+                        }
 
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for (index, scored_rule) in self.state.rules.iter().enumerate() {
-                        let mut layout_job = egui::text::LayoutJob::default();
-                        layout_job.append(
-                            scored_rule.rule.display_name(),
-                            0.0,
-                            egui::TextFormat {
-                                color: egui::Color32::WHITE,
-                                ..Default::default()
-                            },
-                        );
-
-                        if let SummonRule::NameWithArguments(_, args, _) = &scored_rule.rule {
-                            for arg in args.arguments() {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            for (index, scored_rule) in self.state.rules.iter().enumerate() {
+                                let mut layout_job = egui::text::LayoutJob::default();
                                 layout_job.append(
-                                    arg.name(),
-                                    5.0,
+                                    scored_rule.rule.display_name(),
+                                    0.0,
                                     egui::TextFormat {
-                                        color: egui::Color32::GREEN,
-                                        italics: true,
+                                        color: egui::Color32::WHITE,
                                         ..Default::default()
                                     },
                                 );
-                            }
-                        }
 
-                        let r = ui.add(egui::Label::new(layout_job).sense(egui::Sense::click()));
+                                if let SummonRule::NameWithArguments(_, args, _) = &scored_rule.rule
+                                {
+                                    for arg in args.arguments() {
+                                        layout_job.append(
+                                            arg.name(),
+                                            5.0,
+                                            egui::TextFormat {
+                                                color: egui::Color32::GREEN,
+                                                italics: true,
+                                                ..Default::default()
+                                            },
+                                        );
+                                    }
+                                }
 
-                        if r.clicked() {
-                            self.state.current_choice = scored_rule.value_and_args.clone();
-                            self.state.finalized = true;
-                        }
-                        if r.hovered() {
-                            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-                        }
-                        if r.gained_focus() {
-                            self.state.focus_index = Some(index);
-                        } else {
-                            if let Some(i) = self.state.focus_index {
-                                if focus_changed && i == index {
-                                    r.request_focus();
+                                let r = ui
+                                    .add(egui::Label::new(layout_job).sense(egui::Sense::click()));
+
+                                if r.clicked() {
+                                    self.state.current_choice = scored_rule.value_and_args.clone();
+                                    self.state.finalized = true;
+                                }
+                                if r.hovered() {
+                                    ui.output_mut(|o| {
+                                        o.cursor_icon = egui::CursorIcon::PointingHand
+                                    });
+                                }
+                                if r.gained_focus() {
+                                    self.state.focus_index = Some(index);
+                                } else {
+                                    if let Some(i) = self.state.focus_index {
+                                        if focus_changed && i == index {
+                                            r.request_focus();
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
-                });
+                        });
 
-                // if focus_changed {
-                if let Some(i) = self.state.focus_index {
-                    self.state.current_choice = self.state.rules[i].value_and_args.clone();
-                }
-                // }
-            })
-            .unwrap();
-        r.response
+                        // if focus_changed {
+                        if let Some(i) = self.state.focus_index {
+                            self.state.current_choice = self.state.rules[i].value_and_args.clone();
+                        }
+                        // }
+                    });
+            },
+        )
+        .response
     }
 }

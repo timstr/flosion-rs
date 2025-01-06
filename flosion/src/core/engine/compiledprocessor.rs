@@ -520,6 +520,8 @@ impl<'ctx> CompiledSoundInputNode<'ctx> {
 
     /// Process the next chunk of audio
     pub(crate) fn step(&mut self, dst: &mut SoundChunk, ctx: InputContext) -> StreamStatus {
+        // TODO: validate context for pushed arguments? see compiled expression
+
         if self.timing.need_to_start_over() {
             // NOTE: implicitly starting over doesn't use any fine timing
             self.start_over_at(0);

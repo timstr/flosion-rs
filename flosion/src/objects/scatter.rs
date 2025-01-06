@@ -84,7 +84,10 @@ impl SoundProcessor for Scatter {
         let mut status = StreamStatus::Done;
         let mut temp_chunk = SoundChunk::new();
         for item in scatter.sound_input.items_mut() {
-            let s = item.step(&mut temp_chunk, InputContext::new(context));
+            let s = item.step(
+                &mut temp_chunk,
+                InputContext::new(context).push(scatter.value, item.state().unwrap().value),
+            );
 
             if s == StreamStatus::Playing {
                 status = StreamStatus::Playing;
