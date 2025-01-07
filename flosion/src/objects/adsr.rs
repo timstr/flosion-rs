@@ -1,4 +1,4 @@
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
@@ -41,7 +41,7 @@ pub struct ADSRState {
     was_released: bool,
 }
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct ADSR {
     pub input: SingleInput,
     pub attack_time: ProcessorExpression,

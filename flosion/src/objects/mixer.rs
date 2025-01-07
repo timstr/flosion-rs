@@ -1,4 +1,4 @@
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Order, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
     ui_core::arguments::{NaturalNumberArgument, ParsedArguments},
 };
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct Mixer {
     inputs: Vec<SingleInput>,
 }

@@ -28,7 +28,7 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleRate, StreamConfig, StreamError,
 };
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use parking_lot::Mutex;
 
@@ -41,7 +41,7 @@ pub struct OutputData {
 
 // TODO: rename to e.g. "SoundOut", "Output" is too vague and overloaded
 // AudioOut?
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct Output {
     pub input: SingleInput,
 

@@ -1,4 +1,4 @@
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use inkwell::values::FloatValue;
 use rand::prelude::*;
@@ -44,7 +44,7 @@ const TEST_ARRAY_SIZE: usize = 10;
 
 const MAX_NUM_INPUTS: usize = 3;
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 struct TestSoundProcessor {
     expression: ProcessorExpression,
     argument_0: ProcessorArgument<PlainF32ArrayArgument>,

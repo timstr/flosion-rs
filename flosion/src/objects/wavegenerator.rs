@@ -1,4 +1,4 @@
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
@@ -42,7 +42,7 @@ impl StartOver for WaveGeneratorState {
     }
 }
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct WaveGenerator {
     pub phase: ProcessorArgument<PlainF32ArrayArgument>,
     pub amplitude: ProcessorExpression,

@@ -1,4 +1,4 @@
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use rand::prelude::*;
 
@@ -36,7 +36,7 @@ impl Default for VoiceState {
     }
 }
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct Ensemble {
     pub input: KeyedInput<VoiceState>,
     pub frequency_in: ProcessorExpression,

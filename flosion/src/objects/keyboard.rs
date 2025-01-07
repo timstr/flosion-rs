@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 
 use crate::{
@@ -68,7 +68,7 @@ impl StartOver for KeyboardState {
     }
 }
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct Keyboard {
     pub input: KeyedInputQueue<KeyboardKeyState>,
     pub key_frequency: ProcessorArgument<F32Argument>,

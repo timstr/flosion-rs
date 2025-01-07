@@ -1,6 +1,6 @@
 use std::{ops::Deref, sync::Arc};
 
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{
     HashCache, InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace,
 };
@@ -23,7 +23,7 @@ use crate::{
     ui_core::arguments::{FilePathArgument, ParsedArguments},
 };
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct AudioClip {
     #[not_a_component]
     data: Arc<Mutex<HashCache<SoundBuffer>>>,

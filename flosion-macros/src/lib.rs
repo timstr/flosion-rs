@@ -2,7 +2,7 @@ extern crate proc_macro;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-#[proc_macro_derive(ProcessorComponents, attributes(not_a_component, state))]
+#[proc_macro_derive(ProcessorComponent, attributes(not_a_component, state))]
 pub fn derive_processor_component(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = syn::parse(input).unwrap();
     impl_processor_component_macro(&ast).into()

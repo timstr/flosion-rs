@@ -1,4 +1,4 @@
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use rand::prelude::*;
 
@@ -33,7 +33,7 @@ impl StartOver for ScatterInputState {
     }
 }
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct Scatter {
     pub sound_input: KeyedInput<ScatterInputState>,
 

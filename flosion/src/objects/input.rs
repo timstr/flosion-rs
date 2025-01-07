@@ -5,7 +5,7 @@ use cpal::{
     BufferSize, SampleRate, StreamConfig,
 };
 use eframe::egui::mutex::Mutex;
-use flosion_macros::ProcessorComponents;
+use flosion_macros::ProcessorComponent;
 use hashstash::{InplaceUnstasher, Stashable, Stasher, UnstashError, UnstashableInplace};
 use spmcq::ReadResult;
 
@@ -28,7 +28,7 @@ use crate::{
 // TODO: rename to something less vague
 // AudioIn?
 
-#[derive(ProcessorComponents)]
+#[derive(ProcessorComponent)]
 pub struct Input {
     #[not_a_component]
     chunk_reader: spmcq::Reader<SoundChunk>,
