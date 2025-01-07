@@ -27,7 +27,10 @@ impl SoundInputBackend for SingleInputBackend {
     type CompiledType<'ctx> = CompiledSingleInput<'ctx>;
 
     fn category(&self) -> SoundInputCategory {
-        SoundInputCategory::Anisochronic
+        match self.isochronic {
+            true => SoundInputCategory::Isochronic,
+            false => SoundInputCategory::Anisochronic,
+        }
     }
 
     fn compile<'ctx>(
