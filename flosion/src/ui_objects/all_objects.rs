@@ -26,10 +26,10 @@ use super::{
         TriangleWaveUi, TruncUi,
     },
     readwritewaveform_ui::ReadWriteWaveformUi,
-    // recorder_ui::RecorderUi,
     resampler_ui::ResamplerUi,
     sampler1d_ui::Sampler1dUi,
     scatter_ui::ScatterUi,
+    scheduler_ui::SchedulerUi,
     stateful_function_uis::{
         ExponentialApproachUi, IntegratorUi, LinearApproachUi, WrappingIntegratorUi,
     },
@@ -104,6 +104,7 @@ pub(crate) fn all_sound_graph_objects() -> (SoundObjectFactory, SoundObjectUiFac
     helper.register::<ReadWriteWaveformUi>();
     helper.register::<ResamplerUi>();
     helper.register::<ScatterUi>();
+    helper.register::<SchedulerUi>();
     helper.register::<WaveGeneratorUi>();
     helper.register::<WhiteNoiseUi>();
     helper.register::<WriteWaveformUi>();

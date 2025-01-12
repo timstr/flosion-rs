@@ -332,7 +332,9 @@ impl StackedGroup {
             SoundInputCategory::Anisochronic => self.draw_uneven_stripes(ui, bar_rect, 1),
             SoundInputCategory::Isochronic => self.draw_even_stripes(ui, bar_rect, 1),
             SoundInputCategory::Branched(n) => self.draw_even_stripes(ui, bar_rect, n),
-            SoundInputCategory::Scheduled => todo!(),
+            SoundInputCategory::Scheduled => {
+                self.draw_bubbled_text("TODO: ???".to_string(), bar_rect.center(), ui)
+            }
         }
     }
 

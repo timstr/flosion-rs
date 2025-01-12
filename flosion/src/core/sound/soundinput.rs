@@ -72,6 +72,10 @@ pub enum SoundInputCategory {
     /// calling processor starts over. This is a requirement for
     /// calling on static processor nodes and for sharing cached
     /// audio chunks between nodes (which has not yet been implemented)
+    // TODO: consider adding a distinction here for inputs that
+    // are evaluated ahead of time and buffered. For example,
+    // a delay line is isochronic but its sense of timing of events
+    // shifts by a constant offset
     Isochronic,
 
     /// The input compiles to a variable number of nodes. How those
@@ -232,6 +236,7 @@ impl Default for InputTiming {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct InputContext<'a> {
     audio_context: &'a AudioContext<'a>,
     argument_stack: ArgumentStackView<'a>,

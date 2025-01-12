@@ -533,6 +533,10 @@ unary_expression_node!(
         sin_tau_x
     })
 );
+// TODO: this aliases! Phase information is being discarded
+// during rising/falling edges. Create a stateful expression
+// node which stores the previous input phase and does a reasonable
+// but efficient approximation of the integral between the two
 unary_expression_node!(
     SquareWave,
     "squarewave",
@@ -563,6 +567,10 @@ unary_expression_node!(
             .into_float_value()
     })
 );
+// TODO: this aliases! Phase information is being discarded
+// during rising/falling edges. Create a stateful expression
+// node which stores the previous input phase and does a reasonable
+// but efficient approximation of the integral between the two
 unary_expression_node!(
     SawWave,
     "sawwave",
