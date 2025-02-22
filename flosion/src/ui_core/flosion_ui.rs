@@ -94,7 +94,7 @@ impl<'ctx> FlosionApp<'ctx> {
         app
     }
 
-    fn interact_and_draw(&mut self, ui: &mut egui::Ui) {
+    fn interact_and_draw(&mut self, ui: &mut egui::Ui) -> SnapshotFlag {
         let snapshot_flag = SnapshotFlag::new();
 
         self.state.interact_and_draw(
@@ -147,6 +147,8 @@ impl<'ctx> FlosionApp<'ctx> {
 
         #[cfg(debug_assertions)]
         self.check_invariants();
+
+        snapshot_flag
     }
 
     fn cleanup(&mut self) {
@@ -168,17 +170,19 @@ impl<'ctx> eframe::App for FlosionApp<'ctx> {
             #[cfg(debug_assertions)]
             self.check_invariants();
 
-            self.interact_and_draw(ui);
+            let snapshot_flag = self.interact_and_draw(ui);
 
-            self.engine_interface
-                .update(
-                    &self.graph,
-                    &self.jit_cache,
-                    &self.stash,
-                    self.factories.sound_objects(),
-                    self.factories.expression_objects(),
-                )
-                .expect("Failed to update engine");
+            if snapshot_flag.snapshot_was_requested() {
+                self.engine_interface
+                    .update(
+                        &self.graph,
+                        &self.jit_cache,
+                        &self.stash,
+                        self.factories.sound_objects(),
+                        self.factories.expression_objects(),
+                    )
+                    .expect("Failed to update engine");
+            }
 
             self.garbage_disposer.clear();
         });

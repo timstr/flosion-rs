@@ -141,7 +141,9 @@ impl ExpressionPlot {
         let mut dst_slices: Vec<&mut [f32]> = dsts.iter_mut().map(|v| &mut v[..]).collect();
 
         let discretization = match horizontal_domain {
-            ExpressionTestDomain::Temporal => Discretization::Temporal(time_axis.time_per_x_pixel),
+            ExpressionTestDomain::Temporal => {
+                Discretization::Temporal(time_axis.seconds_per_x_pixel)
+            }
             ExpressionTestDomain::WithRespectTo(_, _) => Discretization::None,
         };
 

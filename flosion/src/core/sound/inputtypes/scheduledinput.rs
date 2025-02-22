@@ -16,16 +16,50 @@ use crate::core::{
     },
     soundchunk::{SoundChunk, CHUNK_SIZE},
     stashing::{StashingContext, UnstashingContext},
+    uniqueid::UniqueId,
 };
 
-#[derive(Clone, Copy)]
+pub struct InputTimeSpanTag;
+
+pub type InputTimeSpanId = UniqueId<InputTimeSpanTag>;
+
+#[derive(Clone, Copy, Debug)]
 pub struct InputTimeSpan {
+    id: InputTimeSpanId,
     start_sample: usize,
     length_samples: usize,
 }
 
 impl InputTimeSpan {
-    fn intersects_with(&self, other: &InputTimeSpan) -> bool {
+    pub(crate) fn new(
+        id: InputTimeSpanId,
+        start_sample: usize,
+        length_samples: usize,
+    ) -> InputTimeSpan {
+        InputTimeSpan {
+            id,
+            start_sample,
+            length_samples,
+        }
+    }
+
+    pub(crate) fn id(&self) -> InputTimeSpanId {
+        self.id
+    }
+
+    pub(crate) fn start_sample(&self) -> usize {
+        self.start_sample
+    }
+
+    pub(crate) fn length_samples(&self) -> usize {
+        self.length_samples
+    }
+
+    pub(crate) fn set_start_sample(&mut self, start_sample: usize) {
+        self.start_sample = start_sample;
+    }
+
+    pub(crate) fn intersects_with(&self, other: InputTimeSpan) -> bool {
         let self_end = self.start_sample + self.length_samples;
         let other_end = other.start_sample + other.length_samples;
 
@@ -47,16 +81,36 @@ impl SoundInputSchedule {
         &self.spans
     }
 
-    pub fn add_span(&mut self, start_sample: usize, length_samples: usize) {
-        let span = InputTimeSpan {
-            start_sample,
-            length_samples,
+    pub fn replace_spans(&mut self, mut spans: Vec<InputTimeSpan>) -> Result<(), ()> {
+        if spans.is_empty() {
+            self.spans.clear();
+            return Ok(());
+        }
+
+        spans.sort_by_key(|s| s.start_sample);
+
+        if spans.iter().zip(&spans[1..]).any(|(lspan, rspan)| {
+            (lspan.start_sample() + lspan.length_samples()) > rspan.start_sample()
+        }) {
+            return Err(());
         };
 
-        assert!(self.spans.iter().all(|s| !s.intersects_with(&span)));
+        self.spans = spans;
+
+        Ok(())
+    }
+
+    pub fn add_span(&mut self, start_sample: usize, length_samples: usize) -> Result<(), ()> {
+        let span = InputTimeSpan::new(start_sample, length_samples);
+
+        if self.spans.iter().any(|s| s.intersects_with(span)) {
+            return Err(());
+        }
 
         self.spans.push(span);
         self.spans.sort_by_key(|s| s.start_sample);
+
+        Ok(())
     }
 }
 
@@ -77,10 +131,7 @@ impl Unstashable for SoundInputSchedule {
         let mut it = unstasher.array_of_u64_iter()?;
 
         while let Some(s) = it.next() {
-            spans.push(InputTimeSpan {
-                start_sample: s as _,
-                length_samples: it.next().unwrap() as _,
-            });
+            spans.push(InputTimeSpan::new(s as _, it.next().unwrap() as _));
         }
 
         Ok(SoundInputSchedule { spans })
@@ -95,10 +146,8 @@ impl UnstashableInplace for SoundInputSchedule {
             self.spans.clear();
 
             while let Some(s) = it.next() {
-                self.spans.push(InputTimeSpan {
-                    start_sample: s as _,
-                    length_samples: it.next().unwrap() as _,
-                });
+                self.spans
+                    .push(InputTimeSpan::new(s as _, it.next().unwrap() as _));
             }
         }
 
@@ -121,6 +170,14 @@ impl SoundInputBackend for ScheduledInputBackend {
 
     fn category(&self) -> SoundInputCategory {
         SoundInputCategory::Scheduled
+    }
+
+    fn schedule(&self) -> Option<&SoundInputSchedule> {
+        Some(&self.schedule)
+    }
+
+    fn schedule_mut(&mut self) -> Option<&mut SoundInputSchedule> {
+        Some(&mut self.schedule)
     }
 
     fn compile<'ctx>(

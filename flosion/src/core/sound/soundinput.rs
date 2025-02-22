@@ -15,6 +15,7 @@ use crate::core::{
 use super::{
     argument::{ArgumentScope, ArgumentTranslation, CompiledProcessorArgument},
     context::AudioContext,
+    inputtypes::scheduledinput::SoundInputSchedule,
     soundprocessor::{
         CompiledProcessorComponent, ProcessorComponent, ProcessorComponentVisitor,
         ProcessorComponentVisitorMut, SoundProcessorId,
@@ -274,6 +275,13 @@ pub trait SoundInputBackend {
 
     fn category(&self) -> SoundInputCategory;
 
+    fn schedule(&self) -> Option<&SoundInputSchedule> {
+        None
+    }
+    fn schedule_mut(&mut self) -> Option<&mut SoundInputSchedule> {
+        None
+    }
+
     fn compile<'ctx>(
         &self,
         location: SoundInputLocation,
@@ -310,6 +318,9 @@ pub trait AnyProcessorInput {
     fn argument_scope(&self) -> &ArgumentScope;
 
     fn category(&self) -> SoundInputCategory;
+
+    fn schedule(&self) -> Option<&SoundInputSchedule>;
+    fn schedule_mut(&mut self) -> Option<&mut SoundInputSchedule>;
 }
 
 impl<T: SoundInputBackend> AnyProcessorInput for ProcessorInput<T> {
@@ -331,6 +342,14 @@ impl<T: SoundInputBackend> AnyProcessorInput for ProcessorInput<T> {
 
     fn category(&self) -> SoundInputCategory {
         self.backend.category()
+    }
+
+    fn schedule(&self) -> Option<&SoundInputSchedule> {
+        self.backend.schedule()
+    }
+
+    fn schedule_mut(&mut self) -> Option<&mut SoundInputSchedule> {
+        self.backend.schedule_mut()
     }
 }
 

@@ -294,7 +294,7 @@ impl ProcessorUi {
         if let Some(report) = ctx.compiled_processor_report(processor.id()) {
             for time_samples in report.times_samples() {
                 let time = *time_samples as f32 / SAMPLE_FREQUENCY as f32;
-                let x = frame_rect.left() + (time / ctx.time_axis().time_per_x_pixel);
+                let x = frame_rect.left() + (time / ctx.time_axis().seconds_per_x_pixel);
 
                 if x > frame_rect.right() {
                     continue;

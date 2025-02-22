@@ -31,16 +31,20 @@ impl SoundProcessor for Scheduler {
         // TESTING
         sound_input
             .schedule_mut()
-            .add_span(1 * quarter_second, quarter_second);
+            .add_span(1 * quarter_second, quarter_second)
+            .unwrap();
         sound_input
             .schedule_mut()
-            .add_span(3 * quarter_second, quarter_second);
+            .add_span(3 * quarter_second, quarter_second)
+            .unwrap();
         sound_input
             .schedule_mut()
-            .add_span(5 * quarter_second, quarter_second);
+            .add_span(5 * quarter_second, quarter_second)
+            .unwrap();
         sound_input
             .schedule_mut()
-            .add_span(7 * quarter_second, quarter_second);
+            .add_span(7 * quarter_second, quarter_second)
+            .unwrap();
 
         Scheduler { sound_input }
     }
