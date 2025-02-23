@@ -1,5 +1,6 @@
 use hashstash::{
-    InplaceUnstasher, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace, Unstasher,
+    InplaceUnstasher, Order, Stashable, Stasher, UnstashError, Unstashable, UnstashableInplace,
+    Unstasher,
 };
 
 use crate::core::{
@@ -101,7 +102,7 @@ impl SoundInputSchedule {
     }
 
     pub fn add_span(&mut self, start_sample: usize, length_samples: usize) -> Result<(), ()> {
-        let span = InputTimeSpan::new(start_sample, length_samples);
+        let span = InputTimeSpan::new(InputTimeSpanId::new_unique(), start_sample, length_samples);
 
         if self.spans.iter().any(|s| s.intersects_with(span)) {
             return Err(());
@@ -116,10 +117,14 @@ impl SoundInputSchedule {
 
 impl Stashable for SoundInputSchedule {
     fn stash(&self, stasher: &mut Stasher) {
-        stasher.array_of_u64_iter(
-            self.spans
-                .iter()
-                .flat_map(|s| [s.start_sample as u64, s.length_samples as u64]),
+        stasher.array_of_proxy_objects(
+            self.spans.iter(),
+            |span, stasher| {
+                stasher.object(&span.id);
+                stasher.u64(span.start_sample as _);
+                stasher.u64(span.length_samples as _);
+            },
+            Order::Unordered,
         );
     }
 }
@@ -128,11 +133,14 @@ impl Unstashable for SoundInputSchedule {
     fn unstash(unstasher: &mut Unstasher) -> Result<SoundInputSchedule, UnstashError> {
         let mut spans = Vec::new();
 
-        let mut it = unstasher.array_of_u64_iter()?;
-
-        while let Some(s) = it.next() {
-            spans.push(InputTimeSpan::new(s as _, it.next().unwrap() as _));
-        }
+        unstasher.array_of_proxy_objects(|unstasher| {
+            spans.push(InputTimeSpan {
+                id: unstasher.object()?,
+                start_sample: unstasher.u64()? as _,
+                length_samples: unstasher.u64()? as _,
+            });
+            Ok(())
+        })?;
 
         Ok(SoundInputSchedule { spans })
     }
@@ -140,16 +148,23 @@ impl Unstashable for SoundInputSchedule {
 
 impl UnstashableInplace for SoundInputSchedule {
     fn unstash_inplace(&mut self, unstasher: &mut InplaceUnstasher) -> Result<(), UnstashError> {
-        let mut it = unstasher.array_of_u64_iter()?;
+        let time_to_write = unstasher.time_to_write();
 
-        if unstasher.time_to_write() {
+        if time_to_write {
             self.spans.clear();
-
-            while let Some(s) = it.next() {
-                self.spans
-                    .push(InputTimeSpan::new(s as _, it.next().unwrap() as _));
-            }
         }
+
+        unstasher.array_of_proxy_objects(|unstasher| {
+            let span = InputTimeSpan {
+                id: unstasher.object()?,
+                start_sample: unstasher.u64()? as _,
+                length_samples: unstasher.u64()? as _,
+            };
+            if time_to_write {
+                self.spans.push(span);
+            }
+            Ok(())
+        })?;
 
         Ok(())
     }
