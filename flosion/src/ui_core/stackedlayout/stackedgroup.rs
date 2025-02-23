@@ -353,6 +353,7 @@ impl StackedGroup {
                                         input,
                                         processor_color,
                                         top_of_stack,
+                                        snapshot_flag,
                                     );
                                 })
                                 .unwrap();
@@ -408,6 +409,7 @@ impl StackedGroup {
         input: &mut dyn AnyProcessorInput,
         color: egui::Color32,
         top_of_stack: bool,
+        snapshot_flag: &SnapshotFlag,
     ) {
         let socket = InputSocket::from_input_data(processor_id, input);
 
@@ -470,7 +472,9 @@ impl StackedGroup {
             SoundInputCategory::Anisochronic => self.draw_uneven_stripes(ui, rect, 1),
             SoundInputCategory::Isochronic => self.draw_even_stripes(ui, rect, 1),
             SoundInputCategory::Branched(n) => self.draw_even_stripes(ui, rect, n),
-            SoundInputCategory::Scheduled => self.draw_scheduled_input_socket(ui, ctx, input, rect),
+            SoundInputCategory::Scheduled => {
+                self.draw_scheduled_input_socket(ui, ctx, input, rect, snapshot_flag)
+            }
         }
     }
 
@@ -480,6 +484,7 @@ impl StackedGroup {
         ctx: &SoundGraphUiContext,
         input: &mut dyn AnyProcessorInput,
         rect: egui::Rect,
+        snapshot_flag: &SnapshotFlag,
     ) {
         // TODO:
         // [ ] taller rect?
@@ -603,6 +608,7 @@ impl StackedGroup {
                         start_samples,
                         end_samples - start_samples,
                     )));
+                    snapshot_flag.request_snapshot();
                 }
             }
         }
